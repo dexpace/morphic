@@ -14,10 +14,10 @@ import (
 )
 
 // TestElection_AUnionTyingWithTheWordsIsThePrincipal holds that an allOf of a
-// union and words admitting what it does is a use of the union, whichever is
-// written first: the bound the words write lands on the property naming it,
-// nothing is kept and nothing reported. Words beside the allOf tie the same
-// way, and the union is the principal there too.
+// union and words admitting what it does is the union, whichever is written
+// first: the bound the words write lands on the union, standing at the
+// property, nothing is kept and nothing reported. Words beside the allOf tie
+// the same way, and the union is the principal there too.
 func TestElection_AUnionTyingWithTheWordsIsThePrincipal(t *testing.T) {
 	t.Parallel()
 	const simple = "SimpleString: {type: string}"
@@ -32,19 +32,23 @@ func TestElection_AUnionTyingWithTheWordsIsThePrincipal(t *testing.T) {
 			requireErrorsAndWarnings(t, diags, nil)
 			assert.Zero(t, degradedInfosAt(diags, "N"))
 			p := requireModelOf(t, doc, "N").Properties[0]
-			assert.Equal(t, ir.KindUnion, kindNode(t, doc, p.Type.Target).Kind(), "the property names the union")
-			require.NotNil(t, p.Constraints)
-			require.NotNil(t, p.Constraints.MinLength)
-			assert.EqualValues(t, 1, *p.Constraints.MinLength)
+			u, ok := kindNode(t, doc, p.Type.Target).(*ir.Union)
+			require.True(t, ok, "the property names the union")
+			assert.Equal(t, ir.TypeID("t/anon/components/schemas/N/properties/p"), p.Type.Target, "standing at the property")
+			require.NotNil(t, u.Constraints)
+			require.NotNil(t, u.Constraints.MinLength)
+			assert.EqualValues(t, 1, *u.Constraints.MinLength)
+			assert.Nil(t, p.Constraints, "the property holds no bound the union does")
 			assert.Empty(t, p.Unmodeled)
 
 			beside, besideDiags := compileAnnotationSpec(t, "beside",
 				admissionSpec(version, "", simple, "B: {type: string, minLength: 1, allOf: ["+union+"]}"))
 			assert.Zero(t, degradedInfosAt(besideDiags, "B"))
-			use, ok := kindNode(t, beside, componentID("B")).(*ir.Scalar)
-			require.True(t, ok)
-			require.NotNil(t, use.Base)
-			assert.Equal(t, ir.KindUnion, kindNode(t, beside, use.Base.Target).Kind(), "the union, not the words beside it")
+			use, ok := kindNode(t, beside, componentID("B")).(*ir.Union)
+			require.True(t, ok, "the union, not the words beside it")
+			require.NotNil(t, use.Constraints)
+			require.NotNil(t, use.Constraints.MinLength)
+			assert.EqualValues(t, 1, *use.Constraints.MinLength)
 			assert.Empty(t, keptOn(use))
 		})
 	}
@@ -100,7 +104,8 @@ func TestElection_TwoRefsWrittenAlikeGoByTheirEntries(t *testing.T) {
 // TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads holds that of two
 // entries admitting alike, the pick turns on the keywords a node reads from
 // its principal alone, whichever is written first: the one writing all the
-// other does and more is the principal, keeping nothing of its own, and two
+// other does and more is the principal, standing at the position, keeping
+// nothing of its own, and two
 // writing them otherwise, or writing one keyword with values that differ,
 // elect neither, the position the string both admit, or the top type where
 // they admit an array, keeping what each writes under its own key, a type both
@@ -139,12 +144,14 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 				return pairSchemas(swapped, tc.name, tc.a, tc.b, "")
 			})
 			requireErrorsAndWarnings(t, diags, nil)
-			use, ok := kindNode(t, doc, componentID(tc.name)).(*ir.Scalar)
-			require.True(t, ok)
-			require.NotNil(t, use.Base)
-			assert.Equal(t, tc.elected, kindNode(t, doc, use.Base.Target).Kind())
+			use := kindNode(t, doc, componentID(tc.name))
 			if tc.elected == ir.KindPrimitive {
-				assert.Equal(t, prim(tc.prim), use.Base.Target, "neither is elected")
+				alias, ok := use.(*ir.Scalar)
+				require.True(t, ok)
+				require.NotNil(t, alias.Base)
+				assert.Equal(t, prim(tc.prim), alias.Base.Target, "neither is elected")
+			} else {
+				assert.Equal(t, tc.elected, use.Kind(), "the principal's node is the position's")
 			}
 			kept := tc.kept
 			if kept == nil {

@@ -1046,9 +1046,9 @@ func TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart(t *testing.T
 
 // TestExternalContent_AMemberAnotherDocumentBringsIsNamedWithIt pins the report
 // on a member a $ref entry brings from another document: it sits where the
-// declaration that lost is written, in that document, and names it by its
-// pointer and its document, since the pointer alone names the source's own
-// Base, which agrees.
+// declaration that lost is written, in that document, so it names that one by
+// its pointer alone and the kept one, in the source, by its pointer and its
+// document, since the pointer alone would name a place in the report's.
 func TestExternalContent_AMemberAnotherDocumentBringsIsNamedWithIt(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -1070,7 +1070,8 @@ func TestExternalContent_AMemberAnotherDocumentBringsIsNamedWithIt(t *testing.T)
 	assert.Equal(t, "openapi/conflicting-redeclaration", found[0].Code)
 	require.Less(t, found[0].Provenance.Source, len(doc.Sources))
 	assert.Equal(t, "other.yaml", filepath.Base(doc.Sources[found[0].Provenance.Source].Path))
-	assert.Regexp(t, `over the one at /components/schemas/Base/properties/p in \S*other\.yaml,`, found[0].Message)
+	assert.Regexp(t, `kept what the declaration at /components/schemas/R/allOf/1/properties/p in \S*root\.yaml `+
+		`says over the one at /components/schemas/Base/properties/p,`, found[0].Message)
 }
 
 // TestExternalContent_ACopyInAnotherDocumentIsJudgedThere pins that the copy

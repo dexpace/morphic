@@ -12,7 +12,7 @@ import (
 // SchemaVersion numbers the shape of the report WriteJSON writes. It moves
 // with any change to that shape, a field of a finding's diagnostic included,
 // so a consumer reading the version knows every member it will meet.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // versioned is the report WriteJSON encodes: r's members after the version.
 type versioned struct {

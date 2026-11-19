@@ -183,6 +183,8 @@ var generations = []generation{
 	{version: "0.70.0", format: 1, shape: "93e79768252503c8e9dc84b03f60756f151dac58894c0a0ef81dad6352492409",
 		names:   "a90929fd9afefb04e3a5abb411c769929d1ca7d224cc0f57a724b02d44287fd7",
 		meaning: "a bound is in Constraints only where its home's kinds take it; an allOf whose conjuncts admit values but no object lowers to its value set or the conjunct elected by what each admits, not by order; a $ref beside keywords lowers as an allOf of the two; Base and Mixins name only objects, an entry whose read is cut short aside; a union beside a body makes no variant of a dead branch; kind-inference marks a node typed off shape keywords; value-set IDs, hoisted nodes and their hints move; kept keys are openapi:<keyword>, openapi:$ref, openapi:oneOf/<i>, openapi:discriminator/mapping/<key> and openapi:nullable; a nullable string is no null; a redeclaration conflict is reported once"},
+	{version: "0.71.0", format: 1, shape: "f935c79fd8db94235ed009e75d16f3dc0b09363be827411fdd9632f6954e8140",
+		names: "a90929fd9afefb04e3a5abb411c769929d1ca7d224cc0f57a724b02d44287fd7"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

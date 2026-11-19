@@ -21,7 +21,8 @@ import (
 // any of them in an anyOf, and nothing satisfies a body keeping it out; a
 // union on an allOf entry is judged against the rest of the allOf, which may
 // admit more kinds than an object, and draws this warning only where the one
-// of conjuncts sharing no value is silent, as over a rest admitting null.
+// of conjuncts sharing no value is silent, as where its null branch takes the
+// null of a rest admitting it.
 func TestOneOf_TheWarningOfADeadBranchSaysWhereTheUnionIs(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -65,9 +66,7 @@ func TestOneOf_TheWarningOfADeadBranchSaysWhereTheUnionIs(t *testing.T) {
 			"instance satisfies this schema",
 		"Entry": "1 of the 2 branches of the oneOf on allOf/1 admits no value the rest of the allOf admits " +
 			"(allOf/1/oneOf/1: boolean), so no instance satisfies it",
-		"EntryNull": "none of the 2 branches of the anyOf on allOf/1 admits a value the rest of the allOf admits " +
-			"(allOf/1/anyOf/0: string, allOf/1/anyOf/1: boolean), so no instance satisfies this schema, which " +
-			"lowers as the rest of the allOf",
+		"EntryNull": "the conjuncts of this allOf share no value (allOf/0: object, allOf/1: string or boolean)",
 		"EntryNullBranch": "none of the 2 branches of the oneOf on allOf/1 but a null one admits a value the rest " +
 			"of the allOf admits (allOf/1/oneOf/1: string), so no instance but null satisfies this schema",
 		"EntryNoNull": "the conjuncts of this allOf share no value",

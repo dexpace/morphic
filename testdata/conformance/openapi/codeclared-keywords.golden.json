@@ -430,6 +430,15 @@
         "source": 0,
         "pointer": "/components/schemas/NullableWithCombinators"
       }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this schema share no value (oneOf: string, anyOf: number or boolean), so no instance satisfies this schema, which the union it lowered as cannot state",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NullableWithCombinators"
+      }
     }
   ],
   "sources": [

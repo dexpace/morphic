@@ -23,13 +23,10 @@ import (
 // is, and an allOf entry whose reference names nothing, read whole, is no
 // position a reference reaches, as one to it reads on through its own. So
 // such a site writes nothing beside its target for a node to keep.
-//
-// fin finishes the alias the site's declaration hoists, if any.
 func refSiteRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home,
-	fin finisher,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, js, pointer)
-	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, false, fin)
+	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, false, nil)
 	return ref, append(diags, homeDiags...)
 }
 
@@ -50,7 +47,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	if js == nil || !stated(js.Schema) || js.Ref != nil || LoweredToOwnNode(c, pointer, t) {
 		return nil
 	}
-	return keepsAtOutcome(c, js.Schema, t, pointer).record(c, ts, p, js.Schema, pointer)
+	return keepsAtOutcome(c, js.Schema, t, pointer).record(c, ts, p, js.Schema, pointer, nil, nil)
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the

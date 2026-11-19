@@ -27,16 +27,21 @@ import (
 // own (writerTakes), or nil where they write none, for the node or carrier at
 // pointer to hold (docs/compilers/openapi.md#constraints). A bound several
 // write meets (merge.Constraints): a voice speaks only where its bounds meet
-// every other writer's (docs/compilers/openapi.md#allof-inline-residue).
+// every other writer's (docs/compilers/openapi.md#allof-inline-residue). Of two
+// patterns the first writer's stands: s's, but the position's own keywords'
+// (annotation.Voice.Beside) before an inline principal's (patternBeside).
 //
-// p is the Unmodeled map of the node or carrier the constraints land on. A 3.0
-// exclusive modifier with no bound beside it to modify, which no ir.Constraints
-// field holds, is kept there (GitHub #286).
+// p is the Unmodeled of that node or carrier, keeping a 3.0 exclusive
+// modifier with no bound beside it (GitHub #286).
 func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, pointer jsontext.Pointer, takes kindSet) (*ir.Constraints, []ir.Diagnostic) {
 	cons, diags := constraintsAt(c, p, s, pointer, boundsFor(takes))
 	for _, v := range voices {
 		voiced, voicedDiags := constraintsAt(c, p, v.Node, v.At, boundsFor(writerTakes(takes, v.Node)))
 		diags = append(diags, voicedDiags...)
+		if v.Beside {
+			cons = merge.Constraints(voiced, cons)
+			continue
+		}
 		cons = merge.Constraints(cons, voiced)
 	}
 	writers := append([]annotation.Voice{{Node: s, At: pointer}}, voices...)
@@ -64,10 +69,11 @@ func carriesNumberAsText(td ir.TypeDef) bool {
 		sc.Encoding.WireType != nil
 }
 
-// carriesText reports whether the Scalar a type st that s writes lowers to is one
-// carriesNumberAsText holds, read off the shape scalarTypeID builds it by.
-func carriesText(s *statement.Schema, st statement.Kind) bool {
-	shape := scalarShapeOf(s, st, writtenFormat(s))
+// carriesText reports whether the Scalar a type st that s writes lowers to,
+// taking format, is one carriesNumberAsText holds, read off the shape
+// scalarTypeID builds it by.
+func carriesText(s *statement.Schema, st statement.Kind, format string) bool {
+	shape := scalarShapeOf(s, st, format)
 	return shape.format == numberTextEncoding && shape.wire != nil
 }
 

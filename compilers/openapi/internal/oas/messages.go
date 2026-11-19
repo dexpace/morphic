@@ -49,7 +49,7 @@ type reporter struct {
 	readAt bool
 	rootAt jsontext.Pointer
 	// said holds each finding made, as placed, before readAt adds to it.
-	said map[ir.Diagnostic]saying
+	said map[ir.DiagnosticKey]saying
 }
 
 // saying is where a finding stands in reporter.diags, and the least position
@@ -71,14 +71,14 @@ func (r *reporter) report(sev ir.Severity, class string, ptr jsontext.Pointer, f
 // compared token by token, so the name is the document's and not the order a
 // walk met its mounts in.
 func (r *reporter) add(d ir.Diagnostic, ptr jsontext.Pointer) {
-	read := r.rootAt + ptr
-	s, made := r.said[d]
+	read, key := r.rootAt+ptr, d.Key()
+	s, made := r.said[key]
 	switch {
 	case !made:
-		r.said[d] = saying{at: len(r.diags), read: read}
+		r.said[key] = saying{at: len(r.diags), read: read}
 		r.diags = append(r.diags, r.readAs(d, read))
 	case lessPointer(read, s.read):
-		r.said[d] = saying{at: s.at, read: read}
+		r.said[key] = saying{at: s.at, read: read}
 		r.diags[s.at] = r.readAs(d, read)
 	default:
 	}

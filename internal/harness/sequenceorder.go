@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -48,63 +46,65 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 }
 
 // diffSequenceInvariants compares what reversing the sequences of perm must
-// leave untouched: the diagnostics, the document and each model's flattened
-// shape, each in its own source's coordinates. Two diagnostics equal but for
-// which element of a reversed sequence their pointers name are a report the
-// order moves, a tie: nothing at or beneath its pointer, or at the node it
-// names, is compared. A tie the documents show among declarations is read by
-// its classes (tieClasses). Two naming nodes the forms read alike are one
-// (sameNodes). It declines a document of several files, and what
-// tieClassesOf and compareForms decline.
+// leave untouched: the diagnostics, the document and the flattened shapes,
+// in their sources' coordinates. A tie is a member two reports alike but
+// for their places decide between two declarations, the other way round in
+// each order (tiedBy), or what a moved report decided. Of a node a tie names,
+// or one at or beneath a moved report's site or a tied member's fold mints
+// (rewriter.minted), only what a property's fold settles from every
+// declaration alike is compared (rewriter.foldedOf, rewriter.statedOf). It
+// declines as compareForms does, and several files.
 func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
 	if first != nil && len(first.Sources) > 1 {
 		return "", false, DeclineReadsAnotherFile
 	}
-	a, b := reportsOf(firstDiags, nil, perm.written), reportsOf(secondDiags, perm.moved, perm.written)
-	asWritten, reversed := &formReader{doc: first, seqs: perm.written}, &formReader{doc: second, seqs: perm.moved}
-	classes, why := tieClassesOf(asWritten, reversed, a, b)
-	if why != "" {
-		return "", false, why
-	}
+	stated, a := factsOf(reportsOf(firstDiags, nil, perm.written), perm.written)
+	restated, b := factsOf(reportsOf(secondDiags, perm.moved, perm.written), perm.written)
 	ties, left, right := movedReports(a, b, perm.written)
-	left, right = difference(classes.classed(left, perm.written), classes.classed(right, perm.written))
-	ties.nodes = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.nodes, classes.members))))
+	tied, moved := tiedBy(stated, restated), ties
+	ties.nodes = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.nodes, tied))))
 	ties = settledFrom(settledFrom(ties, first, perm.written), second, perm.moved)
+	ties.stated = statedAlone(statedAlone(tied, moved, ties.nodes, first, perm.written), moved, ties.nodes, second, perm.moved)
 	left, right = untied(left, ties, perm.written), untied(right, ties, perm.written)
 	refused := oneRefusal(first, second)
 	var forms []string
 	if refused == "" && first != nil {
 		var why Decline
-		left, right, forms, why = compareForms(asWritten, reversed, ties, left, right)
+		left, right, forms, why = compareForms(first, second, perm, ties, left, right)
 		if why != "" {
 			return "", false, why
 		}
 	}
+	written, reversed := heldBy(first, perm.written, nil), heldBy(second, perm.moved, perm.moved)
+	onlyStated, onlyRestated := unpairedFacts(keptTypes(stated, written), keptTypes(restated, reversed), ties.nodes)
 	var found []string
-	if unpaired := renderUnpaired(left, right); unpaired != "" {
+	if unpaired := renderUnpaired(append(left, onlyStated...), append(right, onlyRestated...)); unpaired != "" {
 		found = append(found, "diagnostics depend on sequence order (-as-written +reversed):\n"+unpaired)
 	}
 	if refused != "" {
 		found = append(found, refused)
 	}
 	found = append(found, forms...)
+	if wrong := contradicted(written, reversed, stated, tied); len(wrong) > 0 {
+		found = append(found, "a tie's reports name the declaration the member takes as the one that lost:\n"+strings.Join(wrong, "\n"))
+	}
 	return strings.Join(found, "\n"), len(found) == 0, ""
 }
 
 // compareForms compares two documents' canonical forms under ties
-// (formReader.canonicalForm), each in its own source's coordinates, line by line, and
+// (canonicalForm), each in its own source's coordinates, line by line, and
 // their flattened shapes, and pairs what left and right, the reports only one
 // order makes, say of one node by what the forms read (sameNodes). It
 // declines where either form nests past its bound or meets a cycle of digests.
-func compareForms(first, second *formReader, ties tieSites, left, right []report) ([]report, []report, []string, Decline) {
-	a, err := first.canonicalForm(ties)
+func compareForms(first, second *ir.Document, perm permutation, ties tieSites, left, right []report) ([]report, []report, []string, Decline) {
+	a, err := canonicalForm(first, perm.written, ties)
 	if why := formDecline(err); why != "" {
 		return nil, nil, nil, why
 	}
 	if err != nil {
 		return left, right, []string{"encode as written: " + err.Error()}, ""
 	}
-	b, err := second.canonicalForm(ties)
+	b, err := canonicalForm(second, perm.moved, ties)
 	if why := formDecline(err); why != "" {
 		return nil, nil, nil, why
 	}
@@ -114,10 +114,10 @@ func compareForms(first, second *formReader, ties tieSites, left, right []report
 	left, right = sameNodes(left, right, a.identify, b.identify)
 	var found []string
 	if !slices.Equal(a.document, b.document) {
-		found = append(found, "document depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.document, b.document))
+		found = append(found, "document depends on sequence order (-as-written +reversed):\n"+lineDifference(a.document, b.document))
 	}
 	if !slices.Equal(a.shape, b.shape) {
-		found = append(found, "flattened shape depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.shape, b.shape))
+		found = append(found, "flattened shape depends on sequence order (-as-written +reversed):\n"+lineDifference(a.shape, b.shape))
 	}
 	return left, right, found, ""
 }
@@ -191,30 +191,25 @@ func formDecline(err error) Decline {
 // report is one diagnostic as the comparison reads it, in the coordinates of
 // the source as written: as diagnosticKey renders it, the same with every
 // index of a reversed sequence erased, and with no pointer where it names a
-// node, its pointer and its node; match, where set, the key it is matched by
-// instead (tieClasses.classed); and raw, the diagnostic in its own compile's
-// coordinates. A report naming the node it decided is told apart by that
+// node, its pointer and its node; rebased, the diagnostic in those
+// coordinates, what else it concerns too; and raw, the diagnostic in its own
+// compile's coordinates. A report naming the node it decided is told apart by that
 // node: it sits at the declaration the order made lose, which a nested allOf
 // can place at another depth.
 type report struct {
-	key, erased, pointer, node, match string
-	raw                               ir.Diagnostic
-}
-
-// matched is the key r is matched by: its match where set, else its key.
-func (r report) matched() string {
-	if r.match != "" {
-		return r.match
-	}
-	return r.key
+	key, erased, pointer, node string
+	rebased, raw               ir.Diagnostic
 }
 
 // tieSites is what the reports a reversal moved decided: the erased pointer of
 // each, at or beneath which nothing is compared, the erased node of each naming
-// one (ir.Provenance's Node) or of each tied member (tieClasses), which is not
-// compared wherever it sits, and the models holding a member a tie decided
-// (settledFrom), whose reports follow it.
-type tieSites struct{ pointers, nodes, holders []string }
+// one (ir.Provenance's Node) or of each member a report states a tie decided
+// (tiedBy), which is not compared wherever it sits, the erased pointer of each
+// tied member (settledFrom), at or beneath which only what its fold mints is
+// left out (rewriter.minted), the models holding a member a tie decided, whose
+// reports follow it, and the tied members a stated tie alone decided
+// (statedAlone), whose docs are compared.
+type tieSites struct{ pointers, nodes, members, holders, stated []string }
 
 // reportsOf reads diags, rebasing each pointer and node from the coordinates
 // of from, when given, to those of the source as written, where written lists
@@ -225,14 +220,24 @@ func reportsOf(diags []ir.Diagnostic, from, written sequences) []report {
 		raw := d
 		d.Provenance.Pointer = jsontext.Pointer(rebase(string(d.Provenance.Pointer), from))
 		d.Provenance.Node = rebase(d.Provenance.Node, from)
+		d.Related = slices.Clone(d.Related)
+		for i := range d.Related {
+			p := &d.Related[i].Provenance
+			p.Pointer, p.Node = jsontext.Pointer(rebase(string(p.Pointer), from)), rebase(p.Node, from)
+		}
 		e := d
 		e.Provenance.Pointer = jsontext.Pointer(erase(string(d.Provenance.Pointer), written))
 		e.Provenance.Node = erase(d.Provenance.Node, written)
 		if e.Provenance.Node != "" {
 			e.Provenance.Pointer = ""
 		}
+		e.Related = slices.Clone(d.Related)
+		for i := range e.Related {
+			p := &e.Related[i].Provenance
+			p.Pointer, p.Node = jsontext.Pointer(erase(string(p.Pointer), written)), erase(p.Node, written)
+		}
 		out = append(out, report{key: diagnosticKey(d), erased: diagnosticKey(e), pointer: string(d.Provenance.Pointer),
-			node: d.Provenance.Node, raw: raw})
+			node: d.Provenance.Node, rebased: d, raw: raw})
 	}
 	return out
 }
@@ -271,14 +276,15 @@ func movedReports(a, b []report, written sequences) (ties tieSites, left, right 
 }
 
 // untied returns the reports of rs no tie decided: one naming a tied node or a
-// model holding one, or sitting at or beneath a tie site, says what a tie
-// decided, in the one order it decided it.
+// model holding one, or sitting at or beneath a tie site or a tied member's
+// pointer, says what a tie decided, in the one order it decided it.
 func untied(rs []report, ties tieSites, written sequences) []report {
 	return slices.DeleteFunc(rs, func(r report) bool {
 		node := erase(r.node, written)
 		_, tied := slices.BinarySearch(ties.nodes, node)
 		_, holds := slices.BinarySearch(ties.holders, node)
-		return r.node != "" && (tied || holds) || atSite(ties.pointers, erase(r.pointer, written))
+		at := erase(r.pointer, written)
+		return r.node != "" && (tied || holds) || atSite(ties.pointers, at) || atSite(ties.members, at)
 	})
 }
 
@@ -307,15 +313,15 @@ func renderUnpaired(left, right []report) string {
 }
 
 // settledFrom returns ties with every member doc settles from a tied one: a
-// member a moved report names, or one declared at or beneath a tie site, as a
-// fold of inline declarations reports where they are written, and a model's
-// own member whose flattening overrides a tied declaration
-// (ir.FlatProperty.Overridden), which reads what that tie decided, to a
-// fixpoint each pass of which ties one more member at least. Each tied
-// member's pointer is a tie site, as its fold mints there. IDs are erased in
-// seqs, doc's coordinates; a nil doc, as a refused compile leaves, adds none.
+// member a moved report names, one declared at or beneath where a moved report
+// sits, as a fold of inline declarations reports where they are written, or at
+// a tied member's pointer or minted beneath it, and a model's own member whose
+// flattening overrides a tied declaration (ir.FlatProperty.Overridden), which
+// reads what that tie decided, to a fixpoint (tieSettled).
+// Each tied member's pointer joins ties.members. IDs are erased in seqs, doc's
+// coordinates; a nil doc, as a refused compile leaves, adds none.
 func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
-	if len(ties.nodes) == 0 && len(ties.pointers) == 0 || doc == nil {
+	if len(ties.nodes)+len(ties.pointers)+len(ties.members) == 0 || doc == nil {
 		return ties
 	}
 	tied := map[string]bool{}
@@ -325,7 +331,7 @@ func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
 	models := slices.Sorted(maps.Keys(doc.Types))
 	sites, holders := map[string]bool{}, map[string]bool{}
 	for range len(models) + 1 {
-		if !tieSettled(doc, models, seqs, ties.pointers, tied, sites, holders) {
+		if !tieSettled(doc, models, seqs, ties, tied, sites, holders) {
 			break
 		}
 	}
@@ -333,20 +339,28 @@ func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
 		return ties
 	}
 	ties.nodes = slices.Sorted(maps.Keys(tied))
-	ties.pointers = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.pointers, slices.Collect(maps.Keys(sites))))))
+	ties.members = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.members, slices.Collect(maps.Keys(sites))))))
 	ties.holders = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.holders, slices.Collect(maps.Keys(holders))))))
 	return ties
 }
 
-// tieSettled ties each own member of models declared at or beneath one of
-// seeds, the tie sites the reports name, or overriding a tied declaration, and
-// each union whose inferred discriminator reads a tied member (inferenceTied),
-// adds each tied member's pointer to sites and its model to holders, and
-// reports whether it tied any.
-func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, seeds []string, tied, sites, holders map[string]bool) bool {
+// tieSettled ties each own member of models declared at or beneath where a
+// moved report sits (ties.pointers), at a tied member's pointer (ties.members),
+// or overriding a tied declaration, and each union whose inferred
+// discriminator reads a tied member (inferenceTied), adds each tied member's
+// pointer to sites and its model to holders, and reports whether it tied any
+// or found a tied member's pointer. A member declared beneath a tied member's
+// pointer is written there in either order, so it is not tied for that, unless
+// the tied member's fold minted it (minted), as a model it composes declares
+// one.
+func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, ties tieSites, tied, sites, holders map[string]bool) bool {
 	grew := false
+	members := slices.Concat(ties.members, slices.Collect(maps.Keys(sites)))
 	isTied := func(d ir.PropertyDecl) bool {
-		return tied[erase(string(d.Property.ID), seqs)] || atSite(seeds, erase(string(d.Property.Provenance.Pointer), seqs))
+		at := erase(string(d.Property.Provenance.Pointer), seqs)
+		_, atMember := slices.BinarySearch(ties.members, at)
+		return tied[erase(string(d.Property.ID), seqs)] || atSite(ties.pointers, at) || atMember ||
+			minted(members, string(d.Property.ID), at)
 	}
 	for _, id := range models {
 		if u, isUnion := doc.Types[id].(*ir.Union); isUnion && !tied[erase(string(id), seqs)] && inferenceTied(doc, u, isTied) {
@@ -360,8 +374,9 @@ func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, seeds []st
 			if p.Owner == id && !tied[own] && (isTied(p.PropertyDecl) || slices.ContainsFunc(p.Overridden, isTied)) {
 				tied[own], grew = true, true
 			}
-			if p.Owner == id && tied[own] {
-				sites[erase(string(p.Property.Provenance.Pointer), seqs)] = true
+			if at := erase(string(p.Property.Provenance.Pointer), seqs); p.Owner == id && tied[own] {
+				grew = grew || !sites[at]
+				sites[at] = true
 				holders[erase(string(id), seqs)] = true
 			}
 		}
@@ -388,23 +403,22 @@ func inferenceTied(doc *ir.Document, u *ir.Union, isTied func(ir.PropertyDecl) b
 }
 
 // difference returns the reports of a that b does not hold and those of b
-// that a does not, as multisets of the keys they are matched by
-// (report.matched), each sorted by key.
+// that a does not, as multisets of their keys, each sorted by key.
 func difference(a, b []report) (onlyA, onlyB []report) {
 	return without(a, b), without(b, a)
 }
 
 // without returns the reports of a left once each report of b takes one of a
-// matched by the same key, sorted by key.
+// of the same key, sorted by key.
 func without(a, b []report) []report {
 	taken := make(map[string]int, len(b))
 	for _, r := range b {
-		taken[r.matched()]++
+		taken[r.key]++
 	}
 	var out []report
 	for _, r := range a {
-		if taken[r.matched()] > 0 {
-			taken[r.matched()]--
+		if taken[r.key] > 0 {
+			taken[r.key]--
 			continue
 		}
 		out = append(out, r)

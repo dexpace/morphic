@@ -5,6 +5,7 @@ package ir_test
 
 import (
 	"encoding/json/v2"
+	"reflect"
 	"slices"
 	"testing"
 	"unicode/utf8"
@@ -394,5 +395,142 @@ func TestSourceInfo_IsOverlayReadsTheFormatTag(t *testing.T) {
 		"":              false,
 	} {
 		assert.Equal(t, want, ir.SourceInfo{Format: format}.IsOverlay(), format)
+	}
+}
+
+// relatedDiagnostic is a finding concerning a second place and two nodes.
+func relatedDiagnostic() ir.Diagnostic {
+	d := ir.NewDiagnostic(ir.SeverityWarning, "x/conflict", "m", ir.Provenance{Pointer: "/a"})
+	d.Related = []ir.Related{
+		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/b", WrittenBy: 1, Position: ir.Position{Line: 2, Column: 3}}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/m"}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/n", Inferred: "h"}},
+	}
+	return d
+}
+
+// TestDiagnostic_RelatedRoundTripsAndIsAbsentWhenEmpty pins the member's
+// encoding: its entries in order, each with its role, and no member at all for
+// a finding about one place, nil or empty.
+func TestDiagnostic_RelatedRoundTripsAndIsAbsentWhenEmpty(t *testing.T) {
+	t.Parallel()
+	want := relatedDiagnostic()
+	encoded, err := json.Marshal(want, json.Deterministic(true))
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"related":[{"role":"kept","provenance":{"source":0,"pointer":"/b","writtenBy":1,`)
+	var back ir.Diagnostic
+	require.NoError(t, json.Unmarshal(encoded, &back))
+	assert.Equal(t, want, back)
+
+	for _, none := range [][]ir.Related{nil, {}} {
+		want.Related = none
+		encoded, err := json.Marshal(want, json.Deterministic(true))
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), "related")
+	}
+}
+
+// TestRelatedRole_ValidHoldsTheDeclaredRoles pins the set a consumer switches
+// on, in the order a finding lists its entries by.
+func TestRelatedRole_ValidHoldsTheDeclaredRoles(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []ir.RelatedRole{ir.RelatedKept, ir.RelatedDecided}, ir.RelatedRoles())
+	for _, role := range ir.RelatedRoles() {
+		assert.True(t, role.Valid(), "%q", role)
+	}
+	assert.False(t, ir.RelatedRole("").Valid())
+	assert.False(t, ir.RelatedRole("Kept").Valid())
+}
+
+// TestDiagnostic_KeyIsTheWholeValue changes each field of a finding and of a
+// related entry alone, and moves text between two neighbouring fields: every
+// one is another key, and an equal value is the same one.
+func TestDiagnostic_KeyIsTheWholeValue(t *testing.T) {
+	t.Parallel()
+	base := relatedDiagnostic()
+	same := relatedDiagnostic()
+	assert.Equal(t, base.Key(), same.Key())
+	plain := ir.Diagnostic{Code: "x/y"}
+	assert.Equal(t, plain.Key(), ir.Diagnostic{Code: "x/y", Related: []ir.Related{}}.Key(), "no entry and an empty list are one")
+
+	changes := map[string]func(*ir.Diagnostic){
+		"severity":         func(d *ir.Diagnostic) { d.Severity = ir.SeverityInfo },
+		"code":             func(d *ir.Diagnostic) { d.Code = "x/other" },
+		"message":          func(d *ir.Diagnostic) { d.Message = "n" },
+		"provenance":       func(d *ir.Diagnostic) { d.Provenance.Pointer = "/c" },
+		"no entries":       func(d *ir.Diagnostic) { d.Related = nil },
+		"one entry fewer":  func(d *ir.Diagnostic) { d.Related = d.Related[:2] },
+		"entries swapped":  func(d *ir.Diagnostic) { d.Related[1], d.Related[2] = d.Related[2], d.Related[1] },
+		"role":             func(d *ir.Diagnostic) { d.Related[0].Role = ir.RelatedDecided },
+		"related source":   func(d *ir.Diagnostic) { d.Related[0].Provenance.Source = 1 },
+		"related pointer":  func(d *ir.Diagnostic) { d.Related[0].Provenance.Pointer = "/c" },
+		"related writer":   func(d *ir.Diagnostic) { d.Related[0].Provenance.WrittenBy = 2 },
+		"related line":     func(d *ir.Diagnostic) { d.Related[0].Provenance.Position.Line = 9 },
+		"related column":   func(d *ir.Diagnostic) { d.Related[0].Provenance.Position.Column = 9 },
+		"related node":     func(d *ir.Diagnostic) { d.Related[1].Provenance.Node = "p/x/o" },
+		"related inferred": func(d *ir.Diagnostic) { d.Related[2].Provenance.Inferred = "g" },
+		"text moved between fields": func(d *ir.Diagnostic) {
+			d.Related[1].Provenance.Pointer, d.Related[1].Provenance.Node = "p", "/x/m"
+		},
+	}
+	for name, change := range changes {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			changed := relatedDiagnostic()
+			change(&changed)
+			assert.NotEqual(t, base.Key(), changed.Key())
+		})
+	}
+
+	spaced := func(node string, inferred ir.Inferred) ir.DiagnosticKey {
+		return ir.Diagnostic{Related: []ir.Related{{Provenance: ir.Provenance{Node: node, Inferred: inferred}}}}.Key()
+	}
+	assert.NotEqual(t, spaced("p/x b", "c"), spaced("p/x", "b c"), "a space between two neighbouring fields is no boundary")
+}
+
+// TestMergeDiagnostics_TellsFindingsApartByTheirRelatedEntries holds the merge
+// to the whole value: two findings alike but for what else they concern are
+// both kept, and one held already is not added again.
+func TestMergeDiagnostics_TellsFindingsApartByTheirRelatedEntries(t *testing.T) {
+	t.Parallel()
+	a := relatedDiagnostic()
+	b := relatedDiagnostic()
+	b.Related = b.Related[:1]
+	assert.Equal(t, []ir.Diagnostic{a, b}, ir.MergeDiagnostics([]ir.Diagnostic{a}, []ir.Diagnostic{relatedDiagnostic(), b}))
+}
+
+// TestDiagnostic_KeyReadsEveryFieldOfARelatedEntry sets each field an entry
+// holds alone, however deep, and requires another key for each: a field
+// Provenance gains is one the key must read, and this fails if it does not.
+func TestDiagnostic_KeyReadsEveryFieldOfARelatedEntry(t *testing.T) {
+	t.Parallel()
+	var leaves [][]int
+	var walk func(typ reflect.Type, at []int)
+	walk = func(typ reflect.Type, at []int) {
+		for i := range typ.NumField() {
+			next := append(slices.Clone(at), i)
+			if typ.Field(i).Type.Kind() == reflect.Struct {
+				walk(typ.Field(i).Type, next)
+				continue
+			}
+			leaves = append(leaves, next)
+		}
+	}
+	walk(reflect.TypeFor[ir.Related](), nil)
+	require.NotEmpty(t, leaves)
+
+	base := ir.Diagnostic{Related: []ir.Related{{}}}
+	for _, at := range leaves {
+		changed := ir.Diagnostic{Related: []ir.Related{{}}}
+		field := reflect.ValueOf(&changed.Related[0]).Elem().FieldByIndex(at)
+		switch field.Kind() {
+		case reflect.String:
+			field.SetString("x")
+		case reflect.Int:
+			field.SetInt(7)
+		default:
+			require.Failf(t, "a kind the test cannot set", "field %v is a %s", at, field.Kind())
+		}
+		assert.NotEqual(t, base.Key(), changed.Key(), "field %v", at)
 	}
 }

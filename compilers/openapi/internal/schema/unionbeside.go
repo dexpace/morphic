@@ -37,33 +37,37 @@ func hasUnionSiblings(c lowering.Ctx, s *statement.Schema) bool {
 	if len(siblings) == 0 {
 		return false
 	}
-	said := branchesSay(c, s)
+	said := branchesSay(c, s, s)
 	if slices.ContainsFunc(siblings, func(k string) bool { return !slices.Contains(said, k) }) {
 		return true
 	}
-	return !unionBranchesDeclareShape(c, s)
+	// A oneOf and an anyOf sharing no value lower as the body beside them
+	// where it is no Model (unionPairApart), whatever their branches say.
+	return !unionBranchesDeclareShape(c, s) || pairSharesNoValue(c, s) && !composesAsModel(c, s)
 }
 
 // restatableKeywords are the keywords beside a union that its branches can say
 // in full, read as an admissionReader reads what a schema admits.
 var restatableKeywords = []string{"type", "format", "enum", "const", "items"}
 
-// branchesSayOf keys what branchesSay read of one schema.
+// branchesSayOf keys what branchesSay read of one union and the schema
+// writing keywords beside it.
 type branchesSayOf struct {
-	schema *statement.Schema
+	union, beside *statement.Schema
 }
 
-// branchesSay returns the keywords of restatableKeywords s writes beside its
-// oneOf and anyOf that every branch of both already says: a `type` naming each
+// branchesSay returns the keywords of restatableKeywords beside writes that
+// every branch of union's oneOf and anyOf already says: a `type` naming each
 // kind a branch admits, null included, and a `format`, an `enum`, a `const` or
 // an `items` each branch is held to (admissionReader.holds). Such a keyword adds
-// nothing to the union, so the position reads as if it were not written
-// (docs/compilers/openapi.md#union-beside-structure). A read cut short says
-// none, and so does a schema writing no union, of which "every branch" would
-// say anything. Every reader of the position asks, so it is read once a run.
-func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
-	return lowering.Remembered(c, branchesSayOf{s}, func() []string {
-		choice := s.ChoiceKeywords()
+// nothing to the union, as if it were not written
+// (docs/compilers/openapi.md#union-beside-structure); beside is union, or a
+// conjunct of the allOf holding it. A read cut short says none, as does a union
+// of no branch, which every keyword would pass. Every reader asks, so it is
+// read once a run.
+func branchesSay(c lowering.Ctx, union, beside *statement.Schema) []string {
+	return lowering.Remembered(c, branchesSayOf{union, beside}, func() []string {
+		choice := union.ChoiceKeywords()
 		branches := slices.Concat(choice.OneOf, choice.AnyOf)
 		if len(branches) == 0 {
 			return nil
@@ -78,10 +82,10 @@ func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 		}
 		var out []string
 		for _, key := range restatableKeywords {
-			if !hasKey(s, key) {
+			if !hasKey(beside, key) {
 				continue
 			}
-			if !slices.ContainsFunc(reads, func(r admitted) bool { return !branchSays(&w, r, s, key) }) {
+			if !slices.ContainsFunc(reads, func(r admitted) bool { return !branchSays(&w, r, beside, key) }) {
 				out = append(out, key)
 			}
 		}
@@ -129,10 +133,6 @@ const (
 	// the position lowers to are not an object alone — so there are no
 	// composition fields to distribute into.
 	unionUncomposableBody
-	// unionBothCombinators marks an allOf branch declaring oneOf and anyOf at
-	// once: only one of the two can become the value, so distributing either
-	// would leave the other in no branch's keeping.
-	unionBothCombinators
 	// unionUnresolvedBranch marks a union with a $ref branch naming nothing this
 	// compilation can resolve — a target in a document it did not read, an
 	// undeclared component, a pointer addressing no schema.
@@ -151,6 +151,19 @@ const (
 	// body satisfies (deadBranch), a null branch aside: distributing it would
 	// build no variant a value inhabits.
 	unionNoLiveBranch
+	// unionPassedApart marks a union beside another the position does not
+	// elect, sharing no kind with the body (passedApart): no instance satisfies
+	// the two together, whichever branch it takes.
+	unionPassedApart
+	// unionPassedNull marks a union beside another the position does not
+	// elect, the two leaving the body null alone (passedSharesNull): the
+	// position admits that null and nothing else, so it lowers as the body
+	// keeping both.
+	unionPassedNull
+	// unionPairApart marks a oneOf and an anyOf sharing no value with each
+	// other (pairSharesNoValue) beside a body that is not a Model: no instance
+	// satisfies them, whatever it admits.
+	unionPairApart
 )
 
 // classifyUnionSiblings picks the lowering for a schema whose oneOf/anyOf sits
@@ -171,12 +184,15 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 		return unionSharesNoKind
 	}
 	if !composesAsModel(c, s) {
+		if pairSharesNoValue(c, s) {
+			return unionPairApart
+		}
 		return unionUncomposableBody
 	}
 	// Of a oneOf and an anyOf written beside the body, the oneOf is elected
-	// (unionBranches), as on two entries of its allOf, and the other is kept on
-	// each variant (buildComposedVariant).
-	if !branchesNameReferents(c, s) {
+	// (unionBranches), as on one entry of its allOf or two, and the other is
+	// kept on each variant (buildComposedVariant).
+	if !branchesNameReferents(c, s, s) {
 		return unionUnresolvedBranch
 	}
 	return classifyConjoined(c, s, besideUnion(s, pointer), pointer)
@@ -190,6 +206,12 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 // whole where no branch lives beside s (deadBranches); else distributed, the
 // discriminator routing the composed variants (indexBranches).
 func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer jsontext.Pointer) unionLowering {
+	if passedApart(c, s, u) {
+		return unionPassedApart
+	}
+	if passedSharesNull(c, s, u) {
+		return unionPassedNull
+	}
 	if composedByBranch(c, s, u) {
 		return unionHierarchyBase
 	}
@@ -202,6 +224,90 @@ func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer j
 	return unionDistributed
 }
 
+// passedApart reports whether a union the position written by s passes over
+// for u leaves no value u admits beside the rest of s (readPassed): one
+// shares no kind with that rest, one of null alone among them where the rest
+// admits no null, or together they leave the rest null alone and no branch of
+// u admits null. It is a conjunct of the rest u's branches are read against,
+// so no branch of u reads as dead though none can be inhabited. A read cut
+// short says no.
+func passedApart(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
+	r, ok := readPassed(c, s, u)
+	if !ok {
+		return false
+	}
+	if slices.ContainsFunc(r.passed, func(p admitted) bool { return p.kinds != 0 && r.rest.kinds&p.kinds == 0 }) {
+		return true
+	}
+	// Left null alone, the rest admits no object for deadBranch to read u's
+	// branches against (restAdmitsObjects).
+	return r.nullLeft() && r.union.kinds&kindNull == 0
+}
+
+// passedSharesNull reports whether the unions the position written by s
+// passes over for u leave the rest of s null alone (readPassed), which u
+// admits: the position admits that null and nothing else, as on the entries
+// of its allOf (docs/compilers/openapi.md#union-beside-structure).
+func passedSharesNull(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
+	r, ok := readPassed(c, s, u)
+	return ok && r.nullLeft() && r.union.kinds&kindNull != 0
+}
+
+// passedRead is what the position written by s admits beside u: the rest of
+// s read without any union, each union the position passes over for u, and
+// what u's branches admit.
+type passedRead struct {
+	rest, union admitted
+	passed      []admitted
+}
+
+// nullLeft reports whether the rest, with every union passed over, admits
+// null alone.
+func (r passedRead) nullLeft() bool {
+	left := r.rest
+	for _, p := range r.passed {
+		left = left.and(p)
+	}
+	return len(r.passed) > 0 && left.reachable() && left.kinds == kindNull
+}
+
+// readPassed reads passedRead for u: the other combinator u's holder writes
+// and the union another inline entry of s's allOf writes are passed over, each
+// other entry a conjunct of the rest. ok is false where a read is cut short
+// or the rest admits nothing.
+func readPassed(c lowering.Ctx, s *statement.Schema, u unionAt) (passedRead, bool) {
+	w := newAdmissionReader(c)
+	var r passedRead
+	if set, _ := passedOver(c, s, u.holder); set != nil {
+		r.passed = append(r.passed, w.union(set))
+	}
+	r.rest = w.written(s, w.nullable)
+	for _, e := range allOfBranches(c, s, "").branches {
+		bs := e.schema.Schema
+		switch {
+		case !stated(bs):
+		case e.schema.Ref != nil:
+			r.rest = r.rest.and(w.of(e.schema))
+		case bs == u.holder || u.branch && declaresUnion(bs):
+			r.rest = r.rest.and(w.written(bs, w.nullable))
+			if bs != u.holder {
+				r.passed = append(r.passed, unionsIn(&w, bs))
+			}
+		default:
+			r.rest = r.rest.and(inlineConjunct(&w, bs))
+		}
+	}
+	branches, _, _ := u.branches(c)
+	r.union = w.union(branches)
+	return r, !w.incomplete() && r.rest.reachable()
+}
+
+// pairSharesNoValue reports whether s writes a oneOf and an anyOf that share
+// no value, as every spelling of the two reads it (pairApart).
+func pairSharesNoValue(c lowering.Ctx, s *statement.Schema) bool {
+	return writesBothUnions(s) && pairApart(c, s) != nil
+}
+
 // routedSubtype reports whether a discriminator on an ancestor of s, written at
 // pointer, routes to s as its subtype: by a mapping key or by its name as a
 // component, the tag its lowering takes (subtypeDiscriminatorValue). That
@@ -209,20 +315,6 @@ func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer j
 func routedSubtype(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	tag, _ := subtypeDiscriminatorValue(c, s, c.IDs().ForPointer(pointer), pointer, nil)
 	return tag.routed
-}
-
-// classifyBranchSet is the part of classifyUnionSiblings that reads the union
-// holder writes rather than the body: whichever of a union beside the body and
-// one on a branch of its allOf the body distributes (branchUnion), it does so
-// only where this says unionDistributed.
-func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
-	if choice := holder.ChoiceKeywords(); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
-		return unionBothCombinators
-	}
-	if !branchesNameReferents(c, holder) {
-		return unionUnresolvedBranch
-	}
-	return unionDistributed
 }
 
 // composesAsModel reports whether the structural siblings lower to a Model,
@@ -256,8 +348,8 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 // whole union because a half-distributed one would leave variants disagreeing
 // about whether they carry the body, with nothing in the IR saying which. A
 // branch writing its $ref beside other keywords is read by that $ref.
-func branchesNameReferents(c lowering.Ctx, s *statement.Schema) bool {
-	branches, _, _ := unionBranches(s)
+func branchesNameReferents(c lowering.Ctx, position, s *statement.Schema) bool {
+	branches, _, _ := unionBranches(c, position, s)
 	return !slices.ContainsFunc(branches, func(b statement.Sub) bool {
 		ref := referenceOf(c, c.Statements().Sub(b))
 		return ref != nil && !namesReferent(c, ref)
@@ -270,25 +362,47 @@ func branchesNameReferents(c lowering.Ctx, s *statement.Schema) bool {
 const coDeclaredUnionWhyPrefix = "oneOf/anyOf co-declared with structural keywords intersects with them, and "
 
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
-// keywords, per classifyUnionSiblings, fin finishing the node built at pointer.
+// keywords, per classifyUnionSiblings, fin finishing the node built, where st
+// says. A union distributed over its body composes an object, which no
+// refinement's principal is, so only the union kept beside the body stands
+// elsewhere.
 func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+	st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	beside := func(reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 		if why != "" {
 			why = coDeclaredUnionWhyPrefix + why
 		}
-		return lowerBesideUnmodeledUnion(c, ts, depth, s, pointer, reason, why, fin)
+		return lowerBesideUnmodeledUnion(c, ts, depth, s, pointer, reason, why, fin, st)
 	}
 	switch classifyUnionSiblings(c, s, pointer) {
 	case unionDistributed:
 		return lowerDistributedUnion(c, ts, depth, s, besideUnion(s, pointer), pointer, fin)
 	case unionValidationOnly:
-		return beside(ir.ReasonValidationOnly, "")
+		id, diags := beside(ir.ReasonValidationOnly, "")
+		switch {
+		case writesConjuncts(s):
+			// The conjuncts' report names them (diagDisjointConjuncts).
+			return id, diags
+		case pairSharesNoValue(c, s):
+			return id, append(diags, diagUnionsShareNothing(c, s, pointer, "its body alone")...)
+		case writesBothUnions(s) || !composesAsModel(c, s):
+			// Two sharing only a null the body keeps out share no value with it,
+			// and a union sharing no kind with a body that is no Model none.
+			return id, append(diags, diagUnionApartFromBody(c, s, pointer)...)
+		default:
+			return id, diags
+		}
 	case unionSharesNoKind:
 		return beside(ir.ReasonDegradedLowering,
 			"none of its branches shares a kind with the allOf beside it, so no instance satisfies them together")
 	case unionUncomposableBody:
-		return beside(ir.ReasonDegradedLowering, "the body is not a model, so it carries no composition to distribute into")
+		id, diags := beside(ir.ReasonDegradedLowering, "the body is not a model, so it carries no composition to distribute into")
+		if st.of != nil {
+			// A principal's conjunction is reported at the schema writing it (refinedDisjoint).
+			return id, diags
+		}
+		return id, append(diags, diagUnionApartFromBody(c, s, pointer)...)
 	case unionUnresolvedBranch:
 		id, diags := beside(ir.ReasonDegradedLowering,
 			"a branch's $ref names no referent this compilation resolves")
@@ -298,11 +412,95 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 	case unionNoLiveBranch:
 		id, diags := beside(ir.ReasonDegradedLowering,
 			"none of its branches admits an object its body admits, so no variant conjoining the two would hold a value")
-		return id, append(diags, diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)...)
+		dead := diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)
+		if len(dead) == 0 && pairSharesNoValue(c, s) {
+			// A union of null alone has no branch to mark dead, and the
+			// conjuncts' report names no union: the pair says it.
+			dead = diagUnionsShareNothing(c, s, pointer, "its body alone")
+		}
+		return id, append(diags, dead...)
+	case unionPairApart:
+		// A schema writing conjuncts beside them refines past them (entryUnionsApart).
+		id, diags := beside(ir.ReasonDegradedLowering, "its oneOf and anyOf share no value, so no instance satisfies them together")
+		return id, append(diags, diagUnionsShareNothing(c, s, pointer, "its body alone")...)
+	case unionPassedNull:
+		_, passed := passedOver(c, s, s)
+		return beside(ir.ReasonDegradedLowering, "the "+passed+" beside it leaves the body null alone, which this "+
+			"union admits, so the position admits that null and no variant would hold a value")
+	case unionPassedApart:
+		_, passed := passedOver(c, s, s)
+		id, diags := beside(ir.ReasonDegradedLowering, "the "+passed+" beside it leaves the body no value this union "+
+			"admits, so no instance satisfies them together")
+		return id, append(diags, diagUnionsApart(c, s, pointer)...)
 	default: // unionHierarchyBase
 		return beside(ir.ReasonDegradedLowering,
 			"the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo")
 	}
+}
+
+// diagUnionsApart is the warning s, written at pointer, draws where a union it
+// passes over shares no kind with its body and no allOf it writes reports its
+// conjuncts (docs/compilers/openapi.md#allof-disjoint-conjuncts): the body's
+// keywords and that union, as that report names them.
+func diagUnionsApart(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if writesConjuncts(s) {
+		return nil
+	}
+	comp := allOfComposition{pointer: pointer}
+	comp.disjoint = disjointAtoms(c, s, conjunctAtoms(c, s, comp))
+	return diagDisjointConjuncts(c, comp, "its body alone")
+}
+
+// diagUnionApartFromBody is the warning s, written at pointer beside a body
+// that is no Model, draws where the unions it writes share no kind with that
+// body (unionApartFromBodyNames) and no allOf it writes reports its conjuncts.
+func diagUnionApartFromBody(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if writesConjuncts(s) {
+		return nil
+	}
+	comp := allOfComposition{pointer: pointer}
+	comp.disjoint = unionApartFromBodyNames(c, s)
+	return diagDisjointConjuncts(c, comp, "its body alone")
+}
+
+// unionApartFromBodyNames names the body s writes and each union beside it,
+// as conjunctAtoms names them, where they share no kind, and is nil where
+// they share one.
+func unionApartFromBodyNames(c lowering.Ctx, s *statement.Schema) []string {
+	return disjointAtoms(c, s, unionAndBodyAtoms(c, s))
+}
+
+// unionApartFromBody reports whether the atoms unionApartFromBodyNames reads
+// share no kind, a read cut short admitting every kind and a null every one
+// may admit being shared, without naming them: naming reads each target that
+// admits nothing, which may read s again.
+func unionApartFromBody(c lowering.Ctx, s *statement.Schema) bool {
+	joint := anyInstance
+	for _, a := range unionAndBodyAtoms(c, s) {
+		joint &= a.admits
+	}
+	return joint == 0 && !nullShared(c, s)
+}
+
+// unionAndBodyAtoms are the atoms of the body s writes and of each union it
+// writes, the union atoms conjunctAtoms adds replaced by both unions'.
+func unionAndBodyAtoms(c lowering.Ctx, s *statement.Schema) []conjunctAtom {
+	choice := s.ChoiceKeywords()
+	atoms := slices.DeleteFunc(conjunctAtoms(c, s, allOfComposition{}), func(a conjunctAtom) bool { return a.union != nil })
+	return slices.Concat(atoms, unionAtoms(c, "oneOf", choice.OneOf), unionAtoms(c, "anyOf", choice.AnyOf))
+}
+
+// keepsUnionApartFromBody reports whether s, read at the position its
+// bindings place it at, writes a union sharing no kind with a body beside it
+// that is no Model, which s reports where it is written
+// (diagUnionApartFromBody), as keepsDeadUnion reads a dead union.
+func keepsUnionApartFromBody(c lowering.Ctx, s *statement.Schema) bool {
+	at, placed := siteOf(s)
+	if !placed || !declaresUnion(s) || writesConjuncts(s) || !hasUnionSiblings(c, s) {
+		return false
+	}
+	in, _ := lowering.InDocument(c, at.Doc)
+	return classifyUnionSiblings(in, s, at.Pointer) == unionUncomposableBody && unionApartFromBody(in, s)
 }
 
 // diagUnresolvedBranches returns one diagnostic per union branch whose $ref
@@ -313,7 +511,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 // at the same severity as everywhere else, with the reason refTypeRef's report
 // gives (unresolvedWhy).
 func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	branches, key, _ := unionBranches(s)
+	branches, key, _ := unionBranches(c, s, s)
 	var diags []ir.Diagnostic
 	for i, b := range branches {
 		st := referenceOf(c, c.Statements().Sub(b))
@@ -333,22 +531,23 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; lowerCoDeclaredUnion picks
 // both from classifyUnionSiblings' verdict. A discriminator the body's model
-// holds is settled once every node is interned (discriminatorBesideUnion).
+// holds is settled once every node is interned (discriminatorBesideUnion). The
+// node stands where st says.
 func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
-	reason ir.UnmodeledReason, why string, fin finisher,
+	reason ir.UnmodeledReason, why string, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var siblings finished
 	beside := discriminatorBesideUnion(c, ts, s, s, pointer).then(siblings.on(func(td ir.TypeDef) []ir.Diagnostic {
 		return preserveUnionSiblingsAt(c, &td.Common().Unmodeled, s, pointer, reason, why)
 	})).then(fin)
-	inner, diags := lower(c, ts, depth, s, pointer, beside, nil)
+	inner, diags := lower(c, ts, depth, s, pointer, beside, st)
 	owner := inner
-	if !siblings.ran && !LoweredToOwnNode(c, pointer, ir.TypeRef{Target: inner}) {
+	if !siblings.ran && !LoweredToOwnNode(c, st.pointer(pointer), ir.TypeRef{Target: inner}) {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
 		var aliasDiags []ir.Diagnostic
-		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: inner}, beside)
+		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: inner}, beside, st)
 		diags = append(diags, aliasDiags...)
 	}
 	return owner, append(diags, siblings.diags...)

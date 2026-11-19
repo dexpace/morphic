@@ -26,15 +26,15 @@ import (
 //
 // byte and a number carried as text put the logical primitive in Base and the
 // string the value travels as in WireType (docs/compilers/openapi.md#string-formats).
-func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, st statement.Kind, pointer jsontext.Pointer,
-	fin finisher,
+func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, kind statement.Kind, pointer jsontext.Pointer,
+	fin finisher, st stand,
 ) (ir.TypeID, keySet, []ir.Diagnostic) {
-	shape := scalarShapeOf(s, st, writtenFormat(s))
+	shape := scalarShapeOf(s, kind, writtenFormat(s))
 	if shape.shared {
 		// The type and the format beside it selected the shared primitive.
 		return ts.PrimID(shape.base), scalarTypeRead(s) | shape.read, nil
 	}
-	id, diags := hoistScalar(c, ts, depth, s, shape, typeKinds(st), positionVoices(c, s, pointer, ir.TypeRef{}), pointer, fin)
+	id, diags := hoistScalar(c, ts, depth, s, shape, typeKinds(kind), st.voices(c, s, pointer), pointer, fin, st)
 	return id, 0, diags
 }
 
@@ -148,10 +148,18 @@ func baseForType(st statement.Kind) ir.PrimKind {
 //
 // fin finishes the Scalar once built.
 func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, shape scalarShape, takes kindSet,
-	voices []annotation.Voice, pointer jsontext.Pointer, fin finisher,
+	voices []annotation.Voice, pointer jsontext.Pointer, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	var text []string
+	if st.of != nil {
+		// The text bounds of a principal are kept once its position has written.
+		outer := fin
+		fin = func(td ir.TypeDef, read keySet, held *principalKept) {
+			diags = append(diags, keepAround(c, ts, st, td, read, held, s, pointer, textBounds(c, s, text, pointer), outer)...)
+		}
+	}
+	id := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		baseRef := ts.PrimRef(shape.base)
 		enc, encDiags := scalarEncoding(c, ts, depth, s, shape.format, takesContent(takes), &common, pointer)
 		diags = append(diags, encDiags...)
@@ -166,13 +174,31 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 		sc := &ir.Scalar{TypeCommon: common, Base: &baseRef, Encoding: enc}
 		cons, consDiags := ConstraintsOf(c, &sc.Unmodeled, s, voices, pointer, takes)
 		if carriesNumberAsText(sc) {
-			cons, consDiags = nil, append(consDiags, keepTextBounds(c, &sc.Unmodeled, s, declaredConstraints(s), pointer)...)
+			cons = nil
+			switch {
+			case st.held:
+				// A variant of a principal held whole keeps none, nor reads them:
+				// its union's census holds them for the whole entry.
+			case st.of != nil:
+				text = declaredConstraints(s)
+			default:
+				consDiags = append(consDiags, keepTextBounds(c, &sc.Unmodeled, s, declaredConstraints(s), pointer)...)
+			}
 		}
 		diags = append(diags, consDiags...)
 		sc.Constraints = cons
-		return sc, scalarTypeRead(s) | shape.read | nodeBoundsRead(s, takes, sc.Constraints, sc.Unmodeled)
+		return sc, scalarTypeRead(s) | shape.read | nodeBoundsRead(s, takes, sc.Constraints, sc.Unmodeled) | keySetOf(text...)
 	}, fin)
 	return id, diags
+}
+
+// textBounds is the keeping of bounds, the value bounds s, written at pointer,
+// writes on a Scalar carrying a number as text, which holds none of them
+// (keepTextBounds).
+func textBounds(c lowering.Ctx, s *statement.Schema, bounds []string, pointer jsontext.Pointer) keeping {
+	return keeping{keys: bounds, reason: ir.ReasonNoIRHome, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
+		return keepTextBounds(c, p, s, keys, pointer)
+	}}
 }
 
 // scalarEncoding builds the Encoding a scalar position declares: the whole
@@ -276,27 +302,90 @@ func declaresContentVocabulary(s *statement.Schema) bool {
 // turns out to be a string, so they are kept rather than dropped. It asks the
 // node the position lowered to (holdsContent), not lower()'s dispatch.
 func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) []ir.Diagnostic {
+	// Called directly, never through a keeping: p is a carrier's field on most
+	// calls, which a call through a function value would move to the heap.
+	keys, why := unplacedContentKeys(c, s, td, pointer)
+	return keepContentKeywords(c, p, s, keys, pointer, why)
+}
+
+// unplacedContent is the keeping of the content keywords s, written at
+// pointer, writes where td, the node it lowered to, holds no ir.Encoding for
+// them (unplacedContentKeys): each as no_ir_home, reported at the keyword.
+func unplacedContent(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) keeping {
+	keys, why := unplacedContentKeys(c, s, td, pointer)
+	return keeping{keys: keys, reason: ir.ReasonNoIRHome, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
+		return keepContentKeywords(c, p, s, keys, pointer, why)
+	}}
+}
+
+// unplacedContentKeys returns the content keywords s, written at pointer,
+// writes that td, the node it lowered to, holds no ir.Encoding for
+// (holdsContent), and why, for their report. Where td holds the Encoding of
+// the inline principal s lowers from (principalEncoding), a keyword s writes
+// as that principal does is read there, and any other is kept beside it, the
+// report saying whose the Encoding is.
+func unplacedContentKeys(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) (keys []string, why string) {
 	if !declaresContentVocabulary(s) || holdsContent(c, s, td, pointer) {
-		return nil
+		return nil, ""
 	}
-	var diags []ir.Diagnostic
+	why = noEncodingField
+	bs := principalEncoding(c, s, td, pointer)
+	if bs != nil {
+		why = encodingOfBranch
+	}
 	for _, keyword := range contentKeywords {
-		diags = append(diags, keepContentKeyword(c, p, s, keyword, pointer)...)
+		if hasKey(s, keyword) && (bs == nil || !keyWrittenAlike(s, bs, keyword)) {
+			keys = append(keys, keyword)
+		}
+	}
+	return keys, why
+}
+
+// keepContentKeywords keeps each of keys by keepContentKeyword.
+func keepContentKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, keys []string, pointer jsontext.Pointer, why string,
+) []ir.Diagnostic {
+	diags := make([]ir.Diagnostic, 0, len(keys))
+	for _, keyword := range keys {
+		diags = append(diags, keepContentKeyword(c, p, s, keyword, pointer, why)...)
 	}
 	return diags
 }
 
+// Why a content keyword reaches no ir.Encoding, for the report
+// keepContentKeyword draws: the node has no such field, or its field holds what
+// the inline allOf branch the position lowered from writes.
+const (
+	noEncodingField  = "this position lowered to a shape with no Encoding field"
+	encodingOfBranch = "the Encoding this position lowered to holds what its inline allOf branch writes"
+)
+
+// principalEncoding returns the inline principal of the allOf s writes at
+// pointer where td, the node it built for the position, holds the content
+// vocabulary it writes (holdsContent): a Scalar's Encoding, or that of a type
+// list's string variant. It is nil where s lowers from no inline principal or
+// td holds none.
+func principalEncoding(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) *statement.Schema {
+	r, refined := refinementOf(c, s, pointer)
+	if !refined || r.principal == nil || r.principal.schema.Ref != nil {
+		return nil
+	}
+	if e := r.principal; holdsContent(c, e.schema.Schema, td, e.pointer) {
+		return e.schema.Schema
+	}
+	return nil
+}
+
 // keepContentKeyword keeps the content keyword s, the schema at pointer,
 // writes under keyword verbatim on p, as no_ir_home, and reports it at the
-// keyword, where no ir.Encoding holds it.
-func keepContentKeyword(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, keyword string, pointer jsontext.Pointer) []ir.Diagnostic {
+// keyword, where no ir.Encoding holds it, for why (noEncodingField).
+func keepContentKeyword(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, keyword string, pointer jsontext.Pointer, why string,
+) []ir.Diagnostic {
 	kept, diags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 	if !kept {
 		return diags
 	}
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
-		"%s is content-vocabulary data the IR holds in ir.Encoding, and this position "+
-			"lowered to a shape with no Encoding field; kept verbatim under Unmodeled", keyword))
+		"%s is content-vocabulary data the IR holds in ir.Encoding, and %s; kept verbatim under Unmodeled", keyword, why))
 }
 
 // holdsContent reports whether td, the node s lowered to at pointer, holds the
@@ -310,7 +399,10 @@ func holdsContent(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer js
 	}
 	switch n := td.(type) {
 	case *ir.Scalar:
-		return n.Encoding != nil
+		// An inline principal's node reads the Encoding of its branch alone, so
+		// it holds none that s writes beside its allOf.
+		r, refined := refinementOf(c, s, pointer)
+		return n.Encoding != nil && (!refined || r.principal == nil)
 	case *ir.Union:
 		return lowersTypeArray(c, s, pointer)
 	default:

@@ -1540,8 +1540,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		ref("NotStr"), ref("ObjOneOf"), ref("IfObj"), ref("AliasOneOf"),
 		"{$ref: '#/components/schemas/Empty', type: object}",
 		"{$ref: '#/components/schemas/Empty', allOf: [{type: object}]}",
-		"{const: {a: x}}", "{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
-		"{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#dyn'}",
+		"{const: {a: x}}", "{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#dyn'}",
 		"{$recursiveRef: '#'}", "false", ref("Missing"), ref("Refuses"),
 	} {
 		p, diags := compile(entry)
@@ -1572,6 +1571,26 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target)
 	assert.Contains(t, p.Unmodeled, "openapi:properties", "the structure's own keyword is kept beside the use")
 	assert.Len(t, p.Unmodeled, 2, "and so is the union the merge did not compare")
+
+	// A oneOf and an anyOf on one entry distribute the oneOf over the structure,
+	// as on two entries: a union, which the merge does not compare either.
+	for _, entry := range []string{
+		"{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
+		"{oneOf: [{type: object}, {type: array}]}, {anyOf: [{type: object}]}",
+	} {
+		p, diags := compile(entry)
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union is not compared: %s", entry)
+		var uncompared []ir.Diagnostic
+		for _, d := range withCode(diags, diag.DegradedConstruct) {
+			if strings.Contains(d.Message, "that the merge does not compare") {
+				uncompared = append(uncompared, d)
+			}
+		}
+		assert.Len(t, uncompared, 1, "the field keeps the string and says why: %s", entry)
+		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
+		assert.Len(t, p.Unmodeled, 1, "the structure is kept: %s", entry)
+	}
 
 	// An enum of objects is elected before the composition, as written without
 	// the allOf: a union of literals, which the merge does not compare either.

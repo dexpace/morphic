@@ -33,19 +33,6 @@ func TestRefConjunction_AValueSetBesideAFailedRefLowersAsBesideItsRef(t *testing
 	}
 }
 
-// TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition holds
-// the four spellings of a union beside a $ref to a schema admitting every
-// kind to one document, the union the node the position owns. Pending
-// (GitHub #2053): an inline union an allOf lowers from stands at its own
-// pointer, behind an alias at a component, where beside the $ref the position
-// owns it.
-func TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition(t *testing.T) {
-	t.Parallel()
-	for _, target := range []string{"T: {}", "T: true", "T: {properties: {a: {type: string}}}"} {
-		requireOneDocument(t, conjSites, target, "oneOf: [{type: string}, {type: integer}]")
-	}
-}
-
 // TestRefConjunction_AComponentOverADiscriminatedBaseIsTaggedInEverySpelling
 // holds the tag a component over a discriminated schema carries to one value
 // in every spelling of a use saying nothing more of it. Pending (GitHub

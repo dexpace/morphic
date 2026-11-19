@@ -33,8 +33,10 @@ import (
 // recordUnexpandedDynamicRef, run after Read; a draft's `dependencies` is
 // Read's (annotation.Dialect), and `additionalItems` beside a list the
 // tuple's, its rest. td is the node the position lowered to, nil for none.
-func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
-	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.Place(), unknownTaken(c, s, pointer)...)
+func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef,
+	left ...string,
+) []ir.Diagnostic {
+	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.Place(), slices.Concat(unknownTaken(c, s, pointer), left)...)
 	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.Place())...)
 }
 

@@ -56,101 +56,48 @@ type canonical struct {
 	identify        func(id string) (string, bool)
 }
 
-// formReader reads the forms of doc, whose source's coordinates seqs are in:
-// its rewriter, made at the first reading and shared by every later one, so
-// the document is encoded and indexed once, and the error making it met.
-type formReader struct {
-	doc  *ir.Document
-	seqs sequences
-	r    *rewriter
-	err  error
-}
-
-// rewriter returns f's rewriter reading ties, its digests yet to compute, as
-// a tie changes what a node's owners write.
-func (f *formReader) rewriter(ties tieSites) (*rewriter, error) {
-	if f.r == nil && f.err == nil {
-		f.r, f.err = newRewriter(f.doc, f.seqs)
-	}
-	if f.err != nil {
-		return nil, f.err
-	}
-	f.r.tie(ties)
-	return f.r, nil
-}
-
-// canonicalForm is f's document as the sequence-order oracle compares it,
-// where ties are what the reports that moved decided. It forgives an index of
+// canonicalForm is doc as the sequence-order oracle compares it, where seqs
+// are the sequences reversed, in doc's source's coordinates, and ties what
+// the reports that moved decided. It forgives an index of
 // a reversed sequence a string names, an ID beneath one told apart by its
 // owners' digest; the order of what orderFree lists, mixins, requires and an
 // array kept verbatim at a reversed sequence's pointer; and each node a tie
 // decided (tied), with what is keyed by its ID (untie). An unmodeled member's
 // name is relative, so an index after allOf or required in it is always
-// erased. Its identify holds until f is read again.
-func (f *formReader) canonicalForm(ties tieSites) (canonical, error) {
-	r, err := f.rewriter(ties)
+// erased.
+func canonicalForm(doc *ir.Document, seqs sequences, ties tieSites) (canonical, error) {
+	r, err := newRewriter(doc, seqs, ties)
 	if err != nil {
 		return canonical{}, err
 	}
 	out := jsontext.Value(r.rewrite(r.tree, place{}, 0))
 	r.fail(out.Indent(jsontext.WithIndent("  ")))
-	shape := r.shape(f.doc)
+	shape := r.shape(doc)
 	return canonical{document: lines(out), shape: shape, identify: r.identify}, r.err
 }
 
-// newRewriter returns a rewriter of doc's forms, where seqs are the sequences
-// reversed, in doc's source's coordinates, holding doc's encoding decoded,
-// each owner of an ID in it indexed.
-func newRewriter(doc *ir.Document, seqs sequences) (*rewriter, error) {
+// newRewriter returns a rewriter of doc's forms reading ties, where seqs are
+// the sequences reversed, in doc's source's coordinates, holding doc's
+// encoding decoded, each owner of an ID in it indexed.
+func newRewriter(doc *ir.Document, seqs sequences, ties tieSites) (*rewriter, error) {
 	encoded, err := encodeComparable(doc, markedArray, nil)
 	if err != nil {
 		return nil, err
 	}
-	r := &rewriter{seqs: seqs, owners: map[string][]map[string]any{}}
-	r.tree = r.decode(encoded)
-	r.index(r.tree, 0)
-	return r, nil
-}
-
-// tie makes r read ties, with no digest computed or being computed.
-func (r *rewriter) tie(ties tieSites) {
-	r.ties, r.nodes = ties.pointers, map[string]bool{}
+	r := &rewriter{
+		seqs: seqs, ties: ties.pointers, members: ties.members, nodes: map[string]bool{}, stated: map[string]bool{},
+		owners:  map[string][]map[string]any{},
+		digests: map[string]string{}, visiting: map[string]bool{},
+	}
 	for _, node := range ties.nodes {
 		r.nodes[node] = true
 	}
-	r.digests, r.visiting, r.computing = map[string]string{}, map[string]bool{}, ""
-}
-
-// memberForm is what a member takes in one model: the model, as a form writes
-// it, and the member's shape there (rewriter.memberShape).
-type memberForm struct{ model, shape string }
-
-// memberForms returns, for each member of f's models whose ID, erased in
-// f.seqs, members holds, its form in each model whose flattening holds it,
-// where no tie decides anything, sorted. It fails as a form does.
-func memberForms(f *formReader, members map[string][]string) (map[string][]memberForm, error) {
-	r, err := f.rewriter(tieSites{})
-	if err != nil {
-		return nil, err
+	for _, node := range ties.stated {
+		r.stated[node] = true
 	}
-	out := map[string][]memberForm{}
-	for id, t := range f.doc.Types {
-		if _, ok := t.(*ir.Model); !ok {
-			continue
-		}
-		for _, p := range ir.FlattenedProperties(f.doc.Types, id).Properties {
-			member := erase(string(p.Property.ID), f.seqs)
-			if _, wanted := members[member]; wanted {
-				out[member] = append(out[member], memberForm{model: r.text(string(id), 0), shape: r.memberShape(p)})
-			}
-		}
-	}
-	for _, forms := range out {
-		slices.SortFunc(forms, func(x, y memberForm) int {
-			return cmp.Or(strings.Compare(x.model, y.model), strings.Compare(x.shape, y.shape))
-		})
-	}
-	return out, r.err
+	r.tree = r.decode(encoded)
+	r.index(r.tree, 0)
+	return r, nil
 }
 
 // number is a JSON number's text, which the rewrite writes as it stands.
@@ -192,14 +139,17 @@ type place struct {
 }
 
 // rewriter is the state of a document's forms: the sequences, the document's
-// encoding decoded, the tie sites and tied nodes it reads, the owners of each
+// encoding decoded, the tie sites, tied members' pointers and tied nodes it
+// reads, the owners of each
 // ID erasing changes, the digests computed so far, the IDs whose digest is
 // being computed and the innermost of them, and the first error met.
 type rewriter struct {
 	seqs      sequences
 	tree      any
 	ties      []string
+	members   []string
 	nodes     map[string]bool
+	stated    map[string]bool
 	owners    map[string][]map[string]any
 	digests   map[string]string
 	visiting  map[string]bool
@@ -275,7 +225,7 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 	o = r.untie(o)
 	own := provenancePointer(o)
 	if erased, tied := r.tied(o); tied && p.how&noIdentity == 0 {
-		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), []byte("}"))
+		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), r.foldedOf(o, depth), r.statedOf(o, depth), []byte("}"))
 	}
 	type member struct{ name, value []byte }
 	members := make([]member, 0, len(o))
@@ -308,6 +258,42 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 		out = append(append(append(out, m.name...), ':'), m.value...)
 	}
 	return append(out, '}')
+}
+
+// foldedOf writes what o, a tied node, holds that its fold settles from every
+// declaration alike, where it is a property: whether it is required, where
+// any declaration or its model says so, or secret, where any declaration does,
+// and where it is visible, the lifecycles every declaration admits
+// (docs/compilers/openapi.md#allof-redeclared-property). No tie between two of
+// them decides these, so they are compared where nothing else of the member is.
+func (r *rewriter) foldedOf(o map[string]any, depth int) []byte {
+	required, isProperty := o["required"].(bool)
+	if _, named := o["wireName"]; !named || !isProperty {
+		return nil
+	}
+	secret, _ := o["secret"].(bool)
+	out := []byte(`,"required":` + strconv.FormatBool(required) + `,"secret":` + strconv.FormatBool(secret) + `,"visibility":`)
+	return append(out, r.rewrite(o["visibility"], place{}, depth+1)...)
+}
+
+// statedOf writes what else of o, a tied node, folds over every declaration,
+// where a stated tie alone decided it (tieSites.stated): its deprecation, docs,
+// name and XML hints. Such a tie decides none of them; two declarations giving
+// one differently draw a report of their own, which moves with the order and so
+// reaches the member as another tie.
+func (r *rewriter) statedOf(o map[string]any, depth int) []byte {
+	id, _ := o["id"].(string)
+	if !r.stated[erase(id, r.seqs)] {
+		return nil
+	}
+	var out []byte
+	for _, name := range [...]string{"deprecation", "docs", "name", "xml"} {
+		if v, written := o[name]; written {
+			out = append(append(append(out, `,"`...), name...), `":`...)
+			out = append(out, r.rewrite(v, place{}, depth+1)...)
+		}
+	}
+	return out
 }
 
 // childPlace is the place of the member name of an object at p, whose
@@ -431,24 +417,91 @@ func (r *rewriter) leftOut(name string, v any, p place) bool {
 }
 
 // tied returns how a tie reads o, and whether one decided it: o's pointer
-// erased where it is at or beneath a tie site, or its ID erased where a moved
-// report names it.
+// erased where it is at or beneath a tie site, o is a node a tied member's
+// fold minted (minted), or a tie names o where a tied member stands, and its
+// ID erased where a tie names it anywhere else.
 func (r *rewriter) tied(o map[string]any) (string, bool) {
-	if erased, tied := r.tiedAt(provenancePointer(o)); tied {
+	erased, atSite := r.tiedAt(provenancePointer(o))
+	id, hasID := o["id"].(string)
+	named := hasID && r.nodes[erase(id, r.seqs)]
+	switch {
+	case atSite, hasID && minted(r.members, id, erased), named && r.atMember(erased):
 		return erased, true
-	}
-	id, ok := o["id"].(string)
-	if ok && r.nodes[erase(id, r.seqs)] {
+	case named:
 		return erase(id, r.seqs), true
+	default:
+		return "", false
 	}
-	return "", false
+}
+
+// atMember reports whether erased, an erased pointer, is where a tied member
+// stands.
+func (r *rewriter) atMember(erased string) bool {
+	_, at := slices.BinarySearch(r.members, erased)
+	return at
 }
 
 // tiedNode reports whether a tie decided the node td, identified by id: it sits
-// at or beneath a tie site, or a moved report names it.
+// at or beneath a tie site, a tied member's fold minted it, or a tie names it.
 func (r *rewriter) tiedNode(id ir.TypeID, td ir.TypeDef) bool {
-	_, atSite := r.tiedAt(string(td.Common().Provenance.Pointer))
-	return atSite || r.nodes[erase(string(id), r.seqs)]
+	erased, atSite := r.tiedAt(string(td.Common().Provenance.Pointer))
+	return atSite || minted(r.members, string(id), erased) || r.nodes[erase(string(id), r.seqs)]
+}
+
+// minted reports whether the node or member id, at erased, an erased pointer,
+// is one the fold of a tied member, standing at one of members, minted: in the
+// composed namespace, at the member's pointer or beneath it at a position the
+// fold builds a member at (docs/compilers/openapi.md#allof-redeclared-property),
+// so which declaration won decides it. A node written in the source beneath
+// the member, alike in either order, is not. The oracle reads one source, so
+// no space is qualified.
+func minted(members []string, id, erased string) bool {
+	if !composed(id) {
+		return false
+	}
+	return slices.ContainsFunc(members, func(member string) bool {
+		rest, beneath := strings.CutPrefix(erased, member)
+		return beneath && mintedPosition(rest)
+	})
+}
+
+// composed reports whether id is in the composed namespace, where a fold mints
+// what it builds (docs/compilers/openapi.md#allof-redeclared-property).
+func composed(id string) bool {
+	parts := strings.SplitN(id, ir.IDSeparator, 3)
+	return len(parts) >= 2 && parts[1] == "composed"
+}
+
+// mintedPosition reports whether rest, what follows a tied member's pointer in
+// another, is empty or names a position a fold builds a member at, a level
+// down each: items, additionalProperties, or prefixItems and an index; or
+// where a model the fold composes there declares a member, an allOf deeper
+// than its own pointer: allOf, allOf, properties and a name.
+func mintedPosition(rest string) bool {
+	if rest == "" {
+		return true
+	}
+	tokens, rooted := strings.CutPrefix(rest, "/")
+	if !rooted {
+		return false
+	}
+	position := strings.Split(tokens, "/")
+	for i := 0; i < len(position); i++ {
+		switch position[i] {
+		case "items", "additionalProperties":
+		case "prefixItems":
+			if i++; i == len(position) || !decimal(position[i]) {
+				return false
+			}
+		case "allOf":
+			if i += 3; i >= len(position) || position[i-2] != "allOf" || position[i-1] != "properties" {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // untie returns o without each member keyed by a tied node's ID, as a part's
@@ -522,14 +575,36 @@ func (r *rewriter) shape(doc *ir.Document) []string {
 
 // memberShape is what a flattened member takes: whether it is required,
 // secret and deprecated, and its declaration, rewritten without its identity,
-// so two declarations saying the same are one.
+// so two declarations saying the same are one. Of a member a tie decided, it
+// is the tie, whether the member is required, whether its declaration is
+// secret, which a Sensitive type the tie picks does not decide, and where it is
+// visible (foldedOf), and, where a stated tie alone decided it, what statedOf
+// writes.
 func (r *rewriter) memberShape(p ir.FlatProperty) string {
 	prov := p.Property.Provenance
-	if erased, tied := r.tiedAt(string(prov.Pointer)); tied {
-		return "reported tie at " + erased
-	}
-	if id := erase(string(p.Property.ID), r.seqs); r.nodes[id] {
-		return "reported tie " + id
+	id := erase(string(p.Property.ID), r.seqs)
+	erased, atSite := r.tiedAt(string(prov.Pointer))
+	byFold := minted(r.members, string(p.Property.ID), erased)
+	if atSite || byFold || r.nodes[id] {
+		tie := "reported tie " + id
+		if atSite || byFold || r.atMember(erased) {
+			tie = "reported tie at " + erased
+		}
+		visibility, err := json.Marshal(&p.Property.Visibility, json.Deterministic(true))
+		r.fail(err)
+		tie += " required " + strconv.FormatBool(p.Required) + " secret " + strconv.FormatBool(p.Property.Secret) +
+			" visibility " + string(visibility)
+		if !r.stated[id] {
+			return tie
+		}
+		stated, err := json.Marshal(struct {
+			Deprecation *ir.Deprecation `json:"deprecation"`
+			Docs        ir.Docs         `json:"docs"`
+			Name        ir.Naming       `json:"name"`
+			XML         *ir.XMLHints    `json:"xml"`
+		}{p.Property.Deprecation, p.Property.Docs, p.Property.Name, p.Property.XML}, json.Deterministic(true))
+		r.fail(err)
+		return tie + " stated " + string(stated)
 	}
 	encoded, err := json.Marshal(struct {
 		Declaration *ir.Property    `json:"declaration"`

@@ -96,7 +96,7 @@ func TestEnums_TheWireEnumsAreHeld(t *testing.T) {
 	for _, name := range []string{
 		"AdditionalMode", "PresenceKind", "HTTPLocation", "IdempotencyKind", "MsgDirection", "PageStrategy", "Severity",
 		"PrimKind", "AuthKind", "UnmodeledReason", "ValueKind", "StreamingMode", "Stability", "HTTPInbound", "PageStop",
-		"LinkValueKind",
+		"LinkValueKind", "RelatedRole",
 	} {
 		assert.True(t, held[name], "%s is a wire enum the check holds", name)
 	}
@@ -123,6 +123,8 @@ func TestEnumPath_ListsEveryCarrier(t *testing.T) {
 		"MsgDirection":     1,
 		"PageStrategy":     1,
 		"Severity":         1,
+		"RelatedRole":      1,
+		"Related":          1,
 		"HTTPParamBinding": 1,
 		"MessageBinding":   1,
 		"Pagination":       1,

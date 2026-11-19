@@ -83,6 +83,10 @@ func heldBy(u ir.Unmodeled, at map[entryAt][]string, key string, inner ir.Unmode
 	return false
 }
 
+// Reads reports whether key, an Unmodeled key, names one p reads: such an
+// entry stays where a promotion finds it, whatever else holds its value.
+func (p Promoter) Reads(key string) bool { return namesReadKey(p.keys, key) }
+
 // namesReadKey reports whether key names one of keys, which are sorted:
 // "openapi:x-k" and "openapi:<scope>/x-k" both name x-k. It allocates
 // nothing.

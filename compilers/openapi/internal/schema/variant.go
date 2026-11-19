@@ -54,7 +54,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 		diags = append(diags, unionDiags...)
 		// Each variant composes the body, reading its members and its bounds.
 		return def, objectKeys | typeReadAs(s, statement.KindObject) | boundsRead(s, body.comp.bounds, nil)
-	}, census.onRead(keepUnreadAcross(c, ts, s, taglessShape(nil, s, distributedShape), 0, pointer)).then(fin))
+	}, keepUnreadAcross(c, ts, s, taglessShape(nil, s, distributedShape), 0, pointer, stand{}, &census, fin))
 	// The union read s's discriminator, so one it cannot hold says why.
 	diags = append(diags, census.diags...)
 	where := "co-declared with structural keywords"
@@ -81,7 +81,7 @@ func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	if u.disc != nil && u.discAt == pointer && tagLocated(u.disc, nil) {
 		d.said = append(d.said, "discriminator")
 	}
-	id, diags := lowerElected(c, ts, depth, s, pointer, d, fin)
+	id, diags := lowerElected(c, ts, depth, s, pointer, d, fin, stand{})
 	if d.won != "allOf" {
 		// A discriminator routes to s through the allOf naming its ancestor
 		// (subtypeDiscriminatorValue), so no other election composes it.
@@ -102,7 +102,7 @@ func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 // name. Each variant is its branch's own lowering, as a union written alone
 // lowers it, so the node is what a component holding u would be.
 func mintUnion(c lowering.Ctx, ts *compile.Types, depth int, u unionAt) (ir.TypeID, []ir.Diagnostic) {
-	_, key, _ := unionBranches(u.holder)
+	_, key, _ := u.branches(c)
 	at := u.at + ids.Ptr(key)
 	id := c.IDs().ComposedType(at)
 	common := commonFor(c, id, at)
@@ -263,8 +263,8 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	requireMembers(m, compositionRequired(body.schema.ObjectKeywords().Required, body.comp))
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)
 	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
-	_, key, _ := unionBranches(body.union.holder)
-	diags = append(diags, preserveUnusedCombinator(c, &m.Unmodeled, body.union.holder, key, body.union.at)...)
+	_, key, _ := body.union.branches(c)
+	diags = append(diags, preserveUnusedCombinator(c, &m.Unmodeled, body.union, key)...)
 	if !composes {
 		// A variant composing nothing over a body that is a map alone is that map.
 		diags = append(diags, keepUncomposedBranch(c, m, b)...)

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -121,11 +122,13 @@ func settledDoc() *ir.Document {
 }
 
 // TestSettledFrom_TiesWhatATiedMemberDecides pins the closure of a tie: a
-// member whose flattening overrides a tied one is tied, at its pointer too,
-// and so is a union whose discriminator was inferred from it, and the model
-// holding it holds a tied member; a declared
-// discriminator, one inferred from a member apart, a member apart, and a
-// document with no tie add nothing.
+// member whose flattening overrides a tied one is tied, its pointer joining
+// the tied members', and so is a union whose discriminator was inferred from
+// it, and the model holding it holds a tied member; a member declared beneath
+// where a moved report sits, or at a tied member's pointer, is tied, and one
+// declared beneath a tied member's pointer is not. A declared discriminator,
+// one inferred from a member apart, a member apart, and a document with no
+// tie add nothing.
 func TestSettledFrom_TiesWhatATiedMemberDecides(t *testing.T) {
 	t.Parallel()
 	doc := settledDoc()
@@ -133,11 +136,16 @@ func TestSettledFrom_TiesWhatATiedMemberDecides(t *testing.T) {
 	got := settledFrom(tieSites{nodes: []string{"p/AB/p"}}, doc, nil)
 
 	assert.Equal(t, []string{"p/AB/p", "p/M/p", "t/inferred"}, got.nodes)
-	assert.Contains(t, got.pointers, "/M/allOf/properties/p", "where the tied member's fold mints")
+	assert.Equal(t, []string{"/AB/p", "/M/allOf/properties/p"}, got.members, "where the tied members stand")
+	assert.Empty(t, got.pointers, "no report moved")
 	assert.Equal(t, []string{"t/AB", "t/M"}, got.holders, "the models holding a tied member")
 	bySite := settledFrom(tieSites{pointers: []string{"/AB"}}, doc, nil)
 	assert.Equal(t, []string{"p/AB/p", "p/M/p", "t/inferred"}, bySite.nodes,
 		"a member declared beneath a tie site is tied, as a fold of inline declarations reports where they are")
+	atMember := settledFrom(tieSites{members: []string{"/AB/p"}}, doc, nil)
+	assert.Equal(t, []string{"p/AB/p", "p/M/p", "t/inferred"}, atMember.nodes, "a member declared where a tied member stands is tied")
+	assert.Equal(t, tieSites{members: []string{"/AB"}}, settledFrom(tieSites{members: []string{"/AB"}}, doc, nil),
+		"a member declared beneath a tied member's pointer is written there in either order")
 	assert.Equal(t, tieSites{pointers: []string{"/x"}}, settledFrom(tieSites{pointers: []string{"/x"}}, doc, nil),
 		"a site no member is declared at ties none")
 	assert.Equal(t, tieSites{nodes: []string{"p/AB/p"}}, settledFrom(tieSites{nodes: []string{"p/AB/p"}}, nil, nil),
@@ -154,16 +162,82 @@ func TestCanonicalForm_LeavesOutANodeATieMints(t *testing.T) {
 	with.Types[minted.ID] = minted
 	ties := tieSites{pointers: []string{"/M/allOf/properties/p"}}
 
-	a, err := (&formReader{doc: with}).canonicalForm(ties)
+	a, err := canonicalForm(with, nil, ties)
 	require.NoError(t, err)
-	b, err := (&formReader{doc: settledDoc()}).canonicalForm(ties)
+	b, err := canonicalForm(settledDoc(), nil, ties)
 	require.NoError(t, err)
 	assert.Equal(t, b.document, a.document)
 	assert.Equal(t, b.shape, a.shape)
 
-	untied, err := (&formReader{doc: with}).canonicalForm(tieSites{})
+	untied, err := canonicalForm(with, nil, tieSites{})
 	require.NoError(t, err)
 	assert.NotEqual(t, b.document, untied.document, "the node is compared where no tie decides it")
+}
+
+// TestCanonicalForm_LeavesOutBeneathATiedMemberOnlyWhatItsFoldMints pins what
+// is compared where a tied member stands: a node in the composed namespace at
+// its pointer, or beneath it where a fold builds a member, follows the tie and
+// is left out, while a node the source writes there, or one minted beneath it
+// at another position, as a fold of the member's own type's declarations
+// mints one, is compared.
+func TestCanonicalForm_LeavesOutBeneathATiedMemberOnlyWhatItsFoldMints(t *testing.T) {
+	t.Parallel()
+	const at = "/M/allOf/properties/p"
+	ties := tieSites{nodes: []string{"p/M/p"}, members: []string{at}}
+	described := func(id ir.TypeID, pointer, description string) *ir.Document {
+		doc := settledDoc()
+		doc.Types[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: "t/prim/string"}, Docs: ir.Docs{Description: description},
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)}}
+		return doc
+	}
+	for name, tc := range map[string]struct {
+		id       ir.TypeID
+		pointer  string
+		compared bool
+	}{
+		"written where the member stands":           {id: "t/anon/M/allOf/properties/p", pointer: at, compared: true},
+		"written beneath the member":                {id: "t/anon/M/allOf/properties/p/items", pointer: at + "/items", compared: true},
+		"minted where the member stands":            {id: "t/composed/M/allOf/properties/p", pointer: at},
+		"minted for its items":                      {id: "t/composed/M/allOf/properties/p/items", pointer: at + "/items"},
+		"minted for a tuple's position's map value": {id: "t/composed/x", pointer: at + "/prefixItems/2/additionalProperties"},
+		"minted beneath the member by another fold": {id: "t/composed/x", pointer: at + "/allOf/properties/x", compared: true},
+		"minted beside the member":                  {id: "t/composed/x", pointer: at + "q", compared: true},
+	} {
+		a, err := canonicalForm(described(tc.id, tc.pointer, "one"), nil, ties)
+		require.NoError(t, err, name)
+		b, err := canonicalForm(described(tc.id, tc.pointer, "two"), nil, ties)
+		require.NoError(t, err, name)
+		assert.Equal(t, tc.compared, !slices.Equal(a.document, b.document), name)
+	}
+}
+
+// TestMintedPosition_ReadsThePositionsAFoldBuildsAMemberAt pins the positions
+// beneath a tied member a fold mints at, a level down each: items,
+// additionalProperties, prefixItems with an index, a member of a model it
+// composes, an allOf deeper, in any nesting, and the member's own pointer.
+// Anything else beneath, or beside, is written.
+func TestMintedPosition_ReadsThePositionsAFoldBuildsAMemberAt(t *testing.T) {
+	t.Parallel()
+	for rest, want := range map[string]bool{
+		"":                                    true,
+		"/items":                              true,
+		"/additionalProperties/items":         true,
+		"/prefixItems/0/items/prefixItems/12": true,
+		"/items/allOf/allOf/properties/q":     true,
+		"/allOf/allOf/properties/q/items":     true,
+		"/allOf/allOf/properties":             false,
+		"/allOf/allOf/x/q":                    false,
+		"/allOf/x/properties/q":               false,
+		"/allOf/properties/q":                 false,
+		"/prefixItems":                        false,
+		"/prefixItems/x":                      false,
+		"/properties/x":                       false,
+		"/items/allOf/0":                      false,
+		"items":                               false,
+		"/itemsX":                             false,
+	} {
+		assert.Equal(t, want, mintedPosition(rest), rest)
+	}
 }
 
 // TestCanonicalForm_ForgivesANodeATieNamesWhereverItSits pins a node a moved
@@ -176,14 +250,14 @@ func TestCanonicalForm_ForgivesANodeATieNamesWhereverItSits(t *testing.T) {
 	retyped.Types["t/M"].(*ir.Model).Properties[0].Type.Target = "t/prim/integer"
 	ties := tieSites{nodes: []string{"p/M/p"}}
 
-	a, err := (&formReader{doc: settledDoc()}).canonicalForm(ties)
+	a, err := canonicalForm(settledDoc(), nil, ties)
 	require.NoError(t, err)
-	b, err := (&formReader{doc: retyped}).canonicalForm(ties)
+	b, err := canonicalForm(retyped, nil, ties)
 	require.NoError(t, err)
 	assert.Equal(t, a.document, b.document)
 	assert.Equal(t, a.shape, b.shape)
 
-	c, err := (&formReader{doc: retyped}).canonicalForm(tieSites{nodes: []string{"p/Q/q"}})
+	c, err := canonicalForm(retyped, nil, tieSites{nodes: []string{"p/Q/q"}})
 	require.NoError(t, err)
 	assert.NotEqual(t, a.shape, c.shape, "a member no tie names is compared")
 }
@@ -193,11 +267,12 @@ func TestCanonicalForm_ForgivesANodeATieNamesWhereverItSits(t *testing.T) {
 // or beneath a tie site, says what a tie decided; any other is a difference.
 func TestUntied_LeavesOutWhatATieDecided(t *testing.T) {
 	t.Parallel()
-	ties := tieSites{pointers: []string{"/M/allOf/properties/p"}, nodes: []string{"p/M/p"}, holders: []string{"t/M"}}
+	ties := tieSites{pointers: []string{"/M/allOf/properties/p"}, nodes: []string{"p/M/p"}, members: []string{"/N/q"}, holders: []string{"t/M"}}
 	rs := []report{
 		{key: "tied node", node: "p/M/p", pointer: "/elsewhere"},
 		{key: "holder", node: "t/M", pointer: "/elsewhere"},
 		{key: "at a site", pointer: "/M/allOf/properties/p/items"},
+		{key: "beneath a tied member", pointer: "/N/q/items"},
 		{key: "another node", node: "t/Q", pointer: "/Q"},
 		{key: "beside a site", pointer: "/M/allOf/properties/pq"},
 	}
@@ -264,25 +339,99 @@ func TestNodeKey_PairsOnlyANodeItsFormTellsByWhatItHolds(t *testing.T) {
 	assert.Equal(t, diagnosticKey(want), nodeKey(named, tells))
 }
 
-// TestSequenceOrderInvariant_ReadsTieClassesOneWayOnEveryRun plants reports
-// at alpha's and beta's p, one class of the tie fixtureSwap's two models
-// compose, and one at AB, of no class: the oracle finds the last alone, on
-// every run.
-func TestSequenceOrderInvariant_ReadsTieClassesOneWayOnEveryRun(t *testing.T) {
-	plant(t, func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-		planted := []ir.Diagnostic{diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/alpha/properties/p", "")}
-		if reversed {
-			planted = []ir.Diagnostic{diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/beta/properties/p", ""),
-				diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/AB", "")}
-		}
-		return doc, append(slices.Clip(diags), planted...), nil
-	})
-
-	first := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureSwap), true)
-	require.True(t, first.Found(), "the report at AB must stay unpaired: %+v", first)
-	assert.Contains(t, first.Detail, `x/swap\x00/components/schemas/AB\x00`)
-	assert.NotContains(t, first.Detail, "properties/p", "the reports at p's declarations are one class's")
-	for range 19 {
-		assert.Equal(t, first, sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureSwap), true))
+// TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration
+// pins what of a tied member the forms compare beside whether it is required:
+// whether its declaration is secret and where it is visible, in the document
+// and in the shape, however the tie reaches it, and its deprecation, docs,
+// name and XML hints where a stated tie alone decided it, and not otherwise.
+func TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration(t *testing.T) {
+	t.Parallel()
+	folded := map[string]func(*ir.Property){
+		"secret":     func(p *ir.Property) { p.Secret = true },
+		"visibility": func(p *ir.Property) { p.Visibility = ir.Visibility{None: true} },
 	}
+	stated := map[string]func(*ir.Property){
+		"deprecation": func(p *ir.Property) { p.Deprecation = &ir.Deprecation{Message: "m"} },
+		"docs":        func(p *ir.Property) { p.Docs.Description = "d" },
+		"name":        func(p *ir.Property) { p.Name = ir.Naming{Source: "n", Canonical: "n"} },
+		"xml":         func(p *ir.Property) { p.XML = &ir.XMLHints{Name: "x"} },
+	}
+	compare := func(ties tieSites, change func(*ir.Property)) (document, shape bool) {
+		changed := settledDoc()
+		change(&changed.Types["t/M"].(*ir.Model).Properties[0])
+		a, err := canonicalForm(settledDoc(), nil, ties)
+		require.NoError(t, err)
+		b, err := canonicalForm(changed, nil, ties)
+		require.NoError(t, err)
+		return !slices.Equal(a.document, b.document), !slices.Equal(a.shape, b.shape)
+	}
+	sensitive := settledDoc()
+	sensitive.Types["t/S"] = &ir.Scalar{ID: "t/S", Base: &ir.TypeRef{Target: "t/prim/string"}, Sensitive: true}
+	sensitive.Types["t/M"].(*ir.Model).Properties[0].Type.Target = "t/S"
+	for how, ties := range map[string]tieSites{
+		"by its ID":                 {nodes: []string{"p/M/p"}},
+		"at a tie site":             {pointers: []string{"/M/allOf/properties/p"}},
+		"by its ID where it stands": {nodes: []string{"p/M/p"}, members: []string{"/M/allOf/properties/p"}},
+	} {
+		a, err := canonicalForm(settledDoc(), nil, ties)
+		require.NoError(t, err)
+		b, err := canonicalForm(sensitive, nil, ties)
+		require.NoError(t, err)
+		assert.Equal(t, a.shape, b.shape, "%s: a Sensitive type the tie picks decides no secret flag compared", how)
+		for name, change := range folded {
+			document, shape := compare(ties, change)
+			assert.True(t, document, "%s, %s", how, name)
+			assert.True(t, shape, "%s, %s", how, name)
+		}
+		for name, change := range stated {
+			document, shape := compare(ties, change)
+			assert.False(t, document, "%s, %s, no stated tie", how, name)
+			assert.False(t, shape, "%s, %s, no stated tie", how, name)
+			ties.stated = []string{"p/M/p"}
+			document, shape = compare(ties, change)
+			ties.stated = nil
+			assert.True(t, document, "%s, %s, a stated tie", how, name)
+			assert.True(t, shape, "%s, %s, a stated tie", how, name)
+		}
+	}
+}
+
+// TestCanonicalForm_ComparesWhetherATiedMemberIsRequired pins the one thing
+// of a tied member the forms compare: a member is required where any of its
+// declarations or its model says so, which no tie decides, so two documents
+// differing there differ, in the document and in the shape, by the member's
+// ID and by a tie site alike. A tied node that is no property, as what a
+// member keeps verbatim at a tie site is, is written as the tie alone.
+func TestCanonicalForm_ComparesWhetherATiedMemberIsRequired(t *testing.T) {
+	t.Parallel()
+	required := settledDoc()
+	required.Types["t/M"].(*ir.Model).Properties[0].Required = true
+	for name, ties := range map[string]tieSites{
+		"by its ID":                 {nodes: []string{"p/M/p"}},
+		"at a tie site":             {pointers: []string{"/M/allOf/properties/p"}},
+		"by its ID where it stands": {nodes: []string{"p/M/p"}, members: []string{"/M/allOf/properties/p"}},
+	} {
+		a, err := canonicalForm(settledDoc(), nil, ties)
+		require.NoError(t, err)
+		b, err := canonicalForm(required, nil, ties)
+		require.NoError(t, err)
+		assert.NotEqual(t, a.document, b.document, name)
+		assert.NotEqual(t, a.shape, b.shape, name)
+		assert.Contains(t, strings.Join(b.document, "\n"), `"required": true`, name)
+	}
+
+	kept := func(value string) *ir.Document {
+		doc := settledDoc()
+		doc.Types["t/Q"].(*ir.Model).Unmodeled = ir.Unmodeled{"x:kept": {
+			Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(value), Provenance: ir.Provenance{Pointer: "/M/allOf/properties/p/items"},
+		}}
+		return doc
+	}
+	ties := tieSites{pointers: []string{"/M/allOf/properties/p"}}
+	a, err := canonicalForm(kept(`1`), nil, ties)
+	require.NoError(t, err)
+	b, err := canonicalForm(kept(`2`), nil, ties)
+	require.NoError(t, err)
+	assert.Equal(t, a.document, b.document)
+	assert.Contains(t, strings.Join(a.document, "\n"), `"reportedTie": "/M/allOf/properties/p/items"`)
 }

@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,20 +24,15 @@ func assertAllOfEntryInfersArray(t *testing.T, doc *ir.Document, diags []ir.Diag
 		flat := kindNode(t, doc, componentID(name))
 		assert.Equal(t, kind, flat.Kind(), name)
 		assert.True(t, markedKindInference(flat), name)
-		alias, ok := doc.Types[componentID(name+"Entry")].(*ir.Scalar)
-		require.True(t, ok, "%sEntry is a use of its entry", name)
-		require.NotNil(t, alias.Base)
-		entry := kindNode(t, doc, alias.Base.Target)
-		assert.Equal(t, kind, entry.Kind(), name)
-		assert.True(t, markedKindInference(entry), "%sEntry's entry is the policy's reading", name)
-		assert.Equal(t, alias.Provenance.Pointer+"/allOf/0", entry.Common().Provenance.Pointer, name)
+		entry := kindNode(t, doc, componentID(name+"Entry"))
+		assert.Equal(t, kind, entry.Kind(), "%sEntry is the node its entry builds", name)
+		assert.True(t, markedKindInference(entry), "%sEntry's node is the policy's reading", name)
+		assert.Equal(t, jsontext.Pointer("/components/schemas/"+name+"Entry"), entry.Common().Provenance.Pointer, name)
 	}
 
-	bounded, ok := doc.Types[componentID("NamesBounded")].(*ir.Scalar)
-	require.True(t, ok)
-	require.NotNil(t, bounded.Base)
-	assert.Equal(t, ir.KindList, kindNode(t, doc, bounded.Base.Target).Kind())
-	require.NotNil(t, bounded.Constraints, "the bound folds onto the use")
+	bounded, ok := doc.Types[componentID("NamesBounded")].(*ir.List)
+	require.True(t, ok, "NamesBounded is the list its entry builds")
+	require.NotNil(t, bounded.Constraints, "the bound folds onto the list")
 	assert.Equal(t, new(int64(1)), bounded.Constraints.MinItems)
 
 	tagged, ok := doc.Types[componentID("Tagged")].(*ir.Model)

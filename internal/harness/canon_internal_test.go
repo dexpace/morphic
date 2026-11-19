@@ -189,8 +189,8 @@ func TestRewriterIndex_RecordsOwnersInNameOrder(t *testing.T) {
 // document the comparison cannot encode is a finding naming the order it came
 // from, rather than two empty forms that compare equal, and that one nesting
 // past the canonical form's bound is declined: the bound is the harness's, not
-// the compiler's. Each holds where a report at each of p's declarations has
-// the member forms read first (tieClassesOf).
+// the compiler's. Each holds where a report sits at one of p's declarations in
+// each order, which carries no pair and so pairs with nothing.
 func TestDiffSequenceInvariants_ADocumentItCannotWriteIsReported(t *testing.T) {
 	t.Parallel()
 	unencodable := func() *ir.Document {
@@ -233,8 +233,7 @@ func TestDiffSequenceInvariants_ADocumentItCannotWriteIsReported(t *testing.T) {
 					assert.True(t, strings.HasPrefix(detail, tc.prefix), detail)
 					return
 				}
-				// The reports moved and no member form was read, so they stay
-				// unpaired beside the encoding's finding.
+				// The reports stay unpaired beside the encoding's finding.
 				assert.Contains(t, detail, tc.prefix)
 			})
 		}
@@ -318,37 +317,4 @@ func TestDiffSequenceInvariants_ForgivesOnlyWhatTheReversalMoves(t *testing.T) {
 			assert.Equal(t, !tc.found, ok, detail)
 		})
 	}
-}
-
-// TestFormReader_ReadsEachTieSetAfresh pins that one reading of a document
-// leaves nothing to the next: each form read under a tie set equals a fresh
-// reader's under it, though the reader computed digests under another before.
-// Holder names an entry's model, whose digest holds p, so it follows p's tie.
-func TestFormReader_ReadsEachTieSetAfresh(t *testing.T) {
-	t.Parallel()
-	entry := ir.TypeID("t/anon/X/allOf/0")
-	doc := &ir.Document{Types: ir.TypeRegistry{
-		entry: &ir.Model{ID: entry, Provenance: ir.Provenance{Pointer: "/X/allOf/0"}, Properties: []ir.Property{{
-			ID: "p/anon/X/allOf/0/p", WireName: "p", Type: ir.TypeRef{Target: "t/prim/string"},
-			Provenance: ir.Provenance{Pointer: "/X/allOf/0/properties/p"},
-		}}},
-		"t/Holder": &ir.Model{ID: "t/Holder", Properties: []ir.Property{{ID: "p/Holder/h", WireName: "h", Type: ir.TypeRef{Target: entry}}}},
-	}}
-	seqs := sequences{"/X/allOf": 2}
-	tied := tieSites{nodes: []string{"p/anon/X/allOf/-/p"}}
-	fresh := func(ties tieSites) canonical {
-		form, err := (&formReader{doc: doc, seqs: seqs}).canonicalForm(ties)
-		require.NoError(t, err)
-		return form
-	}
-	shared := &formReader{doc: doc, seqs: seqs}
-
-	for i, ties := range []tieSites{tied, {}, tied} {
-		got, err := shared.canonicalForm(ties)
-		require.NoError(t, err)
-		want := fresh(ties)
-		assert.Equal(t, want.document, got.document, "reading %d", i)
-		assert.Equal(t, want.shape, got.shape, "reading %d", i)
-	}
-	assert.NotEqual(t, fresh(tied).document, fresh(tieSites{}).document, "the tie must change the form for the readings to tell")
 }

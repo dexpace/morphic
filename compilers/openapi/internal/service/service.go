@@ -97,6 +97,7 @@ type Policy struct {
 // values meet: what lowering.New reads of the load is built here.
 func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 	documents, encoding := documentsOf(srcIndex, doc)
+	streaming, binary := p.StreamingInference, p.BinaryInference
 	return Ctx{
 		Ctx: lowering.New(lowering.Loaded{Location: doc.Location, Places: doc.Places, Bindings: doc.Bindings,
 			Declares:  resolve.NewNames(slices.Collect(doc.Doc.Components.GetSchemas().Keys())...),
@@ -105,8 +106,8 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		SrcIndex:          srcIndex,
 		Grouping:          p.Grouping,
 		GroupingExtension: p.GroupingExtension,
-		streaming:         streamingSet(p.StreamingInference),
-		binary:            binarySet(p.BinaryInference),
+		streaming:         mediaTypeSet(streaming.Disabled, streaming.MediaTypes, DefaultStreamingMediaTypes()),
+		binary:            mediaTypeSet(binary.Disabled, binary.MediaTypes, DefaultBinaryMediaTypes()),
 		loaded:            &loaded{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, encoding: encoding},
 		expansion:         newExpansion(p.MaxReferenceExpansion),
 	}

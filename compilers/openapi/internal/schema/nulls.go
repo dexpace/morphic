@@ -68,11 +68,17 @@ func foldNullReadings(a, b nullReading) nullReading {
 
 // admits reports whether the reading c's policy selects admits null: lenient
 // while the policy is on, declared once it is off.
-func (r nullReading) admits(c lowering.Ctx) bool {
+func (r nullReading) admits(c lowering.Ctx) bool { return r.selected(c) == nullAdmitted }
+
+// forbids reports whether the reading c's policy selects keeps null out.
+func (r nullReading) forbids(c lowering.Ctx) bool { return r.selected(c) == nullForbidden }
+
+// selected is the verdict of the reading c's policy selects.
+func (r nullReading) selected(c lowering.Ctx) nullVerdict {
 	if c.NullableInference.Honours() {
-		return r.lenient == nullAdmitted
+		return r.lenient
 	}
-	return r.declared == nullAdmitted
+	return r.declared
 }
 
 // ref returns a reference to target that admits null as c's policy reads it
@@ -150,7 +156,14 @@ type nulls struct {
 	// nullable reports whether the dialect of the schema being read defines the
 	// nullable keyword (oas.SchemaRules.Defines), the one question of the
 	// version this read asks.
-	nullable  bool
+	nullable bool
+	// variants marks a read of whether a schema admits null wherever the IR
+	// holds it, a variant included, so a union admits null where any branch
+	// does and keeps it out where every branch does (variantsNull), not only
+	// where its null lifts onto the reference (unionNullReading); rest is a
+	// schema whose own union it leaves out.
+	variants  bool
+	rest      *statement.Schema
 	conjuncts budget.Budget
 	// found is each null the lenient reading reads in where the declared one
 	// leaves its schema without null, at a site the walk has.
@@ -214,10 +227,17 @@ func (n *nulls) ref(js *statement.Statement, site nullSite) nullReading {
 
 // usage is s, a schema writing a $ref, read over target, what the $ref lands
 // on: s's own keywords conjoined with it, which the lenient reading widens
-// where they admit null (widenRef) or write `nullable: true` (widen).
+// where they admit null (widenRef) or write `nullable: true` (widen). A read
+// of variants takes a union's null as its branches' and no keyword's beside
+// the $ref, so it widens nothing there.
 func (n *nulls) usage(s *statement.Schema, target nullReading, site nullSite) nullReading {
-	own := n.keywords(s, site)
-	return n.widen(s, own, n.widenRef(own, foldNullReadings(own, target), site), site)
+	typed, union := n.valueParts(s)
+	own := foldNullReadings(typed, n.allOf(s, site))
+	all := foldNullReadings(own, union)
+	if !n.variants {
+		own = all
+	}
+	return n.widen(s, all, n.widenRef(own, foldNullReadings(all, target), site), site)
 }
 
 // lands reads what js's $ref lands on along the chain the bindings resolved:
@@ -232,12 +252,12 @@ func (n *nulls) lands(js *statement.Statement) nullReading {
 		return alike(nullSilent)
 	}
 	e := js.Ref.Entry
-	sites := []*landing{landingOf(n.c, js)}
+	sites := []*landing{landingOf(n, js)}
 	var aliases []nullHop
 	hop, at := declaredOf(n.c, js)
 	for i := 1; i < e.Chain.Hops && hop != nil && hop.Ref != nil && !sites[len(sites)-1].kept; i++ {
 		aliases = append(aliases, nullHop{s: hop.Schema, nullable: definesNullableIn(n.c, at.Doc)})
-		sites = append(sites, landingOf(n.c, hop))
+		sites = append(sites, landingOf(n, hop))
 		hop, at = declaredOf(n.c, hop)
 	}
 	// Each read below is in its own document's dialect, and the walk returns to
@@ -270,17 +290,21 @@ type landing struct {
 	kept    bool
 }
 
-// landedOn keys the landing of a reference site in the compile's readings.
+// landedOn keys the landing of a reference site in the compile's readings, one
+// for each way of reading a union (nulls.variants) and a union left out.
 type landedOn struct {
-	js *statement.Statement
+	js       *statement.Statement
+	rest     *statement.Schema
+	variants bool
 }
 
 // landsRead keys the count of hop readings lands has made.
 type landsRead struct{}
 
-// landingOf returns the landing of the reference site js, one per compile.
-func landingOf(c lowering.Ctx, js *statement.Statement) *landing {
-	return lowering.Remembered(c, landedOn{js}, func() *landing { return &landing{} })
+// landingOf returns the landing of the reference site js as n reads it, one
+// per compile.
+func landingOf(n *nulls, js *statement.Statement) *landing {
+	return lowering.Remembered(n.c, landedOn{js: js, rest: n.rest, variants: n.variants}, func() *landing { return &landing{} })
 }
 
 // landingCount returns the count of hop readings lands has made in the
@@ -335,9 +359,32 @@ func (n *nulls) widenRef(own, r nullReading, site nullSite) nullReading {
 // each reading, the nullable keyword's declared effect on it
 // (declaredTypeVerdict); the conjuncts differ only as each is read.
 func (n *nulls) keywords(s *statement.Schema, site nullSite) nullReading {
-	v := valueNulls(n.c, s)
-	own := foldNullReadings(n.typed(s, v.constant, v.enum), v.union)
-	return foldNullReadings(own, n.allOf(s, site))
+	typed, union := n.valueParts(s)
+	return foldNullReadings(foldNullReadings(typed, union), n.allOf(s, site))
+}
+
+// own is what s says of null by its own keywords, its unions among them and
+// its conjuncts aside, widened as schema widens it.
+func (n *nulls) own(s *statement.Schema) nullReading {
+	typed, union := n.valueParts(s)
+	own := foldNullReadings(typed, union)
+	return n.widenByBranch(s, n.widen(s, own, own, nullSite{}), nullSite{})
+}
+
+// valueParts is what s's type, const and enum say of null, and apart what its
+// oneOf and anyOf say, as n reads a union.
+func (n *nulls) valueParts(s *statement.Schema) (typed, union nullReading) {
+	var v valueVerdicts
+	switch {
+	case !n.variants:
+		v = valueNulls(n.c, s)
+	case s == n.rest:
+		v = valueSetNulls(n.c, s)
+	default:
+		v = valueSetNulls(n.c, s)
+		v.union = n.variantsNull(s)
+	}
+	return n.typed(s, v.constant, v.enum), v.union
 }
 
 // typed is what s's type says of null under each reading, conjoined with the
@@ -349,10 +396,16 @@ func (n *nulls) typed(s *statement.Schema, constant, enum nullVerdict) nullReadi
 	}
 }
 
-// valueNullsOf keys what valueNulls read of one schema.
-type valueNullsOf struct {
-	schema *statement.Schema
-}
+// valueNullsOf keys what valueNulls read of one schema, and valueSetNullsOf
+// what valueSetNulls did.
+type (
+	valueNullsOf struct {
+		schema *statement.Schema
+	}
+	valueSetNullsOf struct {
+		schema *statement.Schema
+	}
+)
 
 // valueVerdicts is what a schema's const, enum and union families say of null.
 // Each reads only the schema, the same whichever site asks; the union's is read
@@ -367,7 +420,18 @@ type valueVerdicts struct {
 // at each reference would cost the references times the members.
 func valueNulls(c lowering.Ctx, s *statement.Schema) valueVerdicts {
 	return lowering.Remembered(c, valueNullsOf{s}, func() valueVerdicts {
-		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s), union: unionNullReading(c, s)}
+		v := valueSetNulls(c, s)
+		v.union = unionNullReading(c, s)
+		return v
+	})
+}
+
+// valueSetNulls returns what s's const and enum say of null, read once a run,
+// with no union: a read of null on variants reads that otherwise
+// (nulls.variantsNull), asking no union whether it is distributed.
+func valueSetNulls(c lowering.Ctx, s *statement.Schema) valueVerdicts {
+	return lowering.Remembered(c, valueSetNullsOf{s}, func() valueVerdicts {
+		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s)}
 	})
 }
 
@@ -497,11 +561,10 @@ func isNullValue(node *yaml.Node) bool {
 // (nullAloneReading) under each reading: the union admits null where a branch
 // does, so its null rests on the policy where only a branch's lenient reading
 // admits it. A null branch counts where the union is the type itself or is
-// distributed across the structural siblings beside it, as no variant of
-// either (buildUnion), the siblings' own verdicts conjoining with it; a union
-// kept verbatim beside them says nothing. It never forbids: a union with no
-// null branch says nothing of a null a sibling admits, as in
-// `{nullable: true, oneOf: …}`.
+// distributed across the structural siblings beside it (buildUnion), their
+// verdicts conjoining with it; a union kept verbatim beside them says nothing.
+// One union never forbids; a oneOf and an anyOf together forbid null where
+// one keeps it out (pairMayAdmitNull).
 func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
 	choice := s.ChoiceKeywords()
 	out := alike(nullSilent)
@@ -523,10 +586,41 @@ func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
 	}
 	// The lenient reading admits wherever the declared one does, so a union it
 	// leaves silent is silent under both, and asks no more of its siblings.
+	if !pairMayAdmitNull(c, choice) {
+		// A oneOf and an anyOf are conjuncts: one keeping null out keeps it
+		// out of the position, as on two allOf entries (pairKeepsNullOut).
+		return alike(nullForbidden)
+	}
 	if out.lenient == nullSilent || hasUnionSiblings(c, s) && !distributesUnion(c, s) {
 		return alike(nullSilent)
 	}
 	return out
+}
+
+// pairMayAdmitNull reports whether each of a oneOf and an anyOf written
+// together may admit null, as an instance of both must, a null being shared
+// only where every conjunct may admit it, read by one walk in the reading a
+// passed-over union beside a body has (bodyAdmitsNull). One union alone asks
+// nothing more.
+func pairMayAdmitNull(c lowering.Ctx, choice statement.Choice) bool {
+	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
+		return true
+	}
+	n := newNulls(c)
+	n.variants = true
+	return !pairForbidsNull(&n, choice)
+}
+
+// pairForbidsNull reports whether n's walk, whose budget bounds this read as
+// the rest of the walk, finds the oneOf or the anyOf of choice keeping null
+// out: every branch of it does within that budget.
+func pairForbidsNull(n *nulls, choice statement.Choice) bool {
+	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
+		if n.branchesNull(branches).forbids(n.c) && !n.conjuncts.Exhausted() {
+			return true
+		}
+	}
+	return false
 }
 
 // distributesUnion reports whether s, writing a union beside structural
@@ -610,7 +704,51 @@ func (n *nulls) allOf(s *statement.Schema, site nullSite) nullReading {
 	for _, b := range allOfIn(s) {
 		out = foldNullReadings(out, n.conjunct(n.c.Statements().Sub(b), site.child("allOf", strconv.Itoa(b.Index))))
 	}
+	if pairKeepsNullOut(n, s) {
+		out = foldNullReadings(out, alike(nullForbidden))
+	}
 	return out
+}
+
+// pairKeepsNullOut reports whether s and its inline allOf entries write a
+// oneOf and an anyOf between them, no one of them writing both, of which a
+// union keeps null out, read by n's walk (pairForbidsNull): an instance of the
+// position is one of each, so that union's null is no value it admits. One
+// schema writing both is read by unionNullReading.
+func pairKeepsNullOut(n *nulls, s *statement.Schema) bool {
+	var pair statement.Choice
+	note := func(x *statement.Schema) bool {
+		choice := x.ChoiceKeywords()
+		if len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
+			return false
+		}
+		if len(choice.OneOf) > 0 {
+			pair.OneOf = choice.OneOf
+		}
+		if len(choice.AnyOf) > 0 {
+			pair.AnyOf = choice.AnyOf
+		}
+		return true
+	}
+	if !note(s) {
+		return false
+	}
+	for _, b := range allOfIn(s) {
+		if st := n.c.Statements().Sub(b); inlineBranch(st) && !note(st.Schema) {
+			return false
+		}
+	}
+	if len(pair.OneOf) == 0 || len(pair.AnyOf) == 0 {
+		return false
+	}
+	// Each union's null is its branches', as one schema writing both reads it
+	// (pairMayAdmitNull), so a branch that is a union keeps null out where its
+	// own branches do; the read stays on n's budget.
+	variants := n.variants
+	n.variants = true
+	forbids := pairForbidsNull(n, pair)
+	n.variants = variants
+	return forbids
 }
 
 // widenByBranch is the lenient reading of a `nullable: true` that folds: written

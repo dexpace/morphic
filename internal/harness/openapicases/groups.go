@@ -200,7 +200,7 @@ func carryParameters(uses []object) (object, object, []string) {
 	for i, u := range uses {
 		name := "q" + strconv.Itoa(i)
 		params[i] = object{{"name", name}, {"in", "query"}, {"schema", u}}
-		nodes[i] = "param/openapi/paths/" + pointerToken(casePath) + "/get/parameters/" + name + "/query"
+		nodes[i] = "param/openapi/paths/" + casePathToken() + "/get/parameters/" + name + "/query"
 	}
 	paths, schemas := atCasePath(object{{"get", object{{"parameters", params}, {"responses", okResponses}}}})
 	return paths, schemas, nodes
@@ -214,15 +214,15 @@ func carryHeaders(uses []object) (object, object, []string) {
 	for i, u := range uses {
 		name := "H" + strconv.Itoa(i)
 		headers[i] = member{name, object{{"schema", u}}}
-		nodes[i] = "p/openapi/paths/" + pointerToken(casePath) + "/get/responses/200/headers/" + name
+		nodes[i] = "p/openapi/paths/" + casePathToken() + "/get/responses/200/headers/" + name
 	}
 	paths, schemas := atCasePath(response(member{"headers", headers}))
 	return paths, schemas, nodes
 }
 
-// pointerToken returns s as one JSON Pointer reference token (RFC 6901).
-func pointerToken(s string) string {
-	return strings.NewReplacer("~", "~0", "/", "~1").Replace(s)
+// casePathToken returns casePath as one JSON Pointer reference token (RFC 6901).
+func casePathToken() string {
+	return strings.NewReplacer("~", "~0", "/", "~1").Replace(casePath)
 }
 
 // equal is what the case at, a group's uses in one spelling, must equal: the

@@ -70,6 +70,11 @@ error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/
   compiler recognized;
 - the bare IR location for one an IR pass made about the document.
 
+A finding that concerns more than its own place, as a conflict between two declarations does, has
+one line all the same, at the place it sits: its message names the declaration it kept, and the
+list of what else it concerns, each with its role, is in the [JSON report](#json-report) and the
+IR document ([provenance](ir/provenance.md#related-places)).
+
 Each finding is written at the severity it is rated at, which is the one its stage reported unless
 a [triage](#triage) rule rates it otherwise. A spec can draw thousands of findings, so the text
 format writes the first three of each code and severity, in the order they were reported, and
@@ -152,7 +157,7 @@ adds that line after the report, the report staying the first line, whatever sta
 a refused document leaves a run its findings failed at `1`, as [Exit codes](#exit-codes) says.
 
 ```json
-{"version": 1, "failed": false,
+{"version": 2, "failed": false,
  "sources": [{"format": "openapi@3.1", "path": "openapi.yaml", "hash": "…"}],
  "findings": [{"diagnostic": {"severity": "error", "code": "openapi/unresolved-security-scheme",
                               "message": "…", "provenance": {"source": 0, "pointer": "/security/0/key"}},
@@ -164,10 +169,10 @@ a refused document leaves a run its findings failed at `1`, as [Exit codes](#exi
 
 | Member | Holds |
 |---|---|
-| `version` | the report's schema version, `1` |
+| `version` | the report's schema version, `2` |
 | `failed` | the verdict, the one the exit status reads |
 | `sources` | the files each `provenance.source` indexes, as an IR document's `sources` |
-| `findings` | every finding, in the order reported: `diagnostic` as its stage reported it, an IR diagnostic, `severity` as it is rated, `accepted` when a rule accepted it, and `rule`, the rule it met |
+| `findings` | every finding, in the order reported: `diagnostic` as its stage reported it, an IR diagnostic, its `related` list naming what else the finding concerns ([provenance](ir/provenance.md#related-places)), `severity` as it is rated, `accepted` when a rule accepted it, and `rule`, the rule it met |
 | `unusedRules` | the triage rules no finding matched |
 | `warnings` | what kept the run from working as asked without failing it, such as a cache it could not use, one line each |
 

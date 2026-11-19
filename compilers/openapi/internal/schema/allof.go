@@ -172,7 +172,7 @@ func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) al
 		comp.conjoins = u.at
 	}
 	comp.kept = entryKeeps(c, s, comp, func(i int) []string { return compositionResidue(c, comp, i) },
-		voicing{speaks: comp.speaks, rebased: comp.rebased}, catchAllKeyword)
+		voicing{speaks: comp.speaks, rebased: comp.rebased}, catchAllKeyword, nil)
 	return comp
 }
 
@@ -233,9 +233,9 @@ func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
 
 // subject names the schema writing a's conjuncts in a report: "this allOf",
 // or, where the schema writes a $ref beside its keywords, the conjunct that
-// reference is, "this schema", which writes no allOf to name.
+// reference is, or no allOf at all, "this schema", which writes none to name.
 func (a allOfComposition) subject() string {
-	if len(a.branches) > 0 && a.branches[0].pointer == a.pointer {
+	if len(a.branches) == 0 || a.branches[0].pointer == a.pointer {
 		return "this schema"
 	}
 	return "this allOf"
@@ -376,7 +376,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 	}
 	unhomed := unreadByReference(c, b.Schema, compositionCensusHandled)
 	var kept finished
-	keep := kept.on(keepUnhomedOn(c, ts, b.Schema, unhomed, refSiteShape, e.pointer))
+	keep := keepUnhomedOn(c, ts, b.Schema, unhomed, refSiteShape, e.pointer, stand{}, &kept, nil)
 	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0, keep)
 	diags = append(diags, homeDiags...)
 	diags = append(diags, kept.diags...)

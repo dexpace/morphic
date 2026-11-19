@@ -153,6 +153,31 @@ func TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten(t *testing.T) {
 	}
 }
 
+// TestOlderDrafts_ATupleIsReadInTheDialectWhereItIsWritten pins a draft's tuple
+// beneath a type list's array variant, which stands at a pointer of its own, to
+// the dialect of the resource it is written in: the variant's items, a draft 7
+// resource of its own, is the Tuple it is under a type array, and so is the
+// variant of a type list a draft 7 allOf entry writes, which stands under the
+// position's pointer, though the document reads 2020-12.
+func TestOlderDrafts_ATupleIsReadInTheDialectWhereItIsWritten(t *testing.T) {
+	t.Parallel()
+	const items = "items: {$id: 'https://example.com/%s', $schema: " + draft07 + ", type: array, items: [{type: string}]}"
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Variant: {type: [string, array], "+strings.Replace(items, "%s", "v", 1)+"}\n"+
+			"    Array: {type: array, "+strings.Replace(items, "%s", "a", 1)+"}\n"+
+			"    Entry: {allOf: [{$id: 'https://example.com/e', $schema: "+draft07+
+			", type: [string, array], items: [{type: string}]}, {description: d}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, id := range []ir.TypeID{
+		"t/anon/components/schemas/Variant/type/1/items", "t/anon/components/schemas/Array/items", "t/anon/components/schemas/Entry/type/1",
+	} {
+		tuple, ok := doc.Types[id].(*ir.Tuple)
+		require.True(t, ok, "%s is the tuple its resource writes", id)
+		require.Len(t, tuple.Elems, 1)
+		assert.Equal(t, ir.TypeID("t/prim/string"), tuple.Elems[0].Target)
+	}
+}
+
 // TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins a draft 7 tuple
 // whose entries or rest no schema spells, which no $ref reaches, against its
 // twin written with 2020-12's prefixItems: an entry of 5 or null is an error at

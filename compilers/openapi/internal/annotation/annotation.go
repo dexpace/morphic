@@ -9,6 +9,7 @@ import (
 	"iter"
 	"slices"
 	"strconv"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -185,6 +186,10 @@ type Site struct {
 	// Closure says the node Node lowered to holds its `unevaluatedProperties:
 	// false` as its openness, so no entry keeps it. The zero value keeps it.
 	Closure bool
+	// Leaves names the keywords Node writes that Read keeps no entry of: an
+	// inline allOf branch the position keeps whole writes them alike, and that
+	// entry holds the one writing (docs/compilers/openapi.md#allof-refinement).
+	Leaves []string
 }
 
 // Dialect is what a schema's dialect spells otherwise than JSON Schema
@@ -203,14 +208,22 @@ type Dialect struct {
 }
 
 // Voice is an inline allOf branch and where it is written, so what it declares
-// is read, and reported, at its own pointer.
+// is read, and reported, at its own pointer, in its own dialect.
 type Voice struct {
 	Node *statement.Schema
 	At   jsontext.Pointer
+	// Dependencies says the dialect Node is written in defines `dependencies`
+	// (Dialect.Dependencies), which a branch naming its own may, whatever the
+	// position's.
+	Dependencies bool
 	// KeptWhole says the position keeps the branch whole, an entry holding what
 	// it writes, so it writes no entry Read keeps beside it but one no other
 	// voice writes (docs/compilers/openapi.md#allof-inline-residue).
 	KeptWhole bool
+	// Beside says Node is the position's own schema, read beside the inline
+	// allOf branch its node is built from: what it writes stands before that
+	// branch's, as the keywords beside an allOf do before an entry's.
+	Beside bool
 }
 
 // Chain returns what speaks for the site, nearest first: its own schema, its
@@ -299,6 +312,12 @@ func DeclaresRedaction(s *statement.Schema) bool {
 // position attaching annotations makes it apart.
 func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
 	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect, st.Closure)
+	for _, key := range leftEntries(st) {
+		if _, kept := out.Unmodeled[key]; kept {
+			delete(out.Unmodeled, key)
+			diags = lessNote(diags, doc.At(pointer), key)
+		}
+	}
 	var u underlay
 	if len(st.Voices) > 0 {
 		u.own = make(map[string]bool, len(out.Unmodeled))
@@ -307,7 +326,13 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 		}
 	}
 	for _, v := range st.Voices {
-		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: st.Dialect.Dependencies}, false)
+		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: v.Dependencies}, false)
+		for key := range voice.Unmodeled {
+			if u.own[key] {
+				// The site keeps the one writing, and its report says so.
+				voiceDiags = lessNote(voiceDiags, doc.At(v.At), key)
+			}
+		}
 		diags = append(diags, voiceDiags...)
 		if out.XML == nil {
 			out.XML = voice.XML
@@ -322,6 +347,45 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 	out.Deprecated = EffectiveDeprecated(chain)
 	out.Sensitive = slices.ContainsFunc(chain, DeclaresRedaction)
 	return out, diags
+}
+
+// leftEntries returns the entries Read keeps none of for st.Leaves: the one
+// each keyword is kept under, and the one several keywords fold into, if, then
+// and else or contains and its counts, where the site leaves every one of
+// them it writes.
+func leftEntries(st Site) []string {
+	if len(st.Leaves) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(st.Leaves)+2)
+	for _, keyword := range st.Leaves {
+		out = append(out, EntryKey("", keyword))
+	}
+	left := func(keyword string) bool { return slices.Contains(st.Leaves, keyword) }
+	if _, written, _ := IfThenElseRaw(st.Node); len(written) > 0 && !slices.ContainsFunc(written, func(k string) bool { return !left(k) }) {
+		out = append(out, "openapi:if-then-else")
+	}
+	if _, written, _ := ContainsRaw(st.Node); len(written) > 0 && !slices.ContainsFunc(written, func(k string) bool { return !left(k) }) {
+		out = append(out, "openapi:contains")
+	}
+	return out
+}
+
+// lessNote returns diags less the report validationOnlyAt drew at at for the
+// validation-only entry under key, which its caller keeps no entry of: another
+// writer keeps the one writing, and reports it. An entry of another reason
+// drew none.
+func lessNote(diags []ir.Diagnostic, at ir.Provenance, key string) []ir.Diagnostic {
+	label := strings.TrimPrefix(key, EntryKey("", ""))
+	switch label {
+	case "if-then-else":
+		label = "if/then/else"
+	default:
+	}
+	message := validationOnlyMessage(label)
+	return slices.DeleteFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == diag.ValidationOnlyKeyword && d.Provenance.Pointer == at.Pointer && d.Message == message
+	})
 }
 
 // readLocal reads what s, written at pointer, says of the position alone: the
@@ -373,13 +437,30 @@ func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Poi
 		diags = append(diags, xmlDiags...)
 		keep("xml", x.Unknown, x.Node, x.Extensions, taken)
 	}
-	if d := s.Discriminator(); d != nil && discriminator {
-		keep("discriminator", d.Unknown, d.Node, d.Extensions, nil)
+	if discriminator {
+		kept, keptDiags := DiscriminatorKeys(s, pointer, doc)
+		out = MergeUnmodeled(out, kept)
+		diags = append(diags, keptDiags...)
 	}
 	if e := s.ExternalDocs(); e != nil {
 		keep("externalDocs", e.Unknown, e.Node, e.Extensions, nil)
 	}
 	return out, diags
+}
+
+// DiscriminatorKeys returns what the discriminator s writes, at pointer,
+// declares that reaches no IR field, as Read keeps a site's own schema's: the
+// x-* it carries and the keys the specification does not define for it. A node
+// holding the discriminator of a schema written elsewhere, an allOf entry whose
+// union stands at the entry's position, keeps them so.
+func DiscriminatorKeys(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc) (ir.Unmodeled, []ir.Diagnostic) {
+	d := s.Discriminator()
+	if d == nil {
+		return nil, nil
+	}
+	owner := pointer + ids.Ptr("discriminator")
+	out, diags := SchemaExtensions(d.Extensions, doc, owner, "discriminator")
+	return out, append(diags, UnknownKeysNamed(&out, d.Unknown, d.Node, doc, owner, "discriminator")...)
 }
 
 // applyNodeType places the nodeType the XML object x writes on hints, which the

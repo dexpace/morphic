@@ -187,7 +187,7 @@ func fillParamSchemaAnnotations(c service.Ctx, param *ir.Parameter, written *ir.
 	// them after the guard would drop them for exactly the parameters whose
 	// schema owns a node — an object, an enum, an array.
 	var diags []ir.Diagnostic
-	for _, v := range schema.ResidueWriters(use.Written()) {
+	for _, v := range schema.ResidueWriters(use.Voices) {
 		diags = append(diags, preserveParamVisibility(c, written, v.Node, v.At)...)
 	}
 	diags = append(diags, preserveParamVisibility(c, written, s, pointer)...)

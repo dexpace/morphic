@@ -72,7 +72,7 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 	if _, _, collapses := nullUnionCollapse(c, s, ""); !collapses {
 		return nil, ""
 	}
-	return unreadByReference(c, s, keySetOf(branchesSay(c, s)...)), collapsedShape
+	return unreadByReference(c, s, keySetOf(branchesSay(c, s, s)...)), collapsedShape
 }
 
 // keepingUnread lowers the position s, written at pointer, through build, the
@@ -83,71 +83,87 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 // docs/compilers/openapi.md#shape-applicator covers a contradictory schema's
 // dropped half and an untyped applicator such as `items`. build returns, beside
 // the ID, what a lowering to a shared node read.
-func keepingUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, d dispatch, fin finisher,
+func keepingUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, d dispatch, fin finisher, st stand,
 	build func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic),
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept finished
-	id, shared, diags := build(func(td ir.TypeDef, read keySet) {
+	id, shared, diags := build(func(td ir.TypeDef, read keySet, held *principalKept) {
 		kept.ran = true
-		kept.diags = keepUnread(c, ts, s, pointer, td, d, read)
-		if fin != nil {
-			fin(td, read)
-		}
+		kept.diags = keepUnread(c, ts, s, pointer, td, d, read, st, held, fin)
 	})
-	if kept.ran || LoweredToOwnNode(c, pointer, ir.TypeRef{Target: id}) {
+	if kept.ran || LoweredToOwnNode(c, st.pointer(pointer), ir.TypeRef{Target: id}) {
 		// A node the position owns that this visit found built was finished by
 		// the visit building it.
 		return id, append(diags, kept.diags...)
 	}
-	owner, sharedDiags := keepUnreadShared(c, ts, s, pointer, id, d, shared, fin)
+	owner, sharedDiags := keepUnreadShared(c, ts, s, pointer, id, d, shared, fin, st)
 	return owner, append(diags, sharedDiags...)
 }
 
 // keepUnread keeps verbatim on td, the node the position owns, in hand, each
 // key of censusDomain s, written at pointer, writes that the build of td did
 // not read, nor a reader beside it (readElsewhere), nor d's election skipped or
-// said, and the families it skipped.
+// said, and the families it skipped, then finishes td by fin, as keepAround
+// orders the two where the node stands for st's position.
 //
 // A multipart body keys no part for `properties` the node lacks
 // (docs/compilers/openapi.md#multipart-encoding).
 func keepUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef, d dispatch,
-	read keySet,
+	read keySet, st stand, held *principalKept, fin finisher,
 ) []ir.Diagnostic {
 	unread := unreadKeys(s, read|readBeside(s, td)|d.handled())
-	var diags []ir.Diagnostic
-	if len(unread) > 0 {
-		diags = recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unread, positionShape(td, s), pointer)
+	if st.of == nil {
+		// The schema's own node, the path every node takes: keep, then finish.
+		var diags []ir.Diagnostic
+		if len(unread) > 0 {
+			diags = recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unread, positionShape(td, s), pointer)
+		}
+		diags = append(diags, recordSkippedFamilies(c, td, s, d, pointer)...)
+		fin.run(td, read, held)
+		return diags
 	}
-	return append(diags, recordSkippedFamilies(c, td, s, d, pointer)...)
+	var skipped finished
+	fin = skipped.on(func(td ir.TypeDef) []ir.Diagnostic { return recordSkippedFamilies(c, td, s, d, pointer) }).then(fin)
+	shape := positionShape(td, s)
+	k := keeping{keys: unread, reason: ir.ReasonDegradedLowering, shape: shape, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
+		return recordUnhomedAt(c, ts, p, s, keys, shape, pointer)
+	}}
+	return append(keepAround(c, ts, st, td, read, held, s, pointer, k, fin), skipped.diags...)
 }
 
 // keepUnreadShared is keepUnread for a position that lowered to id, a shared
-// primitive, which read shared of s: the alias hoisted over it, finished by
-// the keeping and then fin, holds what neither read, the alias reading the
-// bounds the types the position admits take. It returns id itself, fin
-// unfinished, where nothing is kept.
+// primitive, which read shared of s: the alias hoisted over it where st says,
+// finished by the keeping and then fin, holds what neither read, the alias
+// reading the bounds the types the position admits take. It returns id
+// itself, fin unfinished, where nothing is kept.
 func keepUnreadShared(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, id ir.TypeID, d dispatch,
-	shared keySet, fin finisher,
+	shared keySet, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
-	unread := unreadKeys(s, shared|boundsRead(s, boundKinds(c, s), nil)|readElsewhere(s)|d.handled())
+	unread := unreadKeys(s, shared|boundsRead(s, st.takes(c, s), nil)|readElsewhere(s)|d.handled())
 	if len(unread) == 0 && len(d.skipped) == 0 {
 		return id, nil
 	}
-	keep := keepUnhomedOn(c, ts, s, unread, nodeShape(ir.KindPrimitive), pointer)
-	var kept finished
-	owner, aliasDiags := internAlias(c, ts, s, pointer, ir.TypeRef{Target: id}, kept.on(func(alias ir.TypeDef) []ir.Diagnostic {
-		return append(keep(alias), recordSkippedFamilies(c, alias, s, d, pointer)...)
-	}).then(fin))
-	return owner, append(aliasDiags, kept.diags...)
+	var kept, skipped finished
+	fin = skipped.on(func(alias ir.TypeDef) []ir.Diagnostic { return recordSkippedFamilies(c, alias, s, d, pointer) }).then(fin)
+	keep := keepUnhomedOn(c, ts, s, unread, nodeShape(ir.KindPrimitive), pointer, st, &kept, fin)
+	owner, aliasDiags := internAlias(c, ts, s, pointer, ir.TypeRef{Target: id}, keep, st)
+	return owner, slices.Concat(aliasDiags, kept.diags, skipped.diags)
 }
 
-// keepUnhomedOn returns what keeps unhomed, the keywords s, written at pointer,
-// declares that no build read into the position's node, on that node in hand,
-// reporting what the position lowered to as shape.
+// keepUnhomedOn returns the finisher keeping unhomed, the keywords s, written
+// at pointer, declares that no build read into the position's node, on that
+// node in hand, reporting what the position lowered to as shape and recording
+// into kept, then finishing it by fin, as keepAround orders the two where the
+// node stands for st's position.
 func keepUnhomedOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer,
-) func(td ir.TypeDef) []ir.Diagnostic {
-	return func(td ir.TypeDef) []ir.Diagnostic {
-		return recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unhomed, shape, pointer)
+	st stand, kept *finished, fin finisher,
+) finisher {
+	k := keeping{keys: unhomed, reason: ir.ReasonDegradedLowering, shape: shape, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
+		return recordUnhomedAt(c, ts, p, s, keys, shape, pointer)
+	}}
+	return func(td ir.TypeDef, read keySet, held *principalKept) {
+		kept.ran = true
+		kept.diags = append(kept.diags, keepAround(c, ts, st, td, read, held, s, pointer, k, fin)...)
 	}
 }
 
@@ -209,25 +225,30 @@ const distributedShape = "a union of models conjoining its body with each branch
 // position's own schema s builds the variants of: a type array's (lowerUnion)
 // and a distributed composition's (composedVariant). It keeps on the Union what
 // s writes that neither it nor a variant read, read being what they did,
-// nor its lowering accounted for, handled. A discriminator the Union holds is
-// homed there, routing its variants. shape describes the Union.
+// nor its lowering accounted for, handled, recording into kept, then finishes
+// it by fin, as keepAround orders the two where the Union stands for st's
+// position. A discriminator the Union holds is homed there, routing its
+// variants. shape describes the Union.
 func keepUnreadAcross(c lowering.Ctx, ts *compile.Types, s *statement.Schema, shape string, handled keySet, pointer jsontext.Pointer,
-) func(td ir.TypeDef, read keySet) []ir.Diagnostic {
-	return func(td ir.TypeDef, read keySet) []ir.Diagnostic {
+	st stand, kept *finished, fin finisher,
+) finisher {
+	return func(td ir.TypeDef, built keySet, held *principalKept) {
+		kept.ran = true
 		u, isUnion := td.(*ir.Union)
 		if !isUnion {
-			return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
-				"internal: type %q is not the union its variants were built for", td.Common().ID)}
+			kept.diags = append(kept.diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+				"internal: type %q is not the union its variants were built for", td.Common().ID))
+			fin.run(td, built, held)
+			return
 		}
-		read |= readElsewhere(s) | handled
+		read := built | readElsewhere(s) | handled
 		if u.Discriminator != nil {
 			read |= keyBit("discriminator")
 		}
-		unread := unreadKeys(s, read)
-		if len(unread) == 0 {
-			return nil
-		}
-		return recordUnhomedAt(c, ts, &u.Unmodeled, s, unread, shape, pointer)
+		k := keeping{keys: unreadKeys(s, read), reason: ir.ReasonDegradedLowering, shape: shape, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
+			return recordUnhomedAt(c, ts, p, s, keys, shape, pointer)
+		}}
+		kept.diags = append(kept.diags, keepAround(c, ts, st, td, built, held, s, pointer, k, fin)...)
 	}
 }
 

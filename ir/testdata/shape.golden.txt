@@ -146,6 +146,7 @@ type Diagnostic struct
 	"code" string
 	"message" string
 	"provenance" Provenance
+	"related" []Related omitempty
 	"severity" Severity
 
 type Discriminator struct
@@ -738,6 +739,14 @@ type RPCBinding struct
 	"unmodeled" Unmodeled omitempty
 
 type RawConfig map[string]encoding/json/jsontext.Value
+
+type Related struct
+	"provenance" Provenance
+	"role" RelatedRole
+
+type RelatedRole string
+	const "decided"
+	const "kept"
 
 type Reply struct
 	"address" *PropPath omitzero

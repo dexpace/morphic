@@ -51,13 +51,16 @@ var loweringRecursions = [][]string{
 	// end to walk to. A union's null branch counts only where the union is
 	// distributed, and a branch no instance of an object body satisfies is one
 	// that admits no null, so the walk and that classification ask each other.
-	// The branch is read so only where its admission read is whole, and each
-	// read it starts is of a statement that read took in, so the nesting is
-	// bounded by maxAdmissionReads.
+	// That classification reads null on variants (mayAdmitNull), which asks no
+	// union whether it is distributed, so it nests once; so does a oneOf and
+	// an anyOf asked whether each may admit null (pairMayAdmitNull), whose
+	// walk reads variants, and on entries it is read by the walk asking.
 	{
-		"classifyConjoined", "classifyUnionSiblings", "deadBranch", "deadBranches", "distributesUnion",
-		"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage",
-		"nulls.widenByBranch", "unionNullReading", "valueNulls",
+		"bodyAdmitsNull", "classifyConjoined", "classifyUnionSiblings", "deadBranch", "deadBranches",
+		"distributesUnion", "mayAdmitNull", "nulls.allOf", "nulls.branchesNull", "nulls.conjunct", "nulls.keywords",
+		"nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage", "nulls.valueParts", "nulls.variantsNull",
+		"nulls.widenByBranch", "pairForbidsNull", "pairKeepsNullOut", "pairMayAdmitNull", "unionNullReading",
+		"valueNulls",
 	},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (docs/ir/http-binding.md), so the operation
@@ -85,14 +88,15 @@ var loweringRecursions = [][]string{
 // scalar hoisters and the encoding reader are members because contentSchema's
 // value is a schema, so lowering it re-enters the walk from a scalar position.
 // Discriminator lowering is one because resolving a mapping target can hoist
-// the position it names, and so is the census, which resolves a kept one's.
+// the position it names, and so is every keeping of one (keepUnhomed,
+// keepAround).
 var schemaRecursion = []string{
 	"CarriedRef", "FillPropertyDetail", "PreserveRefSiteKeywords", "Ref", "buildComposedVariant",
 	"buildListedTuple", "buildTuple", "buildUnion",
 	"composeMixin", "composeModel", "composedVariant", "contentSchemaRef", "declaring.finish", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf", "fillCatchAll", "fillComposedAdditional",
 	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "hoistUseHome", "internOwnNode",
-	"keepFailedRefs",
+	"keepApart", "keepAround", "keepFailedRefs", "keepStanding", "keepTagBeside",
 	"keepUncomposedRefs", "keepUnhomed", "keepUnhomedOn", "keepUnread", "keepUnreadAcross", "keepUnreadShared",
 	"keepingUnread", "keptOn", "lower",
 	"lowerAllOf",
@@ -104,8 +108,8 @@ var schemaRecursion = []string{
 	"preserveUnmergedBranch", "recordEntryUnhomed",
 	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
-	"resolvePointer", "resolveSchemaRef", "routeEntry",
-	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
+	"resolvePointer", "resolveSchemaRef", "routeEntry", "routesKept",
+	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed", "wholePrincipal",
 }
 
 // loweringPackages are the directories whose sources the call graph reads,

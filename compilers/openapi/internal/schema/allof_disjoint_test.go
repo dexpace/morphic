@@ -144,7 +144,7 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			"type: string, const: string, allOf/0: integer"},
 		{"an allOf an enum passes over beside a union",
 			`{enum: [a], oneOf: [{type: string}, {type: integer}], allOf: [` + refStr + `, ` + refObj + `]}`,
-			"enum: string, allOf/0: string, allOf/1: object"},
+			"enum: string, oneOf: string or integer, allOf/0: string, allOf/1: object"},
 		{"an entry the enum beats that cannot be kept",
 			`{enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
 			"enum: string, allOf/0: string, allOf/1: integer"},

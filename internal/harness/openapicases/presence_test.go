@@ -76,8 +76,13 @@ func TestCore_EveryKeywordIsCarriedEverywhere(t *testing.T) {
 		}
 		askedAt[parts[2]][parts[4]]++
 	}
+	positions := openapicases.New().Axes()[4].Values
 	for _, keyword := range keywords(t) {
-		assert.Len(t, askedAt[keyword], len(openapicases.New().Axes()[4].Values), "%s is asked at every position", keyword)
+		want := len(positions)
+		if keyword == only30Keyword {
+			want -= len(from31Positions)
+		}
+		assert.Len(t, askedAt[keyword], want, "%s is asked at every position it is written at", keyword)
 	}
 }
 
@@ -100,6 +105,12 @@ func TestCore_TheControlsAreAskedAndChangeNothing(t *testing.T) {
 		assert.Positive(t, asked[keyword], keyword)
 	}
 }
+
+// only30Keyword is the one keyword a 3.0 schema alone writes, which no position
+// written from 3.1 holds, and from31Positions are those positions.
+const only30Keyword = "nullable"
+
+var from31Positions = []string{"prefixItem", "patternProperty", "contentSchema"}
 
 // keywords returns the keyword each construct of the cases writes.
 func keywords(t *testing.T) []string {

@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -13,22 +14,39 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerPrincipal lowers the branch r uses, at the pointer it is written at, so
-// nothing is minted and each node stands at a pointer naming its schema. A $ref
-// goes through Ref, as fillRefBranch's does, keeping the alias what is written
-// beside it always has. An inline branch that reduces to a shared node leaves
-// what it writes to the position, as a voice. Either takes a frame of its own, so
-// a refinement counts two against maxSchemaDepth, a limit no real schema nears. A
-// $ref the principal beat is still resolved: nothing else may lower what it names.
-func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement, fin finisher) (ir.TypeID, []ir.Diagnostic) {
+// lowerPrincipal lowers the branch r uses where s, written at pointer, refines.
+// A $ref goes through Ref, as fillRefBranch's does, keeping the alias what is
+// written beside it always has, in a frame of its own. An inline branch lowers
+// by its own keywords, its node standing at pointer for the whole conjunction,
+// finished by fin, its children and the reports on what it writes where they are
+// written (docs/compilers/openapi.md#allof-refinement). A $ref the principal beat
+// is still resolved: nothing else may lower what it names.
+func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, r refinement,
+	fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	e := r.principal
 	resolveBeaten(c, ts, r)
-	home := annotation.HomeCarrier
 	if e.schema.Ref != nil {
-		home = annotation.HomeOwnNode
+		ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, annotation.HomeOwnNode)
+		return ref.Target, diags
 	}
-	ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, home, fin)
-	return ref.Target, diags
+	// The node keeps the content vocabulary the branch writes where it holds
+	// none, as the branch's own node would (recordUnplacedContent).
+	var content, built []ir.Diagnostic
+	st := stand{of: s, at: pointer}
+	// What the principal's build kept on the node itself is held back while
+	// the position writes, the last of the principal's to leave and the first
+	// kept again.
+	outside := fin
+	position := finisher(func(td ir.TypeDef, read keySet, held *principalKept) {
+		built = keepBuiltAround(c, st, td, read, held, e.schema.Schema, e.pointer, outside)
+	})
+	fin = func(td ir.TypeDef, read keySet, held *principalKept) {
+		k := unplacedContent(c, e.schema.Schema, td, e.pointer)
+		content = keepAround(c, ts, st, td, read, held, e.schema.Schema, e.pointer, k, position)
+	}
+	ref, diags := lowerSchemaBody(c, ts, depth, e.schema.Schema, e.pointer, fin, st)
+	return ref.Target, slices.Concat(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags, built, content)
 }
 
 // resolveBeaten resolves each $ref of r but its principal: nothing else may
@@ -41,13 +59,43 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 	}
 }
 
-// refinedShape describes what a refinement lowers to, for the diagnostic
-// recordUnhomedAt reports, its conjuncts named as comp's subject names them.
-func refinedShape(comp allOfComposition) string {
-	if comp.subject() == "this schema" {
+// refinedShape describes what the position the refinement of comp decides
+// lowered to, for the reports of what it keeps and of conjuncts sharing no
+// value, principal being the branch elected and standing the node the position
+// owns, nil for none. Only a $ref principal makes it a use of a conjunct, named
+// as comp's subject names them; electing none lowers by the keywords beside
+// them (undecidedShape); an inline principal is named as written alone: the
+// reference it collapses or expands to (referenceOutcomeKeywords), its node as
+// its builder names it (held), else the node standing or the
+// shared primitive.
+func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, principal *allOfBranch, standing ir.TypeDef,
+	held *principalKept,
+) string {
+	switch {
+	case principal == nil:
+		return undecidedShape
+	case principal.schema.Ref != nil && comp.subject() == "this schema":
 		return "a use of one of its conjuncts"
+	case principal.schema.Ref != nil:
+		return "a use of one of its allOf conjuncts"
 	}
-	return "a use of one of its allOf conjuncts"
+	if electsOneOfPair(c, s) {
+		// The union passed over conjoins, so the elected one collapses no more
+		// than one schema writing both does (pairedPrincipal).
+		if _, ok := standing.(*ir.Union); ok {
+			_, key, _ := unionBranches(c, s, principal.schema.Schema)
+			return "the Union of its " + key
+		}
+	} else if _, shape := referenceOutcomeKeywords(c, principal.schema.Schema, principal.pointer); shape != "" {
+		return shape
+	}
+	if named := held.named(); named != "" {
+		return named
+	}
+	if standing != nil {
+		return nodeShape(standing.Kind())
+	}
+	return nodeShape(ir.KindPrimitive)
 }
 
 // lowerUndecided lowers s, written at pointer, which writes no kind and no
@@ -56,20 +104,20 @@ func refinedShape(comp allOfComposition) string {
 // where it admits none of a primitive's kinds alone. fin finishes the node
 // standing at pointer after its census.
 func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
-	fin finisher,
+	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	types := undecidedTypes(c, s, pointer)
 	switch len(types) {
 	case 0:
-		return keepingUnread(c, ts, s, pointer, d, fin, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, d, fin, st, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			return ts.PrimID(ir.PrimAny), 0, nil
 		})
 	case 1:
-		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
+		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return lowerTyped(c, ts, depth, s, pointer, types[0], fin, st)
 		})
 	default:
-		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false, fin)
+		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false, fin, st)
 	}
 }
 
@@ -130,20 +178,3 @@ func sharedKinds(joint admitted) kindSet {
 // the report of what an entry of it keeps.
 const undecidedShape = "what the keywords beside it say, as no entry of it is the one it lowers from " +
 	"(where they name no kind, the primitive kinds its entries admit together, else the top type)"
-
-// principalResidue returns the finisher keeping what binds a use on the node
-// the principal of s, written at pointer, builds, where no carrier reads it,
-// its report into into: a principal lowers with no home of its own
-// (lowerPrincipal), so the branch keeps it as any declaration owning a node
-// does. It is nil where s has no principal, or home is a carrier, which keeps
-// it.
-func principalResidue(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home, into *[]ir.Diagnostic) finisher {
-	r, refined := refinementOf(c, s, pointer)
-	if home != annotation.HomeOwnNode || !refined || r.principal == nil || !stated(r.principal.schema.Schema) {
-		return nil
-	}
-	principal := r.principal
-	return func(td ir.TypeDef, _ keySet) {
-		*into = recordResidue(c, td.Common(), principal.schema.Schema, principal.pointer)
-	}
-}

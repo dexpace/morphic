@@ -442,7 +442,7 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 		detail, ok := diffOrderInvariants(header("t/prim/string"), nil, header("t/prim/integer"), nil)
 		assert.False(t, ok)
 		assert.Contains(t, detail, differs)
-		assert.Contains(t, detail, `"integer"`, "the diff names what changed")
+		assert.Contains(t, detail, `"target": "t/prim/integer"`, "the diff names what changed")
 	})
 
 	t.Run("the hash of the source compiled", func(t *testing.T) {

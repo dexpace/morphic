@@ -322,8 +322,8 @@ straight to the target, and an inline entry of those keywords at the same pointe
 reference of its own, as `allOf: [{$ref: T}, {K}]` writes them, and a `$ref` written beside the
 composition's own keywords is one more such reference. Those keywords bind the composition, never
 the shared node, and no node stands at the entry for its reference, so every `$ref` entry composes
-the schema it names; where they decide an `allOf` no object satisfies, they stand at the entry's
-pointer as any inline branch does at its own ([below](#an-allof-no-object-satisfies)). An `allOf` of one `$ref`
+the schema it names; where they decide an `allOf` no object satisfies, the node they build stands at
+the position, as any inline principal's does ([below](#an-allof-no-object-satisfies)). An `allOf` of one `$ref`
 saying nothing else is that reference, and a position needing a node of its own over it, a
 component or one a `$ref` names, owns the `Model` over an object or the alias over anything else
 ([`allof-classification`](../compilers/openapi.md#allof-classification)). A node a use hoists is
@@ -353,10 +353,9 @@ kind, which admits strings a `Model` excludes. An `allOf` whose kinds are not an
 one of whose conjuncts states a value set, which is elected before a composition as beside the
 `allOf`, lowers to one use of the conjunct that decides it, short of the cases the OpenAPI
 compiler's rule [`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing: a
-reference to its `$ref`, of several the one lying within more conjuncts, the `Enum`, `Literal` or
-`Union` of `Literal`s an inline branch's value set lowers to standing at the position's own pointer, any other inline
-branch's node at its own pointer, and an alias only where the position writes what no carrier
-holds. A union written beside the
+reference to its `$ref`, of several the one lying within more conjuncts, the node an inline branch
+lowers to, a value set's or any other, standing at the position's own pointer and holding the
+bounds of the conjunction, and an alias only where the position writes what no carrier holds. A union written beside the
 `allOf` is one more conjunct, as one on a branch is, unless it shares no kind with the rest, when it
 is kept beside what the rest lowers to.
 At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
@@ -390,9 +389,11 @@ The designs this was weighed against:
   wrote (invariant 3).
 - **An alias for a narrowing**, as `{$ref: Op, enum: [set]}` lowered beside a 3.1 `$ref`: the field
   then kept its value set only under `Unmodeled`, where the position has a typed `Enum` to hold it.
-- **The value set's node at the entry writing it**: its ID then follows the entry's index and the
-  spelling, a component or `items` stands as an alias over it, and the `$ref` it narrows is kept on
-  another node than the value set (#2017).
+- **The inline principal's node at the entry writing it**: its ID then follows the entry's index
+  and the spelling, a component or `items` stands as an alias over it, the `$ref` it narrows is
+  kept on another node, and a bound another conjunct writes is held by the alias or the carrier
+  rather than the node, so a reader of a `Union` alone meets it in one spelling and not the other
+  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)).
 
 ## Composition beside a union
 

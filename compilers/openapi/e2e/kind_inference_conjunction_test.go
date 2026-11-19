@@ -263,8 +263,9 @@ func assertOutvotedRef(t *testing.T, spec, target string, refAt int) {
 // another kind, so the position is a use of the list, holding the bound
 // written beside it and keeping nothing, a `type: array` beside it among what
 // the list already says. With the policy off the target is the top type: the
-// position is a use of it holding the bound, and beside a declared array a use
-// of the entry declaring it, keeping the $ref, which says nothing of the kind.
+// position is a use of it holding the bound, and beside a declared array the
+// list the entry declaring it builds, keeping the $ref, which says nothing of
+// the kind.
 func TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt(t *testing.T) {
 	t.Parallel()
 	ref := "{$ref: '#/components/schemas/E'}"
@@ -276,7 +277,7 @@ func TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt(t *testing.T) {
 	}{
 		{"alone", ref, "", ", description: d", 0, ir.KindScalar, false},
 		{"bound", ref, "{minItems: 1}", "", 1, ir.KindScalar, false},
-		{"typed bound", ref, "{type: array, minItems: 1}", "", 1, ir.KindScalar, true},
+		{"typed bound", ref, "{type: array, minItems: 1}", "", 1, ir.KindList, true},
 	}
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		for _, tc := range uses {

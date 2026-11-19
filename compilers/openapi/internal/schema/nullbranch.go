@@ -26,6 +26,59 @@ func nullBranch(c lowering.Ctx, js *statement.Statement) bool {
 	return inlineBranch(js) && NullAlone(c, js.Schema)
 }
 
+// variantsNull is what s's oneOf and anyOf say of null where the IR holds a
+// union's null on its variants as on the reference to it, the two conjoined:
+// each admits null where any branch does and keeps it out where every branch
+// does, each read by n, whose budget bounds them, so a branch left unread
+// keeps nothing out. That holds of a union however it lowers, so none is asked
+// whether it is distributed (unionNullReading), and the read starts no
+// classification.
+func (n *nulls) variantsNull(s *statement.Schema) nullReading {
+	choice := s.ChoiceKeywords()
+	return foldNullReadings(n.branchesNull(choice.OneOf), n.branchesNull(choice.AnyOf))
+}
+
+// branchesNull is what one union's branches say of null, under each reading:
+// admitted where a branch admits it, forbidden where every branch forbids it,
+// and silent where it writes none.
+func (n *nulls) branchesNull(branches []statement.Sub) nullReading {
+	if len(branches) == 0 {
+		return alike(nullSilent)
+	}
+	out := alike(nullForbidden)
+	for _, b := range branches {
+		r := n.conjunct(n.c.Statements().Sub(b), nullSite{})
+		out.declared = disjoinNullVerdicts(out.declared, r.declared)
+		out.lenient = disjoinNullVerdicts(out.lenient, r.lenient)
+	}
+	return out
+}
+
+// disjoinNullVerdicts is what two branches of a union say of null together:
+// one admitting it decides, and the union keeps it out only where both do.
+func disjoinNullVerdicts(a, b nullVerdict) nullVerdict {
+	switch {
+	case a == nullAdmitted || b == nullAdmitted:
+		return nullAdmitted
+	case a == nullForbidden && b == nullForbidden:
+		return nullForbidden
+	default:
+		return nullSilent
+	}
+}
+
+// mayAdmitNull reports whether b admits null wherever the IR holds it, on a
+// variant of a union it is or reaches as on its own keywords, under the
+// reading c's policy selects. holder is a schema whose own union the read
+// leaves out, nil for none. A read past the walk's budget may, unless what it
+// read keeps null out, which no conjunct left unread lets back in.
+func mayAdmitNull(c lowering.Ctx, b *statement.Statement, holder *statement.Schema) bool {
+	n := newNulls(c)
+	n.variants, n.rest = true, holder
+	r := n.conjunct(b, nullSite{})
+	return r.admits(c) || n.conjuncts.Exhausted() && !r.forbids(c)
+}
+
 // inlineBranch reports whether js is a schema written in place: no boolean,
 // and no reference site (typed.Bindings.RefSite).
 func inlineBranch(js *statement.Statement) bool {
@@ -42,9 +95,9 @@ type liftedNull struct {
 }
 
 // liftedNulls returns the null branches of the union unionBranches elects of
-// s, written at pointer, in source order.
-func liftedNulls(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []liftedNull {
-	branches, key, _ := unionBranches(s)
+// s at position, s written at pointer, in source order.
+func liftedNulls(c lowering.Ctx, position, s *statement.Schema, pointer jsontext.Pointer) []liftedNull {
+	branches, key, _ := unionBranches(c, position, s)
 	var out []liftedNull
 	for i, b := range branches {
 		st := c.Statements().Sub(b)
@@ -85,9 +138,9 @@ type keptNullBranch struct {
 // an extension or any other keyword, but a `null` written for one, which is
 // that keyword left out (annotation.WritesKeywordLeftOut). A branch is no
 // variant, so nothing else keeps what it says.
-func nullBranchKeeps(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []keptNullBranch {
+func nullBranchKeeps(c lowering.Ctx, position, s *statement.Schema, pointer jsontext.Pointer) []keptNullBranch {
 	var out []keptNullBranch
-	for _, b := range liftedNulls(c, s, pointer) {
+	for _, b := range liftedNulls(c, position, s, pointer) {
 		var written []string
 		for _, k := range b.schema.Keys {
 			if !saysTheNull(c, b, k.Name) && !annotation.WritesKeywordLeftOut(b.schema, k.Name) {
@@ -124,8 +177,8 @@ func recordNullBranches(c lowering.Ctx, p *ir.Unmodeled, kept []keptNullBranch) 
 // where it is a variant: a null the nullable-inference policy reads in
 // (nulls.findings), and an enum entry repeating an earlier one (enumRepeats),
 // which the document writes whichever path takes the branch.
-func liftedNullFindings(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	lifted := liftedNulls(c, s, pointer)
+func liftedNullFindings(c lowering.Ctx, position, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	lifted := liftedNulls(c, position, s, pointer)
 	diags := make([]ir.Diagnostic, 0, len(lifted))
 	for _, b := range lifted {
 		n := newNulls(c)

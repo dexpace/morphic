@@ -272,6 +272,9 @@ type note struct {
 	// at is where the note sits: where the declaration is reported
 	// (declaration.reportAt), or, for a disagreement, where it is written.
 	at ir.Provenance
+	// kept is, for a disagreement, where the declaration whose say the field
+	// kept is written (ir.RelatedKept).
+	kept *ir.Provenance
 }
 
 // newFolding judges every pair of decls once, picks the winner (widestCone) or
@@ -365,50 +368,59 @@ func (f *folding) drop(i int) {
 // disagree notes the conflicting-redeclaration warning at decls[i], which says
 // something of the field, detail, that decls[kept] says otherwise, and marks it
 // lost. Warning, not info: the two cannot both hold, or no one value states
-// them, which may loosen what the spec intended. It says "declarations", not
-// "allOf branches", because a declaration can sit beside allOf rather than
-// inside a branch. A keyword a position writes on its node and its property is
-// met twice, and said once. It sits where decls[i] is written, not at the
-// entry bringing it, so every model composing the two says it alike
-// (ReportOnce).
+// them. It says "declarations", since one can sit beside allOf, not in a
+// branch. A keyword a position writes on its node and its property is met
+// twice, and said once. It sits where decls[i] is written, not at the entry
+// bringing it, so every model composing the two says it alike (ReportOnce),
+// and it carries where decls[kept] is written, the place its message names.
 func (f *folding) disagree(i, kept int, detail string) {
 	f.lost[i] = true
 	if slices.ContainsFunc(f.notes[i], func(n note) bool { return n.detail == detail }) {
 		return
 	}
-	at, named := f.place(i)
+	at, keptAt := f.place(i), f.place(kept)
 	f.notes[i] = append(f.notes[i], note{sev: ir.SeverityWarning, code: diag.ConflictingRedecl, detail: detail, at: at,
+		kept: &keptAt,
 		msg: fmt.Sprintf("declarations of field %q disagree: %s; kept what the declaration at %s says over the one "+
-			"at %s, which %s", f.merged.WireName, detail, f.at(kept), named, f.decls[i].keptAs())})
+			"at %s, which %s", f.merged.WireName, detail, f.named(keptAt, at.Source), f.named(at, at.Source),
+			f.decls[i].keptAs())})
 }
 
-// at is how a report the fold makes names where decls[i] was written (place).
+// at is how a report the fold makes at a declaration (note), which stands in
+// the composing model's document, names where decls[i] was written (place).
 func (f *folding) at(i int) string {
-	_, named := f.place(i)
-	return named
+	return f.named(f.place(i), f.g.Doc.Source)
 }
 
-// place is where decls[i] was written, in its own document, and how a report
-// the fold makes names it: its pointer, followed by its document's name where
-// that is not the document the report is in, as a declaration an entry brings
-// may be written in another. A member an entry brings settled names its first
-// declaration, which need not say what the member does, so the report names
-// the one place its type is written, or, where that is the member's own and no
-// schema is written there (unwritten), the entry bringing it.
-func (f *folding) place(i int) (ir.Provenance, string) {
+// named is how a report standing in the document in names p, a place: its
+// pointer, followed by its document's name where that is another document, in
+// which the pointer alone would read as one in the report's.
+func (f *folding) named(p ir.Provenance, in int) string {
+	if p.Source == in {
+		return string(p.Pointer)
+	}
+	return string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
+}
+
+// place is where decls[i] was written, in its own document, as a declaration
+// an entry brings may be written in another. A member an entry brings settled
+// names its first declaration, which need not say what the member does, so
+// its place is the one place its type is written, or, where that is the
+// member's own and no schema is written there (unwritten), the entry bringing
+// it. A source out of range reads as the composing model's document.
+func (f *folding) place(i int) ir.Provenance {
 	d := f.decls[i]
 	p := d.prop.Provenance
 	if d.via != nil && len(d.typeAt) == 1 {
 		p = d.typeAt[0]
 	}
 	if p.Pointer == d.prop.Provenance.Pointer && f.unwritten(d) {
-		return f.g.Doc.At(d.via.at), string(d.via.at)
+		return f.g.Doc.At(d.via.at)
 	}
 	if p.Source == f.g.Doc.Source || p.Source < 0 || p.Source >= len(f.g.Sources) {
-		return f.g.Doc.At(p.Pointer), string(p.Pointer)
+		return f.g.Doc.At(p.Pointer)
 	}
-	return ir.Provenance{Source: p.Source, Pointer: p.Pointer, WrittenBy: p.WrittenBy},
-		string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
+	return ir.Provenance{Source: p.Source, Pointer: p.Pointer, WrittenBy: p.WrittenBy}
 }
 
 // unwritten reports whether d is a member an entry brings that its model's
@@ -741,7 +753,11 @@ func (f *folding) finish() (ir.Property, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	for i, d := range f.decls {
 		for _, n := range f.notes[i] {
-			diags = append(diags, diag.Newf(n.sev, n.code, n.at, "%s", n.msg))
+			d := diag.Newf(n.sev, n.code, n.at, "%s", n.msg)
+			if n.kept != nil {
+				d.Related = []ir.Related{{Role: ir.RelatedKept, Provenance: *n.kept}}
+			}
+			diags = append(diags, d)
 		}
 		if f.lost[i] && d.via == nil {
 			diags = append(diags, f.g.keepLosingDeclaration(&f.merged, d.prop.Provenance, d.source)...)

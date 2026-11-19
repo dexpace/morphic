@@ -95,7 +95,7 @@ func TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt(t *testing.T) {
 
 	var finished []ir.TypeDef
 	var stored []bool
-	fin := finisher(func(td ir.TypeDef, _ keySet) {
+	fin := finisher(func(td ir.TypeDef, _ keySet, _ *principalKept) {
 		_, held := ts.Node(td.Common().ID)
 		finished, stored = append(finished, td), append(stored, held)
 	})
@@ -115,12 +115,12 @@ func TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt(t *testing.T) {
 func TestFinisher_ThenRunsBothInOrder(t *testing.T) {
 	t.Parallel()
 	var ran []string
-	first := finisher(func(ir.TypeDef, keySet) { ran = append(ran, "first") })
-	second := finisher(func(ir.TypeDef, keySet) { ran = append(ran, "second") })
+	first := finisher(func(ir.TypeDef, keySet, *principalKept) { ran = append(ran, "first") })
+	second := finisher(func(ir.TypeDef, keySet, *principalKept) { ran = append(ran, "second") })
 	var none finisher
-	first.then(second)(&ir.Model{}, 0)
-	none.then(first)(&ir.Model{}, 0)
-	first.then(none)(&ir.Model{}, 0)
+	first.then(second)(&ir.Model{}, 0, nil)
+	none.then(first)(&ir.Model{}, 0, nil)
+	first.then(none)(&ir.Model{}, 0, nil)
 	assert.Equal(t, []string{"first", "second", "first", "first"}, ran)
 	assert.Nil(t, none.then(none), "two nil finishers finish nothing")
 }
@@ -172,8 +172,8 @@ func TestUnionVariant_StopsAtTheHopCap(t *testing.T) {
 func TestMarkKindInferred_JoinsWhatTheNodeNames(t *testing.T) {
 	t.Parallel()
 	node := &ir.Model{Provenance: ir.Provenance{Inferred: lowering.NullableInferenceHeuristic}}
-	markKindInferred(node, 0)
-	markKindInferred(node, 0)
+	markKindInferred(node, 0, nil)
+	markKindInferred(node, 0, nil)
 	assert.Equal(t, ir.JoinInferred(lowering.NullableInferenceHeuristic, lowering.KindInferenceHeuristic),
 		node.Provenance.Inferred)
 }

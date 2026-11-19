@@ -47,7 +47,7 @@ type reached struct {
 	// and by each check of a target since.
 	seen map[objectKey]bool
 	// reported holds every finding already reported, the source's own included.
-	reported map[ir.Diagnostic]bool
+	reported map[ir.DiagnosticKey]bool
 	// formatted holds the pointers of each other document whose keys a check
 	// has read (oas.CheckFormat), by the document's name.
 	formatted map[string]map[jsontext.Pointer]bool
@@ -223,9 +223,9 @@ func heldBy(p jsontext.Pointer, pointers map[jsontext.Pointer]bool) bool {
 // another document to that document's (versionOf). tree is the source's,
 // and judged what the table found in it, none of which is reported again.
 func newReached(doc *soa.OpenAPI, opts Options, tree provenance.Tree, judged judgment) *reached {
-	reported := make(map[ir.Diagnostic]bool, len(judged.diags))
+	reported := make(map[ir.DiagnosticKey]bool, len(judged.diags))
 	for _, d := range judged.diags {
-		reported[oas.AsPlaced(d)] = true
+		reported[oas.AsPlaced(d).Key()] = true
 	}
 	seen := make(map[objectKey]bool, len(judged.seen))
 	maps.Copy(seen, judged.seen)
@@ -296,7 +296,7 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 	}
 	var diags []ir.Diagnostic
 	for _, d := range found {
-		if key := identity(d, t.doc); !v.reported[key] {
+		if key := identity(d, t.doc).Key(); !v.reported[key] {
 			v.reported[key] = true
 			diags = append(diags, placeAt(d, site, t.doc))
 		}

@@ -182,6 +182,13 @@ func (a admitted) reachable() bool {
 	return false
 }
 
+// admitsEverything reports whether a holds an instance to nothing a reading
+// compares: every kind, null among them, no value set, no format and no
+// element schema.
+func (a admitted) admitsEverything() bool {
+	return a.kinds == kindAny && !a.fixed && len(a.forms) == 0 && a.items == nil
+}
+
 // kindsWithin reports whether a's kinds are b's, which says nothing of null:
 // a reference's Nullable holds that, read on its own (nulls).
 func (a admitted) kindsWithin(b admitted) bool { return a.kinds&^kindNull&^b.kinds == 0 }

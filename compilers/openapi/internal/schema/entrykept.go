@@ -39,6 +39,11 @@ type keptEntry struct {
 	// validation is what of own is a union of validation logic
 	// (entryUnionReason).
 	validation []string
+	// apart is what an entry the position lowers from (lowersFrom) keeps that
+	// another conjunct writes otherwise: under its own key where the position
+	// holds none there, else under the entry's, the rest of it lowered
+	// (wholePrincipal).
+	apart []string
 	// whole is why the entry is kept whole, keptApart where it is not.
 	whole wholeCause
 	// reason is what a whole entry is kept as (sharedReason).
@@ -49,7 +54,7 @@ type keptEntry struct {
 }
 
 // keeps reports whether k keeps anything.
-func (k keptEntry) keeps() bool { return k.keptWhole() || len(k.own) > 0 }
+func (k keptEntry) keeps() bool { return k.keptWhole() || len(k.own) > 0 || len(k.apart) > 0 }
 
 // keptWhole reports whether k is kept whole, holding what its entry writes: it
 // is no writer of a keyword it writes alike with another conjunct, kept apart
@@ -83,13 +88,16 @@ const (
 // of what residueOf says it left unread, by index: nothing where that is
 // nothing a rule does not consume, else the entry whole (wholeCauseOf), where
 // closure names a keyword the position types no closure from, else each
-// keyword apart. v is s's voicing, nil where its allOf does not decide.
+// keyword apart. v is s's voicing, nil where its allOf does not decide, and
+// principal the inline principal the position lowers from, nil for none: what
+// it or a wrapper around it (lowersFrom) keeps that another conjunct writes
+// otherwise never keeps it whole (keptEntry.apart).
 func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, residueOf func(int) []string,
-	v voicing, closure func(string) bool,
+	v voicing, closure func(string) bool, principal *allOfBranch,
 ) []keptEntry {
 	out := make([]keptEntry, len(comp.branches))
 	for i := range comp.branches {
-		out[i] = keptEntry{entry: comp.branches[i], residue: residueOf(i)}
+		out[i] = keptEntry{entry: comp.branches[i], residue: withDraftDependencies(c, s, comp, i, residueOf(i))}
 	}
 	kepts := make([][]string, len(out))
 	for i, k := range out {
@@ -106,11 +114,17 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 		if failedRef(c, k.entry) {
 			apartHere = apartKept
 		}
+		var otherwise []string
+		if lowersFrom(principal, k.entry) {
+			otherwise = slices.DeleteFunc(slices.Clone(kept), func(key string) bool { return !apartHere[key] })
+			kept = slices.DeleteFunc(kept, func(key string) bool { return apartHere[key] })
+		}
 		out[i].whole = wholeCauseOf(c, comp, i, k.residue, v, closure, kept, apartHere)
 		if out[i].keptWhole() {
-			out[i].reason = sharedReason(c, s, comp, i, kept)
+			out[i].reason = sharedReason(c, s, comp, i, slices.Concat(kept, otherwise))
 			continue
 		}
+		out[i].apart = otherwise
 		out[i].own = slices.DeleteFunc(kept, func(key string) bool { return hasKey(s, key) })
 		for _, key := range out[i].own {
 			held[key]++
@@ -123,6 +137,28 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 		out[i].alike = slices.DeleteFunc(slices.Clone(out[i].own), func(key string) bool { return held[key] < 2 })
 	}
 	return out
+}
+
+// withDraftDependencies returns residue, what the entry at index i of comp
+// leaves unread, with the `dependencies` it writes where foldsNoDependencies
+// says that does not fold: kept, it is held against the position's as any
+// keyword two conjuncts keep is.
+func withDraftDependencies(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int, residue []string) []string {
+	bs := comp.branches[i].schema.Schema
+	if !hasKey(bs, "dependencies") || slices.Contains(residue, "dependencies") || !foldsNoDependencies(c, s, comp.pointer) {
+		return residue
+	}
+	return unmergedBranchKeys(bs, func(key string) bool { return key != "dependencies" && !slices.Contains(residue, key) })
+}
+
+// foldsNoDependencies reports whether s, written at pointer, writes a
+// `dependencies` its own dialect does not define, kept as a key no dialect
+// defines under openapi:dependencies. An allOf entry naming a draft that
+// defines the keyword keeps its own under that same key, so the entry's does
+// not fold beside it: one key of one node holds one value
+// (docs/compilers/openapi.md#allof-inline-residue).
+func foldsNoDependencies(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
+	return hasKey(s, "dependencies") && writesUnknown(c, s, "dependencies", pointer)
 }
 
 // markKeptWhole marks each of voices, the voices of s written at pointer, which
@@ -386,6 +422,9 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 	switch {
 	case strings.HasPrefix(key, "x-"):
 		return ir.ReasonVendorExtension
+	case key == "dependencies" && twin != key:
+		// A draft's own keyword, validation logic as written flat in it.
+		return ir.ReasonValidationOnly
 	case annotation.DialectKeyword(twin), writesUnknown(c, bs, key, e.pointer):
 		return ir.ReasonOutOfScope
 	case slices.Contains(logicKeywords, twin), unevaluatedKeyword(twin):
@@ -403,20 +442,70 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 // i of comp, the allOf s writes, is kept under, as the union beside s would
 // be: validation logic where its branches declare no shape against s, and
 // degraded where they do or the union shares no kind with the rest
-// (docs/compilers/openapi.md#union-beside-structure).
+// (docs/compilers/openapi.md#union-beside-structure). Where s refines to no
+// union, each kept union is judged with the others, as beside s (keptUnion).
 func entryUnionReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) ir.UnmodeledReason {
-	choice := comp.branches[i].schema.ChoiceKeywords()
-	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, choice.OneOf, choice.AnyOf) {
+	holder := comp.branches[i].schema.Schema
+	choice := holder.ChoiceKeywords()
+	sets := [][]statement.Sub{choice.OneOf, choice.AnyOf}
+	if refinesToNoUnion(c, s) {
+		sets = entryUnionSets(comp)
+	}
+	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, holder, sets...) ||
+		keptWithElected(c, s, comp.pointer) || pairedWithNullOnly(c, s) {
 		return ir.ReasonDegradedLowering
 	}
 	return ir.ReasonValidationOnly
 }
 
+// refinesToNoUnion reports whether s, writing no union, refines to a principal
+// writing none, so every union its entries write is kept beside it.
+func refinesToNoUnion(c lowering.Ctx, s *statement.Schema) bool {
+	d := decisionOf(c, s)
+	if !d.refines || declaresUnion(s) {
+		return false
+	}
+	return d.principalAt < 0 || !declaresUnion(branchStatement(c, s, d.principalAt).Schema)
+}
+
+// entryUnionSets returns the branch sets of every union comp's inline entries
+// write, in order.
+func entryUnionSets(comp allOfComposition) [][]statement.Sub {
+	var sets [][]statement.Sub
+	for _, e := range comp.branches {
+		if e.schema.Ref != nil {
+			continue
+		}
+		choice := e.schema.ChoiceKeywords()
+		sets = append(sets, choice.OneOf, choice.AnyOf)
+	}
+	return sets
+}
+
+// pairedWithNullOnly reports whether s refines to the union one inline entry
+// of its allOf writes, of a pair (electsOneOfPair), every branch of which is a
+// null branch: the position lowers as null alone, which keeps the union passed
+// over as degraded_lowering, as the same two beside the allOf do, a body beside
+// them or none (docs/compilers/openapi.md#union-null-only).
+func pairedWithNullOnly(c lowering.Ctx, s *statement.Schema) bool {
+	return electsOneOfPair(c, s) && allNullUnion(c, s, branchStatement(c, s, decisionOf(c, s).principalAt).Schema)
+}
+
+// keptWithElected reports whether s, written at pointer, elects the union an
+// entry of its allOf writes and keeps it whole on that entry, as the shapes of
+// docs/compilers/openapi.md#union-beside-structure do, which keep every other
+// union as they keep that one, as degraded_lowering, as beside the allOf.
+func keptWithElected(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
+	u, _, distributed := branchUnion(c, s, pointer)
+	return u.holder != nil && !distributed
+}
+
 // unionApart reports whether the oneOf and anyOf the inline entry at index i
-// of comp writes share no kind with what the rest of s, the schema writing
-// comp, admits, the entry's other keywords among it: no instance satisfies
-// them together, as admissionReader.conjuncts reads a union beside the allOf. A
-// read cut short says no.
+// of comp writes, with those other inline entries write where s writes none,
+// share no kind with what the rest of s, the schema writing comp, admits, the
+// entries' other keywords among it: no instance satisfies them together, as
+// admissionReader.conjuncts reads two unions beside the allOf. A read cut
+// short says no.
 func unionApart(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) bool {
 	w := newAdmissionReader(c)
 	bs := comp.branches[i].schema.Schema
@@ -430,6 +519,11 @@ func unionApart(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i in
 		case j == i || !stated(e.schema.Schema):
 		case e.schema.Ref != nil:
 			rest = rest.and(w.of(e.schema))
+		case !declaresUnion(s) && declaresUnion(e.schema.Schema):
+			// Unions on two entries are read together, as two beside the
+			// allOf are (unionAside).
+			union = union.and(unionsIn(&w, e.schema.Schema))
+			rest = rest.and(w.written(e.schema.Schema, w.nullable))
 		default:
 			rest = rest.and(inlineConjunct(&w, e.schema.Schema))
 		}
@@ -557,7 +651,7 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 		case writesUnknown(c, bs, key, at):
 			unknown = append(unknown, key)
 		case slices.Contains(contentKeywords, key):
-			diags = append(diags, keepContentKeyword(c, p, bs, key, at)...)
+			diags = append(diags, keepContentKeyword(c, p, bs, key, at, noEncodingField)...)
 		case slices.Contains(k.validation, key):
 			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, bs, key, at, c.Place())...)
 		case key == "$dynamicRef" || key == "$recursiveRef":

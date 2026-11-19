@@ -514,14 +514,21 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	require.True(t, ok)
 	for wire, key := range map[string]string{
 		"refined": "openapi:minLength", "site": "openapi:minLength", "nullable": "openapi:minLength",
-		"voiced": "openapi:minLength", "chained": "openapi:minLength", "inline": "openapi:minLength",
-		"counted": "openapi:minItems",
+		"voiced": "openapi:minLength", "chained": "openapi:minLength", "counted": "openapi:minItems",
 	} {
 		p, found := propByWire(holder, wire)
 		require.True(t, found, wire)
 		assert.Nil(t, p.Constraints, wire)
 		assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, p.Unmodeled, key).Reason, wire)
 	}
+	inline, found := propByWire(holder, "inline")
+	require.True(t, found)
+	assert.Nil(t, inline.Constraints)
+	assert.Empty(t, inline.Unmodeled, "the list the entry builds stands at the property and keeps the bound")
+	list, ok := doc.Types[inline.Type.Target].(*ir.List)
+	require.True(t, ok, "%T", doc.Types[inline.Type.Target])
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Failure/properties/inline"), list.ID)
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, list.Unmodeled, "openapi:minLength").Reason)
 
 	composed, found := propByWire(holder, "composed")
 	require.True(t, found)
@@ -568,7 +575,7 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // branches are one set to the conjunct beside them, whether the branches share
 // members, nest, or number more than a set joins beside its first. A set lying
 // within what the union admits is the position's, and the union is kept; one
-// that does not leaves the union the position's conjunct, with the set kept.
+// that does not leaves the union the position's node, with the set kept.
 func assertUnionJoinedValueSets(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	memberStrings := func(e *ir.Enum) []string {
 		out := make([]string, 0, len(e.Members))
@@ -583,18 +590,14 @@ func assertUnionJoinedValueSets(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Equal(t, []string{"s1", "p"}, memberStrings(nested))
 	assertKeptRaw(t, nested.Unmodeled, "openapi:anyOf", `[{"enum":["s1","s2","s3","s4","s5"]},{"anyOf":[{"enum":["p","q"]},{"enum":["s1"]}]}]`)
 
-	shared, ok := typeByName(doc, "Shared").(*ir.Scalar)
+	shared, ok := typeByName(doc, "Shared").(*ir.Union)
 	require.True(t, ok, "a set outside what the union admits leaves the union the position's")
-	union, ok := doc.Types[shared.Base.Target].(*ir.Union)
-	require.True(t, ok)
-	assert.Len(t, union.Variants, 2)
+	assert.Len(t, shared.Variants, 2)
 	assertKeptRaw(t, shared.Unmodeled, "openapi:enum", `["b","x"]`)
 
-	many, ok := typeByName(doc, "Many").(*ir.Scalar)
-	require.True(t, ok)
-	base, ok := doc.Types[many.Base.Target].(*ir.Union)
-	require.True(t, ok, "the ten branches are the union the position's conjunct is")
-	assert.Len(t, base.Variants, 10)
+	many, ok := typeByName(doc, "Many").(*ir.Union)
+	require.True(t, ok, "the ten branches are the union the position is")
+	assert.Len(t, many.Variants, 10)
 	assertKeptRaw(t, many.Unmodeled, "openapi:enum", `["v3","zz"]`)
 
 	assertNoErrorDiags(t, diags)

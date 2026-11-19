@@ -1,7 +1,8 @@
 # An allOf entry whose keywords claim every kind the position lowers to by the
 # kind-inference policy says what the position is, as one writing that type
-# does: each allOf spelling below is a use of the list or tuple its entry
-# builds, marked as the policy's reading, as each flat spelling is that node.
+# does: each allOf spelling below is the list or tuple its entry builds,
+# standing at the position and marked as the policy's reading, as each flat
+# spelling is that node.
 openapi: 3.1.0
 info: {title: AllOfEntryInfersArray, version: "1.0.0"}
 paths:

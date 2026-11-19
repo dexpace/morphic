@@ -28,6 +28,7 @@ var heldEnums = map[string]string{
 	"PageStrategy":    "ir/unknown-page-strategy",
 	"PresenceKind":    "ir/unknown-presence-kind",
 	"PrimKind":        "ir/unknown-prim-kind",
+	"RelatedRole":     "ir/unknown-related-role",
 	"Severity":        "ir/unknown-severity",
 	"Stability":       "ir/unknown-stability",
 	"StreamingMode":   "ir/unknown-streaming-mode",
@@ -68,6 +69,8 @@ var walkEnums = map[reflect.Type]enumRule{
 		"ir/unknown-message-direction", "message binding carries undeclared direction"),
 	reflect.TypeFor[ir.PageStrategy](): wireEnum(ir.PageStrategy.Valid,
 		"ir/unknown-page-strategy", "pagination names undeclared strategy"),
+	reflect.TypeFor[ir.RelatedRole](): wireEnum(ir.RelatedRole.Valid,
+		"ir/unknown-related-role", "diagnostic's related entry carries undeclared role"),
 	reflect.TypeFor[ir.Severity](): wireEnum(ir.Severity.Valid,
 		"ir/unknown-severity", "diagnostic carries undeclared severity"),
 }
@@ -83,6 +86,7 @@ var enumPath = func() map[reflect.Type]bool {
 		reflect.TypeFor[*ir.Pagination](), reflect.TypeFor[ir.Pagination](),
 		reflect.TypeFor[ir.Idempotency](),
 		reflect.TypeFor[[]ir.Diagnostic](), reflect.TypeFor[ir.Diagnostic](),
+		reflect.TypeFor[[]ir.Related](), reflect.TypeFor[ir.Related](),
 	} {
 		path[t] = true
 	}

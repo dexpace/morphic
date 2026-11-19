@@ -29,6 +29,12 @@ type Diagnostic struct {
     Code       string    // stable: "openapi/unresolved-ref", "ir/dangling-type-ref"
     Message    string
     Provenance Provenance
+    Related    []Related // what else the finding concerns; absent for a finding about one place
+}
+
+type Related struct {
+    Role       RelatedRole // kept | decided; irverify reports another (ir/unknown-related-role)
+    Provenance Provenance
 }
 ```
 
@@ -97,3 +103,34 @@ node the lowering reached may carry both a pointer and a position. The two need 
 a node YAML aliases share is one node at several pointers, so its `Pointer` is the least of the
 places that mount it, compared token by token, while its `Position` is where its text is written,
 which may be another of them.
+
+## Related places
+
+A finding sits at one place, its `Provenance`, and some concern more than one: two declarations
+that disagree are two places, and a conflict said once for every model composing them decides a
+member on each. `Related` lists the others, each with the role it plays, so a consumer annotates
+both declarations or lists what a finding reached without reading its message. The alternative
+weighed was a single field naming one other place, which holds a pair and nothing more: the nodes a
+finding decided would stay a count in prose, and telling the models that kept one declaration of a
+pair from those that kept the other would stay a guess. A message per entry, the form editor
+protocols give related information, was weighed too: a consumer would key on prose again.
+
+| Role | The entry's `Provenance` |
+|---|---|
+| `kept` | the place whose say the finding kept over the one it sits at: a source location, as the finding's own is |
+| `decided` | a node the finding decided, by its ID in `Node` on `NoSource`, as an IR pass names one; every such node is listed, one or many |
+
+`Role` is a closed set a consumer switches on, so a new role is a change of the IR's version
+([ir-version](./ir-version.md)). An entry's `Provenance` answers to every rule a finding's own
+does, names a place or a node, whatever its role (`ir/empty-related`: on `NoSource`, where no
+pointer or position stands, a node), and one saying `decided` names a node
+(`ir/related-names-no-node`). The entries' order is their producer's convention, never the order a
+map was read in, and no check of the IR holds it: the OpenAPI compiler's conflict report, the one
+report filling the list so far, gives its one `kept` place and then each member it decided by
+ascending ID ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)),
+which `merge.TestReportOnce_AConflictListsWhatItKeptAndThenWhatItDecided` holds. An empty list and
+an absent one say the same, that the finding concerns its own place alone, so the member is left
+out when empty.
+
+A finding holding a list is not comparable as a Go value, so what dedupes findings keys on
+`Diagnostic.Key`, the whole value, `Related` entry by entry.

@@ -72,7 +72,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 			Closed:     true,
 		}
 	}
-	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	id := internNode(c, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		td := build(common)
 		return td, valueSetReads(site.set, td)
 	}, site.finish)
@@ -345,7 +345,7 @@ func nullConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 // that schema's type and format select, as an enum's is (enumValueType), the
 // top type where they select none, narrowed as the site types it.
 func lowerNullAlone(c lowering.Ctx, ts *compile.Types, site valueSetSite) ir.TypeID {
-	return internNode(c, ts, site.pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	return internNode(c, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		td := &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimAny), Closed: true}
 		return td, valueSetReads(site.set, td)
 	}, site.finish)
@@ -368,7 +368,7 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, site valueSetSite, node *ya
 	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	id := internNode(c, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		val, err := value.FromNode(node)
 		if err != nil {
 			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written,

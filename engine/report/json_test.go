@@ -34,6 +34,7 @@ type schema struct {
 // edited.
 var schemas = []schema{
 	{version: 1, shape: "1de2889715ac89ffec00b148cadd3ec6970c254c3d846018328ce5a50166903a"},
+	{version: 2, shape: "e35f5c68b09abec85416e398a2c766d9a215c808751d42f929a0605d0e2cf75d"},
 }
 
 // schemaGolden holds the description of the newest row's shape, so a change
@@ -123,7 +124,7 @@ func TestWriteJSON_WritesTheReportAsData(t *testing.T) {
 	assert.Contains(t, out, `{"diagnostic":{"severity":"error","code":"openapi/x","message":"esc \u001b[31m",`+
 		`"provenance":{"source":0,"pointer":"/b"}},"severity":"warning","rule":{"code":"openapi/x","severity":"warning","reason":"rated"}}`)
 	assert.Contains(t, out, `"accepted":true`)
-	assert.True(t, strings.HasPrefix(out, `{"version":1,"failed":true,`), "%s", out)
+	assert.True(t, strings.HasPrefix(out, `{"version":2,"failed":true,`), "%s", out)
 }
 
 // TestWriteJSON_WritesEveryListWhenEmpty pins an empty report's lists as empty
@@ -132,7 +133,7 @@ func TestWriteJSON_WritesEveryListWhenEmpty(t *testing.T) {
 	t.Parallel()
 	var w strings.Builder
 	require.NoError(t, report.WriteJSON(&w, report.Report{}))
-	assert.Equal(t, `{"version":1,"failed":false,"sources":[],"findings":[],"unusedRules":[],"warnings":[]}`+"\n", w.String())
+	assert.Equal(t, `{"version":2,"failed":false,"sources":[],"findings":[],"unusedRules":[],"warnings":[]}`+"\n", w.String())
 }
 
 // TestWriteJSON_RefusesWhatJSONCannotCarry pins a string that is not UTF-8 as

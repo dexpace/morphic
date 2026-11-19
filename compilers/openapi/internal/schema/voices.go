@@ -279,9 +279,9 @@ func foldsNullable(bs *statement.Schema) bool {
 }
 
 // positionVoices returns the voices of s, written at pointer, as a reader of
-// what the position holds takes them. A refinement's inline principal is one
-// only where it reduced to a shared node, target being what the position lowered
-// to: a branch owning that node keeps what it writes there.
+// what the position holds takes them, target being what the position lowered
+// to. A branch whose own node that is, the alias a $ref principal writing
+// keywords beside it stands at its entry, keeps what it writes there.
 func positionVoices(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.Voice {
 	if !allOfDecides(c, s) {
 		return nil
@@ -293,9 +293,21 @@ func positionVoices(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointe
 		if !speaks || LoweredToOwnNode(c, e.pointer, target) {
 			continue
 		}
-		out = append(out, annotation.Voice{Node: e.schema.Schema, At: e.pointer})
+		v := voiceAt(c, e.schema.Schema, e.pointer)
+		// The entry keeps a `dependencies` that does not fold (entryKeeps).
+		v.Dependencies = v.Dependencies && !foldsNoDependencies(c, s, pointer)
+		out = append(out, v)
 	}
 	return out
+}
+
+// voiceAt returns the voice of node, written at at, which reads its
+// `dependencies` in the dialect node is written in, as a fold of it does
+// (TwinKeyword): an allOf entry naming a draft by its own `$schema` keeps the
+// draft's keyword beside a position read in 2020-12, as the same schema written
+// flat in the draft keeps it (docs/compilers/openapi.md#dialect-keywords).
+func voiceAt(c lowering.Ctx, node *statement.Schema, at jsontext.Pointer) annotation.Voice {
+	return annotation.Voice{Node: node, At: at, Dependencies: rulesOf(c, node).Defines("dependencies")}
 }
 
 // lendingBranches returns the branches of s that fold, each at its pointer below
@@ -329,10 +341,12 @@ func declaresScoped(c lowering.Ctx, voices []annotation.Voice) bool {
 // (recordResidue), each reported at the keyword it wrote, in ResidueWriters'
 // order: an entry several write is the nearest voice's kept apart, and the
 // schema written at the position records after them.
-func recordVoicedResidue(c lowering.Ctx, td ir.TypeDef, voices []annotation.Voice) []ir.Diagnostic {
+func recordVoicedResidue(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, voices []annotation.Voice) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, len(voices))
 	for _, v := range ResidueWriters(voices) {
-		diags = append(diags, recordResidue(c, td.Common(), v.Node, v.At)...)
+		// What s writes too is s's to keep and report: one writing, as the
+		// voices agree.
+		diags = append(diags, recordResidue(c, td.Common(), v.Node, v.At, func(keyword string) bool { return hasKey(s, keyword) })...)
 	}
 	return diags
 }
