@@ -513,7 +513,7 @@ func decodeTree(t *testing.T) *yaml.Node {
 
 // memberOf returns the key and value nodes of the member of mapping node named
 // key, read straight off Content so the lookup shares nothing with Pointers.
-func memberOf(t *testing.T, node *yaml.Node, key string) (nodeValue, otherNode *yaml.Node) {
+func memberOf(t *testing.T, node *yaml.Node, key string) (keyNode, valueNode *yaml.Node) {
 	t.Helper()
 	require.Equal(t, yaml.MappingNode, node.Kind, "looking up %q in a non-mapping", key)
 	for i := 0; i+1 < len(node.Content); i += 2 {

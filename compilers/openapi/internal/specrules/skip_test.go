@@ -27,14 +27,14 @@ type kindNode struct {
 func TestCheck_SkipLeavesUnreadAMappingItAnswersTrueFor(t *testing.T) {
 	t.Parallel()
 	const doc = "{parameters: {a: {name: n, in: bogus, schema: {}}, b: {name: m, in: query, schema: {}}}}"
-	var nodeValue yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(doc), &nodeValue))
-	a := nodeview.Child(nodeview.Child(nodeview.DocumentRoot(&nodeValue), "parameters"), "a")
+	var parsed yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &parsed))
+	a := nodeview.Child(nodeview.Child(nodeview.DocumentRoot(&parsed), "parameters"), "a")
 	require.NotNil(t, a)
 	skipped := map[*yaml.Node]bool{a: true}
 
 	var seen []kindNode
-	diags := specrules.NewChecker().Check(t.Context(), &nodeValue, "3.1.0", specrules.Options{
+	diags := specrules.NewChecker().Check(t.Context(), &parsed, "3.1.0", specrules.Options{
 		Start: specrules.Components,
 		Skip:  func(_ specrules.Kind, node *yaml.Node) bool { return skipped[node] },
 		Seen:  func(kind specrules.Kind, node *yaml.Node) { seen = append(seen, kindNode{kind, node}) },
@@ -51,8 +51,8 @@ func TestCheck_SkipLeavesUnreadAMappingItAnswersTrueFor(t *testing.T) {
 // nothing and reports nothing, where the first reported its finding.
 func TestCheck_ANodeSeenIsSkippedWhenItIsReadAgain(t *testing.T) {
 	t.Parallel()
-	var nodeValue yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("{parameters: {a: {name: n, in: bogus, schema: {}}}}"), &nodeValue))
+	var parsed yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("{parameters: {a: {name: n, in: bogus, schema: {}}}}"), &parsed))
 	read := map[kindNode]bool{}
 	opts := specrules.Options{
 		Start: specrules.Components,
@@ -60,9 +60,9 @@ func TestCheck_ANodeSeenIsSkippedWhenItIsReadAgain(t *testing.T) {
 		Skip:  func(kind specrules.Kind, node *yaml.Node) bool { return read[kindNode{kind, node}] },
 	}
 
-	first := specrules.NewChecker().Check(t.Context(), &nodeValue, "3.1.0", opts)
+	first := specrules.NewChecker().Check(t.Context(), &parsed, "3.1.0", opts)
 	readByFirst := len(read)
-	second := specrules.NewChecker().Check(t.Context(), &nodeValue, "3.1.0", opts)
+	second := specrules.NewChecker().Check(t.Context(), &parsed, "3.1.0", opts)
 
 	assert.NotEmpty(t, first)
 	assert.Positive(t, readByFirst)

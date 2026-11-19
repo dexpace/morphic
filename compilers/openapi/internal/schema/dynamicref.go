@@ -36,11 +36,11 @@ func dynamicRefOf(loweringContext lowering.Ctx, schema *statement.Schema, pointe
 	if node := keyNode(schema, "$dynamicRef"); node != nil {
 		return dynamicRef{keyword: "$dynamicRef", node: node}, true
 	}
-	nodeValue := keyNode(schema, "$recursiveRef")
-	if nodeValue == nil || !loweringContext.Rules().At(loweringContext.Position(pointer)).Defines("$recursiveRef") {
+	recursiveRefNode := keyNode(schema, "$recursiveRef")
+	if recursiveRefNode == nil || !loweringContext.Rules().At(loweringContext.Position(pointer)).Defines("$recursiveRef") {
 		return dynamicRef{}, false
 	}
-	return dynamicRef{keyword: "$recursiveRef", node: nodeValue}, true
+	return dynamicRef{keyword: "$recursiveRef", node: recursiveRefNode}, true
 }
 
 // dynamicTarget is the position the dynamic reference schema writes at pointer

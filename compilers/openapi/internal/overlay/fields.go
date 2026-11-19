@@ -256,8 +256,8 @@ func (r *reader) components(node *yaml.Node) map[string]map[string]*yaml.Node {
 		at := jsontext.Pointer("/components/actions").AppendToken(pair.Key)
 		what := fmt.Sprintf("reusable action %q", pair.Key)
 		fields := map[string]*yaml.Node{}
-		if nodeValue := r.object(pair.Val, at, objReusable, what)["fields"]; nodeValue != nil {
-			fields = r.object(nodeValue, at.AppendToken("fields"), objFields, "the fields of "+what)
+		if fieldsNode := r.object(pair.Val, at, objReusable, what)["fields"]; fieldsNode != nil {
+			fields = r.object(fieldsNode, at.AppendToken("fields"), objFields, "the fields of "+what)
 		}
 		out[pair.Key] = fields
 	}

@@ -78,23 +78,23 @@ func nodeAtSteps(t testing.TB, node *yaml.Node, steps ...string) *yaml.Node {
 // dump lists every node under node in document order as its kind, tag, value and
 // position, so two trees are equal when their dumps are.
 func dump(node *yaml.Node) []string {
-	return collect(node, func(nodeValue *yaml.Node) string {
-		return fmt.Sprintf("%d %s %q @%d:%d", nodeValue.Kind, nodeValue.Tag, nodeValue.Value, nodeValue.Line, nodeValue.Column)
+	return collect(node, func(collected *yaml.Node) string {
+		return fmt.Sprintf("%d %s %q @%d:%d", collected.Kind, collected.Tag, collected.Value, collected.Line, collected.Column)
 	})
 }
 
 // positions lists the line and column of every node under node.
 func positions(node *yaml.Node) []string {
-	return collect(node, func(nodeValue *yaml.Node) string { return fmt.Sprintf("@%d:%d", nodeValue.Line, nodeValue.Column) })
+	return collect(node, func(collected *yaml.Node) string { return fmt.Sprintf("@%d:%d", collected.Line, collected.Column) })
 }
 
 // collect lists what describe says of every node under node, in document order.
 func collect(node *yaml.Node, describe func(*yaml.Node) string) []string {
 	var out []string
 	var visit func(*yaml.Node)
-	visit = func(nodeValue *yaml.Node) {
-		out = append(out, describe(nodeValue))
-		for _, otherNode := range nodeValue.Content {
+	visit = func(visited *yaml.Node) {
+		out = append(out, describe(visited))
+		for _, otherNode := range visited.Content {
 			visit(otherNode)
 		}
 	}
@@ -434,8 +434,8 @@ func TestRead_AJSONTextIsNeverResolvedAgain(t *testing.T) {
 
 	node := nodeAtSteps(t, doc.Root, "x-n")
 	got := make([]string, 0, len(node.Content))
-	for _, nodeValue := range node.Content {
-		got = append(got, nodeValue.Value+" "+nodeValue.ShortTag())
+	for _, child := range node.Content {
+		got = append(got, child.Value+" "+child.ShortTag())
 	}
 	assert.Equal(t, []string{"1E3 !!float", "-0 !!int", "0.5e-2 !!float", "99999999999999999999 !!float"}, got)
 }

@@ -238,8 +238,8 @@ func mergedWithoutRef(val *yaml.Node, depth int) *yaml.Node {
 	list := *node
 	list.Content = make([]*yaml.Node, 0, len(node.Content))
 	for _, item := range node.Content {
-		if nodeValue := nodeview.Deref(item); nodeValue != nil && nodeValue.Kind == yaml.MappingNode {
-			item = withoutRefIn(nodeValue, depth)
+		if dereferenced := nodeview.Deref(item); dereferenced != nil && dereferenced.Kind == yaml.MappingNode {
+			item = withoutRefIn(dereferenced, depth)
 		}
 		list.Content = append(list.Content, item)
 	}

@@ -199,8 +199,8 @@ func weightBeside(hop *yaml.Node, at reftable.Reading, within budget.Limit) int 
 	}
 	var stack []frame
 	for i := 0; i+1 < len(node.Content); i += 2 {
-		nodeValue := expanded(node.Content[i])
-		if nodeValue != nil && nodeValue.Kind == yaml.ScalarNode && nodeValue.Value == "$ref" {
+		keyNode := expanded(node.Content[i])
+		if keyNode != nil && keyNode.Kind == yaml.ScalarNode && keyNode.Value == "$ref" {
 			continue
 		}
 		stack = pair(stack, node.Content[i], node.Content[i+1], at)
@@ -236,8 +236,8 @@ func weigh(stack []frame, left int) int {
 // expanded returns what referenceExpansionSize visits for node: what an alias names, in its
 // place, or node itself, as nodeview.AliasTarget reads it.
 func expanded(node *yaml.Node) *yaml.Node {
-	if nodeValue := nodeview.Deref(node); nodeValue != nil {
-		return nodeValue
+	if dereferenced := nodeview.Deref(node); dereferenced != nil {
+		return dereferenced
 	}
 	return node
 }

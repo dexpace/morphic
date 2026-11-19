@@ -60,9 +60,9 @@ func writtenAs(model any) *yaml.Node {
 // docText returns the text the mapping node writes under key, and false where it
 // writes none: no such key, or a value that is null, empty or no scalar.
 func docText(node *yaml.Node, key string) (string, bool) {
-	nodeValue := nodeview.Deref(nodeview.Child(node, key))
-	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || nodeValue.Value == "" || nodeValue.ShortTag() == "!!null" {
+	child := nodeview.Deref(nodeview.Child(node, key))
+	if child == nil || child.Kind != yaml.ScalarNode || child.Value == "" || child.ShortTag() == "!!null" {
 		return "", false
 	}
-	return nodeValue.Value, true
+	return child.Value, true
 }

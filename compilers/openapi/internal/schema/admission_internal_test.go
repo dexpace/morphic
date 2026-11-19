@@ -121,8 +121,8 @@ func statementsOfDocument(lowerer *Lowerer, visit func(at jsontext.Pointer, st *
 				walk(node.Content[i+1], at.AppendToken(node.Content[i].Value), depth+1)
 			}
 		case yaml.SequenceNode:
-			for i, nodeValue := range node.Content {
-				walk(nodeValue, at.AppendToken(strconv.Itoa(i)), depth+1)
+			for i, child := range node.Content {
+				walk(child, at.AppendToken(strconv.Itoa(i)), depth+1)
 			}
 		default:
 		}

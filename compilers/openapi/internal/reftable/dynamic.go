@@ -36,11 +36,11 @@ func dynamicRefValue(docsValue *docs, id DocID, node *yaml.Node) (string, bool) 
 	if node = nodeview.Deref(node); node == nil || node.Kind != yaml.MappingNode {
 		return "", false
 	}
-	nodeValue := nodeview.Deref(docsValue.list[id].view.ChildByToken(node, "$dynamicRef"))
-	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || nodeValue.Tag == "!!null" {
+	dynamicRefNode := nodeview.Deref(docsValue.list[id].view.ChildByToken(node, "$dynamicRef"))
+	if dynamicRefNode == nil || dynamicRefNode.Kind != yaml.ScalarNode || dynamicRefNode.Tag == "!!null" {
 		return "", false
 	}
-	return nodeValue.Value, true
+	return dynamicRefNode.Value, true
 }
 
 // namesDynamic reports whether the $dynamicRef value, written at documentPointer and reached

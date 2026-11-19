@@ -156,8 +156,8 @@ func (r *reader) pushChildren(ctx context.Context, at Located, stack []Located) 
 		}
 	case yaml.SequenceNode:
 		for i, node := range slices.Backward(at.Node.Content) {
-			if nodeValue := nodeview.Deref(node); nodeValue != nil {
-				stack = append(stack, Located{Path: at.Path.element(i), Node: nodeValue})
+			if dereferenced := nodeview.Deref(node); dereferenced != nil {
+				stack = append(stack, Located{Path: at.Path.element(i), Node: dereferenced})
 			}
 		}
 	default:

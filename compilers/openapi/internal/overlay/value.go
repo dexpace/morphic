@@ -44,13 +44,13 @@ func (g *grafter) ownSlot(ctx context.Context, holder *yaml.Node, slot int) (*ya
 	if raw.Kind != yaml.AliasNode && g.named[raw] == 0 {
 		return raw, nil
 	}
-	nodeValue, err := g.copyContent(ctx, node, raw.Kind == yaml.AliasNode)
+	copied, err := g.copyContent(ctx, node, raw.Kind == yaml.AliasNode)
 	if err != nil {
 		return nil, err
 	}
-	holder.Content[slot] = nodeValue
+	holder.Content[slot] = copied
 	g.detached = g.detached || raw.Kind != yaml.AliasNode
-	return nodeValue, nil
+	return copied, nil
 }
 
 // flatten makes every member of the mapping node its own: its `<<` merge keys
@@ -89,14 +89,14 @@ func (g *grafter) flatten(ctx context.Context, node *yaml.Node) error {
 		}
 	}
 	size := 0
-	for _, nodeValue := range brought {
-		size += nodeview.Walk{Nodes: math.MaxInt}.Run(ctx, nodeValue).Visited
+	for _, broughtNode := range brought {
+		size += nodeview.Walk{Nodes: math.MaxInt}.Run(ctx, broughtNode).Visited
 	}
 	if ctx.Err() != nil || !g.admit(ctx, size) {
 		return errPastNodeBudget
 	}
-	for i, nodeValue := range brought {
-		brought[i] = g.copyTree(nodeValue, true)
+	for i, broughtNode := range brought {
+		brought[i] = g.copyTree(broughtNode, true)
 	}
 	node.Content = slices.Concat(brought, own)
 	return nil
@@ -115,15 +115,15 @@ func refusedMerge(val *yaml.Node) bool {
 			if nodeview.NotMapping(src) {
 				return true
 			}
-			nodeValue := nodeview.Deref(src)
-			if seen[nodeValue] {
+			dereferenced := nodeview.Deref(src)
+			if seen[dereferenced] {
 				continue
 			}
-			seen[nodeValue] = true
-			for i := 0; i+1 < len(nodeValue.Content); i += 2 {
-				if nodeview.IsMergeKey(nodeValue.Content[i]) {
-					todo = append(todo, nodeValue.Content[i+1])
-				} else if _, scalar := nodeview.KeyOf(nodeValue.Content[i]); !scalar {
+			seen[dereferenced] = true
+			for i := 0; i+1 < len(dereferenced.Content); i += 2 {
+				if nodeview.IsMergeKey(dereferenced.Content[i]) {
+					todo = append(todo, dereferenced.Content[i+1])
+				} else if _, scalar := nodeview.KeyOf(dereferenced.Content[i]); !scalar {
 					return true
 				}
 			}
@@ -149,17 +149,17 @@ func mergedKeys(node *yaml.Node) map[nodeview.Pair]*yaml.Node {
 	keys := map[nodeview.Pair]*yaml.Node{}
 	seen := map[*yaml.Node]bool{node: true}
 	for todo := []*yaml.Node{node}; len(todo) > 0; {
-		nodeValue := todo[len(todo)-1]
+		current := todo[len(todo)-1]
 		todo = todo[:len(todo)-1]
-		for i := 0; i+1 < len(nodeValue.Content); i += 2 {
-			if !nodeview.IsMergeKey(nodeValue.Content[i]) {
-				key, _ := nodeview.KeyOf(nodeValue.Content[i])
-				if pair := (nodeview.Pair{Key: key, Val: nodeview.Deref(nodeValue.Content[i+1])}); keys[pair] == nil {
-					keys[pair] = nodeValue.Content[i]
+		for i := 0; i+1 < len(current.Content); i += 2 {
+			if !nodeview.IsMergeKey(current.Content[i]) {
+				key, _ := nodeview.KeyOf(current.Content[i])
+				if pair := (nodeview.Pair{Key: key, Val: nodeview.Deref(current.Content[i+1])}); keys[pair] == nil {
+					keys[pair] = current.Content[i]
 				}
 				continue
 			}
-			for _, src := range nodeview.MergeSources(nodeValue.Content[i+1]) {
+			for _, src := range nodeview.MergeSources(current.Content[i+1]) {
 				if otherNode := nodeview.Deref(src); otherNode != nil && otherNode.Kind == yaml.MappingNode && !seen[otherNode] {
 					seen[otherNode] = true
 					todo = append(todo, otherNode)
@@ -196,9 +196,9 @@ func (g *grafter) copyTree(node *yaml.Node, moved bool) *yaml.Node {
 			continue
 		}
 		pairValue.to.Content = make([]*yaml.Node, len(pairValue.from.Content))
-		for i, nodeValue := range pairValue.from.Content {
-			pairValue.to.Content[i] = g.copyNode(nodeValue, moved)
-			stack = append(stack, pair{nodeValue, pairValue.to.Content[i]})
+		for i, child := range pairValue.from.Content {
+			pairValue.to.Content[i] = g.copyNode(child, moved)
+			stack = append(stack, pair{child, pairValue.to.Content[i]})
 		}
 	}
 	return root
@@ -208,16 +208,16 @@ func (g *grafter) copyTree(node *yaml.Node, moved bool) *yaml.Node {
 // not stand at node's position; a copied alias is one more alias naming what node
 // names.
 func (g *grafter) copyNode(node *yaml.Node, moved bool) *yaml.Node {
-	nodeValue := &yaml.Node{Kind: node.Kind, Style: node.Style, Tag: node.Tag, Value: node.Value, Alias: node.Alias,
+	copied := &yaml.Node{Kind: node.Kind, Style: node.Style, Tag: node.Tag, Value: node.Value, Alias: node.Alias,
 		Line: node.Line, Column: node.Column}
 	if node.Kind == yaml.AliasNode && node.Alias != nil {
 		g.named[node.Alias]++
 	}
 	if g.written[node] {
-		g.written[nodeValue] = true
+		g.written[copied] = true
 	}
-	g.copies[nodeValue] = moved
-	return nodeValue
+	g.copies[copied] = moved
+	return copied
 }
 
 // admit charges n nodes to the node budget and reports whether they fit. The

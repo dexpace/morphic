@@ -158,8 +158,8 @@ func (w Walk) push(stack []walkFrame, node *yaml.Node, depth int) []walkFrame {
 	if w.Leave != nil {
 		stack = append(stack, walkFrame{n: node, depth: depth, leave: true})
 	}
-	for _, nodeValue := range slices.Backward(node.Content) {
-		stack = append(stack, walkFrame{n: nodeValue, depth: depth + 1})
+	for _, child := range slices.Backward(node.Content) {
+		stack = append(stack, walkFrame{n: child, depth: depth + 1})
 	}
 	return stack
 }

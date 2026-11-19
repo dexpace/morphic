@@ -293,15 +293,15 @@ func (g *grafter) appendTo(target, value *yaml.Node, depth int) (bool, error) {
 
 // attach adds a copy of the member key: value to the object target.
 func (g *grafter) attach(target, key, value *yaml.Node, depth int) error {
-	node, err := g.clone(key, depth+1)
+	clonedKey, err := g.clone(key, depth+1)
 	if err != nil {
 		return err
 	}
-	nodeValue, err := g.clone(value, depth+1)
+	clonedValue, err := g.clone(value, depth+1)
 	if err != nil {
 		return err
 	}
-	target.Content = append(target.Content, node, nodeValue)
+	target.Content = append(target.Content, clonedKey, clonedValue)
 	return nil
 }
 
@@ -321,7 +321,7 @@ func (g *grafter) clone(node *yaml.Node, depth int) (*yaml.Node, error) {
 // since the document it lands in does not write it there. built, when set, is
 // handed each node built, the node it copies and its holder, nil for the root,
 // and stops the copy by answering false.
-func copyOf(node, holder *yaml.Node, depth int, built func(from, holder, nodeValue *yaml.Node) bool) (*yaml.Node, error) {
+func copyOf(node, holder *yaml.Node, depth int, built func(from, holder, copied *yaml.Node) bool) (*yaml.Node, error) {
 	if depth > maxPayloadDepth {
 		return nil, fmt.Errorf("it writes a value nested past %d levels", maxPayloadDepth)
 	}
@@ -338,11 +338,11 @@ func copyOf(node, holder *yaml.Node, depth int, built func(from, holder, nodeVal
 	}
 	out.Content = make([]*yaml.Node, len(from.Content))
 	for i, child := range from.Content {
-		nodeValue, err := copyOf(child, out, depth+1, built)
+		copiedChild, err := copyOf(child, out, depth+1, built)
 		if err != nil {
 			return nil, err
 		}
-		out.Content[i] = nodeValue
+		out.Content[i] = copiedChild
 	}
 	return out, nil
 }

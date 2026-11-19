@@ -26,10 +26,10 @@ type judgment struct {
 // hooks were told.
 func judge(t *testing.T, kind specrules.Kind, doc string) judgment {
 	t.Helper()
-	var nodeValue yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(doc), &nodeValue))
+	var parsed yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &parsed))
 	judgmentValue := judgment{referenced: map[specrules.Kind][]*yaml.Node{}}
-	judgmentValue.diags = specrules.NewChecker().Check(t.Context(), &nodeValue, "3.1.0", specrules.Options{
+	judgmentValue.diags = specrules.NewChecker().Check(t.Context(), &parsed, "3.1.0", specrules.Options{
 		Start:  kind,
 		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 		Judged: func(node *yaml.Node, refused bool) {

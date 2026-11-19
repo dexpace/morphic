@@ -273,14 +273,14 @@ func TakeString(unmodeled *ir.Unmodeled, root *yaml.Node, key string, valid func
 // read as the empty string. ok is false for any other node, which the parser
 // would report as a type mismatch.
 func stringValue(node *yaml.Node) (string, bool) {
-	nodeValue := yml.ResolveAlias(node)
-	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode {
+	dereferenced := yml.ResolveAlias(node)
+	if dereferenced == nil || dereferenced.Kind != yaml.ScalarNode {
 		return "", false
 	}
-	if nodeValue.Tag == "!!null" {
+	if dereferenced.Tag == "!!null" {
 		return "", true
 	}
-	return nodeValue.Value, slices.Contains(yml.TypeToYamlTags(reflect.TypeFor[string]()), nodeValue.Tag)
+	return dereferenced.Value, slices.Contains(yml.TypeToYamlTags(reflect.TypeFor[string]()), dereferenced.Tag)
 }
 
 // keyClass is how a key the model does not name is graded: which diagnostic

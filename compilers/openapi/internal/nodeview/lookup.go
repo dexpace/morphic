@@ -28,8 +28,8 @@ func Pairs(node *yaml.Node) []Pair {
 // merge structure's, which the alias scans bound; the load phase reports a
 // chain past MergeDepthLimit (reftable.ReferenceTargetTable.Truncated).
 func Child(node *yaml.Node, key string) *yaml.Node {
-	nodeValue, _ := childIn(Deref(DocumentRoot(node)), key, lastCopy, nil)
-	return nodeValue
+	child, _ := childIn(Deref(DocumentRoot(node)), key, lastCopy, nil)
+	return child
 }
 
 // childIn is Child for the mapping node, read at the copy rule names, which the
@@ -37,7 +37,7 @@ func Child(node *yaml.Node, key string) *yaml.Node {
 // else the first `<<` source holding key, in merge order, as flatten settles
 // them. A source past MergeDepthLimit, or on path, which is a merge cycle,
 // holds nothing, as for MappingPairs. found reports a pair whose value is nil.
-func childIn(node *yaml.Node, key string, rule copyRule, path []*yaml.Node) (nodeValue *yaml.Node, found bool) {
+func childIn(node *yaml.Node, key string, rule copyRule, path []*yaml.Node) (child *yaml.Node, found bool) {
 	if node == nil || node.Kind != yaml.MappingNode || len(path) > MergeDepthLimit || slices.Contains(path, node) {
 		return nil, false
 	}
@@ -48,19 +48,19 @@ func childIn(node *yaml.Node, key string, rule copyRule, path []*yaml.Node) (nod
 			continue
 		}
 		if k, own := KeyOf(node.Content[i]); own && k == key && (rule == lastCopy || !found) {
-			nodeValue, found = node.Content[i+1], true
+			child, found = node.Content[i+1], true
 		}
 	}
 	if found || !merges {
-		return Deref(nodeValue), found
+		return Deref(child), found
 	}
 	path = append(path, node)
 	for i := 0; i+1 < len(node.Content); i += 2 {
 		if !IsMergeKey(node.Content[i]) {
 			continue
 		}
-		if nodeValue, found = childOfSource(Deref(node.Content[i+1]), key, path); found {
-			return nodeValue, true
+		if child, found = childOfSource(Deref(node.Content[i+1]), key, path); found {
+			return child, true
 		}
 	}
 	return nil, false

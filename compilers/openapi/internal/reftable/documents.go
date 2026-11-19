@@ -312,11 +312,11 @@ func (d *docs) refOf(id DocID, node *yaml.Node) (string, bool) {
 	if node = nodeview.Deref(node); node == nil || node.Kind != yaml.MappingNode {
 		return "", false
 	}
-	nodeValue := nodeview.Deref(d.list[id].view.ChildByToken(node, "$ref"))
-	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || nodeValue.Tag == "!!null" {
+	refNode := nodeview.Deref(d.list[id].view.ChildByToken(node, "$ref"))
+	if refNode == nil || refNode.Kind != yaml.ScalarNode || refNode.Tag == "!!null" {
 		return "", false
 	}
-	return nodeValue.Value, true
+	return refNode.Value, true
 }
 
 // reading is where a read of a pointer stands: the position, the node there,

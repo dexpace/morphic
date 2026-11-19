@@ -204,8 +204,8 @@ func (w *aliasWeigher) weigh(ctx context.Context, root *yaml.Node) []*yaml.Node 
 // it rather than one computed, so it is no amplifier, and the node depending
 // on it is the innermost there is.
 func (w *aliasWeigher) dependsOnAmplifier(node *yaml.Node) bool {
-	return slices.ContainsFunc(childrenOf(node), func(nodeValue *yaml.Node) bool {
-		return !w.cut[nodeValue] && !w.allowance.Admits(w.weight[nodeValue])
+	return slices.ContainsFunc(childrenOf(node), func(child *yaml.Node) bool {
+		return !w.cut[child] && !w.allowance.Admits(w.weight[child])
 	})
 }
 
@@ -217,18 +217,18 @@ func (w *aliasWeigher) dependsOnAmplifier(node *yaml.Node) bool {
 // the first count past the allowance, which is always large enough to carry
 // the document to refusal without ever pretending the cyclic subtree is small.
 func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, node *yaml.Node) {
-	for _, nodeValue := range childrenOf(node) {
-		if nodeValue == nil {
+	for _, child := range childrenOf(node) {
+		if child == nil {
 			continue
 		}
-		if w.inFlight[nodeValue] {
-			w.weight[nodeValue], w.cut[nodeValue] = w.allowance.Past(), true
+		if w.inFlight[child] {
+			w.weight[child], w.cut[child] = w.allowance.Past(), true
 			continue
 		}
-		if _, done := w.weight[nodeValue]; done {
+		if _, done := w.weight[child]; done {
 			continue
 		}
-		*stack = append(*stack, &weighFrame{n: nodeValue})
+		*stack = append(*stack, &weighFrame{n: child})
 	}
 }
 
@@ -249,8 +249,8 @@ func (w *aliasWeigher) computeWeight(node *yaml.Node) int {
 	}
 	total := budget.New(w.allowance)
 	total.Spend(1)
-	for _, nodeValue := range node.Content {
-		if !total.Spend(w.weight[nodeValue]) {
+	for _, child := range node.Content {
+		if !total.Spend(w.weight[child]) {
 			break
 		}
 	}

@@ -106,11 +106,11 @@ func (m *Measure) push(stack []*measureFrame, node *yaml.Node) []*measureFrame {
 	if node.Kind == yaml.AliasNode {
 		over = []*yaml.Node{node.Alias}
 	}
-	for _, nodeValue := range over {
-		if _, done := m.memo[nodeValue]; nodeValue == nil || done || m.inFlight[nodeValue] {
+	for _, measured := range over {
+		if _, done := m.memo[measured]; measured == nil || done || m.inFlight[measured] {
 			continue
 		}
-		stack = append(stack, &measureFrame{n: nodeValue})
+		stack = append(stack, &measureFrame{n: measured})
 	}
 	return stack
 }
@@ -122,8 +122,8 @@ func (m *Measure) measured(node *yaml.Node) shape {
 		return m.memo[node.Alias]
 	}
 	out := shape{nodes: 1, text: scalarText(node)}
-	for i, nodeValue := range node.Content {
-		out = out.holding(m.memo[nodeValue], edge(node, i))
+	for i, child := range node.Content {
+		out = out.holding(m.memo[child], edge(node, i))
 	}
 	out.nesting += Level(node)
 	return out

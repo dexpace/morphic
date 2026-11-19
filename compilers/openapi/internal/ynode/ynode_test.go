@@ -75,8 +75,8 @@ func findScalar(node *yaml.Node, value string) *yaml.Node {
 	if node.Kind == yaml.ScalarNode && node.Value == value {
 		return node
 	}
-	for _, nodeValue := range node.Content {
-		if found := findScalar(nodeValue, value); found != nil {
+	for _, child := range node.Content {
+		if found := findScalar(child, value); found != nil {
 			return found
 		}
 	}

@@ -272,11 +272,11 @@ func TestCheck_ComponentNameAndKeyFindingsAreWarnings(t *testing.T) {
 // caller which mappings were checked as which kind: an object read, and not a
 // Reference Object standing in its place.
 func TestCheck_SeenReportsTheObjectsReadAsTheirKind(t *testing.T) {
-	var nodeValue yaml.Node
+	var parsed yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(
-		"parameters: {a: {name: n, in: query, schema: {}}, b: {$ref: '#/parameters/a'}}\nschemas: {S: {type: string}}\n"), &nodeValue))
+		"parameters: {a: {name: n, in: query, schema: {}}, b: {$ref: '#/parameters/a'}}\nschemas: {S: {type: string}}\n"), &parsed))
 	seen := map[specrules.Kind]int{}
-	specrules.NewChecker().Check(t.Context(), &nodeValue, "3.0.3", specrules.Options{Start: specrules.Components, Seen: func(kind specrules.Kind, node *yaml.Node) {
+	specrules.NewChecker().Check(t.Context(), &parsed, "3.0.3", specrules.Options{Start: specrules.Components, Seen: func(kind specrules.Kind, node *yaml.Node) {
 		require.NotNil(t, node)
 		seen[kind]++
 	}})

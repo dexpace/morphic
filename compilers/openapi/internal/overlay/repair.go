@@ -81,11 +81,11 @@ func substituteDetached(ctx context.Context, node *yaml.Node, reachable map[*yam
 ) (done, safe bool) {
 	safe = true
 	copies := map[*yaml.Node]bool{}
-	out := nodeview.Walk{Nodes: math.MaxInt, Visit: func(nodeValue *yaml.Node, _ int) nodeview.Step {
-		if copies[nodeValue] {
+	out := nodeview.Walk{Nodes: math.MaxInt, Visit: func(visited *yaml.Node, _ int) nodeview.Step {
+		if copies[visited] {
 			return nodeview.Prune
 		}
-		if safe = substituteChildren(nodeValue, reachable, work, copies); !safe {
+		if safe = substituteChildren(visited, reachable, work, copies); !safe {
 			return nodeview.Stop
 		}
 		return nodeview.Descend

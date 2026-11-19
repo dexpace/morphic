@@ -237,8 +237,8 @@ func sameOrigin(a, b string) bool {
 // the boolean true, which marks its resource for a `$recursiveRef`; false, the
 // default, and any other value mark none.
 func recursiveAnchored(view *nodeview.View, node *yaml.Node) bool {
-	nodeValue := nodeview.Deref(view.ChildByToken(nodeview.Deref(node), "$recursiveAnchor"))
-	return nodeValue != nil && nodeValue.Kind == yaml.ScalarNode && nodeValue.Tag == "!!bool" && strings.EqualFold(nodeValue.Value, "true")
+	recursiveAnchorNode := nodeview.Deref(view.ChildByToken(nodeview.Deref(node), "$recursiveAnchor"))
+	return recursiveAnchorNode != nil && recursiveAnchorNode.Kind == yaml.ScalarNode && recursiveAnchorNode.Tag == "!!bool" && strings.EqualFold(recursiveAnchorNode.Value, "true")
 }
 
 // commit makes the URIs the documents counted declare answer, and reports
@@ -634,11 +634,11 @@ func fragmentName(rule DialectRule, id string, written bool) (string, bool) {
 // scalarOf is the string node holds, and whether it holds a non-empty one that
 // is not null.
 func scalarOf(node *yaml.Node) (string, bool) {
-	nodeValue := nodeview.Deref(node)
-	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || nodeValue.Tag == "!!null" || nodeValue.Value == "" {
+	dereferenced := nodeview.Deref(node)
+	if dereferenced == nil || dereferenced.Kind != yaml.ScalarNode || dereferenced.Tag == "!!null" || dereferenced.Value == "" {
 		return "", false
 	}
-	return nodeValue.Value, true
+	return dereferenced.Value, true
 }
 
 // holding is the resource the position documentPointer, reached along path, is in: the one

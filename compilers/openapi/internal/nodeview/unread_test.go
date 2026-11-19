@@ -105,8 +105,8 @@ func TestUnread_AWalkVisitsTheNullAndNothingBehindIt(t *testing.T) {
 	for _, mode := range []nodeview.Aliases{nodeview.AliasLeaf, nodeview.AliasTarget} {
 		var seen, want []string
 		collect := func(into *[]string) func(*yaml.Node, int) nodeview.Step {
-			return func(nodeValue *yaml.Node, _ int) nodeview.Step {
-				*into = append(*into, nodeValue.Value)
+			return func(visited *yaml.Node, _ int) nodeview.Step {
+				*into = append(*into, visited.Value)
 				return nodeview.Descend
 			}
 		}

@@ -48,12 +48,12 @@ func (s *settler) visit(node *yaml.Node, _ int) nodeview.Step {
 		s.found = s.legacy(s.found, node)
 	}
 	s.respelling.restore(node)
-	for i, nodeValue := range node.Content {
+	for i, child := range node.Content {
 		key := node.Kind == yaml.MappingNode && i%2 == 0
 		if key && s.keys != nil {
-			s.keys[nodeValue] = true
+			s.keys[child] = true
 		}
-		resolve(nodeValue, key)
+		resolve(child, key)
 	}
 	return nodeview.Descend
 }

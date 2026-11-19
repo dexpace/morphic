@@ -141,7 +141,7 @@ func (w *sequenceWalk) walk(node *yaml.Node, mode reading, depth int) Decline {
 // values are read as keywords, whatever their keys.
 func (w *sequenceWalk) mapping(node *yaml.Node, mode reading, depth int) Decline {
 	for i := 0; i+1 < len(node.Content); i += 2 {
-		key, nodeValue := node.Content[i], node.Content[i+1]
+		key, value := node.Content[i], node.Content[i+1]
 		if key.Kind == yaml.ScalarNode {
 			w.point(key.Value)
 		}
@@ -152,10 +152,10 @@ func (w *sequenceWalk) mapping(node *yaml.Node, mode reading, depth int) Decline
 			w.written[string(w.pointer)]++
 		}
 		if mode == asKeywords && orderFreeKeyword(k) &&
-			nodeValue.Kind == yaml.SequenceNode && len(nodeValue.Content) >= 2 && nodeValue.Anchor == "" {
-			w.candidates = append(w.candidates, candidate{node: nodeValue, pointer: string(w.pointer)})
+			value.Kind == yaml.SequenceNode && len(value.Content) >= 2 && value.Anchor == "" {
+			w.candidates = append(w.candidates, candidate{node: value, pointer: string(w.pointer)})
 		}
-		why := w.walk(nodeValue, valueReading(mode, k, nodeValue), depth+1)
+		why := w.walk(value, valueReading(mode, k, value), depth+1)
 		w.pointer = w.pointer[:mark]
 		if why != "" {
 			return why

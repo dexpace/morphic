@@ -64,8 +64,8 @@ func scalars(node *yaml.Node) []string {
 	if node.Kind == yaml.ScalarNode {
 		out = append(out, fmt.Sprintf("%s@%d:%d", node.Value, node.Line, node.Column))
 	}
-	for _, nodeValue := range node.Content {
-		out = append(out, scalars(nodeValue)...)
+	for _, child := range node.Content {
+		out = append(out, scalars(child)...)
 	}
 	return out
 }
@@ -83,9 +83,9 @@ func firstDifference(a, b *yaml.Node) string {
 	for len(stack) > 0 {
 		stepValue := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		node, nodeValue := *stepValue.a, *stepValue.b
-		node.Content, nodeValue.Content = nil, nil
-		if diff := cmp.Diff(node, nodeValue); diff != "" {
+		yamlNode, readNode := *stepValue.a, *stepValue.b
+		yamlNode.Content, readNode.Content = nil, nil
+		if diff := cmp.Diff(yamlNode, readNode); diff != "" {
 			return fmt.Sprintf("at %q (-yaml.v3 +Read):\n%s", stepValue.path, diff)
 		}
 		if len(stepValue.a.Content) != len(stepValue.b.Content) {

@@ -64,11 +64,11 @@ func (f frame) text(name string) (string, bool) {
 // textOf reads a node as a scalar. A null writes no text: a rule reading a
 // sibling reads it as unwritten, and the field's own check reports it.
 func textOf(node *yaml.Node) (string, bool) {
-	nodeValue := nodeview.Deref(node)
-	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || isNull(nodeValue) {
+	dereferenced := nodeview.Deref(node)
+	if dereferenced == nil || dereferenced.Kind != yaml.ScalarNode || isNull(dereferenced) {
 		return "", false
 	}
-	return nodeValue.Value, true
+	return dereferenced.Value, true
 }
 
 // rules applies the object's rules that hold at the declared minor, bar those

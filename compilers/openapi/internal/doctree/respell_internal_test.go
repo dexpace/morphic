@@ -300,8 +300,8 @@ func tree(text []byte) (*yaml.Node, string) {
 // walk calls f on every node under node.
 func walk(node *yaml.Node, f func(*yaml.Node)) {
 	f(node)
-	for _, nodeValue := range node.Content {
-		walk(nodeValue, f)
+	for _, child := range node.Content {
+		walk(child, f)
 	}
 }
 
@@ -330,8 +330,8 @@ func strs(doc *yaml.Node) []string {
 // core schema leaves alone.
 func shape(node *yaml.Node) []string {
 	var out []string
-	walk(node, func(nodeValue *yaml.Node) {
-		out = append(out, fmt.Sprintf("%d %q @%d:%d", nodeValue.Kind, nodeValue.Value, nodeValue.Line, nodeValue.Column))
+	walk(node, func(visited *yaml.Node) {
+		out = append(out, fmt.Sprintf("%d %q @%d:%d", visited.Kind, visited.Value, visited.Line, visited.Column))
 	})
 	return out
 }

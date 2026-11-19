@@ -286,11 +286,11 @@ func (w *finder) landOn(from DocumentPointer, hop Hop) {
 // so each is bound here.
 func (w *finder) mappingsOf(node *yaml.Node, at DocumentPointer) {
 	disc := DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.AppendToken("discriminator")}
-	for _, nodeValue := range mappingValues(w.docs.list[at.Doc].view, node) {
-		if w.docs.components[nodeValue.Value] {
+	for _, mappingValue := range mappingValues(w.docs.list[at.Doc].view, node) {
+		if w.docs.components[mappingValue.Value] {
 			continue
 		}
-		if mappingKeyValue := (mappingKey{at: disc, value: nodeValue.Value}); !w.mappingSites[mappingKeyValue] {
+		if mappingKeyValue := (mappingKey{at: disc, value: mappingValue.Value}); !w.mappingSites[mappingKeyValue] {
 			w.mappingSites[mappingKeyValue] = true
 			w.freshMappings = append(w.freshMappings, mappingKeyValue)
 		}
@@ -302,15 +302,15 @@ func (w *finder) mappingsOf(node *yaml.Node, at DocumentPointer) {
 // then its defaultMapping. The finder binds them and NamedPointerBytes weighs
 // where they land, each by its text whatever its tag, so both ask here.
 func mappingValues(view *nodeview.View, node *yaml.Node) []*yaml.Node {
-	nodeValue := nodeview.Deref(view.ChildByToken(node, "discriminator"))
-	if nodeValue == nil || nodeValue.Kind != yaml.MappingNode {
+	discriminatorNode := nodeview.Deref(view.ChildByToken(node, "discriminator"))
+	if discriminatorNode == nil || discriminatorNode.Kind != yaml.MappingNode {
 		return nil
 	}
 	var values []*yaml.Node
-	for _, pair := range view.MappingPairs(nodeview.Deref(view.ChildByToken(nodeValue, "mapping"))) {
+	for _, pair := range view.MappingPairs(nodeview.Deref(view.ChildByToken(discriminatorNode, "mapping"))) {
 		values = append(values, pair.Val)
 	}
-	values = append(values, nodeview.Deref(view.ChildByToken(nodeValue, "defaultMapping")))
+	values = append(values, nodeview.Deref(view.ChildByToken(discriminatorNode, "defaultMapping")))
 	return slices.DeleteFunc(values, func(otherNode *yaml.Node) bool { return otherNode == nil || otherNode.Kind != yaml.ScalarNode })
 }
 
@@ -332,9 +332,9 @@ func (w *finder) pushChildren(stack []frame, node *yaml.Node, frameValue frame) 
 				state: stepIn(w.docs, frameValue.at.Doc, node, frameValue.state, pair.Key, frameValue.dialect), res: frameValue.res, dialect: frameValue.dialect})
 		}
 	case yaml.SequenceNode:
-		for i, nodeValue := range node.Content {
+		for i, child := range node.Content {
 			token := strconv.Itoa(i)
-			stack = append(stack, frame{node: nodeValue, at: frameValue.at.below(token), state: step(frameValue.state, token), res: frameValue.res,
+			stack = append(stack, frame{node: child, at: frameValue.at.below(token), state: step(frameValue.state, token), res: frameValue.res,
 				dialect: frameValue.dialect})
 		}
 	}

@@ -483,13 +483,13 @@ func MergesNothing(node *yaml.Node) bool {
 	}
 	seen := map[*yaml.Node]bool{node: true}
 	for todo := []*yaml.Node{node}; len(todo) > 0; {
-		nodeValue := todo[len(todo)-1]
+		current := todo[len(todo)-1]
 		todo = todo[:len(todo)-1]
-		for i := 0; i+1 < len(nodeValue.Content); i += 2 {
-			if !IsMergeKey(nodeValue.Content[i]) {
+		for i := 0; i+1 < len(current.Content); i += 2 {
+			if !IsMergeKey(current.Content[i]) {
 				continue
 			}
-			for _, src := range MergeSources(nodeValue.Content[i+1]) {
+			for _, src := range MergeSources(current.Content[i+1]) {
 				if NotMapping(src) {
 					return true
 				}

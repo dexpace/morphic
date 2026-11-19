@@ -107,9 +107,9 @@ func stepsIn(ctx context.Context, root *yaml.Node, limit int) (map[*yaml.Node]st
 // reachChildren hands reach each child of node a pointer reaches, with the step
 // that leads to it.
 func reachChildren(node *yaml.Node, reach func(*yaml.Node, step)) {
-	eachChild(node, func(nodeValue *yaml.Node, token string, held bool) {
+	eachChild(node, func(child *yaml.Node, token string, held bool) {
 		if held {
-			reach(nodeValue, step{holder: node, token: token})
+			reach(child, step{holder: node, token: token})
 		}
 	})
 }
@@ -119,7 +119,7 @@ func reachChildren(node *yaml.Node, reach func(*yaml.Node, step)) {
 // key is node's but has no pointer of its own, and an entry whose key is no
 // scalar, which every reader leaves out, has none either. A scalar holds
 // nothing, and an alias's target is written elsewhere.
-func eachChild(node *yaml.Node, visit func(nodeValue *yaml.Node, token string, held bool)) {
+func eachChild(node *yaml.Node, visit func(child *yaml.Node, token string, held bool)) {
 	switch node.Kind {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(node.Content); i += 2 {

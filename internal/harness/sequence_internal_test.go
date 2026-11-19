@@ -71,8 +71,8 @@ func orderedNode(node *yaml.Node) any {
 		return pairs
 	case yaml.SequenceNode:
 		items := make([]any, 0, len(node.Content))
-		for _, nodeValue := range node.Content {
-			items = append(items, orderedNode(nodeValue))
+		for _, child := range node.Content {
+			items = append(items, orderedNode(child))
 		}
 		return items
 	default:
@@ -296,9 +296,9 @@ func TestReverseSequences_AnAnchorMovesToTheFirstUse(t *testing.T) {
 	node := lookup(t, allOf.Content[0], "properties", "q")
 	assert.Equal(t, "x", node.Anchor, "the entry that now comes first declares the anchor")
 	assert.NotEqual(t, yaml.AliasNode, node.Kind)
-	nodeValue := lookup(t, allOf.Content[1], "properties", "p")
-	assert.Equal(t, yaml.AliasNode, nodeValue.Kind, "the entry that now comes second is the alias")
-	assert.Equal(t, "x", nodeValue.Value)
+	propertyNode := lookup(t, allOf.Content[1], "properties", "p")
+	assert.Equal(t, yaml.AliasNode, propertyNode.Kind, "the entry that now comes second is the alias")
+	assert.Equal(t, "x", propertyNode.Value)
 }
 
 // lookup descends from node through mapping keys, failing the test where one is

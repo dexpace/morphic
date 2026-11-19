@@ -59,8 +59,8 @@ func holders(root *yaml.Node, key, value string) []string {
 	walk = func(node *yaml.Node, at string) {
 		switch node.Kind {
 		case yaml.DocumentNode:
-			for _, nodeValue := range node.Content {
-				walk(nodeValue, at)
+			for _, child := range node.Content {
+				walk(child, at)
 			}
 		case yaml.AliasNode:
 			walk(node.Alias, at)
@@ -72,8 +72,8 @@ func holders(root *yaml.Node, key, value string) []string {
 				walk(node.Content[i+1], at+"/"+node.Content[i].Value)
 			}
 		case yaml.SequenceNode:
-			for i, nodeValue := range node.Content {
-				walk(nodeValue, fmt.Sprintf("%s/%d", at, i))
+			for i, child := range node.Content {
+				walk(child, fmt.Sprintf("%s/%d", at, i))
 			}
 		case yaml.ScalarNode:
 		}

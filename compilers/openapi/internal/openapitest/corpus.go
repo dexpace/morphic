@@ -137,19 +137,19 @@ func treePaths(tb TB, node *yaml.Node, at jsontext.Pointer, out *[]jsontext.Poin
 			}
 		}
 	case yaml.SequenceNode:
-		for i, nodeValue := range node.Content {
-			children, tokens = append(children, nodeValue), append(tokens, strconv.Itoa(i))
+		for i, child := range node.Content {
+			children, tokens = append(children, child), append(tokens, strconv.Itoa(i))
 		}
 	default:
 		// A scalar holds no path below it, and an alias's are not asked about
 		// (#1195).
 	}
-	for i, nodeValue := range children {
+	for i, child := range children {
 		// The library's escaper keeps a byte that is no UTF-8, which AppendToken
 		// would spell as U+FFFD, a key the library never compares.
 		pointer := jsontext.Pointer(string(at) + "/" + jsonpointer.EscapeString(tokens[i]))
 		*out = append(*out, pointer)
-		if !treePaths(tb, nodeValue, pointer, out, refs, depth+1) {
+		if !treePaths(tb, child, pointer, out, refs, depth+1) {
 			return false
 		}
 	}

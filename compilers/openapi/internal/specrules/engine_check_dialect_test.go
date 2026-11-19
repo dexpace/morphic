@@ -146,9 +146,9 @@ func TestCheck_AFindingInADraftNamesItsDialect(t *testing.T) {
 	}
 	assert.Equal(t, `Schema Object field "required" must hold at least 1 entry in this schema's dialect (5.4.3.1. Valid values)`,
 		read(draft04))
-	var nodeValue yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(`{prefixItems: []}`), &nodeValue))
-	diags := specrules.NewChecker().Check(t.Context(), &nodeValue, "3.1.0", specrules.Options{Start: specrules.Schema})
+	var parsed yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(`{prefixItems: []}`), &parsed))
+	diags := specrules.NewChecker().Check(t.Context(), &parsed, "3.1.0", specrules.Options{Start: specrules.Schema})
 	require.Len(t, diags, 1)
 	assert.Equal(t, `Schema Object field "prefixItems" must hold at least 1 entry in OpenAPI 3.1 (Schema Object)`, diags[0].Message)
 	assert.Equal(t, `keyword "prefixItems" is not defined by this schema's dialect; it is read as JSON Schema 2020-12 defines it; `+

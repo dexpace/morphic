@@ -73,7 +73,7 @@ func writesBeside(node *yaml.Node) bool {
 		return false
 	}
 	for i := 0; i+1 < len(node.Content); i += 2 {
-		if nodeValue := expanded(node.Content[i]); nodeValue == nil || nodeValue.Value != "$ref" {
+		if keyNode := expanded(node.Content[i]); keyNode == nil || keyNode.Value != "$ref" {
 			return true
 		}
 	}

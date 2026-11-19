@@ -262,11 +262,11 @@ func writeJSON(t testing.TB, out *bytes.Buffer, node *yaml.Node) {
 		out.WriteByte('}')
 	case yaml.SequenceNode:
 		out.WriteByte('[')
-		for i, nodeValue := range node.Content {
+		for i, child := range node.Content {
 			if i > 0 {
 				out.WriteByte(',')
 			}
-			writeJSON(t, out, nodeValue)
+			writeJSON(t, out, child)
 		}
 		out.WriteByte(']')
 	case yaml.ScalarNode:

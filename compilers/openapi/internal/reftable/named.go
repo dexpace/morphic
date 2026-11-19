@@ -157,12 +157,12 @@ func (w *named) below(namedKeyValue namedKey) []namedFrame {
 	}
 	w.noteRefs(namedKeyValue)
 	var out []namedFrame
-	w.eachNamedChild(node, namedKeyValue.s, func(nodeValue *yaml.Node, stateValue state, _ int) {
-		if stateValue == sRaw && (nodeValue == nil || nodeValue.Kind == yaml.ScalarNode) {
+	w.eachNamedChild(node, namedKeyValue.s, func(child *yaml.Node, stateValue state, _ int) {
+		if stateValue == sRaw && (child == nil || child.Kind == yaml.ScalarNode) {
 			return
 		}
-		if _, done := w.memo[namedKey{n: nodeValue, s: stateValue}]; !done {
-			out = append(out, namedFrame{key: namedKey{n: nodeValue, s: stateValue}})
+		if _, done := w.memo[namedKey{n: child, s: stateValue}]; !done {
+			out = append(out, namedFrame{key: namedKey{n: child, s: stateValue}})
 		}
 	})
 	return out
@@ -181,8 +181,8 @@ func (w *named) measured(namedKeyValue namedKey) namedShape {
 		out = rawNamed(node)
 	}
 	member := node.Kind == yaml.MappingNode && namedKeyValue.s != sRaw
-	w.eachNamedChild(node, namedKeyValue.s, func(nodeValue *yaml.Node, stateValue state, edge int) {
-		got := w.memo[namedKey{n: nodeValue, s: stateValue}]
+	w.eachNamedChild(node, namedKeyValue.s, func(child *yaml.Node, stateValue state, edge int) {
+		got := w.memo[namedKey{n: child, s: stateValue}]
 		if stateValue == sRaw && namedKeyValue.s != sRaw {
 			// A raw value's root, which a compile names alone.
 			got.nodes = sat(got.nodes, 1)
@@ -219,7 +219,7 @@ func rawNamed(node *yaml.Node) namedShape {
 // as the binder reads them (nodeview.View.MappingPairs): those a `<<` merge key
 // brings in among its own, which a compile names at the mapping, and a key
 // written twice at its last copy.
-func (w *named) eachNamedChild(node *yaml.Node, stateValue state, visit func(nodeValue *yaml.Node, otherState state, edge int)) {
+func (w *named) eachNamedChild(node *yaml.Node, stateValue state, visit func(child *yaml.Node, otherState state, edge int)) {
 	switch node.Kind {
 	case yaml.MappingNode:
 		for _, pair := range w.view.MappingPairs(node) {
