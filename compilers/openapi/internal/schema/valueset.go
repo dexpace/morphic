@@ -103,7 +103,7 @@ func electedSet(r refinement, s *statement.Schema) string {
 	return dispatchOf(s).besideAllOf().won
 }
 
-// principalDispatch is the election of the inline principal e's own keywords:
+// principalDispatch is the dispatch of the inline principal e's own keywords:
 // a flattened wrapper's allOf is no rival of its value set, its entries being
 // conjuncts of the position (allOfEntries).
 func principalDispatch(e allOfEntry) dispatch {

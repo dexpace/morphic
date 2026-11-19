@@ -36,7 +36,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	var census finished
+	var kept finished
 	u.distributed = true
 	u.dead = deadBranches(c, s, u.holder)
 	u.deadRoutes = deadRoutesOf(c, u)
@@ -54,9 +54,9 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 		diags = append(diags, unionDiags...)
 		// Each variant composes the body, reading its members and its bounds.
 		return def, objectKeys | typeReadAs(s, statement.KindObject) | boundsRead(s, body.comp.bounds, nil)
-	}, keepUnreadAcross(c, ts, s, taglessShape(nil, s, distributedShape), 0, pointer, stand{}, &census, fin))
+	}, keepUnreadAcross(c, ts, s, taglessShape(nil, s, distributedShape), 0, pointer, stand{}, &kept, fin))
 	// The union read s's discriminator, so one it cannot hold says why.
-	diags = append(diags, census.diags...)
+	diags = append(diags, kept.diags...)
 	where := "co-declared with structural keywords"
 	if u.holder != s {
 		where = "written on an allOf branch conjoins with the rest of the composition"
@@ -81,7 +81,7 @@ func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	if u.disc != nil && u.discAt == pointer && tagLocated(u.disc, nil) {
 		d.said = append(d.said, "discriminator")
 	}
-	id, diags := lowerElected(c, ts, depth, s, pointer, d, fin, stand{})
+	id, diags := lowerDispatched(c, ts, depth, s, pointer, d, fin, stand{})
 	if d.won != "allOf" {
 		// A discriminator routes to s through the allOf naming its ancestor
 		// (subtypeDiscriminatorValue), so no other election composes it.

@@ -726,13 +726,13 @@ func keepUnknownOf(c lowering.Ctx, p *ir.Unmodeled, bs *statement.Schema, keys [
 
 // recordEntryUnhomed keeps each of unhomed, keywords the entry e writes that
 // no home the position lowered to, shape, holds, as degraded_lowering
-// (keepUnhomed), and reports them in one finding at the entry, where says how
+// (keepUnreadKeys), and reports them in one finding at the entry, where says how
 // they are written: a warning where warn says e declares a type no object is,
 // which the composed model asserts it is.
 func recordEntryUnhomed(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, e allOfEntry, unhomed []string,
 	shape, where string, warn bool,
 ) []ir.Diagnostic {
-	kept, diags := keepUnhomed(c, ts, p, e.schema.Schema, unhomed, e.pointer)
+	kept, diags := keepUnreadKeys(c, ts, p, e.schema.Schema, unhomed, e.pointer)
 	if len(kept) == 0 {
 		return diags
 	}

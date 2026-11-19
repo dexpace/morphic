@@ -42,7 +42,7 @@ func TestUnread_KeepsWhatNoBuildRead(t *testing.T) {
 		}
 	})
 	t.Run("every key is read, handled or kept", func(t *testing.T) {
-		domain := schema.CensusDomain()
+		domain := schema.ReadDomain()
 		for _, in := range inputs {
 			for _, js := range in.statements {
 				assertEveryKeyIsReadOrKept(t, js.Schema, domain)
@@ -139,7 +139,7 @@ func TestUnread_EveryKeyShapesOrIsKept(t *testing.T) {
 	}
 	for _, target := range keyTargets {
 		alone := types(target, "")
-		for _, k := range schema.CensusDomain() {
+		for _, k := range schema.ReadDomain() {
 			if k == "type" || strings.Contains(target, k+":") {
 				continue
 			}

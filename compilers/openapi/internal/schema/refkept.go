@@ -77,12 +77,12 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		degraded, validation := keptUnion(c, r, s)
 		if standing {
 			// A union the position writes as its standing principal does is
-			// one writing, the principal's (refinedUnhomed).
+			// one writing, the principal's (refinedUnread).
 			bs := r.principal.schema.Schema
 			alike := func(key string) bool { return keyWrittenAlike(s, bs, key) }
 			degraded, validation = slices.DeleteFunc(degraded, alike), slices.DeleteFunc(validation, alike)
 		}
-		k.text, k.keywords = textBoundsOf(refinedUnhomed(c, r, s, typed, homes, standing), homes.numberText)
+		k.text, k.keywords = textBoundsOf(refinedUnread(c, r, s, typed, homes, standing), homes.numberText)
 		k.keywords, k.validation = append(k.keywords, degraded...), validation
 	}
 	collapsed := collapsedPrincipal(c, r, s)
@@ -101,15 +101,15 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		if r.principalIs(e) && e.schema.Ref != nil || principalTwin(&w, r, e) {
 			continue
 		}
-		censused := standing && r.principalIs(e)
+		setWrittenHere := standing && r.principalIs(e)
 		switch {
 		case e.schema.Ref != nil:
 			k.refEntries = append(k.refEntries, wholeRefEntry{entry: e, vote: r.votes[i]})
 		case stated(e.schema.Schema):
 			// The principal's node keeps what it passes over (preserveUnusedCombinator).
-			read := residueRead(c, &w, r, typed, e, voices.speaks[i], censused, collapsed && r.principalIs(e), homes,
+			read := residueRead(c, &w, r, typed, e, voices.speaks[i], setWrittenHere, collapsed && r.principalIs(e), homes,
 				pair && !r.principalIs(e))
-			residues[i] = unmergedEntryKeys(e.schema.Schema, lessPattern(read, censused && patternBeside(s, e.schema.Schema, homes)))
+			residues[i] = unmergedEntryKeys(e.schema.Schema, lessPattern(read, setWrittenHere && patternBeside(s, e.schema.Schema, homes)))
 		}
 	}
 	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties, r.principal)
@@ -122,13 +122,13 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 // residueRead reports whether a key the entry e of r writes is read where the
 // position lowered, leaving no residue: a wrapper's allOf, what folds where e
 // speaks, what the principal says (said) but a union of a pair (pair,
-// writesUnionPair), and a key of censusDomain the principal standing at the
-// position, e where censused says so, reads or keeps on its node (keepUnread).
+// writesUnionPair), and a key of readDomain the principal standing at the
+// position, e where setWrittenHere says so, reads or keeps on its node (keepUnread).
 // A value set's union and content vocabulary are kept, as its node holds
 // neither; another principal's union is its node's, or the collapsed
 // reference's (collapsedPrincipal), and its content vocabulary its own
 // reading's (unplacedContent).
-func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfEntry, speaks, censused, collapsed bool,
+func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfEntry, speaks, setWrittenHere, collapsed bool,
 	homes boundHomes, pair bool,
 ) func(string) bool {
 	bs := e.schema.Schema
@@ -141,13 +141,13 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 			// A union of a pair is kept whatever the principal says, as one
 			// schema writing both keeps the one it passes over.
 			return false
-		case censused && unionKeyword(key):
+		case setWrittenHere && unionKeyword(key):
 			return !set
-		case censused && slices.Contains(contentKeywords, key):
+		case setWrittenHere && slices.Contains(contentKeywords, key):
 			// The principal's own reading keeps what its node holds no
 			// Encoding for (lowerPrincipal), so the entry keeps none again.
 			return !set
-		case censused:
+		case setWrittenHere:
 			return keyBit(key) != 0 || said(w, r, typed, bs, key)
 		default:
 			return said(w, r, typed, bs, key)
@@ -259,7 +259,7 @@ func textBoundsOf(unhomed []string, numberText bool) (text, rest []string) {
 	return text, rest
 }
 
-// refinedUnhomed returns the census keywords s writes beside an allOf that
+// refinedUnread returns the census keywords s writes beside an allOf that
 // lowered to its principal, but for those the principal already says and the
 // bounds the node the position lowered to reads, which homes says
 // (boundHomes.reads), where a $ref site reads no target and keeps them all
@@ -268,7 +268,7 @@ func textBoundsOf(unhomed []string, numberText bool) (text, rest []string) {
 // (lowerPrincipalValueSet). Where standing says an inline principal's node
 // stands at the position, a keyword s writes as it does is the principal's
 // writing, which its node read or keeps.
-func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed setType, homes boundHomes, standing bool) []string {
+func refinedUnread(c lowering.Ctx, r refinement, s *statement.Schema, typed setType, homes boundHomes, standing bool) []string {
 	if _, atPosition := valueSetPrincipal(r); atPosition {
 		return nil
 	}
@@ -373,7 +373,7 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		shape = refinedShape(c, s, k.comp, k.principal, standing, held)
 	}
 	keywords, tagged := k.besideTag(standing)
-	diags := recordUnhomedAt(c, ts, p, s, keywords, shape, pointer)
+	diags := recordUnread(c, ts, p, s, keywords, shape, pointer)
 	diags = append(diags, keepTagBeside(c, ts, p, s, tagged, pointer)...)
 	diags = append(diags, keepTextBounds(c, p, s, k.text, pointer)...)
 	for _, key := range k.validation {
@@ -519,11 +519,11 @@ func (k outcomeKeeps) besideTag(standing ir.TypeDef) (keywords, tagged []string)
 
 // keepTagBeside keeps on p the discriminator s, written at pointer, writes
 // beside an allOf whose inline principal's Union holds its own, tagged naming
-// it or nothing: verbatim, its routes resolved, as keepUnhomed keeps one, with
+// it or nothing: verbatim, its routes resolved, as keepUnreadKeys keeps one, with
 // a report saying whose discriminator the Union holds.
 func keepTagBeside(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, tagged []string, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
-	kept, diags := keepUnhomed(c, ts, p, s, tagged, pointer)
+	kept, diags := keepUnreadKeys(c, ts, p, s, tagged, pointer)
 	if len(kept) == 0 {
 		return diags
 	}

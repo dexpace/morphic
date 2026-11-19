@@ -67,7 +67,7 @@ func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bou
 		}
 		return nodeHomes(c, e.schema.Schema, e.pointer, principalDispatch(*e), takes)
 	}
-	d, _ := electionOf(c, s, pointer)
+	d, _ := dispatchAt(c, s, pointer)
 	return nodeHomes(c, s, pointer, d, takes)
 }
 
@@ -109,7 +109,7 @@ func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d 
 }
 
 // nodeTypes returns the types the nodes of the position s, written at pointer,
-// are built for where it elects no family and declares no union: the types it
+// are built for where it picks no family and declares no union: the types it
 // writes, none where it writes only null, and else the ones its shape keywords
 // speak of (untypedKinds) or its allOf admits (lowerUndecided), top where it
 // admits none, which lowers to an alias of the top type.

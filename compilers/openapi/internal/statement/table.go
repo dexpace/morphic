@@ -34,10 +34,10 @@ type Table struct {
 	src        Source
 	schemas    map[*model]*Schema
 	statements map[*model]*Statement
-	// rests and references hold the two conjuncts of each schema object
+	// besideRefs and references hold the two conjuncts of each schema object
 	// writing a reference beside keys it reads (conjoins), each built once:
 	// the keys as an allOf entry reads them, and the reference.
-	rests, references map[*Schema]*Schema
+	besideRefs, references map[*Schema]*Schema
 	// reads counts the schema objects read, which the tests hold to one each,
 	// and lookups the statements Of looks up, which they hold Read to none of
 	// for a schema Of has built the statement of.
@@ -49,7 +49,7 @@ type Table struct {
 func NewTable(src Source) *Table {
 	return &Table{
 		src: src, schemas: map[*model]*Schema{}, statements: map[*model]*Statement{},
-		rests: map[*Schema]*Schema{}, references: map[*Schema]*Schema{},
+		besideRefs: map[*Schema]*Schema{}, references: map[*Schema]*Schema{},
 	}
 }
 
@@ -67,7 +67,7 @@ func (t *Table) Sub(s Sub) *Statement {
 // Read returns the statement of the schema object s, for a caller lowering
 // an entry as a position of its own: the one Of built over s, which s keeps,
 // so that a schema read once more costs no lookup, or, for the rest of an
-// allOf entry (restOf), one listing its own allOf and no reference. A nil s
+// allOf entry (besideRefOf), one listing its own allOf and no reference. A nil s
 // reads as Unwritten, and so does one no table read, which holds no value. s
 // is one t read: a schema another table built a statement over keeps that
 // statement, whichever table is asked.
@@ -128,7 +128,7 @@ func index(s *Schema) {
 // flatten lists the inline allOf entries of st's schema as the lowering
 // flattens them: in source order, depth first, an entry writing a reference
 // beside what else it says (conjoins) listed as that reference and then the
-// rest (restOf), an entry that writes an allOf and no reference, whatever else
+// rest (besideRefOf), an entry that writes an allOf and no reference, whatever else
 // it writes, replaced by its entries and then listed itself as a Wrapper, while at
 // most MaxFlattenDepth lists hold it, and listed Capped past that. It walks an
 // explicit stack of at most MaxFlattenDepth+1 lists, reading each entry's
@@ -156,7 +156,7 @@ func (t *Table) flatten(st *Statement) {
 		f.next++
 		if conjoins(entry) {
 			st.Entries = append(st.Entries, Entry{Schema: t.reference(entry), Rel: rel})
-			entry = t.restOf(entry)
+			entry = t.besideRefOf(entry)
 		}
 		wraps := entry.Ref == nil && len(entry.AllOf) > 0
 		if wraps && len(stack) <= MaxFlattenDepth {
@@ -229,14 +229,14 @@ func (t *Table) wordsOf(s *Schema) *Schema {
 	return w
 }
 
-// restOf returns s, an allOf entry that conjoins, less its reference
+// besideRefOf returns s, an allOf entry that conjoins, less its reference
 // (lessReference): the conjunct its composition lists after that reference,
 // as `{allOf: [{$ref: …}, {…}]}` lists it. It writes no reference, its node
 // holding its keys alone, so no reader of the composition's conjuncts reads
 // the reference twice; it names it WrittenBeside, for a reader of how its
 // keys are spelt (docs/compilers/openapi.md#ref-use-site).
-func (t *Table) restOf(s *Schema) *Schema {
-	if r, ok := t.rests[s]; ok {
+func (t *Table) besideRefOf(s *Schema) *Schema {
+	if r, ok := t.besideRefs[s]; ok {
 		return r
 	}
 	r := lessReference(s)
@@ -246,7 +246,7 @@ func (t *Table) restOf(s *Schema) *Schema {
 		content = append(content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: k.Name}, k.Node)
 	}
 	r.Node = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: content}
-	t.rests[s] = r
+	t.besideRefs[s] = r
 	return r
 }
 

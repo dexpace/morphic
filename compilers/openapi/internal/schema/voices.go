@@ -91,7 +91,7 @@ func allOfMayRefine(s *statement.Schema) bool {
 }
 
 // allOfDecides reports whether s's allOf is what its position lowers: one the
-// election of competing keywords made the value, or one refining, whose rival
+// dispatch of competing keywords made the value, or one refining, whose rival
 // there, an enum or a const beside it, is one of its conjuncts. An allOf that
 // value set beats otherwise stays verbatim
 // (docs/compilers/openapi.md#competing-keywords). A union beside the composing

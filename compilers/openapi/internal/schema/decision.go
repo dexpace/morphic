@@ -602,7 +602,7 @@ func markBeaten(w *admissionReader, votes []refVote, electable []*conjunct, prin
 // picks among sets alike, and nil where none states one, none lies within the
 // rest, or untie elects none. A $ref's target is no statement of the
 // position's. A set its own keywords leave no value is read as the keyword
-// competing keywords elect (competingSet), so it lowers alike beside the allOf
+// competing keywords pick (competingSet), so it lowers alike beside the allOf
 // and on an entry; one that keyword leaves none either, as `enum: []`, is none
 // to lower: the composition reports it.
 func setElected(w *admissionReader, s *statement.Schema, conjuncts []conjunct) *conjunct {
@@ -636,7 +636,7 @@ func setElected(w *admissionReader, s *statement.Schema, conjuncts []conjunct) *
 	return nil
 }
 
-// competingSet is what the value set s writes admits read as the election of
+// competingSet is what the value set s writes admits read as the dispatch of
 // competing keywords lowers it, its `const` before its `enum`, each alone
 // (docs/compilers/openapi.md#competing-keywords).
 func competingSet(w *admissionReader, s *statement.Schema) admitted {

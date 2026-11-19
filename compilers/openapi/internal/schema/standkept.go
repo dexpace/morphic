@@ -368,9 +368,9 @@ func keyWrittenAlike(a, b *statement.Schema, key string) bool {
 }
 
 // routesKept resolves the mapping of the discriminator s, written at pointer,
-// writes where kept, keywords kept another way than keepUnhomed keeps them,
+// writes where kept, keywords kept another way than keepUnreadKeys keeps them,
 // holds it: a discriminator kept verbatim resolves its routes wherever it is
-// kept, as keepUnhomed resolves the one it keeps (resolveDiscriminatorRoutes).
+// kept, as keepUnreadKeys resolves the one it keeps (resolveDiscriminatorRoutes).
 func routesKept(c lowering.Ctx, ts *compile.Types, s *statement.Schema, kept []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	if !slices.Contains(kept, "discriminator") {
 		return nil

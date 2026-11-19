@@ -17,7 +17,7 @@ import (
 
 // finisher writes on a node, in hand, what the frames lowering its position
 // keep there beyond its build: its declaration's facts, the keywords it has no
-// field for, the families an election passed over, the branches kept beside
+// field for, the families a dispatch passed over, the branches kept beside
 // it, the kind-inference mark, a discriminator settled beside a union.
 // internNode runs it once, on the node it builds, before the registry stores
 // it, so no write looks its node up, and a visit finding the node built writes

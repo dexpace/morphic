@@ -255,7 +255,7 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 // them, but for an inline principal lowering to a value set whose keywords
 // leave it no kind, which is read as the same keywords beside the allOf are:
 // its `type`, its set and each union it writes, a set holding no value its own
-// type admits saying so where it is written (valueSetAtom), as the election of
+// type admits saying so where it is written (valueSetAtom), as the dispatch of
 // competing keywords lowers it there (setElected).
 func refinedAtoms(c lowering.Ctx, s *statement.Schema, r refinement) []conjunctAtom {
 	atoms := conjunctAtoms(c, s, r.comp)

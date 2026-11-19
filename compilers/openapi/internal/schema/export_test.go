@@ -192,5 +192,5 @@ func UnreadKeys(s *statement.Schema, read []string) []string {
 	return unreadKeys(s, keySetOf(read...))
 }
 
-// CensusDomain returns censusDomain.
-func CensusDomain() []string { return slices.Clone(censusDomain) }
+// ReadDomain returns readDomain.
+func ReadDomain() []string { return slices.Clone(readDomain) }

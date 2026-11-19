@@ -82,11 +82,11 @@ func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	return objectNode(m), modelReads(s, m, comp.bounds), diags
 }
 
-// compositionCensusHandled names the census keywords an allOf composition
+// compositionReads names the census keywords an allOf composition
 // reads itself, so neither the census of a $ref entry nor that of the composed
 // position reports them again: lowerAllOf lands every required list on the
 // composed model (requireMembers).
-var compositionCensusHandled = keyBit("required")
+var compositionReads = keyBit("required")
 
 // allOfEntry is one inline-or-ref entry of an allOf composition after nested
 // wrappers are flattened into the list (GitHub #599).
@@ -374,9 +374,9 @@ func fillRefEntry(c lowering.Ctx, ts *compile.Types, fields modelFields, e allOf
 	if variant, unpacked := objectVariant(c, e.schema); unpacked {
 		id = variant
 	}
-	unhomed := unreadByReference(c, b.Schema, compositionCensusHandled)
+	unhomed := unreadByReference(c, b.Schema, compositionReads)
 	var kept finished
-	keep := keepUnhomedOn(c, ts, b.Schema, unhomed, refSiteShape, e.pointer, stand{}, &kept, nil)
+	keep := keepUnreadOn(c, ts, b.Schema, unhomed, refSiteShape, e.pointer, stand{}, &kept, nil)
 	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0, keep)
 	diags = append(diags, homeDiags...)
 	diags = append(diags, kept.diags...)

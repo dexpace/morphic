@@ -88,7 +88,7 @@ var loweringRecursions = [][]string{
 // scalar hoisters and the encoding reader are members because contentSchema's
 // value is a schema, so lowering it re-enters the walk from a scalar position.
 // Discriminator lowering is one because resolving a mapping target can hoist
-// the position it names, and so is every keeping of one (keepUnhomed,
+// the position it names, and so is every keeping of one (keepUnreadKeys,
 // keepAround).
 var schemaRecursion = []string{
 	"CarriedRef", "FillPropertyDetail", "PreserveRefSiteKeywords", "Ref", "buildComposedVariant",
@@ -97,16 +97,16 @@ var schemaRecursion = []string{
 	"discriminatorMapping", "fillAdditional", "fillAllOf", "fillCatchAll", "fillComposedAdditional",
 	"fillModelProperties", "fillRefEntry", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "hoistUseHome", "internOwnNode",
 	"keepApart", "keepAround", "keepFailedRefs", "keepStanding", "keepTagBeside",
-	"keepUncomposedRefs", "keepUnhomed", "keepUnhomedOn", "keepUnread", "keepUnreadAcross", "keepUnreadShared",
+	"keepUncomposedRefs", "keepUnread", "keepUnreadAcross", "keepUnreadKeys", "keepUnreadOn", "keepUnreadShared",
 	"keepingUnread", "keptOn", "lower",
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
-	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel", "lowerNullOnlyUnion",
+	"lowerDiscriminator", "lowerDispatched", "lowerDistributedUnion", "lowerModel", "lowerNullOnlyUnion",
 	"lowerOneOfAnyOf", "lowerPrincipal", "lowerPrincipalValueSet", "lowerSchemaBody", "lowerSubtypeUnion", "lowerTypeVariant",
 	"lowerTyped", "lowerUndecided", "lowerUnion",
 	"lowerUntyped", "lowerUntypedUnion", "mintUnion", "outcomeKeeps.record", "patternProps",
 	"preserveUnmergedEntry", "recordEntryUnhomed",
-	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "refSiteRef", "refTypeRef",
+	"recordKeptEntry", "recordOwnKeywords", "recordUnread", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
 	"resolvePointer", "resolveSchemaRef", "routeEntry", "routesKept",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed", "wholePrincipal",
