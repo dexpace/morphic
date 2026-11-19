@@ -4538,6 +4538,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_APrincipalUnionBesideAPairAndABodyCollapsesAsBesideTheAllOf`,
   `e2e.TestElection_TwoUnionEntriesElectByCompetingKeywords`,
   `e2e.TestElection_AnEntryWritingBothElectsAgainstThePosition`,
+  `e2e.TestElection_AUnionPairLowersAlikeInEverySpelling`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `schema.TestUnion_TwoUnionEntriesBesideABodyElectByCompetingKeywords`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
