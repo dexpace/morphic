@@ -32,7 +32,7 @@ func (r EmptyReference) Code() string {
 // Message says what is wrong at r, in the one wording every checker reports.
 func (r EmptyReference) Message() string {
 	if r.locator {
-		return "discriminator names no tag property, and neither PropertyName nor Index locates the tag instead"
+		return "discriminator names no tag property, and neither PropertyName nor TupleElementIndex locates the tag instead"
 	}
 	return RefNoun(r.Class) + " reference is empty, and this position has no empty form"
 }
@@ -138,7 +138,7 @@ func emptyAllowed(owner reflect.Value, rule idRule) bool {
 	case idOptional:
 		return true
 	case idLocator:
-		return owner.FieldByName("PropertyName").String() != "" || !owner.FieldByName("Index").IsNil()
+		return owner.FieldByName("PropertyName").String() != "" || !owner.FieldByName("TupleElementIndex").IsNil()
 	case idRequired, idElsewhere:
 		// A reference has no empty form, and idFieldsOf reads no position
 		// another check holds.

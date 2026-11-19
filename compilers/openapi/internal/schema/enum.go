@@ -67,7 +67,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 		}
 		return &ir.Enum{
 			TypeCommon: common,
-			ValueType:  site.enumType(c, func(p ir.PrimKind) bool { return enumMembersAre(members, p) }, memberPrim),
+			ValueType:  site.enumType(c, func(p ir.PrimitiveKind) bool { return enumMembersAre(members, p) }, memberPrim),
 			Members:    members,
 			Closed:     true,
 		}
@@ -167,15 +167,15 @@ func typeList(types []statement.JSONSchemaTypeName) string {
 func describeValue(v ir.Value) string {
 	switch v.Kind {
 	case ir.ValueString, ir.ValueSymbol:
-		return strconv.Quote(v.Str)
+		return strconv.Quote(v.String)
 	case ir.ValueNumber:
-		return string(v.Num)
+		return string(v.Number)
 	case ir.ValueBool:
 		return strconv.FormatBool(v.Bool)
 	case ir.ValueNull:
 		return "null"
-	case ir.ValueBytes, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+	case ir.ValueBytes, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueConstructor,
+		ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		return "of kind " + string(v.Kind)
 	default:
 		return "of kind " + string(v.Kind)
@@ -198,7 +198,7 @@ func emptyEnum(c lowering.Ctx, site valueSetSite, common ir.TypeCommon) (ir.Type
 		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
 	return &ir.Enum{
 		TypeCommon: common,
-		ValueType:  site.enumType(c, admitsEvery, ir.PrimAny),
+		ValueType:  site.enumType(c, admitsEvery, ir.PrimitiveAny),
 		Closed:     true,
 	}, diags
 }
@@ -206,16 +206,16 @@ func emptyEnum(c lowering.Ctx, site valueSetSite, common ir.TypeCommon) (ir.Type
 // enumMembers converts the entries enumEntries kept into scalar members,
 // reporting ok=false for an entry that converts to no value, a non-scalar
 // member or members heterogeneous in kind. No entry kept is an Enum with no
-// member, whose PrimKind is the top type's; otherwise the PrimKind is the one
+// member, whose PrimitiveKind is the top type's; otherwise the PrimitiveKind is the one
 // every member maps to, meaningful only when ok.
 //
 // Each member's ID is keyed by its value beneath enum, the enum's ID, and a
 // repeat is kept, numbered; enumRepeats reports it. An ID no member fits under
 // keeps none.
-func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimKind, bool) {
+func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimitiveKind, bool) {
 	members := make([]ir.EnumMember, 0, len(entries))
 	occurrences := make(map[string]int, len(entries))
-	prim := ir.PrimAny
+	prim := ir.PrimitiveAny
 	for i, e := range entries {
 		memberPrim, text, admissible := enumMemberOf(entries, i)
 		if !admissible {
@@ -240,7 +240,7 @@ func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimK
 // enumMemberOf classifies the entry at index i of entries as an Enum member, as
 // enumMemberForm does its value, and refuses one converting to no value or of
 // another kind than the first, which no Enum holds beside it.
-func enumMemberOf(entries []enumEntry, i int) (ir.PrimKind, string, bool) {
+func enumMemberOf(entries []enumEntry, i int) (ir.PrimitiveKind, string, bool) {
 	e := entries[i]
 	if e.err != nil || i > 0 && e.val.Kind != entries[0].val.Kind {
 		return "", "", false
@@ -248,12 +248,12 @@ func enumMemberOf(entries []enumEntry, i int) (ir.PrimKind, string, bool) {
 	return enumMemberForm(e.val)
 }
 
-// enumMemberPrim is the PrimKind enumMembers gives entries, and false where it
+// enumMemberPrim is the PrimitiveKind enumMembers gives entries, and false where it
 // refuses one (enumMemberOf), read with no member built: a value
 // enumMemberForm admits always has a key, and a type's ID always places one. A
 // position asking only its ValueType names no member (enumSetType).
-func enumMemberPrim(entries []enumEntry) (ir.PrimKind, bool) {
-	prim := ir.PrimAny
+func enumMemberPrim(entries []enumEntry) (ir.PrimitiveKind, bool) {
+	prim := ir.PrimitiveAny
 	for i := range entries {
 		memberPrim, _, admissible := enumMemberOf(entries, i)
 		if !admissible {
@@ -266,7 +266,7 @@ func enumMemberPrim(entries []enumEntry) (ir.PrimKind, bool) {
 
 // entriesAre reports whether every entry's value is a value of prim, as
 // enumMembersAre asks of the members they lower to.
-func entriesAre(entries []enumEntry, prim ir.PrimKind) bool {
+func entriesAre(entries []enumEntry, prim ir.PrimitiveKind) bool {
 	for _, e := range entries {
 		if !merge.Admits(prim, e.val) {
 			return false
@@ -346,7 +346,7 @@ func nullConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 // top type where they select none, narrowed as the site types it.
 func lowerNullAlone(c lowering.Ctx, ts *compile.Types, site valueSetSite) ir.TypeID {
 	return internNode(c, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		td := &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimAny), Closed: true}
+		td := &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimitiveAny), Closed: true}
 		return td, valueSetReads(site.set, td)
 	}, site.finish)
 }
@@ -388,8 +388,8 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, site valueSetSite, node *ya
 // else the primitive the value's own kind declares, and none for a list or an
 // object, which no primitive types. A refinement's value set is then typed
 // by every conjunct (valueSetSite.valueType).
-func literalValueType(s *statement.Schema, val ir.Value) ir.PrimKind {
-	if prim, ok := declaredPrim(s, func(p ir.PrimKind) bool { return merge.Admits(p, val) }); ok {
+func literalValueType(s *statement.Schema, val ir.Value) ir.PrimitiveKind {
+	if prim, ok := declaredPrim(s, func(p ir.PrimitiveKind) bool { return merge.Admits(p, val) }); ok {
 		return prim
 	}
 
@@ -408,7 +408,7 @@ func literalValueType(s *statement.Schema, val ir.Value) ir.PrimKind {
 // format the members do not fit is one no target could back the enum with, so
 // it stays verbatim. It does not re-derive memberPrim from a ValueKind:
 // enumMemberForm decided it once, for the same members.
-func enumValueType(s *statement.Schema, admits func(ir.PrimKind) bool, memberPrim ir.PrimKind) ir.PrimKind {
+func enumValueType(s *statement.Schema, admits func(ir.PrimitiveKind) bool, memberPrim ir.PrimitiveKind) ir.PrimitiveKind {
 	if prim, ok := declaredPrim(s, admits); ok {
 		return prim
 	}
@@ -499,7 +499,7 @@ func membersTyped(members []ir.EnumMember, s *statement.Schema) bool {
 }
 
 // enumMembersAre reports whether every member's value is a value of prim.
-func enumMembersAre(members []ir.EnumMember, prim ir.PrimKind) bool {
+func enumMembersAre(members []ir.EnumMember, prim ir.PrimitiveKind) bool {
 	for _, m := range members {
 		if !merge.Admits(prim, m.Value) {
 			return false
@@ -508,7 +508,7 @@ func enumMembersAre(members []ir.EnumMember, prim ir.PrimKind) bool {
 	return true
 }
 
-// enumMemberForm classifies one lowered value as an Enum member: the PrimKind
+// enumMemberForm classifies one lowered value as an Enum member: the PrimitiveKind
 // its kind declares and the literal text that names the member. ok=false means
 // the kind has no place in an Enum, and the caller degrades the whole enum to a
 // Union of Literals with a diagnostic.
@@ -516,23 +516,23 @@ func enumMembersAre(members []ir.EnumMember, prim ir.PrimKind) bool {
 // Its switch has one arm per ir.ValueKind, as ir.EnumMemberKey's does; the
 // exhaustive linter fails when ir adds a kind either lacks. The default arm
 // refuses a kind rather than assert a type the source never wrote.
-func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
+func enumMemberForm(v ir.Value) (ir.PrimitiveKind, string, bool) {
 	switch v.Kind {
 	case ir.ValueString:
-		return ir.PrimString, v.Str, true
+		return ir.PrimitiveString, v.String, true
 	case ir.ValueSymbol:
-		// An interned symbol has no primitive of its own; PrimString is the form
+		// An interned symbol has no primitive of its own; PrimitiveString is the form
 		// it takes on a JSON wire. Unreachable from OpenAPI, whose values come
 		// from YAML nodes, but ValueKind is IR-wide and this is its enum home.
-		return ir.PrimString, v.Str, true
+		return ir.PrimitiveString, v.String, true
 	case ir.ValueNumber:
-		return ir.PrimNumber, string(v.Num), true
+		return ir.PrimitiveNumber, string(v.Number), true
 	case ir.ValueBool:
-		return ir.PrimBool, strconv.FormatBool(v.Bool), true
+		return ir.PrimitiveBool, strconv.FormatBool(v.Bool), true
 	case ir.ValueBytes:
-		return ir.PrimBytes, base64.StdEncoding.EncodeToString(v.Bytes), true
-	case ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+		return ir.PrimitiveBytes, base64.StdEncoding.EncodeToString(v.Bytes), true
+	case ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueConstructor,
+		ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		// Composite, reference and null values are not enum members: none has a
 		// primitive to declare or a literal text form to name a member by. Nor
 		// is a non-finite number, which no OpenAPI value is.
@@ -616,7 +616,7 @@ func valueKey(v ir.Value, depth int) (key string, ok bool) {
 		return listKey(v.List, depth)
 	case ir.ValueObject:
 		return objectKey(v.Object, depth)
-	case ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+	case ir.ValueRefKind, ir.ValueConstructor, ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		return "", false
 	default:
 		return "", false

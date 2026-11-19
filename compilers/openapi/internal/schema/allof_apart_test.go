@@ -63,7 +63,7 @@ func TestAllOf_ValueSetsSharingNoMemberWarnOnce(t *testing.T) {
 			assert.Equal(t, tc.kind, s.Kind())
 			if scalar, ok := s.(*ir.Scalar); ok && tc.shape == "the top type it lowered as" {
 				require.NotNil(t, scalar.Base)
-				assert.Equal(t, ir.PrimTypeID(ir.PrimAny), scalar.Base.Target, "no kind is claimed")
+				assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveAny), scalar.Base.Target, "no kind is claimed")
 				for i := range strings.Count(tc.schema, "}, {") + 1 {
 					entry := fmt.Sprintf("/components/schemas/S/allOf/%d", i)
 					assert.True(t, slices.ContainsFunc(slices.Collect(maps.Values(scalar.Unmodeled)), func(e ir.UnmodeledEntry) bool {
@@ -130,7 +130,7 @@ func TestAllOf_ARefAmongValueSetsSharingNoMemberIsKept(t *testing.T) {
 	scalar, ok := typeByName(doc, "S").(*ir.Scalar)
 	require.True(t, ok, "%T", typeByName(doc, "S"))
 	require.NotNil(t, scalar.Base)
-	assert.Equal(t, ir.PrimTypeID(ir.PrimAny), scalar.Base.Target)
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveAny), scalar.Base.Target)
 	assert.Contains(t, scalar.Unmodeled, "openapi:$ref")
 	var why []string
 	for _, d := range diags {

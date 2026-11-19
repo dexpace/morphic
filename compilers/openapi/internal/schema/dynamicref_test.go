@@ -99,7 +99,7 @@ components:
 	require.Len(t, model.Properties, 1)
 	prop := model.Properties[0]
 	assert.Equal(t, ext.Prop(inner), prop.ID)
-	assert.Equal(t, ir.TypeID("t/prim/any"), prop.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), prop.Type.Target)
 	assert.NotContains(t, prop.Unmodeled, "openapi:$dynamicRef")
 }
 
@@ -117,9 +117,9 @@ func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 	assert.Equal(t, componentID("Meta"), propertyOf(t, doc, "Uses", "m").Type.Target,
 		"the reference resolves to the anchor's own component, not to the top type")
 
-	kids, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Tree/properties/kids")].(*ir.List)
+	kids, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/Tree/properties/kids")].(*ir.List)
 	require.True(t, ok)
-	elem, ok := doc.Types[kids.Elem.Target].(*ir.Scalar)
+	elem, ok := doc.Types[kids.ElementType.Target].(*ir.Scalar)
 	require.True(t, ok, "the items position keeps a node of its own")
 	require.NotNil(t, elem.Base)
 	assert.Equal(t, componentID("Tree"), elem.Base.Target,
@@ -179,7 +179,7 @@ func TestDynamicRef_AnAnchorTheGrammarRefusesNamesNothing(t *testing.T) {
 	sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
 	require.True(t, ok, "the reference position owns a node")
 	require.NotNil(t, sc.Base)
-	assert.Equal(t, ir.PrimTypeID(ir.PrimAny), sc.Base.Target)
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveAny), sc.Base.Target)
 	assert.NotContains(t, sc.Unmodeled, "openapi:$dynamicRef")
 	assertDiagContains(t, diags, "/components/schemas/A", `unresolved $dynamicRef "#pct%25name": `)
 }
@@ -468,7 +468,7 @@ func TestDynamicRef_CycleIsRefusedAtEveryEdge(t *testing.T) {
 		sc, ok := doc.Types[componentID(name)].(*ir.Scalar)
 		require.True(t, ok, "%s still owns a node", name)
 		require.NotNil(t, sc.Base)
-		assert.Equal(t, ir.TypeID("t/prim/any"), sc.Base.Target,
+		assert.Equal(t, ir.TypeID("type/primitive/any"), sc.Base.Target,
 			"%s aliases the top type, never a link of the cycle", name)
 		assert.Contains(t, sc.Unmodeled, "openapi:$dynamicRef",
 			"%s keeps the reference it could not take", name)
@@ -671,7 +671,7 @@ func TestDynamicRef_ExpandsWithinOneResource(t *testing.T) {
 			"      properties: {children: {type: array, items: {$dynamicRef: '#node'}}}\n"+
 			"    Split:\n      $dynamicAnchor: split\n      type: object\n"+
 			"      properties: {c: {$id: 'https://example.com/c', type: array, items: {$dynamicRef: '#split'}}}\n"))
-	items, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Dyn/properties/children/items")].(*ir.Scalar)
+	items, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/Dyn/properties/children/items")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, items.Base)
 	assert.Equal(t, componentID("Dyn"), items.Base.Target)
@@ -757,7 +757,7 @@ func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 			src := strings.Replace(openapitest.ComponentSpec(tc.schemas), "components:", tc.extra+"components:", 1)
 			doc, diags := parseFull(t, src)
 			pointer := fmt.Sprintf(at, tc.model)
-			node := doc.Types[ir.TypeID("t/anon"+pointer)]
+			node := doc.Types[ir.TypeID("type/anonymous"+pointer)]
 			require.NotNil(t, node, "the items position owns a node")
 			if tc.expandsTo != "" {
 				scalar, ok := node.(*ir.Scalar)
@@ -790,7 +790,7 @@ func TestRecursiveRef_IsAKeywordOnlyWhereItsDialectDefinesIt(t *testing.T) {
 			"    Anchored: {"+d2019+", $id: 'https://example.com/a', $recursiveAnchor: true, type: object}\n"+
 			"    Both: {"+d2019+", $dynamicAnchor: n, type: object, properties: {c: {$dynamicRef: '#n', $recursiveRef: '#'}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	items := doc.Types[ir.TypeID("t/anon/components/schemas/Modern/properties/c/items")]
+	items := doc.Types[ir.TypeID("type/anonymous/components/schemas/Modern/properties/c/items")]
 	require.NotNil(t, items)
 	assert.Equal(t, ir.ReasonOutOfScope, items.Common().Unmodeled["openapi:$recursiveRef"].Reason)
 	assert.Equal(t, ir.ReasonOutOfScope, doc.Types[componentID("Modern")].Common().Unmodeled["openapi:$recursiveAnchor"].Reason)
@@ -812,7 +812,7 @@ func TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces(t *testing.T) {
 		"definitions: {Inner: {$dynamicAnchor: n, type: object}}}\n    D: {$dynamicRef: '#n'}\n"
 	doc, diags := parseFull(t, openapitest.ComponentSpec(outer))
 	openapitest.RequireNoErrorDiags(t, diags)
-	inner := ir.TypeID("t/anon/components/schemas/Outer/definitions/Inner")
+	inner := ir.TypeID("type/anonymous/components/schemas/Outer/definitions/Inner")
 	_, built := doc.Types[inner].(*ir.Model)
 	assert.True(t, built)
 	d, ok := doc.Types[componentID("D")].(*ir.Scalar)

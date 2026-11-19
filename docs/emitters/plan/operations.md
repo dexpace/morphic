@@ -49,8 +49,8 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
 
 type LROPlan struct {                 // maps ir.LongRunning (docs/ir/interaction-patterns.md)
     FinalStateVia string              // "operation-location" | "status-monitor" | "original-uri" | …
-    PollOp     *ir.OpID               // declared polling operation; nil = poll the start op's monitor
-    FinalOp    *ir.OpID               // declared final-result operation; nil = result is inline
+    PollOp     *ir.OperationID               // declared polling operation; nil = poll the start op's monitor
+    FinalOp    *ir.OperationID               // declared final-result operation; nil = result is inline
     PollType   *ir.TypeRef            // status-monitor type
     FinalType  *ir.TypeRef            // what PollUntilDone resolves to
     ResultPath *ir.PropPath           // where the final result lives in the terminal response

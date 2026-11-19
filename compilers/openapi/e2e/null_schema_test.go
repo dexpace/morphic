@@ -69,7 +69,7 @@ components:
 		}
 		assertOnlyLoadReportsNull(t, diags, "/components/schemas/L/items", ir.SeverityWarning)
 
-		top := ir.TypeRef{Target: "t/prim/any"}
+		top := ir.TypeRef{Target: "type/primitive/any"}
 		a, ok := typeByName(doc, "A").(*ir.Model)
 		require.True(t, ok)
 		require.Len(t, a.Properties, 1)
@@ -86,7 +86,7 @@ components:
 
 		l, ok := typeByName(doc, "L").(*ir.List)
 		require.True(t, ok)
-		assert.Equal(t, top, l.Elem, "items written null is an absent items")
+		assert.Equal(t, top, l.ElementType, "items written null is an absent items")
 	})
 
 	t.Run("in a parameter, a header and a media type", func(t *testing.T) {
@@ -120,7 +120,7 @@ paths:
 		}
 		assert.Empty(t, twinDiags, "the twin writes no null, and draws nothing")
 
-		top := ir.TypeRef{Target: "t/prim/any"}
+		top := ir.TypeRef{Target: "type/primitive/any"}
 		op := openapitest.FirstOp(t, doc.Services[0])
 		require.Len(t, op.Params, 1)
 		assert.Equal(t, top, op.Params[0].Type, "a parameter's schema")

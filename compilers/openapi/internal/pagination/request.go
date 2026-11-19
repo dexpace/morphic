@@ -51,7 +51,7 @@ func roleOf(canonical string) role {
 type inputs struct {
 	strategy ir.PageStrategy
 	cursor   place
-	prim     ir.PrimKind
+	prim     ir.PrimitiveKind
 	limit    *place
 	strict   bool
 }
@@ -115,7 +115,7 @@ func sendsItsInputs(w *compileddoc.CompiledDocumentView, in *inputs) string {
 		return notSendable(in.cursor, "where a walk continues")
 	}
 	in.prim = prim
-	if in.strategy == ir.PageStrategyPage && prim == ir.PrimString && !in.cursor.numbered() {
+	if in.strategy == ir.PageStrategyPage && prim == ir.PrimitiveString && !in.cursor.numbered() {
 		return fmt.Sprintf("%s names the page as a string with no whole number for its default or an example, "+
 			"so it may be a token", in.cursor)
 	}
@@ -141,20 +141,20 @@ func queryPlaced(placements []compileddoc.Placement) (ir.HTTPLocation, bool) {
 
 // sendable returns the primitive the type id stands for, read through alias
 // scalars, when a walk can send it or count with it (sendableAs).
-func sendable(w *compileddoc.CompiledDocumentView, id ir.TypeID) (ir.PrimKind, bool) {
+func sendable(w *compileddoc.CompiledDocumentView, id ir.TypeID) (ir.PrimitiveKind, bool) {
 	return sendableAs(w.Stands(id))
 }
 
 // sendableAs returns td's primitive when a walk can send it or count with it:
 // a number of any kind, which a value of it holding no integer leaves none to
 // count with, or a string, which carries a number as its decimal text.
-func sendableAs(td ir.TypeDef) (ir.PrimKind, bool) {
+func sendableAs(td ir.TypeDef) (ir.PrimitiveKind, bool) {
 	p, ok := td.(*ir.Primitive)
 	if !ok {
 		return "", false
 	}
-	k := p.Prim
-	if k == ir.PrimString || k == ir.PrimNumber || k.StrictlyWithin(ir.PrimNumber) {
+	k := p.PrimitiveKind
+	if k == ir.PrimitiveString || k == ir.PrimitiveNumber || k.StrictlyWithin(ir.PrimitiveNumber) {
 		return k, true
 	}
 	return "", false
@@ -172,9 +172,9 @@ func numbered(def *ir.Value, examples []ir.Example) bool {
 
 // wholeNumber reports whether v is a whole number, or a string holding one.
 func wholeNumber(v ir.Value) bool {
-	text := v.Str
+	text := v.String
 	if v.Kind == ir.ValueNumber {
-		text = string(v.Num)
+		text = string(v.Number)
 	} else if v.Kind != ir.ValueString {
 		return false
 	}
@@ -210,7 +210,7 @@ type place struct {
 	kind     placeKind
 	param    *ir.Parameter
 	member   *ir.Property
-	segments []ir.PropID
+	segments []ir.PropertyID
 }
 
 // canonical is the canonical name giving p its role: its member's, else its
@@ -246,7 +246,7 @@ func (p place) input() *ir.InputPath {
 		return &ir.InputPath{Segments: slices.Clone(p.segments)}
 	case inParamMember:
 		id := p.param.ID
-		return &ir.InputPath{Param: &id, Segments: []ir.PropID{p.member.ID}}
+		return &ir.InputPath{Param: &id, Segments: []ir.PropertyID{p.member.ID}}
 	default:
 		id := p.param.ID
 		return &ir.InputPath{Param: &id}

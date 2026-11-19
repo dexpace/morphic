@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "LiteralConst",
         "canonical": "literal_const"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Opaque": {
+    "type/openapi/components/schemas/Opaque": {
       "kind": "any",
-      "id": "t/openapi/components/schemas/Opaque",
+      "id": "type/openapi/components/schemas/Opaque",
       "name": {
         "source": "Opaque",
         "canonical": "opaque"
@@ -74,9 +74,9 @@
         "pointer": "/components/schemas/Opaque"
       }
     },
-    "t/openapi/components/schemas/Version": {
+    "type/openapi/components/schemas/Version": {
       "kind": "literal",
-      "id": "t/openapi/components/schemas/Version",
+      "id": "type/openapi/components/schemas/Version",
       "name": {
         "source": "Version",
         "canonical": "version"
@@ -90,7 +90,7 @@
       },
       "value": {
         "kind": "string",
-        "str": "v1"
+        "string": "v1"
       },
       "valueType": "string"
     }

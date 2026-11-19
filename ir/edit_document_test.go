@@ -26,7 +26,7 @@ func filledDoc(t *testing.T) *ir.Document {
 	reg := registriesDoc()
 	doc.Services, doc.Servers, doc.Channels = treeDoc().Services, reg.Servers, reg.Channels
 	doc.Messages, doc.Auth = reg.Messages, reg.Auth
-	doc.Types = ir.TypeRegistry{"t/a": &ir.Any{ID: "t/a"}}
+	doc.Types = ir.TypeRegistry{"type/a": &ir.Any{ID: "type/a"}}
 	return doc
 }
 
@@ -82,9 +82,9 @@ func TestEditor_UpdateDocumentChangesItsOwnFields(t *testing.T) {
 	assert.Empty(t, out.TagDefs)
 	assert.Equal(t, "changed", out.Contact.Name)
 	assert.Equal(t, append(slices.Clip(doc.Versions), "v2"), out.Versions)
-	assert.Equal(t, "s/a[g/a(o/a2 o/a3)[g/a/n(o/n)] g/b(o/b)] s/b[g/c(o/c)]", render(out))
+	assert.Equal(t, "service/a[operation-group/a(o/a2 o/a3)[operation-group/a/n(o/n)] operation-group/b(o/b)] service/b[operation-group/c(o/c)]", render(out))
 	assert.NotContains(t, out.Channels, ir.ChannelID("c/b"))
-	assert.Same(t, doc.Types["t/a"], out.Types["t/a"])
+	assert.Same(t, doc.Types["type/a"], out.Types["type/a"])
 	assert.Equal(t, doc.Diagnostics, out.Diagnostics)
 	assert.Equal(t, before, irtest.Encoded(t, doc), "the edited document changed")
 

@@ -58,15 +58,15 @@ func TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends(t *testing.T) 
 		hint, template string
 		shared         bool
 	}
-	got := map[ir.OpID]binding{}
+	got := map[ir.OperationID]binding{}
 	for _, g := range svc.Groups {
 		for _, op := range g.Operations {
 			hb := op.Bindings.HTTP[0]
 			got[op.ID] = binding{hint: op.Name.Hint, template: hb.URITemplate + hb.WebhookName, shared: hb.SharedRoute}
 		}
 	}
-	const p = "op/openapi/paths/"
-	assert.Equal(t, map[ir.OpID]binding{
+	const p = "operation/openapi/paths/"
+	assert.Equal(t, map[ir.OperationID]binding{
 		p + "~1bearer#oauth2/get":                    {hint: "get_bearer_oauth_2", template: "/bearer", shared: true},
 		p + "~1bearer#oauth2/post":                   {hint: "post_bearer_oauth_2", template: "/bearer"},
 		p + "~1bearer#apiKey/get":                    {hint: "get_bearer_api_key", template: "/bearer", shared: true},
@@ -75,7 +75,7 @@ func TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends(t *testing.T) 
 		p + "~1a~1{x}#one/get":                       {hint: "get_a_x_one", template: "/a/{x}", shared: true},
 		p + "~1a~1{y}#two/get":                       {hint: "get_a_y_two", template: "/a/{y}", shared: true},
 		p + "~1other/get":                            {hint: "get_other", template: "/other"},
-		"op/openapi/webhooks/~1bearer/get":           {hint: "get_bearer", template: "/bearer"},
+		"operation/openapi/webhooks/~1bearer/get":    {hint: "get_bearer", template: "/bearer"},
 	}, got)
 }
 
@@ -91,8 +91,8 @@ func TestSharedRoute_PathPrefixGroupsTheRoute(t *testing.T) {
     get: {operationId: c, responses: {"200": {description: ok}}}
 `), service.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, map[ir.GroupID][]ir.OpID{
-		"g/path-prefix/bearer": {"op/openapi/paths/~1bearer#oauth2/get", "op/openapi/paths/~1bearer~1x#apiKey/get"},
-		"g/path-prefix":        {"op/openapi/paths/~1#root/get"},
+	assert.Equal(t, map[ir.GroupID][]ir.OperationID{
+		"operation-group/path-prefix/bearer": {"operation/openapi/paths/~1bearer#oauth2/get", "operation/openapi/paths/~1bearer~1x#apiKey/get"},
+		"operation-group/path-prefix":        {"operation/openapi/paths/~1#root/get"},
 	}, opsByGroup(t, svc.Groups))
 }

@@ -32,9 +32,9 @@ func emptyRefViolations(doc *ir.Document) []irverify.Violation {
 // case below needs.
 func opDoc(op ir.Operation) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
-		ID:     "s/x/S",
+		ID:     "service/x/S",
 		Name:   named("s"),
-		Groups: []ir.OperationGroup{{ID: "g/x/S/g", Operations: []ir.Operation{op}}},
+		Groups: []ir.OperationGroup{{ID: "operation-group/x/S/g", Operations: []ir.Operation{op}}},
 	}}}
 }
 
@@ -44,7 +44,7 @@ func opDoc(op ir.Operation) *ir.Document {
 // and an empty map value at two different ID classes.
 func TestVerify_EmptyRequiredReferenceIsAViolation(t *testing.T) {
 	t.Parallel()
-	overload := ir.OpID("")
+	overload := ir.OperationID("")
 	for _, tc := range []struct {
 		name string
 		doc  *ir.Document
@@ -54,124 +54,124 @@ func TestVerify_EmptyRequiredReferenceIsAViolation(t *testing.T) {
 		{
 			name: "SchemeUse.Scheme",
 			doc: &ir.Document{Services: []ir.Service{{
-				ID:   "s/x/S",
+				ID:   "service/x/S",
 				Name: named("s"),
 				Auth: []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: ""}}}},
 			}}},
 			code: "ir/empty-auth-ref",
-			path: "doc.Services[0].Auth[0].Schemes[0].Scheme",
+			path: "document.Services[0].Auth[0].Schemes[0].Scheme",
 		},
 		{
 			name: "MessageBinding.Channel",
 			doc: opDoc(ir.Operation{
-				ID:       "op/x/S/op",
+				ID:       "operation/x/S/op",
 				Name:     named("op"),
 				Bindings: ir.OpBindings{Message: &ir.MessageBinding{Channel: ""}},
 			}),
 			code: "ir/empty-channel-ref",
-			path: "doc.Services[0].Groups[0].Operations[0].Bindings.Message.Channel",
+			path: "document.Services[0].Groups[0].Operations[0].Bindings.Message.Channel",
 		},
 		{
 			name: "OTPBinding.Process",
 			doc: opDoc(ir.Operation{
-				ID:       "op/x/S/op",
+				ID:       "operation/x/S/op",
 				Name:     named("op"),
 				Bindings: ir.OpBindings{OTP: &ir.OTPBinding{Process: ""}},
 			}),
 			code: "ir/empty-channel-ref",
-			path: "doc.Services[0].Groups[0].Operations[0].Bindings.OTP.Process",
+			path: "document.Services[0].Groups[0].Operations[0].Bindings.OTP.Process",
 		},
 		{
 			name: "ValueRef.Type",
 			doc: closedDoc(&ir.Model{
-				ID:   "t/x/M",
+				ID:   "type/x/M",
 				Name: named("m"),
 				Properties: []ir.Property{{
-					ID:      "p/x/M/f",
+					ID:      "property/x/M/f",
 					Name:    named("f"),
-					Type:    ir.TypeRef{Target: "t/x/Leaf"},
+					Type:    ir.TypeRef{Target: "type/x/Leaf"},
 					Default: &ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "", Member: "X"}},
 				}},
 			}),
 			code: "ir/empty-type-ref",
-			path: "doc.Types[t/x/M].Properties[0].Default.Ref.Type",
+			path: "document.Types[type/x/M].Properties[0].Default.Ref.Type",
 		},
 		{
-			name: "CtorValue.Scalar",
+			name: "ConstructorValue.Scalar",
 			doc: closedDoc(&ir.Model{
-				ID:   "t/x/M",
+				ID:   "type/x/M",
 				Name: named("m"),
 				Properties: []ir.Property{{
-					ID:      "p/x/M/f",
+					ID:      "property/x/M/f",
 					Name:    named("f"),
-					Type:    ir.TypeRef{Target: "t/x/Leaf"},
-					Default: &ir.Value{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Scalar: "", Name: "now"}},
+					Type:    ir.TypeRef{Target: "type/x/Leaf"},
+					Default: &ir.Value{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{Scalar: "", Name: "now"}},
 				}},
 			}),
 			code: "ir/empty-type-ref",
-			path: "doc.Types[t/x/M].Properties[0].Default.Ctor.Scalar",
+			path: "document.Types[type/x/M].Properties[0].Default.Constructor.Scalar",
 		},
 		{
 			name: "Operation.OverloadOf, a non-nil pointer naming nothing",
 			doc: opDoc(ir.Operation{
-				ID:         "op/x/S/op",
+				ID:         "operation/x/S/op",
 				Name:       named("op"),
 				OverloadOf: &overload,
 			}),
-			code: "ir/empty-op-ref",
-			path: "doc.Services[0].Groups[0].Operations[0].OverloadOf",
+			code: "ir/empty-operation-ref",
+			path: "document.Services[0].Groups[0].Operations[0].OverloadOf",
 		},
 		{
 			name: "Callback.Operations, one empty entry beside a non-empty sibling",
 			doc: opDoc(ir.Operation{
-				ID:   "op/x/S/op",
+				ID:   "operation/x/S/op",
 				Name: named("op"),
 				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 					Method: "GET",
 					Callbacks: []ir.Callback{{
 						Expression: "$request.body#/url",
-						Operations: []ir.OpID{"op/x/S/other", ""},
+						Operations: []ir.OperationID{"operation/x/S/other", ""},
 					}},
 				}}},
 			}),
-			code: "ir/empty-op-ref",
-			path: "doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].Callbacks[0].Operations[1]",
+			code: "ir/empty-operation-ref",
+			path: "document.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].Callbacks[0].Operations[1]",
 		},
 		{
 			name: "Service.Renames, an empty key",
 			doc: &ir.Document{Services: []ir.Service{{
-				ID:      "s/x/S",
+				ID:      "service/x/S",
 				Name:    named("s"),
 				Renames: map[ir.TypeID]ir.Naming{"": named("x")},
 			}}},
 			code: "ir/empty-type-ref",
-			path: "doc.Services[0].Renames[].key",
+			path: "document.Services[0].Renames[].key",
 		},
 		{
 			name: "Discriminator.Mapping, an empty value",
 			doc: closedDoc(&ir.Model{
-				ID:   "t/x/Base",
+				ID:   "type/x/Base",
 				Name: named("base"),
 				Discriminator: &ir.Discriminator{
-					Property: "p/x/Base/kind",
+					Property: "property/x/Base/kind",
 					Mapping:  map[string]ir.TypeID{"x": ""},
 				},
 			}),
 			code: "ir/empty-type-ref",
-			path: "doc.Types[t/x/Base].Discriminator.Mapping[x]",
+			path: "document.Types[type/x/Base].Discriminator.Mapping[x]",
 		},
 		{
 			name: "ResourceInfo.Lifecycle, an empty value",
 			doc: &ir.Document{Services: []ir.Service{{
-				ID:   "s/x/S",
+				ID:   "service/x/S",
 				Name: named("s"),
 				Groups: []ir.OperationGroup{{
-					ID:       "g/x/S/g",
-					Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OpID{"read": ""}},
+					ID:       "operation-group/x/S/g",
+					Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OperationID{"read": ""}},
 				}},
 			}}},
-			code: "ir/empty-op-ref",
-			path: "doc.Services[0].Groups[0].Resource.Lifecycle[read]",
+			code: "ir/empty-operation-ref",
+			path: "document.Services[0].Groups[0].Resource.Lifecycle[read]",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -192,17 +192,17 @@ func TestVerify_EmptyRequiredReferenceIsAViolation(t *testing.T) {
 func TestVerify_DiscriminatorWithNoLocatorIsAViolation(t *testing.T) {
 	t.Parallel()
 	doc := closedDoc(&ir.Model{
-		ID:            "t/x/Base",
+		ID:            "type/x/Base",
 		Name:          named("base"),
 		Discriminator: &ir.Discriminator{},
 	})
 
 	got := emptyRefViolations(doc)
 	require.Len(t, got, 1)
-	assert.Equal(t, "ir/empty-prop-ref", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/Base].Discriminator.Property", got[0].Path)
+	assert.Equal(t, "ir/empty-property-ref", got[0].Code)
+	assert.Equal(t, "document.Types[type/x/Base].Discriminator.Property", got[0].Path)
 	assert.Contains(t, got[0].Message, "PropertyName")
-	assert.Contains(t, got[0].Message, "Index")
+	assert.Contains(t, got[0].Message, "TupleElementIndex")
 }
 
 // TestVerify_AllowedEmptyReferencesAreClean pins the positive half at every
@@ -221,31 +221,31 @@ func TestVerify_AllowedEmptyReferencesAreClean(t *testing.T) {
 		{
 			name: "Discriminator.Property empty, PropertyName locates the tag",
 			doc: closedDoc(&ir.Model{
-				ID:   "t/x/ByName",
+				ID:   "type/x/ByName",
 				Name: named("byname"),
 				Discriminator: &ir.Discriminator{
 					PropertyName: "kind",
-					Mapping:      map[string]ir.TypeID{"leaf": "t/x/Leaf"},
+					Mapping:      map[string]ir.TypeID{"leaf": "type/x/Leaf"},
 				},
 			}),
 		},
 		{
 			name: "Discriminator.Property empty, Index locates the tag",
 			doc: closedDoc(&ir.Model{
-				ID:            "t/x/ByIndex",
+				ID:            "type/x/ByIndex",
 				Name:          named("byindex"),
-				Discriminator: &ir.Discriminator{Index: &idx},
+				Discriminator: &ir.Discriminator{TupleElementIndex: &idx},
 			}),
 		},
 		{
 			name: "nil pointers: OverloadOf, LongRunning's two operations, Reply.Channel",
 			doc: opDoc(ir.Operation{
-				ID:          "op/x/S/op",
+				ID:          "operation/x/S/op",
 				Name:        named("op"),
 				OverloadOf:  nil,
 				LongRunning: &ir.LongRunning{},
 				Bindings: ir.OpBindings{Message: &ir.MessageBinding{
-					Channel: "chan/a",
+					Channel: "channel/a",
 					Reply:   &ir.Reply{},
 				}},
 			}),
@@ -254,26 +254,26 @@ func TestVerify_AllowedEmptyReferencesAreClean(t *testing.T) {
 			name: "empty slices: Channel.Messages, Service.Extends",
 			doc: &ir.Document{
 				Channels: map[ir.ChannelID]ir.Channel{
-					"chan/a": {ID: "chan/a", Name: named("a"), Messages: []ir.MessageID{}},
+					"channel/a": {ID: "channel/a", Name: named("a"), Messages: []ir.MessageID{}},
 				},
-				Services: []ir.Service{{ID: "s/x/S", Name: named("s"), Extends: []ir.ServiceID{}}},
+				Services: []ir.Service{{ID: "service/x/S", Name: named("s"), Extends: []ir.ServiceID{}}},
 			},
 		},
 		{
 			name: "empty maps: Service.Renames, Discriminator.Mapping, ResourceInfo.Lifecycle",
 			doc: &ir.Document{
-				Types: ir.TypeRegistry{"t/x/M": &ir.Model{
-					ID:            "t/x/M",
+				Types: ir.TypeRegistry{"type/x/M": &ir.Model{
+					ID:            "type/x/M",
 					Name:          named("m"),
 					Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{}},
 				}},
 				Services: []ir.Service{{
-					ID:      "s/x/S",
+					ID:      "service/x/S",
 					Name:    named("s"),
 					Renames: map[ir.TypeID]ir.Naming{},
 					Groups: []ir.OperationGroup{{
-						ID:       "g/x/S/g",
-						Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OpID{}},
+						ID:       "operation-group/x/S/g",
+						Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OperationID{}},
 					}},
 				}},
 			},
@@ -306,21 +306,21 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 		{
 			name: "TypeRef.Target, held by checkTypeRefs",
 			doc: closedDoc(&ir.Model{
-				ID:         "t/x/M",
+				ID:         "type/x/M",
 				Name:       named("m"),
-				Properties: []ir.Property{{ID: "p/x/M/f", Name: named("f"), Type: ir.TypeRef{}}},
+				Properties: []ir.Property{{ID: "property/x/M/f", Name: named("f"), Type: ir.TypeRef{}}},
 			}),
 			owner: "ir/type-ref-no-target",
 		},
 		{
 			name:  "Operation.ID, held by checkDeclaredIDs",
 			doc:   opDoc(ir.Operation{Name: named("op")}),
-			owner: "ir/empty-op-id",
+			owner: "ir/empty-operation-id",
 		},
 		{
 			name: "OperationGroup.ID, held by checkDeclaredIDs",
 			doc: &ir.Document{Services: []ir.Service{{
-				ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{Name: named("g")}},
+				ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{Name: named("g")}},
 			}}},
 			owner: "ir/empty-group-id",
 		},
@@ -332,11 +332,11 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 		{
 			name: "Property.ID, held by checkDeclaredIDs",
 			doc: closedDoc(&ir.Model{
-				ID:         "t/x/M",
+				ID:         "type/x/M",
 				Name:       named("m"),
-				Properties: []ir.Property{{Name: named("f"), Type: ir.TypeRef{Target: "t/x/M"}}},
+				Properties: []ir.Property{{Name: named("f"), Type: ir.TypeRef{Target: "type/x/M"}}},
 			}),
-			owner: "ir/empty-prop-id",
+			owner: "ir/empty-property-id",
 		},
 		{
 			name:  "a Document.Types key, held by checkRegistryKeys",
@@ -358,7 +358,7 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 }
 
 // TestVerify_ParamIDClassIsReached drives checkEmptyRefs across every position
-// that holds a ParamID: both references that must name a parameter, and the
+// that holds a ParameterID: both references that must name a parameter, and the
 // idempotency token, which may be empty when the operation is not token-keyed.
 // The two halves are asserted together so a position that stopped being reached
 // cannot pass by reporting nothing.
@@ -374,12 +374,12 @@ func TestVerify_ParamIDClassIsReached(t *testing.T) {
 			op: ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 				ParamBindings: []ir.HTTPParamBinding{{Param: ""}},
 			}}}},
-			want: []string{"doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].ParamBindings[0].Param"},
+			want: []string{"document.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].ParamBindings[0].Param"},
 		},
 		{
 			name: "an empty pagination input",
-			op:   ir.Operation{Pagination: &ir.Pagination{InputCursor: &ir.InputPath{Param: new(ir.ParamID(""))}}},
-			want: []string{"doc.Services[0].Groups[0].Operations[0].Pagination.InputCursor.Param"},
+			op:   ir.Operation{Pagination: &ir.Pagination{InputCursor: &ir.InputPath{Param: new(ir.ParameterID(""))}}},
+			want: []string{"document.Services[0].Groups[0].Operations[0].Pagination.InputCursor.Param"},
 		},
 		{
 			name: "an empty token with no token kind",
@@ -389,10 +389,10 @@ func TestVerify_ParamIDClassIsReached(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tc.op.ID = "op/x/S/op"
+			tc.op.ID = "operation/x/S/op"
 			paths := make([]string, 0, 1)
 			for _, v := range emptyRefViolations(opDoc(tc.op)) {
-				assert.Equal(t, "ir/empty-param-ref", v.Code)
+				assert.Equal(t, "ir/empty-parameter-ref", v.Code)
 				paths = append(paths, v.Path)
 			}
 			assert.Equal(t, tc.want, paths)
@@ -409,9 +409,9 @@ func TestVerify_ParamIDClassIsReached(t *testing.T) {
 func TestVerify_DocumentedEmptyPositionsStayLegal(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
-	doc.Types["t/x/Base"] = &ir.Model{
-		ID: "t/x/Base", Name: named("base"),
-		Discriminator: &ir.Discriminator{PropertyName: "k", Property: "", Default: "", Mapping: map[string]ir.TypeID{"a": "t/x/M"}},
+	doc.Types["type/x/Base"] = &ir.Model{
+		ID: "type/x/Base", Name: named("base"),
+		Discriminator: &ir.Discriminator{PropertyName: "k", Property: "", Default: "", Mapping: map[string]ir.TypeID{"a": "type/x/M"}},
 	}
 	scenarioOperation(doc).Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: ""}
 
@@ -424,7 +424,7 @@ func TestVerify_DocumentedEmptyPositionsStayLegal(t *testing.T) {
 func TestVerify_EmptyChannelOfAMessageBindingIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
-	scenarioOperation(doc).Bindings.Message = &ir.MessageBinding{Channel: "", Direction: ir.MsgDirectionSend}
+	scenarioOperation(doc).Bindings.Message = &ir.MessageBinding{Channel: "", Direction: ir.MessageDirectionSend}
 
 	got := emptyRefViolations(doc)
 
@@ -433,8 +433,8 @@ func TestVerify_EmptyChannelOfAMessageBindingIsReportedOnce(t *testing.T) {
 	assert.Equal(t, scenarioOp+".Bindings.Message.Channel", got[0].Path)
 
 	valid := scenarioBase()
-	valid.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: named("c")}}
-	valid.IDSpaces["chan"] = []string{"x"}
-	scenarioOperation(valid).Bindings.Message = &ir.MessageBinding{Channel: "chan/x/c", Direction: ir.MsgDirectionSend}
+	valid.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: named("c")}}
+	valid.IDSpaces["channel"] = []string{"x"}
+	scenarioOperation(valid).Bindings.Message = &ir.MessageBinding{Channel: "channel/x/c", Direction: ir.MessageDirectionSend}
 	assert.Empty(t, emptyRefViolations(valid))
 }

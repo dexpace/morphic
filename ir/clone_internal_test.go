@@ -81,7 +81,7 @@ func chainEnd(link *cloneLink, n int) *cloneLink {
 // process.
 func TestCloneNode_CopyingANodeWithNoMapAllocatesOnlyTheCopy(t *testing.T) {
 	var ranging entryStack
-	td := TypeDef(&Primitive{ID: "t/p"})
+	td := TypeDef(&Primitive{ID: "type/p"})
 	assert.Equal(t, 3.0, testing.AllocsPerRun(10, func() { _, _ = cloneNode(td, &ranging) }))
 }
 
@@ -92,8 +92,8 @@ func TestCloneNode_CopyingANodeWithNoMapAllocatesOnlyTheCopy(t *testing.T) {
 func TestCloneNode_LeavesTheEntryStackAsItFoundIt(t *testing.T) {
 	t.Parallel()
 	var ranging entryStack
-	td := TypeDef(&Model{ID: "t/m", WireNameByFormat: map[string]string{"json": "m", "xml": "M"},
-		Properties: []Property{{ID: "p/a", WireNameByFormat: map[string]string{"json": "a"}}}})
+	td := TypeDef(&Model{ID: "type/m", WireNameByFormat: map[string]string{"json": "m", "xml": "M"},
+		Properties: []Property{{ID: "property/a", WireNameByFormat: map[string]string{"json": "a"}}}})
 	for range 3 {
 		_, copied := cloneNode(td, &ranging)
 		require.True(t, copied)

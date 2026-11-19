@@ -55,7 +55,7 @@ components:
 		Provenance: ir.Provenance{Source: 1, Pointer: "/paths/~1x/get/responses/200/content/application~1json/schema"}}}
 	assert.Empty(t, cmp.Diff(want, diags))
 	assert.Equal(t, filepath.Join(dir, "ext.yaml"), doc.Sources[1].Path)
-	assert.Equal(t, ir.TypeID("t/prim/any"), onlyBodyTarget(t, doc))
+	assert.Equal(t, ir.TypeID("type/primitive/any"), onlyBodyTarget(t, doc))
 }
 
 // TestUnresolvedRef_InAnotherDocumentsContentIsReportedOnceWhereItIsWritten
@@ -153,7 +153,7 @@ components:
 	require.True(t, ok, "other.yaml's X is lowered")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, x.Provenance)
 	require.NotNil(t, x.Base)
-	assert.Equal(t, ir.TypeID("t/prim/string"), x.Base.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), x.Base.Target)
 	a, ok := doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/A")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, a.Base)
@@ -262,12 +262,12 @@ components:
       schema: {type: string, example: sub-example}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	td, ok := doc.Types["t/anon/components/parameters/P/schema"]
+	td, ok := doc.Types["type/anonymous/components/parameters/P/schema"]
 	require.True(t, ok, "the referenced sub-schema is hoisted at its own pointer")
 	require.Len(t, td.Common().Examples, 1)
 	require.NotNil(t, td.Common().Examples[0].Value)
-	assert.Equal(t, "sub-example", td.Common().Examples[0].Value.Str)
-	assert.Empty(t, doc.Types["t/prim/string"].Common().Examples,
+	assert.Equal(t, "sub-example", td.Common().Examples[0].Value.String)
+	assert.Empty(t, doc.Types["type/primitive/string"].Common().Examples,
 		"the shared primitive carries no per-declaration annotation")
 }
 
@@ -291,13 +291,13 @@ components:
       example: alias-level
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	alias, ok := doc.Types["t/openapi/components/schemas/Alias"]
+	alias, ok := doc.Types["type/openapi/components/schemas/Alias"]
 	require.True(t, ok)
 	require.Len(t, alias.Common().Examples, 1)
 	require.NotNil(t, alias.Common().Examples[0].Value)
-	assert.Equal(t, "alias-level", alias.Common().Examples[0].Value.Str)
+	assert.Equal(t, "alias-level", alias.Common().Examples[0].Value.String)
 
-	base, ok := doc.Types["t/openapi/components/schemas/Base"]
+	base, ok := doc.Types["type/openapi/components/schemas/Base"]
 	require.True(t, ok)
 	assert.Empty(t, base.Common().Examples,
 		"the referent carries no example the alias wrote beside its own $ref")
@@ -392,13 +392,13 @@ components:
       minimum: 5
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	bounded, ok := doc.Types["t/openapi/components/schemas/Bounded"].(*ir.Scalar)
+	bounded, ok := doc.Types["type/openapi/components/schemas/Bounded"].(*ir.Scalar)
 	require.True(t, ok, "a component aliasing another schema interns as a Scalar")
 	require.NotNil(t, bounded.Constraints)
 	require.NotNil(t, bounded.Constraints.Min)
 	assert.Equal(t, ir.BigVal("5"), *bounded.Constraints.Min)
 
-	base, ok := doc.Types["t/openapi/components/schemas/Base"]
+	base, ok := doc.Types["type/openapi/components/schemas/Base"]
 	require.True(t, ok)
 	if s, isScalar := base.(*ir.Scalar); isScalar {
 		assert.Nil(t, s.Constraints, "the referent stays unbounded")
@@ -436,19 +436,19 @@ components:
           example: 9
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	inner, ok := doc.Types["t/anon/components/schemas/Holder/properties/inner"].(*ir.Scalar)
+	inner, ok := doc.Types["type/anonymous/components/schemas/Holder/properties/inner"].(*ir.Scalar)
 	require.True(t, ok, "the referenced sub-schema hoists an alias at its own pointer")
 
 	require.NotNil(t, inner.Base)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"), inner.Base.Target, "the alias points at what it referenced")
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Base"), inner.Base.Target, "the alias points at what it referenced")
 	require.NotNil(t, inner.Constraints)
 	require.NotNil(t, inner.Constraints.Min)
 	assert.Equal(t, ir.BigVal("7"), *inner.Constraints.Min)
 	require.Len(t, inner.Examples, 1)
 	require.NotNil(t, inner.Examples[0].Value)
-	assert.Equal(t, ir.BigVal("9"), inner.Examples[0].Value.Num)
+	assert.Equal(t, ir.BigVal("9"), inner.Examples[0].Value.Number)
 
-	base, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Base")].(*ir.Scalar)
+	base, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/Base")].(*ir.Scalar)
 	require.True(t, ok)
 	assert.Nil(t, base.Constraints, "the referent stays unbounded")
 	assert.Empty(t, base.Common().Examples, "and unannotated")
@@ -478,11 +478,11 @@ components:
         inner: {$ref: '#/components/schemas/Base'}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"),
-		useTargetOf(t, doc.Types["t/anon/components/schemas/Holder/properties/inner"]),
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Base"),
+		useTargetOf(t, doc.Types["type/anonymous/components/schemas/Holder/properties/inner"]),
 		"a bare $ref sub-schema is a use of its target rather than a copy of it")
 
-	_, isModel := doc.Types[ir.TypeID("t/openapi/components/schemas/Base")].(*ir.Model)
+	_, isModel := doc.Types[ir.TypeID("type/openapi/components/schemas/Base")].(*ir.Model)
 	assert.True(t, isModel, "the structure lives at the component it was declared at")
 }
 
@@ -804,7 +804,7 @@ func TestRefSiteKeywords_AnEntrysKeywordsBesideItsRefAreConjuncts(t *testing.T) 
 			assert.Equal(t, []string{tc.kept}, unmodeledKeys(m.Unmodeled))
 			assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled[tc.kept].Reason)
 			assert.Equal(t, jsontext.Pointer("/components/schemas/S/"+tc.at), m.Unmodeled[tc.kept].Provenance.Pointer)
-			assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/S/allOf/0"), "no node at the entry")
+			assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/S/allOf/0"), "no node at the entry")
 			assert.Equal(t, tc.disjoint, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S") &&
 				openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) == 1)
 		})
@@ -825,9 +825,9 @@ func TestSchemaRef_ToAPointerEndingInSlashNamesAnEmptyKey(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    A: {type: object, properties: {p: {$ref: '#/x-lib/T/'}}}\n")+
 		"x-lib:\n  T: {'': {type: integer}, type: object}\n")
 	openapitest.RequireNoErrorDiags(t, diags)
-	empty, ok := doc.Types[ir.TypeID("t/anon/x-lib/T/")].(*ir.Scalar)
+	empty, ok := doc.Types[ir.TypeID("type/anonymous/x-lib/T/")].(*ir.Scalar)
 	require.True(t, ok, "the empty key's schema, not T's object")
-	assert.Equal(t, ir.TypeID("t/prim/integer"), empty.Base.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), empty.Base.Target)
 }
 
 // crossPathSchemaRoot names one shape /paths (or /webhooks) can hold a schema
@@ -924,7 +924,7 @@ func crossPathSchemaRoots() []crossPathSchemaRoot {
 // different, immaterial surroundings (an unrelated path declared before or
 // after it) can be compared on that position alone.
 func subtreeAt(doc *ir.Document, pointer string) map[ir.TypeID]ir.TypeDef {
-	base := "t/anon" + pointer
+	base := "type/anonymous" + pointer
 	out := map[ir.TypeID]ir.TypeDef{}
 	for id, td := range doc.Types {
 		if s := string(id); s == base || strings.HasPrefix(s, base+"/") {
@@ -959,7 +959,7 @@ func TestRef_ToANullOrTrueValueIsHoisted(t *testing.T) {
     U: {oneOf: [{$ref: '#/components/schemas/H/properties/q'}, {type: string}]}
 `))
 	assert.Empty(t, withCode(diags, "openapi/unresolved-ref"))
-	top := ir.TypeRef{Target: "t/prim/any"}
+	top := ir.TypeRef{Target: "type/primitive/any"}
 	for name, at := range map[string]string{"N": "H/properties/q", "A": "H/properties/t"} {
 		alias, ok := typeByName(doc, name).(*ir.Scalar)
 		require.True(t, ok, name)

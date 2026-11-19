@@ -46,7 +46,7 @@ func TestVerify_DocumentWithoutServicesIsAViolation(t *testing.T) {
 
 			got := irverify.Verify(doc)
 			assert.Equal(t, []string{"ir/services-absent"}, codesOf(got))
-			assert.Equal(t, []string{"doc.Services"}, violationPaths(got, "ir/services-absent"))
+			assert.Equal(t, []string{"document.Services"}, violationPaths(got, "ir/services-absent"))
 		})
 	}
 }
@@ -68,7 +68,7 @@ func TestVerify_DocumentWithoutSourcesIsAViolation(t *testing.T) {
 
 			got := irverify.Verify(doc)
 			assert.Equal(t, []string{"ir/sources-absent"}, codesOf(got))
-			assert.Equal(t, []string{"doc.Sources"}, violationPaths(got, "ir/sources-absent"))
+			assert.Equal(t, []string{"document.Sources"}, violationPaths(got, "ir/sources-absent"))
 		})
 	}
 }
@@ -103,7 +103,7 @@ func TestVerify_SourceFormatMustBeANameAndAVersion(t *testing.T) {
 				return
 			}
 			assert.Equal(t, []string{"ir/source-format-malformed"}, codesOf(got))
-			assert.Equal(t, []string{"doc.Sources[0].Format"}, violationPaths(got, "ir/source-format-malformed"))
+			assert.Equal(t, []string{"document.Sources[0].Format"}, violationPaths(got, "ir/source-format-malformed"))
 		})
 	}
 }
@@ -146,7 +146,7 @@ func TestVerify_SourceHashMustBeLowercaseSHA256Hex(t *testing.T) {
 				return
 			}
 			assert.Equal(t, []string{"ir/source-hash-malformed"}, codesOf(got))
-			assert.Equal(t, []string{"doc.Sources[0].Hash"}, violationPaths(got, "ir/source-hash-malformed"))
+			assert.Equal(t, []string{"document.Sources[0].Hash"}, violationPaths(got, "ir/source-hash-malformed"))
 		})
 	}
 }
@@ -166,12 +166,12 @@ func TestVerify_SourceFindingsNameTheEntryAtFault(t *testing.T) {
 		{
 			name:    "the second breaks both rules",
 			sources: []ir.SourceInfo{good, {Format: "overlay", Path: "patch.yaml", Hash: "h"}},
-			want:    []string{"doc.Sources[1].Format", "doc.Sources[1].Hash"},
+			want:    []string{"document.Sources[1].Format", "document.Sources[1].Hash"},
 		},
 		{
 			name:    "the first breaks the format",
 			sources: []ir.SourceInfo{{Format: "openapi", Path: "api.yaml", Hash: emptySHA256}, overlay},
-			want:    []string{"doc.Sources[0].Format"},
+			want:    []string{"document.Sources[0].Format"},
 		},
 		{
 			name: "each breaks the hash",
@@ -179,7 +179,7 @@ func TestVerify_SourceFindingsNameTheEntryAtFault(t *testing.T) {
 				{Format: "openapi@3.1", Path: "api.yaml", Hash: "h"},
 				{Format: "overlay@1.0.0", Path: "patch.yaml", Hash: "h"},
 			},
-			want: []string{"doc.Sources[0].Hash", "doc.Sources[1].Hash"},
+			want: []string{"document.Sources[0].Hash", "document.Sources[1].Hash"},
 		},
 		{name: "neither breaks one", sources: []ir.SourceInfo{good, overlay}},
 	}

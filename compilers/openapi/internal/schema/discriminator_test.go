@@ -91,13 +91,13 @@ components:
 	pet, ok := typeByName(doc, "Pet").(*ir.Union)
 	require.True(t, ok)
 	alias := pet.Variants[0].Type.Target
-	assert.NotEqual(t, ir.TypeID("t/openapi/components/schemas/Cat"), alias)
+	assert.NotEqual(t, ir.TypeID("type/openapi/components/schemas/Cat"), alias)
 	assert.Empty(t, cmp.Diff(map[string]ir.TypeID{
-		"cat": alias, "tom": alias, "dog": "t/openapi/components/schemas/Dog",
+		"cat": alias, "tom": alias, "dog": "type/openapi/components/schemas/Dog",
 	}, pet.Discriminator.Mapping))
 	pair, ok := typeByName(doc, "Pair").(*ir.Union)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Cat"), pair.Discriminator.Mapping["cat"],
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Cat"), pair.Discriminator.Mapping["cat"],
 		"the type itself is a variant, so the mapping stays on it")
 }
 
@@ -194,7 +194,7 @@ components:
 	assert.Empty(t, validated(t, doc))
 	pet, ok := typeByName(doc, "Pet").(*ir.Union)
 	require.True(t, ok)
-	assert.NotEqual(t, ir.TypeID("t/openapi/components/schemas/Cat"), pet.Variants[0].Type.Target)
+	assert.NotEqual(t, ir.TypeID("type/openapi/components/schemas/Cat"), pet.Variants[0].Type.Target)
 	assert.Equal(t, pet.Variants[0].Type.Target, pet.Discriminator.Default)
 }
 
@@ -247,7 +247,7 @@ func TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst(t *testi
 				assert.Empty(t, validated(t, doc), "every tag routes to a variant")
 				u, ok := typeByName(doc, "Fruit").(*ir.Union)
 				require.True(t, ok)
-				first := ir.TypeID("t/anon" + branch(c.first))
+				first := ir.TypeID("type/anonymous" + branch(c.first))
 				assert.Equal(t, map[string]ir.TypeID{"green_apple": first, "red_apple": first, "banana": componentID("Banana")},
 					u.Discriminator.Mapping)
 				docs = append(docs, doc)
@@ -276,7 +276,7 @@ func TestDiscriminatorMapping_ATypeManyVariantsAliasNamesAFew(t *testing.T) {
 		`discriminator mapping "a" names a schema 5 branches of this union reach through a $ref ("` + branch + `0", "` +
 		branch + `1", "` + branch + `2" and 2 more), and a tag routes to one variant; routed to the first`},
 		reported(withCode(diags, diag.DegradedConstruct)))
-	assert.Equal(t, ir.TypeID("t/anon"+branch+"0"), discriminatorOf(t, doc, componentID("Fruit")).Mapping["a"])
+	assert.Equal(t, ir.TypeID("type/anonymous"+branch+"0"), discriminatorOf(t, doc, componentID("Fruit")).Mapping["a"])
 }
 
 // TestDiscriminatorMapping_ReadsThroughWhateverIsBesideAPositionsRef pins that a
@@ -318,11 +318,11 @@ components:
 			pet, ok := typeByName(doc, "Pet").(*ir.Union)
 			require.True(t, ok)
 			assert.Empty(t, cmp.Diff(map[string]ir.TypeID{
-				"c": "t/openapi/components/schemas/Cat", "d": "t/openapi/components/schemas/Dog",
+				"c": "type/openapi/components/schemas/Cat", "d": "type/openapi/components/schemas/Dog",
 			}, pet.Discriminator.Mapping))
 			base, ok := typeByName(doc, "Base").(*ir.Model)
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Sub"), base.Discriminator.Mapping["s"])
+			assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Sub"), base.Discriminator.Mapping["s"])
 			sub, ok := typeByName(doc, "Sub").(*ir.Model)
 			require.True(t, ok)
 			assert.Equal(t, "s", sub.DiscriminatorValue)
@@ -337,7 +337,7 @@ components:
 // subtype's, the node holds no discriminator, the census keeps it verbatim and
 // says why, once, and a union is untagged, nothing inferred though its
 // variants pin a tag. A model
-// declaring the property locates the tag by its PropID. Each holds at every
+// declaring the property locates the tag by its PropertyID. Each holds at every
 // minor, in either declaration order, the document valid and the IR whole.
 func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
 	t.Parallel()
@@ -382,7 +382,7 @@ func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
 				require.True(t, ok)
 				assert.False(t, u.WireTagged, "%s is untagged", name)
 			}
-			minted, ok := doc.Types["t/composed/components/schemas/Routed/oneOf"].(*ir.Union)
+			minted, ok := doc.Types["type/composed/components/schemas/Routed/oneOf"].(*ir.Union)
 			require.True(t, ok, "Routed composes its union as a mixin")
 			assert.Nil(t, minted.Discriminator, "the union Routed mints holds none")
 			own, ok := typeByName(doc, "Own").(*ir.Model)

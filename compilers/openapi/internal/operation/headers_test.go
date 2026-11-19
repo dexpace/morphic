@@ -27,7 +27,7 @@ func TestContent_RefdResponseHeaderNestedRefInternsSchemaOnce(t *testing.T) {
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 1)
 
-	wantID := ir.TypeID("t/anon/components/headers/Rate/schema")
+	wantID := ir.TypeID("type/anonymous/components/headers/Rate/schema")
 	assert.Equal(t, wantID, op.Responses[0].Headers[0].Type.Target)
 	_, ok := doc.Types[wantID]
 	require.True(t, ok, "the header's schema is registered under the header component's own pointer")
@@ -48,16 +48,16 @@ func TestContent_HeaderMapEntriesSharingComponentGetDistinctIDs(t *testing.T) {
 
 	rate, limit := byWire["X-Rate"], byWire["X-Limit"]
 	assert.NotEqual(t, rate.ID, limit.ID, "distinct map keys keep distinct PropIDs")
-	assert.Equal(t, ir.PropID("p/openapi/paths/~1a/get/responses/200/headers/X-Rate"), rate.ID)
-	assert.Equal(t, ir.PropID("p/openapi/paths/~1a/get/responses/200/headers/X-Limit"), limit.ID)
+	assert.Equal(t, ir.PropertyID("property/openapi/paths/~1a/get/responses/200/headers/X-Rate"), rate.ID)
+	assert.Equal(t, ir.PropertyID("property/openapi/paths/~1a/get/responses/200/headers/X-Limit"), limit.ID)
 	assert.Equal(t, rate.Type.Target, limit.Type.Target, "both resolve the same shared header schema")
-	assert.Equal(t, ir.TypeID("t/anon/components/headers/Rate/schema"), rate.Type.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/headers/Rate/schema"), rate.Type.Target)
 }
 
 // TestContent_EncodingHeaderRefInternsAtDeclaration covers lowerHeaders' other
 // caller: a multipart part's per-encoding headers. A $ref'd header there must
 // split the same way a response header does — schema at the component, identity
-// (PropID, provenance) at the encoding entry that binds the name (issue #107).
+// (PropertyID, provenance) at the encoding entry that binds the name (issue #107).
 func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, refdEncodingHeaderSpec)
@@ -73,12 +73,12 @@ func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 		headers = pe.Headers
 	}
 	require.Len(t, headers, 1)
-	assert.Equal(t, ir.TypeID("t/anon/components/headers/Rate/schema"), headers[0].Type.Target,
+	assert.Equal(t, ir.TypeID("type/anonymous/components/headers/Rate/schema"), headers[0].Type.Target,
 		"the encoding header's schema interns at the header component")
 	assert.Equal(t,
-		ir.PropID("p/openapi/paths/~1u/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Rate"),
+		ir.PropertyID("property/openapi/paths/~1u/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Rate"),
 		headers[0].ID, "the encoding entry that binds the name keeps the header's identity")
-	assert.Equal(t, headers[0].Provenance.Pointer, jsontext.Pointer(string(headers[0].ID)[len("p/openapi"):]),
+	assert.Equal(t, headers[0].Provenance.Pointer, jsontext.Pointer(string(headers[0].ID)[len("property/openapi"):]),
 		"provenance tracks the same use-site pointer as the ID")
 }
 
@@ -131,7 +131,7 @@ func TestHeaders_OwnAnnotationsOverrideTheSchema(t *testing.T) {
 	assert.Equal(t, "HEADER", h.Docs.Description, "the header's own description wins")
 	require.Len(t, h.Examples, 1, "and its own example replaces the schema's rather than joining it")
 	require.NotNil(t, h.Examples[0].Value)
-	assert.Equal(t, "HEADER", h.Examples[0].Value.Str)
+	assert.Equal(t, "HEADER", h.Examples[0].Value.String)
 	require.Contains(t, h.Unmodeled, "openapi:x-scope")
 	assert.JSONEq(t, `"header"`, string(h.Unmodeled["openapi:x-scope"].Value),
 		"and its own value for a vendor key the schema also writes")

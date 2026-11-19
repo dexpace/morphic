@@ -140,7 +140,7 @@ func (r *referenceWalk) result() (lines, undeclared []string, unflattened []ir.T
 		required := listed[wire]
 		var secret bool
 		var deprecation *ir.Deprecation
-		shown := map[ir.PropID]bool{last.p.ID: true}
+		shown := map[ir.PropertyID]bool{last.p.ID: true}
 		for _, rd := range rs {
 			required = required || rd.p.Required
 			secret = secret || rd.p.Secret || reachesSensitive(r.types, rd.p.Type.Target)
@@ -199,7 +199,7 @@ func dagRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 			for range rng.IntN(4) {
 				digit := rng.IntN(8)
 				m.Properties = append(m.Properties, ir.Property{
-					ID: ir.PropID(fmt.Sprintf("p%d", digit)), WireName: fmt.Sprintf("w%d", digit%3),
+					ID: ir.PropertyID(fmt.Sprintf("p%d", digit)), WireName: fmt.Sprintf("w%d", digit%3),
 					Required: digit == 1 || digit == 4,
 				})
 			}

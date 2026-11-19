@@ -40,19 +40,19 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	var sawFile, sawMulti bool
 	var fileHeaders []ir.Header
 	for _, pe := range enc {
-		if pe.Filename {
+		if pe.HasFilename {
 			sawFile = true
 			fileHeaders = pe.Headers
 		}
-		if pe.Multi {
+		if pe.RepeatsPerArrayItem {
 			sawMulti = true
 		}
 	}
 	assert.True(t, sawFile, "binary file part carries Filename")
 	assert.True(t, sawMulti, "array part carries Multi")
-	labels, ok := enc[ir.PropID("p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels")]
+	labels, ok := enc[ir.PropertyID("property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels")]
 	assert.True(t, ok, "a part of one value or a list of them has an entry")
-	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"text/plain"}, Multi: true}, labels,
+	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"text/plain"}, RepeatsPerArrayItem: true}, labels,
 		"and repeats, each value text")
 	assertPartHeaders(t, doc, fileHeaders)
 	assertFormPartStyle(t, doc)
@@ -78,14 +78,14 @@ func assertComposedPartEncoding(t *testing.T, doc *ir.Document) {
 	enc := op.Request.Contents[0].Encoding
 	require.NotEmpty(t, enc, "a composed body keeps the encoding a declared one does")
 
-	inherited := ir.PropID("p/openapi/components/schemas/UploadForm/properties/file")
+	inherited := ir.PropertyID("property/openapi/components/schemas/UploadForm/properties/file")
 	file, ok := enc[inherited]
 	require.True(t, ok, "the inherited part is keyed on the Base that holds it; got keys %v", enc)
 	assert.Equal(t, []string{"image/png"}, file.ContentTypes)
-	assert.True(t, file.Filename, "the structural flag is read off the merged type of the inherited part")
+	assert.True(t, file.HasFilename, "the structural flag is read off the merged type of the inherited part")
 
 	// Every key must name a property some type in the document declares. A part
-	// keyed by a PropID nothing holds is the failure this lowering can produce
+	// keyed by a PropertyID nothing holds is the failure this lowering can produce
 	// while still looking well-formed.
 	for id := range enc {
 		assert.True(t, propIDExists(doc, id), "encoding key %s names no property in the document", id)
@@ -94,7 +94,7 @@ func assertComposedPartEncoding(t *testing.T, doc *ir.Document) {
 
 // propIDExists reports whether any type in doc declares a property with the
 // given ID.
-func propIDExists(doc *ir.Document, id ir.PropID) bool {
+func propIDExists(doc *ir.Document, id ir.PropertyID) bool {
 	for _, td := range doc.Types {
 		m, ok := td.(*ir.Model)
 		if !ok {
@@ -123,7 +123,7 @@ func assertFormPartStyle(t *testing.T, doc *ir.Document) {
 		assert.Equal(t, "form", pe.Style)
 		require.NotNil(t, pe.Explode)
 		assert.True(t, *pe.Explode)
-		assert.True(t, pe.Multi, "the structural flag is read off the part")
+		assert.True(t, pe.RepeatsPerArrayItem, "the structural flag is read off the part")
 		// Two documents differing only in allowReserved used to compile to one IR
 		// (GitHub #291); it lowers onto the part, as a parameter's does.
 		assert.True(t, pe.AllowReserved)
@@ -146,12 +146,12 @@ func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	req := op.Request.Contents[0]
 	require.NotNil(t, req.File, "application/octet-stream with no schema is a file body")
 	assert.Equal(t, []string{"application/octet-stream"}, req.File.ContentTypes)
-	assert.Equal(t, ir.TypeID("t/prim/bytes"), req.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/bytes"), req.Type.Target)
 
 	resp := firstContent(t, op)
 	require.NotNil(t, resp.File, "a string+binary schema is a file body whatever the media type")
 	assert.Equal(t, []string{"image/png"}, resp.File.ContentTypes)
-	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/bytes"), resp.Type.Target)
 
 	documented, ok := opByName(doc, "putDocumented")
 	require.True(t, ok)
@@ -188,7 +188,7 @@ func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	render, ok := opByName(doc, "render")
 	require.True(t, ok)
 	assert.Equal(t, &ir.FileInfo{ContentTypes: []string{"application/octet-stream"}}, requestContent(t, render).File)
-	assert.Equal(t, ir.TypeID("t/prim/bytes"), requestContent(t, render).Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/bytes"), requestContent(t, render).Type.Target)
 	require.Len(t, render.Responses, 1)
 	require.NotNil(t, render.Responses[0].Payload)
 	out := render.Responses[0].Payload.Contents
@@ -197,7 +197,7 @@ func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		assert.Equal(t, &ir.FileInfo{ContentTypes: []string{c.MediaType}, Inferred: "binary-inference"}, c.File,
 			c.MediaType)
 	}
-	assert.Equal(t, ir.TypeID("t/prim/any"), out[0].Type.Target, "a file the policy reads keeps its type")
+	assert.Equal(t, ir.TypeID("type/primitive/any"), out[0].Type.Target, "a file the policy reads keeps its type")
 	assert.Nil(t, out[2].File, "an SVG is text")
 
 	value, ok := opByName(doc, "putValue")
@@ -210,12 +210,12 @@ func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	for id, pe := range requestContent(t, upload).Encoding {
 		parts[string(id)[strings.LastIndex(string(id), "/")+1:]] = pe
 	}
-	files := ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}, Multi: true, Filename: true}
+	files := ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}, RepeatsPerArrayItem: true, HasFilename: true}
 	assert.Equal(t, files, parts["files"])
 	assert.Equal(t, files, parts["attachments"])
 	assert.Equal(t, files, parts["pair"])
 	assert.Equal(t, files, parts["fileOrFiles"], "one file or a list of them")
-	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Filename: true,
+	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, HasFilename: true,
 		Inferred: "binary-inference"}, parts["profileImage"])
 	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"text/plain"}}, parts["avatar"],
 		"a string part is text, whatever media type it names")
@@ -230,9 +230,9 @@ func assertFileItems32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		op   string
 		want ir.PartEncoding
 	}{
-		{"listPhotos", ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Multi: true, Filename: true}},
-		{"listAttachments", ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}, Multi: true, Filename: true}},
-		{"listThumbnails", ir.PartEncoding{ContentTypes: []string{"image/webp"}, Multi: true, Filename: true,
+		{"listPhotos", ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, RepeatsPerArrayItem: true, HasFilename: true}},
+		{"listAttachments", ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}, RepeatsPerArrayItem: true, HasFilename: true}},
+		{"listThumbnails", ir.PartEncoding{ContentTypes: []string{"image/webp"}, RepeatsPerArrayItem: true, HasFilename: true,
 			Inferred: "binary-inference"}},
 	} {
 		op, ok := opByName(doc, tc.op)
@@ -255,7 +255,7 @@ func assertMediaTypeSpelling(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.Len(t, multipart.Encoding, 1, "a mixed-case multipart key keeps its part encoding")
 	for _, pe := range multipart.Encoding {
 		assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
-		assert.True(t, pe.Filename)
+		assert.True(t, pe.HasFilename)
 	}
 
 	submit, ok := opByName(doc, "submit")
@@ -264,7 +264,7 @@ func assertMediaTypeSpelling(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	assert.Equal(t, "Application/X-WWW-Form-Urlencoded; charset=utf-8", form.MediaType)
 	require.Len(t, form.Encoding, 1, "a parameterized form-urlencoded key keeps its part encoding")
 	for _, pe := range form.Encoding {
-		assert.True(t, pe.Multi)
+		assert.True(t, pe.RepeatsPerArrayItem)
 	}
 
 	blob, ok := opByName(doc, "putBlob")
@@ -272,12 +272,12 @@ func assertMediaTypeSpelling(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	req := requestContent(t, blob)
 	require.NotNil(t, req.File, "a mixed-case octet-stream key with no schema is a file body")
 	assert.Equal(t, []string{"Application/Octet-Stream"}, req.File.ContentTypes)
-	assert.Equal(t, ir.TypeID("t/prim/bytes"), req.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/bytes"), req.Type.Target)
 
 	resp := firstContent(t, blob)
 	require.NotNil(t, resp.File, "a parameterized octet-stream key with no schema is a file body")
 	assert.Equal(t, []string{"application/octet-stream; type=tar"}, resp.File.ContentTypes)
-	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/bytes"), resp.Type.Target)
 }
 
 // assertPartHeaders pins encoding.<part>.headers, a TypeRef position reachable
@@ -296,7 +296,7 @@ func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Header) {
 
 	id, ok := byWire["X-Part-Id"]
 	require.True(t, ok, "inline part header lowered; got %v", byWire)
-	assert.Equal(t, ir.TypeID("t/prim/uuid"), id.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/uuid"), id.Type.Target)
 	assert.True(t, id.Required, "a required part header keeps its presence bit")
 	assert.Equal(t, "per-part correlation id", id.Docs.Description)
 
@@ -327,7 +327,7 @@ func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, &ir.ContentStream{}, c.Stream, "and declares the content a stream, no heuristic marking it")
 	require.NotNil(t, c.ItemEncoding, "an encoding governing every item lowers structurally")
 	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
-	assert.True(t, c.ItemEncoding.Multi, "the construct describes a repeated tail")
+	assert.True(t, c.ItemEncoding.RepeatsPerArrayItem, "the construct describes a repeated tail")
 	assert.Empty(t, c.Unmodeled, "nothing is left over once it lowers")
 
 	assert.Equal(t, ir.StreamingServer, events.Streaming)

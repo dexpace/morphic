@@ -62,7 +62,7 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 		"the diagnostic names what nothing read: %+v", diags)
 	assert.Equal(t, "BranchDoc", m.Docs.Description)
 	require.NotNil(t, m.Constraints)
-	assert.Equal(t, new(int64(2)), m.Constraints.MinProps)
+	assert.Equal(t, new(int64(2)), m.Constraints.MinProperties)
 	// What the branch kept whole folds is kept once, inside it.
 	assert.NotContains(t, m.Unmodeled, "openapi:x-vendor")
 	assert.NotContains(t, m.Unmodeled, "openapi:not")

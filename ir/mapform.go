@@ -18,8 +18,8 @@ func AsMap(m *Model) (*MapT, bool) {
 	}
 	return &MapT{
 		TypeCommon:  m.TypeCommon,
-		Key:         m.AdditionalProps.Key,
-		Value:       *m.AdditionalProps.Value,
+		Key:         m.AdditionalProperties.Key,
+		Value:       *m.AdditionalProperties.Value,
 		Constraints: m.Constraints,
 	}, true
 }
@@ -29,7 +29,7 @@ func AsMap(m *Model) (*MapT, bool) {
 // composition, closure, discriminator or other model-only fact beside it. Each
 // field of Model is either carried by AsMap or required empty here.
 func mapOnly(m *Model) bool {
-	ap := m.AdditionalProps
+	ap := m.AdditionalProperties
 	if ap == nil || ap.Value == nil || len(ap.Patterns) > 0 {
 		return false
 	}

@@ -56,7 +56,7 @@ type object struct {
 // scalar is a member whose type is the primitive prim, a walk sending it.
 type scalar struct {
 	member *ir.Property
-	prim   ir.PrimKind
+	prim   ir.PrimitiveKind
 }
 
 // pageKey is a body read for a walk: its type, for a walk reading a next
@@ -67,7 +67,7 @@ type scalar struct {
 type pageKey struct {
 	body   ir.TypeID
 	cursor string
-	prim   ir.PrimKind
+	prim   ir.PrimitiveKind
 	strict bool
 	// link reads the body as a link walk's page (reader.linkPage).
 	link bool
@@ -80,8 +80,8 @@ type pageKey struct {
 // unset. nextWhy says why it holds no next cursor, which a response header may
 // carry instead, and nextHeader that next names that header.
 type page struct {
-	items, next, hasMore, totalCount, totalPages []ir.PropID
-	nextLink, prevLink                           []ir.PropID
+	items, next, hasMore, totalCount, totalPages []ir.PropertyID
+	nextLink, prevLink                           []ir.PropertyID
 	why, nextWhy                                 string
 	nextHeader                                   bool
 }
@@ -148,8 +148,8 @@ func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 // follow.
 func withExtras(pages []page, header *ir.PropPath, name string) (page, string) {
 	out := pages[0]
-	out.nextLink = agreed(pages, func(pg page) []ir.PropID { return pg.nextLink })
-	out.prevLink = agreed(pages, func(pg page) []ir.PropID { return pg.prevLink })
+	out.nextLink = agreed(pages, func(pg page) []ir.PropertyID { return pg.nextLink })
+	out.prevLink = agreed(pages, func(pg page) []ir.PropertyID { return pg.prevLink })
 	if header == nil {
 		return out, ""
 	}
@@ -221,16 +221,16 @@ func modelPage(ms *models, body *model, key pageKey) page {
 // cursor it was sent, and a create answers with what it was sent. It returns
 // the model holding that member, and otherwise why there is none, none
 // reporting that the body names none, which a header may carry instead.
-func nextCursor(ms *models, body *model, key pageKey) (path []ir.PropID, holder *model, why string, none bool) {
+func nextCursor(ms *models, body *model, key pageKey) (path []ir.PropertyID, holder *model, why string, none bool) {
 	names := []string{"next_" + key.cursor, key.cursor, "next"}
 	switch {
 	case key.strict:
 		names = names[:1]
-	case key.prim == ir.PrimString:
+	case key.prim == ir.PrimitiveString:
 		names = names[:2]
 	}
 	for _, name := range names {
-		path, holder, found := find(ms, body, name, func(prim ir.PrimKind) bool { return prim == key.prim })
+		path, holder, found := find(ms, body, name, func(prim ir.PrimitiveKind) bool { return prim == key.prim })
 		switch found {
 		case 0:
 			continue
@@ -251,8 +251,8 @@ func noNextCursor(ms *models, body *model, key pageKey, next string) string {
 	case key.strict:
 		return fmt.Sprintf("holds no member %q of the cursor's type, which a POST read as a walk names its next "+
 			"cursor, never the cursor it was sent, as a create answers with what it was sent", next)
-	case key.prim == ir.PrimString:
-		if _, _, found := find(ms, body, "next", func(prim ir.PrimKind) bool { return prim == ir.PrimString }); found > 0 {
+	case key.prim == ir.PrimitiveString:
+		if _, _, found := find(ms, body, "next", func(prim ir.PrimitiveKind) bool { return prim == ir.PrimitiveString }); found > 0 {
 			return `holds "next", a plain string that may be its next cursor or a link`
 		}
 	}
@@ -266,18 +266,18 @@ func noNextCursor(ms *models, body *model, key pageKey, next string) string {
 // it does where holder, the model holding the next cursor, holds a boolean
 // under another name: `truncated` may say more follows or that a result was cut
 // short for good, and a pager ending there would drop pages.
-func pageFlag(ms *models, body, holder *model) ([]ir.PropID, string) {
-	var paths [][]ir.PropID
+func pageFlag(ms *models, body, holder *model) ([]ir.PropertyID, string) {
+	var paths [][]ir.PropertyID
 	var names []string
 	for _, f := range body.flags {
 		if flagName(f.Name.Canonical) {
-			paths, names = append(paths, []ir.PropID{f.ID}), append(names, strconv.Quote(f.EffectiveWireName()))
+			paths, names = append(paths, []ir.PropertyID{f.ID}), append(names, strconv.Quote(f.EffectiveWireName()))
 		}
 	}
 	for _, o := range body.objects {
 		for _, f := range ms.of(o.id).flags {
 			if flagName(f.Name.Canonical) {
-				paths = append(paths, []ir.PropID{o.member.ID, f.ID})
+				paths = append(paths, []ir.PropertyID{o.member.ID, f.ID})
 				names = append(names, strconv.Quote(o.member.EffectiveWireName()+"."+f.EffectiveWireName()))
 			}
 		}
@@ -323,8 +323,8 @@ func leastFlag(m *model) string {
 
 // pageTotal returns the path to the one member named name, of a type a walk counts
 // with, or nil where the body holds none or several.
-func pageTotal(ms *models, body *model, name string) []ir.PropID {
-	path, _, found := find(ms, body, name, func(ir.PrimKind) bool { return true })
+func pageTotal(ms *models, body *model, name string) []ir.PropertyID {
+	path, _, found := find(ms, body, name, func(ir.PrimitiveKind) bool { return true })
 	if found != 1 {
 		return nil
 	}
@@ -335,20 +335,20 @@ func pageTotal(ms *models, body *model, name string) []ir.PropID {
 // members holds, are of a primitive a walk sends that admit accepts, and the
 // path to one of them and the model holding it, which are the only ones when
 // that is one.
-func find(ms *models, body *model, name string, admit func(ir.PrimKind) bool) ([]ir.PropID, *model, int) {
-	var path []ir.PropID
+func find(ms *models, body *model, name string, admit func(ir.PrimitiveKind) bool) ([]ir.PropertyID, *model, int) {
+	var path []ir.PropertyID
 	var holder *model
 	found := 0
 	for _, s := range body.scalars[name] {
 		if admit(s.prim) {
-			path, holder, found = []ir.PropID{s.member.ID}, body, found+1
+			path, holder, found = []ir.PropertyID{s.member.ID}, body, found+1
 		}
 	}
 	for _, o := range body.objects {
 		held := ms.of(o.id)
 		for _, s := range held.scalars[name] {
 			if admit(s.prim) {
-				path, holder, found = []ir.PropID{o.member.ID, s.member.ID}, held, found+1
+				path, holder, found = []ir.PropertyID{o.member.ID, s.member.ID}, held, found+1
 			}
 		}
 	}
@@ -359,7 +359,7 @@ func find(ms *models, body *model, name string, admit func(ir.PrimKind) bool) ([
 // list named as items; else, where strict is not set, the one list the one
 // model named so holds, or the body's one list. why says otherwise what stops
 // it.
-func pageItems(ms *models, body *model, strict bool) ([]ir.PropID, string) {
+func pageItems(ms *models, body *model, strict bool) ([]ir.PropertyID, string) {
 	var named, holders []*ir.Property
 	var held ir.TypeID
 	for _, l := range body.lists {
@@ -374,7 +374,7 @@ func pageItems(ms *models, body *model, strict bool) ([]ir.PropID, string) {
 	}
 	switch {
 	case len(named) == 1:
-		return []ir.PropID{named[0].ID}, ""
+		return []ir.PropertyID{named[0].ID}, ""
 	case len(named) > 1:
 		return nil, fmt.Sprintf("holds lists %s, each named as its items", wireNames(named))
 	case strict:
@@ -385,7 +385,7 @@ func pageItems(ms *models, body *model, strict bool) ([]ir.PropID, string) {
 	case len(holders) > 1:
 		return nil, fmt.Sprintf("holds objects %s, each named as holding its items", wireNames(holders))
 	case len(body.lists) == 1:
-		return []ir.PropID{body.lists[0].ID}, ""
+		return []ir.PropertyID{body.lists[0].ID}, ""
 	case len(body.lists) == 0:
 		return nil, "holds no list of items"
 	default:
@@ -395,10 +395,10 @@ func pageItems(ms *models, body *model, strict bool) ([]ir.PropID, string) {
 
 // heldItems returns the path to the one list the member holder holds, its
 // type being the model held.
-func heldItems(holder *ir.Property, held *model) ([]ir.PropID, string) {
+func heldItems(holder *ir.Property, held *model) ([]ir.PropertyID, string) {
 	switch len(held.lists) {
 	case 1:
-		return []ir.PropID{holder.ID, held.lists[0].ID}, ""
+		return []ir.PropertyID{holder.ID, held.lists[0].ID}, ""
 	case 0:
 		return nil, fmt.Sprintf("holds %q, which holds no list of items", holder.EffectiveWireName())
 	default:
@@ -448,7 +448,7 @@ func (ms *models) of(id ir.TypeID) *model {
 // isBool reports whether td is the boolean primitive.
 func isBool(td ir.TypeDef) bool {
 	p, ok := td.(*ir.Primitive)
-	return ok && p.Prim == ir.PrimBool
+	return ok && p.PrimitiveKind == ir.PrimitiveBool
 }
 
 // wireNames lists the members' wire names, two or more, as listed does.

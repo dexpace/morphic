@@ -848,7 +848,7 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	const want = ir.TypeID("t/anon/components/responses/My-Resp/content/application~1json/schema")
+	const want = ir.TypeID("type/anonymous/components/responses/My-Resp/content/application~1json/schema")
 	assert.Contains(t, doc.Types, want,
 		"the response body is hoisted at the coordinate the component declares")
 	for id := range doc.Types {
@@ -930,9 +930,9 @@ components:
 	for _, name := range []string{"inline", "callback", "hook"} {
 		assert.Equal(t, want, openapitest.FindOp(t, doc, name).Tags, name)
 	}
-	byID := map[ir.OpID]ir.Operation{}
+	byID := map[ir.OperationID]ir.Operation{}
 	ir.ForEachOperation(doc, func(op ir.Operation) { byID[op.ID] = op })
-	for _, mount := range []ir.OpID{"op/openapi/paths/~1once/get", "op/openapi/paths/~1twice/get"} {
+	for _, mount := range []ir.OperationID{"operation/openapi/paths/~1once/get", "operation/openapi/paths/~1twice/get"} {
 		op, ok := byID[mount]
 		require.True(t, ok, "a mount of the path item lowers: %s", mount)
 		assert.Equal(t, want, op.Tags, mount)

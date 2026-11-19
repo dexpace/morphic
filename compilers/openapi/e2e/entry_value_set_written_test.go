@@ -57,7 +57,7 @@ func TestEntryValueSet_WhatTheSetWritesStaysWhereItIsWritten(t *testing.T) {
 			require.Len(t, u.Variants, 2, at)
 			for i, v := range u.Variants {
 				want := entry + jsontext.Pointer("/enum/"+strconv.Itoa(i))
-				assert.Equal(t, ir.TypeID("t/anon"+string(want)), v.Type.Target, "the literal stands at the entry")
+				assert.Equal(t, ir.TypeID("type/anonymous"+string(want)), v.Type.Target, "the literal stands at the entry")
 				assert.Equal(t, want, kindNode(t, doc, v.Type.Target).Common().Provenance.Pointer, at)
 			}
 			assert.Equal(t, []string{"heterogeneous or non-scalar enum lowered as a union of literals"},

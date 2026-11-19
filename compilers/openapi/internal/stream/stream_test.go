@@ -262,7 +262,7 @@ func TestPromote_OperationAndContentsMustAgree(t *testing.T) {
 // between fill nothing and are reported at the key.
 func TestPromote_FillsTheCondition(t *testing.T) {
 	t.Parallel()
-	const stream = "p/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream"
+	const stream = "property/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream"
 	src := chat(when("$request.stream"), jsonBody, framed("text/event-stream", sentinel("[DONE]")))
 
 	op, _, diags := compile(t, src, both())
@@ -270,7 +270,7 @@ func TestPromote_FillsTheCondition(t *testing.T) {
 	require.NotNil(t, op.ResponseStream.Condition)
 	cond := op.ResponseStream.Condition
 	assert.Nil(t, cond.Input.Param, "the input is a member of the request body")
-	assert.Equal(t, []ir.PropID{stream}, cond.Input.Segments)
+	assert.Equal(t, []ir.PropertyID{stream}, cond.Input.Segments)
 	assert.Equal(t, ir.ValueBool, cond.Value.Kind)
 	assert.True(t, cond.Value.Bool, "the stream is asked for when the input is true")
 	assert.ElementsMatch(t, []string{"streaming-inference", "extension-promotion"}, markers(op.Provenance.Inferred))

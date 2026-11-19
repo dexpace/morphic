@@ -34,7 +34,7 @@ func namedModel(id ir.TypeID) *ir.Model {
 
 // spacedDoc returns a clean one-type document declaring spaces as its own.
 func spacedDoc(spaces map[string][]string) *ir.Document {
-	doc := typesDoc(namedModel("t/x/A"))
+	doc := typesDoc(namedModel("type/x/A"))
 	doc.IDSpaces = spaces
 	return doc
 }
@@ -53,98 +53,98 @@ type messageCase struct {
 func messageCases() []messageCase {
 	return []messageCase{
 		{"bigval not numeric", func() *ir.Document {
-			m := namedModel("t/x/A")
-			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},
-				Default: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal(illFormed)}}}
+			m := namedModel("type/x/A")
+			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
+				Default: &ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal(illFormed)}}}
 			return typesDoc(m)
 		}, "ir/bigval-not-numeric",
 			fmt.Sprintf("numeric value %q is not a decimal literal, so it does not read back as a JSON number", illFormed)},
 		{"inferred not canonical", func() *ir.Document {
-			m := namedModel("t/x/A")
+			m := namedModel("type/x/A")
 			m.Provenance.Inferred = illFormed + "," + illFormed
 			return typesDoc(m)
 		}, "ir/inferred-not-canonical", fmt.Sprintf(
 			"inferred marker %q is not the list %q ir.JoinInferred writes for it", illFormed+","+illFormed, illFormed)},
 		{"inferred on a reference admitting no null", func() *ir.Document {
-			m := namedModel("t/x/A")
-			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"),
-				Type: ir.TypeRef{Target: "t/x/A", Inferred: illFormed}}}
+			m := namedModel("type/x/A")
+			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"),
+				Type: ir.TypeRef{Target: "type/x/A", Inferred: illFormed}}}
 			return typesDoc(m)
 		}, "ir/type-ref-inferred-not-nullable", fmt.Sprintf(
 			"type reference is marked inferred by %q but admits no null", illFormed)},
 		{"inferred on a part carrying no filename", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{{
+			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{{
 				ItemEncoding: &ir.PartEncoding{Inferred: illFormed},
 			}}}})
 		}, "ir/part-encoding-inferred-not-filename", fmt.Sprintf(
 			"part encoding is marked inferred by %q but carries no filename", illFormed)},
 		{"bigval out of range", func() *ir.Document {
-			m := namedModel("t/x/A")
-			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},
-				Default: &ir.Value{Kind: ir.ValueNumber, Num: "1e1000000000000000000"}}}
+			m := namedModel("type/x/A")
+			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
+				Default: &ir.Value{Kind: ir.ValueNumber, Number: "1e1000000000000000000"}}}
 			return typesDoc(m)
 		}, "ir/bigval-out-of-range",
 			`numeric value "1e1000000000000000000" is a decimal literal whose leading digit carries a power of ten ` +
 				`past the ±999999999999999999 a BigVal holds`},
 		{"bigval not canonical", func() *ir.Document {
-			m := namedModel("t/x/A")
-			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},
-				Default: &ir.Value{Kind: ir.ValueNumber, Num: "01"}}}
+			m := namedModel("type/x/A")
+			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
+				Default: &ir.Value{Kind: ir.ValueNumber, Number: "01"}}}
 			return typesDoc(m)
 		}, "ir/bigval-not-canonical", `numeric value "01" is not the JSON form "1" ir.NewBigVal produces for it`},
 		{"duplicate id", func() *ir.Document {
-			op := ir.Operation{ID: ir.OpID("op/x/S/" + illFormed), Name: named("op")}
+			op := ir.Operation{ID: ir.OperationID("operation/x/S/" + illFormed), Name: named("op")}
 			doc := opDoc(op)
 			doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations, op)
 			return doc
-		}, "ir/duplicate-op-id", fmt.Sprintf("id %q is declared here and at %q",
-			"op/x/S/"+illFormed, "doc.Services[0].Groups[0].Operations[0]")},
+		}, "ir/duplicate-operation-id", fmt.Sprintf("id %q is declared here and at %q",
+			"operation/x/S/"+illFormed, "document.Services[0].Groups[0].Operations[0]")},
 		{"idempotency", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"),
-				Idempotency: ir.Idempotency{Kind: ir.IdempotencyKind(illFormed), TokenParam: ir.ParamID(illFormed)}})
+			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"),
+				Idempotency: ir.Idempotency{Kind: ir.IdempotencyKind(illFormed), TokenParam: ir.ParameterID(illFormed)}})
 		}, "ir/idempotency-token", fmt.Sprintf(
 			"idempotency kind %q with token parameter %q: a token is named exactly when the kind is %q",
 			illFormed, illFormed, ir.IdempotencyToken)},
 		{"webhook template", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
 				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, URITemplate: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"webhook binding carries URI template %q; a webhook names its event in WebhookName and has no template",
 			illFormed)},
 		{"webhook name", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
 				HTTP: []ir.HTTPBinding{{WebhookName: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"binding that is not a webhook carries webhook name %q; only a webhook binding names an event", illFormed)},
 		{"prefix header of no map", func() *ir.Document {
-			doc := opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
-				ID: "p/x/h", Name: named("h"), Type: ir.TypeRef{Target: illFormed}, Prefix: new(""),
+			doc := opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
+				ID: "property/x/h", Name: named("h"), Type: ir.TypeRef{Target: illFormed}, Prefix: new(""),
 			}}}}})
 			doc.Types = ir.TypeRegistry{illFormed: namedModel(illFormed)}
 			return doc
 		}, "ir/prefix-header-not-map", fmt.Sprintf("header under a prefix has type %q, which is no map", illFormed)},
 		{"prefix header wire name", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
-				ID: "p/x/h", Name: named("h"), WireName: illFormed, Type: ir.TypeRef{Target: "t/x/M"}, Prefix: new(""),
+			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
+				ID: "property/x/h", Name: named("h"), WireName: illFormed, Type: ir.TypeRef{Target: "type/x/M"}, Prefix: new(""),
 			}}}}})
 		}, "ir/prefix-header-wire-name", fmt.Sprintf("header under a prefix also names the field %q", illFormed)},
 		{"prefix binding location", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 				ParamBindings: []ir.HTTPParamBinding{{Location: ir.HTTPLocation(illFormed), Prefix: new("")}},
 			}}}})
 		}, "ir/prefix-binding-location", fmt.Sprintf(
 			"binding under a prefix binds location %q, which is neither header nor query", illFormed)},
 		{"prefix binding wire name", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 				ParamBindings: []ir.HTTPParamBinding{{Location: ir.HTTPLocationQuery, WireName: illFormed, Prefix: new("")}},
 			}}}})
 		}, "ir/prefix-binding-wire-name", fmt.Sprintf("binding under a prefix also names the field %q", illFormed)},
 		{"prefix binding of no map", func() *ir.Document {
 			doc := opDoc(ir.Operation{
-				ID: "op/x/S/op", Name: named("op"),
-				Params: []ir.Parameter{{ID: "param/x/p", Name: named("p"), Type: ir.TypeRef{Target: illFormed}}},
+				ID: "operation/x/S/op", Name: named("op"),
+				Params: []ir.Parameter{{ID: "parameter/x/p", Name: named("p"), Type: ir.TypeRef{Target: illFormed}}},
 				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{{
-					Param: "param/x/p", Location: ir.HTTPLocationHeader, Prefix: new(""),
+					Param: "parameter/x/p", Location: ir.HTTPLocationHeader, Prefix: new(""),
 				}}}}},
 			})
 			doc.Types = ir.TypeRegistry{illFormed: namedModel(illFormed)}
@@ -152,58 +152,58 @@ func messageCases() []messageCase {
 		}, "ir/prefix-binding-not-map", fmt.Sprintf(
 			"binding under a prefix binds a parameter of type %q, which is no map", illFormed)},
 		{"inbound kind", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
 				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInbound(illFormed)}}}})
 		}, "ir/unknown-http-inbound", fmt.Sprintf("binding carries undeclared inbound kind %q", illFormed)},
 		{"callback unlisted", func() *ir.Document {
-			return opDoc(ir.Operation{ID: ir.OpID("op/x/S/" + illFormed), Name: named("op"), Bindings: ir.OpBindings{
+			return opDoc(ir.Operation{ID: ir.OperationID("operation/x/S/" + illFormed), Name: named("op"), Bindings: ir.OpBindings{
 				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInboundCallback}}}})
 		}, "ir/callback-unlisted", fmt.Sprintf(
-			"operation %q is marked a callback, but no binding lists it among its Callbacks", "op/x/S/"+illFormed)},
+			"operation %q is marked a callback, but no binding lists it among its Callbacks", "operation/x/S/"+illFormed)},
 		{"callback unmarked", func() *ir.Document {
-			cb := ir.OpID("op/x/S/" + illFormed)
-			doc := opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
-				HTTP: []ir.HTTPBinding{{Callbacks: []ir.Callback{{Operations: []ir.OpID{cb}}}}}}})
+			cb := ir.OperationID("operation/x/S/" + illFormed)
+			doc := opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+				HTTP: []ir.HTTPBinding{{Callbacks: []ir.Callback{{Operations: []ir.OperationID{cb}}}}}}})
 			doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations,
 				ir.Operation{ID: cb, Name: named("cb")})
 			return doc
 		}, "ir/callback-unmarked", fmt.Sprintf(
-			"a binding lists operation %q among its Callbacks, but it is not marked a callback", "op/x/S/"+illFormed)},
+			"a binding lists operation %q among its Callbacks, but it is not marked a callback", "operation/x/S/"+illFormed)},
 		{"prim not derived", func() *ir.Document {
-			return typesDoc(&ir.Primitive{ID: ir.TypeID("t/x/" + illFormed), Prim: ir.PrimString})
+			return typesDoc(&ir.Primitive{ID: ir.TypeID("type/x/" + illFormed), PrimitiveKind: ir.PrimitiveString})
 		}, "ir/prim-id-not-derived", fmt.Sprintf(
-			"primitive of kind \"string\" is interned at %q rather than the shared \"t/prim/string\"", "t/x/"+illFormed)},
+			"primitive of kind \"string\" is interned at %q rather than the shared \"type/primitive/string\"", "type/x/"+illFormed)},
 		{"prim with no kind", func() *ir.Document {
-			return typesDoc(&ir.Primitive{ID: ir.TypeID("t/x/" + illFormed)})
+			return typesDoc(&ir.Primitive{ID: ir.TypeID("type/x/" + illFormed)})
 		}, "ir/prim-id-not-derived", fmt.Sprintf(
-			"primitive at %q carries no kind, so no shared ID derives from it", "t/x/"+illFormed)},
+			"primitive at %q carries no kind, so no shared ID derives from it", "type/x/"+illFormed)},
 		{"prim space reserved", func() *ir.Document {
-			return typesDoc(namedModel(ir.TypeID("t/prim/" + illFormed)))
+			return typesDoc(namedModel(ir.TypeID("type/primitive/" + illFormed)))
 		}, "ir/prim-space-reserved", fmt.Sprintf(
-			"id %q addresses the reserved primitive space but names a model", "t/prim/"+illFormed)},
+			"id %q addresses the reserved primitive space but names a model", "type/primitive/"+illFormed)},
 		{"id malformed", func() *ir.Document {
-			return typesDoc(namedModel(ir.TypeID("t//" + illFormed)))
+			return typesDoc(namedModel(ir.TypeID("type//" + illFormed)))
 		}, "ir/id-malformed", fmt.Sprintf(
-			"id %q is not t/<space>[/<path>]; every segment must be non-empty", "t//"+illFormed)},
+			"id %q is not type/<space>[/<path>]; every segment must be non-empty", "type//"+illFormed)},
 		{"id disagrees with its pointer", func() *ir.Document {
-			m := namedModel(ir.TypeID("t/x/" + illFormed))
+			m := namedModel(ir.TypeID("type/x/" + illFormed))
 			m.Provenance = ir.Provenance{Pointer: "/other"}
 			return typesDoc(m)
 		}, "ir/id-provenance-disagreement", fmt.Sprintf(
-			"id %q carries path %q, which is not the source pointer \"/other\" it records", "t/x/"+illFormed, illFormed)},
+			"id %q carries path %q, which is not the source pointer \"/other\" it records", "type/x/"+illFormed, illFormed)},
 		{"namespace undeclared", func() *ir.Document {
-			doc := typesDoc(namedModel(ir.TypeID("t/" + illFormed + "/A")))
+			doc := typesDoc(namedModel(ir.TypeID("type/" + illFormed + "/A")))
 			doc.IDSpaces = map[string][]string{ir.IDKindType: {"x"}}
 			return doc
 		}, "ir/id-space-undeclared", fmt.Sprintf(
-			"id %q lives in namespace %q, which the document does not declare for kind \"t\"", "t/"+illFormed+"/A", illFormed)},
+			"id %q lives in namespace %q, which the document does not declare for kind \"type\"", "type/"+illFormed+"/A", illFormed)},
 		{"kind unknown", func() *ir.Document {
 			return spacedDoc(map[string][]string{ir.IDKindType: {"x"}, illFormed: {"x"}})
 		}, "ir/id-spaces-unknown-kind", fmt.Sprintf(
 			"id namespaces are declared for kind %q, which no id opens with", illFormed)},
 		{"kind with no namespace", func() *ir.Document {
-			return spacedDoc(map[string][]string{ir.IDKindType: {"x"}, ir.IDKindOp: {}})
-		}, "ir/id-spaces-not-canonical", `kind "op" is declared with no namespace, and a kind with none is left out`},
+			return spacedDoc(map[string][]string{ir.IDKindType: {"x"}, ir.IDKindOperation: {}})
+		}, "ir/id-spaces-not-canonical", `kind "operation" is declared with no namespace, and a kind with none is left out`},
 		{"namespace invalid", func() *ir.Document {
 			return spacedDoc(map[string][]string{ir.IDKindType: {illFormed + "/", "x"}})
 		}, "ir/id-space-invalid", fmt.Sprintf(
@@ -214,11 +214,11 @@ func messageCases() []messageCase {
 			"namespace %q does not follow \"x\" in sorted order without repeats", illFormed)},
 		{"registry key", func() *ir.Document {
 			doc := typesDoc()
-			doc.Types[ir.TypeID("t/x/"+illFormed)] = namedModel("t/x/A")
+			doc.Types[ir.TypeID("type/x/"+illFormed)] = namedModel("type/x/A")
 			return doc
-		}, "ir/type-id-mismatch", fmt.Sprintf("registry key %q disagrees with node ID \"t/x/A\"", "t/x/"+illFormed)},
+		}, "ir/type-id-mismatch", fmt.Sprintf("registry key %q disagrees with node ID \"type/x/A\"", "type/x/"+illFormed)},
 		{"prim kind", func() *ir.Document {
-			return typesDoc(&ir.Primitive{ID: ir.PrimTypeID(ir.PrimKind(illFormed)), Prim: ir.PrimKind(illFormed)})
+			return typesDoc(&ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveKind(illFormed)), PrimitiveKind: ir.PrimitiveKind(illFormed)})
 		}, "ir/unknown-prim-kind", fmt.Sprintf("primitive carries undeclared kind %q", illFormed)},
 		{"auth kind", func() *ir.Document {
 			doc := typesDoc()
@@ -227,9 +227,9 @@ func messageCases() []messageCase {
 		}, "ir/unknown-auth-kind", fmt.Sprintf("auth scheme names undeclared mechanism %q", illFormed)},
 		{"streaming mode", func() *ir.Document {
 			doc := typesDoc()
-			doc.Services = []ir.Service{{ID: "s/x/s", Name: named("s"), Groups: []ir.OperationGroup{{
-				ID: "g/x/g", Name: named("g"),
-				Operations: []ir.Operation{{ID: "op/x/a", Name: named("a"), Streaming: ir.StreamingMode(illFormed)}},
+			doc.Services = []ir.Service{{ID: "service/x/s", Name: named("s"), Groups: []ir.OperationGroup{{
+				ID: "operation-group/x/g", Name: named("g"),
+				Operations: []ir.Operation{{ID: "operation/x/a", Name: named("a"), Streaming: ir.StreamingMode(illFormed)}},
 			}}}}
 			return doc
 		}, "ir/unknown-streaming-mode", fmt.Sprintf("operation carries undeclared streaming mode %q", illFormed)},
@@ -254,55 +254,55 @@ func messageCases() []messageCase {
 		}, "ir/unresolved-auth-space", fmt.Sprintf("auth scheme of kind \"unresolved\" is addressed in space %q, "+
 			"and the kind unresolved and the space unresolved go together", illFormed)},
 		{"member scope", func() *ir.Document {
-			return typesDoc(&ir.Enum{ID: "t/x/E", Name: named("e"), Members: []ir.EnumMember{{
-				ID: ir.EnumMemberID("e/x/" + illFormed + "/k"), Name: named("k"), Value: ir.Value{Kind: ir.ValueString, Str: "k"},
+			return typesDoc(&ir.Enum{ID: "type/x/E", Name: named("e"), Members: []ir.EnumMember{{
+				ID: ir.EnumMemberID("enum-member/x/" + illFormed + "/k"), Name: named("k"), Value: ir.Value{Kind: ir.ValueString, String: "k"},
 			}}})
 		}, "ir/member-id-scope", fmt.Sprintf(
-			"member id %q is not in the namespace \"x\" and beneath the path \"E\" of its enum \"t/x/E\"", "e/x/"+illFormed+"/k")},
+			"member id %q is not in the namespace \"x\" and beneath the path \"E\" of its enum \"type/x/E\"", "enum-member/x/"+illFormed+"/k")},
 		{"unsegmented", func() *ir.Document {
-			return typesDoc(&ir.Model{ID: "t/x/A", Name: ir.Naming{Hint: "a1" + illFormed}})
+			return typesDoc(&ir.Model{ID: "type/x/A", Name: ir.Naming{Hint: "a1" + illFormed}})
 		}, "ir/naming-unsegmented", fmt.Sprintf(
 			"name hint %q runs a letter and a digit together in one word; the grammar splits that boundary", "a1"+illFormed)},
 		{"not derived", func() *ir.Document {
-			return typesDoc(&ir.Model{ID: "t/x/A", Name: ir.Naming{Source: illFormed + "X", Canonical: "x"}})
+			return typesDoc(&ir.Model{ID: "type/x/A", Name: ir.Naming{Source: illFormed + "X", Canonical: "x"}})
 		}, "ir/naming-not-derived", fmt.Sprintf(
 			"canonical name \"x\" is not what the grammar derives from source %q (%q); "+
 				"emitters cannot tell which grammar produced it", illFormed+"X", ir.CanonicalWords(illFormed+"X"))},
 		{"unmodeled reason", func() *ir.Document {
-			m := namedModel("t/x/A")
-			m.Unmodeled = ir.Unmodeled{"x:k": {Reason: ir.UnmodeledReason(illFormed), Value: ir.RawValue(`1`)}}
+			m := namedModel("type/x/A")
+			m.Unmodeled = ir.Unmodeled{"bytes:k": {Reason: ir.UnmodeledReason(illFormed), Value: ir.RawValue(`1`)}}
 			return typesDoc(m)
 		}, "ir/unknown-unmodeled-reason", fmt.Sprintf("unmodeled entry carries undeclared reason %q", illFormed)},
 		{"dangling reference", func() *ir.Document {
-			m := namedModel("t/x/A")
-			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: ir.TypeID("t/x/" + illFormed)}}}
+			m := namedModel("type/x/A")
+			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: ir.TypeID("type/x/" + illFormed)}}}
 			return typesDoc(m)
-		}, "ir/dangling-type-ref", fmt.Sprintf("reference %q does not resolve in types", "t/x/"+illFormed)},
+		}, "ir/dangling-type-ref", fmt.Sprintf("reference %q does not resolve in types", "type/x/"+illFormed)},
 		{"stray payload", func() *ir.Document {
-			m := namedModel("t/x/A")
-			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},
-				Default: &ir.Value{Kind: ir.ValueString, Str: "s", Bool: true}}}
+			m := namedModel("type/x/A")
+			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
+				Default: &ir.Value{Kind: ir.ValueString, String: "s", Bool: true}}}
 			return typesDoc(m)
 		}, "ir/value-stray-payload", `value of kind "string" populates Bool, a payload its kind does not select`},
 		{"missing payload", func() *ir.Document {
-			m := namedModel("t/x/A")
-			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},
+			m := namedModel("type/x/A")
+			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
 				Default: &ir.Value{Kind: ir.ValueNumber}}}
 			return typesDoc(m)
-		}, "ir/value-missing-payload", `value of kind "number" leaves Num empty, which is no value of that kind`},
+		}, "ir/value-missing-payload", `value of kind "number" leaves Number empty, which is no value of that kind`},
 		{"cyclic structure", func() *ir.Document {
-			c := &ir.CtorValue{Scalar: "t/x/S", Name: "from"}
+			c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
 			c.Args = []ir.Value{ctorValue(c)}
-			m := namedModel(ir.TypeID("t/x/" + illFormed))
+			m := namedModel(ir.TypeID("type/x/" + illFormed))
 			m.Examples = []ir.Example{{Value: new(ctorValue(c))}}
 			return typesDoc(m,
-				&ir.Scalar{ID: "t/x/S", Name: named("s"), Base: &ir.TypeRef{Target: "t/prim/string"}},
-				&ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString})
+				&ir.Scalar{ID: "type/x/S", Name: named("s"), Base: &ir.TypeRef{Target: "type/primitive/string"}},
+				&ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString})
 		}, "ir/cyclic-structure", fmt.Sprintf(
-			"document reaches the *ir.CtorValue it is already inside (entered at %q), so it cannot be encoded",
-			"doc.Types[t/x/"+illFormed+"].Examples[0].Value.Ctor")},
+			"document reaches the *ir.ConstructorValue it is already inside (entered at %q), so it cannot be encoded",
+			"document.Types[type/x/"+illFormed+"].Examples[0].Value.Constructor")},
 		{"irVersion", func() *ir.Document {
-			doc := typesDoc(namedModel("t/x/A"))
+			doc := typesDoc(namedModel("type/x/A"))
 			doc.IRVersion = illFormed
 			return doc
 		}, "ir/ir-version-incompatible", fmt.Sprintf(

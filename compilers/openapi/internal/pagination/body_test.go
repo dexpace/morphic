@@ -23,7 +23,7 @@ const (
 	searchPage    = `query: {type: string}, page: {type: integer}, per_page: {type: integer}`
 	okResult      = `"200": {description: ok, content: {application/json: {schema: {type: object, properties: {result: ` + stringList + `}}}}}`
 	postUndecided = "/paths/~1search/post"
-	searchRequest = "p/openapi/paths/~1search/post/requestBody/content/application~1json/schema/properties"
+	searchRequest = "property/openapi/paths/~1search/post/requestBody/content/application~1json/schema/properties"
 )
 
 // searchDoc is a document of one operation, search, of the method taking the
@@ -220,11 +220,11 @@ paths:
 `
 	for name, tc := range map[string]struct{ src, param, schema string }{
 		"a deepObject parameter": {listing(`[`+objectParam("paging", members)+`]`, list),
-			"param/openapi/paths/~1things/get/parameters/paging/query",
-			"p/openapi/paths/~1things/get/parameters/0/schema/properties/"},
+			"parameter/openapi/paths/~1things/get/parameters/paging/query",
+			"property/openapi/paths/~1things/get/parameters/0/schema/properties/"},
 		"a querystring parameter": {querystring,
-			"param/openapi/paths/~1things/get/parameters/paging/querystring",
-			"p/openapi/paths/~1things/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/"},
+			"parameter/openapi/paths/~1things/get/parameters/paging/querystring",
+			"property/openapi/paths/~1things/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -279,14 +279,14 @@ paths:
 		doc, diags := compile(t, src, openapi.Options{})
 		assert.Empty(t, diags)
 
-		param := "param/openapi/paths/~1articles/get/parameters/page/query"
-		schema := "p/openapi/paths/~1articles/get/parameters/0/schema/properties/"
+		param := "parameter/openapi/paths/~1articles/get/parameters/page/query"
+		schema := "property/openapi/paths/~1articles/get/parameters/0/schema/properties/"
 		assert.Equal(t, &ir.Pagination{
 			Strategy:    ir.PageStrategyOffset,
 			Inferred:    true,
 			InputCursor: inputPath(param, schema+"offset"),
 			InputLimit:  inputPath(param, schema+"limit"),
-			Items: propPath("p/openapi/paths/~1articles/get/responses/200/content/application~1vnd.api+json/" +
+			Items: propPath("property/openapi/paths/~1articles/get/responses/200/content/application~1vnd.api+json/" +
 				"schema/properties/data"),
 		}, openapitest.FindOp(t, doc, "listArticles").Pagination)
 	}
@@ -323,9 +323,9 @@ func TestInferWalks_ReadsAPageSizeAnObjectParameterHolds(t *testing.T) {
 					assert.Equal(t, &ir.Pagination{
 						Strategy:    ir.PageStrategyCursor,
 						Inferred:    true,
-						InputCursor: inputPath("param/openapi/paths/~1things/get/parameters/cursor/query"),
-						InputLimit: inputPath("param/openapi/paths/~1things/get/parameters/"+object+"/query",
-							fmt.Sprintf("p/openapi/paths/~1things/get/parameters/%d/schema/properties/limit", tc.index)),
+						InputCursor: inputPath("parameter/openapi/paths/~1things/get/parameters/cursor/query"),
+						InputLimit: inputPath("parameter/openapi/paths/~1things/get/parameters/"+object+"/query",
+							fmt.Sprintf("property/openapi/paths/~1things/get/parameters/%d/schema/properties/limit", tc.index)),
 						Items:      propPath(r + "/items"),
 						NextCursor: propPath(r + "/next_cursor"),
 						Stop:       []ir.PageStop{ir.PageStopNoNext},

@@ -177,7 +177,7 @@ func TestCompile_AFaultingTargetCostsOnlyItsReference(t *testing.T) {
 	for _, op := range allOperations(doc) {
 		byID[string(op.ID)] = op
 	}
-	a, b := byID["op/openapi/paths/~1a/get"], byID["op/openapi/paths/~1b/get"]
+	a, b := byID["operation/openapi/paths/~1a/get"], byID["operation/openapi/paths/~1b/get"]
 	assert.Empty(t, a.Params, "the faulting parameter lowers to none")
 	require.Len(t, b.Params, 1, "/b keeps the parameter it references")
 	assert.Equal(t, "p", b.Params[0].Name.Source)

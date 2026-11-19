@@ -18,7 +18,7 @@ import (
 // validDoc is a minimal structurally-sound document: one model whose registry
 // key matches its own Common().ID.
 func validDoc() *ir.Document {
-	m := &ir.Model{ID: "t/x/Model", Name: ir.Naming{Source: "Model", Canonical: "model"}}
+	m := &ir.Model{ID: "type/x/Model", Name: ir.Naming{Source: "Model", Canonical: "model"}}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
 		Types:     ir.TypeRegistry{m.ID: m},
@@ -49,9 +49,9 @@ func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 	// Re-key the model under an ID that disagrees with its Common().ID. The
 	// model's own ID is its declaration and no reference, so the mismatch is
 	// the one code drawn.
-	m := doc.Types["t/x/Model"]
-	delete(doc.Types, "t/x/Model")
-	doc.Types["t/x/WrongKey"] = m
+	m := doc.Types["type/x/Model"]
+	delete(doc.Types, "type/x/Model")
+	doc.Types["type/x/WrongKey"] = m
 
 	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
@@ -66,12 +66,12 @@ func TestVerify_SortsSameCodeByPath(t *testing.T) {
 	// order part at the second entry. With fewer than eleven the two orders agree
 	// and the sort's equal-code tiebreaker would go unexercised.
 	const count = 11
-	holder := &ir.Model{ID: "t/x/Holder"}
+	holder := &ir.Model{ID: "type/x/Holder"}
 	for i := range count {
 		n := strconv.Itoa(i)
 		holder.Properties = append(holder.Properties, ir.Property{
-			ID:   ir.PropID("p/x/Holder/" + n),
-			Type: ir.TypeRef{Target: ir.TypeID("t/x/Missing" + n)},
+			ID:   ir.PropertyID("property/x/Holder/" + n),
+			Type: ir.TypeRef{Target: ir.TypeID("type/x/Missing" + n)},
 		})
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{holder.ID: holder}}
@@ -86,7 +86,7 @@ func TestVerify_SortsSameCodeByPath(t *testing.T) {
 
 	want := make([]string, 0, count)
 	for _, i := range []int{0, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
-		want = append(want, "doc.Types[t/x/Holder].Properties["+strconv.Itoa(i)+"].Type.Target")
+		want = append(want, "document.Types[type/x/Holder].Properties["+strconv.Itoa(i)+"].Type.Target")
 	}
 	assert.Equal(t, want, got, "same-code violations are ordered by Path as bytes")
 }
@@ -103,7 +103,7 @@ func codesOf(vs []irverify.Violation) []string {
 func TestVerify_NilTypeDefIsAViolation(t *testing.T) {
 	// An untyped nil in the Types registry must be reported, not dereferenced:
 	// Verify stays a report-only oracle that never panics on a malformed document.
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/nil": nil}}
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/x/nil": nil}}
 	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/nil-type")
@@ -119,7 +119,7 @@ func TestVerify_TypedNilTypeDefIsAViolation(t *testing.T) {
 		(*ir.Primitive)(nil), (*ir.Scalar)(nil), (*ir.Model)(nil), (*ir.Union)(nil), (*ir.Enum)(nil), (*ir.List)(nil),
 		(*ir.MapT)(nil), (*ir.Tuple)(nil), (*ir.Literal)(nil), (*ir.External)(nil), (*ir.Any)(nil),
 	} {
-		doc := &ir.Document{Types: ir.TypeRegistry{"t/x/typednil": td}}
+		doc := &ir.Document{Types: ir.TypeRegistry{"type/x/typednil": td}}
 		var got []irverify.Violation
 		require.NotPanics(t, func() { got = verifyDeclared(doc) }, "%T", td)
 		assert.Contains(t, codesOf(got), "ir/nil-type", "%T", td)
@@ -191,7 +191,7 @@ func findingsTable() []ir.SourceInfo {
 
 // TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings holds the two
 // readings of a finding to one answer: each malformed finding, verified alone,
-// draws what Verify reports beneath doc.Diagnostics of a document holding it,
+// draws what Verify reports beneath document.Diagnostics of a document holding it,
 // the path rebased onto findings, and all of them at once draw it in Verify's
 // order. Each row must draw something, so a finding neither reports cannot
 // pass for agreement.
@@ -206,7 +206,7 @@ func TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings(t *testing.
 	assert.Equal(t, verifiedFindings(all), irverify.VerifyFindings(all, findingsTable()), "every finding at once")
 }
 
-// verifiedFindings returns what Verify reports beneath doc.Diagnostics of a
+// verifiedFindings returns what Verify reports beneath document.Diagnostics of a
 // sound document holding diags, read against findingsTable, each path rebased
 // onto findings.
 func verifiedFindings(diags []ir.Diagnostic) []irverify.Violation {
@@ -215,7 +215,7 @@ func verifiedFindings(diags []ir.Diagnostic) []irverify.Violation {
 	doc.Diagnostics = diags
 	var under []irverify.Violation
 	for _, v := range irverify.Verify(doc) {
-		if rest, ok := strings.CutPrefix(v.Path, "doc.Diagnostics"); ok {
+		if rest, ok := strings.CutPrefix(v.Path, "document.Diagnostics"); ok {
 			v.Path = "findings" + rest
 			under = append(under, v)
 		}

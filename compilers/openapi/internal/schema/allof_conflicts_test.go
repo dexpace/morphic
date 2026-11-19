@@ -128,7 +128,7 @@ func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 			require.Len(t, m.Properties, 1, "token reconciles to a single property")
 			tok := m.Properties[0]
 			assert.True(t, tok.Secret, "either branch's redaction makes the merged field secret")
-			assert.Equal(t, ir.TypeID("t/prim/string"), tok.Type.Target, "both branches share the target")
+			assert.Equal(t, ir.TypeID("type/primitive/string"), tok.Type.Target, "both branches share the target")
 			require.NotNil(t, tok.Constraints, "the other branch's bound is folded, not dropped")
 			assert.Equal(t, new(int64(3)), tok.Constraints.MinLength)
 			assert.Equal(t, "the token", tok.Docs.Description)
@@ -218,7 +218,7 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	m, ok := doc.Types[componentID("Conflictish")].(*ir.Model)
 	require.True(t, ok, "Conflictish should be a model")
 	require.Len(t, m.Properties, 1, "id still reconciles to one property")
-	assert.Equal(t, ir.TypeID("t/prim/integer"), m.Properties[0].Type.Target,
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), m.Properties[0].Type.Target,
 		"the later declaration in source order wins the shape")
 
 	conflicts := conflictDiags(diags)
@@ -269,7 +269,7 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 			m, ok := doc.Types[componentID("Overlapish")].(*ir.Model)
 			require.True(t, ok, "Overlapish should be a model")
 			require.Len(t, m.Properties, 1)
-			assert.Equal(t, ir.TypeID("t/prim/"+order[1]), m.Properties[0].Type.Target, "the later declaration's kind stays")
+			assert.Equal(t, ir.TypeID("type/primitive/"+order[1]), m.Properties[0].Type.Target, "the later declaration's kind stays")
 
 			assert.Empty(t, conflictDiags(diags), "overlapping kinds are not an unsatisfiable type")
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
@@ -862,8 +862,8 @@ func TestAllOf_TypeConflictMessageNamesBothTypes(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1)
-	assert.Contains(t, conflicts[0].Message, "t/prim/string", "names the first branch's type")
-	assert.Contains(t, conflicts[0].Message, "t/prim/integer", "names the second branch's type")
+	assert.Contains(t, conflicts[0].Message, "type/primitive/string", "names the first branch's type")
+	assert.Contains(t, conflicts[0].Message, "type/primitive/integer", "names the second branch's type")
 }
 
 func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
@@ -920,7 +920,7 @@ func composedField(t *testing.T, doc *ir.Document, name, wire string) *ir.Model 
 	t.Helper()
 	p := propertyOf(t, doc, name, wire)
 	field := "/components/schemas/" + name + "/allOf/1/properties/" + wire
-	want := ir.TypeID("t/composed" + field)
+	want := ir.TypeID("type/composed" + field)
 	require.Equal(t, want, p.Type.Target)
 	m, ok := doc.Types[want].(*ir.Model)
 	require.True(t, ok, "%s should hold a registered model", want)
@@ -943,8 +943,8 @@ func TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem(t *testing.T) {
 	for _, tc := range []struct {
 		name, inline string
 	}{
-		{"T", "t/anon/components/schemas/T/allOf/1/properties/data"},
-		{"U", "t/anon/components/schemas/U/allOf/0/properties/data"},
+		{"T", "type/anonymous/components/schemas/T/allOf/1/properties/data"},
+		{"U", "type/anonymous/components/schemas/U/allOf/0/properties/data"},
 	} {
 		m := composedField(t, doc, tc.name, "data")
 		require.NotNil(t, m.Base, tc.name)
@@ -1031,7 +1031,7 @@ func TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes(t *testing.T) {
 
 // TestAllOf_EveryDistributedVariantSharesOneComposedField pins the mint across
 // variants. A distributed union's variants each fold the body's declarations,
-// and each keeps the field's one PropID, so each names the one node.
+// and each keeps the field's one PropertyID, so each names the one node.
 func TestAllOf_EveryDistributedVariantSharesOneComposedField(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    A:
@@ -1059,10 +1059,10 @@ func TestAllOf_EveryDistributedVariantSharesOneComposedField(t *testing.T) {
         - {$ref: '#/components/schemas/D'}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	const shared = ir.TypeID("t/composed/components/schemas/S/allOf/1/properties/data")
+	const shared = ir.TypeID("type/composed/components/schemas/S/allOf/1/properties/data")
 	for _, variant := range []ir.TypeID{
-		"t/composed/components/schemas/S/oneOf/0",
-		"t/composed/components/schemas/S/oneOf/1",
+		"type/composed/components/schemas/S/oneOf/0",
+		"type/composed/components/schemas/S/oneOf/1",
 	} {
 		m, ok := doc.Types[variant].(*ir.Model)
 		require.True(t, ok, variant)
@@ -1212,7 +1212,7 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 `
 	model := "{$ref: '#/components/schemas/A'}"
 	inline := func(branch int) ir.TypeID {
-		return ir.TypeID(fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", branch))
+		return ir.TypeID(fmt.Sprintf("type/anonymous/components/schemas/T/allOf/%d/properties/v", branch))
 	}
 	for _, tc := range []struct {
 		name, decl string
@@ -1477,7 +1477,7 @@ func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
 		{ref("Int"), ref("Props"), componentID("Int")},
 		{ref("List"), ref("Props"), componentID("List")},
 		{ref("Str"), ref("PropsAlias"), componentID("Str")},
-		{"{type: string}", "{properties: {a: {type: string}}}", "t/prim/string"},
+		{"{type: string}", "{properties: {a: {type: string}}}", "type/primitive/string"},
 	} {
 		for _, order := range [][2]string{{tc.narrow, tc.untyped}, {tc.untyped, tc.narrow}} {
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
@@ -1545,7 +1545,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 	} {
 		p, diags := compile(entry)
 		require.Len(t, withCode(diags, diag.ConflictingRedecl), 1, entry)
-		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, entry)
 		assert.Len(t, p.Unmodeled, 1, "the structure is kept: %s", entry)
 	}
 
@@ -1559,7 +1559,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 			}
 		}
 		assert.Empty(t, atT, "the fold reports nothing: %s", entry)
-		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, entry)
 		assert.Empty(t, p.Unmodeled, entry)
 	}
 
@@ -1568,7 +1568,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 	p, diags := compile(ref("ObjAnyOf"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union is not compared")
-	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target)
 	assert.Contains(t, p.Unmodeled, "openapi:properties", "the structure's own keyword is kept beside the use")
 	assert.Len(t, p.Unmodeled, 2, "and so is the union the merge did not compare")
 
@@ -1588,7 +1588,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 			}
 		}
 		assert.Len(t, uncompared, 1, "the field keeps the string and says why: %s", entry)
-		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, entry)
 		assert.Len(t, p.Unmodeled, 1, "the structure is kept: %s", entry)
 	}
 
@@ -1597,7 +1597,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 	p, diags = compile("{enum: [{a: x}]}")
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union of literals is not compared")
-	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target)
 	assert.Len(t, p.Unmodeled, 1, "the structure is kept")
 }
 
@@ -1625,7 +1625,7 @@ func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 	for _, order := range [][2]string{{text, described}, {described, text}} {
 		p, diags := compile(order[0], order[1])
 		assert.Empty(t, diags, "%v", order)
-		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "%v", order)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, "%v", order)
 		assert.Equal(t, "D", p.Docs.Description, "%v", order)
 	}
 
@@ -1638,7 +1638,7 @@ func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 			p, diags := compile(order[0], order[1])
 			require.Len(t, diags, 1, "%v", order)
 			assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "%v", order)
-			want := []ir.TypeID{"t/anon/components/schemas/T/allOf/1/properties/f", "t/prim/string"}[i]
+			want := []ir.TypeID{"type/anonymous/components/schemas/T/allOf/1/properties/f", "type/primitive/string"}[i]
 			assert.Equal(t, want, p.Type.Target, "%v", order)
 			assert.Len(t, p.Unmodeled, 1, "the other is kept: %v", order)
 		}
@@ -1669,7 +1669,7 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Len(t, withCode(diags, diag.ConflictingRedecl), 1, "the other document's object conflicts with an integer")
-	assert.Equal(t, ir.TypeID("t/prim/integer"), propertyOf(t, doc, "T", "f").Type.Target, "the later declaration wins")
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), propertyOf(t, doc, "T", "f").Type.Target, "the later declaration wins")
 }
 
 // TestAllOf_ModelsAlikeAreOneType pins GitHub #1083: a field declared as a
@@ -1697,7 +1697,7 @@ func TestAllOf_ModelsAlikeAreOneType(t *testing.T) {
 	}{
 		{owner, inline, componentID("Owner")},
 		{inline, owner, componentID("Owner")},
-		{inline, inline, "t/anon/components/schemas/T/allOf/0/properties/owner"},
+		{inline, inline, "type/anonymous/components/schemas/T/allOf/0/properties/owner"},
 	} {
 		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, tc.a, tc.b)))
 		openapitest.RequireNoErrorDiags(t, diags)
@@ -1745,7 +1745,7 @@ func TestAllOf_AModelComposesWithAMapOrAUnion(t *testing.T) {
 			require.NotNil(t, m.Base, name)
 			assert.Equal(t, componentID("A"), m.Base.Target, name)
 			require.Len(t, m.Mixins, 1, name)
-			inline := fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", 1-i)
+			inline := fmt.Sprintf("type/anonymous/components/schemas/T/allOf/%d/properties/v", 1-i)
 			assert.Equal(t, ir.TypeID(inline), m.Mixins[0].Target, name)
 		}
 	}
@@ -1765,18 +1765,18 @@ func TestAllOf_ContainersOfDifferentModelsComposeTheirMembers(t *testing.T) {
         - {type: object, properties: {v: %s}}
         - {type: object, properties: {v: %s}}
 `
-	field := "t/composed/components/schemas/T/allOf/1/properties/v"
+	field := "type/composed/components/schemas/T/allOf/1/properties/v"
 	for _, tc := range []struct {
 		shape  string
 		member func(ir.TypeDef) ir.TypeRef
 		at     string
 	}{
 		{"{type: array, items: {$ref: '#/components/schemas/%s'}}",
-			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.List).Elem }, "/items"},
+			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.List).ElementType }, "/items"},
 		{"{type: object, additionalProperties: {$ref: '#/components/schemas/%s'}}",
 			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.MapT).Value }, "/additionalProperties"},
 		{"{type: array, prefixItems: [{$ref: '#/components/schemas/%s'}]}",
-			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.Tuple).Elems[0] }, "/prefixItems/0"},
+			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.Tuple).ElementTypes[0] }, "/prefixItems/0"},
 	} {
 		a, b := fmt.Sprintf(tc.shape, "A"), fmt.Sprintf(tc.shape, "B")
 		for _, order := range [][2]string{{a, b}, {b, a}} {
@@ -1851,7 +1851,7 @@ func TestAllOf_ANullNotOrIfIsTheKeywordLeftOut(t *testing.T) {
 				m, ok := typeByName(doc, name).(*ir.Model)
 				require.True(t, ok, name)
 				require.Len(t, m.Properties, 1, name)
-				assert.Equal(t, ir.TypeID("t/prim/integer"), m.Properties[0].Type.Target, "%s: %s, %s first", name, tc.name, order[0])
+				assert.Equal(t, ir.TypeID("type/primitive/integer"), m.Properties[0].Type.Target, "%s: %s, %s first", name, tc.name, order[0])
 			}
 		}
 	}

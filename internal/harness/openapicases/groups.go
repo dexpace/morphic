@@ -187,7 +187,7 @@ func carryProperties(uses []object) (object, object, []string) {
 	for i, u := range uses {
 		name := "t" + strconv.Itoa(i)
 		props[i] = member{name, u}
-		nodes[i] = "p/openapi/components/schemas/" + caseSchema + "/properties/" + name
+		nodes[i] = "property/openapi/components/schemas/" + caseSchema + "/properties/" + name
 	}
 	return nil, object{{caseSchema, object{{"type", "object"}, {"properties", props}}}}, nodes
 }
@@ -200,7 +200,7 @@ func carryParameters(uses []object) (object, object, []string) {
 	for i, u := range uses {
 		name := "q" + strconv.Itoa(i)
 		params[i] = object{{"name", name}, {"in", "query"}, {"schema", u}}
-		nodes[i] = "param/openapi/paths/" + casePathToken() + "/get/parameters/" + name + "/query"
+		nodes[i] = "parameter/openapi/paths/" + casePathToken() + "/get/parameters/" + name + "/query"
 	}
 	paths, schemas := atCasePath(object{{"get", object{{"parameters", params}, {"responses", okResponses}}}})
 	return paths, schemas, nodes
@@ -214,7 +214,7 @@ func carryHeaders(uses []object) (object, object, []string) {
 	for i, u := range uses {
 		name := "H" + strconv.Itoa(i)
 		headers[i] = member{name, object{{"schema", u}}}
-		nodes[i] = "p/openapi/paths/" + casePathToken() + "/get/responses/200/headers/" + name
+		nodes[i] = "property/openapi/paths/" + casePathToken() + "/get/responses/200/headers/" + name
 	}
 	paths, schemas := atCasePath(response(member{"headers", headers}))
 	return paths, schemas, nodes

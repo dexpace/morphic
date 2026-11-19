@@ -97,7 +97,7 @@ func leaf(td ir.TypeDef) tagSet {
 		if n == nil || n.Value.Kind != ir.ValueString {
 			return anyString()
 		}
-		return tagSet{strings: []string{n.Value.Str}, closed: true}
+		return tagSet{strings: []string{n.Value.String}, closed: true}
 	case *ir.Enum:
 		if n == nil || !n.Closed || n.Flags {
 			return anyString()
@@ -107,7 +107,7 @@ func leaf(td ir.TypeDef) tagSet {
 			if m.Value.Kind != ir.ValueString {
 				return anyString()
 			}
-			tags = append(tags, m.Value.Str)
+			tags = append(tags, m.Value.String)
 		}
 		slices.Sort(tags)
 		return tagSet{strings: slices.Compact(tags), closed: true}

@@ -419,13 +419,13 @@ func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 
 	got, err := filed(openapi.Options{Grouping: openapi.GroupByExtension})
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"a": "g/extension/zero-trust/devices", "b": "g/tags/bees"}, got,
+	assert.Equal(t, map[string]string{"a": "operation-group/extension/zero-trust/devices", "b": "operation-group/tags/bees"}, got,
 		"the default key, its list read as one path, and an operation stating none grouped by tags")
 	got, err = filed(openapi.Options{
 		Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{Fallback: openapi.GroupByPathPrefix},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"a": "g/extension/zero-trust/devices", "b": "g/path-prefix/b"}, got,
+	assert.Equal(t, map[string]string{"a": "operation-group/extension/zero-trust/devices", "b": "operation-group/path-prefix/b"}, got,
 		"the default key beside the fallback the caller names")
 
 	for name, tc := range map[string]struct {
@@ -486,13 +486,13 @@ func TestCompile_GroupingAliasesFollowTheKeysTheyRestate(t *testing.T) {
 		}
 		return out
 	}
-	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/forge"}, groups(openapi.GroupingExtension{}),
+	assert.Equal(t, []ir.GroupID{"operation-group/extension/a", "operation-group/extension/forge"}, groups(openapi.GroupingExtension{}),
 		"the default key and its aliases")
-	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/other"},
+	assert.Equal(t, []ir.GroupID{"operation-group/extension/a", "operation-group/extension/other"},
 		groups(openapi.GroupingExtension{Aliases: "x-other"}), "the default key and the caller's aliases")
-	assert.Equal(t, []ir.GroupID{"g/extension/a"},
+	assert.Equal(t, []ir.GroupID{"operation-group/extension/a"},
 		groups(openapi.GroupingExtension{Key: "x-g", Lists: openapi.ListsAreSegments}), "the caller's key alone")
-	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/other-g"},
+	assert.Equal(t, []ir.GroupID{"operation-group/extension/a", "operation-group/extension/other-g"},
 		groups(openapi.GroupingExtension{Key: "x-g", Lists: openapi.ListsAreSegments, Aliases: "x-other"}),
 		"the caller's key and aliases restating it")
 }

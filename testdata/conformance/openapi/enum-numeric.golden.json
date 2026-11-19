@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "EnumNumeric",
         "canonical": "enum_numeric"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/BigCodes": {
+    "type/openapi/components/schemas/BigCodes": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/BigCodes",
+      "id": "type/openapi/components/schemas/BigCodes",
       "name": {
         "source": "BigCodes",
         "canonical": "big_codes"
@@ -76,26 +76,26 @@
       "valueType": "integer",
       "members": [
         {
-          "id": "e/openapi/components/schemas/BigCodes/n:1e0",
+          "id": "enum-member/openapi/components/schemas/BigCodes/number:1e0",
           "name": {
             "source": "1",
             "canonical": "1"
           },
           "value": {
             "kind": "number",
-            "num": "1"
+            "number": "1"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/BigCodes/n:9.007199254740993e15",
+          "id": "enum-member/openapi/components/schemas/BigCodes/number:9.007199254740993e15",
           "name": {
             "source": "9007199254740993",
             "canonical": "9007199254740993"
           },
           "value": {
             "kind": "number",
-            "num": "9007199254740993"
+            "number": "9007199254740993"
           },
           "docs": {}
         }
@@ -103,9 +103,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/OversizedCodes": {
+    "type/openapi/components/schemas/OversizedCodes": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/OversizedCodes",
+      "id": "type/openapi/components/schemas/OversizedCodes",
       "name": {
         "source": "OversizedCodes",
         "canonical": "oversized_codes"
@@ -130,26 +130,26 @@
       "valueType": "integer",
       "members": [
         {
-          "id": "e/openapi/components/schemas/OversizedCodes/n:1e0",
+          "id": "enum-member/openapi/components/schemas/OversizedCodes/number:1e0",
           "name": {
             "source": "1",
             "canonical": "1"
           },
           "value": {
             "kind": "number",
-            "num": "1"
+            "number": "1"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/OversizedCodes/n:1e3",
+          "id": "enum-member/openapi/components/schemas/OversizedCodes/number:1e3",
           "name": {
             "source": "1000",
             "canonical": "1000"
           },
           "value": {
             "kind": "number",
-            "num": "1000"
+            "number": "1000"
           },
           "docs": {}
         }
@@ -157,9 +157,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/SizedCodes": {
+    "type/openapi/components/schemas/SizedCodes": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/SizedCodes",
+      "id": "type/openapi/components/schemas/SizedCodes",
       "name": {
         "source": "SizedCodes",
         "canonical": "sized_codes"
@@ -174,26 +174,26 @@
       "valueType": "int64",
       "members": [
         {
-          "id": "e/openapi/components/schemas/SizedCodes/n:1e0",
+          "id": "enum-member/openapi/components/schemas/SizedCodes/number:1e0",
           "name": {
             "source": "1",
             "canonical": "1"
           },
           "value": {
             "kind": "number",
-            "num": "1"
+            "number": "1"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/SizedCodes/n:9.007199254740993e15",
+          "id": "enum-member/openapi/components/schemas/SizedCodes/number:9.007199254740993e15",
           "name": {
             "source": "9007199254740993",
             "canonical": "9007199254740993"
           },
           "value": {
             "kind": "number",
-            "num": "9007199254740993"
+            "number": "9007199254740993"
           },
           "docs": {}
         }

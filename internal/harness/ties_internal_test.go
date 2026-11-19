@@ -59,13 +59,13 @@ func TestFactsOf_ReadsAFactPerMemberAReportDecided(t *testing.T) {
 	t.Parallel()
 	seqs := sequences{"/M/allOf": 2}
 	plain := conflictAt(seqs, "/A/p", nil)
-	twoKept := conflictAt(seqs, "/A/p", []string{"/B/p", "/C/p"}, "p/M/p")
+	twoKept := conflictAt(seqs, "/A/p", []string{"/B/p", "/C/p"}, "property/M/p")
 	noMember := conflictAt(seqs, "/A/p", []string{"/B/p"})
 	unknown := conflictAt(seqs, "/A/p", nil)
 	unknown.rebased.Related = []ir.Related{{Role: "other", Provenance: ir.Provenance{Pointer: "/B/p"}}}
-	beside := conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p")
+	beside := conflictAt(seqs, "/A/p", []string{"/B/p"}, "property/M/p")
 	beside.rebased.Related = append(beside.rebased.Related, ir.Related{Role: "other", Provenance: ir.Provenance{Pointer: "/C/p"}})
-	pair := conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/B/p"}, "p/M/allOf/1/p", "p/N/p")
+	pair := conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/B/p"}, "property/M/allOf/1/p", "property/N/p")
 
 	facts, rest := factsOf([]report{plain, twoKept, pair, noMember, unknown, beside}, seqs)
 
@@ -73,8 +73,8 @@ func TestFactsOf_ReadsAFactPerMemberAReportDecided(t *testing.T) {
 	lost, kept := placeOf(ir.Provenance{Pointer: "/M/allOf/-/properties/p"}), placeOf(ir.Provenance{Pointer: "/B/p"})
 	says := sayingOf(pair.rebased, ir.Provenance{Source: ir.NoSource}, seqs)
 	assert.Equal(t, []decision{
-		{member: "p/M/allOf/-/p", lost: lost, kept: kept, says: says},
-		{member: "p/N/p", lost: lost, kept: kept, says: says},
+		{member: "property/M/allOf/-/p", lost: lost, kept: kept, says: says},
+		{member: "property/N/p", lost: lost, kept: kept, says: says},
 	}, decisionsOf(facts))
 	assert.Equal(t, "/M/allOf/0/properties/p", pointerOf(facts[0].lostAt), "the place as written tells one entry from another")
 	assert.Equal(t, pair, facts[1].report)
@@ -88,12 +88,12 @@ func TestSayingOf_ReadsWhatAReportSaysBesideItsPlaces(t *testing.T) {
 	t.Parallel()
 	seqs := sequences{"/M/allOf": 2}
 	base := diagnostic(ir.SeverityWarning, "x/conflict", "/A/p", "")
-	member := ir.Provenance{Source: ir.NoSource, Node: "p/M/p"}
+	member := ir.Provenance{Source: ir.NoSource, Node: "property/M/p"}
 	want := sayingOf(base, member, seqs)
 
-	moved := diagnostic(ir.SeverityWarning, "x/conflict", "/B/p", "p/N/p")
+	moved := diagnostic(ir.SeverityWarning, "x/conflict", "/B/p", "property/N/p")
 	moved.Related = []ir.Related{{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/A/p"}}}
-	assert.Equal(t, want, sayingOf(moved, ir.Provenance{Source: ir.NoSource, Node: "p/N/p"}, seqs), "places and the member are not read")
+	assert.Equal(t, want, sayingOf(moved, ir.Provenance{Source: ir.NoSource, Node: "property/N/p"}, seqs), "places and the member are not read")
 	assert.Equal(t, sayingOf(base, ir.Provenance{Source: ir.NoSource, Pointer: "/M/allOf/0"}, seqs),
 		sayingOf(base, ir.Provenance{Source: ir.NoSource, Pointer: "/M/allOf/1"}, seqs), "an index of a reversed sequence is erased")
 	for name, change := range map[string]func(*ir.Diagnostic, *ir.Provenance){
@@ -118,7 +118,7 @@ func TestSayingOf_ReadsWhatAReportSaysBesideItsPlaces(t *testing.T) {
 func TestPlaceOf_ReadsWhatDescribesAPlace(t *testing.T) {
 	t.Parallel()
 	base := ir.Provenance{Pointer: "/A/p"}
-	assert.Equal(t, placeOf(base), placeOf(ir.Provenance{Pointer: "/A/p", Node: "p/M/p"}))
+	assert.Equal(t, placeOf(base), placeOf(ir.Provenance{Pointer: "/A/p", Node: "property/M/p"}))
 	assert.Equal(t, "/A/p", pointerOf(placeOf(base)))
 	for name, other := range map[string]ir.Provenance{
 		"pointer":  {Pointer: "/B/p"},
@@ -147,46 +147,46 @@ func TestTiedBy_TiesAMemberBothOrdersDecideTheOtherWayRound(t *testing.T) {
 		want              []string
 	}{
 		"mirrored": {
-			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p", "p/N/p")),
-			reversed: facts(conflictAt(seqs, "/B/p", []string{"/A/p"}, "p/N/p", "p/M/p")),
-			want:     []string{"p/M/p", "p/N/p"},
+			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "property/M/p", "property/N/p")),
+			reversed: facts(conflictAt(seqs, "/B/p", []string{"/A/p"}, "property/N/p", "property/M/p")),
+			want:     []string{"property/M/p", "property/N/p"},
 		},
 		"the same way round in both orders": {
-			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p")),
-			reversed: facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p")),
+			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "property/M/p")),
+			reversed: facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "property/M/p")),
 		},
 		"mirrored for another member": {
-			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p")),
-			reversed: facts(conflictAt(seqs, "/B/p", []string{"/A/p"}, "p/N/p")),
+			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "property/M/p")),
+			reversed: facts(conflictAt(seqs, "/B/p", []string{"/A/p"}, "property/N/p")),
 		},
 		"another place kept": {
-			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p")),
-			reversed: facts(conflictAt(seqs, "/B/p", []string{"/C/p"}, "p/M/p")),
+			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "property/M/p")),
+			reversed: facts(conflictAt(seqs, "/B/p", []string{"/C/p"}, "property/M/p")),
 		},
 		"one order alone": {
-			written: facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p")),
+			written: facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "property/M/p")),
 		},
 		"a member another model brings, named by its first declaration in either order": {
-			written:  facts(conflictAt(seqs, "/X/allOf/0/properties/p", []string{"/B/p"}, "p/M/p")),
-			reversed: facts(conflictAt(seqs, "/B/p", []string{"/X/allOf/1/properties/p"}, "p/M/p")),
-			want:     []string{"p/M/p"},
+			written:  facts(conflictAt(seqs, "/X/allOf/0/properties/p", []string{"/B/p"}, "property/M/p")),
+			reversed: facts(conflictAt(seqs, "/B/p", []string{"/X/allOf/1/properties/p"}, "property/M/p")),
+			want:     []string{"property/M/p"},
 		},
 		"two entries of one allOf, mirrored as written": {
-			written:  facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/1/properties/p"}, "p/M/p")),
-			reversed: facts(conflictAt(seqs, "/M/allOf/1/properties/p", []string{"/M/allOf/0/properties/p"}, "p/M/p")),
-			want:     []string{"p/M/p"},
+			written:  facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/1/properties/p"}, "property/M/p")),
+			reversed: facts(conflictAt(seqs, "/M/allOf/1/properties/p", []string{"/M/allOf/0/properties/p"}, "property/M/p")),
+			want:     []string{"property/M/p"},
 		},
 		"two entries of one allOf, the same one lost in both orders": {
-			written:  facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/2/properties/p"}, "p/M/p")),
-			reversed: facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/1/properties/p"}, "p/M/p")),
+			written:  facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/2/properties/p"}, "property/M/p")),
+			reversed: facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/1/properties/p"}, "property/M/p")),
 		},
 		"mirrored at another severity": {
-			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p")),
-			reversed: facts(atSeverity(conflictAt(seqs, "/B/p", []string{"/A/p"}, "p/M/p"), ir.SeverityInfo)),
+			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "property/M/p")),
+			reversed: facts(atSeverity(conflictAt(seqs, "/B/p", []string{"/A/p"}, "property/M/p"), ir.SeverityInfo)),
 		},
 		"two entries of one allOf mirrored as written, at another severity": {
-			written:  facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/1/properties/p"}, "p/M/p")),
-			reversed: facts(atSeverity(conflictAt(seqs, "/M/allOf/1/properties/p", []string{"/M/allOf/0/properties/p"}, "p/M/p"), ir.SeverityInfo)),
+			written:  facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/1/properties/p"}, "property/M/p")),
+			reversed: facts(atSeverity(conflictAt(seqs, "/M/allOf/1/properties/p", []string{"/M/allOf/0/properties/p"}, "property/M/p"), ir.SeverityInfo)),
 		},
 	} {
 		assert.Equal(t, tc.want, tiedBy(tc.written, tc.reversed), name)
@@ -201,13 +201,13 @@ func TestTiedBy_TiesAMemberBothOrdersDecideTheOtherWayRound(t *testing.T) {
 func TestUnpairedFacts_PairsAnUntiedMembersFactsByWhatLost(t *testing.T) {
 	t.Parallel()
 	seqs := sequences{}
-	lone := conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p", "p/N/p", "p/T/p")
-	other := conflictAt(seqs, "/A/p", []string{"/C/p"}, "p/M/p")
-	twice := conflictAt(seqs, "/A/q", []string{"/B/q"}, "p/M/q")
+	lone := conflictAt(seqs, "/A/p", []string{"/B/p"}, "property/M/p", "property/N/p", "property/T/p")
+	other := conflictAt(seqs, "/A/p", []string{"/C/p"}, "property/M/p")
+	twice := conflictAt(seqs, "/A/q", []string{"/B/q"}, "property/M/q")
 	written, _ := factsOf([]report{lone, twice, twice}, seqs)
 	reversed, _ := factsOf([]report{other, twice}, seqs)
 
-	left, right := unpairedFacts(written, reversed, []string{"p/T/p"})
+	left, right := unpairedFacts(written, reversed, []string{"property/T/p"})
 
 	assert.Equal(t, []report{lone, twice}, left, "N's fact has no pair, T is tied, M's pairs though it kept another place, and q is said once more")
 	assert.Empty(t, right)
@@ -216,7 +216,7 @@ func TestUnpairedFacts_PairsAnUntiedMembersFactsByWhatLost(t *testing.T) {
 	assert.Empty(t, left)
 	assert.Empty(t, right)
 
-	info := conflictAt(seqs, "/A/q", []string{"/B/q"}, "p/M/q")
+	info := conflictAt(seqs, "/A/q", []string{"/B/q"}, "property/M/q")
 	info.rebased.Severity = ir.SeverityInfo
 	restated, _ := factsOf([]report{info}, seqs)
 	once, _ := factsOf([]report{twice}, seqs)
@@ -234,14 +234,14 @@ func TestUnpairedFacts_ComparesThePlaceKeptByTheTypeItsDeclarationNames(t *testi
 	t.Parallel()
 	seqs := sequences{}
 	keptBy := func(kept, by string) ([]fact, report) {
-		r := conflictAt(seqs, "/B/p", []string{kept}, "p/W/p")
+		r := conflictAt(seqs, "/B/p", []string{kept}, "property/W/p")
 		facts, _ := factsOf([]report{r}, seqs)
 		facts[0].keptBy = by
 		return facts, r
 	}
-	string1, _ := keptBy("/A/p", "t/prim/string false")
-	string2, _ := keptBy("/C/p", "t/prim/string false")
-	integer, wrong := keptBy("/B/p", "t/prim/integer false")
+	string1, _ := keptBy("/A/p", "type/primitive/string false")
+	string2, _ := keptBy("/C/p", "type/primitive/string false")
+	integer, wrong := keptBy("/B/p", "type/primitive/integer false")
 	unread, _ := keptBy("/D/p", "")
 
 	left, right := unpairedFacts(string1, string2, nil)
@@ -264,24 +264,24 @@ func TestUnpairedFacts_ComparesThePlaceKeptByTheTypeItsDeclarationNames(t *testi
 func TestKeptTypes_ReadsTheTypeTheDeclarationKeptNames(t *testing.T) {
 	t.Parallel()
 	facts, _ := factsOf([]report{
-		conflictAt(nil, "/B/p", []string{"/A/p"}, "p/W/p"),
-		conflictAt(nil, "/B/p", []string{"/X/p"}, "p/W/p"),
-		conflictAt(nil, "/B/p", []string{"/A/p"}, "p/V/p"),
-		conflictAt(nil, "/B/p", []string{"/A/p"}, "p/M/p"),
-		conflictAt(nil, "/B/p", []string{"/X/p"}, "p/M/p"),
+		conflictAt(nil, "/B/p", []string{"/A/p"}, "property/W/p"),
+		conflictAt(nil, "/B/p", []string{"/X/p"}, "property/W/p"),
+		conflictAt(nil, "/B/p", []string{"/A/p"}, "property/V/p"),
+		conflictAt(nil, "/B/p", []string{"/A/p"}, "property/M/p"),
+		conflictAt(nil, "/B/p", []string{"/X/p"}, "property/M/p"),
 	}, nil)
 	held := map[string]held{
-		"p/W/p": {
-			takes: "t/prim/string false", said: map[string]string{"/A/p": "t/prim/string true"}, named: map[string]string{"/A/p": "t/prim/string"},
+		"property/W/p": {
+			takes: "type/primitive/string false", said: map[string]string{"/A/p": "type/primitive/string true"}, named: map[string]string{"/A/p": "type/primitive/string"},
 		},
-		"p/M/p": {
-			takes: "t/composed/M/p false", said: map[string]string{"/A/p": "t/anon/A/p false"}, named: map[string]string{"/A/p": "t/anon/A/p"},
+		"property/M/p": {
+			takes: "type/composed/M/p false", said: map[string]string{"/A/p": "type/anonymous/A/p false"}, named: map[string]string{"/A/p": "type/anonymous/A/p"},
 		},
 	}
 
 	got := keptTypes(facts, held)
 
-	assert.Equal(t, []string{"t/prim/string", "", "", "t/composed/M/p", ""},
+	assert.Equal(t, []string{"type/primitive/string", "", "", "type/composed/M/p", ""},
 		[]string{got[0].keptBy, got[1].keptBy, got[2].keptBy, got[3].keptBy, got[4].keptBy})
 	assert.Empty(t, facts[0].keptBy)
 }
@@ -299,19 +299,19 @@ func TestHeldBy_ReadsWhatAMemberTakesAndWhatItsDeclarationsSay(t *testing.T) {
 
 	alphaP, betaP := "/components/schemas/alpha/properties/p", "/components/schemas/beta/properties/p"
 	alphaQ, betaQ := "/components/schemas/alpha/properties/q", "/components/schemas/beta/properties/q"
-	p := held{takes: "t/prim/integer false",
-		said:  map[string]string{alphaP: "t/prim/string false", betaP: "t/prim/integer false"},
-		named: map[string]string{alphaP: "t/prim/string", betaP: "t/prim/integer"},
+	p := held{takes: "type/primitive/integer false",
+		said:  map[string]string{alphaP: "type/primitive/string false", betaP: "type/primitive/integer false"},
+		named: map[string]string{alphaP: "type/primitive/string", betaP: "type/primitive/integer"},
 	}
-	q := held{takes: "t/prim/string false",
-		said:  map[string]string{alphaQ: "t/prim/string false", betaQ: "t/prim/string false"},
-		named: map[string]string{alphaQ: "t/prim/string", betaQ: "t/prim/string"},
+	q := held{takes: "type/primitive/string false",
+		said:  map[string]string{alphaQ: "type/primitive/string false", betaQ: "type/primitive/string false"},
+		named: map[string]string{alphaQ: "type/primitive/string", betaQ: "type/primitive/string"},
 	}
 	assert.Equal(t, map[string]held{
-		"p/composed/components/schemas/AB/allOf/properties/p":  p,
-		"p/composed/components/schemas/AB2/allOf/properties/p": p,
-		"p/composed/components/schemas/AB/allOf/properties/q":  q,
-		"p/composed/components/schemas/AB2/allOf/properties/q": q,
+		"property/composed/components/schemas/AB/allOf/properties/p":  p,
+		"property/composed/components/schemas/AB2/allOf/properties/p": p,
+		"property/composed/components/schemas/AB/allOf/properties/q":  q,
+		"property/composed/components/schemas/AB2/allOf/properties/q": q,
 	}, got)
 	assert.Empty(t, heldBy(nil, perm.written, nil))
 }
@@ -322,22 +322,22 @@ func TestHeldBy_ReadsWhatAMemberTakesAndWhatItsDeclarationsSay(t *testing.T) {
 // written at.
 func TestHeldBy_RebasesAReversedCompilesDeclarations(t *testing.T) {
 	t.Parallel()
-	member := func(id ir.PropID, at string, target ir.TypeID) ir.Property {
+	member := func(id ir.PropertyID, at string, target ir.TypeID) ir.Property {
 		return ir.Property{ID: id, WireName: "p", Type: ir.TypeRef{Target: target, Nullable: true},
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at)}}
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/A": &ir.Model{ID: "t/A", Properties: []ir.Property{member("p/A/p", "/M/allOf/2/properties/p", "t/prim/integer")}},
-		"t/M": &ir.Model{ID: "t/M", Mixins: []ir.TypeRef{{Target: "t/A"}}, Properties: []ir.Property{member("p/M/p", "/M/p", "t/prim/string")}},
+		"type/A": &ir.Model{ID: "type/A", Properties: []ir.Property{member("property/A/p", "/M/allOf/2/properties/p", "type/primitive/integer")}},
+		"type/M": &ir.Model{ID: "type/M", Mixins: []ir.TypeRef{{Target: "type/A"}}, Properties: []ir.Property{member("property/M/p", "/M/p", "type/primitive/string")}},
 	}}
 	moved := sequences{"/M/allOf": 3}
 
 	got := heldBy(doc, moved, moved)
 
-	assert.Equal(t, map[string]held{"p/M/p": {
-		takes: "t/prim/string true",
-		said:  map[string]string{"/M/allOf/0/properties/p": "t/prim/integer true"},
-		named: map[string]string{"/M/allOf/0/properties/p": "t/prim/integer"},
+	assert.Equal(t, map[string]held{"property/M/p": {
+		takes: "type/primitive/string true",
+		said:  map[string]string{"/M/allOf/0/properties/p": "type/primitive/integer true"},
+		named: map[string]string{"/M/allOf/0/properties/p": "type/primitive/integer"},
 	}}, got)
 }
 
@@ -349,7 +349,7 @@ func TestHeldBy_RebasesAReversedCompilesDeclarations(t *testing.T) {
 func TestContradicted_FindsATiedMemberTakingWhatItsReportsSayLost(t *testing.T) {
 	t.Parallel()
 	const (
-		member = "p/composed/components/schemas/AB/allOf/properties/p"
+		member = "property/composed/components/schemas/AB/allOf/properties/p"
 		alpha  = "/components/schemas/alpha/properties/p"
 		beta   = "/components/schemas/beta/properties/p"
 		q      = "/components/schemas/alpha/properties/q"
@@ -368,7 +368,7 @@ func TestContradicted_FindsATiedMemberTakingWhatItsReportsSayLost(t *testing.T) 
 		out.Types[abID] = &m
 		return &out
 	}
-	wrongWritten, wrongReversed := swapped(first, "t/prim/string"), swapped(second, "t/prim/integer")
+	wrongWritten, wrongReversed := swapped(first, "type/primitive/string"), swapped(second, "type/primitive/integer")
 	stated := func(lost, kept, of string) []fact {
 		facts, _ := factsOf([]report{conflictAt(perm.written, lost, []string{kept}, of)}, perm.written)
 		return facts
@@ -384,14 +384,14 @@ func TestContradicted_FindsATiedMemberTakingWhatItsReportsSayLost(t *testing.T) 
 		"the kept type in each order":      {first: first, second: second, stated: stated(alpha, beta, member), tied: tied},
 		"the loser's type as written only": {first: wrongWritten, second: second, stated: stated(alpha, beta, member), tied: tied},
 		"no tie":                           {first: wrongWritten, second: wrongReversed, stated: stated(alpha, beta, member)},
-		"a member no tie decided":          {first: wrongWritten, second: wrongReversed, stated: stated(alpha, beta, member), tied: []string{"p/other"}},
+		"a member no tie decided":          {first: wrongWritten, second: wrongReversed, stated: stated(alpha, beta, member), tied: []string{"property/other"}},
 		"a place no declaration is at":     {first: wrongWritten, second: wrongReversed, stated: stated("/elsewhere", beta, member), tied: tied},
 		"a kept place no declaration is at": {
 			first: wrongWritten, second: wrongReversed, stated: stated(alpha, "/elsewhere", member), tied: tied,
 		},
 		"two declarations of one type": {
-			first: first, second: second, tied: []string{"p/composed/components/schemas/AB/allOf/properties/q"},
-			stated: stated(q, "/components/schemas/beta/properties/q", "p/composed/components/schemas/AB/allOf/properties/q"),
+			first: first, second: second, tied: []string{"property/composed/components/schemas/AB/allOf/properties/q"},
+			stated: stated(q, "/components/schemas/beta/properties/q", "property/composed/components/schemas/AB/allOf/properties/q"),
 		},
 		"a document that did not compile": {second: wrongReversed, stated: stated(alpha, beta, member), tied: tied},
 	} {
@@ -401,8 +401,8 @@ func TestContradicted_FindsATiedMemberTakingWhatItsReportsSayLost(t *testing.T) 
 			continue
 		}
 		require.Len(t, got, 1, name)
-		assert.Equal(t, member+` takes in each order the type of the declaration its report says lost: "t/prim/string false" as written, at `+
-			alpha+`, and "t/prim/integer false" reversed, at `+beta, got[0], name)
+		assert.Equal(t, member+` takes in each order the type of the declaration its report says lost: "type/primitive/string false" as written, at `+
+			alpha+`, and "type/primitive/integer false" reversed, at `+beta, got[0], name)
 	}
 }
 
@@ -512,7 +512,7 @@ func said(doc *ir.Document, id ir.TypeID, depth int) string {
 		slices.Sort(members)
 		return "model{" + strings.Join(members, ",") + "}"
 	case *ir.List:
-		return "list<" + said(doc, td.Elem.Target, depth+1) + ">"
+		return "list<" + said(doc, td.ElementType.Target, depth+1) + ">"
 	default:
 		return string(id)
 	}
@@ -640,7 +640,7 @@ func refTo(name string) map[string]any { return map[string]any{"$ref": "#/compon
 // removes none.
 func TestStatedAlone_LeavesOutWhatAnotherTieReaches(t *testing.T) {
 	t.Parallel()
-	stated := []string{"p/M/p", "p/Q/q"}
+	stated := []string{"property/M/p", "property/Q/q"}
 	for name, tc := range map[string]struct {
 		moved tieSites
 		tied  []string
@@ -648,15 +648,15 @@ func TestStatedAlone_LeavesOutWhatAnotherTieReaches(t *testing.T) {
 		want  []string
 	}{
 		"nothing else":                    {tied: stated, doc: settledDoc(), want: stated},
-		"a moved report names one":        {moved: tieSites{nodes: []string{"p/Q/q"}}, tied: stated, doc: settledDoc(), want: []string{"p/M/p"}},
-		"a moved report sits over one":    {moved: tieSites{pointers: []string{"/Q"}}, tied: stated, doc: settledDoc(), want: []string{"p/M/p"}},
-		"one overrides a tied member":     {tied: []string{"p/AB/p", "p/M/p", "p/Q/q"}, doc: settledDoc(), want: []string{"p/Q/q"}},
-		"a document that did not compile": {moved: tieSites{nodes: []string{"p/Q/q"}}, tied: stated, want: stated},
+		"a moved report names one":        {moved: tieSites{nodes: []string{"property/Q/q"}}, tied: stated, doc: settledDoc(), want: []string{"property/M/p"}},
+		"a moved report sits over one":    {moved: tieSites{pointers: []string{"/Q"}}, tied: stated, doc: settledDoc(), want: []string{"property/M/p"}},
+		"one overrides a tied member":     {tied: []string{"property/AB/p", "property/M/p", "property/Q/q"}, doc: settledDoc(), want: []string{"property/Q/q"}},
+		"a document that did not compile": {moved: tieSites{nodes: []string{"property/Q/q"}}, tied: stated, want: stated},
 	} {
 		assert.Equal(t, tc.want, statedAlone(stated, tc.moved, tc.tied, tc.doc, nil), name)
 	}
 	assert.Empty(t, statedAlone(nil, tieSites{}, nil, settledDoc(), nil))
-	assert.Equal(t, []string{"p/M/p", "p/Q/q"}, stated, "the members handed in are left as they were")
+	assert.Equal(t, []string{"property/M/p", "property/Q/q"}, stated, "the members handed in are left as they were")
 }
 
 // TestDiagnosticKey_ReadsWhatElseADiagnosticConcerns pins that both order
@@ -669,7 +669,7 @@ func TestDiagnosticKey_ReadsWhatElseADiagnosticConcerns(t *testing.T) {
 		d := diagnostic(ir.SeverityWarning, "x/conflict", "/A/p", "")
 		d.Related = []ir.Related{
 			{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/B/p"}},
-			{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/M/p"}},
+			{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/M/p"}},
 		}
 		return d
 	}
@@ -679,7 +679,7 @@ func TestDiagnosticKey_ReadsWhatElseADiagnosticConcerns(t *testing.T) {
 		"no entries": func(d *ir.Diagnostic) { d.Related = nil },
 		"role":       func(d *ir.Diagnostic) { d.Related[0].Role = ir.RelatedDecided },
 		"pointer":    func(d *ir.Diagnostic) { d.Related[0].Provenance.Pointer = "/C/p" },
-		"node":       func(d *ir.Diagnostic) { d.Related[1].Provenance.Node = "p/N/p" },
+		"node":       func(d *ir.Diagnostic) { d.Related[1].Provenance.Node = "property/N/p" },
 		"source":     func(d *ir.Diagnostic) { d.Related[0].Provenance.Source = 1 },
 		"writer":     func(d *ir.Diagnostic) { d.Related[0].Provenance.WrittenBy = 1 },
 		"positioned": func(d *ir.Diagnostic) { d.Related[0].Provenance.Position = ir.Position{Line: 1} },

@@ -21,7 +21,7 @@ import (
 func TestValidate_AParameterNoBindingPlacesIsUnbound(t *testing.T) {
 	t.Parallel()
 	const unbound, mismatch = "pass/param-unbound", "pass/param-binding-mismatch"
-	param := ir.Parameter{ID: "param/x/op/q", Name: ir.Naming{Source: "q"}}
+	param := ir.Parameter{ID: "parameter/x/op/q", Name: ir.Naming{Source: "q"}}
 
 	op := paramBindingOp("op", param)
 	op.Bindings.HTTP[0].ParamBindings = nil
@@ -44,7 +44,7 @@ func TestValidate_AParameterNoBindingPlacesIsUnbound(t *testing.T) {
 // always has, and no unbound warning, since the parameter is placed.
 func TestValidate_AParameterPlacedTwiceIsAMismatchAndNotUnbound(t *testing.T) {
 	t.Parallel()
-	op := paramBindingOp("op", ir.Parameter{ID: "param/x/op/q", Name: ir.Naming{Source: "q"}})
+	op := paramBindingOp("op", ir.Parameter{ID: "parameter/x/op/q", Name: ir.Naming{Source: "q"}})
 	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings, op.Bindings.HTTP[0].ParamBindings[0])
 
 	diags := validated(t, docWithOperation(op))

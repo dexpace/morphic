@@ -108,8 +108,8 @@ func TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter(t *tes
 	assert.Empty(t, found)
 	require.Len(t, op.ParamChoices, 1)
 	assert.True(t, op.ParamChoices[0].Required)
-	assert.Equal(t, []ir.ParamID{"param/openapi/paths/~1r/get/parameters/req/query",
-		"param/openapi/paths/~1r/get/parameters/a/query"}, op.ParamChoices[0].Variants[0].Params)
+	assert.Equal(t, []ir.ParameterID{"parameter/openapi/paths/~1r/get/parameters/req/query",
+		"parameter/openapi/paths/~1r/get/parameters/a/query"}, op.ParamChoices[0].Variants[0].Params)
 }
 
 // TestPromote_ReadsNoKeyThatIsNoObject pins that a key holding no object of

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "PathItemOperations",
         "canonical": "path_item_operations"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1index/post",
+              "id": "operation/openapi/paths/~1index/post",
               "name": {
                 "source": "subscribeIndex",
                 "canonical": "subscribe_index"
@@ -95,7 +95,7 @@
                         "name": "onEvent",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
-                          "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
+                          "operation/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
                         ]
                       }
                     ],
@@ -110,7 +110,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE",
+              "id": "operation/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE",
               "name": {
                 "source": "purgeCallback",
                 "canonical": "purge_callback"
@@ -153,7 +153,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1index/query",
+              "id": "operation/openapi/paths/~1index/query",
               "name": {
                 "source": "queryIndex",
                 "canonical": "query_index"
@@ -164,7 +164,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/paths/~1index/query/requestBody/content/application~1json/schema",
+                      "target": "type/anonymous/paths/~1index/query/requestBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -210,7 +210,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1index/additionalOperations/PURGE",
+              "id": "operation/openapi/paths/~1index/additionalOperations/PURGE",
               "name": {
                 "source": "purgeIndex",
                 "canonical": "purge_index"
@@ -252,7 +252,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1index/additionalOperations/mIxEdCase",
+              "id": "operation/openapi/paths/~1index/additionalOperations/mIxEdCase",
               "name": {
                 "source": "mixedCaseIndex",
                 "canonical": "mixed_case_index"
@@ -296,14 +296,14 @@
           ]
         },
         {
-          "id": "g/webhooks",
+          "id": "operation-group/webhooks",
           "name": {
             "hint": "webhooks"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/webhooks/cacheFlushed/additionalOperations/FLUSH",
+              "id": "operation/openapi/webhooks/cacheFlushed/additionalOperations/FLUSH",
               "name": {
                 "source": "onFlush",
                 "canonical": "on_flush"
@@ -357,9 +357,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1index/query/requestBody/content/application~1json/schema": {
+    "type/anonymous/paths/~1index/query/requestBody/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1index/query/requestBody/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1index/query/requestBody/content/application~1json/schema",
       "name": {
         "hint": "query_index_request"
       },
@@ -372,21 +372,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1index/query/requestBody/content/application~1json/schema/properties/q",
+          "id": "property/openapi/paths/~1index/query/requestBody/content/application~1json/schema/properties/q",
           "name": {
             "source": "q",
             "canonical": "q"
           },
           "wireName": "q",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -403,9 +403,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -413,7 +413,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

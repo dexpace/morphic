@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "PathItemDocs",
         "canonical": "path_item_docs"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1pets/get",
+              "id": "operation/openapi/paths/~1pets/get",
               "name": {
                 "source": "listPets",
                 "canonical": "list_pets"
@@ -108,7 +108,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1pets/post",
+              "id": "operation/openapi/paths/~1pets/post",
               "name": {
                 "source": "createPet",
                 "canonical": "create_pet"
@@ -148,7 +148,7 @@
                         "name": "onCreated",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
-                          "op/openapi/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post"
+                          "operation/openapi/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post"
                         ]
                       }
                     ],
@@ -163,7 +163,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post",
+              "id": "operation/openapi/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post",
               "name": {
                 "source": "onPetCreated",
                 "canonical": "on_pet_created"
@@ -212,14 +212,14 @@
           ]
         },
         {
-          "id": "g/webhooks",
+          "id": "operation-group/webhooks",
           "name": {
             "hint": "webhooks"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/webhooks/petDeleted/post",
+              "id": "operation/openapi/webhooks/petDeleted/post",
               "name": {
                 "source": "onPetDeleted",
                 "canonical": "on_pet_deleted"

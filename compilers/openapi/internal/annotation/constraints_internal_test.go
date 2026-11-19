@@ -113,8 +113,8 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 	assert.Equal(t, new(int64(2)), got.MinLength)
 	assert.Equal(t, new(int64(8)), got.MaxLength)
 	assert.Equal(t, "^a", got.Pattern)
-	assert.Equal(t, new(int64(1)), got.MinProps)
-	assert.Equal(t, new(int64(4)), got.MaxProps)
+	assert.Equal(t, new(int64(1)), got.MinProperties)
+	assert.Equal(t, new(int64(4)), got.MaxProperties)
 }
 
 // TestConstraints_NothingDeclaredIsNilNotEmpty pins the emptiness check. An

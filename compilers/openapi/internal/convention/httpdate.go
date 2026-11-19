@@ -85,7 +85,7 @@ func headerName(ix compileddoc.ParamIndex, p *ir.Parameter) (string, bool) {
 // none of them names an encoding for.
 func instant(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) bool {
 	ch, ok := readChain(p, reg, id)
-	return ok && !ch.encoded && ch.prim == ir.PrimDatetimeOffset
+	return ok && !ch.encoded && ch.prim == ir.PrimitiveDatetimeOffset
 }
 
 // httpDateField reports whether name, compared without case as HTTP compares a

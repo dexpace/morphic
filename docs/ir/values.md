@@ -8,19 +8,19 @@ separate from the type graph (TypeSpec's Type-vs-Value split):
 ```go
 type Value struct {
     Kind ValueKind        // "null" | "bool" | "string" | "number" | "bytes" | "symbol" |
-                          // "list" | "object" | "ref" | "ctor" | "inf" | "neginf" | "nan"
+                          // "list" | "object" | "reference" | "constructor" | "infinity" | "negative-infinity" | "nan"
     Bool   bool
-    Str    string         // payload for "string" AND "symbol"
-    Num    BigVal         // arbitrary precision, decimal string form
+    String    string         // payload for "string" AND "symbol"
+    Number    BigVal         // arbitrary precision, decimal string form
     Bytes  []byte         // base64 in JSON form
     List   []Value
     Object []Field        // ordered; Field{Name string; Value Value}
     Ref    *ValueRef      // reference to a declared constant: {Type TypeID; Member string}
                           // (TypeSpec enum-member defaults, references to named consts)
-    Ctor   *CtorValue     // constructor-built value (TypeSpec scalar constructors)
+    Constructor   *ConstructorValue     // constructor-built value (TypeSpec scalar constructors)
 }
 
-type CtorValue struct {
+type ConstructorValue struct {
     Scalar TypeID         // the scalar whose constructor is invoked
     Name   string         // constructor name ("fromISO", "now", custom inits)
     Args   []Value
@@ -37,7 +37,7 @@ key](./enums.md#member-identity) (`ir.Decimal.String`) all derive from it.
 
 `symbol` is an interned-symbol value distinct from `string` (Erlang atoms: on the native wire
 `ok` ≠ `<<"ok">>`). Emitters without a symbol concept render symbols as strings — explicitly,
-not accidentally. `ctor` captures values built by named scalar constructors
+not accidentally. `constructor` captures values built by named scalar constructors
 (`utcDateTime.now()`, `plainDate.fromISO("2024-05-06")`) — inherently non-literal, so compilers
 must not fold them.
 
@@ -45,7 +45,7 @@ must not fold them.
 payload. A protobuf field may default to `inf`, `-inf` or `nan`, and every target language with an
 IEEE float type has a constant for each, so a source stating one is lossless only if the value
 channel can too. They are kinds rather than a flag on `number`, so a consumer switching on `Kind`
-meets them as kinds it must handle, never as a `number` whose `Num` is empty; a NaN keeps no payload
+meets them as kinds it must handle, never as a `number` whose `Number` is empty; a NaN keeps no payload
 bits, which no source format states. Keeping the decimal channel finite is still the rule:
 `BigVal` stays a JSON number, and `ir.Decimal` never reads one of these. No JSON instance is
 non-finite, so no OpenAPI or AsyncAPI document lowers to them.

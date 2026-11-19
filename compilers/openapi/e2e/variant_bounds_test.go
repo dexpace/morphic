@@ -35,8 +35,8 @@ var variantBounds = []variantBound{
 	{keyword: "multipleOf", field: "multipleOf"},
 	{keyword: "minItems", field: "minItems"},
 	{keyword: "uniqueItems", field: "uniqueItems"},
-	{keyword: "minProperties", field: "minProps", model: true},
-	{keyword: "maxProperties", field: "maxProps", model: true},
+	{keyword: "minProperties", field: "minProperties", model: true},
+	{keyword: "maxProperties", field: "maxProperties", model: true},
 }
 
 // variantBranch is a branch of the union the cases distribute: the component
@@ -189,8 +189,8 @@ func TestVariantBounds_ABoundNoVariantTakesIsKeptOnceOnTheUnion(t *testing.T) {
 										}
 									}
 									if b.name == "A" {
-										assert.EqualValues(t, 1, held["minProps"], "A holds minProperties at %s", at)
-										assert.EqualValues(t, 5, held["maxProps"], "A holds maxProperties at %s", at)
+										assert.EqualValues(t, 1, held["minProperties"], "A holds minProperties at %s", at)
+										assert.EqualValues(t, 5, held["maxProperties"], "A holds maxProperties at %s", at)
 									}
 								}
 							}
@@ -217,7 +217,7 @@ func TestVariantBounds_AnObjectBoundBesideObjectBranchesLandsOnEveryVariant(t *t
 			for _, at := range conjunctionPositions {
 				union := variantUnionAt(t, doc, string(at), len(objects))
 				for j := range objects {
-					assert.Equal(t, map[string]any{"minProps": 1.0, "maxProps": 5.0},
+					assert.Equal(t, map[string]any{"minProperties": 1.0, "maxProperties": 5.0},
 						variantConstraints(t, doc, union.Variants[j].Type.Target), "variant %d at %s", j, at)
 				}
 			}
@@ -236,7 +236,7 @@ func TestVariantBounds_ATypeListHoldsEachBoundOnTheVariantOfItsKind(t *testing.T
 	for _, at := range conjunctionPositions {
 		union := variantUnionAt(t, doc, string(at), 3)
 		assert.Empty(t, keptOn(union), at)
-		want := []map[string]any{{"minLength": 1.0}, {"min": "2"}, {"minProps": 1.0}}
+		want := []map[string]any{{"minLength": 1.0}, {"min": "2"}, {"minProperties": 1.0}}
 		for j, w := range want {
 			assert.Equal(t, w, variantConstraints(t, doc, union.Variants[j].Type.Target), "variant %d at %s", j, at)
 		}
@@ -279,7 +279,7 @@ func TestVariantBounds_AVariantHoldsOnlyTheBoundsItsBranchTakes(t *testing.T) {
 							for _, at := range conjunctionPositions {
 								union := variantUnionAt(t, doc, string(at), len(live))
 								for j, b := range live {
-									assert.Equal(t, map[string]any{"minProps": 1.0, "maxProps": 5.0},
+									assert.Equal(t, map[string]any{"minProperties": 1.0, "maxProperties": 5.0},
 										variantConstraints(t, doc, union.Variants[j].Type.Target),
 										"the bounds of the variant over %s at %s", b.name, at)
 								}
@@ -316,7 +316,7 @@ func TestVariantBounds_ABoundOfAKindNoBranchTakesIsNotLostToTheVariants(t *testi
 					union := variantUnionAt(t, doc, string(at), 1)
 					assert.Equal(t, entryKept(append(deadKeys("oneOf", branches), "openapi:minLength")...), keptOn(union),
 						"kept at %s", at)
-					assert.Equal(t, map[string]any{"minProps": 1.0}, variantConstraints(t, doc, union.Variants[0].Type.Target),
+					assert.Equal(t, map[string]any{"minProperties": 1.0}, variantConstraints(t, doc, union.Variants[0].Type.Target),
 						"the variant over A at %s", at)
 					assert.Equal(t, ir.KindUnion, kindNode(t, doc, usedAt(t, doc, at)).Kind(), at)
 				}
@@ -329,8 +329,8 @@ func TestVariantBounds_ABoundOfAKindNoBranchTakesIsNotLostToTheVariants(t *testi
 // an object, and the object variant of each type list holding one.
 var variantBases = map[string]ir.TypeID{
 	"A":  componentID("A"),
-	"AS": "t/anon/components/schemas/AS/type/0",
-	"AI": "t/anon/components/schemas/AI/type/0",
+	"AS": "type/anonymous/components/schemas/AS/type/0",
+	"AI": "type/anonymous/components/schemas/AI/type/0",
 }
 
 // keptBranches counts the branches no variant composes (variantBases).

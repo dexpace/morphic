@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "StreamingMedia31",
         "canonical": "streaming_media_31"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1ingest/post",
+              "id": "operation/openapi/paths/~1ingest/post",
               "name": {
                 "source": "ingestRows",
                 "canonical": "ingest_rows"
@@ -70,7 +70,7 @@
                   {
                     "mediaType": "application/x-ndjson",
                     "type": {
-                      "target": "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
+                      "target": "type/anonymous/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
                       "nullable": false
                     },
                     "stream": {
@@ -98,7 +98,7 @@
                       {
                         "mediaType": "text/event-stream; charset=utf-8",
                         "type": {
-                          "target": "t/anon/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
+                          "target": "type/anonymous/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
                           "nullable": false
                         },
                         "stream": {
@@ -113,17 +113,17 @@
                 }
               ],
               "oneWay": false,
-              "streaming": "bidi",
+              "streaming": "bidirectional",
               "requestStream": {
                 "events": {
-                  "target": "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
+                  "target": "type/anonymous/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
                   "nullable": false
                 },
                 "requiresLength": false
               },
               "responseStream": {
                 "events": {
-                  "target": "t/anon/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
+                  "target": "type/anonymous/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -149,7 +149,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1upload/post",
+              "id": "operation/openapi/paths/~1upload/post",
               "name": {
                 "source": "uploadRows",
                 "canonical": "upload_rows"
@@ -160,7 +160,7 @@
                   {
                     "mediaType": "application/x-ndjson",
                     "type": {
-                      "target": "t/openapi/components/schemas/Frame",
+                      "target": "type/openapi/components/schemas/Frame",
                       "nullable": false
                     },
                     "stream": {
@@ -192,7 +192,7 @@
               "streaming": "client",
               "requestStream": {
                 "events": {
-                  "target": "t/openapi/components/schemas/Frame",
+                  "target": "type/openapi/components/schemas/Frame",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -218,7 +218,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1mixed/get",
+              "id": "operation/openapi/paths/~1mixed/get",
               "name": {
                 "source": "streamEither",
                 "canonical": "stream_either"
@@ -242,7 +242,7 @@
                       {
                         "mediaType": "application/x-ndjson",
                         "type": {
-                          "target": "t/anon/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema",
+                          "target": "type/anonymous/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema",
                           "nullable": false
                         },
                         "stream": {
@@ -252,7 +252,7 @@
                       {
                         "mediaType": "application/jsonl",
                         "type": {
-                          "target": "t/anon/paths/~1mixed/get/responses/200/content/application~1jsonl/schema",
+                          "target": "type/anonymous/paths/~1mixed/get/responses/200/content/application~1jsonl/schema",
                           "nullable": false
                         },
                         "stream": {
@@ -289,7 +289,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1negotiated/get",
+              "id": "operation/openapi/paths/~1negotiated/get",
               "name": {
                 "source": "streamNegotiated",
                 "canonical": "stream_negotiated"
@@ -313,7 +313,7 @@
                       {
                         "mediaType": "text/event-stream",
                         "type": {
-                          "target": "t/openapi/components/schemas/Frame",
+                          "target": "type/openapi/components/schemas/Frame",
                           "nullable": false
                         },
                         "stream": {
@@ -323,7 +323,7 @@
                       {
                         "mediaType": "application/x-ndjson",
                         "type": {
-                          "target": "t/openapi/components/schemas/Frame",
+                          "target": "type/openapi/components/schemas/Frame",
                           "nullable": false
                         },
                         "stream": {
@@ -341,7 +341,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/openapi/components/schemas/Frame",
+                  "target": "type/openapi/components/schemas/Frame",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -364,7 +364,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1feed/get",
+              "id": "operation/openapi/paths/~1feed/get",
               "name": {
                 "source": "streamFeed",
                 "canonical": "stream_feed"
@@ -388,7 +388,7 @@
                       {
                         "mediaType": "application/x-ndjson",
                         "type": {
-                          "target": "t/anon/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema",
+                          "target": "type/anonymous/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema",
                           "nullable": false
                         },
                         "stream": {
@@ -398,7 +398,7 @@
                       {
                         "mediaType": "text/event-stream",
                         "type": {
-                          "target": "t/openapi/components/schemas/Frame",
+                          "target": "type/openapi/components/schemas/Frame",
                           "nullable": false
                         },
                         "stream": {
@@ -416,7 +416,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/openapi/components/schemas/Frame",
+                  "target": "type/openapi/components/schemas/Frame",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -439,7 +439,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1metrics/get",
+              "id": "operation/openapi/paths/~1metrics/get",
               "name": {
                 "source": "tailMetrics",
                 "canonical": "tail_metrics"
@@ -463,14 +463,14 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Frame",
+                          "target": "type/openapi/components/schemas/Frame",
                           "nullable": false
                         }
                       },
                       {
                         "mediaType": "text/event-stream",
                         "type": {
-                          "target": "t/openapi/components/schemas/Frame",
+                          "target": "type/openapi/components/schemas/Frame",
                           "nullable": false
                         },
                         "stream": {
@@ -502,7 +502,7 @@
                       {
                         "mediaType": "text/event-stream",
                         "type": {
-                          "target": "t/openapi/components/schemas/Frame",
+                          "target": "type/openapi/components/schemas/Frame",
                           "nullable": false
                         },
                         "stream": {
@@ -534,14 +534,14 @@
                     {
                       "mediaType": "application/json",
                       "type": {
-                        "target": "t/openapi/components/schemas/Frame",
+                        "target": "type/openapi/components/schemas/Frame",
                         "nullable": false
                       }
                     },
                     {
                       "mediaType": "application/x-ndjson",
                       "type": {
-                        "target": "t/openapi/components/schemas/Frame",
+                        "target": "type/openapi/components/schemas/Frame",
                         "nullable": false
                       },
                       "stream": {
@@ -558,7 +558,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/openapi/components/schemas/Frame",
+                  "target": "type/openapi/components/schemas/Frame",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -581,7 +581,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1sequence/get",
+              "id": "operation/openapi/paths/~1sequence/get",
               "name": {
                 "source": "streamSequence",
                 "canonical": "stream_sequence"
@@ -605,7 +605,7 @@
                       {
                         "mediaType": "application/json-seq",
                         "type": {
-                          "target": "t/openapi/components/schemas/Frame",
+                          "target": "type/openapi/components/schemas/Frame",
                           "nullable": false
                         },
                         "stream": {
@@ -623,7 +623,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/openapi/components/schemas/Frame",
+                  "target": "type/openapi/components/schemas/Frame",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -646,7 +646,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1sequence-suffix/post",
+              "id": "operation/openapi/paths/~1sequence-suffix/post",
               "name": {
                 "source": "uploadSequence",
                 "canonical": "upload_sequence"
@@ -657,7 +657,7 @@
                   {
                     "mediaType": "application/geo+json-seq",
                     "type": {
-                      "target": "t/openapi/components/schemas/Frame",
+                      "target": "type/openapi/components/schemas/Frame",
                       "nullable": false
                     },
                     "stream": {
@@ -689,7 +689,7 @@
               "streaming": "client",
               "requestStream": {
                 "events": {
-                  "target": "t/openapi/components/schemas/Frame",
+                  "target": "type/openapi/components/schemas/Frame",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -726,9 +726,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema": {
+    "type/anonymous/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema": {
       "kind": "list",
-      "id": "t/anon/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema",
+      "id": "type/anonymous/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema",
       "name": {
         "hint": "response"
       },
@@ -739,14 +739,14 @@
         "source": 0,
         "pointer": "/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema"
       },
-      "elem": {
-        "target": "t/openapi/components/schemas/Frame",
+      "elementType": {
+        "target": "type/openapi/components/schemas/Frame",
         "nullable": false
       }
     },
-    "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema": {
+    "type/anonymous/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
+      "id": "type/anonymous/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
       "name": {
         "hint": "ingest_rows_request"
       },
@@ -759,21 +759,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema/properties/row",
+          "id": "property/openapi/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema/properties/row",
           "name": {
             "source": "row",
             "canonical": "row"
           },
           "wireName": "row",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -790,9 +790,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema": {
+    "type/anonymous/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
+      "id": "type/anonymous/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
       "name": {
         "hint": "response"
       },
@@ -805,21 +805,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema/properties/ack",
+          "id": "property/openapi/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema/properties/ack",
           "name": {
             "source": "ack",
             "canonical": "ack"
           },
           "wireName": "ack",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -836,9 +836,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1mixed/get/responses/200/content/application~1jsonl/schema": {
+    "type/anonymous/paths/~1mixed/get/responses/200/content/application~1jsonl/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1mixed/get/responses/200/content/application~1jsonl/schema",
+      "id": "type/anonymous/paths/~1mixed/get/responses/200/content/application~1jsonl/schema",
       "name": {
         "hint": "response"
       },
@@ -851,21 +851,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1mixed/get/responses/200/content/application~1jsonl/schema/properties/line",
+          "id": "property/openapi/paths/~1mixed/get/responses/200/content/application~1jsonl/schema/properties/line",
           "name": {
             "source": "line",
             "canonical": "line"
           },
           "wireName": "line",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -882,9 +882,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema": {
+    "type/anonymous/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema",
+      "id": "type/anonymous/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema",
       "name": {
         "hint": "response"
       },
@@ -897,21 +897,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema/properties/row",
+          "id": "property/openapi/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema/properties/row",
           "name": {
             "source": "row",
             "canonical": "row"
           },
           "wireName": "row",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -928,9 +928,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Frame": {
+    "type/openapi/components/schemas/Frame": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Frame",
+      "id": "type/openapi/components/schemas/Frame",
       "name": {
         "source": "Frame",
         "canonical": "frame"
@@ -944,21 +944,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Frame/properties/seq",
+          "id": "property/openapi/components/schemas/Frame/properties/seq",
           "name": {
             "source": "seq",
             "canonical": "seq"
           },
           "wireName": "seq",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -975,9 +975,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -985,11 +985,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -997,7 +997,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "StreamTerminator",
         "canonical": "stream_terminator"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1chat/post",
+              "id": "operation/openapi/paths/~1chat/post",
               "name": {
                 "source": "chat",
                 "canonical": "chat"
@@ -70,7 +70,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/paths/~1chat/post/requestBody/content/application~1json/schema",
+                      "target": "type/anonymous/paths/~1chat/post/requestBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -95,14 +95,14 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1chat/post/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1chat/post/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       },
                       {
                         "mediaType": "text/event-stream",
                         "type": {
-                          "target": "t/anon/paths/~1chat/post/responses/200/content/text~1event-stream/schema",
+                          "target": "type/anonymous/paths/~1chat/post/responses/200/content/text~1event-stream/schema",
                           "nullable": false
                         },
                         "stream": {
@@ -131,7 +131,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/anon/paths/~1chat/post/responses/200/content/text~1event-stream/schema",
+                  "target": "type/anonymous/paths/~1chat/post/responses/200/content/text~1event-stream/schema",
                   "nullable": false
                 },
                 "requiresLength": false,
@@ -179,9 +179,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1chat/post/requestBody/content/application~1json/schema": {
+    "type/anonymous/paths/~1chat/post/requestBody/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1chat/post/requestBody/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1chat/post/requestBody/content/application~1json/schema",
       "name": {
         "hint": "chat_request"
       },
@@ -194,21 +194,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream",
+          "id": "property/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream",
           "name": {
             "source": "stream",
             "canonical": "stream"
           },
           "wireName": "stream",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -221,21 +221,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/prompt",
+          "id": "property/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/prompt",
           "name": {
             "source": "prompt",
             "canonical": "prompt"
           },
           "wireName": "prompt",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -252,9 +252,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1chat/post/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1chat/post/responses/200/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1chat/post/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1chat/post/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -267,21 +267,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1chat/post/responses/200/content/application~1json/schema/properties/text",
+          "id": "property/openapi/paths/~1chat/post/responses/200/content/application~1json/schema/properties/text",
           "name": {
             "source": "text",
             "canonical": "text"
           },
           "wireName": "text",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -298,9 +298,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1chat/post/responses/200/content/text~1event-stream/schema": {
+    "type/anonymous/paths/~1chat/post/responses/200/content/text~1event-stream/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1chat/post/responses/200/content/text~1event-stream/schema",
+      "id": "type/anonymous/paths/~1chat/post/responses/200/content/text~1event-stream/schema",
       "name": {
         "hint": "response"
       },
@@ -313,21 +313,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1chat/post/responses/200/content/text~1event-stream/schema/properties/delta",
+          "id": "property/openapi/paths/~1chat/post/responses/200/content/text~1event-stream/schema/properties/delta",
           "name": {
             "source": "delta",
             "canonical": "delta"
           },
           "wireName": "delta",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -344,9 +344,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/bool": {
+    "type/primitive/bool": {
       "kind": "primitive",
-      "id": "t/prim/bool",
+      "id": "type/primitive/bool",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -354,11 +354,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bool"
+      "primitiveKind": "bool"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -366,7 +366,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

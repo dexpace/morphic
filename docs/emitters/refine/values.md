@@ -1,10 +1,10 @@
 # Values
 
 `MaterializeValues` renders defaults, consts, enum values, literals, and examples as language
-literals. `Num` (`BigVal` decimal string) parses straight to the target numeric/decimal type —
+literals. `Number` (`BigVal` decimal string) parses straight to the target numeric/decimal type —
 **never through float64** ([T-5](../testing/mandatory-tests.md)). `symbol` renders as a string only
 *explicitly* and diagnosed (Erlang atoms: `ok ≠ <<"ok">>`); `Ref` renders as an `Enum.Member`
-reference, not an inlined copy; `Ctor` renders as a constructor *call* (`plainDate.fromISO(...)`),
+reference, not an inlined copy; `Constructor` renders as a constructor *call* (`plainDate.fromISO(...)`),
 never folded to a frozen literal. A value of a type only a user's type-table row knows is decoded
 from its wire form through the row's codec ([type table](../contract/type-table.md)).
 

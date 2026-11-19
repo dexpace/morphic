@@ -21,9 +21,9 @@ import (
 
 // Where instanceSpec writes its defaults.
 const (
-	carriedA     = "p/openapi/components/schemas/C/properties/a"
-	carriedB     = "p/openapi/components/schemas/C/properties/b"
-	carriedParam = "param/openapi/paths/~1c/get/parameters/q/query"
+	carriedA     = "property/openapi/components/schemas/C/properties/a"
+	carriedB     = "property/openapi/components/schemas/C/properties/b"
+	carriedParam = "parameter/openapi/paths/~1c/get/parameters/q/query"
 )
 
 // instanceSpec writes a property a defaulting to "x", a property b defaulting
@@ -65,7 +65,7 @@ func TestAdmitted_FindsTheInstancesTheirTypeExcludes(t *testing.T) {
 	outside := slices.Concat(inside, []Instance{{Node: carriedB, Valid: true, Name: "one\tnumber"}})
 	v = instanceVerdict(t, instanceCase(instanceSpec(`1`), outside...))
 	assert.Equal(t, found(OracleInstance, `"one\tnumber"`+"\n"+
-		`"one\tnumber": default is a number, and t/prim/string holds a string`), v)
+		`"one\tnumber": default is a number, and type/primitive/string holds a string`), v)
 
 	notAsked := slices.Concat(inside, []Instance{{Node: carriedB, Valid: false, Name: "one"}})
 	v = instanceVerdict(t, instanceCase(instanceSpec(`1`), notAsked...))
@@ -93,7 +93,7 @@ func TestAdmitted_DeclinesWhatItCannotAsk(t *testing.T) {
 	) (*ir.Document, []ir.Diagnostic, error) {
 		doc, diags, err := orig(ctx, sources, options, ps)
 		require.NoError(t, err)
-		m, ok := doc.Types["t/openapi/components/schemas/C"].(*ir.Model)
+		m, ok := doc.Types["type/openapi/components/schemas/C"].(*ir.Model)
 		require.True(t, ok)
 		for i := range m.Properties {
 			m.Properties[i].Default = nil
@@ -126,8 +126,8 @@ func kindSpec(schemas, props string) []byte {
 // Where kindSpec's defaults are: the property t of C, and the property m of O
 // in the row that writes it.
 const (
-	kindT = "p/openapi/components/schemas/C/properties/t"
-	kindM = "p/openapi/components/schemas/O/properties/m"
+	kindT = "property/openapi/components/schemas/C/properties/t"
+	kindM = "property/openapi/components/schemas/O/properties/m"
 )
 
 // TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred holds the verdict

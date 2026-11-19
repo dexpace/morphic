@@ -225,7 +225,7 @@ func usageFilledDocument(t *testing.T) *ir.Document {
 		for i := range op.Bindings.HTTP {
 			op.Bindings.HTTP[i].Callbacks = nil
 		}
-		op.Bindings.Message.Direction = ir.MsgDirectionSend
+		op.Bindings.Message.Direction = ir.MessageDirectionSend
 		op.Bindings.Message.Messages = []ir.MessageID{message}
 	})
 	return doc

@@ -16,11 +16,11 @@ import (
 // second model, so a walk that read no declarations would find the reference
 // dangling.
 func referringDoc() *ir.Document {
-	target := &ir.Model{ID: "t/x/Target", Name: ir.Naming{Source: "Target", Canonical: "target"}}
+	target := &ir.Model{ID: "type/x/Target", Name: ir.Naming{Source: "Target", Canonical: "target"}}
 	holder := &ir.Model{
-		ID: "t/x/Holder", Name: ir.Naming{Source: "Holder", Canonical: "holder"},
+		ID: "type/x/Holder", Name: ir.Naming{Source: "Holder", Canonical: "holder"},
 		Properties: []ir.Property{{
-			ID: "p/x/Holder/a", WireName: "a", Name: ir.Naming{Source: "a", Canonical: "a"},
+			ID: "property/x/Holder/a", WireName: "a", Name: ir.Naming{Source: "a", Canonical: "a"},
 			Type: ir.TypeRef{Target: target.ID},
 		}},
 	}

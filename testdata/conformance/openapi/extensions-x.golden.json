@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -56,7 +56,7 @@
   },
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "ExtensionsX",
         "canonical": "extensions_x"
@@ -64,7 +64,7 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/tags/t1",
+          "id": "operation-group/tags/t1",
           "name": {
             "source": "t1",
             "canonical": "t_1"
@@ -78,7 +78,7 @@
           },
           "operations": [
             {
-              "id": "op/openapi/paths/~1widgets/get",
+              "id": "operation/openapi/paths/~1widgets/get",
               "name": {
                 "source": "listWidgets",
                 "canonical": "list_widgets"
@@ -92,13 +92,13 @@
               },
               "params": [
                 {
-                  "id": "param/openapi/paths/~1widgets/get/parameters/shape/query",
+                  "id": "parameter/openapi/paths/~1widgets/get/parameters/shape/query",
                   "name": {
                     "source": "shape",
                     "canonical": "shape"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -134,21 +134,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1widgets/get/responses/200/headers/X-Rate",
+                      "id": "property/openapi/paths/~1widgets/get/responses/200/headers/X-Rate",
                       "name": {
                         "source": "X-Rate",
                         "canonical": "x_rate"
                       },
                       "wireName": "X-Rate",
                       "type": {
-                        "target": "t/prim/string",
+                        "target": "type/primitive/string",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -177,7 +177,7 @@
                         "source": "self",
                         "canonical": "self"
                       },
-                      "operation": "op/openapi/paths/~1widgets/get",
+                      "operation": "operation/openapi/paths/~1widgets/get",
                       "docs": {},
                       "provenance": {
                         "source": 0,
@@ -219,7 +219,7 @@
                         "source": "retry",
                         "canonical": "retry"
                       },
-                      "operation": "op/openapi/paths/~1widgets/get",
+                      "operation": "operation/openapi/paths/~1widgets/get",
                       "docs": {},
                       "provenance": {
                         "source": 0,
@@ -265,7 +265,7 @@
                     "uriTemplate": "/widgets",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1widgets/get/parameters/shape/query",
+                        "param": "parameter/openapi/paths/~1widgets/get/parameters/shape/query",
                         "location": "query",
                         "wireName": "shape",
                         "style": "form",
@@ -278,7 +278,7 @@
                         "name": "onEvent",
                         "expression": "{$request.body#/u}",
                         "operations": [
-                          "op/openapi/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post"
+                          "operation/openapi/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post"
                         ]
                       }
                     ],
@@ -327,7 +327,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post",
+              "id": "operation/openapi/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post",
               "name": {
                 "source": "onEventPost",
                 "canonical": "on_event_post"
@@ -382,14 +382,14 @@
           }
         },
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1widgets/post",
+              "id": "operation/openapi/paths/~1widgets/post",
               "name": {
                 "source": "createWidget",
                 "canonical": "create_widget"
@@ -397,13 +397,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1widgets/post/parameters/shape/query",
+                  "id": "parameter/openapi/paths/~1widgets/post/parameters/shape/query",
                   "name": {
                     "source": "shape",
                     "canonical": "shape"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -429,17 +429,17 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema/properties/f": {
+                      "property/openapi/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema/properties/f": {
                         "style": "form",
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": true
                       }
                     },
@@ -448,7 +448,7 @@
                         "name": "e1",
                         "value": {
                           "kind": "string",
-                          "str": "v"
+                          "string": "v"
                         },
                         "unmodeled": {
                           "openapi:x-mark": {
@@ -521,7 +521,7 @@
                     "uriTemplate": "/widgets",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1widgets/post/parameters/shape/query",
+                        "param": "parameter/openapi/paths/~1widgets/post/parameters/shape/query",
                         "location": "query",
                         "wireName": "shape",
                         "style": "form",
@@ -574,9 +574,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "create_widget_request"
       },
@@ -589,21 +589,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema/properties/f",
+          "id": "property/openapi/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema/properties/f",
           "name": {
             "source": "f",
             "canonical": "f"
           },
           "wireName": "f",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -620,9 +620,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/A": {
+    "type/openapi/components/schemas/A": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/A",
+      "id": "type/openapi/components/schemas/A",
       "name": {
         "source": "A",
         "canonical": "a"
@@ -636,21 +636,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/A/properties/k",
+          "id": "property/openapi/components/schemas/A/properties/k",
           "name": {
             "source": "k",
             "canonical": "k"
           },
           "wireName": "k",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -667,9 +667,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/D": {
+    "type/openapi/components/schemas/D": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/D",
+      "id": "type/openapi/components/schemas/D",
       "name": {
         "source": "D",
         "canonical": "d"
@@ -697,7 +697,7 @@
             "hint": "a"
           },
           "type": {
-            "target": "t/openapi/components/schemas/A",
+            "target": "type/openapi/components/schemas/A",
             "nullable": false
           },
           "docs": {}
@@ -712,9 +712,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/S": {
+    "type/openapi/components/schemas/S": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/S",
+      "id": "type/openapi/components/schemas/S",
       "name": {
         "source": "S",
         "canonical": "s"
@@ -787,21 +787,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/S/properties/a",
+          "id": "property/openapi/components/schemas/S/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -818,9 +818,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -828,7 +828,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "auth": {

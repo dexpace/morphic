@@ -53,10 +53,10 @@ func sitesOf(t *testing.T, doc *ir.Document) []boundSite {
 	return []boundSite{
 		{pointer: "/components/schemas/C", node: typeByName(doc, "C")},
 		{pointer: "/components/schemas/Holder/properties/p", carrier: true, held: p.Constraints, kept: p.Unmodeled,
-			node: owned("t/anon/components/schemas/Holder/properties/p", p.Type)},
-		{pointer: "/components/schemas/Items/items", node: doc.Types["t/anon/components/schemas/Items/items"]},
+			node: owned("type/anonymous/components/schemas/Holder/properties/p", p.Type)},
+		{pointer: "/components/schemas/Items/items", node: doc.Types["type/anonymous/components/schemas/Items/items"]},
 		{pointer: "/paths/~1a/get/parameters/0/schema", carrier: true, held: q.Constraints, kept: schemaKept(q.Unmodeled),
-			node: owned("t/anon/paths/~1a/get/parameters/0/schema", q.Type)},
+			node: owned("type/anonymous/paths/~1a/get/parameters/0/schema", q.Type)},
 	}
 }
 
@@ -104,9 +104,9 @@ func boundField(c *ir.Constraints, keyword string) bool {
 	case "pattern":
 		return c.Pattern != ""
 	case "minProperties":
-		return c.MinProps != nil
+		return c.MinProperties != nil
 	case "maxProperties":
-		return c.MaxProps != nil
+		return c.MaxProperties != nil
 	default:
 		return false
 	}
@@ -354,7 +354,7 @@ func TestConstraints_ACarrierOwningItsNodeHoldsNoBound(t *testing.T) {
 	t.Parallel()
 	for schema, want := range map[string]*ir.Constraints{
 		"{type: string, format: x-mine, maxLength: 3, minimum: 1}":     {MaxLength: new(int64(3))},
-		"{type: object, minProperties: 1, maxLength: 3}":               {MinProps: new(int64(1))},
+		"{type: object, minProperties: 1, maxLength: 3}":               {MinProperties: new(int64(1))},
 		"{oneOf: [{type: string}, {type: integer}], maxLength: 3}":     {MaxLength: new(int64(3))},
 		"{type: [string, integer], maxLength: 3, minimum: 1}":          nil,
 		"{type: [string, integer], format: x-mine, maxLength: 3}":      nil,

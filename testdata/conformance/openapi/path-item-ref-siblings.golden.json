@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "PathItemRefSiblings",
         "canonical": "path_item_ref_siblings"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1a/get",
+              "id": "operation/openapi/paths/~1a/get",
               "name": {
                 "source": "getB",
                 "canonical": "get_b"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1a/get/parameters/beside/query",
+                  "id": "parameter/openapi/paths/~1a/get/parameters/beside/query",
                   "name": {
                     "source": "beside",
                     "canonical": "beside"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -117,7 +117,7 @@
                     },
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1a/get/parameters/beside/query",
+                        "param": "parameter/openapi/paths/~1a/get/parameters/beside/query",
                         "location": "query",
                         "wireName": "beside",
                         "style": "form",
@@ -160,7 +160,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1a/put",
+              "id": "operation/openapi/paths/~1a/put",
               "name": {
                 "source": "putA",
                 "canonical": "put_a"
@@ -168,13 +168,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1a/put/parameters/beside/query",
+                  "id": "parameter/openapi/paths/~1a/put/parameters/beside/query",
                   "name": {
                     "source": "beside",
                     "canonical": "beside"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -218,7 +218,7 @@
                     },
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1a/put/parameters/beside/query",
+                        "param": "parameter/openapi/paths/~1a/put/parameters/beside/query",
                         "location": "query",
                         "wireName": "beside",
                         "style": "form",
@@ -261,7 +261,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1b/get",
+              "id": "operation/openapi/paths/~1b/get",
               "name": {
                 "source": "getB",
                 "canonical": "get_b"
@@ -314,9 +314,9 @@
     }
   ],
   "types": {
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -324,7 +324,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

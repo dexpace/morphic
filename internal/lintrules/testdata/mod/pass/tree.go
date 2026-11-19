@@ -81,7 +81,7 @@ func Tree(doc *ir.Document, op ir.Operation, seq iter.Seq[ir.Operation]) *ir.Ope
 	for _, o := range ops {
 		o.Docs.Summary = "a copy of its own"
 	}
-	ids := make([]ir.OpID, 0, len(ops))
+	ids := make([]ir.OperationID, 0, len(ops))
 	ids = append(ids, op.ID)
 	keepAny(ids)
 	_ = slices.Contains(ids, op.ID)

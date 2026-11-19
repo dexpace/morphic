@@ -46,7 +46,7 @@ components:
 // TestPathItem_RefSharedAcrossMountsKeepsDistinctOpIDs is the fix's core
 // scenario for a referenced path item (issue #107): two paths mounting one
 // #/components/pathItems/Shared must keep distinct operation identities —
-// they are different URI templates, so they must never collide on one OpID
+// they are different URI templates, so they must never collide on one OperationID
 // (issue #36's risk otherwise) — while the shared parameter, request, and
 // response schemas each intern once, at the shared component's own pointer.
 func TestPathItem_RefSharedAcrossMountsKeepsDistinctOpIDs(t *testing.T) {
@@ -56,25 +56,25 @@ func TestPathItem_RefSharedAcrossMountsKeepsDistinctOpIDs(t *testing.T) {
 	opA := opByPath(t, doc, "GET", "/a")
 	opB := opByPath(t, doc, "GET", "/b")
 
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/get"), opA.ID)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1b/get"), opB.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1a/get"), opA.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1b/get"), opB.ID)
 	assert.NotEqual(t, opA.ID, opB.ID, "operations keep use-site identity")
 
 	require.Len(t, opA.Params, 1)
 	require.Len(t, opB.Params, 1)
-	wantParamID := ir.TypeID("t/anon/components/pathItems/Shared/parameters/0/schema")
+	wantParamID := ir.TypeID("type/anonymous/components/pathItems/Shared/parameters/0/schema")
 	assert.Equal(t, wantParamID, opA.Params[0].Type.Target)
 	assert.Equal(t, wantParamID, opB.Params[0].Type.Target, "the shared path-item parameter interns once")
 
 	require.NotNil(t, opA.Request)
 	require.NotNil(t, opB.Request)
-	wantReqID := ir.TypeID("t/anon/components/pathItems/Shared/get/requestBody/content/application~1json/schema")
+	wantReqID := ir.TypeID("type/anonymous/components/pathItems/Shared/get/requestBody/content/application~1json/schema")
 	assert.Equal(t, wantReqID, opA.Request.Contents[0].Type.Target)
 	assert.Equal(t, wantReqID, opB.Request.Contents[0].Type.Target, "the shared inline request schema interns once")
 
 	require.Len(t, opA.Responses, 1)
 	require.Len(t, opB.Responses, 1)
-	wantRespID := ir.TypeID("t/anon/components/pathItems/Shared/get/responses/200/content/application~1json/schema")
+	wantRespID := ir.TypeID("type/anonymous/components/pathItems/Shared/get/responses/200/content/application~1json/schema")
 	assert.Equal(t, wantRespID, opA.Responses[0].Payload.Contents[0].Type.Target)
 	assert.Equal(t, wantRespID, opB.Responses[0].Payload.Contents[0].Type.Target,
 		"the shared inline response schema interns once")
@@ -357,15 +357,15 @@ func TestPathItem_AdditionalOperationsLowerOnEveryRoute(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, tc := range []struct{ op, method, id string }{
-		{"queryP", "QUERY", "op/openapi/paths/~1p/query"},
-		{"purgeP", "PURGE", "op/openapi/paths/~1p/additionalOperations/PURGE"},
-		{"purgeVerbatim", "lowercase-purge", "op/openapi/paths/~1p/additionalOperations/lowercase-purge"},
-		{"flushHook", "FLUSH", "op/openapi/webhooks/hooked/additionalOperations/FLUSH"},
+		{"queryP", "QUERY", "operation/openapi/paths/~1p/query"},
+		{"purgeP", "PURGE", "operation/openapi/paths/~1p/additionalOperations/PURGE"},
+		{"purgeVerbatim", "lowercase-purge", "operation/openapi/paths/~1p/additionalOperations/lowercase-purge"},
+		{"flushHook", "FLUSH", "operation/openapi/webhooks/hooked/additionalOperations/FLUSH"},
 		{"purgeCallback", "PURGE",
-			"op/openapi/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/additionalOperations/PURGE"},
+			"operation/openapi/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/additionalOperations/PURGE"},
 	} {
 		op := openapitest.FindOp(t, doc, tc.op)
-		assert.Equal(t, ir.OpID(tc.id), op.ID, "%s is identified by where it is written", tc.op)
+		assert.Equal(t, ir.OperationID(tc.id), op.ID, "%s is identified by where it is written", tc.op)
 		require.Len(t, op.Bindings.HTTP, 1)
 		assert.Equal(t, tc.method, op.Bindings.HTTP[0].Method,
 			"%s binds the method key as the source spelled it", tc.op)
@@ -399,7 +399,7 @@ func TestPathItem_AdditionalOperationsBindCallbacks(t *testing.T) {
 	parent := openapitest.FindOp(t, doc, "postP")
 	require.Len(t, parent.Bindings.HTTP, 1)
 	require.Len(t, parent.Bindings.HTTP[0].Callbacks, 1)
-	assert.Equal(t, []ir.OpID{openapitest.FindOp(t, doc, "purgeCallback").ID},
+	assert.Equal(t, []ir.OperationID{openapitest.FindOp(t, doc, "purgeCallback").ID},
 		parent.Bindings.HTTP[0].Callbacks[0].Operations)
 }
 
@@ -427,7 +427,7 @@ paths:
 	op := openapitest.FindOp(t, doc, "nameless")
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.Empty(t, op.Bindings.HTTP[0].Method, "the key binds as written, empty or not")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1p/additionalOperations/"), op.ID,
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1p/additionalOperations/"), op.ID,
 		"and the operation is still mounted where the source writes it")
 
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.InvalidMethodKey, "/paths/~1p/additionalOperations/"),
@@ -705,7 +705,7 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 	assert.Empty(t, keys,
 		"the rule table reports each undeclared key once, so the lowering reports none however many operations hold it")
 
-	ops := map[ir.OpID]ir.Operation{}
+	ops := map[ir.OperationID]ir.Operation{}
 	for _, g := range svc.Groups {
 		for _, op := range g.Operations {
 			ops[op.ID] = op
@@ -725,7 +725,7 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 			ir.Docs{Summary: "the other shared item", Description: "the use site at length"}},
 	} {
 		for _, method := range tc.methods {
-			op, ok := ops[ir.OpID("op/openapi"+tc.mount+"/"+method)]
+			op, ok := ops[ir.OperationID("operation/openapi"+tc.mount+"/"+method)]
 			require.True(t, ok, "%s mounts %s", tc.mount, method)
 			assert.Equal(t, tc.docs, op.Bindings.HTTP[0].PathDocs, "%s %s documents its path", tc.mount, method)
 			for _, key := range tc.keys {
@@ -733,11 +733,11 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 			}
 		}
 	}
-	assert.Contains(t, ops["op/openapi/paths/~1a/post"].Unmodeled, "openapi:x-own",
+	assert.Contains(t, ops["operation/openapi/paths/~1a/post"].Unmodeled, "openapi:x-own",
 		"an operation's own entries stay beside its path item's")
 
-	ops["op/openapi/paths/~1a/get"].Unmodeled["openapi:pathItem/bogus1"].Value[0] = ' '
-	assert.JSONEq(t, `{"k":1}`, string(ops["op/openapi/paths/~1a/put"].Unmodeled["openapi:pathItem/bogus1"].Value),
+	ops["operation/openapi/paths/~1a/get"].Unmodeled["openapi:pathItem/bogus1"].Value[0] = ' '
+	assert.JSONEq(t, `{"k":1}`, string(ops["operation/openapi/paths/~1a/put"].Unmodeled["openapi:pathItem/bogus1"].Value),
 		"each operation owns its copy: writing through one leaves the others as declared")
 }
 

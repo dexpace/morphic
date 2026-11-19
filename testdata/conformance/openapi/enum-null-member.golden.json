@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "EnumNullMember",
         "canonical": "enum_null_member"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1zones~1{id}/delete",
+              "id": "operation/openapi/paths/~1zones~1{id}/delete",
               "name": {
                 "source": "deleteZone",
                 "canonical": "delete_zone"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1zones~1{id}/delete/parameters/id/path",
+                  "id": "parameter/openapi/paths/~1zones~1{id}/delete/parameters/id/path",
                   "name": {
                     "source": "id",
                     "canonical": "id"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -102,7 +102,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -122,7 +122,7 @@
                     "uriTemplate": "/zones/{id}",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1zones~1{id}/delete/parameters/id/path",
+                        "param": "parameter/openapi/paths/~1zones~1{id}/delete/parameters/id/path",
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
@@ -152,9 +152,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Mixed/enum/0": {
+    "type/anonymous/components/schemas/Mixed/enum/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Mixed/enum/0",
+      "id": "type/anonymous/components/schemas/Mixed/enum/0",
       "name": {
         "hint": "mixed_0"
       },
@@ -167,13 +167,13 @@
       },
       "value": {
         "kind": "number",
-        "num": "1"
+        "number": "1"
       },
       "valueType": "number"
     },
-    "t/anon/components/schemas/Mixed/enum/1": {
+    "type/anonymous/components/schemas/Mixed/enum/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Mixed/enum/1",
+      "id": "type/anonymous/components/schemas/Mixed/enum/1",
       "name": {
         "hint": "mixed_1"
       },
@@ -186,13 +186,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "x"
+        "string": "x"
       },
       "valueType": "string"
     },
-    "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -205,21 +205,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
+          "id": "property/openapi/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
           "name": {
             "source": "result",
             "canonical": "result"
           },
           "wireName": "result",
           "type": {
-            "target": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
+            "target": "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
             "nullable": true
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -232,21 +232,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone",
+          "id": "property/openapi/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone",
           "name": {
             "source": "gone",
             "canonical": "gone"
           },
           "wireName": "gone",
           "type": {
-            "target": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone",
+            "target": "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -263,9 +263,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone": {
+    "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone": {
       "kind": "enum",
-      "id": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone",
+      "id": "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone",
       "name": {
         "hint": "gone"
       },
@@ -280,9 +280,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result": {
+    "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result": {
       "kind": "enum",
-      "id": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
+      "id": "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
       "name": {
         "hint": "result"
       },
@@ -297,9 +297,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -313,21 +313,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/mixed",
+          "id": "property/openapi/components/schemas/Holder/properties/mixed",
           "name": {
             "source": "mixed",
             "canonical": "mixed"
           },
           "wireName": "mixed",
           "type": {
-            "target": "t/openapi/components/schemas/Mixed",
+            "target": "type/openapi/components/schemas/Mixed",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -340,21 +340,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/narrowed",
+          "id": "property/openapi/components/schemas/Holder/properties/narrowed",
           "name": {
             "source": "narrowed",
             "canonical": "narrowed"
           },
           "wireName": "narrowed",
           "type": {
-            "target": "t/openapi/components/schemas/Narrowed",
+            "target": "type/openapi/components/schemas/Narrowed",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -367,21 +367,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/orNull",
+          "id": "property/openapi/components/schemas/Holder/properties/orNull",
           "name": {
             "source": "orNull",
             "canonical": "or_null"
           },
           "wireName": "orNull",
           "type": {
-            "target": "t/openapi/components/schemas/OrNull",
+            "target": "type/openapi/components/schemas/OrNull",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -398,9 +398,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Mixed": {
+    "type/openapi/components/schemas/Mixed": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Mixed",
+      "id": "type/openapi/components/schemas/Mixed",
       "name": {
         "source": "Mixed",
         "canonical": "mixed"
@@ -418,7 +418,7 @@
             "hint": "mixed_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Mixed/enum/0",
+            "target": "type/anonymous/components/schemas/Mixed/enum/0",
             "nullable": false
           },
           "docs": {}
@@ -428,7 +428,7 @@
             "hint": "mixed_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Mixed/enum/1",
+            "target": "type/anonymous/components/schemas/Mixed/enum/1",
             "nullable": false
           },
           "docs": {}
@@ -439,9 +439,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Narrowed": {
+    "type/openapi/components/schemas/Narrowed": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Narrowed",
+      "id": "type/openapi/components/schemas/Narrowed",
       "name": {
         "source": "Narrowed",
         "canonical": "narrowed"
@@ -456,14 +456,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/Narrowed/s:a",
+          "id": "enum-member/openapi/components/schemas/Narrowed/string:a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "value": {
             "kind": "string",
-            "str": "a"
+            "string": "a"
           },
           "docs": {}
         }
@@ -471,9 +471,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/OrNull": {
+    "type/openapi/components/schemas/OrNull": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/OrNull",
+      "id": "type/openapi/components/schemas/OrNull",
       "name": {
         "source": "OrNull",
         "canonical": "or_null"
@@ -486,13 +486,13 @@
         "pointer": "/components/schemas/OrNull"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Mixed",
+        "target": "type/openapi/components/schemas/Mixed",
         "nullable": true
       }
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -500,7 +500,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

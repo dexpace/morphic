@@ -26,22 +26,22 @@ import (
 // "args". It is a decision per field, so a field cannot join a kind without
 // someone saying what it is to the type graph.
 var partRoles = map[string]string{
-	"Model.Properties/Property.Type":                                    "held",
-	"Model.Properties/Property.Encoding/Encoding.Schema":                "held",
-	"Model.Properties/Property.Args/Parameter.Type":                     "args",
-	"Model.Properties/Property.Args/Parameter.Encoding/Encoding.Schema": "args",
-	"Model.AdditionalProps/AdditionalProps.Value":                       "held",
-	"Model.AdditionalProps/AdditionalProps.Key":                         "held",
-	"Model.AdditionalProps/AdditionalProps.Patterns/PatternProps.Value": "held",
+	"Model.Properties/Property.Type":                                                   "held",
+	"Model.Properties/Property.Encoding/Encoding.Schema":                               "held",
+	"Model.Properties/Property.Args/Parameter.Type":                                    "args",
+	"Model.Properties/Property.Args/Parameter.Encoding/Encoding.Schema":                "args",
+	"Model.AdditionalProperties/AdditionalProperties.Value":                            "held",
+	"Model.AdditionalProperties/AdditionalProperties.Key":                              "held",
+	"Model.AdditionalProperties/AdditionalProperties.Patterns/PatternProperties.Value": "held",
 	"Model.Base":                      "composed",
 	"Model.Implements":                "composed",
 	"Model.Mixins":                    "composed",
 	"Union.Variants/Variant.Type":     "held",
-	"List.Elem":                       "held",
+	"List.ElementType":                "held",
 	"List.Encoding/Encoding.Schema":   "held",
 	"MapT.Key":                        "held",
 	"MapT.Value":                      "held",
-	"Tuple.Elems":                     "held",
+	"Tuple.ElementTypes":              "held",
 	"Tuple.Rest":                      "held",
 	"Scalar.Base":                     "alias",
 	"Scalar.Encoding/Encoding.Schema": "held",
@@ -220,7 +220,7 @@ func TestIndex_RecursionThroughAPolymorphicReference(t *testing.T) {
 	t.Parallel()
 	for name, doc := range map[string]*ir.Document{
 		"held directly":      componentsTree(func() ir.Property { return useProp("node") }),
-		"held in a list":     componentsTree(func() ir.Property { return useProp("children") }, &ir.List{ID: "children", Elem: useRef("node")}),
+		"held in a list":     componentsTree(func() ir.Property { return useProp("children") }, &ir.List{ID: "children", ElementType: useRef("node")}),
 		"held through alias": componentsTree(func() ir.Property { return useProp("nodeAlias") }, irtest.ScalarOf("nodeAlias", "node")),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -260,7 +260,7 @@ func TestIndex_MutualContainmentIsOneComponent(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		useHolder("a", "items"),
-		&ir.List{ID: "items", Elem: useRef("b")},
+		&ir.List{ID: "items", ElementType: useRef("b")},
 		useHolder("b", "a", "leaf"),
 		useType("leaf"),
 	)

@@ -211,11 +211,11 @@ func TestReadLimited_HoldsTheLimit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := readLimited(t.Context(), "doc", strings.NewReader(body), tc.limit, 0)
+			got, err := readLimited(t.Context(), "document", strings.NewReader(body), tc.limit, 0)
 
 			if tc.over {
 				require.ErrorIs(t, err, compilers.ErrDocumentTooLarge)
-				assert.Contains(t, err.Error(), "doc")
+				assert.Contains(t, err.Error(), "document")
 				assert.Contains(t, err.Error(), fmt.Sprintf("%d bytes", tc.limit))
 				assert.Nil(t, got)
 				return
@@ -254,7 +254,7 @@ func TestReadLimited_StopsReadingAtTheLimit(t *testing.T) {
 	t.Parallel()
 	const limit = 5
 
-	_, err := readLimited(t.Context(), "doc", &serveThenFail{max: 10 * limit}, limit, 0)
+	_, err := readLimited(t.Context(), "document", &serveThenFail{max: 10 * limit}, limit, 0)
 
 	assert.ErrorIs(t, err, compilers.ErrDocumentTooLarge,
 		"the reader was never driven far enough to reach its own failure")
@@ -267,11 +267,11 @@ func TestReadLimited_ReportsAReadFailure(t *testing.T) {
 	t.Parallel()
 	boom := errors.New("boom")
 
-	got, err := readLimited(t.Context(), "doc", iotest.ErrReader(boom), 10, 0)
+	got, err := readLimited(t.Context(), "document", iotest.ErrReader(boom), 10, 0)
 
 	require.ErrorIs(t, err, boom)
 	assert.NotErrorIs(t, err, compilers.ErrDocumentTooLarge)
-	assert.Contains(t, err.Error(), "doc")
+	assert.Contains(t, err.Error(), "document")
 	assert.Nil(t, got)
 }
 
@@ -301,7 +301,7 @@ func TestReadUpTo_SizesTheBufferFromWhatTheDocumentReports(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := readUpTo(t.Context(), "doc", strings.NewReader(body), tc.n, tc.size)
+			got, err := readUpTo(t.Context(), "document", strings.NewReader(body), tc.n, tc.size)
 
 			require.NoError(t, err)
 			assert.Len(t, got, tc.wantLen)
@@ -323,7 +323,7 @@ func TestReadUpTo_GrowsNoFurtherThanTheBound(t *testing.T) {
 			t.Parallel()
 			r := &serveThenFail{max: 2 * n}
 
-			got, err := readUpTo(t.Context(), "doc", r, n, size)
+			got, err := readUpTo(t.Context(), "document", r, n, size)
 
 			require.NoError(t, err)
 			assert.Len(t, got, n)
@@ -342,7 +342,7 @@ func TestReadUpTo_AsksTheContextBetweenChunks(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	r := &cancelOnRead{cancel: cancel}
 
-	got, err := readUpTo(ctx, "doc", r, 0, 1<<40)
+	got, err := readUpTo(ctx, "document", r, 0, 1<<40)
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, got)

@@ -28,7 +28,7 @@ func prefixedDoc() *ir.Document {
 	verbatim.Reason = ir.ReasonNoIRHome
 	return &ir.Document{
 		Unmodeled: ir.Unmodeled{"openapi:tags/0/x-acme-stabilty": at("tags/0/x-acme-stabilty")},
-		Types: ir.TypeRegistry{"t/s": &ir.Scalar{ID: "t/s", Unmodeled: ir.Unmodeled{
+		Types: ir.TypeRegistry{"type/s": &ir.Scalar{ID: "type/s", Unmodeled: ir.Unmodeled{
 			"openapi:x-acme-stability": at("s/x-acme-stability"),
 			"openapi:x-acme-sunset":    at("s/x-acme-sunset"),
 			"openapi:x-other":          at("s/x-other"),
@@ -115,7 +115,7 @@ func TestUnreadExtensions_TheAliasesKeyIsRead(t *testing.T) {
 		e.Provenance.Pointer = jsontext.Pointer("/" + name)
 		kept["openapi:"+name] = e
 	}
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/s": &ir.Scalar{ID: "t/s", Unmodeled: kept}}}
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/s": &ir.Scalar{ID: "type/s", Unmodeled: kept}}}
 	owning := promotion.New(promotion.ExtensionPromotions{
 		Targets:  map[promotion.ExtensionTarget][]promotion.ExtensionSource{promotion.TargetStability: nil},
 		Prefixes: []string{"x-forge"},

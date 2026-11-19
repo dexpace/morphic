@@ -46,8 +46,8 @@ func oneBound(t *testing.T, name string) *ir.Constraints {
 // a row here says a kind takes it.
 func TestVerify_EachBoundIsHeldToTheKindsThatTakeIt(t *testing.T) {
 	t.Parallel()
-	leafRef := ir.TypeRef{Target: "t/x/Leaf"}
-	props := []string{"MinProps", "MaxProps"}
+	leafRef := ir.TypeRef{Target: "type/x/Leaf"}
+	props := []string{"MinProperties", "MaxProperties"}
 	items := []string{"MinItems", "MaxItems", "UniqueItems"}
 	kinds := []struct {
 		name    string
@@ -57,9 +57,9 @@ func TestVerify_EachBoundIsHeldToTheKindsThatTakeIt(t *testing.T) {
 	}{
 		{name: "model", node: func(c *ir.Constraints) ir.TypeDef { return &ir.Model{Constraints: c} }, takes: props},
 		{name: "map", node: func(c *ir.Constraints) ir.TypeDef { return &ir.MapT{Value: leafRef, Constraints: c} }, takes: props},
-		{name: "list", node: func(c *ir.Constraints) ir.TypeDef { return &ir.List{Elem: leafRef, Constraints: c} }, takes: items},
+		{name: "list", node: func(c *ir.Constraints) ir.TypeDef { return &ir.List{ElementType: leafRef, Constraints: c} }, takes: items},
 		{name: "tuple", node: func(c *ir.Constraints) ir.TypeDef {
-			return &ir.Tuple{Elems: []ir.TypeRef{leafRef}, Constraints: c}
+			return &ir.Tuple{ElementTypes: []ir.TypeRef{leafRef}, Constraints: c}
 		}, takes: items},
 		{name: "scalar", node: func(c *ir.Constraints) ir.TypeDef {
 			return &ir.Scalar{Base: &leafRef, Constraints: c}
@@ -79,14 +79,14 @@ func TestVerify_EachBoundIsHeldToTheKindsThatTakeIt(t *testing.T) {
 			t.Run(kind.name+"/"+field, func(t *testing.T) {
 				t.Parallel()
 				td := kind.node(oneBound(t, field))
-				td.Common().ID = "t/x/N"
+				td.Common().ID = "type/x/N"
 				got := boundViolations(stamped(closedDoc(td)))
 				if kind.unasked || slices.Contains(kind.takes, field) {
 					assert.Empty(t, got)
 					return
 				}
 				require.Len(t, got, 1)
-				assert.Equal(t, "types[t/x/N].Constraints", got[0].Path)
+				assert.Equal(t, "types[type/x/N].Constraints", got[0].Path)
 				assert.Contains(t, got[0].Message, kind.name)
 			})
 		}

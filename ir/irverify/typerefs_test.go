@@ -18,7 +18,7 @@ import (
 // model's property — resolves rather than dangling.
 func leaf() *ir.Scalar {
 	return &ir.Scalar{
-		ID:   "t/x/Leaf",
+		ID:   "type/x/Leaf",
 		Name: ir.Naming{Source: "Leaf", Canonical: "leaf"},
 	}
 }
@@ -35,15 +35,15 @@ func closedDoc(tds ...ir.TypeDef) *ir.Document {
 
 // operationDoc returns a closed document whose one operation takes p. It is
 // the fixture outside the type registry: a compiled document holds TypeRefs
-// under Services as well as under Types, so a check walking only doc.Types
+// under Services as well as under Types, so a check walking only document.Types
 // would miss those while every registry fixture stayed green.
 func operationDoc(p ir.Parameter) *ir.Document {
 	doc := closedDoc()
 	doc.Services = []ir.Service{{
-		ID:   "s/x/S",
+		ID:   "service/x/S",
 		Name: named("S"),
-		Groups: []ir.OperationGroup{{ID: "g/x/S/g", Operations: []ir.Operation{{
-			ID:     "op/x/S/op",
+		Groups: []ir.OperationGroup{{ID: "operation-group/x/S/g", Operations: []ir.Operation{{
+			ID:     "operation/x/S/op",
 			Name:   named("op"),
 			Params: []ir.Parameter{p},
 		}}}},
@@ -84,7 +84,7 @@ func typeRefViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
 func TestVerify_UnionVariantWithNoTargetIsAViolation(t *testing.T) {
 	t.Parallel()
 	doc := closedDoc(&ir.Union{
-		ID:       "t/x/U",
+		ID:       "type/x/U",
 		Name:     ir.Naming{Source: "U", Canonical: "u"},
 		Variants: []ir.Variant{{Type: ir.TypeRef{Target: ""}}},
 	})
@@ -94,7 +94,7 @@ func TestVerify_UnionVariantWithNoTargetIsAViolation(t *testing.T) {
 
 	got := typeRefViolations(t, doc)
 	require.Len(t, got, 1, "the empty target is reported exactly once")
-	assert.Equal(t, "doc.Types[t/x/U].Variants[0].Type.Target", got[0].Path,
+	assert.Equal(t, "document.Types[type/x/U].Variants[0].Type.Target", got[0].Path,
 		"the violation locates the target field, where a dangling one would be reported")
 	assert.Contains(t, got[0].Message, "no target")
 }
@@ -104,7 +104,7 @@ func TestVerify_UnionVariantWithNoTargetIsAViolation(t *testing.T) {
 // A by-value TypeRef, a slice element, and a non-nil pointer are each reported:
 // the IR spells "no type here" as a nil *TypeRef, so a pointer that was
 // allocated and then given nothing to name is the same defect as a value. The
-// parameter row sits outside doc.Types, pinning the walk to the whole document.
+// parameter row sits outside document.Types, pinning the walk to the whole document.
 func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -115,61 +115,61 @@ func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 		{
 			name: "a property's type",
 			doc: closedDoc(&ir.Model{
-				ID:   "t/x/M",
+				ID:   "type/x/M",
 				Name: ir.Naming{Source: "M", Canonical: "m"},
 				Properties: []ir.Property{{
-					ID:   "p/x/M/f",
+					ID:   "property/x/M/f",
 					Name: ir.Naming{Source: "f", Canonical: "f"},
 					Type: ir.TypeRef{},
 				}},
 			}),
-			path: "doc.Types[t/x/M].Properties[0].Type.Target",
+			path: "document.Types[type/x/M].Properties[0].Type.Target",
 		},
 		{
 			name: "a list's element",
 			doc: closedDoc(&ir.List{
-				ID:   "t/x/L",
-				Name: ir.Naming{Source: "L", Canonical: "l"},
-				Elem: ir.TypeRef{},
+				ID:          "type/x/L",
+				Name:        ir.Naming{Source: "L", Canonical: "l"},
+				ElementType: ir.TypeRef{},
 			}),
-			path: "doc.Types[t/x/L].Elem.Target",
+			path: "document.Types[type/x/L].ElementType.Target",
 		},
 		{
 			name: "a tuple's element",
 			doc: closedDoc(&ir.Tuple{
-				ID:    "t/x/T",
-				Name:  ir.Naming{Source: "T", Canonical: "t"},
-				Elems: []ir.TypeRef{{Target: "t/x/Leaf"}, {}},
+				ID:           "type/x/T",
+				Name:         ir.Naming{Source: "T", Canonical: "t"},
+				ElementTypes: []ir.TypeRef{{Target: "type/x/Leaf"}, {}},
 			}),
-			path: "doc.Types[t/x/T].Elems[1].Target",
+			path: "document.Types[type/x/T].ElementTypes[1].Target",
 		},
 		{
 			name: "a tuple's rest, allocated but naming nothing",
 			doc: closedDoc(&ir.Tuple{
-				ID:   "t/x/T",
+				ID:   "type/x/T",
 				Name: ir.Naming{Source: "T", Canonical: "t"},
 				Rest: &ir.TypeRef{},
 			}),
-			path: "doc.Types[t/x/T].Rest.Target",
+			path: "document.Types[type/x/T].Rest.Target",
 		},
 		{
 			name: "a model's base, allocated but naming nothing",
 			doc: closedDoc(&ir.Model{
-				ID:   "t/x/M",
+				ID:   "type/x/M",
 				Name: ir.Naming{Source: "M", Canonical: "m"},
 				Base: &ir.TypeRef{},
 			}),
-			path: "doc.Types[t/x/M].Base.Target",
+			path: "document.Types[type/x/M].Base.Target",
 		},
 		{
 			name: "a parameter's type, outside the type registry",
 			doc:  operationDoc(ir.Parameter{Name: named("p"), Type: ir.TypeRef{}}),
-			path: "doc.Services[0].Groups[0].Operations[0].Params[0].Type.Target",
+			path: "document.Services[0].Groups[0].Operations[0].Params[0].Type.Target",
 		},
 		{
 			name: "a scheme's credential type, allocated but naming nothing",
 			doc:  credentialsDoc(&ir.TypeRef{}),
-			path: "doc.Auth[auth/x/s].Credentials.Target",
+			path: "document.Auth[auth/x/s].Credentials.Target",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -188,13 +188,13 @@ func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 func TestVerify_AbsentOptionalTypeRefIsClean(t *testing.T) {
 	t.Parallel()
 	doc := closedDoc(&ir.Model{
-		ID:   "t/x/M",
+		ID:   "type/x/M",
 		Name: ir.Naming{Source: "M", Canonical: "m"},
 		Base: nil,
 		Properties: []ir.Property{{
-			ID:   "p/x/M/f",
+			ID:   "property/x/M/f",
 			Name: ir.Naming{Source: "f", Canonical: "f"},
-			Type: ir.TypeRef{Target: "t/x/Leaf"},
+			Type: ir.TypeRef{Target: "type/x/Leaf"},
 		}},
 	})
 	assert.Empty(t, typeRefViolations(t, doc))
@@ -205,12 +205,12 @@ func TestVerify_AbsentOptionalTypeRefIsClean(t *testing.T) {
 // and one naming no registered type is dangling, at the field that names it.
 func TestVerify_SchemeCredentialsAreReferences(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, verifyDeclared(credentialsDoc(&ir.TypeRef{Target: "t/x/Leaf"})))
+	assert.Empty(t, verifyDeclared(credentialsDoc(&ir.TypeRef{Target: "type/x/Leaf"})))
 
-	got := verifyDeclared(credentialsDoc(&ir.TypeRef{Target: "t/x/Missing"}))
+	got := verifyDeclared(credentialsDoc(&ir.TypeRef{Target: "type/x/Missing"}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/dangling-type-ref", got[0].Code)
-	assert.Equal(t, "doc.Auth[auth/x/s].Credentials.Target", got[0].Path)
+	assert.Equal(t, "document.Auth[auth/x/s].Credentials.Target", got[0].Path)
 }
 
 // inferredViolations returns the ir/type-ref-inferred-not-nullable violations
@@ -234,10 +234,10 @@ func TestVerify_AnInferredMarkerOnANonNullableReferenceIsAViolation(t *testing.T
 	t.Parallel()
 	model := func(ref ir.TypeRef) *ir.Document {
 		return closedDoc(&ir.Model{
-			ID:   "t/x/M",
+			ID:   "type/x/M",
 			Name: ir.Naming{Source: "M", Canonical: "m"},
 			Properties: []ir.Property{{
-				ID: "p/x/M/f", Name: ir.Naming{Source: "f", Canonical: "f"}, Type: ref,
+				ID: "property/x/M/f", Name: ir.Naming{Source: "f", Canonical: "f"}, Type: ref,
 			}},
 		})
 	}
@@ -251,21 +251,21 @@ func TestVerify_AnInferredMarkerOnANonNullableReferenceIsAViolation(t *testing.T
 	}{
 		{
 			name: "a property's marked reference that admits no null",
-			doc:  model(ir.TypeRef{Target: "t/x/Leaf", Inferred: "nullable-inference"}),
-			path: "doc.Types[t/x/M].Properties[0].Type.Inferred",
+			doc:  model(ir.TypeRef{Target: "type/x/Leaf", Inferred: "nullable-inference"}),
+			path: "document.Types[type/x/M].Properties[0].Type.Inferred",
 		},
 		{
 			name: "a parameter's marked reference that admits no null",
-			doc:  param(ir.TypeRef{Target: "t/x/Leaf", Inferred: "nullable-inference"}),
-			path: "doc.Services[0].Groups[0].Operations[0].Params[0].Type.Inferred",
+			doc:  param(ir.TypeRef{Target: "type/x/Leaf", Inferred: "nullable-inference"}),
+			path: "document.Services[0].Groups[0].Operations[0].Params[0].Type.Inferred",
 		},
 		{
 			name: "a property's marked reference that admits null",
-			doc:  model(ir.TypeRef{Target: "t/x/Leaf", Nullable: true, Inferred: "nullable-inference"}),
+			doc:  model(ir.TypeRef{Target: "type/x/Leaf", Nullable: true, Inferred: "nullable-inference"}),
 		},
 		{
 			name: "a parameter's unmarked reference that admits no null",
-			doc:  param(ir.TypeRef{Target: "t/x/Leaf"}),
+			doc:  param(ir.TypeRef{Target: "type/x/Leaf"}),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

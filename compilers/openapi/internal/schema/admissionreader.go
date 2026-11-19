@@ -290,7 +290,7 @@ func (w *admissionReader) written(s *statement.Schema, nullable bool) admitted {
 	}
 	if form, ok := formOf(s); ok {
 		out.forms = []scalarForm{form}
-		if form.listed && form.prim.StrictlyWithin(ir.PrimInteger) {
+		if form.listed && form.prim.StrictlyWithin(ir.PrimitiveInteger) {
 			out.kinds &= kindInteger | kindNull
 		}
 	}

@@ -211,10 +211,10 @@ func TestIDPositions_AnUnlistedPositionIsARequiredReference(t *testing.T) {
 	assert.Equal(t, []string{"Stray"}, ir.RequiredIDFields(reflect.TypeFor[localIDCarrier]()))
 
 	var found ir.EmptyReferences
-	ir.WalkValues(&localIDCarrier{}, "doc", &found)
+	ir.WalkValues(&localIDCarrier{}, "document", &found)
 	got := found.List()
 	require.Len(t, got, 1)
-	assert.Equal(t, "doc.Stray", got[0].Path)
+	assert.Equal(t, "document.Stray", got[0].Path)
 }
 
 // TestEmptyReference_CodeAndMessageNameTheClass pins the one wording both
@@ -223,16 +223,16 @@ func TestIDPositions_AnUnlistedPositionIsARequiredReference(t *testing.T) {
 // lacks is a way to find the tag.
 func TestEmptyReference_CodeAndMessageNameTheClass(t *testing.T) {
 	t.Parallel()
-	server := ir.EmptyReference{Class: reflect.TypeFor[ir.ServerID](), Path: "doc.Services[0].Servers[0]"}
+	server := ir.EmptyReference{Class: reflect.TypeFor[ir.ServerID](), Path: "document.Services[0].Servers[0]"}
 	assert.Equal(t, "ir/empty-server-ref", server.Code())
 	assert.Equal(t, "server reference is empty, and this position has no empty form", server.Message())
 
 	untagged := emptyReferencesOf(&ir.Document{Types: ir.TypeRegistry{
-		"t/x/Base": &ir.Model{ID: "t/x/Base", Discriminator: &ir.Discriminator{}},
+		"type/x/Base": &ir.Model{ID: "type/x/Base", Discriminator: &ir.Discriminator{}},
 	}})
 	require.Len(t, untagged, 1)
 	tag := untagged[0]
-	assert.Equal(t, "ir/empty-prop-ref", tag.Code())
-	assert.Equal(t, "discriminator names no tag property, and neither PropertyName nor Index locates the tag instead",
+	assert.Equal(t, "ir/empty-property-ref", tag.Code())
+	assert.Equal(t, "discriminator names no tag property, and neither PropertyName nor TupleElementIndex locates the tag instead",
 		tag.Message())
 }

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "HTTPDateInference",
         "canonical": "http_date_inference"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1files~1{name}/put",
+              "id": "operation/openapi/paths/~1files~1{name}/put",
               "name": {
                 "source": "putFile",
                 "canonical": "put_file"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1files~1{name}/put/parameters/name/path",
+                  "id": "parameter/openapi/paths/~1files~1{name}/put/parameters/name/path",
                   "name": {
                     "source": "name",
                     "canonical": "name"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -84,13 +84,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1files~1{name}/put/parameters/If-Unmodified-Since/header",
+                  "id": "parameter/openapi/paths/~1files~1{name}/put/parameters/If-Unmodified-Since/header",
                   "name": {
                     "source": "If-Unmodified-Since",
                     "canonical": "if_unmodified_since"
                   },
                   "type": {
-                    "target": "t/prim/datetime_offset",
+                    "target": "type/primitive/datetime_offset",
                     "nullable": false
                   },
                   "required": false,
@@ -120,21 +120,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Last-Modified",
+                      "id": "property/openapi/paths/~1files~1{name}/put/responses/204/headers/Last-Modified",
                       "name": {
                         "source": "Last-Modified",
                         "canonical": "last_modified"
                       },
                       "wireName": "Last-Modified",
                       "type": {
-                        "target": "t/prim/datetime_offset",
+                        "target": "type/primitive/datetime_offset",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "encoding": {
                         "name": "http-date"
@@ -147,7 +147,7 @@
                         {
                           "value": {
                             "kind": "string",
-                            "str": "Wed, 21 Oct 2023 07:28:00 GMT"
+                            "string": "Wed, 21 Oct 2023 07:28:00 GMT"
                           }
                         }
                       ],
@@ -159,21 +159,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Expires",
+                      "id": "property/openapi/paths/~1files~1{name}/put/responses/204/headers/Expires",
                       "name": {
                         "source": "Expires",
                         "canonical": "expires"
                       },
                       "wireName": "Expires",
                       "type": {
-                        "target": "t/openapi/components/schemas/Instant",
+                        "target": "type/openapi/components/schemas/Instant",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "encoding": {
                         "name": "http-date"
@@ -190,21 +190,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Date",
+                      "id": "property/openapi/paths/~1files~1{name}/put/responses/204/headers/Date",
                       "name": {
                         "source": "Date",
                         "canonical": "date"
                       },
                       "wireName": "Date",
                       "type": {
-                        "target": "t/prim/string",
+                        "target": "type/primitive/string",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -217,21 +217,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/X-Modified",
+                      "id": "property/openapi/paths/~1files~1{name}/put/responses/204/headers/X-Modified",
                       "name": {
                         "source": "X-Modified",
                         "canonical": "x_modified"
                       },
                       "wireName": "X-Modified",
                       "type": {
-                        "target": "t/prim/datetime_offset",
+                        "target": "type/primitive/datetime_offset",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -244,21 +244,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Sunset",
+                      "id": "property/openapi/paths/~1files~1{name}/put/responses/204/headers/Sunset",
                       "name": {
                         "source": "Sunset",
                         "canonical": "sunset"
                       },
                       "wireName": "Sunset",
                       "type": {
-                        "target": "t/anon/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema",
+                        "target": "type/anonymous/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -271,21 +271,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Retry-After",
+                      "id": "property/openapi/paths/~1files~1{name}/put/responses/204/headers/Retry-After",
                       "name": {
                         "source": "Retry-After",
                         "canonical": "retry_after"
                       },
                       "wireName": "Retry-After",
                       "type": {
-                        "target": "t/anon/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema",
+                        "target": "type/anonymous/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -312,7 +312,7 @@
                     "uriTemplate": "/files/{name}",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1files~1{name}/put/parameters/name/path",
+                        "param": "parameter/openapi/paths/~1files~1{name}/put/parameters/name/path",
                         "location": "path",
                         "wireName": "name",
                         "style": "simple",
@@ -320,7 +320,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1files~1{name}/put/parameters/If-Unmodified-Since/header",
+                        "param": "parameter/openapi/paths/~1files~1{name}/put/parameters/If-Unmodified-Since/header",
                         "location": "header",
                         "wireName": "If-Unmodified-Since",
                         "style": "simple",
@@ -350,9 +350,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema": {
+    "type/anonymous/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema": {
       "kind": "scalar",
-      "id": "t/anon/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema",
+      "id": "type/anonymous/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema",
       "name": {
         "hint": "retry_after"
       },
@@ -364,20 +364,20 @@
         "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema"
       },
       "base": {
-        "target": "t/prim/datetime_offset",
+        "target": "type/primitive/datetime_offset",
         "nullable": false
       },
       "encoding": {
         "name": "unixTimestamp",
         "wireType": {
-          "target": "t/prim/integer",
+          "target": "type/primitive/integer",
           "nullable": false
         }
       }
     },
-    "t/anon/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema": {
+    "type/anonymous/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema": {
       "kind": "scalar",
-      "id": "t/anon/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema",
+      "id": "type/anonymous/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema",
       "name": {
         "hint": "sunset"
       },
@@ -389,16 +389,16 @@
         "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema"
       },
       "base": {
-        "target": "t/prim/datetime_offset",
+        "target": "type/primitive/datetime_offset",
         "nullable": false
       },
       "encoding": {
         "name": "http-date"
       }
     },
-    "t/openapi/components/schemas/Instant": {
+    "type/openapi/components/schemas/Instant": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Instant",
+      "id": "type/openapi/components/schemas/Instant",
       "name": {
         "source": "Instant",
         "canonical": "instant"
@@ -411,13 +411,13 @@
         "pointer": "/components/schemas/Instant"
       },
       "base": {
-        "target": "t/prim/datetime_offset",
+        "target": "type/primitive/datetime_offset",
         "nullable": false
       }
     },
-    "t/prim/datetime_offset": {
+    "type/primitive/datetime_offset": {
       "kind": "primitive",
-      "id": "t/prim/datetime_offset",
+      "id": "type/primitive/datetime_offset",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -425,11 +425,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "datetime_offset"
+      "primitiveKind": "datetime_offset"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -437,11 +437,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -449,7 +449,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

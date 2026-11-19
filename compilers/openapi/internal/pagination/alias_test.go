@@ -53,13 +53,13 @@ components:
 
 			op := openapitest.FindOp(t, doc, "listDogs")
 			require.NotNil(t, op.Pagination)
-			cursor := ir.ParamID("param/openapi/paths/~1dogs/get/parameters/cursor/query")
+			cursor := ir.ParameterID("parameter/openapi/paths/~1dogs/get/parameters/cursor/query")
 			assert.Equal(t, ir.Pagination{
 				Strategy:    ir.PageStrategyCursor,
 				Inferred:    true,
 				InputCursor: &ir.InputPath{Param: &cursor},
-				Items:       &ir.PropPath{Segments: []ir.PropID{"p/openapi/components/schemas/Page/properties/result"}},
-				NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/openapi/components/schemas/Page/properties/next_cursor"}},
+				Items:       &ir.PropPath{Segments: []ir.PropertyID{"property/openapi/components/schemas/Page/properties/result"}},
+				NextCursor:  &ir.PropPath{Segments: []ir.PropertyID{"property/openapi/components/schemas/Page/properties/next_cursor"}},
 			}, *op.Pagination)
 			assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
 		})

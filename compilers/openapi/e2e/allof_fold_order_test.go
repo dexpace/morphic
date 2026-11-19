@@ -129,7 +129,7 @@ func foldedField(t *testing.T, first, second string) (string, []string) {
 	}
 	switch td := doc.Types[p.Type.Target].(type) {
 	case *ir.Primitive:
-		return string(td.Prim), codes
+		return string(td.PrimitiveKind), codes
 	case *ir.Scalar:
 		require.NotNil(t, td.Base)
 		require.NotNil(t, td.Encoding)
@@ -144,9 +144,9 @@ func foldedField(t *testing.T, first, second string) (string, []string) {
 }
 
 // primAt returns the primitive ref names, which it must.
-func primAt(t *testing.T, doc *ir.Document, ref ir.TypeRef) ir.PrimKind {
+func primAt(t *testing.T, doc *ir.Document, ref ir.TypeRef) ir.PrimitiveKind {
 	t.Helper()
 	prim, ok := doc.Types[ref.Target].(*ir.Primitive)
 	require.True(t, ok, "%s is a primitive", ref.Target)
-	return prim.Prim
+	return prim.PrimitiveKind
 }

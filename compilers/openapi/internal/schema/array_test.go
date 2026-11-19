@@ -33,10 +33,10 @@ func TestLower_TupleRest(t *testing.T) {
 		consts *ir.Constraints
 		kept   []string
 	}{
-		{name: "absent items admits anything after", body: head, rest: "t/prim/any"},
-		{name: "items true admits anything after", body: head + "      items: true\n", rest: "t/prim/any"},
+		{name: "absent items admits anything after", body: head, rest: "type/primitive/any"},
+		{name: "items true admits anything after", body: head + "      items: true\n", rest: "type/primitive/any"},
 		{name: "items false admits nothing after", body: head + "      items: false\n"},
-		{name: "a typed rest", body: head + "      items: {type: boolean}\n", rest: "t/prim/bool"},
+		{name: "a typed rest", body: head + "      items: {type: boolean}\n", rest: "type/primitive/bool"},
 		{
 			name: "a referenced rest",
 			body: head + "      items: {$ref: '#/components/schemas/B'}\n    B: {type: object}\n",
@@ -45,7 +45,7 @@ func TestLower_TupleRest(t *testing.T) {
 		{
 			name: "an inline rest hoists at its own pointer",
 			body: head + "      items: {type: object, properties: {f: {type: string}}}\n",
-			rest: "t/anon/components/schemas/Tup/items",
+			rest: "type/anonymous/components/schemas/Tup/items",
 		},
 		{
 			name:   "closed and pinned from below",
@@ -55,13 +55,13 @@ func TestLower_TupleRest(t *testing.T) {
 		{
 			name:   "an upper bound leaves the rest open",
 			body:   head + "      maxItems: 1\n",
-			rest:   "t/prim/any",
+			rest:   "type/primitive/any",
 			consts: &ir.Constraints{MaxItems: i64(1)},
 		},
 		{
 			name:   "a lower bound past the elements requires a rest",
 			body:   head + "      items: {type: boolean}\n      minItems: 3\n",
-			rest:   "t/prim/bool",
+			rest:   "type/primitive/bool",
 			consts: &ir.Constraints{MinItems: i64(3)},
 		},
 		{
@@ -72,7 +72,7 @@ func TestLower_TupleRest(t *testing.T) {
 		{
 			name: "unevaluatedItems is kept and the rest read from items alone",
 			body: head + "      unevaluatedItems: false\n",
-			rest: "t/prim/any",
+			rest: "type/primitive/any",
 			kept: []string{"openapi:unevaluated"},
 		},
 	} {
@@ -83,7 +83,7 @@ func TestLower_TupleRest(t *testing.T) {
 
 			tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
 			require.True(t, ok, "prefixItems hoists a Tuple")
-			assert.Equal(t, []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/integer"}}, tup.Elems)
+			assert.Equal(t, []ir.TypeRef{{Target: "type/primitive/string"}, {Target: "type/primitive/integer"}}, tup.ElementTypes)
 			if tc.rest == "" {
 				assert.Nil(t, tup.Rest, "no element may follow the head")
 			} else if assert.NotNil(t, tup.Rest) {
@@ -129,7 +129,7 @@ func TestLower_ListWithoutItems(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			l, ok := typeByName(doc, "L").(*ir.List)
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
+			assert.Equal(t, ir.TypeID("type/primitive/any"), l.ElementType.Target)
 		})
 	}
 }
@@ -275,7 +275,7 @@ func TestCompile_MissingArrayItemsReachesTheDiagnostics(t *testing.T) {
 
 	l, ok := doc.Types[componentID("NoItems")].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), l.ElementType.Target)
 }
 
 // missingItemsAt returns the pointer of each missing-array-items report in

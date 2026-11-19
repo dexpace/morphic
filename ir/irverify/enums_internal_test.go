@@ -94,8 +94,8 @@ func TestEnums_TheWireEnumsAreHeld(t *testing.T) {
 	t.Parallel()
 	held := tableKeys(t, heldEnums)
 	for _, name := range []string{
-		"AdditionalMode", "PresenceKind", "HTTPLocation", "IdempotencyKind", "MsgDirection", "PageStrategy", "Severity",
-		"PrimKind", "AuthKind", "UnmodeledReason", "ValueKind", "StreamingMode", "Stability", "HTTPInbound", "PageStop",
+		"AdditionalMode", "PresenceKind", "HTTPLocation", "IdempotencyKind", "MessageDirection", "PageStrategy", "Severity",
+		"PrimitiveKind", "AuthKind", "UnmodeledReason", "ValueKind", "StreamingMode", "Stability", "HTTPInbound", "PageStop",
 		"LinkValueKind", "RelatedRole",
 	} {
 		assert.True(t, held[name], "%s is a wire enum the check holds", name)
@@ -120,7 +120,7 @@ func TestEnumPath_ListsEveryCarrier(t *testing.T) {
 		"PresenceKind":     1,
 		"HTTPLocation":     1,
 		"IdempotencyKind":  1,
-		"MsgDirection":     1,
+		"MessageDirection": 1,
 		"PageStrategy":     1,
 		"Severity":         1,
 		"RelatedRole":      1,
@@ -154,7 +154,7 @@ func TestPrunedChecks_SeeOnlyTheirPathWhateverTheDocumentHolds(t *testing.T) {
 			}}},
 		}
 		for i := range params {
-			op.Params = append(op.Params, ir.Parameter{ID: ir.ParamID("param/x/o/" + strconv.Itoa(i))})
+			op.Params = append(op.Params, ir.Parameter{ID: ir.ParameterID("parameter/x/o/" + strconv.Itoa(i))})
 		}
 		return &ir.Document{
 			Diagnostics: []ir.Diagnostic{{Severity: ir.SeverityInfo}},
@@ -170,7 +170,7 @@ func TestPrunedChecks_SeeOnlyTheirPathWhateverTheDocumentHolds(t *testing.T) {
 			t.Parallel()
 			shown := func(doc *ir.Document) int {
 				visitor, count := check(doc), 0
-				ir.WalkValues(doc, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+				ir.WalkValues(doc, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 					count++
 					return visitor.visit(v, at)
 				}))

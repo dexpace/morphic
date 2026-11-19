@@ -55,7 +55,7 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 	params := openapitest.IndexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
 	assert.True(t, params["id"].Required, "path params are always required")
 	require.NotNil(t, params["limit"].Default)
-	assert.Equal(t, ir.BigVal("20"), params["limit"].Default.Num)
+	assert.Equal(t, ir.BigVal("20"), params["limit"].Default.Number)
 }
 
 func TestParams_ContentStyleParameter(t *testing.T) {
@@ -201,14 +201,14 @@ func TestParams_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	require.Len(t, getA.Params, 1)
 	require.Len(t, getB.Params, 1)
 
-	wantID := ir.TypeID("t/anon/components/parameters/Page/schema")
+	wantID := ir.TypeID("type/anonymous/components/parameters/Page/schema")
 	assert.Equal(t, wantID, getA.Params[0].Type.Target)
 	assert.Equal(t, wantID, getB.Params[0].Type.Target, "both operations resolve the same shared schema")
 	_, ok := doc.Types[wantID]
 	require.True(t, ok, "the shared schema is registered under the component's own pointer")
 
-	_, fabricatedA := doc.Types[ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema")]
-	_, fabricatedB := doc.Types[ir.TypeID("t/anon/paths/~1b/get/parameters/0/schema")]
+	_, fabricatedA := doc.Types[ir.TypeID("type/anonymous/paths/~1a/get/parameters/0/schema")]
+	_, fabricatedB := doc.Types[ir.TypeID("type/anonymous/paths/~1b/get/parameters/0/schema")]
 	assert.False(t, fabricatedA, "no fabricated per-operation ID for /a")
 	assert.False(t, fabricatedB, "no fabricated per-operation ID for /b")
 }
@@ -306,7 +306,7 @@ func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
 	require.Len(t, getA.Params, 1)
 	require.Len(t, getB.Params, 1)
 
-	wantID := ir.TypeID("t/anon/components/parameters/Filter/content/application~1json/schema")
+	wantID := ir.TypeID("type/anonymous/components/parameters/Filter/content/application~1json/schema")
 	assert.Equal(t, wantID, getA.Params[0].Type.Target)
 	assert.Equal(t, wantID, getB.Params[0].Type.Target, "both operations share the content parameter's schema")
 	_, ok := doc.Types[wantID]

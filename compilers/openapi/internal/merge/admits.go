@@ -42,57 +42,57 @@ const (
 //
 // A null is not judged here: whether null is a value depends on the merged
 // field's nullability, not on a kind.
-func Admits(k ir.PrimKind, v ir.Value) bool {
+func Admits(k ir.PrimitiveKind, v ir.Value) bool {
 	switch k {
-	case ir.PrimAny:
+	case ir.PrimitiveAny:
 		return true
-	case ir.PrimBool:
+	case ir.PrimitiveBool:
 		return v.Kind == ir.ValueBool
-	case ir.PrimString:
+	case ir.PrimitiveString:
 		return v.Kind == ir.ValueString
-	case ir.PrimInt8:
+	case ir.PrimitiveInt8:
 		return inRange(v, int8Min, int8Max)
-	case ir.PrimInt16:
+	case ir.PrimitiveInt16:
 		return inRange(v, int16Min, int16Max)
-	case ir.PrimInt32:
+	case ir.PrimitiveInt32:
 		return inRange(v, int32Min, int32Max)
-	case ir.PrimInt64:
+	case ir.PrimitiveInt64:
 		return inRange(v, int64Min, int64Max)
-	case ir.PrimUint8:
+	case ir.PrimitiveUint8:
 		return inRange(v, "0", uint8Max)
-	case ir.PrimUint16:
+	case ir.PrimitiveUint16:
 		return inRange(v, "0", uint16Max)
-	case ir.PrimUint32:
+	case ir.PrimitiveUint32:
 		return inRange(v, "0", uint32Max)
-	case ir.PrimUint64:
+	case ir.PrimitiveUint64:
 		return inRange(v, "0", uint64Max)
-	case ir.PrimInteger:
+	case ir.PrimitiveInteger:
 		d, ok := decimalOf(v)
 		return ok && d.IsInt()
-	case ir.PrimNumber, ir.PrimFloat, ir.PrimDecimal:
+	case ir.PrimitiveNumber, ir.PrimitiveFloat, ir.PrimitiveDecimal:
 		_, ok := decimalOf(v)
 		return ok
-	case ir.PrimDecimal128:
+	case ir.PrimitiveDecimal128:
 		return admitsDecimal128(v)
-	case ir.PrimFloat32:
+	case ir.PrimitiveFloat32:
 		return admitsFloat(v, float32Bits)
-	case ir.PrimFloat64:
+	case ir.PrimitiveFloat64:
 		return admitsFloat(v, float64Bits)
-	case ir.PrimDate:
-		return v.Kind == ir.ValueString && parses("2006-01-02", v.Str)
-	case ir.PrimTime:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, partialTime)
-	case ir.PrimDatetime:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, localDateTime)
-	case ir.PrimDatetimeOffset:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, dateTime)
-	case ir.PrimUUID:
-		return v.Kind == ir.ValueString && isUUID(v.Str)
-	case ir.PrimURL:
-		return v.Kind == ir.ValueString && isAbsoluteURI(v.Str)
-	case ir.PrimDuration:
-		return v.Kind == ir.ValueString && isDuration(v.Str)
-	case ir.PrimBytes:
+	case ir.PrimitiveDate:
+		return v.Kind == ir.ValueString && parses("2006-01-02", v.String)
+	case ir.PrimitiveTime:
+		return v.Kind == ir.ValueString && parsesRFC3339(v.String, partialTime)
+	case ir.PrimitiveDatetime:
+		return v.Kind == ir.ValueString && parsesRFC3339(v.String, localDateTime)
+	case ir.PrimitiveDatetimeOffset:
+		return v.Kind == ir.ValueString && parsesRFC3339(v.String, dateTime)
+	case ir.PrimitiveUUID:
+		return v.Kind == ir.ValueString && isUUID(v.String)
+	case ir.PrimitiveURL:
+		return v.Kind == ir.ValueString && isAbsoluteURI(v.String)
+	case ir.PrimitiveDuration:
+		return v.Kind == ir.ValueString && isDuration(v.String)
+	case ir.PrimitiveBytes:
 		return false
 	default:
 		return false
@@ -108,7 +108,7 @@ func Admits(k ir.PrimKind, v ir.Value) bool {
 func admitsFormat(format string, v ir.Value) (admits, held bool) {
 	switch format {
 	case "time":
-		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, fullTime), true
+		return v.Kind == ir.ValueString && parsesRFC3339(v.String, fullTime), true
 	default:
 		return false, false
 	}
@@ -120,7 +120,7 @@ func decimalOf(v ir.Value) (ir.Decimal, bool) {
 	if v.Kind != ir.ValueNumber {
 		return ir.Decimal{}, false
 	}
-	d, err := v.Num.Decimal()
+	d, err := v.Number.Decimal()
 	return d, err == nil
 }
 

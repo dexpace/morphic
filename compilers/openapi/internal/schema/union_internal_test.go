@@ -73,7 +73,7 @@ func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 func TestComposeMixin_NeedsAModel(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	scalar := &ir.Scalar{ID: "t/anon/scalar"}
+	scalar := &ir.Scalar{ID: "type/anonymous/scalar"}
 
 	assert.Empty(t, composeMixin(l.Ctx, l.Types, 0, scalar, nil, "/p"), "no union to compose")
 	assertInternalInvariant(t, composeMixin(l.Ctx, l.Types, 0, scalar, &unionAt{holder: &statement.Schema{}, at: "/p"}, "/p"))

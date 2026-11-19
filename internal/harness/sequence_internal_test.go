@@ -394,8 +394,8 @@ func TestRewriteIndices_RewritesTheIndicesOfReversedSequences(t *testing.T) {
 	written := sequences{"/c/AB/allOf": 2, "/c/AB/allOf/0/allOf": 2}
 	moved := sequences{"/c/AB/allOf": 2, "/c/AB/allOf/1/allOf": 2}
 	for _, tc := range []struct{ name, in, erased, rebased string }{
-		{"an ID naming an element of nested sequences", "t/anon/c/AB/allOf/0/allOf/1/properties/p",
-			"t/anon/c/AB/allOf/-/allOf/-/properties/p", "t/anon/c/AB/allOf/1/allOf/1/properties/p"},
+		{"an ID naming an element of nested sequences", "type/anonymous/c/AB/allOf/0/allOf/1/properties/p",
+			"type/anonymous/c/AB/allOf/-/allOf/-/properties/p", "type/anonymous/c/AB/allOf/1/allOf/1/properties/p"},
 		{"a pointer from the root", "/c/AB/allOf/1/allOf/0", "/c/AB/allOf/-/allOf/0", "/c/AB/allOf/0/allOf/1"},
 		{"an index past the sequence's length", "/c/AB/allOf/2", "/c/AB/allOf/2", "/c/AB/allOf/2"},
 		{"a sequence nobody reversed", "/c/CD/allOf/0", "/c/CD/allOf/0", "/c/CD/allOf/0"},

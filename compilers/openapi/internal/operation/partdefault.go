@@ -108,9 +108,9 @@ func itemsOf(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef) []ir.TypeR
 func elementsOf(td ir.TypeDef) (elems []ir.TypeRef, isArray bool) {
 	switch t := td.(type) {
 	case *ir.List:
-		return []ir.TypeRef{t.Elem}, true
+		return []ir.TypeRef{t.ElementType}, true
 	case *ir.Tuple:
-		elems = append(elems, t.Elems...)
+		elems = append(elems, t.ElementTypes...)
 		if t.Rest != nil {
 			elems = append(elems, *t.Rest)
 		}
@@ -201,7 +201,7 @@ func readNode(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules
 	}
 	switch t := td.(type) {
 	case *ir.Primitive:
-		return byCase(rules, primitiveCase(t.Prim, encoding, encodedBy))
+		return byCase(rules, primitiveCase(t.PrimitiveKind, encoding, encodedBy))
 	case *ir.Enum:
 		return byCase(rules, primitiveCase(t.ValueType, encoding, encodedBy))
 	case *ir.Literal:
@@ -250,11 +250,11 @@ const byteFormatEncoding = "base64"
 // bytes another encoding re-encodes, as base64url does, any other string, and
 // strings are keyed by whether they write contentEncoding (encodedCase). The
 // zero case, which has no row, is a kind of none.
-func primitiveCase(p ir.PrimKind, encoding string, encodedBy contentEncoding) specrules.DefaultCase {
+func primitiveCase(p ir.PrimitiveKind, encoding string, encodedBy contentEncoding) specrules.DefaultCase {
 	switch p {
-	case ir.PrimAny:
+	case ir.PrimitiveAny:
 		return specrules.DefaultUntyped
-	case ir.PrimBytes:
+	case ir.PrimitiveBytes:
 		switch encoding {
 		case "":
 			return specrules.DefaultRawBinary
@@ -263,12 +263,12 @@ func primitiveCase(p ir.PrimKind, encoding string, encodedBy contentEncoding) sp
 		default:
 			return encodedCase(encodedBy, specrules.DefaultString, specrules.DefaultContentEncoded)
 		}
-	case ir.PrimString, ir.PrimDate, ir.PrimTime, ir.PrimDatetime, ir.PrimDatetimeOffset, ir.PrimDuration,
-		ir.PrimURL, ir.PrimUUID:
+	case ir.PrimitiveString, ir.PrimitiveDate, ir.PrimitiveTime, ir.PrimitiveDatetime, ir.PrimitiveDatetimeOffset, ir.PrimitiveDuration,
+		ir.PrimitiveURL, ir.PrimitiveUUID:
 		return encodedCase(encodedBy, specrules.DefaultString, specrules.DefaultContentEncoded)
-	case ir.PrimBool, ir.PrimInt8, ir.PrimInt16, ir.PrimInt32, ir.PrimInt64, ir.PrimUint8, ir.PrimUint16,
-		ir.PrimUint32, ir.PrimUint64, ir.PrimInteger, ir.PrimFloat32, ir.PrimFloat64, ir.PrimFloat, ir.PrimNumber,
-		ir.PrimDecimal, ir.PrimDecimal128:
+	case ir.PrimitiveBool, ir.PrimitiveInt8, ir.PrimitiveInt16, ir.PrimitiveInt32, ir.PrimitiveInt64, ir.PrimitiveUint8, ir.PrimitiveUint16,
+		ir.PrimitiveUint32, ir.PrimitiveUint64, ir.PrimitiveInteger, ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveNumber,
+		ir.PrimitiveDecimal, ir.PrimitiveDecimal128:
 		return specrules.DefaultScalar
 	default:
 		return 0

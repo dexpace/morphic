@@ -121,7 +121,7 @@ func nullAloneUses(t *testing.T, doc *ir.Document) []nullAloneUse {
 	}
 	list, ok := doc.Types[propertyOf(t, doc, "Holder", "list").Type.Target].(*ir.List)
 	require.True(t, ok)
-	uses = append(uses, nullAloneUse{label: "list element", ref: list.Elem})
+	uses = append(uses, nullAloneUse{label: "list element", ref: list.ElementType})
 	m, ok := doc.Types[propertyOf(t, doc, "Holder", "map").Type.Target].(*ir.MapT)
 	require.True(t, ok)
 	uses = append(uses, nullAloneUse{label: "map value", ref: m.Value})
@@ -176,8 +176,8 @@ func TestLowerNullAlone_IsToldFromTheTopType(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	onlyNull, anything := propertyOf(t, doc, "Holder", "onlyNull"), propertyOf(t, doc, "Holder", "anything")
-	assert.Equal(t, ir.TypeRef{Target: "t/prim/any", Nullable: true}, anything.Type)
-	assert.Equal(t, ir.TypeRef{Target: "t/anon/components/schemas/Holder/properties/onlyNull", Nullable: true}, onlyNull.Type)
+	assert.Equal(t, ir.TypeRef{Target: "type/primitive/any", Nullable: true}, anything.Type)
+	assert.Equal(t, ir.TypeRef{Target: "type/anonymous/components/schemas/Holder/properties/onlyNull", Nullable: true}, onlyNull.Type)
 	assertNullAloneAt(t, doc, "onlyNull", onlyNull.Type)
 }
 

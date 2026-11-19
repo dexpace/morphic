@@ -29,7 +29,7 @@ func TestValueSet_AConstNullOnAnEntryStandsAtThePosition(t *testing.T) {
 	en, ok := typeByName(doc, "S").(*ir.Enum)
 	require.True(t, ok, "got %T", typeByName(doc, "S"))
 	assert.Empty(t, en.Members)
-	assert.Equal(t, ir.PrimString, en.ValueType)
+	assert.Equal(t, ir.PrimitiveString, en.ValueType)
 	assert.Empty(t, en.Unmodeled)
 }
 

@@ -116,9 +116,9 @@ func TestIsSubtype_CyclicCompositionTerminates(t *testing.T) {
 	assert.False(t, ir.IsSubtype(doc, "a", "elsewhere"))
 }
 
-func prop(id ir.PropID) ir.Property { return ir.Property{ID: id} }
+func prop(id ir.PropertyID) ir.Property { return ir.Property{ID: id} }
 
-func TestExposedProps_IncludesMixins(t *testing.T) {
+func TestExposedProperties_IncludesMixins(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		irtest.ModelOf("m", func(m *ir.Model) {
@@ -135,34 +135,34 @@ func TestExposedProps_IncludesMixins(t *testing.T) {
 		irtest.ScalarOf("opaque", ""),
 		irtest.ModelOf("unrelated", func(m *ir.Model) { m.Properties = []ir.Property{prop("unrelated.p")} }),
 	)
-	want := map[ir.PropID]bool{
+	want := map[ir.PropertyID]bool{
 		"m.own": true, "base.p": true, "iface.p": true, "mix.p": true, "aliased.p": true,
 	}
-	assert.Equal(t, want, ir.ExposedProps(doc, "m"))
-	assert.Empty(t, ir.ExposedProps(doc, "opaque"))
-	assert.Empty(t, ir.ExposedProps(doc, "missing"))
-	assert.Empty(t, ir.ExposedProps(nil, "m"))
+	assert.Equal(t, want, ir.ExposedProperties(doc, "m"))
+	assert.Empty(t, ir.ExposedProperties(doc, "opaque"))
+	assert.Empty(t, ir.ExposedProperties(doc, "missing"))
+	assert.Empty(t, ir.ExposedProperties(nil, "m"))
 }
 
-func TestExposedProps_CyclicMixinsTerminate(t *testing.T) {
+func TestExposedProperties_CyclicMixinsTerminate(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		irtest.ModelOf("a", func(m *ir.Model) { m.Properties = []ir.Property{prop("a.p")}; m.Mixins = irtest.RefsTo("b") }),
 		irtest.ModelOf("b", func(m *ir.Model) { m.Properties = []ir.Property{prop("b.p")}; m.Mixins = irtest.RefsTo("a") }),
 	)
-	assert.Equal(t, map[ir.PropID]bool{"a.p": true, "b.p": true}, ir.ExposedProps(doc, "a"))
+	assert.Equal(t, map[ir.PropertyID]bool{"a.p": true, "b.p": true}, ir.ExposedProperties(doc, "a"))
 }
 
-func TestExposedProps_SkipsTypedNil(t *testing.T) {
+func TestExposedProperties_SkipsTypedNil(t *testing.T) {
 	t.Parallel()
 	var nilModel *ir.Model
 	doc := irtest.DocOf(irtest.ModelOf("m", func(m *ir.Model) { m.Mixins = irtest.RefsTo("n") }))
 	doc.Types["n"] = nilModel
-	assert.Empty(t, ir.ExposedProps(doc, "m"))
+	assert.Empty(t, ir.ExposedProperties(doc, "m"))
 }
 
-func TestExposedProps_OtherKindsExposeNothing(t *testing.T) {
+func TestExposedProperties_OtherKindsExposeNothing(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(&ir.Enum{ID: "e"})
-	assert.Empty(t, ir.ExposedProps(doc, "e"))
+	assert.Empty(t, ir.ExposedProperties(doc, "e"))
 }

@@ -43,39 +43,39 @@ func memberViolations(doc *ir.Document) map[string][]string {
 
 func TestVerify_DerivedMemberIDsAreClean(t *testing.T) {
 	t.Parallel()
-	named := memberDoc("t/openapi/components/schemas/E",
-		"e/openapi/components/schemas/E/s:a", "e/openapi/components/schemas/E/s:a/2", "e/openapi/components/schemas/E/n:-1")
-	inline := memberDoc("t/anon/paths/~1x/get/schema", "e/anon/paths/~1x/get/schema/s:a")
+	named := memberDoc("type/openapi/components/schemas/E",
+		"enum-member/openapi/components/schemas/E/string:a", "enum-member/openapi/components/schemas/E/string:a/2", "enum-member/openapi/components/schemas/E/number:-1")
+	inline := memberDoc("type/anonymous/paths/~1x/get/schema", "enum-member/anonymous/paths/~1x/get/schema/string:a")
 	assert.Empty(t, memberViolations(named))
 	assert.Empty(t, memberViolations(inline))
 }
 
 func TestVerify_MalformedMemberIDIsAViolation(t *testing.T) {
 	t.Parallel()
-	doc := memberDoc("t/openapi/components/schemas/E", "x/space/path")
+	doc := memberDoc("type/openapi/components/schemas/E", "x/space/path")
 	assert.Equal(t, map[string][]string{
-		"ir/id-malformed": {"doc.Types[t/openapi/components/schemas/E].Members[0]"},
+		"ir/id-malformed": {"document.Types[type/openapi/components/schemas/E].Members[0]"},
 	}, memberViolations(doc), "reported once, by the grammar check, not again by the scope check")
 }
 
 func TestVerify_MemberIDOutsideItsEnumIsAViolation(t *testing.T) {
 	t.Parallel()
-	const enum = ir.TypeID("t/openapi/components/schemas/E")
+	const enum = ir.TypeID("type/openapi/components/schemas/E")
 	for _, tc := range []struct {
 		name   string
 		member ir.EnumMemberID
 	}{
-		{"another enum's path", "e/openapi/components/schemas/Other/s:a"},
-		{"a sibling sharing the enum's name as a prefix", "e/openapi/components/schemas/E2/s:a"},
-		{"another namespace", "e/anon/components/schemas/E/s:a"},
-		{"the enum's own path with no key", "e/openapi/components/schemas/E"},
-		{"the enum's own path with an empty key", "e/openapi/components/schemas/E/"},
-		{"the enum's path behind an empty segment", "e/openapi//components/schemas/E/s:a"},
+		{"another enum's path", "enum-member/openapi/components/schemas/Other/string:a"},
+		{"a sibling sharing the enum's name as a prefix", "enum-member/openapi/components/schemas/E2/string:a"},
+		{"another namespace", "enum-member/anonymous/components/schemas/E/string:a"},
+		{"the enum's own path with no key", "enum-member/openapi/components/schemas/E"},
+		{"the enum's own path with an empty key", "enum-member/openapi/components/schemas/E/"},
+		{"the enum's path behind an empty segment", "enum-member/openapi//components/schemas/E/string:a"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := memberViolations(memberDoc(enum, tc.member))
-			assert.Equal(t, []string{"doc.Types[t/openapi/components/schemas/E].Members[0]"}, got["ir/member-id-scope"])
+			assert.Equal(t, []string{"document.Types[type/openapi/components/schemas/E].Members[0]"}, got["ir/member-id-scope"])
 			assert.NotContains(t, got, "ir/id-malformed")
 		})
 	}
@@ -83,18 +83,18 @@ func TestVerify_MemberIDOutsideItsEnumIsAViolation(t *testing.T) {
 
 func TestVerify_DuplicateMemberIDIsAViolation(t *testing.T) {
 	t.Parallel()
-	doc := memberDoc("t/openapi/components/schemas/E",
-		"e/openapi/components/schemas/E/s:a", "e/openapi/components/schemas/E/s:a")
+	doc := memberDoc("type/openapi/components/schemas/E",
+		"enum-member/openapi/components/schemas/E/string:a", "enum-member/openapi/components/schemas/E/string:a")
 	assert.Equal(t, map[string][]string{
-		"ir/duplicate-enummember-id": {"doc.Types[t/openapi/components/schemas/E].Members[1]"},
+		"ir/duplicate-enummember-id": {"document.Types[type/openapi/components/schemas/E].Members[1]"},
 	}, memberViolations(doc))
 }
 
 func TestVerify_EmptyMemberIDIsAViolation(t *testing.T) {
 	t.Parallel()
-	doc := memberDoc("t/openapi/components/schemas/E", "")
+	doc := memberDoc("type/openapi/components/schemas/E", "")
 	assert.Equal(t, map[string][]string{
-		"ir/empty-enummember-id": {"doc.Types[t/openapi/components/schemas/E].Members[0]"},
+		"ir/empty-enummember-id": {"document.Types[type/openapi/components/schemas/E].Members[0]"},
 	}, memberViolations(doc), "empty is checkDeclaredIDs' to report, and the scope check leaves it alone")
 }
 
@@ -103,13 +103,13 @@ func TestVerify_EmptyMemberIDIsAViolation(t *testing.T) {
 // holds synthesized union variants, is seen by the declaration check.
 func TestVerify_MemberIDInAnUndeclaredSpaceIsAViolation(t *testing.T) {
 	t.Parallel()
-	doc := memberDoc("t/composed/components/schemas/E", "e/composed/components/schemas/E/s:a")
+	doc := memberDoc("type/composed/components/schemas/E", "enum-member/composed/components/schemas/E/string:a")
 	doc.IDSpaces = map[string][]string{
 		ir.IDKindType:       {"composed"},
 		ir.IDKindEnumMember: {"anon", "openapi"},
 	}
 	got := irverify.Verify(doc)
-	require.Equal(t, []string{"doc.Types[t/composed/components/schemas/E].Members[0]"},
+	require.Equal(t, []string{"document.Types[type/composed/components/schemas/E].Members[0]"},
 		violationPaths(got, "ir/id-space-undeclared"))
 	assert.Empty(t, violationPaths(got, "ir/member-id-scope"), "the member is in its enum's namespace")
 }

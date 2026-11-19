@@ -28,7 +28,7 @@ func inferred(target ir.TypeID) ir.TypeRef {
 }
 
 // prim is the shared primitive of kind k.
-func prim(k ir.PrimKind) ir.TypeID { return ir.PrimTypeID(k) }
+func prim(k ir.PrimitiveKind) ir.TypeID { return ir.PrimitiveTypeID(k) }
 
 // holderProps returns the properties of the component schema Holder by wire
 // name.
@@ -44,23 +44,23 @@ func holderProps(t *testing.T, doc *ir.Document) map[string]ir.Property {
 // keyword the policy honours is reported once, at itself.
 func assertNullableKeyword31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	props := holderProps(t, doc)
-	assert.Equal(t, inferred(prim(ir.PrimString)), props["inline"].Type)
+	assert.Equal(t, inferred(prim(ir.PrimitiveString)), props["inline"].Type)
 	assert.Equal(t, inferred(componentID("Name")), props["viaRef"].Type, "a target's nullable reaches its use")
 	assert.Equal(t, inferred(componentID("Plain")), props["besideRef"].Type, "one beside the $ref widens the usage")
-	assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, props["declared"].Type,
+	assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimitiveString), Nullable: true}, props["declared"].Type,
 		"the type array admits null, so the bit is the document's own")
-	assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimString)}, props["notNullable"].Type)
+	assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimitiveString)}, props["notNullable"].Type)
 
 	counts, ok := doc.Types[props["counts"].Type.Target].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, inferred(prim(ir.PrimInteger)), counts.Elem, "an element's reference is marked as any other")
+	assert.Equal(t, inferred(prim(ir.PrimitiveInteger)), counts.ElementType, "an element's reference is marked as any other")
 	described, ok := doc.Types[props["described"].Type.Target].(*ir.List)
 	require.True(t, ok)
-	alias := ir.TypeID("t/anon/components/schemas/Holder/properties/described/items")
-	assert.Equal(t, inferred(alias), described.Elem, "an alias homing the element's docs keeps the marker")
+	alias := ir.TypeID("type/anonymous/components/schemas/Holder/properties/described/items")
+	assert.Equal(t, inferred(alias), described.ElementType, "an alias homing the element's docs keeps the marker")
 	shaped, ok := doc.Types[props["shaped"].Type.Target].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, inferred("t/anon/components/schemas/Holder/properties/shaped/items"), shaped.Elem,
+	assert.Equal(t, inferred("type/anonymous/components/schemas/Holder/properties/shaped/items"), shaped.ElementType,
 		"an element whose own node homes its docs keeps the marker")
 
 	assert.Equal(t, []jsontext.Pointer{
@@ -83,9 +83,9 @@ func assertNullableKeyword31(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 // null, as the clarified text has it, against the two it does.
 func assertNullableKeyword30(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	props := holderProps(t, doc)
-	assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, props["typed"].Type,
+	assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimitiveString), Nullable: true}, props["typed"].Type,
 		"nullable beside a type is the document's own null")
-	assert.Equal(t, inferred(prim(ir.PrimAny)), props["untyped"].Type)
+	assert.Equal(t, inferred(prim(ir.PrimitiveAny)), props["untyped"].Type)
 	for _, name := range []string{"composed", "unlisted", "typedComposed"} {
 		assert.Equal(t, openapi.NullableInferenceHeuristic, props[name].Type.Inferred, name)
 		assert.True(t, props[name].Type.Nullable, name)
@@ -123,7 +123,7 @@ func assertSchemaRefSiblings30(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	require.True(t, ok)
 	// The keywords beside the $ref are a conjunct of the use, so owner names
 	// the decorator over Person they make, which holds the description.
-	decorator := ir.TypeID("t/anon/components/schemas/Pet/properties/owner")
+	decorator := ir.TypeID("type/anonymous/components/schemas/Pet/properties/owner")
 	assert.Equal(t, inferred(decorator), owner.Type)
 	assert.Equal(t, "The pet's owner.", doc.Types[decorator].Common().Docs.Description, "the use site's description wins")
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, owner.Visibility.Only)
@@ -188,7 +188,7 @@ func TestSchemaRefSiblings_ReadInTheDeclaredDialect(t *testing.T) {
 	const at = "/components/schemas/Holder/properties/p"
 	// The keywords beside the $ref are a conjunct of the use, so p names the
 	// model over Maybe they make, as the allOf of the two does.
-	model := ir.TypeID("t/anon" + at)
+	model := ir.TypeID("type/anonymous" + at)
 	maybe := ir.TypeRef{Target: model, Nullable: true}
 	for _, tc := range []struct {
 		name, version, p, rest string
@@ -300,7 +300,7 @@ func TestNullableInference_AKeywordIsReportedOnceAtItself(t *testing.T) {
 		assert.Equal(t, n, props["a"].Type)
 		list, ok := doc.Types[props["b"].Type.Target].(*ir.List)
 		require.True(t, ok)
-		assert.Equal(t, n, list.Elem)
+		assert.Equal(t, n, list.ElementType)
 		union, ok := doc.Types[props["c"].Type.Target].(*ir.Union)
 		require.True(t, ok)
 		require.Len(t, union.Variants, 2)
@@ -381,8 +381,8 @@ func TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy(t *tes
 		inferred []jsontext.Pointer
 		want     ir.TypeRef
 	}{
-		{"on", false, []jsontext.Pointer{at}, inferred(prim(ir.PrimAny))},
-		{"off", true, nil, ir.TypeRef{Target: prim(ir.PrimAny)}},
+		{"on", false, []jsontext.Pointer{at}, inferred(prim(ir.PrimitiveAny))},
+		{"off", true, nil, ir.TypeRef{Target: prim(ir.PrimitiveAny)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -443,18 +443,18 @@ func TestNullableInference_ACompositionKeepsTheMarker(t *testing.T) {
 		narrowed, ok := doc.Types[componentID("Narrowed")].(*ir.Union)
 		require.True(t, ok)
 		require.Len(t, narrowed.Variants, 2)
-		assert.Equal(t, ir.TypeRef{Target: "t/composed/components/schemas/Narrowed/oneOf/0"}, narrowed.Variants[0].Type,
+		assert.Equal(t, ir.TypeRef{Target: "type/composed/components/schemas/Narrowed/oneOf/0"}, narrowed.Variants[0].Type,
 			"off: %v", off)
 		union, ok := doc.Types[componentID("Distributed")].(*ir.Union)
 		require.True(t, ok)
 		require.Len(t, union.Variants, 2)
-		variant := ir.TypeID("t/composed/components/schemas/Distributed/oneOf/0")
+		variant := ir.TypeID("type/composed/components/schemas/Distributed/oneOf/0")
 		if off {
-			assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimString)}, a.Type, "the first branch's type excludes null")
+			assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimitiveString)}, a.Type, "the first branch's type excludes null")
 			assert.Equal(t, ir.TypeRef{Target: variant}, union.Variants[0].Type)
 			continue
 		}
-		assert.Equal(t, inferred(prim(ir.PrimString)), a.Type)
+		assert.Equal(t, inferred(prim(ir.PrimitiveString)), a.Type)
 		assert.Equal(t, inferred(variant), union.Variants[0].Type)
 		assert.False(t, union.Variants[1].Type.Nullable)
 	}
@@ -473,7 +473,7 @@ components:
   schemas:
     A: {type: array, items: {type: integer, nullable: true}}
 `, true)
-	alias, ok := doc.Types["t/anon/components/schemas/A/items"]
+	alias, ok := doc.Types["type/anonymous/components/schemas/A/items"]
 	require.True(t, ok)
 	assert.Equal(t, `true`, string(unmodeledEntry(t, alias.Common().Unmodeled, "openapi:nullable").Value))
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/unknown-schema-keyword",

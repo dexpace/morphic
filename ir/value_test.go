@@ -20,26 +20,26 @@ func TestValue_JSONRoundTrip(t *testing.T) {
 	cases := map[string]ir.Value{
 		"null":   {Kind: ir.ValueNull},
 		"bool":   {Kind: ir.ValueBool, Bool: true},
-		"string": {Kind: ir.ValueString, Str: "hello"},
-		"symbol": {Kind: ir.ValueSymbol, Str: "ok"},
-		"number": {Kind: ir.ValueNumber, Num: ir.BigVal("3.14")},
+		"string": {Kind: ir.ValueString, String: "hello"},
+		"symbol": {Kind: ir.ValueSymbol, String: "ok"},
+		"number": {Kind: ir.ValueNumber, Number: ir.BigVal("3.14")},
 		"bytes":  {Kind: ir.ValueBytes, Bytes: []byte{0x01, 0x02}},
 		"list": {Kind: ir.ValueList, List: []ir.Value{
-			{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
-			{Kind: ir.ValueNumber, Num: ir.BigVal("2")},
+			{Kind: ir.ValueNumber, Number: ir.BigVal("1")},
+			{Kind: ir.ValueNumber, Number: ir.BigVal("2")},
 		}},
 		"empty list":   {Kind: ir.ValueList, List: []ir.Value{}},
 		"empty object": {Kind: ir.ValueObject, Object: []ir.Field{}},
 		"empty bytes":  {Kind: ir.ValueBytes, Bytes: []byte{}},
 		"object": {Kind: ir.ValueObject, Object: []ir.Field{
 			{Name: "b", Value: ir.Value{Kind: ir.ValueBool, Bool: false}},
-			{Name: "a", Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
+			{Name: "a", Value: ir.Value{Kind: ir.ValueString, String: "x"}},
 		}},
-		"ref": {Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: ir.TypeID("t/x"), Member: "M"}},
-		"ctor": {Kind: ir.ValueCtor, Ctor: &ir.CtorValue{
-			Scalar: ir.TypeID("t/s"),
+		"ref": {Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: ir.TypeID("type/x"), Member: "M"}},
+		"ctor": {Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{
+			Scalar: ir.TypeID("type/s"),
 			Name:   "fromISO",
-			Args:   []ir.Value{{Kind: ir.ValueString, Str: "2024-05-06"}},
+			Args:   []ir.Value{{Kind: ir.ValueString, String: "2024-05-06"}},
 		}},
 	}
 	for name, v := range cases {
@@ -76,9 +76,9 @@ func TestValue_EmptyPayloadHasOneSpelling(t *testing.T) {
 		{"bytes", ir.Value{Kind: ir.ValueBytes, Bytes: []byte{}}, ir.Value{Kind: ir.ValueBytes}, `{"kind":"bytes"}`},
 		{
 			"ctor args",
-			ir.Value{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Args: []ir.Value{}}},
-			ir.Value{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{}},
-			`{"kind":"ctor","ctor":{}}`,
+			ir.Value{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{Args: []ir.Value{}}},
+			ir.Value{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{}},
+			`{"kind":"constructor","constructor":{}}`,
 		},
 	}
 	for _, tt := range tests {

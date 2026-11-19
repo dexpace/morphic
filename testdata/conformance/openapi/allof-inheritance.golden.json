@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "AllOfInheritance",
         "canonical": "all_of_inheritance"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Base": {
+    "type/openapi/components/schemas/Base": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Base",
+      "id": "type/openapi/components/schemas/Base",
       "name": {
         "source": "Base",
         "canonical": "base"
@@ -75,21 +75,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Base/properties/id",
+          "id": "property/openapi/components/schemas/Base/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -106,9 +106,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Derived": {
+    "type/openapi/components/schemas/Derived": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Derived",
+      "id": "type/openapi/components/schemas/Derived",
       "name": {
         "source": "Derived",
         "canonical": "derived"
@@ -135,21 +135,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Derived/properties/extra",
+          "id": "property/openapi/components/schemas/Derived/properties/extra",
           "name": {
             "source": "extra",
             "canonical": "extra"
           },
           "wireName": "extra",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -163,7 +163,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "additional": "closed",
@@ -171,9 +171,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Leaf": {
+    "type/openapi/components/schemas/Leaf": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Leaf",
+      "id": "type/openapi/components/schemas/Leaf",
       "name": {
         "source": "Leaf",
         "canonical": "leaf"
@@ -186,12 +186,12 @@
         "pointer": "/components/schemas/Leaf"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Mid",
+        "target": "type/openapi/components/schemas/Mid",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Other",
+          "target": "type/openapi/components/schemas/Other",
           "nullable": false
         }
       ],
@@ -200,9 +200,9 @@
       "discriminatorValue": "Leaf",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Mid": {
+    "type/openapi/components/schemas/Mid": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Mid",
+      "id": "type/openapi/components/schemas/Mid",
       "name": {
         "source": "Mid",
         "canonical": "mid"
@@ -215,7 +215,7 @@
         "pointer": "/components/schemas/Mid"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Root",
+        "target": "type/openapi/components/schemas/Root",
         "nullable": false
       },
       "abstract": false,
@@ -223,9 +223,9 @@
       "discriminatorValue": "Mid",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Other": {
+    "type/openapi/components/schemas/Other": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Other",
+      "id": "type/openapi/components/schemas/Other",
       "name": {
         "source": "Other",
         "canonical": "other"
@@ -239,21 +239,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Other/properties/x",
+          "id": "property/openapi/components/schemas/Other/properties/x",
           "name": {
             "source": "x",
             "canonical": "x"
           },
           "wireName": "x",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -270,9 +270,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Root": {
+    "type/openapi/components/schemas/Root": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Root",
+      "id": "type/openapi/components/schemas/Root",
       "name": {
         "source": "Root",
         "canonical": "root"
@@ -286,21 +286,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Root/properties/kind",
+          "id": "property/openapi/components/schemas/Root/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -316,14 +316,14 @@
       "abstract": false,
       "positional": false,
       "discriminator": {
-        "property": "p/openapi/components/schemas/Root/properties/kind",
+        "property": "property/openapi/components/schemas/Root/properties/kind",
         "inferred": false
       },
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -331,7 +331,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

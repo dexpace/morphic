@@ -55,7 +55,7 @@ func checkBoundMessages(doc *ir.Document, op ir.Operation, carried *scratchstate
 // messagesAt is where a binding's message list sits: the operation, and the
 // list's field below its message binding. It is spelled only for a diagnostic.
 type messagesAt struct {
-	op    ir.OpID
+	op    ir.OperationID
 	field string
 }
 

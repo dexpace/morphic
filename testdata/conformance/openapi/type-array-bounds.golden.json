@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "TypeArrayBounds",
         "canonical": "type_array_bounds"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Dated/type/1": {
+    "type/anonymous/components/schemas/Dated/type/1": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Dated/type/1",
+      "id": "type/anonymous/components/schemas/Dated/type/1",
       "name": {
         "hint": "dated"
       },
@@ -73,7 +73,7 @@
         "pointer": "/components/schemas/Dated/type/1"
       },
       "base": {
-        "target": "t/prim/date",
+        "target": "type/primitive/date",
         "nullable": false
       },
       "constraints": {
@@ -81,9 +81,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/Holder/properties/either": {
+    "type/anonymous/components/schemas/Holder/properties/either": {
       "kind": "union",
-      "id": "t/anon/components/schemas/Holder/properties/either",
+      "id": "type/anonymous/components/schemas/Holder/properties/either",
       "name": {
         "hint": "either"
       },
@@ -100,7 +100,7 @@
             "hint": "integer"
           },
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "docs": {}
@@ -110,7 +110,7 @@
             "hint": "string"
           },
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/either/type/1",
+            "target": "type/anonymous/components/schemas/Holder/properties/either/type/1",
             "nullable": false
           },
           "docs": {}
@@ -121,9 +121,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Holder/properties/either/type/1": {
+    "type/anonymous/components/schemas/Holder/properties/either/type/1": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/either/type/1",
+      "id": "type/anonymous/components/schemas/Holder/properties/either/type/1",
       "name": {
         "hint": "either"
       },
@@ -135,7 +135,7 @@
         "pointer": "/components/schemas/Holder/properties/either/type/1"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -143,9 +143,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/Measure/type/0": {
+    "type/anonymous/components/schemas/Measure/type/0": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Measure/type/0",
+      "id": "type/anonymous/components/schemas/Measure/type/0",
       "name": {
         "hint": "measure"
       },
@@ -157,7 +157,7 @@
         "pointer": "/components/schemas/Measure/type/0"
       },
       "base": {
-        "target": "t/prim/number",
+        "target": "type/primitive/number",
         "nullable": false
       },
       "constraints": {
@@ -165,9 +165,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/Measure/type/1": {
+    "type/anonymous/components/schemas/Measure/type/1": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Measure/type/1",
+      "id": "type/anonymous/components/schemas/Measure/type/1",
       "name": {
         "hint": "measure"
       },
@@ -179,7 +179,7 @@
         "pointer": "/components/schemas/Measure/type/1"
       },
       "base": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       },
       "constraints": {
@@ -187,9 +187,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/Mixed/type/0": {
+    "type/anonymous/components/schemas/Mixed/type/0": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Mixed/type/0",
+      "id": "type/anonymous/components/schemas/Mixed/type/0",
       "name": {
         "hint": "mixed"
       },
@@ -201,7 +201,7 @@
         "pointer": "/components/schemas/Mixed/type/0"
       },
       "base": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       },
       "constraints": {
@@ -209,9 +209,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/Mixed/type/1": {
+    "type/anonymous/components/schemas/Mixed/type/1": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Mixed/type/1",
+      "id": "type/anonymous/components/schemas/Mixed/type/1",
       "name": {
         "hint": "mixed"
       },
@@ -223,7 +223,7 @@
         "pointer": "/components/schemas/Mixed/type/1"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -231,9 +231,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/OnBranch/type/1": {
+    "type/anonymous/components/schemas/OnBranch/type/1": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/OnBranch/type/1",
+      "id": "type/anonymous/components/schemas/OnBranch/type/1",
       "name": {
         "hint": "on_branch"
       },
@@ -245,7 +245,7 @@
         "pointer": "/components/schemas/OnBranch/type/1"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -253,9 +253,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/Dated": {
+    "type/openapi/components/schemas/Dated": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Dated",
+      "id": "type/openapi/components/schemas/Dated",
       "name": {
         "source": "Dated",
         "canonical": "dated"
@@ -273,7 +273,7 @@
             "hint": "integer"
           },
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "docs": {}
@@ -283,7 +283,7 @@
             "hint": "string"
           },
           "type": {
-            "target": "t/anon/components/schemas/Dated/type/1",
+            "target": "type/anonymous/components/schemas/Dated/type/1",
             "nullable": false
           },
           "docs": {}
@@ -294,9 +294,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -310,21 +310,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/either",
+          "id": "property/openapi/components/schemas/Holder/properties/either",
           "name": {
             "source": "either",
             "canonical": "either"
           },
           "wireName": "either",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/either",
+            "target": "type/anonymous/components/schemas/Holder/properties/either",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -341,9 +341,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Measure": {
+    "type/openapi/components/schemas/Measure": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Measure",
+      "id": "type/openapi/components/schemas/Measure",
       "name": {
         "source": "Measure",
         "canonical": "measure"
@@ -361,7 +361,7 @@
             "hint": "number"
           },
           "type": {
-            "target": "t/anon/components/schemas/Measure/type/0",
+            "target": "type/anonymous/components/schemas/Measure/type/0",
             "nullable": false
           },
           "docs": {}
@@ -371,7 +371,7 @@
             "hint": "integer"
           },
           "type": {
-            "target": "t/anon/components/schemas/Measure/type/1",
+            "target": "type/anonymous/components/schemas/Measure/type/1",
             "nullable": false
           },
           "docs": {}
@@ -382,9 +382,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Mixed": {
+    "type/openapi/components/schemas/Mixed": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Mixed",
+      "id": "type/openapi/components/schemas/Mixed",
       "name": {
         "source": "Mixed",
         "canonical": "mixed"
@@ -402,7 +402,7 @@
             "hint": "integer"
           },
           "type": {
-            "target": "t/anon/components/schemas/Mixed/type/0",
+            "target": "type/anonymous/components/schemas/Mixed/type/0",
             "nullable": false
           },
           "docs": {}
@@ -412,7 +412,7 @@
             "hint": "string"
           },
           "type": {
-            "target": "t/anon/components/schemas/Mixed/type/1",
+            "target": "type/anonymous/components/schemas/Mixed/type/1",
             "nullable": false
           },
           "docs": {}
@@ -423,9 +423,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/OnBranch": {
+    "type/openapi/components/schemas/OnBranch": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/OnBranch",
+      "id": "type/openapi/components/schemas/OnBranch",
       "name": {
         "source": "OnBranch",
         "canonical": "on_branch"
@@ -443,7 +443,7 @@
             "hint": "integer"
           },
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "docs": {}
@@ -453,7 +453,7 @@
             "hint": "string"
           },
           "type": {
-            "target": "t/anon/components/schemas/OnBranch/type/1",
+            "target": "type/anonymous/components/schemas/OnBranch/type/1",
             "nullable": false
           },
           "docs": {}
@@ -464,9 +464,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Untaken": {
+    "type/openapi/components/schemas/Untaken": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Untaken",
+      "id": "type/openapi/components/schemas/Untaken",
       "name": {
         "source": "Untaken",
         "canonical": "untaken"
@@ -494,7 +494,7 @@
             "hint": "integer"
           },
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "docs": {}
@@ -504,7 +504,7 @@
             "hint": "string"
           },
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "docs": {}
@@ -515,9 +515,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/prim/date": {
+    "type/primitive/date": {
       "kind": "primitive",
-      "id": "t/prim/date",
+      "id": "type/primitive/date",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -525,11 +525,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "date"
+      "primitiveKind": "date"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -537,11 +537,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/number": {
+    "type/primitive/number": {
       "kind": "primitive",
-      "id": "t/prim/number",
+      "id": "type/primitive/number",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -549,11 +549,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "number"
+      "primitiveKind": "number"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -561,7 +561,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

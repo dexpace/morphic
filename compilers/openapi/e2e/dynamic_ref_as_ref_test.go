@@ -102,7 +102,7 @@ func TestCompile_ADynamicRefNamingADynamicAnchorStaysDynamic(t *testing.T) {
 	assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
 	assert.Equal(t, "openapi/dynamic-ref-expanded", diags[0].Code)
 	assert.EqualValues(t, "/components/schemas/Dyn/$dynamicRef", diags[0].Provenance.Pointer)
-	assert.Equal(t, `$dynamicRef expanded to "t/openapi/components/schemas/Pet", the one matching $dynamicAnchor in this document`,
+	assert.Equal(t, `$dynamicRef expanded to "type/openapi/components/schemas/Pet", the one matching $dynamicAnchor in this document`,
 		diags[0].Message)
 }
 
@@ -135,7 +135,7 @@ func TestCompile_ADynamicRefResolvingNowhereIsAnUnresolvedRef(t *testing.T) {
 
 	sc := dynScalar(t, doc, "Miss")
 	require.NotNil(t, sc.Base)
-	assert.Equal(t, ir.TypeID("t/prim/any"), sc.Base.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), sc.Base.Target)
 	assert.Empty(t, sc.Unmodeled, "the binding's error stands alone")
 	for _, d := range diags {
 		assert.NotEqual(t, "openapi/dynamic-ref-expanded", d.Code)
@@ -161,7 +161,7 @@ func TestCompile_ADynamicRefNamingAnotherDocumentReadsAsARef(t *testing.T) {
 	assert.Empty(t, diags)
 	sc := dynScalar(t, doc, "Ext")
 	require.NotNil(t, sc.Base)
-	assert.Equal(t, ir.TypeID("t/anon@other.yaml/X"), sc.Base.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous@other.yaml/X"), sc.Base.Target)
 	assert.Empty(t, sc.Unmodeled)
 
 	// Outside the source's directory, which a read leaves only where external
@@ -219,7 +219,7 @@ func TestCompile_ATwoMemberCycleThroughADynamicRefIsACyclicRef(t *testing.T) {
 			got, in := doc.Types[id]
 			assert.Equal(t, inTwin, in, "%s: %s is lowered as the $ref loop's member is", name, id)
 			if sc, ok := got.(*ir.Scalar); ok && sc.Base != nil {
-				assert.Equal(t, ir.TypeID("t/prim/any"), sc.Base.Target, "%s: %s lowers the top type", name, id)
+				assert.Equal(t, ir.TypeID("type/primitive/any"), sc.Base.Target, "%s: %s lowers the top type", name, id)
 			}
 		}
 	}
@@ -240,7 +240,7 @@ func TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference(t *testing.T) {
 
 		sc := dynScalar(t, doc, "B")
 		require.NotNil(t, sc.Base, name)
-		assert.Equal(t, ir.TypeID("t/prim/any"), sc.Base.Target, "%s: the loop is not entered", name)
+		assert.Equal(t, ir.TypeID("type/primitive/any"), sc.Base.Target, "%s: the loop is not entered", name)
 		entry := unmodeledEntry(t, sc.Unmodeled, "openapi:$dynamicRef")
 		assert.JSONEq(t, `"#a"`, string(entry.Value), name)
 

@@ -28,7 +28,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// partEncodings builds a form body's per-part wire config, keyed by the PropID
+// partEncodings builds a form body's per-part wire config, keyed by the PropertyID
 // of the body property each part names (docs/compilers/openapi.md#multipart-encoding),
 // a part with an entry, a default content type or a flag; keepUnkeyedEncodings
 // keeps whole an entry naming none. body is the TypeID the schema lowered to.
@@ -38,7 +38,7 @@ import (
 // promised (compile.Types.ReserveNodeAtCoordinate), so partKeys settles them and each entry's
 // records once every node exists, for every body stating a schema.
 func partEncodings(c service.Ctx, w operationLoweringState, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
-	map[ir.PropID]ir.PartEncoding, map[ir.TypeID]ir.CatchAllParts, ir.Unmodeled, []ir.Diagnostic,
+	map[ir.PropertyID]ir.PartEncoding, map[ir.TypeID]ir.CatchAllParts, ir.Unmodeled, []ir.Diagnostic,
 ) {
 	bodyWalk := walkBodyParts(c.Ctx, media.GetSchema())
 	parts := bodyWalk.parts
@@ -62,7 +62,7 @@ func partEncodings(c service.Ctx, w operationLoweringState, media *soa.MediaType
 		}
 	}
 	keys.kept = unmodeled
-	keys.out = make(map[ir.PropID]ir.PartEncoding, len(keys.parts))
+	keys.out = make(map[ir.PropertyID]ir.PartEncoding, len(keys.parts))
 	keys.catchAll = map[ir.TypeID]ir.CatchAllParts{}
 	w.types.Defer(keys)
 	return keys.out, keys.catchAll, unmodeled, diags
@@ -217,7 +217,7 @@ func unknownEncodingKey(c service.Ctx, name, owner string, at jsontext.Pointer) 
 // value schemas the part walk met.
 type partKeys struct {
 	c              service.Ctx
-	out            map[ir.PropID]ir.PartEncoding
+	out            map[ir.PropertyID]ir.PartEncoding
 	catchAll       map[ir.TypeID]ir.CatchAllParts
 	kept           ir.Unmodeled
 	body           ir.TypeID
@@ -308,7 +308,7 @@ func mayHoldParts(td ir.TypeDef) bool {
 	case *ir.Literal:
 		return t.Value.Kind == ir.ValueObject
 	case *ir.Primitive:
-		return t.Prim == ir.PrimAny
+		return t.PrimitiveKind == ir.PrimitiveAny
 	default:
 		return false
 	}
@@ -337,15 +337,15 @@ func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart,
 // where none of decls is, which a declaration the merge folded into one of
 // them, an allOf branch's, is. So one variant's declaration is read apart
 // from another's, and each schema is placed once.
-func declarationSchemas(c service.Ctx, part bodyPart, decls []*ir.Property) map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable] {
-	out := make(map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable], len(decls))
+func declarationSchemas(c service.Ctx, part bodyPart, decls []*ir.Property) map[ir.PropertyID][]*oas3.JSONSchema[oas3.Referenceable] {
+	out := make(map[ir.PropertyID][]*oas3.JSONSchema[oas3.Referenceable], len(decls))
 	if len(decls) < 2 {
 		for _, d := range decls {
 			out[d.ID] = part.schemas
 		}
 		return out
 	}
-	held := make(map[ir.PropID]bool, len(decls))
+	held := make(map[ir.PropertyID]bool, len(decls))
 	for _, d := range decls {
 		held[d.ID] = true
 	}
@@ -365,7 +365,7 @@ func declarationSchemas(c service.Ctx, part bodyPart, decls []*ir.Property) map[
 // schema lowering names one by where it is read, and false where the bindings
 // do not place js in a document the compile read. Where they place it
 // nowhere, the zero position names the source, which is read and not used.
-func declaredProp(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropID, bool) {
+func declaredProp(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropertyID, bool) {
 	at, placed := c.Bindings().Site(js)
 	dc, read := service.InDocument(c, at.Doc)
 	return dc.IDs().Prop(at.Pointer), placed && read
@@ -774,7 +774,7 @@ func partFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), refs
 	if !decided {
 		multi = declaredMulti(refs, part.schemas)
 	}
-	pe.Multi, pe.Filename = multi, file
+	pe.RepeatsPerArrayItem, pe.HasFilename = multi, file
 	return pe
 }
 
@@ -863,7 +863,7 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 		}
 		switch t := td.(type) {
 		case *ir.List:
-			return true, multipart && rawBytes(node, t.Elem), true
+			return true, multipart && rawBytes(node, t.ElementType), true
 		case *ir.Tuple:
 			return true, multipart && rawTuple(node, t), true
 		case *ir.Primitive:
@@ -951,6 +951,6 @@ func bodyNode(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) ir.TypeDe
 // TestPartEncodingEmpty_ReadsEveryField holds it to: one it skipped would drop
 // a part declaring nothing else.
 func partEncodingEmpty(pe ir.PartEncoding) bool {
-	return len(pe.ContentTypes) == 0 && len(pe.Headers) == 0 && !pe.Multi && !pe.Filename &&
+	return len(pe.ContentTypes) == 0 && len(pe.Headers) == 0 && !pe.RepeatsPerArrayItem && !pe.HasFilename &&
 		pe.Style == "" && pe.Explode == nil && !pe.AllowReserved && pe.Inferred == ""
 }

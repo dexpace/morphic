@@ -22,17 +22,17 @@ func TestEnumMemberKey_EncodesEveryAdmissibleKind(t *testing.T) {
 		val  ir.Value
 		want string
 	}{
-		{"string", ir.Value{Kind: ir.ValueString, Str: "a-b"}, "s:a-b"},
-		{"string keeping a slash", ir.Value{Kind: ir.ValueString, Str: "a/b"}, "s:a/b"},
-		{"string with % and #", ir.Value{Kind: ir.ValueString, Str: "100%#1"}, "s:100%#1"},
-		{"empty string", ir.Value{Kind: ir.ValueString}, "s:"},
-		{"symbol", ir.Value{Kind: ir.ValueSymbol, Str: "ok"}, "y:ok"},
-		{"number", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("-1.5")}, "n:-1.5e0"},
-		{"number spelled with an exponent", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("-15e-1")}, "n:-1.5e0"},
-		{"number outside the decimal grammar", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1p4")}, "n:1p4"},
-		{"bool", ir.Value{Kind: ir.ValueBool, Bool: true}, "b:true"},
-		{"bytes", ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi?>")}, "x:aGk_Pg"},
-		{"null", ir.Value{Kind: ir.ValueNull}, "z:"},
+		{"string", ir.Value{Kind: ir.ValueString, String: "a-b"}, "string:a-b"},
+		{"string keeping a slash", ir.Value{Kind: ir.ValueString, String: "a/b"}, "string:a/b"},
+		{"string with % and #", ir.Value{Kind: ir.ValueString, String: "100%#1"}, "string:100%#1"},
+		{"empty string", ir.Value{Kind: ir.ValueString}, "string:"},
+		{"symbol", ir.Value{Kind: ir.ValueSymbol, String: "ok"}, "symbol:ok"},
+		{"number", ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("-1.5")}, "number:-1.5e0"},
+		{"number spelled with an exponent", ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("-15e-1")}, "number:-1.5e0"},
+		{"number outside the decimal grammar", ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("1p4")}, "number:1p4"},
+		{"bool", ir.Value{Kind: ir.ValueBool, Bool: true}, "bool:true"},
+		{"bytes", ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi?>")}, "bytes:aGk_Pg"},
+		{"null", ir.Value{Kind: ir.ValueNull}, "null:"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -50,18 +50,18 @@ func TestEnumMemberKey_EncodesEveryAdmissibleKind(t *testing.T) {
 func TestEnumMemberKey_IsInjectiveAcrossKinds(t *testing.T) {
 	t.Parallel()
 	values := []ir.Value{
-		{Kind: ir.ValueString, Str: "1"},
-		{Kind: ir.ValueSymbol, Str: "1"},
-		{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
-		{Kind: ir.ValueString, Str: "true"},
+		{Kind: ir.ValueString, String: "1"},
+		{Kind: ir.ValueSymbol, String: "1"},
+		{Kind: ir.ValueNumber, Number: ir.BigVal("1")},
+		{Kind: ir.ValueString, String: "true"},
 		{Kind: ir.ValueBool, Bool: true},
-		{Kind: ir.ValueString, Str: ""},
+		{Kind: ir.ValueString, String: ""},
 		{Kind: ir.ValueNull},
-		{Kind: ir.ValueString, Str: "a/2"},
-		{Kind: ir.ValueString, Str: "a"},
+		{Kind: ir.ValueString, String: "a/2"},
+		{Kind: ir.ValueString, String: "a"},
 	}
-	const enum = ir.TypeID("t/openapi/components/schemas/E")
-	repeat, ok := ir.EnumMemberIDFor(enum, "s:a", 2)
+	const enum = ir.TypeID("type/openapi/components/schemas/E")
+	repeat, ok := ir.EnumMemberIDFor(enum, "string:a", 2)
 	require.True(t, ok)
 	seen := map[string]int{}
 	for i, v := range values {
@@ -82,8 +82,8 @@ func TestEnumMemberKey_IsInjectiveAcrossKinds(t *testing.T) {
 func TestEnumMemberKey_RefusesWhatNoEnumHolds(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []ir.ValueKind{
-		ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN,
+		ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueConstructor,
+		ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN,
 		ir.ValueKind("a kind ir does not declare"),
 	} {
 		key, ok := ir.EnumMemberKey(ir.Value{Kind: kind})
@@ -105,18 +105,18 @@ func TestEnumMemberIDFor_LivesBeneathItsEnum(t *testing.T) {
 		occurrence int
 		want       ir.EnumMemberID
 	}{
-		{"a component schema", "t/openapi/components/schemas/E", "s:a", 1, "e/openapi/components/schemas/E/s:a"},
-		{"an inline schema", "t/anon/components/schemas/S/properties/p", "s:a", 1,
-			"e/anon/components/schemas/S/properties/p/s:a"},
-		{"a qualified namespace", "t/openapi@dir~1a~0b.yaml/components/schemas/User", "s:a", 1,
-			"e/openapi@dir~1a~0b.yaml/components/schemas/User/s:a"},
-		{"a namespace alone", "t/proto.v1", "s:a", 1, "e/proto.v1/s:a"},
-		{"a key holding a slash", "t/openapi/components/schemas/E", "s:a/b", 1, "e/openapi/components/schemas/E/s:a~1b"},
-		{"a key holding a tilde", "t/openapi/components/schemas/E", "s:a~b", 1, "e/openapi/components/schemas/E/s:a~0b"},
-		{"a repeat", "t/openapi/components/schemas/E", "s:a", 2, "e/openapi/components/schemas/E/s:a/2"},
-		{"a third occurrence", "t/openapi/components/schemas/E", "s:a", 3, "e/openapi/components/schemas/E/s:a/3"},
-		{"a key spelling a repeat", "t/openapi/components/schemas/E", "s:a/2", 1,
-			"e/openapi/components/schemas/E/s:a~12"},
+		{"a component schema", "type/openapi/components/schemas/E", "string:a", 1, "enum-member/openapi/components/schemas/E/string:a"},
+		{"an inline schema", "type/anonymous/components/schemas/S/properties/p", "string:a", 1,
+			"enum-member/anonymous/components/schemas/S/properties/p/string:a"},
+		{"a qualified namespace", "type/openapi@dir~1a~0b.yaml/components/schemas/User", "string:a", 1,
+			"enum-member/openapi@dir~1a~0b.yaml/components/schemas/User/string:a"},
+		{"a namespace alone", "type/proto.v1", "string:a", 1, "enum-member/proto.v1/string:a"},
+		{"a key holding a slash", "type/openapi/components/schemas/E", "string:a/b", 1, "enum-member/openapi/components/schemas/E/string:a~1b"},
+		{"a key holding a tilde", "type/openapi/components/schemas/E", "string:a~b", 1, "enum-member/openapi/components/schemas/E/string:a~0b"},
+		{"a repeat", "type/openapi/components/schemas/E", "string:a", 2, "enum-member/openapi/components/schemas/E/string:a/2"},
+		{"a third occurrence", "type/openapi/components/schemas/E", "string:a", 3, "enum-member/openapi/components/schemas/E/string:a/3"},
+		{"a key spelling a repeat", "type/openapi/components/schemas/E", "string:a/2", 1,
+			"enum-member/openapi/components/schemas/E/string:a~12"},
 	}
 	seen := map[ir.EnumMemberID]string{}
 	for _, tc := range tests {
@@ -147,17 +147,17 @@ func TestEnumMemberIDFor_RefusesWhatPlacesNoMember(t *testing.T) {
 	}{
 		{"no ID", "", 1},
 		{"no kind", "openapi/components/schemas/E", 1},
-		{"another kind", "e/openapi/components/schemas/E", 1},
-		{"no namespace", "t//components/schemas/E", 1},
-		{"a kind alone", "t/", 1},
-		{"an empty path", "t/openapi/", 1},
-		{"no occurrence", "t/openapi/components/schemas/E", 0},
-		{"a negative occurrence", "t/openapi/components/schemas/E", -1},
+		{"another kind", "enum-member/openapi/components/schemas/E", 1},
+		{"no namespace", "type//components/schemas/E", 1},
+		{"a kind alone", "type/", 1},
+		{"an empty path", "type/openapi/", 1},
+		{"no occurrence", "type/openapi/components/schemas/E", 0},
+		{"a negative occurrence", "type/openapi/components/schemas/E", -1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := ir.EnumMemberIDFor(tc.enum, "s:a", tc.occurrence)
+			got, ok := ir.EnumMemberIDFor(tc.enum, "string:a", tc.occurrence)
 			assert.False(t, ok)
 			assert.Empty(t, got)
 		})

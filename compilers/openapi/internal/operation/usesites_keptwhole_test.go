@@ -27,7 +27,7 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 	}
 	facts := opTree(t, doc, "facts")
 	params, headers := at(facts, "params"), at(facts, "responses", "0", "headers")
-	body := tree(t, doc.Types[ir.TypeID("t/anon/paths/~1facts/get/responses/200/content/application~1json/schema")])
+	body := tree(t, doc.Types[ir.TypeID("type/anonymous/paths/~1facts/get/responses/200/content/application~1json/schema")])
 	properties := at(body, "properties")
 	for _, c := range []struct {
 		name, scope, branch string

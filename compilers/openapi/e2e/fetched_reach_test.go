@@ -251,7 +251,7 @@ func TestCompile_AReaderThatCannotBoundAReadFailsOnlyTheAsker(t *testing.T) {
 		resolved, ok := doc.Types[componentID("B")].(*ir.Scalar)
 		require.True(t, ok, "%s: B resolves", name)
 		require.NotNil(t, resolved.Base, name)
-		assert.NotEqual(t, ir.TypeID("t/prim/any"), resolved.Base.Target, name)
+		assert.NotEqual(t, ir.TypeID("type/primitive/any"), resolved.Base.Target, name)
 		failed := byCode(diags, "openapi/unresolved-ref")
 		require.Len(t, failed, 1, "%s: %v", name, fetchedFindings(doc, diags))
 		assert.EqualValues(t, "/X", failed[0].Provenance.Pointer, name)

@@ -37,7 +37,7 @@ func TestNewRuleset_RefusesWhatNoRunCanApply(t *testing.T) {
 			[]triage.Rule{{Code: "c", Pointer: "/a~2", Severity: ir.SeverityInfo, Reason: "r"}},
 			"is not an RFC 6901 JSON Pointer"},
 		{"two places",
-			[]triage.Rule{{Code: "c", Pointer: "/a", Node: "s/x", Severity: ir.SeverityInfo, Reason: "r"}},
+			[]triage.Rule{{Code: "c", Pointer: "/a", Node: "service/x", Severity: ir.SeverityInfo, Reason: "r"}},
 			"names a pointer and a node"},
 		{"rates and accepts",
 			[]triage.Rule{{Code: "c", Pointer: "/a", Severity: ir.SeverityInfo, Accept: true, Reason: "r"}},
@@ -56,8 +56,8 @@ func TestNewRuleset_RefusesWhatNoRunCanApply(t *testing.T) {
 		{"one code twice", []triage.Rule{rate("c", ir.SeverityInfo), rate("d", ir.SeverityInfo), rate("c", ir.SeverityError)},
 			"rule 2 (code \"c\"): rules the findings rule 0 rules"},
 		{"one node twice", []triage.Rule{
-			{Code: "c", Node: "s/x", Severity: ir.SeverityInfo, Reason: "r"},
-			{Code: "c", Node: "s/x", Severity: ir.SeverityError, Reason: "r"},
+			{Code: "c", Node: "service/x", Severity: ir.SeverityInfo, Reason: "r"},
+			{Code: "c", Node: "service/x", Severity: ir.SeverityError, Reason: "r"},
 		}, "rules the findings rule 0 rules"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -77,8 +77,8 @@ func TestNewRuleset_TakesEveryRuleItCanApply(t *testing.T) {
 		rate("c", ir.SeverityInfo),
 		{Code: "c", Pointer: "/a~1b~0", Severity: ir.SeverityWarning, Reason: "r"},
 		{Code: "c", Pointer: "/a", Accept: true, Reason: "r"},
-		{Code: "c", Node: "s/x", Accept: true, Reason: "r"},
-		{Code: "c", Node: "s/y", Severity: ir.SeverityError, Reason: "r"},
+		{Code: "c", Node: "service/x", Accept: true, Reason: "r"},
+		{Code: "c", Node: "service/y", Severity: ir.SeverityError, Reason: "r"},
 		rate("d", ir.SeverityError),
 	}
 	_, err := triage.NewRuleset(rules)

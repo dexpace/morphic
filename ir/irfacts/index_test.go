@@ -265,14 +265,14 @@ type factsWorkShape struct {
 // detector sync.Pool drops a share of what it is handed, so fmt allocates a
 // random amount.
 type factsIDs struct {
-	chain []ir.TypeID // factsChainID of 0 to n
-	bases []ir.TypeID // factsBaseID of 0 to n-1
-	props []ir.PropID // factsPropID of 0 to n
+	chain []ir.TypeID     // factsChainID of 0 to n
+	bases []ir.TypeID     // factsBaseID of 0 to n-1
+	props []ir.PropertyID // factsPropID of 0 to n
 }
 
 // newFactsIDs makes the IDs of size n.
 func newFactsIDs(n int) factsIDs {
-	ids := factsIDs{chain: make([]ir.TypeID, n+1), bases: make([]ir.TypeID, n), props: make([]ir.PropID, n+1)}
+	ids := factsIDs{chain: make([]ir.TypeID, n+1), bases: make([]ir.TypeID, n), props: make([]ir.PropertyID, n+1)}
 	for i := range n + 1 {
 		ids.chain[i], ids.props[i] = factsChainID(i), factsPropID(i)
 		if i < n {
@@ -504,14 +504,14 @@ type factsAnswers struct {
 	component []ir.TypeID
 	subtypes  []ir.TypeID
 	supers    map[ir.TypeID]bool
-	exposes   map[ir.PropID]bool
+	exposes   map[ir.PropertyID]bool
 	key       string // the type's correlation key
 	keyed     string // the entity that key names
 }
 
 // factsConcurrentProps are the properties the concurrency test asks each type
 // about.
-var factsConcurrentProps = []ir.PropID{"p/kind", "p/side", "p/ghost"}
+var factsConcurrentProps = []ir.PropertyID{"property/kind", "property/side", "property/ghost"}
 
 // factsAsk collects everything facts says about id, asking IsSubtype of each
 // base in universe and Exposes of each of factsConcurrentProps.
@@ -522,7 +522,7 @@ func factsAsk(facts *irfacts.DocumentFacts, id ir.TypeID, universe []ir.TypeID) 
 		component: facts.Component(id),
 		subtypes:  facts.Subtypes(id),
 		supers:    map[ir.TypeID]bool{},
-		exposes:   map[ir.PropID]bool{},
+		exposes:   map[ir.PropertyID]bool{},
 	}
 	for _, base := range universe {
 		got.supers[base] = facts.IsSubtype(id, base)
@@ -560,7 +560,7 @@ func TestIndex_EveryMethodIsSafeForConcurrentUse(t *testing.T) {
 	assert.True(t, want["loopA"].recursive, "the document gives the index a cycle to find")
 	assert.True(t, want["deep"].supers["mid"] && want["deep"].supers["side"] && !want["deep"].supers["orphan"],
 		"the document gives the index a hierarchy")
-	assert.True(t, want["deep"].exposes["p/kind"] && want["deep"].exposes["p/side"] && !want["base"].exposes["p/side"],
+	assert.True(t, want["deep"].exposes["property/kind"] && want["deep"].exposes["property/side"] && !want["base"].exposes["property/side"],
 		"the document gives the index properties to expose")
 	assert.Equal(t, "base", want["base"].keyed, "the document gives the index a correlation key to derive")
 	walked, walkedExposure := 0, 0
@@ -589,12 +589,15 @@ func factsConcurrentDocument() (*ir.Document, []ir.TypeID) {
 		irtest.ModelOf("base", func(m *ir.Model) {
 			m.Name = ir.Naming{Source: "Base"}
 			m.Discriminator = &ir.Discriminator{}
-			m.Properties = []ir.Property{{ID: "p/kind"}}
+			m.Properties = []ir.Property{{ID: "property/kind"}}
 		}),
 		irtest.ModelOf("sub", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "alias"} }),
 		irtest.ScalarOf("alias", "base"),
 		irtest.ModelOf("mid", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"} }),
-		irtest.ModelOf("side", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"}; m.Properties = []ir.Property{{ID: "p/side"}} }),
+		irtest.ModelOf("side", func(m *ir.Model) {
+			m.Base = &ir.TypeRef{Target: "sub"}
+			m.Properties = []ir.Property{{ID: "property/side"}}
+		}),
 		irtest.ModelOf("deep", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "mid"}; m.Implements = irtest.RefsTo("side") }),
 		irtest.ModelOf("loopA", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopB"}}} }),
 		irtest.ModelOf("loopB", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopA"}}} }),

@@ -119,14 +119,14 @@ func TestObjectAt_AliasedComponentChainInternsAtFinalDeclaration(t *testing.T) {
 
 	require.Len(t, getA.Params, 1)
 	require.Len(t, getB.Params, 1)
-	wantParamID := ir.TypeID("t/anon/components/parameters/Page/schema")
+	wantParamID := ir.TypeID("type/anonymous/components/parameters/Page/schema")
 	assert.Equal(t, wantParamID, getA.Params[0].Type.Target)
 	assert.Equal(t, wantParamID, getB.Params[0].Type.Target,
 		"both operations resolve the aliased parameter's final declaration")
 
 	require.Len(t, getA.Responses, 1)
 	require.Len(t, getB.Responses, 1)
-	wantRespID := ir.TypeID("t/anon/components/responses/OK/content/application~1json/schema")
+	wantRespID := ir.TypeID("type/anonymous/components/responses/OK/content/application~1json/schema")
 	assert.Equal(t, wantRespID, getA.Responses[0].Payload.Contents[0].Type.Target)
 	assert.Equal(t, wantRespID, getB.Responses[0].Payload.Contents[0].Type.Target,
 		"both operations resolve the aliased response's final declaration")
@@ -147,7 +147,7 @@ func TestObjectAt_AliasChainWithinBoundReachesDeclaration(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FindOp(t, doc, "getA")
 	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("t/anon/components/parameters/P8/schema"), op.Params[0].Type.Target,
+	assert.Equal(t, ir.TypeID("type/anonymous/components/parameters/P8/schema"), op.Params[0].Type.Target,
 		"the walk follows every hop to the final declaration")
 }
 
@@ -161,7 +161,7 @@ func TestObjectAt_AChainOfAnyLengthReachesItsDeclaration(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FindOp(t, doc, "getA")
 	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("t/anon/components/parameters/P200/schema"), op.Params[0].Type.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/parameters/P200/schema"), op.Params[0].Type.Target)
 }
 
 // chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
@@ -266,7 +266,7 @@ func assertCrossDocumentDeclarations(t *testing.T, doc *ir.Document) {
 		got = append(got, string(id))
 	}
 	slices.Sort(got)
-	want := []string{string(wantParamID), string(wantRespID), string(ir.PrimTypeID(ir.PrimString))}
+	want := []string{string(wantParamID), string(wantRespID), string(ir.PrimitiveTypeID(ir.PrimitiveString))}
 	slices.Sort(want)
 	assert.Empty(t, cmp.Diff(want, got), "the types in the registry")
 
@@ -279,7 +279,7 @@ func assertCrossDocumentDeclarations(t *testing.T, doc *ir.Document) {
 	op := openapitest.FindOp(t, doc, "a")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1a/get"}, op.Provenance, "the operation is the entry document's")
 	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.ParamID("param/openapi/paths/~1a/get/parameters/page/query"), op.Params[0].ID, "by its mount")
+	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1a/get/parameters/page/query"), op.Params[0].ID, "by its mount")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: paramPtr}, op.Params[0].Provenance, "declared in the sibling")
 	assert.Equal(t, wantParamID, op.Params[0].Type.Target)
 	require.Len(t, op.Responses, 1)

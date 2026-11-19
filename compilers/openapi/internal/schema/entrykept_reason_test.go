@@ -65,7 +65,7 @@ func TestEntryKeptReason_ABoundOnANumberAsTextIsKeptAsBesideIt(t *testing.T) {
 		entry := readKept(t, typeByName(doc, "Entry").Common().Unmodeled, diags, at+"Entry/allOf/0/"+keyword, at+"Entry/allOf/0")
 		assert.Equal(t, ir.ReasonNoIRHome, beside.Reason, bound)
 		assert.Equal(t, beside, entry, bound)
-		p := doc.Types[ir.TypeID("t/anon/components/schemas/H/properties/p")]
+		p := doc.Types[ir.TypeID("type/anonymous/components/schemas/H/properties/p")]
 		require.NotNil(t, p, bound)
 		held := readKept(t, p.Common().Unmodeled, diags, at+"H/properties/p/allOf/0/"+keyword, at+"H/properties/p/allOf/0")
 		assert.Equal(t, beside, held, bound)

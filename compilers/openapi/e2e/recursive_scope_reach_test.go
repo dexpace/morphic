@@ -51,8 +51,8 @@ func recElemBase(t *testing.T, doc *ir.Document, list ir.TypeID) ir.TypeID {
 	t.Helper()
 	l, ok := doc.Types[list].(*ir.List)
 	require.True(t, ok, "%s is a list, not %T", list, doc.Types[list])
-	elem, ok := doc.Types[l.Elem.Target].(*ir.Scalar)
-	require.True(t, ok, "its element is a scalar, not %T", doc.Types[l.Elem.Target])
+	elem, ok := doc.Types[l.ElementType.Target].(*ir.Scalar)
+	require.True(t, ok, "its element is a scalar, not %T", doc.Types[l.ElementType.Target])
 	require.NotNil(t, elem.Base)
 	return elem.Base.Target
 }
@@ -72,11 +72,11 @@ func TestCompile_ARecursiveRefNoOtherAnchoredResourceReachesExpands(t *testing.T
 		assert.Empty(t, recKept(diags, recTreePointer), name)
 		assert.Empty(t, recKept(diags, recChainPointer), name)
 		assert.Equal(t, componentID("Tree"),
-			recElemBase(t, doc, "t/anon/components/schemas/Tree/properties/children"), name)
+			recElemBase(t, doc, "type/anonymous/components/schemas/Tree/properties/children"), name)
 
 		chain, ok := doc.Types[componentID("Chain")].(*ir.List)
 		require.True(t, ok, name)
-		elem, ok := doc.Types[chain.Elem.Target].(*ir.Scalar)
+		elem, ok := doc.Types[chain.ElementType.Target].(*ir.Scalar)
 		require.True(t, ok, name)
 		require.NotNil(t, elem.Base, name)
 		assert.Equal(t, componentID("Chain"), elem.Base.Target, name)

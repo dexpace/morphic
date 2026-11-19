@@ -57,8 +57,8 @@ func requireEntryEnum(member string) func(t *testing.T, doc *ir.Document, node i
 		enum, ok := node.(*ir.Enum)
 		require.True(t, ok, "an enum")
 		require.Len(t, enum.Members, 1)
-		assert.Equal(t, member, enum.Members[0].Value.Str)
-		assert.Equal(t, ir.PrimString, enum.ValueType)
+		assert.Equal(t, member, enum.Members[0].Value.String)
+		assert.Equal(t, ir.PrimitiveString, enum.ValueType)
 	}
 }
 
@@ -68,8 +68,8 @@ func requireEntryLiteral(value string) func(t *testing.T, doc *ir.Document, node
 		t.Helper()
 		literal, ok := node.(*ir.Literal)
 		require.True(t, ok, "a literal")
-		assert.Equal(t, value, literal.Value.Str)
-		assert.Equal(t, ir.PrimString, literal.ValueType)
+		assert.Equal(t, value, literal.Value.String)
+		assert.Equal(t, ir.PrimitiveString, literal.ValueType)
 	}
 }
 
@@ -81,7 +81,7 @@ func requireEntryObjectLiteral(t *testing.T, _ *ir.Document, node ir.TypeDef) {
 	assert.Equal(t, ir.ValueObject, literal.Value.Kind)
 	require.Len(t, literal.Value.Object, 1)
 	assert.Equal(t, "a", literal.Value.Object[0].Name)
-	assert.Equal(t, "x", literal.Value.Object[0].Value.Str)
+	assert.Equal(t, "x", literal.Value.Object[0].Value.String)
 }
 
 // requireEntryObjectUnion holds a node to be the union of the one literal
@@ -108,7 +108,7 @@ func entryPositionID(at jsontext.Pointer) ir.TypeID {
 	if name, ok := strings.CutPrefix(string(at), "/components/schemas/"); ok && !strings.Contains(name, "/") {
 		return componentID(name)
 	}
-	return ir.TypeID("t/anon" + string(at))
+	return ir.TypeID("type/anonymous" + string(at))
 }
 
 // entryTree is doc as its JSON encodes it, without the hash of its source and
@@ -371,7 +371,7 @@ func TestEntryValueSet_AReferenceToAnEntryNamesTheEntryAlone(t *testing.T) {
 					assert.Equal(t, ir.KindEnum, position.Kind(), "the position is the enum")
 					assert.Contains(t, keptOn(position), "openapi:$ref")
 
-					entry := ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Comp/allOf/%d", enumAt))
+					entry := ir.TypeID(fmt.Sprintf("type/anonymous/components/schemas/Comp/allOf/%d", enumAt))
 					alias := requireEntryScalarOver(t, doc, "ToEntry", entry)
 					require.NotNil(t, alias)
 					node := kindNode(t, doc, entry)

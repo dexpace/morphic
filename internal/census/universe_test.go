@@ -158,7 +158,7 @@ func TestNewUniverse_ListsEveryEmbeddedStructOnceUnderItsOwnName(t *testing.T) {
 	got := facts(t, census.New(u).Report())
 
 	assert.Contains(t, got, "member TypeCommon.id")
-	assert.Contains(t, got, "member Primitive.prim")
+	assert.Contains(t, got, "member Primitive.primitiveKind")
 	for _, repeated := range []string{"Primitive.id", "Primitive.docs", "Model.id", "Model.provenance", "Model.TypeCommon"} {
 		assert.NotContains(t, got, "member "+repeated, "TypeCommon's members are not repeated under its embedders")
 	}

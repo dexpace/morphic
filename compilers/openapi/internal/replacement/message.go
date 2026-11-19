@@ -213,14 +213,14 @@ func spanContent(raw string) string {
 // HTTP bindings send them by, which a message names an operation by, and the
 // methods those bindings use.
 type routeIndex struct {
-	byRoute map[string][]ir.OpID
+	byRoute map[string][]ir.OperationID
 	methods map[string]bool
 }
 
 // indexRoutes indexes ops by route. A binding with no path template, a
 // webhook's, is no route a message names.
 func indexRoutes(ops []*ir.Operation) routeIndex {
-	ix := routeIndex{byRoute: map[string][]ir.OpID{}, methods: map[string]bool{}}
+	ix := routeIndex{byRoute: map[string][]ir.OperationID{}, methods: map[string]bool{}}
 	for _, op := range ops {
 		for _, b := range op.Bindings.HTTP {
 			if !strings.HasPrefix(b.URITemplate, "/") {

@@ -241,7 +241,7 @@ type Envelope struct {
                          // nil = the body itself
     Flag     []string    // the path to the member saying whether the call succeeded; nil = none
     Succeeds []ir.Value  // the Flag values meaning it succeeded; set exactly when Flag is
-    Except   []ir.OpID   // operations whose bodies this envelope never matches
+    Except   []ir.OperationID   // operations whose bodies this envelope never matches
 }
 ```
 

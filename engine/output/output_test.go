@@ -84,7 +84,7 @@ func TestWriteDocument_CompactIsTheIndentedFormWithoutWhitespace(t *testing.T) {
 		"compacting the indented output must reproduce the compact one exactly")
 	assert.Empty(t, cmp.Diff(string(compact), string(written(t, doc, output.Compact))),
 		"two calls over one document must write the same bytes")
-	order := []string{`"irVersion"`, `"name"`, `"docs"`, `"types"`, `"t/Alpha"`, `"t/Beta"`, `"t/Zeta"`,
+	order := []string{`"irVersion"`, `"name"`, `"docs"`, `"types"`, `"type/Alpha"`, `"type/Beta"`, `"type/Zeta"`,
 		`"tagDefs"`, `"zebra"`, `"apple"`}
 	last := -1
 	for _, member := range order {

@@ -36,7 +36,7 @@ func TestRun_ExplainReportsTheNodeAtACoordinate(t *testing.T) {
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	out := stdout.String()
 	assert.Contains(t, out, "coordinate /components/schemas/S")
-	assert.Contains(t, out, "node t/openapi/components/schemas/S (model)")
+	assert.Contains(t, out, "node type/openapi/components/schemas/S (model)")
 	assert.Contains(t, out, "openapi/validation-only-keyword",
 		"a diagnostic stamped at the coordinate is part of what happened there")
 	assert.NotContains(t, out, `"irVersion"`, "--explain replaces the document, it does not add to it")
@@ -64,8 +64,8 @@ paths:
 	assert.Equal(t, "coordinate /paths/~1p\n"+
 		"  the document holds no type node at this coordinate\n"+
 		"  kept unmodeled at or below it (2):\n"+
-		"    /paths/~1p/x-owner -> openapi:pathItem/x-owner (vendor_extension) on doc.Services[0].Groups[0].Operations[0]\n"+
-		"    /paths/~1p/x-owner -> openapi:pathItem/x-owner (vendor_extension) on doc.Services[0].Groups[0].Operations[1]\n"+
+		"    /paths/~1p/x-owner -> openapi:pathItem/x-owner (vendor_extension) on document.Services[0].Groups[0].Operations[0]\n"+
+		"    /paths/~1p/x-owner -> openapi:pathItem/x-owner (vendor_extension) on document.Services[0].Groups[0].Operations[1]\n"+
 		"  diagnostics (0):\n", stdout.String())
 }
 
@@ -102,7 +102,7 @@ func TestRun_ExplainTakesTheWholeDocumentAsTheEmptyPointer(t *testing.T) {
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	out := stdout.String()
 	assert.Contains(t, out, `coordinate "" (the whole document)`)
-	assert.Contains(t, out, "/components/schemas/S -> t/openapi/components/schemas/S (model)",
+	assert.Contains(t, out, "/components/schemas/S -> type/openapi/components/schemas/S (model)",
 		"the whole document holds every coordinate that interned a node")
 	assert.NotContains(t, out, `"irVersion"`, "an empty --explain is still --explain, not the document")
 }
@@ -120,11 +120,11 @@ func TestRun_ExplainNamesNoPrimitiveAtTheWholeDocument(t *testing.T) {
 	require.Equal(t, 0, run(t.Context(), []string{"compile", spec, "--explain", ""}, &explained, &stderr),
 		"stderr: %s", stderr.String())
 
-	require.Contains(t, document.String(), `"t/prim/string"`, `property "a" interns the shared string primitive`)
+	require.Contains(t, document.String(), `"type/primitive/string"`, `property "a" interns the shared string primitive`)
 	out := explained.String()
 	assert.Contains(t, out, "the document holds no type node at this coordinate",
 		"nothing is declared at the document root itself")
-	assert.NotContains(t, out, "t/prim/", "a shared primitive is at no coordinate")
+	assert.NotContains(t, out, "type/primitive/", "a shared primitive is at no coordinate")
 }
 
 // TestRun_ExplainReadsTheDocumentThePassesReturn pins that --explain reports
@@ -139,10 +139,10 @@ func TestRun_ExplainReadsTheDocumentThePassesReturn(t *testing.T) {
 		args []string
 		want string
 	}{
-		"the union":        {[]string{"--explain", "/components/schemas/Color"}, "node t/openapi/components/schemas/Color (enum)"},
+		"the union":        {[]string{"--explain", "/components/schemas/Color"}, "node type/openapi/components/schemas/Color (enum)"},
 		"a branch removed": {[]string{"--explain", "/components/schemas/Color/oneOf/0"}, "the document holds no type node at this coordinate"},
 		"a branch kept": {[]string{"--explain", "/components/schemas/Color/oneOf/0", "--disable-pass", "const-unions"},
-			"node t/anon/components/schemas/Color/oneOf/0 (literal)"},
+			"node type/anonymous/components/schemas/Color/oneOf/0 (literal)"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -210,7 +210,7 @@ func TestRun_ExplainReadsTheSpecsOwnCoordinates(t *testing.T) {
 	for name, tc := range map[string]struct {
 		spec, want string
 	}{
-		"the spec declares one":  {root + "components:\n  schemas:\n    Pet: {type: object, properties: {name: {type: string}}}\n", "node t/openapi/components/schemas/Pet (model)"},
+		"the spec declares one":  {root + "components:\n  schemas:\n    Pet: {type: object, properties: {name: {type: string}}}\n", "node type/openapi/components/schemas/Pet (model)"},
 		"the spec declares none": {root, "the document holds no type node at this coordinate"},
 	} {
 		t.Run(name, func(t *testing.T) {

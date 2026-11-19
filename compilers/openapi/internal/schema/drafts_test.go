@@ -43,17 +43,17 @@ func TestLower_AListOfItemsInADraftIsATuple(t *testing.T) {
 		require.True(t, ok, "%s lowers to a tuple", name)
 		rests[name] = tp.Rest
 	}
-	assert.Len(t, doc.Types[componentID("C")].(*ir.Tuple).Elems, 2)
+	assert.Len(t, doc.Types[componentID("C")].(*ir.Tuple).ElementTypes, 2)
 	assert.Nil(t, rests["C"])
 	require.NotNil(t, rests["O"])
-	assert.Equal(t, ir.TypeID("t/prim/any"), rests["O"].Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), rests["O"].Target)
 	require.NotNil(t, rests["R"])
-	assert.Equal(t, ir.TypeID("t/prim/bool"), rests["R"].Target)
+	assert.Equal(t, ir.TypeID("type/primitive/bool"), rests["R"].Target)
 	require.NotNil(t, rests["P"])
-	assert.Equal(t, ir.TypeID("t/prim/any"), rests["P"].Target, "a list beside prefixItems reads as no items")
+	assert.Equal(t, ir.TypeID("type/primitive/any"), rests["P"].Target, "a list beside prefixItems reads as no items")
 	l, ok := doc.Types[componentID("L")].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), l.ElementType.Target)
 }
 
 // TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise pins what the
@@ -105,8 +105,8 @@ func TestLower_PrefixItemsBesideAListedTupleIsKept(t *testing.T) {
 			"    One: {"+d7+", type: array, items: {}, prefixItems: [{type: integer}]}\n"))
 	both, ok := doc.Types[componentID("Both")].(*ir.Tuple)
 	require.True(t, ok)
-	require.Len(t, both.Elems, 1)
-	assert.Equal(t, ir.TypeID("t/prim/string"), both.Elems[0].Target, "the list is the tuple")
+	require.Len(t, both.ElementTypes, 1)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), both.ElementTypes[0].Target, "the list is the tuple")
 	kept, ok := both.Unmodeled["openapi:prefixItems"]
 	require.True(t, ok)
 	assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
@@ -121,8 +121,8 @@ func TestLower_PrefixItemsBesideAListedTupleIsKept(t *testing.T) {
 	assert.Len(t, at, 1)
 	one, ok := doc.Types[componentID("One")].(*ir.Tuple)
 	require.True(t, ok)
-	require.Len(t, one.Elems, 1)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), one.Elems[0].Target)
+	require.Len(t, one.ElementTypes, 1)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), one.ElementTypes[0].Target)
 	assert.NotContains(t, one.Unmodeled, "openapi:prefixItems")
 }
 

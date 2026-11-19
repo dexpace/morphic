@@ -89,7 +89,7 @@ func renderPage(doc *ir.Document, op ir.Operation, p *ir.Pagination) string {
 	if p == nil {
 		return "none"
 	}
-	names := map[ir.PropID]string{}
+	names := map[ir.PropertyID]string{}
 	for _, td := range doc.Types {
 		if m, ok := td.(*ir.Model); ok {
 			for _, prop := range m.Properties {
@@ -102,7 +102,7 @@ func renderPage(doc *ir.Document, op ir.Operation, p *ir.Pagination) string {
 			names[h.ID] = h.Name.Source
 		}
 	}
-	path := func(segments []ir.PropID) string {
+	path := func(segments []ir.PropertyID) string {
 		words := make([]string, len(segments))
 		for i, s := range segments {
 			words[i] = names[s]
@@ -486,7 +486,7 @@ func TestPromote_ReadsAHeaderOffItsOwnOperation(t *testing.T) {
 `
 	}
 	doc, _ := compile(t, openapitest.PathsSpec(operation("a")+operation("b")), openapi.Options{Promotions: pagePolicy()})
-	next := map[ir.PropID]string{}
+	next := map[ir.PropertyID]string{}
 	for _, name := range []string{"a", "b"} {
 		op := openapitest.FindOp(t, doc, name)
 		require.Len(t, op.Responses, 1, name)
@@ -494,7 +494,7 @@ func TestPromote_ReadsAHeaderOffItsOwnOperation(t *testing.T) {
 		require.NotNil(t, op.Pagination, name)
 		require.NotNil(t, op.Pagination.NextLink, name)
 		own := op.Responses[0].Headers[0].ID
-		assert.Equal(t, &ir.PropPath{In: "header", Segments: []ir.PropID{own}}, op.Pagination.NextLink, name)
+		assert.Equal(t, &ir.PropPath{In: "header", Segments: []ir.PropertyID{own}}, op.Pagination.NextLink, name)
 		next[own] = name
 	}
 	assert.Len(t, next, 2, "the two operations declare two headers")

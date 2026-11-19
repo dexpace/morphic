@@ -21,16 +21,16 @@ func TestTypes_InternIsIdempotentAndRecordsBeforeBuilding(t *testing.T) {
 	types := compile.NewTypes()
 
 	var seenDuringBuild bool
-	id := types.Intern("/p", "t/x", func() ir.TypeDef {
+	id := types.Intern("/p", "type/x", func() ir.TypeDef {
 		_, seenDuringBuild = types.Lookup("/p")
-		return &ir.Model{ID: "t/x"}
+		return &ir.Model{ID: "type/x"}
 	})
-	assert.Equal(t, ir.TypeID("t/x"), id)
+	assert.Equal(t, ir.TypeID("type/x"), id)
 	assert.True(t, seenDuringBuild, "the coordinate resolves while build is still running")
 
 	builds := 0
-	again := types.Intern("/p", "t/other", func() ir.TypeDef { builds++; return &ir.Any{} })
-	assert.Equal(t, ir.TypeID("t/x"), again, "a revisit returns the first ID")
+	again := types.Intern("/p", "type/other", func() ir.TypeDef { builds++; return &ir.Any{} })
+	assert.Equal(t, ir.TypeID("type/x"), again, "a revisit returns the first ID")
 	assert.Zero(t, builds, "and does not rebuild")
 	assert.Equal(t, 1, types.Len())
 }
@@ -41,7 +41,7 @@ func TestTypes_LookupAndNodeReportMisses(t *testing.T) {
 
 	_, ok := types.Lookup("/nope")
 	assert.False(t, ok)
-	_, ok = types.Node("t/nope")
+	_, ok = types.Node("type/nope")
 	assert.False(t, ok)
 }
 
@@ -51,11 +51,11 @@ func TestTypes_LookupAndNodeReportMisses(t *testing.T) {
 func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+	types.Intern("/p", "type/x", func() ir.TypeDef { return &ir.Model{ID: "type/x"} })
 
 	td, ok := types.NodeAt("/p")
 	require.True(t, ok, "an interned coordinate resolves to its node in one step")
-	assert.Equal(t, ir.TypeID("t/x"), td.Common().ID)
+	assert.Equal(t, ir.TypeID("type/x"), td.Common().ID)
 
 	_, ok = types.NodeAt("/never-interned")
 	assert.False(t, ok, "and an uninterned coordinate reports the miss")
@@ -69,7 +69,7 @@ func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 func TestTypes_ANodeStillBeingBuiltIsBuildingAndNotYetANode(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	const pointer, id = "/p", ir.TypeID("t/x")
+	const pointer, id = "/p", ir.TypeID("type/x")
 
 	var resolved, hasNode, building bool
 	types.Intern(pointer, id, func() ir.TypeDef {
@@ -93,13 +93,13 @@ func TestTypes_ANodeStillBeingBuiltIsBuildingAndNotYetANode(t *testing.T) {
 func TestTypes_BuildingHoldsOnlyDuringABuild(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	assert.False(t, types.Building("t/never"), "nothing interned it")
+	assert.False(t, types.Building("type/never"), "nothing interned it")
 
-	types.Register("t/minted", &ir.Model{ID: "t/minted"})
-	assert.False(t, types.Building("t/minted"), "a minted node has no build window")
+	types.Register("type/minted", &ir.Model{ID: "type/minted"})
+	assert.False(t, types.Building("type/minted"), "a minted node has no build window")
 
-	types.Intern("/refused", "t/refused", func() ir.TypeDef { return nil })
-	assert.False(t, types.Building("t/refused"), "a refused intern leaves nothing behind")
+	types.Intern("/refused", "type/refused", func() ir.TypeDef { return nil })
+	assert.False(t, types.Building("type/refused"), "a refused intern leaves nothing behind")
 }
 
 // TestTypes_RegisterTakesNoCoordinate covers the minted-node path: a composed
@@ -108,13 +108,13 @@ func TestTypes_BuildingHoldsOnlyDuringABuild(t *testing.T) {
 func TestTypes_RegisterTakesNoCoordinate(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Register("t/composed", &ir.Model{ID: "t/composed"})
+	types.Register("type/composed", &ir.Model{ID: "type/composed"})
 
-	td, ok := types.Node("t/composed")
+	td, ok := types.Node("type/composed")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/composed"), td.Common().ID)
+	assert.Equal(t, ir.TypeID("type/composed"), td.Common().ID)
 
-	_, coordinated := types.Lookup("t/composed")
+	_, coordinated := types.Lookup("type/composed")
 	assert.False(t, coordinated, "a minted node claims no coordinate")
 }
 
@@ -125,10 +125,10 @@ func TestTypes_PrimRefInternsOnceAndNamesNoSource(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 
-	first := types.PrimRef(ir.PrimString)
-	assert.Equal(t, ir.PrimTypeID(ir.PrimString), first.Target,
+	first := types.PrimRef(ir.PrimitiveString)
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveString), first.Target,
 		"the framework interns at the shared ID rather than deriving one of its own")
-	assert.Equal(t, first.Target, types.PrimID(ir.PrimString), "a second reach is the same ID")
+	assert.Equal(t, first.Target, types.PrimID(ir.PrimitiveString), "a second reach is the same ID")
 	assert.Equal(t, 1, types.Len(), "and interns nothing further")
 
 	td, ok := types.Node(first.Target)
@@ -142,9 +142,9 @@ func TestTypes_RegistryIsTheLiveMap(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 	reg, _ := types.Finish(t.Context())
-	types.Register("t/late", &ir.Any{})
+	types.Register("type/late", &ir.Any{})
 
-	assert.Contains(t, reg, ir.TypeID("t/late"),
+	assert.Contains(t, reg, ir.TypeID("type/late"),
 		"the Document shares the registry rather than a snapshot of it")
 }
 
@@ -158,14 +158,14 @@ func TestTypes_RefusesEntriesTheRegistryCannotHold(t *testing.T) {
 	t.Parallel()
 	cases := map[string]func(*compile.Types){
 		"empty register id": func(x *compile.Types) { x.Register("", &ir.Any{}) },
-		"nil node":          func(x *compile.Types) { x.Register("t/x", nil) },
-		"typed nil node":    func(x *compile.Types) { x.Register("t/x", (*ir.Model)(nil)) },
+		"nil node":          func(x *compile.Types) { x.Register("type/x", nil) },
+		"typed nil node":    func(x *compile.Types) { x.Register("type/x", (*ir.Model)(nil)) },
 		"empty intern id":   func(x *compile.Types) { x.Intern("/p", "", func() ir.TypeDef { return &ir.Any{} }) },
-		"empty coordinate":  func(x *compile.Types) { x.Intern("", "t/x", func() ir.TypeDef { return &ir.Any{} }) },
-		"nil build":         func(x *compile.Types) { x.Intern("/p", "t/x", nil) },
-		"build returns nil": func(x *compile.Types) { x.Intern("/p", "t/x", func() ir.TypeDef { return nil }) },
+		"empty coordinate":  func(x *compile.Types) { x.Intern("", "type/x", func() ir.TypeDef { return &ir.Any{} }) },
+		"nil build":         func(x *compile.Types) { x.Intern("/p", "type/x", nil) },
+		"build returns nil": func(x *compile.Types) { x.Intern("/p", "type/x", func() ir.TypeDef { return nil }) },
 		"build returns typed nil": func(x *compile.Types) {
-			x.Intern("/p", "t/x", func() ir.TypeDef { return (*ir.Union)(nil) })
+			x.Intern("/p", "type/x", func() ir.TypeDef { return (*ir.Union)(nil) })
 		},
 	}
 	for name, attempt := range cases {
@@ -186,8 +186,8 @@ func TestTypes_RefusesEntriesTheRegistryCannotHold(t *testing.T) {
 func TestTypes_ViolationsIsEmptyForLegitimateEntries(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
-	types.Register("t/composed", &ir.Any{})
+	types.Intern("/p", "type/x", func() ir.TypeDef { return &ir.Model{ID: "type/x"} })
+	types.Register("type/composed", &ir.Any{})
 
 	assert.Equal(t, 2, types.Len())
 	assert.Empty(t, types.Violations())
@@ -207,8 +207,8 @@ func TestTypes_RefusesADerivationThatCollapsesTwoCoordinates(t *testing.T) {
 	node := func(id ir.TypeID) func() ir.TypeDef {
 		return func() ir.TypeDef { return &ir.Model{ID: id} }
 	}
-	types.Intern("/components/schemas/A~1B", "t/openapi/collapsed", node("t/openapi/collapsed"))
-	types.Intern("/components/schemas/A/B", "t/openapi/collapsed", node("t/openapi/collapsed"))
+	types.Intern("/components/schemas/A~1B", "type/openapi/collapsed", node("type/openapi/collapsed"))
+	types.Intern("/components/schemas/A/B", "type/openapi/collapsed", node("type/openapi/collapsed"))
 
 	require.Len(t, types.Violations(), 1, "the second coordinate claiming the ID is refused")
 	assert.Contains(t, types.Violations()[0], "collapses two coordinates")
@@ -223,9 +223,9 @@ func TestTypes_RefusesADerivationThatCollapsesTwoCoordinates(t *testing.T) {
 func TestTypes_ReinterningOneCoordinateIsNotACollision(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	build := func() ir.TypeDef { return &ir.Model{ID: "t/x/A"} }
-	types.Intern("/p", "t/x/A", build)
-	types.Intern("/p", "t/x/A", build)
+	build := func() ir.TypeDef { return &ir.Model{ID: "type/x/A"} }
+	types.Intern("/p", "type/x/A", build)
+	types.Intern("/p", "type/x/A", build)
 
 	assert.Empty(t, types.Violations(), "one coordinate visited twice is a revisit, not a collision")
 	assert.Equal(t, 1, types.Len())
@@ -238,11 +238,11 @@ func TestTypes_ReinterningOneCoordinateIsNotACollision(t *testing.T) {
 func TestTypes_RefusedInternReleasesItsID(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Intern("/first", "t/x/A", func() ir.TypeDef { return nil })
+	types.Intern("/first", "type/x/A", func() ir.TypeDef { return nil })
 	require.Len(t, types.Violations(), 1, "the nil build is refused")
 
-	types.Intern("/second", "t/x/A", func() ir.TypeDef {
-		return &ir.Model{ID: "t/x/A"}
+	types.Intern("/second", "type/x/A", func() ir.TypeDef {
+		return &ir.Model{ID: "type/x/A"}
 	})
 	assert.Len(t, types.Violations(), 1, "no second violation: the refused intern left no claim behind")
 	assert.Equal(t, 1, types.Len())
@@ -258,12 +258,12 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 		use  func(*compile.Types)
 	}{
 		{"minted after source-addressed", func(x *compile.Types) {
-			x.Intern("/p", "t/shared/p", func() ir.TypeDef { return &ir.Model{ID: "t/shared/p"} })
-			x.Register("t/shared/minted", &ir.Any{ID: "t/shared/minted"})
+			x.Intern("/p", "type/shared/p", func() ir.TypeDef { return &ir.Model{ID: "type/shared/p"} })
+			x.Register("type/shared/minted", &ir.Any{ID: "type/shared/minted"})
 		}},
 		{"source-addressed after minted", func(x *compile.Types) {
-			x.Register("t/shared/minted", &ir.Any{ID: "t/shared/minted"})
-			x.Intern("/p", "t/shared/p", func() ir.TypeDef { return &ir.Model{ID: "t/shared/p"} })
+			x.Register("type/shared/minted", &ir.Any{ID: "type/shared/minted"})
+			x.Intern("/p", "type/shared/p", func() ir.TypeDef { return &ir.Model{ID: "type/shared/p"} })
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -282,8 +282,8 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 // silently, so it is refused and the held node stands.
 func TestTypes_RegisterRefusesADifferentNodeUnderOneID(t *testing.T) {
 	t.Parallel()
-	first, other := ir.TypeRef{Target: "t/first"}, ir.TypeRef{Target: "t/other"}
-	mint := func(ref ir.TypeRef) *ir.Model { return &ir.Model{ID: "t/minted", Mixins: []ir.TypeRef{ref}} }
+	first, other := ir.TypeRef{Target: "type/first"}, ir.TypeRef{Target: "type/other"}
+	mint := func(ref ir.TypeRef) *ir.Model { return &ir.Model{ID: "type/minted", Mixins: []ir.TypeRef{ref}} }
 	for _, tc := range []struct {
 		name    string
 		again   *ir.Model
@@ -295,11 +295,11 @@ func TestTypes_RegisterRefusesADifferentNodeUnderOneID(t *testing.T) {
 		types := compile.NewTypes()
 		held := mint(first)
 
-		types.Register("t/minted", held)
-		types.Register("t/minted", tc.again)
+		types.Register("type/minted", held)
+		types.Register("type/minted", tc.again)
 
 		assert.Len(t, types.Violations(), tc.refused, tc.name)
-		got, ok := types.Node("t/minted")
+		got, ok := types.Node("type/minted")
 		assert.True(t, ok, tc.name)
 		assert.Same(t, held, got, tc.name)
 	}

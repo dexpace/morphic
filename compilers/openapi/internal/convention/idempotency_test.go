@@ -17,10 +17,10 @@ import (
 // keyed is an operation bound by method, declaring a parameter for each of
 // bindings, its location and wire name, under an ID of its own.
 func keyed(method string, bindings ...ir.HTTPParamBinding) ir.Operation {
-	op := ir.Operation{ID: "op/a", Provenance: ir.Provenance{Inferred: "extension-promotion"}}
+	op := ir.Operation{ID: "operation/a", Provenance: ir.Provenance{Inferred: "extension-promotion"}}
 	hb := ir.HTTPBinding{Method: method, URITemplate: "/a"}
 	for i, b := range bindings {
-		b.Param = ir.ParamID("param/" + string(rune('a'+i)))
+		b.Param = ir.ParameterID("parameter/" + string(rune('a'+i)))
 		op.Params = append(op.Params, ir.Parameter{ID: b.Param, Name: ir.NamingFor(b.WireName)})
 		hb.ParamBindings = append(hb.ParamBindings, b)
 	}
@@ -52,16 +52,16 @@ func TestIdempotency_TheKeyHeaderIsTheToken(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		op    ir.Operation
-		token ir.ParamID
+		token ir.ParameterID
 	}{
-		{"a POST", keyed(http.MethodPost, header("Idempotency-Key")), "param/a"},
-		{"a PATCH", keyed(http.MethodPatch, header("Idempotency-Key")), "param/a"},
-		{"a PUT", keyed(http.MethodPut, header("Idempotency-Key")), "param/a"},
-		{"a DELETE", keyed(http.MethodDelete, header("Idempotency-Key")), "param/a"},
-		{"a webhook's POST", hook, "param/a"},
-		{"a callback's POST", callback, "param/a"},
+		{"a POST", keyed(http.MethodPost, header("Idempotency-Key")), "parameter/a"},
+		{"a PATCH", keyed(http.MethodPatch, header("Idempotency-Key")), "parameter/a"},
+		{"a PUT", keyed(http.MethodPut, header("Idempotency-Key")), "parameter/a"},
+		{"a DELETE", keyed(http.MethodDelete, header("Idempotency-Key")), "parameter/a"},
+		{"a webhook's POST", hook, "parameter/a"},
+		{"a callback's POST", callback, "parameter/a"},
 		{"the name in lower case, after another header", keyed(http.MethodPost, header("X-Trace"), header("idempotency-key")),
-			"param/b"},
+			"parameter/b"},
 		{"a GET", keyed(http.MethodGet, header("Idempotency-Key")), ""},
 		{"a HEAD", keyed(http.MethodHead, header("Idempotency-Key")), ""},
 		{"an OPTIONS", keyed(http.MethodOptions, header("Idempotency-Key")), ""},

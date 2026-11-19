@@ -217,7 +217,7 @@ func TestGroups_ARepeatedTagNameTakesItsFirstDeclaration(t *testing.T) {
 	}, entries(t, at(d, "tagDefs", "1", "unmodeled"))))
 
 	g := tree(t, doc.Services[0].Groups[0])
-	assert.Equal(t, "g/tags/T", at(g, "id"))
+	assert.Equal(t, "operation-group/tags/T", at(g, "id"))
 	assert.Equal(t, "beta", at(g, "stability"))
 	assert.Equal(t, "extension-promotion", at(g, "inferred"))
 	assert.Empty(t, cmp.Diff(map[string]string{

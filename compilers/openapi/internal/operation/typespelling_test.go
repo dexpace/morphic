@@ -122,7 +122,7 @@ components:
 			"parameter": electedParam, "header": electedHeader,
 		} {
 			target, mediaType, unmodeled := elected(t, doc)
-			assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Num"), target, "%s, %q", name, entries)
+			assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Num"), target, "%s, %q", name, entries)
 			assert.Equal(t, "application/json", mediaType, "%s, %q", name, entries)
 			assert.Empty(t, unmodeled, "%s, %q: a passed-over entry is the document's", name, entries)
 		}
@@ -159,7 +159,7 @@ paths:
       responses: {"200": {description: ok}}
 `)
 	target, mediaType, _ := electedParam(t, doc)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), target)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), target)
 	assert.Equal(t, "application/json", mediaType)
 	assert.Contains(t, doc.Unmodeled, "openapi:/paths/~1x/get/parameters/0/content/text~1plain")
 }
@@ -422,7 +422,7 @@ func TestElectTypeSpelling_NeitherSpelling(t *testing.T) {
 
 	headers := openapitest.FindOp(t, doc, "untypedHeader").Responses[0].Headers
 	require.Len(t, headers, 1)
-	assert.Equal(t, ir.TypeID("t/prim/any"), headers[0].Type.Target,
+	assert.Equal(t, ir.TypeID("type/primitive/any"), headers[0].Type.Target,
 		"a header declaring no type lowers to the top type")
 	assert.Nil(t, headers[0].Encoding, "no content map means no media type")
 	assert.Equal(t, "untyped", headers[0].Docs.Description)
@@ -485,7 +485,7 @@ func TestElectTypeSpelling_CoDeclaredSpellingsElectContent(t *testing.T) {
 				errorFindings(diags))
 			target, mediaType, unmodeled := tc.elected(t, doc)
 
-			assert.Equal(t, ir.TypeID("t/prim/string"), target,
+			assert.Equal(t, ir.TypeID("type/primitive/string"), target,
 				"the content entry's schema is the type, not the schema written beside it")
 			assert.Equal(t, "application/json", mediaType,
 				"and the media type it names reaches the field that models it")
@@ -570,7 +570,7 @@ func TestElectTypeSpelling_ElectedContentWithoutASchemaStillWins(t *testing.T) {
 `))
 	op := openapitest.FindOp(t, doc, "getX")
 	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("t/prim/any"), op.Params[0].Type.Target,
+	assert.Equal(t, ir.TypeID("type/primitive/any"), op.Params[0].Type.Target,
 		"the elected content states no schema, so the position states no type")
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
@@ -610,7 +610,7 @@ func TestElectTypeSpelling_UnusableContentElectsSchemaAndKeepsIt(t *testing.T) {
 `))
 	op := openapitest.FindOp(t, doc, "getX")
 	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), op.Params[0].Type.Target,
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), op.Params[0].Type.Target,
 		"the schema is the type, since the content map names none")
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)

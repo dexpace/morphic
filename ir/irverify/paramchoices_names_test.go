@@ -19,20 +19,20 @@ import (
 func TestVerify_ParamChoiceNamesAreDistinct(t *testing.T) {
 	t.Parallel()
 	a, b, c := choiceParams[0], choiceParams[1], choiceParams[2]
-	twice := []ir.ParamVariant{{Name: named("v"), Params: []ir.ParamID{a}}, {Name: named("v"), Params: []ir.ParamID{b}}}
+	twice := []ir.ParamVariant{{Name: named("v"), Params: []ir.ParameterID{a}}, {Name: named("v"), Params: []ir.ParameterID{b}}}
 	for _, tc := range []struct {
 		name    string
 		choices []ir.ParamChoice
 		want    []string
 	}{
 		{"two choices of one name", []ir.ParamChoice{
-			choiceOf("x", []ir.ParamID{a}, []ir.ParamID{b}), choiceOf("y", []ir.ParamID{c}, []ir.ParamID{a}),
-			choiceOf("x", []ir.ParamID{b}, []ir.ParamID{c}),
+			choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{b}), choiceOf("y", []ir.ParameterID{c}, []ir.ParameterID{a}),
+			choiceOf("x", []ir.ParameterID{b}, []ir.ParameterID{c}),
 		}, []string{"ir/param-choice-name-duplicate " + choiceOp + ".ParamChoices[2].Name"}},
 		{"two variants of one name", []ir.ParamChoice{{Name: named("x"), Variants: twice}},
 			[]string{"ir/param-choice-name-duplicate " + choiceOp + ".ParamChoices[0].Variants[1].Name"}},
 		{"a variant named as another choice", []ir.ParamChoice{
-			choiceOf("alpha", []ir.ParamID{a}, []ir.ParamID{b}),
+			choiceOf("alpha", []ir.ParameterID{a}, []ir.ParameterID{b}),
 		}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

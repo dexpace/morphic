@@ -206,7 +206,7 @@ func TestUnread_EdgesCompileAsTheyDid(t *testing.T) {
 	assert.Contains(t, pattern.Common().Unmodeled, "openapi:pattern", "no variant holds the empty pattern")
 	enum, ok := doc.Types[ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "EnumOfTypes"))].(*ir.Enum)
 	require.True(t, ok, "the members are of one kind")
-	assert.Equal(t, ir.PrimString, enum.ValueType)
+	assert.Equal(t, ir.PrimitiveString, enum.ValueType)
 	assert.NotContains(t, enum.Unmodeled, "openapi:type", "every member is a value of the types")
 }
 

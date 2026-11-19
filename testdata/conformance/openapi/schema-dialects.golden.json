@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "SchemaDialects",
         "canonical": "schema_dialects"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Bounded": {
+    "type/openapi/components/schemas/Bounded": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Bounded",
+      "id": "type/openapi/components/schemas/Bounded",
       "name": {
         "source": "Bounded",
         "canonical": "bounded"
@@ -84,7 +84,7 @@
         "pointer": "/components/schemas/Bounded"
       },
       "base": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       },
       "constraints": {
@@ -92,9 +92,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/Custom": {
+    "type/openapi/components/schemas/Custom": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Custom",
+      "id": "type/openapi/components/schemas/Custom",
       "name": {
         "source": "Custom",
         "canonical": "custom"
@@ -117,7 +117,7 @@
         "pointer": "/components/schemas/Custom"
       },
       "base": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       },
       "constraints": {
@@ -125,9 +125,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/Embedding": {
+    "type/openapi/components/schemas/Embedding": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Embedding",
+      "id": "type/openapi/components/schemas/Embedding",
       "name": {
         "source": "Embedding",
         "canonical": "embedding"
@@ -141,21 +141,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Embedding/properties/inner",
+          "id": "property/openapi/components/schemas/Embedding/properties/inner",
           "name": {
             "source": "inner",
             "canonical": "inner"
           },
           "wireName": "inner",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "exclusiveMin": "3",
@@ -194,9 +194,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Legacy": {
+    "type/openapi/components/schemas/Legacy": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Legacy",
+      "id": "type/openapi/components/schemas/Legacy",
       "name": {
         "source": "Legacy",
         "canonical": "legacy"
@@ -220,21 +220,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Legacy/properties/count",
+          "id": "property/openapi/components/schemas/Legacy/properties/count",
           "name": {
             "source": "count",
             "canonical": "count"
           },
           "wireName": "count",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "exclusiveMax": "100",
@@ -255,9 +255,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Positive": {
+    "type/openapi/components/schemas/Positive": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Positive",
+      "id": "type/openapi/components/schemas/Positive",
       "name": {
         "source": "Positive",
         "canonical": "positive"
@@ -270,7 +270,7 @@
         "pointer": "/components/schemas/Positive"
       },
       "base": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       },
       "constraints": {
@@ -278,9 +278,9 @@
         "uniqueItems": false
       }
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -288,7 +288,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     }
   },
   "servers": {

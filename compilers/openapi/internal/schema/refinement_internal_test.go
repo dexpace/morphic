@@ -107,13 +107,13 @@ func TestAdmissionReader_ReadsAValueSetOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := componentSchema(t, l, "E")
 	first := newAdmissionReader(l.Ctx)
-	require.Contains(t, first.written(StatedIn(l, s), first.nullable).values, "s:a")
+	require.Contains(t, first.written(StatedIn(l, s), first.nullable).values, "string:a")
 
 	s.GetEnum()[0].Value = "z"
 	second := newAdmissionReader(l.Ctx)
 	read := second.written(StatedIn(l, s), second.nullable)
-	assert.Contains(t, read.values, "s:a", "the second read takes what the first remembered")
-	assert.NotContains(t, read.values, "s:z")
+	assert.Contains(t, read.values, "string:a", "the second read takes what the first remembered")
+	assert.NotContains(t, read.values, "string:z")
 }
 
 // TestFoldingAllOfBranches_ReadsASchemaOnce pins that what folds is read once a run however
@@ -314,13 +314,13 @@ func TestKindOfValue_NamesEachValuesKind(t *testing.T) {
 		{ir.Value{Kind: ir.ValueNull}, kindNull},
 		{ir.Value{Kind: ir.ValueList}, kindArray},
 		{ir.Value{Kind: ir.ValueObject}, kindObject},
-		{ir.Value{Kind: ir.ValueNumber, Num: "1.0"}, kindInteger},
-		{ir.Value{Kind: ir.ValueNumber, Num: "1.5"}, kindFraction},
-		{ir.Value{Kind: ir.ValueNumber, Num: "1e2"}, kindNumber},
+		{ir.Value{Kind: ir.ValueNumber, Number: "1.0"}, kindInteger},
+		{ir.Value{Kind: ir.ValueNumber, Number: "1.5"}, kindFraction},
+		{ir.Value{Kind: ir.ValueNumber, Number: "1e2"}, kindNumber},
 		{ir.Value{Kind: ir.ValueRefKind}, 0},
-		{ir.Value{Kind: ir.ValueCtor}, 0},
-		{ir.Value{Kind: ir.ValueInf}, 0},
-		{ir.Value{Kind: ir.ValueNegInf}, 0},
+		{ir.Value{Kind: ir.ValueConstructor}, 0},
+		{ir.Value{Kind: ir.ValueInfinity}, 0},
+		{ir.Value{Kind: ir.ValueNegativeInfinity}, 0},
 		{ir.Value{Kind: ir.ValueNaN}, 0},
 		{ir.Value{Kind: "no kind"}, 0},
 	} {
@@ -334,7 +334,7 @@ func TestAdmissionReader_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
 	w := newAdmissionReader(l.Ctx)
-	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(StatedIn(l, componentSchema(t, l, "E")), w.nullable).values)
+	assert.Equal(t, map[string]kindSet{"string:a": kindString}, w.written(StatedIn(l, componentSchema(t, l, "E")), w.nullable).values)
 }
 
 // TestAdmissionReader_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:

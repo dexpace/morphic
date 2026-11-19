@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Unknown keywords at shared nodes",
         "canonical": "unknown_keywords_at_shared_nodes"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1a/get",
+              "id": "operation/openapi/paths/~1a/get",
               "name": {
                 "hint": "get_a"
               },
@@ -82,7 +82,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1a/get/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1a/get/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -122,9 +122,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Items/items": {
+    "type/anonymous/components/schemas/Items/items": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Items/items",
+      "id": "type/anonymous/components/schemas/Items/items",
       "name": {
         "hint": "items_item"
       },
@@ -146,13 +146,13 @@
         "pointer": "/components/schemas/Items/items"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/ItemsRef/items": {
+    "type/anonymous/components/schemas/ItemsRef/items": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/ItemsRef/items",
+      "id": "type/anonymous/components/schemas/ItemsRef/items",
       "name": {
         "hint": "items_ref_item"
       },
@@ -174,13 +174,13 @@
         "pointer": "/components/schemas/ItemsRef/items"
       },
       "base": {
-        "target": "t/openapi/components/schemas/S",
+        "target": "type/openapi/components/schemas/S",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Map/additionalProperties": {
+    "type/anonymous/components/schemas/Map/additionalProperties": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Map/additionalProperties",
+      "id": "type/anonymous/components/schemas/Map/additionalProperties",
       "name": {
         "hint": "map_value"
       },
@@ -202,13 +202,13 @@
         "pointer": "/components/schemas/Map/additionalProperties"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Union/oneOf/0": {
+    "type/anonymous/components/schemas/Union/oneOf/0": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Union/oneOf/0",
+      "id": "type/anonymous/components/schemas/Union/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -230,13 +230,13 @@
         "pointer": "/components/schemas/Union/oneOf/0"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/paths/~1a/get/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1a/get/responses/200/content/application~1json/schema": {
       "kind": "scalar",
-      "id": "t/anon/paths/~1a/get/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1a/get/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -258,13 +258,13 @@
         "pointer": "/paths/~1a/get/responses/200/content/application~1json/schema"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Items": {
+    "type/openapi/components/schemas/Items": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/Items",
+      "id": "type/openapi/components/schemas/Items",
       "name": {
         "source": "Items",
         "canonical": "items"
@@ -276,14 +276,14 @@
         "source": 0,
         "pointer": "/components/schemas/Items"
       },
-      "elem": {
-        "target": "t/anon/components/schemas/Items/items",
+      "elementType": {
+        "target": "type/anonymous/components/schemas/Items/items",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/ItemsRef": {
+    "type/openapi/components/schemas/ItemsRef": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/ItemsRef",
+      "id": "type/openapi/components/schemas/ItemsRef",
       "name": {
         "source": "ItemsRef",
         "canonical": "items_ref"
@@ -295,14 +295,14 @@
         "source": 0,
         "pointer": "/components/schemas/ItemsRef"
       },
-      "elem": {
-        "target": "t/anon/components/schemas/ItemsRef/items",
+      "elementType": {
+        "target": "type/anonymous/components/schemas/ItemsRef/items",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Map": {
+    "type/openapi/components/schemas/Map": {
       "kind": "map",
-      "id": "t/openapi/components/schemas/Map",
+      "id": "type/openapi/components/schemas/Map",
       "name": {
         "source": "Map",
         "canonical": "map"
@@ -315,13 +315,13 @@
         "pointer": "/components/schemas/Map"
       },
       "value": {
-        "target": "t/anon/components/schemas/Map/additionalProperties",
+        "target": "type/anonymous/components/schemas/Map/additionalProperties",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Plain": {
+    "type/openapi/components/schemas/Plain": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/Plain",
+      "id": "type/openapi/components/schemas/Plain",
       "name": {
         "source": "Plain",
         "canonical": "plain"
@@ -333,14 +333,14 @@
         "source": 0,
         "pointer": "/components/schemas/Plain"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/S": {
+    "type/openapi/components/schemas/S": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/S",
+      "id": "type/openapi/components/schemas/S",
       "name": {
         "source": "S",
         "canonical": "s"
@@ -353,13 +353,13 @@
         "pointer": "/components/schemas/S"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Union": {
+    "type/openapi/components/schemas/Union": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Union",
+      "id": "type/openapi/components/schemas/Union",
       "name": {
         "source": "Union",
         "canonical": "union"
@@ -377,7 +377,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Union/oneOf/0",
+            "target": "type/anonymous/components/schemas/Union/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -387,7 +387,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "docs": {}
@@ -398,9 +398,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -408,11 +408,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -420,7 +420,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

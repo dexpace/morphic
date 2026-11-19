@@ -159,7 +159,7 @@ func positionOwner(t *testing.T, doc *ir.Document, cell draftCell) ir.Unmodeled 
 	require.True(t, ok, "%s is a model", cell.component)
 	p, ok := propByWire(m, "p")
 	require.True(t, ok)
-	if p.Type.Target == ir.TypeID("t/anon/components/schemas/"+cell.component+"/properties/p") {
+	if p.Type.Target == ir.TypeID("type/anonymous/components/schemas/"+cell.component+"/properties/p") {
 		return doc.Types[p.Type.Target].Common().Unmodeled
 	}
 	return p.Unmodeled

@@ -219,7 +219,7 @@ func TestAllOf_AUnionItNamesComposesAsWritten(t *testing.T) {
 				}
 				assert.Equal(t, []ir.TypeID{componentID("Block"), componentID("Log")}, variants)
 				for id := range doc.Types {
-					assert.NotContains(t, string(id), "t/composed/", "nothing is distributed")
+					assert.NotContains(t, string(id), "type/composed/", "nothing is distributed")
 				}
 				assert.Empty(t, withCode(doc.Diagnostics, diag.CompositionLowering))
 			}
@@ -263,7 +263,7 @@ func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
 			if tc.reference {
 				y, ok := typeByName(doc, "Y").(*ir.Scalar)
 				require.True(t, ok, "Y is the reference, got %T", typeByName(doc, "Y"))
-				assert.Equal(t, ir.TypeID("t/prim/any"), y.Base.Target)
+				assert.Equal(t, ir.TypeID("type/primitive/any"), y.Base.Target)
 				return
 			}
 			y, ok := typeByName(doc, "Y").(*ir.Model)
@@ -339,7 +339,7 @@ func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			for _, id := range []ir.TypeID{
-				componentID("M"), "t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1",
+				componentID("M"), "type/composed/components/schemas/U/oneOf/0", "type/composed/components/schemas/U/oneOf/1",
 			} {
 				m, ok := doc.Types[id].(*ir.Model)
 				require.True(t, ok, "%s is a model, not %T", id, doc.Types[id])
@@ -351,12 +351,12 @@ func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
 					assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, id)
 				}
 				if !tc.kept {
-					assert.Nil(t, m.AdditionalProps, "%s: a catch-all left no pattern is none", id)
+					assert.Nil(t, m.AdditionalProperties, "%s: a catch-all left no pattern is none", id)
 					continue
 				}
-				require.NotNil(t, m.AdditionalProps, id)
-				assert.Nil(t, m.AdditionalProps.Value, "%s: no key beyond the patterns is allowed", id)
-				assert.Len(t, m.AdditionalProps.Patterns, 1, id)
+				require.NotNil(t, m.AdditionalProperties, id)
+				assert.Nil(t, m.AdditionalProperties.Value, "%s: no key beyond the patterns is allowed", id)
+				assert.Len(t, m.AdditionalProperties.Patterns, 1, id)
 			}
 		})
 	}
@@ -379,8 +379,8 @@ func TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert(t *testing.T) {
 	m, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok, "M is a model, not %T", typeByName(doc, "M"))
 	assert.Empty(t, m.Additional, "the catch-all, not the closure, says what the model admits")
-	require.NotNil(t, m.AdditionalProps)
-	assert.Equal(t, &ir.TypeRef{Target: "t/prim/integer"}, m.AdditionalProps.Value)
+	require.NotNil(t, m.AdditionalProperties)
+	assert.Equal(t, &ir.TypeRef{Target: "type/primitive/integer"}, m.AdditionalProperties.Value)
 	assert.NotContains(t, m.Unmodeled, "openapi:additionalProperties", "a catch-all the IR holds is not kept twice")
 	require.Contains(t, m.Unmodeled, "openapi:unevaluated")
 	assert.Equal(t, `{"additionalProperties":{"type":"integer"},"unevaluatedProperties":false}`,
@@ -412,8 +412,8 @@ func TestAllOf_FalseBranchBesideUnionClosesEveryVariant(t *testing.T) {
 			u := "    U:\n      oneOf: [{$ref: '#/components/schemas/P'}, {$ref: '#/components/schemas/Q'}]\n      allOf:\n" + tc.allOf
 			for _, doc := range nestedOrders(t, u, nestedAB+pq) {
 				for _, id := range []ir.TypeID{
-					"t/composed/components/schemas/U/oneOf/0",
-					"t/composed/components/schemas/U/oneOf/1",
+					"type/composed/components/schemas/U/oneOf/0",
+					"type/composed/components/schemas/U/oneOf/1",
 				} {
 					model, ok := doc.Types[id].(*ir.Model)
 					require.True(t, ok, "%s should be a model", id)

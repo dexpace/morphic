@@ -26,7 +26,7 @@ func redeclared(target ir.TypeID, at string) ir.Property {
 // kindDecl declares the field "p" as kind at a pointer named for the kind, so
 // what a fold reports and keeps reads the same whatever order the
 // declarations come in.
-func kindDecl(k ir.PrimKind, def *ir.Value) declaration {
+func kindDecl(k ir.PrimitiveKind, def *ir.Value) declaration {
 	at := jsontext.Pointer("/k/" + string(k))
 	return declaration{
 		prop:   ir.Property{WireName: "p", Type: primRef(k), Default: def, Provenance: ptrAt(at)},
@@ -48,7 +48,7 @@ type foldOutcome struct {
 func foldInEveryOrder(t *testing.T, decls ...declaration) []foldOutcome {
 	t.Helper()
 	reg := narrowingRegistry()
-	reg["t/prim/uint16"] = &ir.Primitive{ID: "t/prim/uint16", Prim: ir.PrimUint16}
+	reg["type/primitive/uint16"] = &ir.Primitive{ID: "type/primitive/uint16", PrimitiveKind: ir.PrimitiveUint16}
 	orders := permutations(len(decls))
 	outcomes := make([]foldOutcome, 0, len(orders))
 	for _, order := range orders {
@@ -83,19 +83,19 @@ func TestFold_TheSetDecidesWhateverTheOrder(t *testing.T) {
 		want  foldOutcome
 	}{
 		{"one type within every other", []declaration{
-			kindDecl(ir.PrimInt32, nil), kindDecl(ir.PrimUint32, nil), kindDecl(ir.PrimUint16, nil),
-		}, foldOutcome{typ: primRef(ir.PrimUint16)}},
+			kindDecl(ir.PrimitiveInt32, nil), kindDecl(ir.PrimitiveUint32, nil), kindDecl(ir.PrimitiveUint16, nil),
+		}, foldOutcome{typ: primRef(ir.PrimitiveUint16)}},
 		{"the type that loses the fewest", []declaration{
-			kindDecl(ir.PrimNumber, nil), kindDecl(ir.PrimString, nil), kindDecl(ir.PrimInt32, nil),
+			kindDecl(ir.PrimitiveNumber, nil), kindDecl(ir.PrimitiveString, nil), kindDecl(ir.PrimitiveInt32, nil),
 		}, foldOutcome{
-			typ:   primRef(ir.PrimInt32),
+			typ:   primRef(ir.PrimitiveInt32),
 			kept:  []string{losingDeclarationKey + "/k/string"},
 			diags: []string{diag.ConflictingRedecl + " /k/string"},
 		}},
 		{"a value the field takes, from any declaration", []declaration{
-			kindDecl(ir.PrimNumber, &half), kindDecl(ir.PrimNumber, &two), kindDecl(ir.PrimInteger, nil),
+			kindDecl(ir.PrimitiveNumber, &half), kindDecl(ir.PrimitiveNumber, &two), kindDecl(ir.PrimitiveInteger, nil),
 		}, foldOutcome{
-			typ:   primRef(ir.PrimInteger),
+			typ:   primRef(ir.PrimitiveInteger),
 			def:   &two,
 			kept:  []string{losingDeclarationKey + "/k/number"},
 			diags: []string{diag.DegradedConstruct + " /k/number"},
@@ -113,7 +113,7 @@ func TestFold_TheSetDecidesWhateverTheOrder(t *testing.T) {
 // other is reported and kept.
 func TestFold_ATieGoesToTheLaterAndIsReported(t *testing.T) {
 	t.Parallel()
-	for _, order := range [][2]ir.PrimKind{{ir.PrimInt32, ir.PrimUint32}, {ir.PrimUint32, ir.PrimInt32}} {
+	for _, order := range [][2]ir.PrimitiveKind{{ir.PrimitiveInt32, ir.PrimitiveUint32}, {ir.PrimitiveUint32, ir.PrimitiveInt32}} {
 		g, recorded := stubMerger(narrowingRegistry())
 		got := g.fold([]declaration{kindDecl(order[0], nil), kindDecl(order[1], nil)})
 
@@ -130,11 +130,11 @@ func TestFold_ATieGoesToTheLaterAndIsReported(t *testing.T) {
 func TestFold_ADroppedFirstDeclarationIsKept(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(narrowingRegistry())
-	first := kindDecl(ir.PrimString, nil)
+	first := kindDecl(ir.PrimitiveString, nil)
 
-	got := g.fold([]declaration{first, kindDecl(ir.PrimInt32, nil), kindDecl(ir.PrimNumber, nil)})
+	got := g.fold([]declaration{first, kindDecl(ir.PrimitiveInt32, nil), kindDecl(ir.PrimitiveNumber, nil)})
 
-	assert.Equal(t, primRef(ir.PrimInt32), got.Type)
+	assert.Equal(t, primRef(ir.PrimitiveInt32), got.Type)
 	assert.Equal(t, first.prop.Provenance, got.Provenance, "the field keeps the first declaration's identity")
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
@@ -151,7 +151,7 @@ func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 	pattern := func(p string) *ir.Constraints { return &ir.Constraints{Pattern: p} }
 	d := func(at string, c *ir.Constraints) declaration {
 		return declaration{
-			prop:   ir.Property{WireName: "p", Type: primRef(ir.PrimString), Constraints: c, Provenance: ptrAt(jsontext.Pointer(at))},
+			prop:   ir.Property{WireName: "p", Type: primRef(ir.PrimitiveString), Constraints: c, Provenance: ptrAt(jsontext.Pointer(at))},
 			source: written(`{}`),
 		}
 	}
@@ -173,14 +173,14 @@ func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 func TestFold_ADroppedDeclarationStillSaysWhatIsNotShape(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(narrowingRegistry())
-	dropped := kindDecl(ir.PrimInteger, nil)
+	dropped := kindDecl(ir.PrimitiveInteger, nil)
 	dropped.prop.Required, dropped.prop.Secret = true, true
 	dropped.prop.Docs.Description = "a count"
-	later := kindDecl(ir.PrimString, nil)
+	later := kindDecl(ir.PrimitiveString, nil)
 
 	got := g.fold([]declaration{dropped, later})
 
-	assert.Equal(t, primRef(ir.PrimString), got.Type, "the tie goes to the later")
+	assert.Equal(t, primRef(ir.PrimitiveString), got.Type, "the tie goes to the later")
 	assert.True(t, got.Required)
 	assert.True(t, got.Secret)
 	assert.Equal(t, "a count", got.Docs.Description)
@@ -193,7 +193,7 @@ func TestFold_ADroppedDeclarationStillSaysWhatIsNotShape(t *testing.T) {
 // whose source renders as raw.
 func stringAt(pointer, raw string) declaration {
 	return declaration{
-		prop:   ir.Property{WireName: "p", Type: primRef(ir.PrimString), Provenance: ptrAt(jsontext.Pointer(pointer))},
+		prop:   ir.Property{WireName: "p", Type: primRef(ir.PrimitiveString), Provenance: ptrAt(jsontext.Pointer(pointer))},
 		source: written(raw),
 	}
 }
@@ -258,8 +258,8 @@ func TestFold_AValueSpelledTwoWaysIsOneValue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			g, recorded := stubMerger(narrowingRegistry())
-			first := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimAny), Provenance: ptrAt("/allOf/0/properties/p")}, source: unread(t)}
-			second := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimAny), Provenance: ptrAt("/allOf/1/properties/p")}, source: unread(t)}
+			first := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveAny), Provenance: ptrAt("/allOf/0/properties/p")}, source: unread(t)}
+			second := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveAny), Provenance: ptrAt("/allOf/1/properties/p")}, source: unread(t)}
 			tc.a(&first.prop)
 			tc.b(&second.prop)
 
@@ -271,8 +271,8 @@ func TestFold_AValueSpelledTwoWaysIsOneValue(t *testing.T) {
 	}
 	g, recorded := stubMerger(narrowingRegistry())
 	one, two := num("1"), num("2")
-	first := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimAny), Default: &one, Provenance: ptrAt("/a")}, source: written(`{}`)}
-	second := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimAny), Default: &two, Provenance: ptrAt("/b")}, source: written(`{}`)}
+	first := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveAny), Default: &one, Provenance: ptrAt("/a")}, source: written(`{}`)}
+	second := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveAny), Default: &two, Provenance: ptrAt("/b")}, source: written(`{}`)}
 	g.fold([]declaration{first, second})
 	require.Len(t, *recorded, 1, "two values are still two")
 }
@@ -367,16 +367,16 @@ func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
 	at := func(i int) jsontext.Pointer { return jsontext.Pointer(fmt.Sprintf("/allOf/%d/properties/p", i)) }
 	decls := make([]declaration, 0, maxFoldDeclarations+2)
 	for i := range maxFoldDeclarations {
-		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimString), Provenance: ptrAt(at(i))}, source: unread(t)})
+		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveString), Provenance: ptrAt(at(i))}, source: unread(t)})
 	}
 	for i := maxFoldDeclarations; i < maxFoldDeclarations+2; i++ {
-		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimURL), Provenance: ptrAt(at(i))},
+		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveURL), Provenance: ptrAt(at(i))},
 			source: written(`{"type":"string","format":"uri"}`)})
 	}
 
 	got := g.fold(decls)
 
-	assert.Equal(t, primRef(ir.PrimString), got.Type, "a declaration past the bound narrows nothing")
+	assert.Equal(t, primRef(ir.PrimitiveString), got.Type, "a declaration past the bound narrows nothing")
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, ir.SeverityError, (*recorded)[0].Severity)
 	assert.Equal(t, diag.BudgetExceeded, (*recorded)[0].Code)
@@ -396,9 +396,9 @@ func TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported(t *testing.T) {
 	at := func(i int) jsontext.Pointer { return jsontext.Pointer(fmt.Sprintf("/allOf/%d/properties/p", i)) }
 	decls := make([]declaration, 0, maxFoldDeclarations+1)
 	for i := range maxFoldDeclarations {
-		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimString), Provenance: ptrAt(at(i))}, source: unread(t)})
+		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveString), Provenance: ptrAt(at(i))}, source: unread(t)})
 	}
-	decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimURL), Provenance: ptrAt(at(maxFoldDeclarations))}})
+	decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveURL), Provenance: ptrAt(at(maxFoldDeclarations))}})
 
 	got := g.fold(decls)
 
@@ -461,8 +461,8 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 		{"one refused example refuses the keyword", []ir.Example{{Value: &one}, {Value: &half}}, true},
 	} {
 		g, recorded := stubMerger(narrowingRegistry())
-		broad := ir.Property{WireName: "p", Type: primRef(ir.PrimNumber), Examples: tc.examples, Provenance: ptrAt("/b")}
-		narrow := ir.Property{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/a")}
+		broad := ir.Property{WireName: "p", Type: primRef(ir.PrimitiveNumber), Examples: tc.examples, Provenance: ptrAt("/b")}
+		narrow := ir.Property{WireName: "p", Type: primRef(ir.PrimitiveInteger), Provenance: ptrAt("/a")}
 
 		got := foldTwo(g, narrow, broad, written(`{"examples":[1]}`))
 
@@ -484,11 +484,11 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
-		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
+		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
+		"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 	})
-	dst := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
-	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
+	dst := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "type/str"}}
+	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "type/int"},
 		Provenance: ptrAt("/components/schemas/S/properties/id")}
 
 	dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
@@ -497,21 +497,21 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	d := (*recorded)[0]
 	assert.Equal(t, diag.ConflictingRedecl, d.Code)
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the field that disagrees")
-	assert.Equal(t, ir.TypeID("t/int"), dst.Type.Target, "the later declaration keeps its type")
+	assert.Equal(t, ir.TypeID("type/int"), dst.Type.Target, "the later declaration keeps its type")
 }
 
 func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
 	})
 
-	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "t/str"})
+	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "type/str"})
 	require.True(t, ok)
-	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Equal(t, ir.PrimitiveString, kind.prim)
 	assert.Empty(t, kind.format)
 
-	_, ok = judge(g).kindOf(ir.TypeRef{Target: "t/absent"})
+	_, ok = judge(g).kindOf(ir.TypeRef{Target: "type/absent"})
 	assert.False(t, ok, "a target the registry does not hold resolves to no kind")
 }
 

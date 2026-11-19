@@ -117,16 +117,16 @@ func shownAll(root any) int {
 // the listing. Every cut point is tried, beside the whole walk's agreement.
 func TestVerify_ACutWalkClaimsNoCallbackUnlisted(t *testing.T) {
 	t.Parallel()
-	marked := ir.Operation{ID: "op/x/S/cb", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+	marked := ir.Operation{ID: "operation/x/S/cb", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 		Inbound: ir.HTTPInboundCallback, URITemplate: "{$url}",
 	}}}}
-	listing := ir.Operation{ID: "op/x/S/parent", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
-		URITemplate: "/sub", Callbacks: []ir.Callback{{Name: "on", Expression: "{$url}", Operations: []ir.OpID{marked.ID}}},
+	listing := ir.Operation{ID: "operation/x/S/parent", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+		URITemplate: "/sub", Callbacks: []ir.Callback{{Name: "on", Expression: "{$url}", Operations: []ir.OperationID{marked.ID}}},
 	}}}}
-	doc := &ir.Document{IRVersion: ir.IRVersion, Services: []ir.Service{{ID: "s/x/S", Groups: []ir.OperationGroup{{
-		ID: "g/x/S/g", Operations: []ir.Operation{marked, listing},
+	doc := &ir.Document{IRVersion: ir.IRVersion, Services: []ir.Service{{ID: "service/x/S", Groups: []ir.OperationGroup{{
+		ID: "operation-group/x/S/g", Operations: []ir.Operation{marked, listing},
 	}}}}}
-	require.NotContains(t, violationKeys(Verify(doc)), "ir/callback-unlisted at doc.Services[0].Groups[0].Operations[0].Bindings.HTTP",
+	require.NotContains(t, violationKeys(Verify(doc)), "ir/callback-unlisted at document.Services[0].Groups[0].Operations[0].Bindings.HTTP",
 		"the control: the whole walk reads both halves")
 
 	shown := shownAll(doc)

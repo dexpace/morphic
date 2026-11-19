@@ -20,17 +20,17 @@ func admitsConstraints(c *ir.Constraints, v ir.Value, depth int) bool {
 	}
 	switch v.Kind {
 	case ir.ValueNumber:
-		return admitsNumber(c, v.Num)
+		return admitsNumber(c, v.Number)
 	case ir.ValueString:
-		return c.Pattern == "" && within(int64(utf8.RuneCountInString(v.Str)), c.MinLength, c.MaxLength)
+		return c.Pattern == "" && within(int64(utf8.RuneCountInString(v.String)), c.MinLength, c.MaxLength)
 	case ir.ValueBytes:
 		return within(int64(len(v.Bytes)), c.MinLength, c.MaxLength)
 	case ir.ValueList:
 		return within(int64(len(v.List)), c.MinItems, c.MaxItems) && (!c.UniqueItems || distinct(v.List, depth))
 	case ir.ValueObject:
-		return within(int64(len(v.Object)), c.MinProps, c.MaxProps)
-	case ir.ValueNull, ir.ValueBool, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+		return within(int64(len(v.Object)), c.MinProperties, c.MaxProperties)
+	case ir.ValueNull, ir.ValueBool, ir.ValueSymbol, ir.ValueRefKind, ir.ValueConstructor,
+		ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		// No keyword constrains a null or a bool, and the kind judge refuses the
 		// rest before any keyword is read; no OpenAPI value is non-finite.
 		return true

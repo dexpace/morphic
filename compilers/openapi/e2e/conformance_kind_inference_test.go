@@ -59,7 +59,7 @@ func assertRefUseBoundKeywords(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	props := openapitest.PropsByWire(meeting.Properties)
 	for _, name := range []string{"owner", "draft", "parent", "audit"} {
 		assert.Equal(t, filter, props[name].Type.Target, "%s names the reference", name)
-		assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Meeting/properties/"+name), name)
+		assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Meeting/properties/"+name), name)
 	}
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, props["owner"].Visibility.Only)
 	assert.Equal(t, props["owner"].Visibility, props["audit"].Visibility, "both spellings hold it alike")

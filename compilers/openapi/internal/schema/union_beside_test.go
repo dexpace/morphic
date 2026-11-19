@@ -130,7 +130,7 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	assert.JSONEq(t, `{"type":"string"}`, string(shape.Unmodeled["openapi:oneOf/2"].Value), "the branch is kept")
 	assert.Equal(t, ir.ReasonDegradedLowering, shape.Unmodeled["openapi:oneOf/2"].Reason)
 	assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/Shape"), 1, "one warning")
-	branches := []ir.TypeID{"t/anon/components/schemas/Shape/oneOf/0", "t/anon/components/schemas/Shape/oneOf/1"}
+	branches := []ir.TypeID{"type/anonymous/components/schemas/Shape/oneOf/0", "type/anonymous/components/schemas/Shape/oneOf/1"}
 	for i := range shape.Variants {
 		v, ok := doc.Types[shape.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d is a composed model", i)
@@ -140,10 +140,10 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 			// The branch pins kind, narrower than the body's string, so the
 			// variant declares the member as its branch does, under an identity
 			// of its own (docs/compilers/openapi.md#allof-redeclared-property).
-			assert.Equal(t, ir.PropID("p/composed/components/schemas/Shape/oneOf/1/allOf/allOf/properties/kind"), kind.ID)
-			assert.Equal(t, ir.TypeID("t/anon/components/schemas/Shape/oneOf/1/properties/kind"), kind.Type.Target)
+			assert.Equal(t, ir.PropertyID("property/composed/components/schemas/Shape/oneOf/1/allOf/allOf/properties/kind"), kind.ID)
+			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Shape/oneOf/1/properties/kind"), kind.Type.Target)
 		} else {
-			assert.Equal(t, ir.PropID("p/openapi/components/schemas/Shape/properties/kind"), kind.ID,
+			assert.Equal(t, ir.PropertyID("property/openapi/components/schemas/Shape/properties/kind"), kind.ID,
 				"under the one identity the body declares it with")
 		}
 		require.NotNil(t, v.Base)
@@ -158,7 +158,7 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	withNull, ok := typeByName(doc, "WithNull").(*ir.Union)
 	require.True(t, ok, "the union distributes past its null branch")
 	require.Len(t, withNull.Variants, 1)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/WithNull/oneOf/0"),
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/WithNull/oneOf/0"),
 		doc.Types[withNull.Variants[0].Type.Target].(*ir.Model).Base.Target)
 }
 
@@ -367,7 +367,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	require.Len(t, inline, 2)
 	for i, v := range inline {
 		require.NotNil(t, v.Base)
-		assert.Equal(t, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Inline/allOf/0/oneOf/%d", i)), v.Base.Target)
+		assert.Equal(t, ir.TypeID(fmt.Sprintf("type/anonymous/components/schemas/Inline/allOf/0/oneOf/%d", i)), v.Base.Target)
 	}
 	assert.Equal(t, inline[1].Base.Target, useTargetOf(t, typeByName(doc, "Outside")), "an outside $ref finds the branch node")
 
@@ -562,8 +562,8 @@ func TestAllOf_ABranchDiscriminatorKeepsWhatNoFieldHolds(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for id, scope := range map[ir.TypeID]string{
-		componentID("Payment"):                            "openapi:allOf/1/discriminator/",
-		"t/composed/components/schemas/Dog/allOf/1/oneOf": "openapi:discriminator/",
+		componentID("Payment"):                               "openapi:allOf/1/discriminator/",
+		"type/composed/components/schemas/Dog/allOf/1/oneOf": "openapi:discriminator/",
 	} {
 		u, ok := doc.Types[id].(*ir.Union)
 		require.True(t, ok, "%s is a union; got %T", id, doc.Types[id])
@@ -653,7 +653,7 @@ func TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin(t *testing.T) {
 			componentID("Fish"):  {"Fish", "/components/schemas/Fish/allOf/1/anyOf", []string{"fins"}},
 			componentID("Hound"): {"Hound", "/components/schemas/Hound/allOf/1/oneOf", nil},
 			componentID("Lab"):   {"Lab", "/components/schemas/Lab/oneOf", nil},
-			"t/anon/components/schemas/Holder/properties/hamster": {"", "/components/schemas/Holder/properties/hamster/oneOf", nil},
+			"type/anonymous/components/schemas/Holder/properties/hamster": {"", "/components/schemas/Holder/properties/hamster/oneOf", nil},
 		} {
 			m, ok := doc.Types[name].(*ir.Model)
 			require.True(t, ok, "%s stays a model; got %T", name, doc.Types[name])
@@ -665,7 +665,7 @@ func TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin(t *testing.T) {
 			assert.Equal(t, tc.own, wireNames(m.Properties), "%s merges what the branch writes beside its union", name)
 			require.NotEmpty(t, m.Mixins, name)
 			mixin := m.Mixins[len(m.Mixins)-1].Target
-			assert.Equal(t, ir.TypeID("t/composed"+tc.at), mixin, "%s names its union, minted where the keyword is", name)
+			assert.Equal(t, ir.TypeID("type/composed"+tc.at), mixin, "%s names its union, minted where the keyword is", name)
 			u, ok := doc.Types[mixin].(*ir.Union)
 			require.True(t, ok, "%s's mixin is a union; got %T", name, doc.Types[mixin])
 			assert.Equal(t, jsontext.Pointer(tc.at), u.Provenance.Pointer, name)
@@ -675,17 +675,17 @@ func TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin(t *testing.T) {
 		}
 		assert.Equal(t, componentID("Collar"), typeByName(doc, "Lab").(*ir.Model).Mixins[0].Target,
 			"the $refs the source writes classify first")
-		hound := doc.Types["t/composed/components/schemas/Hound/allOf/1/oneOf"].(*ir.Union)
+		hound := doc.Types["type/composed/components/schemas/Hound/allOf/1/oneOf"].(*ir.Union)
 		require.NotNil(t, hound.Discriminator, "a discriminator beside the union routes the Union")
 		assert.Equal(t, "size", hound.Discriminator.PropertyName)
 		wolf := typeByName(doc, "Wolf").(*ir.Model)
 		assert.Equal(t, ir.ReasonVendorExtension, wolf.Unmodeled["openapi:discriminator/x-pack"].Reason,
 			"what the schema's own discriminator adds rides on its node")
-		wolfUnion := doc.Types["t/composed/components/schemas/Wolf/oneOf"].(*ir.Union)
+		wolfUnion := doc.Types["type/composed/components/schemas/Wolf/oneOf"].(*ir.Union)
 		require.NotNil(t, wolfUnion.Discriminator)
 		assert.Empty(t, wolfUnion.Unmodeled, "and only there")
 		assert.True(t, ir.IsSubtype(doc, componentID("Kennel"), componentID("Pet")), "through Dog")
-		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Bird/allOf/1"), useTargetOf(t, typeByName(doc, "Outside")),
+		assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Bird/allOf/1"), useTargetOf(t, typeByName(doc, "Outside")),
 			"an outside $ref names the branch itself")
 	}
 }
@@ -729,10 +729,10 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, validated(t, doc))
-	body, ok := doc.Types["t/anon/components/requestBodies/PetBody/content/application~1json/schema"].(*ir.Model)
+	body, ok := doc.Types["type/anonymous/components/requestBodies/PetBody/content/application~1json/schema"].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, "body", body.DiscriminatorValue)
-	assert.Equal(t, []ir.TypeRef{{Target: "t/composed/components/requestBodies/PetBody/content/application~1json/schema/allOf/1/oneOf"}},
+	assert.Equal(t, []ir.TypeRef{{Target: "type/composed/components/requestBodies/PetBody/content/application~1json/schema/allOf/1/oneOf"}},
 		body.Mixins, "one union, composed once")
 }
 
@@ -775,10 +775,10 @@ func TestUnion_ABranchUnionNoRouteNamesDistributesAsBeside(t *testing.T) {
         branch: {allOf: [{$ref: '#/components/schemas/Pet'}, {`+sizes+`}]}
         gerbil: {allOf: [{$ref: '#/components/schemas/Pet'}, {`+sizes+`}]}
 `) {
-		beside, ok := doc.Types["t/anon/components/schemas/Holder/properties/beside"].(*ir.Union)
+		beside, ok := doc.Types["type/anonymous/components/schemas/Holder/properties/beside"].(*ir.Union)
 		require.True(t, ok, "beside the allOf, the union distributes")
-		branch, ok := doc.Types["t/anon/components/schemas/Holder/properties/branch"].(*ir.Union)
-		require.True(t, ok, "and on its branch, got %T", doc.Types["t/anon/components/schemas/Holder/properties/branch"])
+		branch, ok := doc.Types["type/anonymous/components/schemas/Holder/properties/branch"].(*ir.Union)
+		require.True(t, ok, "and on its branch, got %T", doc.Types["type/anonymous/components/schemas/Holder/properties/branch"])
 		require.Len(t, branch.Variants, len(beside.Variants))
 		for i := range beside.Variants {
 			want, got := doc.Types[beside.Variants[i].Type.Target].(*ir.Model), doc.Types[branch.Variants[i].Type.Target].(*ir.Model)
@@ -787,7 +787,7 @@ func TestUnion_ABranchUnionNoRouteNamesDistributesAsBeside(t *testing.T) {
 			assert.Equal(t, want.Mixins, got.Mixins, "variant %d", i)
 			assert.Empty(t, got.DiscriminatorValue, "variant %d is no routed subtype", i)
 		}
-		for id, tag := range map[ir.TypeID]string{componentID("Fish"): "Fish", "t/anon/components/schemas/Holder/properties/gerbil": "gerbil"} {
+		for id, tag := range map[ir.TypeID]string{componentID("Fish"): "Fish", "type/anonymous/components/schemas/Holder/properties/gerbil": "gerbil"} {
 			m, ok := doc.Types[id].(*ir.Model)
 			require.True(t, ok, "%s, a schema a route names, stays a model; got %T", id, doc.Types[id])
 			assert.Equal(t, tag, m.DiscriminatorValue, id)
@@ -839,7 +839,7 @@ func TestUnion_ASchemaNoRouteNamesDistributesBesideItsAllOf(t *testing.T) {
 				assert.Equal(t, "Listed", listed.DiscriminatorValue, "a component the union lists is routed by name")
 				assert.Empty(t, listed.Unmodeled, "and composes its union")
 				require.NotEmpty(t, listed.Mixins)
-				assert.Equal(t, ir.TypeID("t/composed/components/schemas/Listed/oneOf"), listed.Mixins[len(listed.Mixins)-1].Target)
+				assert.Equal(t, ir.TypeID("type/composed/components/schemas/Listed/oneOf"), listed.Mixins[len(listed.Mixins)-1].Target)
 			}
 		})
 	}

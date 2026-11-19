@@ -27,22 +27,22 @@ import (
 // registry it is handed, which is what its bound is for.
 func TestPartMembers_DeadEnds(t *testing.T) {
 	t.Parallel()
-	file := ir.Property{ID: "p/model/cycle/file", WireName: "file"}
+	file := ir.Property{ID: "property/model/cycle/file", WireName: "file"}
 	reg := ir.TypeRegistry{
-		"t/opaque":      &ir.Scalar{ID: "t/opaque"},
-		"t/cycle/a":     &ir.Scalar{ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"}},
-		"t/cycle/b":     &ir.Scalar{ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"}},
-		"t/string":      &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
-		"t/model/cycle": &ir.Model{ID: "t/model/cycle", Base: &ir.TypeRef{Target: "t/model/cycle"}, Properties: []ir.Property{file}},
+		"type/opaque":      &ir.Scalar{ID: "type/opaque"},
+		"type/cycle/a":     &ir.Scalar{ID: "type/cycle/a", Base: &ir.TypeRef{Target: "type/cycle/b"}},
+		"type/cycle/b":     &ir.Scalar{ID: "type/cycle/b", Base: &ir.TypeRef{Target: "type/cycle/a"}},
+		"type/string":      &ir.Primitive{ID: "type/string", PrimitiveKind: ir.PrimitiveString},
+		"type/model/cycle": &ir.Model{ID: "type/model/cycle", Base: &ir.TypeRef{Target: "type/model/cycle"}, Properties: []ir.Property{file}},
 	}
 	for _, tc := range []struct {
 		name string
 		body ir.TypeID
 	}{
-		{"an ID no registry entry declares", "t/absent"},
-		{"an opaque scalar standing for nothing", "t/opaque"},
-		{"a kind that declares no properties", "t/string"},
-		{"an alias chain that closes on itself", "t/cycle/a"},
+		{"an ID no registry entry declares", "type/absent"},
+		{"an opaque scalar standing for nothing", "type/opaque"},
+		{"a kind that declares no properties", "type/string"},
+		{"an alias chain that closes on itself", "type/cycle/a"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -51,7 +51,7 @@ func TestPartMembers_DeadEnds(t *testing.T) {
 			assert.True(t, complete)
 		})
 	}
-	members, complete, _ := partMembers(reg, "t/model/cycle")
+	members, complete, _ := partMembers(reg, "type/model/cycle")
 	require.Len(t, members["file"], 1, "a model whose base closes on itself still has its own members")
 	assert.Equal(t, file.ID, members["file"][0].ID)
 	assert.True(t, complete)
@@ -64,39 +64,39 @@ func TestPartMembers_DeadEnds(t *testing.T) {
 // several variants share listed once.
 func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
 	t.Parallel()
-	shared := ir.Property{ID: "p/body/file", WireName: "file"}
-	first := ir.Property{ID: "p/one/x", WireName: "x"}
-	second := ir.Property{ID: "p/two/x", WireName: "x"}
-	deep := ir.Property{ID: "p/deep/y", WireName: "y"}
+	shared := ir.Property{ID: "property/body/file", WireName: "file"}
+	first := ir.Property{ID: "property/one/x", WireName: "x"}
+	second := ir.Property{ID: "property/two/x", WireName: "x"}
+	deep := ir.Property{ID: "property/deep/y", WireName: "y"}
 	reg := ir.TypeRegistry{
-		"t/one":    &ir.Model{ID: "t/one", Properties: []ir.Property{shared, first}},
-		"t/two":    &ir.Model{ID: "t/two", Properties: []ir.Property{shared, second}},
-		"t/deep":   &ir.Model{ID: "t/deep", Properties: []ir.Property{deep, {ID: "p/deep/x", WireName: "x"}}},
-		"t/inner":  &ir.Union{ID: "t/inner", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/deep"}}, {Type: ir.TypeRef{Target: "t/u"}}}},
-		"t/innera": &ir.Scalar{ID: "t/innera", Base: &ir.TypeRef{Target: "t/inner"}},
-		"t/u": &ir.Union{ID: "t/u", Variants: []ir.Variant{
-			{Type: ir.TypeRef{Target: "t/one"}}, {Type: ir.TypeRef{Target: "t/innera"}}, {Type: ir.TypeRef{Target: "t/two"}},
+		"type/one":    &ir.Model{ID: "type/one", Properties: []ir.Property{shared, first}},
+		"type/two":    &ir.Model{ID: "type/two", Properties: []ir.Property{shared, second}},
+		"type/deep":   &ir.Model{ID: "type/deep", Properties: []ir.Property{deep, {ID: "property/deep/x", WireName: "x"}}},
+		"type/inner":  &ir.Union{ID: "type/inner", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/deep"}}, {Type: ir.TypeRef{Target: "type/u"}}}},
+		"type/innera": &ir.Scalar{ID: "type/innera", Base: &ir.TypeRef{Target: "type/inner"}},
+		"type/u": &ir.Union{ID: "type/u", Variants: []ir.Variant{
+			{Type: ir.TypeRef{Target: "type/one"}}, {Type: ir.TypeRef{Target: "type/innera"}}, {Type: ir.TypeRef{Target: "type/two"}},
 		}},
-		"t/alias": &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/u"}},
-		"t/nil":   (*ir.Union)(nil),
+		"type/alias": &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/u"}},
+		"type/nil":   (*ir.Union)(nil),
 	}
-	ids := func(props []*ir.Property) []ir.PropID {
-		out := make([]ir.PropID, 0, len(props))
+	ids := func(props []*ir.Property) []ir.PropertyID {
+		out := make([]ir.PropertyID, 0, len(props))
 		for _, p := range props {
 			out = append(out, p.ID)
 		}
 		return out
 	}
-	for _, body := range []ir.TypeID{"t/u", "t/alias"} {
+	for _, body := range []ir.TypeID{"type/u", "type/alias"} {
 		members, complete, _ := partMembers(reg, body)
 		assert.True(t, complete, "%s", body)
 		require.Len(t, members, 3, "%s", body)
-		assert.Equal(t, []ir.PropID{shared.ID}, ids(members["file"]), "a shared declaration is listed once: %s", body)
-		assert.Equal(t, []ir.PropID{first.ID, "p/deep/x", second.ID}, ids(members["x"]),
+		assert.Equal(t, []ir.PropertyID{shared.ID}, ids(members["file"]), "a shared declaration is listed once: %s", body)
+		assert.Equal(t, []ir.PropertyID{first.ID, "property/deep/x", second.ID}, ids(members["x"]),
 			"each variant's declaration, in source order, the nested union's in its place: %s", body)
-		assert.Equal(t, []ir.PropID{deep.ID}, ids(members["y"]), "a nested union's variant's member: %s", body)
+		assert.Equal(t, []ir.PropertyID{deep.ID}, ids(members["y"]), "a nested union's variant's member: %s", body)
 	}
-	members, complete, _ := partMembers(reg, "t/nil")
+	members, complete, _ := partMembers(reg, "type/nil")
 	assert.Empty(t, members, "a typed nil union stands for no members")
 	assert.True(t, complete)
 }
@@ -105,7 +105,7 @@ func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
 // union of t/a, declaring file, and t/b, declaring url; t/two, composing t/u
 // and t/v, two unions; and t/plain, which composes no union.
 func narrowingRegistry() ir.TypeRegistry {
-	str := ir.TypeRef{Target: "t/prim/string"}
+	str := ir.TypeRef{Target: "type/primitive/string"}
 	model := func(id ir.TypeID, props []ir.Property, mixins ...ir.TypeID) *ir.Model {
 		m := &ir.Model{ID: id, Properties: props}
 		for _, mixin := range mixins {
@@ -121,15 +121,15 @@ func narrowingRegistry() ir.TypeRegistry {
 		return u
 	}
 	return ir.TypeRegistry{
-		"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString},
-		"t/a":           model("t/a", []ir.Property{{ID: "p/a/file", WireName: "file", Type: str}}),
-		"t/b":           model("t/b", []ir.Property{{ID: "p/b/url", WireName: "url", Type: str}}),
-		"t/c":           model("t/c", []ir.Property{{ID: "p/c/id", WireName: "id", Type: str}}),
-		"t/u":           union("t/u", "t/a", "t/b"),
-		"t/v":           union("t/v", "t/c"),
-		"t/n":           model("t/n", []ir.Property{{ID: "p/n/note", WireName: "note", Type: str}}, "t/u"),
-		"t/two":         model("t/two", nil, "t/u", "t/v"),
-		"t/plain":       model("t/plain", []ir.Property{{ID: "p/plain/x", WireName: "x", Type: str}}),
+		"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString},
+		"type/a":                model("type/a", []ir.Property{{ID: "property/a/file", WireName: "file", Type: str}}),
+		"type/b":                model("type/b", []ir.Property{{ID: "property/b/url", WireName: "url", Type: str}}),
+		"type/c":                model("type/c", []ir.Property{{ID: "property/c/id", WireName: "id", Type: str}}),
+		"type/u":                union("type/u", "type/a", "type/b"),
+		"type/v":                union("type/v", "type/c"),
+		"type/n":                model("type/n", []ir.Property{{ID: "property/n/note", WireName: "note", Type: str}}, "type/u"),
+		"type/two":              model("type/two", nil, "type/u", "type/v"),
+		"type/plain":            model("type/plain", []ir.Property{{ID: "property/plain/x", WireName: "x", Type: str}}),
 	}
 }
 
@@ -141,20 +141,20 @@ func narrowingRegistry() ir.TypeRegistry {
 func TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers(t *testing.T) {
 	t.Parallel()
 	reg := narrowingRegistry()
-	members, complete, unread := partMembers(reg, "t/n")
+	members, complete, unread := partMembers(reg, "type/n")
 	assert.True(t, complete)
 	assert.Empty(t, unread)
-	got := map[string][]ir.PropID{}
+	got := map[string][]ir.PropertyID{}
 	for name, decls := range members {
 		for _, d := range decls {
 			got[name] = append(got[name], d.ID)
 		}
 	}
-	assert.Equal(t, map[string][]ir.PropID{"note": {"p/n/note"}, "file": {"p/a/file"}, "url": {"p/b/url"}}, got)
+	assert.Equal(t, map[string][]ir.PropertyID{"note": {"property/n/note"}, "file": {"property/a/file"}, "url": {"property/b/url"}}, got)
 
-	members, _, unread = partMembers(reg, "t/two")
+	members, _, unread = partMembers(reg, "type/two")
 	assert.Empty(t, members)
-	assert.Equal(t, []unreadNarrowing{{model: "t/two", why: "several"}}, unread)
+	assert.Equal(t, []unreadNarrowing{{model: "type/two", why: "several"}}, unread)
 }
 
 // TestShapeFlattenings_ReadsShapesWithinItsLimit pins the shapes read to a
@@ -163,15 +163,15 @@ func TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers(t *testing.T) {
 func TestShapeFlattenings_ReadsShapesWithinItsLimit(t *testing.T) {
 	t.Parallel()
 	reg := narrowingRegistry()
-	shapes, why := shapeFlattenings(reg, "t/n", ir.FlattenedProperties(reg, "t/n"), maxNarrowedSteps)
+	shapes, why := shapeFlattenings(reg, "type/n", ir.FlattenedProperties(reg, "type/n"), maxNarrowedSteps)
 	assert.Nil(t, why)
 	assert.Len(t, shapes, 2, "one shape for each variant")
-	shapes, why = shapeFlattenings(reg, "t/plain", ir.FlattenedProperties(reg, "t/plain"), maxNarrowedSteps)
+	shapes, why = shapeFlattenings(reg, "type/plain", ir.FlattenedProperties(reg, "type/plain"), maxNarrowedSteps)
 	assert.Nil(t, why)
 	assert.Empty(t, shapes)
-	shapes, why = shapeFlattenings(reg, "t/n", ir.FlattenedProperties(reg, "t/n"), 1)
+	shapes, why = shapeFlattenings(reg, "type/n", ir.FlattenedProperties(reg, "type/n"), 1)
 	assert.Empty(t, shapes)
-	assert.Equal(t, &unreadNarrowing{model: "t/n", why: "past 1 steps"}, why)
+	assert.Equal(t, &unreadNarrowing{model: "type/n", why: "past 1 steps"}, why)
 }
 
 // TestDeclaredProp_PlacesNothingTheBindingsDoNot pins that a schema the
@@ -191,14 +191,14 @@ func TestMemberHolders_StopsPastItsBound(t *testing.T) {
 	chain := func(unions int) (ir.TypeRegistry, ir.TypeID) {
 		reg := ir.TypeRegistry{}
 		for i := range unions {
-			variants := []ir.Variant{{Type: ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/m/%d", i))}}}
+			variants := []ir.Variant{{Type: ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("type/m/%d", i))}}}
 			if i+1 < unions {
-				variants = append(variants, ir.Variant{Type: ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/u/%d", i+1))}})
+				variants = append(variants, ir.Variant{Type: ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("type/u/%d", i+1))}})
 			}
-			reg[ir.TypeID(fmt.Sprintf("t/u/%d", i))] = &ir.Union{ID: ir.TypeID(fmt.Sprintf("t/u/%d", i)), Variants: variants}
-			reg[ir.TypeID(fmt.Sprintf("t/m/%d", i))] = &ir.Model{ID: ir.TypeID(fmt.Sprintf("t/m/%d", i))}
+			reg[ir.TypeID(fmt.Sprintf("type/u/%d", i))] = &ir.Union{ID: ir.TypeID(fmt.Sprintf("type/u/%d", i)), Variants: variants}
+			reg[ir.TypeID(fmt.Sprintf("type/m/%d", i))] = &ir.Model{ID: ir.TypeID(fmt.Sprintf("type/m/%d", i))}
 		}
-		return reg, "t/u/0"
+		return reg, "type/u/0"
 	}
 	node := func(reg ir.TypeRegistry) func(ir.TypeID) (ir.TypeDef, bool) {
 		return func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok }
@@ -234,29 +234,29 @@ func TestBodyParts_RefHopBound(t *testing.T) {
 func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
-	l.types.Register("t/cycle/a", &ir.Scalar{
-		ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"},
+	l.types.Register("type/opaque", &ir.Scalar{ID: "type/opaque"})
+	l.types.Register("type/cycle/a", &ir.Scalar{
+		ID: "type/cycle/a", Base: &ir.TypeRef{Target: "type/cycle/b"},
 	})
-	l.types.Register("t/cycle/b", &ir.Scalar{
-		ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"},
+	l.types.Register("type/cycle/b", &ir.Scalar{
+		ID: "type/cycle/b", Base: &ir.TypeRef{Target: "type/cycle/a"},
 	})
-	l.types.Register("t/model", &ir.Model{ID: "t/model"})
-	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple"})
-	l.types.Register("t/union", &ir.Union{ID: "t/union"})
+	l.types.Register("type/model", &ir.Model{ID: "type/model"})
+	l.types.Register("type/tuple", &ir.Tuple{ID: "type/tuple"})
+	l.types.Register("type/union", &ir.Union{ID: "type/union"})
 
 	cases := []struct {
 		target  ir.TypeID
 		multi   bool
 		decided bool
 	}{
-		{"t/absent", false, false},
-		{"t/opaque", false, true},
-		{"t/model", false, false},
-		{"t/union", false, true},
-		{"t/tuple", true, true},
-		{"t/cycle/a", false, true},
-		{l.types.PrimID(ir.PrimString), false, true},
+		{"type/absent", false, false},
+		{"type/opaque", false, true},
+		{"type/model", false, false},
+		{"type/union", false, true},
+		{"type/tuple", true, true},
+		{"type/cycle/a", false, true},
+		{l.types.PrimID(ir.PrimitiveString), false, true},
 	}
 	for _, tc := range cases {
 		multi, file, decided := partTypeFlags(newPartUnions(), l.types.Node, ir.TypeRef{Target: tc.target}, true /* multipart */)
@@ -275,36 +275,36 @@ func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	bytes := l.types.PrimRef(ir.PrimBytes)
-	str := l.types.PrimRef(ir.PrimString)
-	l.types.Register("t/alias", &ir.Scalar{ID: "t/alias", Base: &bytes})
-	l.types.Register("t/base64", &ir.Scalar{ID: "t/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
-	l.types.Register("t/png", &ir.Scalar{ID: "t/png", Base: &bytes, Encoding: &ir.Encoding{MediaType: "image/png"}})
-	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
-	l.types.Register("t/cycle", &ir.Scalar{ID: "t/cycle", Base: &ir.TypeRef{Target: "t/cycle"}})
-	l.types.Register("t/model", &ir.Model{ID: "t/model"})
+	bytes := l.types.PrimRef(ir.PrimitiveBytes)
+	str := l.types.PrimRef(ir.PrimitiveString)
+	l.types.Register("type/alias", &ir.Scalar{ID: "type/alias", Base: &bytes})
+	l.types.Register("type/base64", &ir.Scalar{ID: "type/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
+	l.types.Register("type/png", &ir.Scalar{ID: "type/png", Base: &bytes, Encoding: &ir.Encoding{MediaType: "image/png"}})
+	l.types.Register("type/opaque", &ir.Scalar{ID: "type/opaque"})
+	l.types.Register("type/cycle", &ir.Scalar{ID: "type/cycle", Base: &ir.TypeRef{Target: "type/cycle"}})
+	l.types.Register("type/model", &ir.Model{ID: "type/model"})
 	for _, tc := range []struct {
 		node      ir.TypeDef
 		multipart bool
 		file      bool
 	}{
-		{&ir.List{ID: "t/bytes", Elem: bytes}, true, true},
-		{&ir.List{ID: "t/aliases", Elem: ir.TypeRef{Target: "t/alias"}}, true, true},
-		{&ir.List{ID: "t/form", Elem: bytes}, false, false},
-		{&ir.List{ID: "t/encoded", Elem: ir.TypeRef{Target: "t/base64"}}, true, false},
-		{&ir.List{ID: "t/pngs", Elem: ir.TypeRef{Target: "t/png"}}, true, true},
-		{&ir.List{ID: "t/opaques", Elem: ir.TypeRef{Target: "t/opaque"}}, true, false},
-		{&ir.List{ID: "t/cycles", Elem: ir.TypeRef{Target: "t/cycle"}}, true, false},
-		{&ir.List{ID: "t/strings", Elem: str}, true, false},
-		{&ir.List{ID: "t/absent", Elem: ir.TypeRef{Target: "t/nothing"}}, true, false},
-		{&ir.List{ID: "t/models", Elem: ir.TypeRef{Target: "t/model"}}, true, false},
-		{&ir.Tuple{ID: "t/closed", Elems: []ir.TypeRef{bytes, {Target: "t/alias"}}}, true, true},
-		{&ir.Tuple{ID: "t/rest", Elems: []ir.TypeRef{bytes}, Rest: &bytes}, true, true},
-		{&ir.Tuple{ID: "t/restonly", Rest: &bytes}, true, true},
-		{&ir.Tuple{ID: "t/stringrest", Elems: []ir.TypeRef{bytes}, Rest: &str}, true, false},
-		{&ir.Tuple{ID: "t/mixed", Elems: []ir.TypeRef{bytes, str}}, true, false},
-		{&ir.Tuple{ID: "t/empty"}, true, false},
-		{&ir.Tuple{ID: "t/formtuple", Elems: []ir.TypeRef{bytes}}, false, false},
+		{&ir.List{ID: "type/bytes", ElementType: bytes}, true, true},
+		{&ir.List{ID: "type/aliases", ElementType: ir.TypeRef{Target: "type/alias"}}, true, true},
+		{&ir.List{ID: "type/form", ElementType: bytes}, false, false},
+		{&ir.List{ID: "type/encoded", ElementType: ir.TypeRef{Target: "type/base64"}}, true, false},
+		{&ir.List{ID: "type/pngs", ElementType: ir.TypeRef{Target: "type/png"}}, true, true},
+		{&ir.List{ID: "type/opaques", ElementType: ir.TypeRef{Target: "type/opaque"}}, true, false},
+		{&ir.List{ID: "type/cycles", ElementType: ir.TypeRef{Target: "type/cycle"}}, true, false},
+		{&ir.List{ID: "type/strings", ElementType: str}, true, false},
+		{&ir.List{ID: "type/absent", ElementType: ir.TypeRef{Target: "type/nothing"}}, true, false},
+		{&ir.List{ID: "type/models", ElementType: ir.TypeRef{Target: "type/model"}}, true, false},
+		{&ir.Tuple{ID: "type/closed", ElementTypes: []ir.TypeRef{bytes, {Target: "type/alias"}}}, true, true},
+		{&ir.Tuple{ID: "type/rest", ElementTypes: []ir.TypeRef{bytes}, Rest: &bytes}, true, true},
+		{&ir.Tuple{ID: "type/restonly", Rest: &bytes}, true, true},
+		{&ir.Tuple{ID: "type/stringrest", ElementTypes: []ir.TypeRef{bytes}, Rest: &str}, true, false},
+		{&ir.Tuple{ID: "type/mixed", ElementTypes: []ir.TypeRef{bytes, str}}, true, false},
+		{&ir.Tuple{ID: "type/empty"}, true, false},
+		{&ir.Tuple{ID: "type/formtuple", ElementTypes: []ir.TypeRef{bytes}}, false, false},
 	} {
 		id := tc.node.Common().ID
 		l.types.Register(id, tc.node)
@@ -323,18 +323,18 @@ func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	bytes := l.types.PrimRef(ir.PrimBytes)
-	str := l.types.PrimRef(ir.PrimString)
-	files, strs := ir.TypeRef{Target: "t/files"}, ir.TypeRef{Target: "t/strings"}
-	l.types.Register("t/files", &ir.List{ID: "t/files", Elem: bytes})
-	l.types.Register("t/strings", &ir.List{ID: "t/strings", Elem: str})
-	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{bytes}})
-	l.types.Register("t/model", &ir.Model{ID: "t/model"})
-	l.types.Register("t/base64", &ir.Scalar{ID: "t/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
-	l.types.Register("t/png", &ir.Scalar{ID: "t/png", Base: &bytes, Encoding: &ir.Encoding{MediaType: "image/png"}})
-	l.types.Register("t/inner", unionOf("t/inner", bytes, files))
-	l.types.Register("t/self", unionOf("t/self", bytes, ir.TypeRef{Target: "t/self"}))
-	l.types.Register("t/diamond", unionOf("t/diamond", ir.TypeRef{Target: "t/inner"}, ir.TypeRef{Target: "t/inner"}))
+	bytes := l.types.PrimRef(ir.PrimitiveBytes)
+	str := l.types.PrimRef(ir.PrimitiveString)
+	files, strs := ir.TypeRef{Target: "type/files"}, ir.TypeRef{Target: "type/strings"}
+	l.types.Register("type/files", &ir.List{ID: "type/files", ElementType: bytes})
+	l.types.Register("type/strings", &ir.List{ID: "type/strings", ElementType: str})
+	l.types.Register("type/tuple", &ir.Tuple{ID: "type/tuple", ElementTypes: []ir.TypeRef{bytes}})
+	l.types.Register("type/model", &ir.Model{ID: "type/model"})
+	l.types.Register("type/base64", &ir.Scalar{ID: "type/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
+	l.types.Register("type/png", &ir.Scalar{ID: "type/png", Base: &bytes, Encoding: &ir.Encoding{MediaType: "image/png"}})
+	l.types.Register("type/inner", unionOf("type/inner", bytes, files))
+	l.types.Register("type/self", unionOf("type/self", bytes, ir.TypeRef{Target: "type/self"}))
+	l.types.Register("type/diamond", unionOf("type/diamond", ir.TypeRef{Target: "type/inner"}, ir.TypeRef{Target: "type/inner"}))
 	chain := func(id string, n int) ir.TypeID {
 		for i := n - 1; i >= 0; i-- {
 			variants := []ir.TypeRef{bytes}
@@ -352,27 +352,27 @@ func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 		multipart            bool
 		multi, file, decided bool
 	}{
-		{"a file or a list of files", "t/inner", true, true, true, true},
-		{"a form's file or list of files", "t/inner", false, true, false, true},
-		{"a string or a list of strings", registered(l, unionOf("t/texts", str, strs)), true, true, false, true},
-		{"a file or a list of strings", registered(l, unionOf("t/filetexts", bytes, strs)), true, true, false, true},
-		{"a model or a list", registered(l, unionOf("t/modellist", ir.TypeRef{Target: "t/model"}, files)), true, true, false, true},
-		{"files alone", registered(l, unionOf("t/bytes", bytes, bytes)), true, false, true, true},
-		{"a form's files alone", "t/bytes", false, false, false, true},
-		{"base64 values", registered(l, unionOf("t/base64s", ir.TypeRef{Target: "t/base64"}, bytes)), true, false, false, true},
-		{"files naming their media type", registered(l, unionOf("t/pngs", ir.TypeRef{Target: "t/png"}, bytes)),
+		{"a file or a list of files", "type/inner", true, true, true, true},
+		{"a form's file or list of files", "type/inner", false, true, false, true},
+		{"a string or a list of strings", registered(l, unionOf("type/texts", str, strs)), true, true, false, true},
+		{"a file or a list of strings", registered(l, unionOf("type/filetexts", bytes, strs)), true, true, false, true},
+		{"a model or a list", registered(l, unionOf("type/modellist", ir.TypeRef{Target: "type/model"}, files)), true, true, false, true},
+		{"files alone", registered(l, unionOf("type/bytes", bytes, bytes)), true, false, true, true},
+		{"a form's files alone", "type/bytes", false, false, false, true},
+		{"base64 values", registered(l, unionOf("type/base64s", ir.TypeRef{Target: "type/base64"}, bytes)), true, false, false, true},
+		{"files naming their media type", registered(l, unionOf("type/pngs", ir.TypeRef{Target: "type/png"}, bytes)),
 			true, false, true, true},
-		{"a nested union and a file", registered(l, unionOf("t/nested", ir.TypeRef{Target: "t/inner"}, bytes)),
+		{"a nested union and a file", registered(l, unionOf("type/nested", ir.TypeRef{Target: "type/inner"}, bytes)),
 			true, true, true, true},
-		{"a file or a tuple of files", registered(l, unionOf("t/filetuple", bytes, ir.TypeRef{Target: "t/tuple"})),
+		{"a file or a tuple of files", registered(l, unionOf("type/filetuple", bytes, ir.TypeRef{Target: "type/tuple"})),
 			true, true, true, true},
-		{"a union naming itself", "t/self", true, false, true, true},
-		{"a union nesting one naming itself", registered(l, unionOf("t/outer", ir.TypeRef{Target: "t/self"}, files)),
+		{"a union naming itself", "type/self", true, false, true, true},
+		{"a union nesting one naming itself", registered(l, unionOf("type/outer", ir.TypeRef{Target: "type/self"}, files)),
 			true, true, true, true},
-		{"a union reached twice", "t/diamond", true, true, true, true},
-		{"a variant naming no node", registered(l, unionOf("t/absent", bytes, ir.TypeRef{Target: "t/nothing"})), true, false, false, false},
-		{"unions up to the bound", chain("t/chain", maxPartUnions), true, false, true, true},
-		{"unions past the bound", chain("t/long", maxPartUnions+1), true, false, false, false},
+		{"a union reached twice", "type/diamond", true, true, true, true},
+		{"a variant naming no node", registered(l, unionOf("type/absent", bytes, ir.TypeRef{Target: "type/nothing"})), true, false, false, false},
+		{"unions up to the bound", chain("type/chain", maxPartUnions), true, false, true, true},
+		{"unions past the bound", chain("type/long", maxPartUnions+1), true, false, false, false},
 	} {
 		multi, file, decided := partTypeFlags(newPartUnions(), l.types.Node, ir.TypeRef{Target: tc.target}, tc.multipart)
 		assert.Equal(t, tc.multi, multi, "%s: multi", tc.name)
@@ -537,7 +537,7 @@ func TestPartWalk_ReadsARefChainToItsBound(t *testing.T) {
 // quadruple it. It is not run in parallel: AllocsPerRun measures the process.
 func TestDeclarationSchemas_PlacesEachSchemaOnce(t *testing.T) {
 	unplaced := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	read := func(n int) (map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable], []*ir.Property, float64) {
+	read := func(n int) (map[ir.PropertyID][]*oas3.JSONSchema[oas3.Referenceable], []*ir.Property, float64) {
 		var b strings.Builder
 		b.WriteString("    U:\n      oneOf:\n")
 		for range n {

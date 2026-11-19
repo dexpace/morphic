@@ -15,7 +15,7 @@ import (
 // the node whose key marks it, and whether its model is reached by more than
 // one walk as short.
 type position struct {
-	segments []ir.PropID
+	segments []ir.PropertyID
 	keeper   *ir.Provenance
 	shared   bool
 	header   bool
@@ -142,7 +142,7 @@ func (m *marker) inResponse(body *ir.Payload, headers []ir.Header) (*position, s
 		case found != nil:
 			return nil, "marks more than one value of a response"
 		default:
-			found = &position{segments: []ir.PropID{h.ID}, keeper: keeper, header: true}
+			found = &position{segments: []ir.PropertyID{h.ID}, keeper: keeper, header: true}
 		}
 	}
 	return found, ""
@@ -226,13 +226,13 @@ type step struct {
 // first, so each model's walk extends its parent's rather than copying it, and
 // a chain of models costs its length, not its square.
 type trail struct {
-	member ir.PropID
+	member ir.PropertyID
 	up     *trail
 	length int
 }
 
 // then is t extended by member.
-func (t *trail) then(member ir.PropID) *trail {
+func (t *trail) then(member ir.PropertyID) *trail {
 	return &trail{member: member, up: t, length: t.size() + 1}
 }
 
@@ -245,8 +245,8 @@ func (t *trail) size() int {
 }
 
 // segments is t's members from the root, then last.
-func (t *trail) segments(last ir.PropID) []ir.PropID {
-	out := make([]ir.PropID, t.size()+1)
+func (t *trail) segments(last ir.PropertyID) []ir.PropertyID {
+	out := make([]ir.PropertyID, t.size()+1)
 	out[len(out)-1] = last
 	for i, at := len(out)-2, t; at != nil; i, at = i-1, at.up {
 		out[i] = at.member
@@ -375,8 +375,8 @@ func (pg *pager) isModel(id ir.TypeID) bool {
 
 // paramMediaTypes returns the media type each binding of op serializes its
 // parameter in, by the parameter's ID: none for one its schema states.
-func paramMediaTypes(op *ir.Operation) map[ir.ParamID]string {
-	out := map[ir.ParamID]string{}
+func paramMediaTypes(op *ir.Operation) map[ir.ParameterID]string {
+	out := map[ir.ParameterID]string{}
 	for _, hb := range op.Bindings.HTTP {
 		for _, pb := range hb.ParamBindings {
 			out[pb.Param] = pb.ContentType

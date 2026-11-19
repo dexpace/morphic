@@ -14,7 +14,7 @@ type Model struct {
     Base           *TypeRef        // declared single inheritance (TypeSpec extends, allOf-as-inheritance)
     Implements     []TypeRef       // interface conformance, N-ary (GraphQL `implements A & B`); targets are Abstract models
     Mixins         []TypeRef       // composition without subtyping (Smithy mixins, TypeSpec spread provenance, extra allOf entries)
-    AdditionalProps *AdditionalProps // catch-all beside the declared structure; a catch-all
+    AdditionalProperties *AdditionalProperties // catch-all beside the declared structure; a catch-all
                                      // with nothing beside it is a MapT, never a Model (docs/ir/containers.md)
     Additional     AdditionalMode  // openness beyond declared + the catch-all's patterns
     Constraints    *Constraints    // cardinality of the property set (minProperties/maxProperties);
@@ -41,13 +41,13 @@ type AdditionalMode string
 
 type WireIDRange struct { From, To int }
 
-type AdditionalProps struct {
+type AdditionalProperties struct {
     Value    *TypeRef       // a key no pattern matches; nil = no such key is allowed, only beside
                             // Patterns (docs/ir/models.md#catch-alls)
     Key      *TypeRef       // nil = string keys, the one spelling of them (docs/ir/containers.md)
-    Patterns []PatternProps // key-pattern-scoped value schemas (JSON Schema patternProperties)
+    Patterns []PatternProperties // key-pattern-scoped value schemas (JSON Schema patternProperties)
 }
-type PatternProps struct { Pattern string; Value TypeRef }
+type PatternProperties struct { Pattern string; Value TypeRef }
 ```
 
 ## Discriminator
@@ -55,12 +55,12 @@ type PatternProps struct { Pattern string; Value TypeRef }
 ```go
 type Discriminator struct {
     // Exactly one of Property / PropertyName / Index locates the tag:
-    Property PropID                // model hierarchies: the property that carries the tag, the
+    Property PropertyID                // model hierarchies: the property that carries the tag, the
                                    // declaration this model's flattening takes for it
     PropertyName string            // unions: wire name of the tag property (it exists on no single
-                                   // model, so there is no PropID to point at; TypeSpec @discriminated
+                                   // model, so there is no PropertyID to point at; TypeSpec @discriminated
                                    // discriminatorPropertyName, OpenAPI discriminator on oneOf)
-    Index    *int                  // positional: 0-based tuple element carrying the tag Literal
+    TupleElementIndex    *int                  // positional: 0-based tuple element carrying the tag Literal
                                    // (Erlang tagged tuples {ok, V} | {error, R}; JSON arrays with a
                                    // const head via prefixItems)
     Mapping  map[string]TypeID     // wire value → the type it routes to: a union's variant, or a
@@ -132,7 +132,7 @@ route, not of the subtype relation every other reader of it asks.
 
 `Properties` contains only the model's *own* properties. Consumers walk
 `Base`, `Implements`, and `Mixins` for the full shape; the flattening is computed, never stored.
-`ir.FlattenedProperties` computes it, by the rules under *The flattening* below; `ir.ExposedProps`
+`ir.FlattenedProperties` computes it, by the rules under *The flattening* below; `ir.ExposedProperties`
 computes the flat set of property IDs it reads, and `ir.Supertypes` and `ir.IsSubtype` the subtype
 relation, which excludes mixins; `irfacts.DocumentFacts` answers the exposed set and the subtype relation
 for many questions at once ([derived-facts](./derived-facts.md)). This preserves what oagen and
@@ -173,7 +173,7 @@ a map requires no key and a decorator says nothing its `Base` does not.
 
 ## Catch-alls
 
-`AdditionalProps` types the members a model does not declare, and `Additional` says whether any are
+`AdditionalProperties` types the members a model does not declare, and `Additional` says whether any are
 allowed: `""`, `closed` or `closed_after_composition`, and `irverify` reports any other value
 (`ir/unknown-additional-mode`). `Value` types a key no pattern matches, each pattern's `Value` a key it matches, and `Key`
 every key the catch-all governs. Three combinations arise, and each says one thing about the keys
@@ -205,7 +205,7 @@ each with the declaration it takes, the declarations that one overrides, whether
 carry it, whether its value is redacted and whether it is deprecated, beside the names a `Requires`
 lists that no member declares and the composition entries that name no model. Its rules:
 
-- *What it reads.* The declarations `ExposedProps` reaches and no others: the model's own, and those
+- *What it reads.* The declarations `ExposedProperties` reaches and no others: the model's own, and those
   of every model its `Base`, `Implements` and `Mixins` lead to at any distance. Every reference, the
   root's included, is read through alias scalars, which a use of a target that is no object alone
   owns (below). A root naming no model has an empty shape.
@@ -213,7 +213,7 @@ lists that no member declares and the composition entries that name no model. It
   `Name.Source` (`Property.EffectiveWireName`, [properties](./properties.md)). The empty name is a
   name, the JSON member keyed by the empty string. A per-format name (`WireNameByFormat`) and an
   alias a property answers to (`Name.Aliases`) neither join members nor split one. A property
-  several models declare under one `PropID`, as the variants of a distributed union do (below), is
+  several models declare under one `PropertyID`, as the variants of a distributed union do (below), is
   one declaration however often it is read.
 - *Layout order.* The walk goes depth first from the root, following each model's `Base`, then its
   `Implements`, then its `Mixins`, each in order, and reads a model's own properties, in source
@@ -257,12 +257,12 @@ lists that no member declares and the composition entries that name no model. It
   union there is one the model narrows, `ir.NarrowedShapes` flattens each shape an instance takes
   by this walk too, with a variant read in the union's place
   ([below](#the-shapes-of-a-model-narrowing-a-union)).
-- *What it leaves.* A catch-all, `AdditionalProps` and `Additional`, is not flattened: a consumer
+- *What it leaves.* A catch-all, `AdditionalProperties` and `Additional`, is not flattened: a consumer
   reads the model's own ([TypePlan](../emitters/plan/types.md)), so a conjunct closing its property
   set is the consumer's to weigh. A property marked `Flatten` is one member like any other, the
   hoisting of its fields being its wire's ([properties](./properties.md)). Layout order is no wire
   order: a `Positional` model's elements follow their `WireID`.
-- *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
+- *Addressing a member.* A `PropertyID` naming a model's member, an encoding key in `Content.Encoding`
   ([payloads](./payloads.md)) or a discriminator's `Property`, names the declaration the flattening
   of that model takes, the content's type for an encoding key, or of each variant declaring the
   part where that type is a union, or of each shape declaring it where that type, or a variant, is
@@ -409,7 +409,7 @@ names no `Base`, and the OpenAPI compiler keeps that branch verbatim on it, so w
 and nothing else that variant is the map's `MapT` ([containers](containers.md)), as such a `Model`
 always is. The composition rides on every variant rather than being merged into one or dropped, so
 no `allOf` branch is flattened. A property `S` declares appears on each variant under its single
-source-derived `PropID`, since the source declares it once.
+source-derived `PropertyID`, since the source declares it once.
 
 A branch admitting no object, nor a null `S` admits, conjoins with `S`, which admits objects alone,
 to nothing, so it is no variant: a variant would be a type no value inhabits, which a consumer would

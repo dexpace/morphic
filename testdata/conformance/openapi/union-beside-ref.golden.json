@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "UnionBesideRef",
         "canonical": "union_beside_ref"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Carrier/properties/p": {
+    "type/anonymous/components/schemas/Carrier/properties/p": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Carrier/properties/p",
+      "id": "type/anonymous/components/schemas/Carrier/properties/p",
       "name": {
         "hint": "p"
       },
@@ -90,16 +90,16 @@
         "pointer": "/components/schemas/Carrier/properties/p"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Base": {
+    "type/openapi/components/schemas/Base": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Base",
+      "id": "type/openapi/components/schemas/Base",
       "name": {
         "source": "Base",
         "canonical": "base"
@@ -113,21 +113,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Base/properties/id",
+          "id": "property/openapi/components/schemas/Base/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -144,9 +144,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Carrier": {
+    "type/openapi/components/schemas/Carrier": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Carrier",
+      "id": "type/openapi/components/schemas/Carrier",
       "name": {
         "source": "Carrier",
         "canonical": "carrier"
@@ -160,21 +160,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Carrier/properties/p",
+          "id": "property/openapi/components/schemas/Carrier/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/anon/components/schemas/Carrier/properties/p",
+            "target": "type/anonymous/components/schemas/Carrier/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -191,9 +191,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/G": {
+    "type/openapi/components/schemas/G": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/G",
+      "id": "type/openapi/components/schemas/G",
       "name": {
         "source": "G",
         "canonical": "g"
@@ -223,16 +223,16 @@
         "pointer": "/components/schemas/G"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/H": {
+    "type/openapi/components/schemas/H": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/H",
+      "id": "type/openapi/components/schemas/H",
       "name": {
         "source": "H",
         "canonical": "h"
@@ -262,16 +262,16 @@
         "pointer": "/components/schemas/H"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/I": {
+    "type/openapi/components/schemas/I": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/I",
+      "id": "type/openapi/components/schemas/I",
       "name": {
         "source": "I",
         "canonical": "i"
@@ -294,16 +294,16 @@
         "pointer": "/components/schemas/I"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -311,7 +311,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

@@ -69,9 +69,9 @@ func TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder(t *testing.T) {
 	}
 	for name, doc := range map[string]*ir.Document{"forward": forward, "backward": backward} {
 		for _, pointer := range landings {
-			id := ir.TypeID("t/anon" + pointer)
+			id := ir.TypeID("type/anonymous" + pointer)
 			require.Contains(t, doc.Types, id, "%s: %s is lowered", name, pointer)
-			assert.NotContains(t, doc.Types, ir.TypeID("t/openapi"+pointer),
+			assert.NotContains(t, doc.Types, ir.TypeID("type/openapi"+pointer),
 				"%s: nothing lowered at %s in the namespace of a declaration", name, pointer)
 			var at int
 			for _, td := range doc.Types {

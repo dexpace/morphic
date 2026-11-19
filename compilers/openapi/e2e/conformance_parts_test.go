@@ -34,7 +34,7 @@ func partsOf(t *testing.T, doc *ir.Document, op string) (map[string]ir.PartEncod
 // partOf is a part encoding stating the content type ct, empty for none, and
 // the structural flags flags spells: "M" for Multi and "F" for Filename.
 func partOf(ct, flags string) ir.PartEncoding {
-	pe := ir.PartEncoding{Multi: strings.Contains(flags, "M"), Filename: strings.Contains(flags, "F")}
+	pe := ir.PartEncoding{RepeatsPerArrayItem: strings.Contains(flags, "M"), HasFilename: strings.Contains(flags, "F")}
 	if ct != "" {
 		pe.ContentTypes = []string{ct}
 	}
@@ -65,7 +65,7 @@ func assertMultipartDefaults31(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 		"raw": partOf(octetStream, "F"), "tags": partOf(textPlain, "M"), "addresses": partOf(jsonType, "M"),
 		"labels": partOf(textPlain, "M"), "nullable": partOf(textPlain, ""),
 		"declared": partOf("application/xml", ""),
-		"arranged": {Style: "form", Explode: new(false), Multi: true},
+		"arranged": {Style: "form", Explode: new(false), RepeatsPerArrayItem: true},
 	}, upload)
 
 	form, _ := partsOf(t, doc, "form")
@@ -94,7 +94,7 @@ func assertMultipartDefaults30(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 	form, _ := partsOf(t, doc, "form")
 	assert.Equal(t, map[string]ir.PartEncoding{
-		"token": partOf(octetStream, ""), "tags": {Style: "form", Explode: new(false), Multi: true},
+		"token": partOf(octetStream, ""), "tags": {Style: "form", Explode: new(false), RepeatsPerArrayItem: true},
 	}, form)
 }
 
@@ -124,12 +124,12 @@ func assertMultipartDefaults32(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // narrowing a union. A name two branches declare is keyed under each, as each
 // declares it. No entry is kept whole.
 func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	png := ir.PartEncoding{ContentTypes: []string{"image/png"}, Filename: true}
+	png := ir.PartEncoding{ContentTypes: []string{"image/png"}, HasFilename: true}
 	for op, want := range map[string]map[string]ir.PartEncoding{
 		"oneOf":      {"file": png, "url": partOf(textPlain, "")},
 		"anyOf":      {"file": png, "url": partOf(textPlain, ""), "id": partOf(textPlain, "")},
-		"composed":   {"targetUrl": partOf(textPlain, ""), "torrentfile": {ContentTypes: []string{"application/x-bittorrent"}, Filename: true}, "name": partOf(textPlain, "")},
-		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, Filename: true, Inferred: "binary-inference"}},
+		"composed":   {"targetUrl": partOf(textPlain, ""), "torrentfile": {ContentTypes: []string{"application/x-bittorrent"}, HasFilename: true}, "name": partOf(textPlain, "")},
+		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, HasFilename: true, Inferred: "binary-inference"}},
 		"narrowed":   {"file": png, "link": partOf(textPlain, ""), "note": partOf(textPlain, "")},
 	} {
 		parts, content := partsOf(t, doc, op)
@@ -138,8 +138,8 @@ func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 	}
 	shared, ok := opByName(doc, "shared")
 	require.True(t, ok)
-	const schema = "p/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/"
-	assert.Equal(t, map[ir.PropID]ir.PartEncoding{
+	const schema = "property/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/"
+	assert.Equal(t, map[ir.PropertyID]ir.PartEncoding{
 		schema + "oneOf/0/properties/doc": partOf(octetStream, "F"),
 		schema + "oneOf/1/properties/doc": partOf(octetStream, "MF"),
 	}, requestContent(t, shared).Encoding)

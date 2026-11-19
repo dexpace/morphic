@@ -19,13 +19,13 @@ import (
 func TestValidate_ATypeWithAWayOutOfItsTypeCycleHasAFiniteValue(t *testing.T) {
 	t.Parallel()
 	for name, def := range map[string]ir.TypeDef{
-		"a list of itself with no bounds":          &ir.List{ID: "t/k", Elem: ref("t/k"), Provenance: provAt("t/k")},
-		"a map of itself with no bounds":           &ir.MapT{ID: "t/k", Value: ref("t/k"), Provenance: provAt("t/k")},
-		"a map of itself that may be empty":        &ir.MapT{ID: "t/k", Value: ref("t/k"), Constraints: &ir.Constraints{MinProps: new(int64(0))}, Provenance: provAt("t/k")},
-		"a union with a variant that is nullable":  &ir.Union{ID: "t/k", Variants: []ir.Variant{{Type: ref("t/k")}, {Type: maybe("t/prim/string")}}, Provenance: provAt("t/k")},
-		"a union with a variant nothing declares":  &ir.Union{ID: "t/k", Variants: []ir.Variant{{Type: ref("t/k")}, {Type: ref("t/ghost")}}, Provenance: provAt("t/k")},
-		"a union of nothing":                       &ir.Union{ID: "t/k", Provenance: provAt("t/k")},
-		"a model requiring itself, where nullable": composed("t/k", nil, needs("p/k/0", maybe("t/k"))),
+		"a list of itself with no bounds":          &ir.List{ID: "type/k", ElementType: ref("type/k"), Provenance: provAt("type/k")},
+		"a map of itself with no bounds":           &ir.MapT{ID: "type/k", Value: ref("type/k"), Provenance: provAt("type/k")},
+		"a map of itself that may be empty":        &ir.MapT{ID: "type/k", Value: ref("type/k"), Constraints: &ir.Constraints{MinProperties: new(int64(0))}, Provenance: provAt("type/k")},
+		"a union with a variant that is nullable":  &ir.Union{ID: "type/k", Variants: []ir.Variant{{Type: ref("type/k")}, {Type: maybe("type/primitive/string")}}, Provenance: provAt("type/k")},
+		"a union with a variant nothing declares":  &ir.Union{ID: "type/k", Variants: []ir.Variant{{Type: ref("type/k")}, {Type: ref("type/ghost")}}, Provenance: provAt("type/k")},
+		"a union of nothing":                       &ir.Union{ID: "type/k", Provenance: provAt("type/k")},
+		"a model requiring itself, where nullable": composed("type/k", nil, needs("property/k/0", maybe("type/k"))),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -33,8 +33,8 @@ func TestValidate_ATypeWithAWayOutOfItsTypeCycleHasAFiniteValue(t *testing.T) {
 		})
 	}
 
-	forced := &ir.MapT{ID: "t/k", Value: ref("t/k"), Constraints: &ir.Constraints{MinProps: new(int64(1))}, Provenance: provAt("t/k")}
-	assert.Equal(t, []finding{{"t/k", "no finite value: each needs its value, t/k, which has none either"}},
+	forced := &ir.MapT{ID: "type/k", Value: ref("type/k"), Constraints: &ir.Constraints{MinProperties: new(int64(1))}, Provenance: provAt("type/k")}
+	assert.Equal(t, []finding{{"type/k", "no finite value: each needs its value, type/k, which has none either"}},
 		found(t, noFiniteValueDoc(forced), finiteCode), "a map that must hold an entry")
 }
 
@@ -65,9 +65,9 @@ func TestValidate_AModelComposingTheUnionThatListsItHasAFiniteValue(t *testing.T
 		return &ir.Scalar{ID: ir.TypeID(id), Base: new(ref(base)), Provenance: provAt(id)}
 	}
 	doc := noFiniteValueDoc(
-		extending("t/circle", "t/shape", false), extending("t/square", "t/shape", false), listing("t/shape", "t/circle", "t/square"),
-		extending("t/log", "t/rule", true), extending("t/block", "t/rule", true), listing("t/rule", "t/log", "t/block"),
-		extending("t/oval", "t/figure", false), alias("t/figure", "t/rounded"), alias("t/rounded", "t/round"), listing("t/round", "t/oval"),
+		extending("type/circle", "type/shape", false), extending("type/square", "type/shape", false), listing("type/shape", "type/circle", "type/square"),
+		extending("type/log", "type/rule", true), extending("type/block", "type/rule", true), listing("type/rule", "type/log", "type/block"),
+		extending("type/oval", "type/figure", false), alias("type/figure", "type/rounded"), alias("type/rounded", "type/round"), listing("type/round", "type/oval"),
 	)
 
 	assert.Empty(t, found(t, doc, finiteCode))

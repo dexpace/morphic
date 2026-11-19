@@ -66,7 +66,7 @@ func TestUnion_APassedOverUnionSharingNoKindWithTheBodyKeepsBoth(t *testing.T) {
 		}
 		require.Len(t, warned, 1, name)
 		assert.Contains(t, warned[0], want.words, name)
-		m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)].(*ir.Model)
+		m, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/"+name)].(*ir.Model)
 		require.True(t, ok, "%s is the Model its body gives", name)
 		for _, key := range []string{"openapi:oneOf", "openapi:anyOf"} {
 			assert.Equal(t, want.reason, m.Unmodeled[key].Reason, "%s keeps %s", name, key)

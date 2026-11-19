@@ -19,7 +19,7 @@ import (
 func TestVerify_NoLowercaseRunesAreNeutral(t *testing.T) {
 	t.Parallel()
 	for _, canon := range []string{"ℤ", "\U0001D400", "count_ℤ"} {
-		m := &ir.Model{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: canon}}
+		m := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "M", Canonical: canon}}
 		doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 		for _, v := range verifyDeclared(doc) {
 			assert.NotEqualf(t, "ir/naming-cased", v.Code, "no-lowercase rune %q must be neutral", canon)
@@ -31,7 +31,7 @@ func TestVerify_NoLowercaseRunesAreNeutral(t *testing.T) {
 // would still change is reported — the check did not become permissive.
 func TestVerify_TrulyCasedCanonicalStillFlagged(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: "userID"}}
+	m := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "M", Canonical: "userID"}}
 	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 	var found bool
 	for _, v := range verifyDeclared(doc) {

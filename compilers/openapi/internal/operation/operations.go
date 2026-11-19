@@ -111,7 +111,7 @@ type operationLoweringState struct {
 }
 
 // opPointers pairs the two pointers every operation lowering needs. mount is
-// where the operation is mounted and fixes its identity — OpID, its parameters'
+// where the operation is mounted and fixes its identity — OperationID, its parameters'
 // IDs, and the root its callback operations hang from. decl is where its body
 // is declared, which its provenance names: the same node for an inline
 // operation, the component's own pointer when the operation was reached through

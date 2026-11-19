@@ -49,7 +49,7 @@ func TestAuthScheme_JSONContract(t *testing.T) {
 			},
 			OAuth2MetadataURL: "https://example.com/.well-known/oauth-authorization-server",
 			OpenIDConnectURL:  "https://example.com/.well-known/openid-configuration",
-			Credentials:       &ir.TypeRef{Target: "t/openapi/components/schemas/Credentials"},
+			Credentials:       &ir.TypeRef{Target: "type/openapi/components/schemas/Credentials"},
 			Unmodeled:         populatedUnmodeled(),
 			Provenance:        populatedProvenance(),
 		})
@@ -58,7 +58,7 @@ func TestAuthScheme_JSONContract(t *testing.T) {
 // TestAuthKind_Constants pins the on-disk spelling of every AuthKind value.
 // AuthKind strings are the wire format compilers write into Document.Auth; a
 // typo fix later would be a silent breaking change to every golden IR
-// snapshot, exactly like the PrimKind/PresenceKind constants in types.go.
+// snapshot, exactly like the PrimitiveKind/PresenceKind constants in types.go.
 func TestAuthKind_Constants(t *testing.T) {
 	t.Parallel()
 	assertConstantSpellings(t, map[ir.AuthKind]string{

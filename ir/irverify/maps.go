@@ -41,7 +41,7 @@ func checkMapKeys(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
 		key, field := catchAllKey(td)
-		if key == nil || key.Nullable || key.Target != ir.PrimTypeID(ir.PrimString) {
+		if key == nil || key.Nullable || key.Target != ir.PrimitiveTypeID(ir.PrimitiveString) {
 			continue
 		}
 		vs = append(vs, Violation{
@@ -63,22 +63,22 @@ func checkCatchAlls(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
 		m, isModel := td.(*ir.Model)
-		if !isModel || m == nil || m.AdditionalProps == nil {
+		if !isModel || m == nil || m.AdditionalProperties == nil {
 			continue
 		}
-		extra := m.AdditionalProps
+		extra := m.AdditionalProperties
 		switch {
 		case extra.Value == nil && len(extra.Patterns) == 0:
 			vs = append(vs, Violation{
 				Code:    "ir/catch-all-empty",
 				Message: "catch-all types no key: it has neither a value nor a pattern",
-				Path:    typePath(id) + ".AdditionalProps",
+				Path:    typePath(id) + ".AdditionalProperties",
 			})
 		case extra.Value != nil && m.Additional == ir.AdditionalClosed:
 			vs = append(vs, Violation{
 				Code:    "ir/catch-all-closed",
 				Message: "closed model types keys beyond its declared members and patterns, which its closure forbids",
-				Path:    typePath(id) + ".AdditionalProps.Value",
+				Path:    typePath(id) + ".AdditionalProperties.Value",
 			})
 		}
 	}
@@ -87,7 +87,7 @@ func checkCatchAlls(doc *ir.Document) []Violation {
 
 // catchAllKey returns the key td types its members under and the field
 // holding it, or nil when td types none: a MapT's Key, or the Key of a Model's
-// AdditionalProps.
+// AdditionalProperties.
 func catchAllKey(td ir.TypeDef) (*ir.TypeRef, string) {
 	switch n := td.(type) {
 	case *ir.MapT:
@@ -95,8 +95,8 @@ func catchAllKey(td ir.TypeDef) (*ir.TypeRef, string) {
 			return n.Key, "Key"
 		}
 	case *ir.Model:
-		if n != nil && n.AdditionalProps != nil {
-			return n.AdditionalProps.Key, "AdditionalProps.Key"
+		if n != nil && n.AdditionalProperties != nil {
+			return n.AdditionalProperties.Key, "AdditionalProperties.Key"
 		}
 	default:
 		// No other kind types its members under a key.

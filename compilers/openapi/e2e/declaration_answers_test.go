@@ -168,7 +168,7 @@ func TestCompile_AFetchedDocumentReadsAURLAFileDeclares(t *testing.T) {
 			}
 			assert.Equal(t, "FILE-SECRET", describedBy(t, doc, useTarget(t, doc, "L")))
 			for _, k := range []string{"A", "B"} {
-				assert.Equal(t, ir.TypeID("t/prim/any"), typeTarget(t, doc, useTarget(t, doc, k)),
+				assert.Equal(t, ir.TypeID("type/primitive/any"), typeTarget(t, doc, useTarget(t, doc, k)),
 					"%s lands on nothing of local.yaml: %s", k, jsonOf(t, doc))
 			}
 			assert.Equal(t, []string{"/secret.yaml"}, remote.requests(), "one request, for the one URL")

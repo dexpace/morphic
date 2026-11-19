@@ -33,8 +33,8 @@ func TestEntryClosure_APatternBesideTheAllOfIsTypedWhateverItsEntriesDeclare(t *
 				for _, at := range conjunctionPositions {
 					model := closureModelAt(t, doc, at)
 					requireClosurePatterns(t, model, string(at))
-					require.NotNil(t, model.AdditionalProps.Value, "a key no pattern matches at %s", at)
-					assert.Equal(t, prim(ir.PrimAny), model.AdditionalProps.Value.Target, "is anything at %s", at)
+					require.NotNil(t, model.AdditionalProperties.Value, "a key no pattern matches at %s", at)
+					assert.Equal(t, prim(ir.PrimitiveAny), model.AdditionalProperties.Value.Target, "is anything at %s", at)
 					assert.True(t, slices.ContainsFunc(model.Properties, func(p ir.Property) bool { return p.WireName == "b" }), at)
 					assert.Empty(t, keptUnder(doc, at), "nothing is kept at %s", at)
 					assert.Empty(t, degradedUnder(diags, at), "nothing is reported at %s", at)
@@ -86,7 +86,7 @@ func TestEntryClosure_TwoEntriesWritingAClosureTypeNeither(t *testing.T) {
 				for _, at := range conjunctionPositions {
 					model := closureModelAt(t, doc, at)
 					assert.Equal(t, ir.AdditionalUnspecified, model.Additional, "open at %s", at)
-					assert.Nil(t, model.AdditionalProps, "no catch-all at %s", at)
+					assert.Nil(t, model.AdditionalProperties, "no catch-all at %s", at)
 					assert.Equal(t, entryKept("openapi:allOf/0", "openapi:allOf/1"), keptOn(model), "both entries at %s", at)
 					assert.Len(t, degradedUnder(diags, at), 2, "one info each at %s", at)
 				}
@@ -136,7 +136,7 @@ func TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry(t *testing.T) {
 	for _, at := range conjunctionPositions {
 		m, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.MapT)
 		require.True(t, ok, "a map of the entry's catch-all at %s", at)
-		assert.Equal(t, prim(ir.PrimInteger), m.Value.Target, at)
+		assert.Equal(t, prim(ir.PrimitiveInteger), m.Value.Target, at)
 		assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:unevaluated": ir.ReasonValidationOnly}, keptOn(m), at)
 	}
 
@@ -146,9 +146,9 @@ func TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry(t *testing.T) {
 	for _, at := range conjunctionPositions {
 		model := closureModelAt(t, doc, at)
 		assert.Equal(t, ir.AdditionalClosedAfterComposition, model.Additional, at)
-		require.NotNil(t, model.AdditionalProps, at)
-		assert.Nil(t, model.AdditionalProps.Value, "a key no pattern matches is the composition's at %s", at)
-		assert.Len(t, model.AdditionalProps.Patterns, 1, at)
+		require.NotNil(t, model.AdditionalProperties, at)
+		assert.Nil(t, model.AdditionalProperties.Value, "a key no pattern matches is the composition's at %s", at)
+		assert.Len(t, model.AdditionalProperties.Patterns, 1, at)
 		assert.Empty(t, keptUnder(doc, at), at)
 	}
 
@@ -167,7 +167,7 @@ func TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry(t *testing.T) {
 	for _, at := range conjunctionPositions {
 		model := closureModelAt(t, doc, at)
 		assert.Equal(t, ir.AdditionalUnspecified, model.Additional, at)
-		assert.Nil(t, model.AdditionalProps, at)
+		assert.Nil(t, model.AdditionalProperties, at)
 		assert.Equal(t, map[string]ir.UnmodeledReason{
 			"openapi:additionalProperties": ir.ReasonDegradedLowering,
 			"openapi:unevaluated":          ir.ReasonValidationOnly,

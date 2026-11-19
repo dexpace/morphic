@@ -26,10 +26,10 @@ func TestValueFromNode_Scalars(t *testing.T) {
 	}{
 		{"null", "null", ir.Value{Kind: ir.ValueNull}},
 		{"bool", "true", ir.Value{Kind: ir.ValueBool, Bool: true}},
-		{"string", `"hi"`, ir.Value{Kind: ir.ValueString, Str: "hi"}},
-		{"int precision", "9007199254740993", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("9007199254740993")}},
-		{"big decimal", "0.30000000000000004", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("0.30000000000000004")}},
-		{"past a binary float's range", "1e2000000000", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1e2000000000")}},
+		{"string", `"hi"`, ir.Value{Kind: ir.ValueString, String: "hi"}},
+		{"int precision", "9007199254740993", ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("9007199254740993")}},
+		{"big decimal", "0.30000000000000004", ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("0.30000000000000004")}},
+		{"past a binary float's range", "1e2000000000", ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("1e2000000000")}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestValueFromNode_AliasFollowed(t *testing.T) {
 	got, err := value.FromNode(alias)
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueString, got.Kind)
-	assert.Equal(t, "hi", got.Str)
+	assert.Equal(t, "hi", got.String)
 }
 
 func TestValueFromNode_Sequence(t *testing.T) {
@@ -79,8 +79,8 @@ func TestValueFromNode_Sequence(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ir.ValueList, got.Kind)
 	require.Len(t, got.List, 2)
-	assert.Equal(t, ir.BigVal("1"), got.List[0].Num)
-	assert.Equal(t, "x", got.List[1].Str)
+	assert.Equal(t, ir.BigVal("1"), got.List[0].Number)
+	assert.Equal(t, "x", got.List[1].String)
 }
 
 func TestValueFromNode_Binary(t *testing.T) {
@@ -105,7 +105,7 @@ func TestValueFromNode_Timestamp(t *testing.T) {
 			got, err := value.FromNode(node)
 			require.NoError(t, err)
 			assert.Equal(t, ir.ValueString, got.Kind)
-			assert.Equal(t, src, got.Str, "verbatim spelling survives, not a canonicalized or parsed form")
+			assert.Equal(t, src, got.String, "verbatim spelling survives, not a canonicalized or parsed form")
 		})
 	}
 }
@@ -138,7 +138,7 @@ func TestValueFromNode_OverflowNumberIsNumber(t *testing.T) {
 	got, err := value.FromNode(openapitest.ScalarNode("!!str", "1.8e308"))
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueNumber, got.Kind)
-	assert.Equal(t, ir.BigVal("1.8e308"), got.Num)
+	assert.Equal(t, ir.BigVal("1.8e308"), got.Number)
 }
 
 func TestValueFromNode_QuotedNumericStaysString(t *testing.T) {
@@ -149,7 +149,7 @@ func TestValueFromNode_QuotedNumericStaysString(t *testing.T) {
 	got, err := value.FromNode(node)
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueString, got.Kind)
-	assert.Equal(t, "123", got.Str)
+	assert.Equal(t, "123", got.String)
 }
 
 func TestValueFromNode_UnsupportedNodeKind(t *testing.T) {
@@ -231,7 +231,7 @@ func TestValueFromNode_RefusesWhatNoObjectHolds(t *testing.T) {
 		got, err := value.FromNode(openapitest.YAMLNode(t, tc.src))
 		if assert.NoError(t, err, tc.name) && assert.Len(t, got.Object, 1, tc.name) {
 			assert.Equal(t, "a", got.Object[0].Name, tc.name)
-			assert.Equal(t, ir.BigVal(tc.want), got.Object[0].Value.Num, tc.name)
+			assert.Equal(t, ir.BigVal(tc.want), got.Object[0].Value.Number, tc.name)
 		}
 	}
 	_, err := value.FromNode(ynode.MergeChain(nodeview.MergeDepthLimit + 1))

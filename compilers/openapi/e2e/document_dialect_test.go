@@ -244,7 +244,7 @@ func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 		doc := compile(t, "paths: {}\ncomponents:\n  schemas:\n    G: {$ref: './other.yaml#/components/schemas/F'}\n",
 			"jsonSchemaDialect: "+draft07+"\npaths: {}\ncomponents:\n  schemas:\n"+
 				"    F: {type: object, allOf: [{dependencies: {a: [b]}}]}\n")
-		f, ok := doc.Types[ir.TypeID("t/openapi@other.yaml/components/schemas/F")].(*ir.Model)
+		f, ok := doc.Types[ir.TypeID("type/openapi@other.yaml/components/schemas/F")].(*ir.Model)
 		require.True(t, ok)
 		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, f.Unmodeled, "openapi:dependencies").Reason)
 		assert.NotContains(t, f.Unmodeled, "openapi:allOf/0", "the branch folds")
@@ -272,7 +272,7 @@ func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 				"&br {dependencies: {a: [b]}}]}}}\n"+
 				"    Now: {type: object, properties: {p: {allOf: [{$ref: '#/components/schemas/B'}, *br]}}}\n")
 		reason := func(at, key string) ir.UnmodeledReason {
-			td := doc.Types[ir.TypeID("t/anon@other.yaml/components/schemas/"+at+"/properties/p")]
+			td := doc.Types[ir.TypeID("type/anonymous@other.yaml/components/schemas/"+at+"/properties/p")]
 			require.NotNil(t, td, at)
 			return unmodeledEntry(t, td.Common().Unmodeled, key).Reason
 		}
@@ -312,7 +312,7 @@ func TestDocumentDialect_AnAllOfIsDecidedInItsOwnDocumentsDialect(t *testing.T) 
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
 		doc := compileSource(t, filepath.Join(dir, "root.yaml"), root+more)
-		node, ok := doc.Types[ir.TypeID("t/openapi@other.yaml/components/schemas/W")]
+		node, ok := doc.Types[ir.TypeID("type/openapi@other.yaml/components/schemas/W")]
 		require.True(t, ok)
 		return node
 	}

@@ -67,15 +67,15 @@ func summaries(doc *ir.Document) map[string]string {
 func TestEditor_ARegistryReadIsNotChangedByWhatFollows(t *testing.T) {
 	t.Parallel()
 	doc := registriesDoc()
-	doc.Types = ir.TypeRegistry{"t/a": &ir.Any{ID: "t/a", Docs: ir.Docs{Summary: "t/a"}}}
+	doc.Types = ir.TypeRegistry{"type/a": &ir.Any{ID: "type/a", Docs: ir.Docs{Summary: "type/a"}}}
 	e := ir.NewEditor(doc)
-	td, _ := e.Type("t/a")
+	td, _ := e.Type("type/a")
 	server, _ := e.Server("v/a")
 	channel, _ := e.Channel("c/a")
 	message, _ := e.Message("m/a")
 	scheme, _ := e.AuthScheme("a/a")
 
-	e.UpdateType("t/a", func(td ir.TypeDef) { changed(&td.Common().Docs) })
+	e.UpdateType("type/a", func(td ir.TypeDef) { changed(&td.Common().Docs) })
 	e.UpdateServer("v/a", func(s *ir.Server) {
 		changed(&s.Description)
 		s.Tags[0] = "changed"
@@ -86,13 +86,13 @@ func TestEditor_ARegistryReadIsNotChangedByWhatFollows(t *testing.T) {
 	})
 	e.UpdateMessage("m/a", func(m *ir.Message) { changed(&m.Docs) })
 	e.UpdateAuthScheme("a/a", func(a *ir.AuthScheme) { a.Flows[0].TokenURL = "changed" })
-	e.RemoveType("t/a")
+	e.RemoveType("type/a")
 	e.RemoveServer("v/a")
 	e.RemoveChannel("c/a")
 	_, diags := e.Finish()
 
 	require.Empty(t, diags)
-	assert.Equal(t, "t/a", td.Common().Docs.Summary)
+	assert.Equal(t, "type/a", td.Common().Docs.Summary)
 	assert.Equal(t, "v/a", server.Description.Summary)
 	assert.Equal(t, []string{"kept"}, server.Tags)
 	assert.Equal(t, "c/a", channel.Docs.Summary)
@@ -172,7 +172,7 @@ func TestEditor_WritesTheRegistriesAndNotTheDocument(t *testing.T) {
 func TestEditor_EmptiedRegistriesAreNil(t *testing.T) {
 	t.Parallel()
 	doc := registriesDoc()
-	doc.Types = ir.TypeRegistry{"t/a": &ir.Any{ID: "t/a"}}
+	doc.Types = ir.TypeRegistry{"type/a": &ir.Any{ID: "type/a"}}
 	e := ir.NewEditor(doc)
 	for _, id := range slices.Sorted(maps.Keys(doc.Servers)) {
 		e.RemoveServer(id)
@@ -186,7 +186,7 @@ func TestEditor_EmptiedRegistriesAreNil(t *testing.T) {
 	for _, id := range slices.Sorted(maps.Keys(doc.Auth)) {
 		e.RemoveAuthScheme(id)
 	}
-	e.RemoveType("t/a")
+	e.RemoveType("type/a")
 	out, diags := e.Finish()
 
 	require.Empty(t, diags)
@@ -268,10 +268,10 @@ func TestEditor_RefusesRegistryWritesOnlyABugMakes(t *testing.T) {
 		}, `update rejected: the change moved "a/a" to "a/b"; a node keeps its ID`},
 		{"update adding a channel parameter", nil, func(e *ir.Editor) {
 			e.UpdateChannel("c/b", func(c *ir.Channel) { c.Params = []ir.Parameter{{ID: "c/a/p"}} })
-		}, `update rejected: the change of "c/b" declares the ir.ParamID "c/a/p", which the node does not`},
+		}, `update rejected: the change of "c/b" declares the ir.ParameterID "c/a/p", which the node does not`},
 		{"update repeating a channel parameter", nil, func(e *ir.Editor) {
 			e.UpdateChannel("c/a", func(c *ir.Channel) { c.Params = append(c.Params, c.Params[0]) })
-		}, `update rejected: the change of "c/a" declares the ir.ParamID "c/a/p" 2 times, where the node does 1 times`},
+		}, `update rejected: the change of "c/a" declares the ir.ParameterID "c/a/p" 2 times, where the node does 1 times`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

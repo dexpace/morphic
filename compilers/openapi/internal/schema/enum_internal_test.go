@@ -23,14 +23,14 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	admissible := []struct {
 		name string
 		val  ir.Value
-		prim ir.PrimKind
+		prim ir.PrimitiveKind
 		text string
 	}{
-		{"string", ir.Value{Kind: ir.ValueString, Str: "s"}, ir.PrimString, "s"},
-		{"symbol", ir.Value{Kind: ir.ValueSymbol, Str: "ok"}, ir.PrimString, "ok"},
-		{"number", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1.5")}, ir.PrimNumber, "1.5"},
-		{"bool", ir.Value{Kind: ir.ValueBool, Bool: true}, ir.PrimBool, "true"},
-		{"bytes", ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}, ir.PrimBytes, "aGk="},
+		{"string", ir.Value{Kind: ir.ValueString, String: "s"}, ir.PrimitiveString, "s"},
+		{"symbol", ir.Value{Kind: ir.ValueSymbol, String: "ok"}, ir.PrimitiveString, "ok"},
+		{"number", ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("1.5")}, ir.PrimitiveNumber, "1.5"},
+		{"bool", ir.Value{Kind: ir.ValueBool, Bool: true}, ir.PrimitiveBool, "true"},
+		{"bytes", ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}, ir.PrimitiveBytes, "aGk="},
 	}
 	for _, tc := range admissible {
 		t.Run(tc.name, func(t *testing.T) {
@@ -43,8 +43,8 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	}
 
 	refused := []ir.ValueKind{
-		ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN,
+		ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueConstructor,
+		ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN,
 		ir.ValueKind("a kind ir does not declare"),
 	}
 	for _, kind := range refused {
@@ -66,10 +66,10 @@ func TestEnumMembers_KeepsNoneBeneathAnIDNoMemberFits(t *testing.T) {
 	t.Parallel()
 	nodes := []*yaml.Node{{Kind: yaml.ScalarNode, Tag: "!!str", Value: "a"}}
 
-	members, _, ok := enumMembers(readEnum(nodes), "t/openapi/components/schemas/E")
+	members, _, ok := enumMembers(readEnum(nodes), "type/openapi/components/schemas/E")
 	require.True(t, ok)
-	assert.Equal(t, []ir.EnumMember{{ID: "e/openapi/components/schemas/E/s:a", Name: ir.NamingFor("a"),
-		Value: ir.Value{Kind: ir.ValueString, Str: "a"}}}, members)
+	assert.Equal(t, []ir.EnumMember{{ID: "enum-member/openapi/components/schemas/E/string:a", Name: ir.NamingFor("a"),
+		Value: ir.Value{Kind: ir.ValueString, String: "a"}}}, members)
 
 	members, prim, ok := enumMembers(readEnum(nodes), "openapi/components/schemas/E")
 	assert.False(t, ok, "no member is placed beneath an ID that is no type ID")
@@ -82,7 +82,7 @@ func TestEnumMembers_KeepsNoneBeneathAnIDNoMemberFits(t *testing.T) {
 // it, a member name or value spelling a key, and one member against two.
 func TestValueKey_IsInjectiveAcrossNesting(t *testing.T) {
 	t.Parallel()
-	str := func(s string) ir.Value { return ir.Value{Kind: ir.ValueString, Str: s} }
+	str := func(s string) ir.Value { return ir.Value{Kind: ir.ValueString, String: s} }
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(fs ...ir.Field) ir.Value { return ir.Value{Kind: ir.ValueObject, Object: fs} }
 	values := []ir.Value{
@@ -120,9 +120,9 @@ func TestValueKey_RefusesWhatNoSourceEnumHolds(t *testing.T) {
 	}
 	for name, v := range map[string]ir.Value{
 		"a reference":           ref,
-		"a constructor":         {Kind: ir.ValueCtor},
-		"infinity":              {Kind: ir.ValueInf},
-		"negative infinity":     {Kind: ir.ValueNegInf},
+		"a constructor":         {Kind: ir.ValueConstructor},
+		"infinity":              {Kind: ir.ValueInfinity},
+		"negative infinity":     {Kind: ir.ValueNegativeInfinity},
 		"not a number":          {Kind: ir.ValueNaN},
 		"a kind ir lacks":       {Kind: ir.ValueKind("a kind ir does not declare")},
 		"a list holding one":    {Kind: ir.ValueList, List: []ir.Value{ref}},
@@ -144,7 +144,7 @@ func TestValueKey_RefusesWhatNoSourceEnumHolds(t *testing.T) {
 func TestValueKey_GrowsByAFixedAmountPerLevel(t *testing.T) {
 	t.Parallel()
 	const depth = 20
-	deep := ir.Value{Kind: ir.ValueString, Str: `"\`}
+	deep := ir.Value{Kind: ir.ValueString, String: `"\`}
 	for range depth {
 		deep = ir.Value{Kind: ir.ValueList, List: []ir.Value{deep}}
 	}
@@ -158,8 +158,8 @@ func TestValueKey_GrowsByAFixedAmountPerLevel(t *testing.T) {
 // defines judges nothing, and no type declared admits every value.
 func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
 	t.Parallel()
-	str, one, half := ir.Value{Kind: ir.ValueString, Str: "1"}, ir.Value{Kind: ir.ValueNumber, Num: "1.0"},
-		ir.Value{Kind: ir.ValueNumber, Num: "0.5"}
+	str, one, half := ir.Value{Kind: ir.ValueString, String: "1"}, ir.Value{Kind: ir.ValueNumber, Number: "1.0"},
+		ir.Value{Kind: ir.ValueNumber, Number: "0.5"}
 	null, yes := ir.Value{Kind: ir.ValueNull}, ir.Value{Kind: ir.ValueBool, Bool: true}
 	obj, list := ir.Value{Kind: ir.ValueObject}, ir.Value{Kind: ir.ValueList}
 	bin := ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}
@@ -191,9 +191,9 @@ func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
 func TestDescribeValue_SpellsEachKind(t *testing.T) {
 	t.Parallel()
 	for v, want := range map[*ir.Value]string{
-		{Kind: ir.ValueString, Str: "a"}:        `"a"`,
-		{Kind: ir.ValueSymbol, Str: "b"}:        `"b"`,
-		{Kind: ir.ValueNumber, Num: "1.5"}:      "1.5",
+		{Kind: ir.ValueString, String: "a"}:     `"a"`,
+		{Kind: ir.ValueSymbol, String: "b"}:     `"b"`,
+		{Kind: ir.ValueNumber, Number: "1.5"}:   "1.5",
 		{Kind: ir.ValueBool}:                    "false",
 		{Kind: ir.ValueNull}:                    "null",
 		{Kind: ir.ValueBytes}:                   "of kind bytes",

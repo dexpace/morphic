@@ -23,8 +23,8 @@ const dynListOther = "List:\n  $id: https://example.com/list\n  type: array\n  i
 
 // dynListItems is where that reference is, and the anchor it expands to.
 const (
-	dynListItems  = ir.TypeID("t/anon@other.yaml/List/items")
-	dynListAnchor = ir.TypeID("t/anon@other.yaml/List/$defs/items")
+	dynListItems  = ir.TypeID("type/anonymous@other.yaml/List/items")
+	dynListAnchor = ir.TypeID("type/anonymous@other.yaml/List/$defs/items")
 	dynListPoint  = "/List/items/$dynamicRef"
 )
 
@@ -62,7 +62,7 @@ func TestCompile_ADynamicRefAnotherDocumentsResourceReachesIsKept(t *testing.T) 
 		items, ok := doc.Types[dynListItems].(*ir.Scalar)
 		require.True(t, ok, "%s: %v", name, doc.Types[dynListItems])
 		require.NotNil(t, items.Base, name)
-		assert.Equal(t, ir.TypeID("t/prim/any"), items.Base.Target, name)
+		assert.Equal(t, ir.TypeID("type/primitive/any"), items.Base.Target, name)
 		entry := unmodeledEntry(t, items.Unmodeled, "openapi:$dynamicRef")
 		assert.JSONEq(t, `"#items"`, string(entry.Value), name)
 		assert.Empty(t, byCode(diags, "openapi/dynamic-ref-expanded"), name)

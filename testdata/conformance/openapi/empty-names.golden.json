@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Empty Names",
         "canonical": "empty_names"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/tags",
+          "id": "operation-group/tags",
           "name": {
             "hint": "empty"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1widgets/get",
+              "id": "operation/openapi/paths/~1widgets/get",
               "name": {
                 "hint": "get_widgets"
               },
@@ -114,9 +114,9 @@
     }
   ],
   "types": {
-    "t/anon/components/mediaTypes//itemSchema": {
+    "type/anonymous/components/mediaTypes//itemSchema": {
       "kind": "model",
-      "id": "t/anon/components/mediaTypes//itemSchema",
+      "id": "type/anonymous/components/mediaTypes//itemSchema",
       "name": {
         "hint": "empty_item"
       },
@@ -129,21 +129,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/mediaTypes//itemSchema/properties/l",
+          "id": "property/openapi/components/mediaTypes//itemSchema/properties/l",
           "name": {
             "source": "l",
             "canonical": "l"
           },
           "wireName": "l",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -160,9 +160,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/mediaTypes//schema/items": {
+    "type/anonymous/components/mediaTypes//schema/items": {
       "kind": "model",
-      "id": "t/anon/components/mediaTypes//schema/items",
+      "id": "type/anonymous/components/mediaTypes//schema/items",
       "name": {
         "hint": "empty_item"
       },
@@ -175,21 +175,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/mediaTypes//schema/items/properties/k",
+          "id": "property/openapi/components/mediaTypes//schema/items/properties/k",
           "name": {
             "source": "k",
             "canonical": "k"
           },
           "wireName": "k",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -206,9 +206,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema": {
+    "type/anonymous/components/parameters/Unnamed/content/application~1jsonl/itemSchema": {
       "kind": "model",
-      "id": "t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
+      "id": "type/anonymous/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
       "name": {
         "hint": "empty_item"
       },
@@ -221,21 +221,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/parameters/Unnamed/content/application~1jsonl/itemSchema/properties/g",
+          "id": "property/openapi/components/parameters/Unnamed/content/application~1jsonl/itemSchema/properties/g",
           "name": {
             "source": "g",
             "canonical": "g"
           },
           "wireName": "g",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -252,9 +252,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items": {
+    "type/anonymous/components/parameters/UnnamedContent/content/application~1json/schema/items": {
       "kind": "model",
-      "id": "t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items",
+      "id": "type/anonymous/components/parameters/UnnamedContent/content/application~1json/schema/items",
       "name": {
         "hint": "empty_item"
       },
@@ -267,21 +267,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/parameters/UnnamedContent/content/application~1json/schema/items/properties/j",
+          "id": "property/openapi/components/parameters/UnnamedContent/content/application~1json/schema/items/properties/j",
           "name": {
             "source": "j",
             "canonical": "j"
           },
           "wireName": "j",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -298,9 +298,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/parameters/UnnamedList/schema/items": {
+    "type/anonymous/components/parameters/UnnamedList/schema/items": {
       "kind": "model",
-      "id": "t/anon/components/parameters/UnnamedList/schema/items",
+      "id": "type/anonymous/components/parameters/UnnamedList/schema/items",
       "name": {
         "hint": "empty_item"
       },
@@ -313,21 +313,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/parameters/UnnamedList/schema/items/properties/p",
+          "id": "property/openapi/components/parameters/UnnamedList/schema/items/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -344,9 +344,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/": {
+    "type/anonymous/components/schemas/": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/",
+      "id": "type/anonymous/components/schemas/",
       "name": {
         "hint": "empty"
       },
@@ -358,13 +358,13 @@
         "pointer": "/components/schemas/"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Blob/properties/": {
+    "type/anonymous/components/schemas/Blob/properties/": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Blob/properties/",
+      "id": "type/anonymous/components/schemas/Blob/properties/",
       "name": {
         "hint": "empty"
       },
@@ -376,20 +376,20 @@
         "pointer": "/components/schemas/Blob/properties/"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "encoding": {
         "mediaType": "application/json",
         "schema": {
-          "target": "t/anon/components/schemas/Blob/properties//contentSchema",
+          "target": "type/anonymous/components/schemas/Blob/properties//contentSchema",
           "nullable": false
         }
       }
     },
-    "t/anon/components/schemas/Blob/properties//contentSchema": {
+    "type/anonymous/components/schemas/Blob/properties//contentSchema": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Blob/properties//contentSchema",
+      "id": "type/anonymous/components/schemas/Blob/properties//contentSchema",
       "name": {
         "hint": "empty_content"
       },
@@ -402,21 +402,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Blob/properties//contentSchema/properties/a",
+          "id": "property/openapi/components/schemas/Blob/properties//contentSchema/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -433,9 +433,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Host/properties/": {
+    "type/anonymous/components/schemas/Host/properties/": {
       "kind": "union",
-      "id": "t/anon/components/schemas/Host/properties/",
+      "id": "type/anonymous/components/schemas/Host/properties/",
       "name": {
         "hint": "empty"
       },
@@ -452,7 +452,7 @@
             "hint": "alt"
           },
           "type": {
-            "target": "t/composed/components/schemas/Host/properties//oneOf/0",
+            "target": "type/composed/components/schemas/Host/properties//oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -463,9 +463,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/components/schemas/List/properties/": {
+    "type/anonymous/components/schemas/List/properties/": {
       "kind": "list",
-      "id": "t/anon/components/schemas/List/properties/",
+      "id": "type/anonymous/components/schemas/List/properties/",
       "name": {
         "hint": "empty"
       },
@@ -476,14 +476,14 @@
         "source": 0,
         "pointer": "/components/schemas/List/properties/"
       },
-      "elem": {
-        "target": "t/anon/components/schemas/List/properties//items",
+      "elementType": {
+        "target": "type/anonymous/components/schemas/List/properties//items",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/List/properties//items": {
+    "type/anonymous/components/schemas/List/properties//items": {
       "kind": "model",
-      "id": "t/anon/components/schemas/List/properties//items",
+      "id": "type/anonymous/components/schemas/List/properties//items",
       "name": {
         "hint": "empty_item"
       },
@@ -496,21 +496,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/List/properties//items/properties/a",
+          "id": "property/openapi/components/schemas/List/properties//items/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -527,9 +527,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Maps/properties/": {
+    "type/anonymous/components/schemas/Maps/properties/": {
       "kind": "map",
-      "id": "t/anon/components/schemas/Maps/properties/",
+      "id": "type/anonymous/components/schemas/Maps/properties/",
       "name": {
         "hint": "empty"
       },
@@ -541,13 +541,13 @@
         "pointer": "/components/schemas/Maps/properties/"
       },
       "value": {
-        "target": "t/anon/components/schemas/Maps/properties//additionalProperties",
+        "target": "type/anonymous/components/schemas/Maps/properties//additionalProperties",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Maps/properties//additionalProperties": {
+    "type/anonymous/components/schemas/Maps/properties//additionalProperties": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Maps/properties//additionalProperties",
+      "id": "type/anonymous/components/schemas/Maps/properties//additionalProperties",
       "name": {
         "hint": "empty_value"
       },
@@ -560,21 +560,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Maps/properties//additionalProperties/properties/b",
+          "id": "property/openapi/components/schemas/Maps/properties//additionalProperties/properties/b",
           "name": {
             "source": "b",
             "canonical": "b"
           },
           "wireName": "b",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -591,9 +591,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Mixed/properties/": {
+    "type/anonymous/components/schemas/Mixed/properties/": {
       "kind": "union",
-      "id": "t/anon/components/schemas/Mixed/properties/",
+      "id": "type/anonymous/components/schemas/Mixed/properties/",
       "name": {
         "hint": "empty"
       },
@@ -610,7 +610,7 @@
             "hint": "empty_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Mixed/properties//enum/0",
+            "target": "type/anonymous/components/schemas/Mixed/properties//enum/0",
             "nullable": false
           },
           "docs": {}
@@ -620,7 +620,7 @@
             "hint": "empty_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Mixed/properties//enum/1",
+            "target": "type/anonymous/components/schemas/Mixed/properties//enum/1",
             "nullable": false
           },
           "docs": {}
@@ -631,9 +631,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Mixed/properties//enum/0": {
+    "type/anonymous/components/schemas/Mixed/properties//enum/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Mixed/properties//enum/0",
+      "id": "type/anonymous/components/schemas/Mixed/properties//enum/0",
       "name": {
         "hint": "empty_0"
       },
@@ -646,13 +646,13 @@
       },
       "value": {
         "kind": "number",
-        "num": "1"
+        "number": "1"
       },
       "valueType": "number"
     },
-    "t/anon/components/schemas/Mixed/properties//enum/1": {
+    "type/anonymous/components/schemas/Mixed/properties//enum/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Mixed/properties//enum/1",
+      "id": "type/anonymous/components/schemas/Mixed/properties//enum/1",
       "name": {
         "hint": "empty_1"
       },
@@ -665,13 +665,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "a"
+        "string": "a"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Old/properties/": {
+    "type/anonymous/components/schemas/Old/properties/": {
       "kind": "tuple",
-      "id": "t/anon/components/schemas/Old/properties/",
+      "id": "type/anonymous/components/schemas/Old/properties/",
       "name": {
         "hint": "empty"
       },
@@ -682,20 +682,20 @@
         "source": 0,
         "pointer": "/components/schemas/Old/properties/"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/anon/components/schemas/Old/properties//items/0",
+          "target": "type/anonymous/components/schemas/Old/properties//items/0",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/anon/components/schemas/Old/properties//additionalItems",
+        "target": "type/anonymous/components/schemas/Old/properties//additionalItems",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Old/properties//additionalItems": {
+    "type/anonymous/components/schemas/Old/properties//additionalItems": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Old/properties//additionalItems",
+      "id": "type/anonymous/components/schemas/Old/properties//additionalItems",
       "name": {
         "hint": "empty_item"
       },
@@ -708,21 +708,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Old/properties//additionalItems/properties/e",
+          "id": "property/openapi/components/schemas/Old/properties//additionalItems/properties/e",
           "name": {
             "source": "e",
             "canonical": "e"
           },
           "wireName": "e",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -739,9 +739,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Old/properties//items/0": {
+    "type/anonymous/components/schemas/Old/properties//items/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Old/properties//items/0",
+      "id": "type/anonymous/components/schemas/Old/properties//items/0",
       "name": {
         "hint": "empty_0"
       },
@@ -754,21 +754,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Old/properties//items/0/properties/d",
+          "id": "property/openapi/components/schemas/Old/properties//items/0/properties/d",
           "name": {
             "source": "d",
             "canonical": "d"
           },
           "wireName": "d",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -785,9 +785,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Patterns/properties/": {
+    "type/anonymous/components/schemas/Patterns/properties/": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Patterns/properties/",
+      "id": "type/anonymous/components/schemas/Patterns/properties/",
       "name": {
         "hint": "empty"
       },
@@ -798,16 +798,16 @@
         "source": 0,
         "pointer": "/components/schemas/Patterns/properties/"
       },
-      "additionalProps": {
+      "additionalProperties": {
         "value": {
-          "target": "t/prim/any",
+          "target": "type/primitive/any",
           "nullable": false
         },
         "patterns": [
           {
             "pattern": "^x",
             "value": {
-              "target": "t/anon/components/schemas/Patterns/properties//patternProperties/^x",
+              "target": "type/anonymous/components/schemas/Patterns/properties//patternProperties/^x",
               "nullable": false
             }
           }
@@ -817,9 +817,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Patterns/properties//patternProperties/^x": {
+    "type/anonymous/components/schemas/Patterns/properties//patternProperties/^x": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Patterns/properties//patternProperties/^x",
+      "id": "type/anonymous/components/schemas/Patterns/properties//patternProperties/^x",
       "name": {
         "hint": "empty_pattern"
       },
@@ -832,21 +832,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Patterns/properties//patternProperties/^x/properties/c",
+          "id": "property/openapi/components/schemas/Patterns/properties//patternProperties/^x/properties/c",
           "name": {
             "source": "c",
             "canonical": "c"
           },
           "wireName": "c",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -863,9 +863,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Tuple/properties/": {
+    "type/anonymous/components/schemas/Tuple/properties/": {
       "kind": "tuple",
-      "id": "t/anon/components/schemas/Tuple/properties/",
+      "id": "type/anonymous/components/schemas/Tuple/properties/",
       "name": {
         "hint": "empty"
       },
@@ -876,20 +876,20 @@
         "source": 0,
         "pointer": "/components/schemas/Tuple/properties/"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/anon/components/schemas/Tuple/properties//prefixItems/0",
+          "target": "type/anonymous/components/schemas/Tuple/properties//prefixItems/0",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/anon/components/schemas/Tuple/properties//items",
+        "target": "type/anonymous/components/schemas/Tuple/properties//items",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Tuple/properties//items": {
+    "type/anonymous/components/schemas/Tuple/properties//items": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Tuple/properties//items",
+      "id": "type/anonymous/components/schemas/Tuple/properties//items",
       "name": {
         "hint": "empty_item"
       },
@@ -902,21 +902,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Tuple/properties//items/properties/e",
+          "id": "property/openapi/components/schemas/Tuple/properties//items/properties/e",
           "name": {
             "source": "e",
             "canonical": "e"
           },
           "wireName": "e",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -933,9 +933,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Tuple/properties//prefixItems/0": {
+    "type/anonymous/components/schemas/Tuple/properties//prefixItems/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Tuple/properties//prefixItems/0",
+      "id": "type/anonymous/components/schemas/Tuple/properties//prefixItems/0",
       "name": {
         "hint": "empty_0"
       },
@@ -948,21 +948,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Tuple/properties//prefixItems/0/properties/d",
+          "id": "property/openapi/components/schemas/Tuple/properties//prefixItems/0/properties/d",
           "name": {
             "source": "d",
             "canonical": "d"
           },
           "wireName": "d",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -979,9 +979,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Widget/properties/": {
+    "type/anonymous/components/schemas/Widget/properties/": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Widget/properties/",
+      "id": "type/anonymous/components/schemas/Widget/properties/",
       "name": {
         "hint": "empty"
       },
@@ -994,21 +994,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Widget/properties//properties/leaf",
+          "id": "property/openapi/components/schemas/Widget/properties//properties/leaf",
           "name": {
             "source": "leaf",
             "canonical": "leaf"
           },
           "wireName": "leaf",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1025,9 +1025,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/Host/properties//oneOf/0": {
+    "type/composed/components/schemas/Host/properties//oneOf/0": {
       "kind": "model",
-      "id": "t/composed/components/schemas/Host/properties//oneOf/0",
+      "id": "type/composed/components/schemas/Host/properties//oneOf/0",
       "name": {
         "hint": "empty_alt"
       },
@@ -1039,12 +1039,12 @@
         "pointer": "/components/schemas/Host/properties//oneOf/0"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Alt",
+          "target": "type/openapi/components/schemas/Alt",
           "nullable": false
         }
       ],
@@ -1052,9 +1052,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Alt": {
+    "type/openapi/components/schemas/Alt": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Alt",
+      "id": "type/openapi/components/schemas/Alt",
       "name": {
         "source": "Alt",
         "canonical": "alt"
@@ -1068,21 +1068,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Alt/properties/alt",
+          "id": "property/openapi/components/schemas/Alt/properties/alt",
           "name": {
             "source": "alt",
             "canonical": "alt"
           },
           "wireName": "alt",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1099,9 +1099,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Base": {
+    "type/openapi/components/schemas/Base": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Base",
+      "id": "type/openapi/components/schemas/Base",
       "name": {
         "source": "Base",
         "canonical": "base"
@@ -1115,21 +1115,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Base/properties/id",
+          "id": "property/openapi/components/schemas/Base/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1146,9 +1146,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Blob": {
+    "type/openapi/components/schemas/Blob": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Blob",
+      "id": "type/openapi/components/schemas/Blob",
       "name": {
         "source": "Blob",
         "canonical": "blob"
@@ -1162,19 +1162,19 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Blob/properties/",
+          "id": "property/openapi/components/schemas/Blob/properties/",
           "name": {
             "hint": "empty"
           },
           "type": {
-            "target": "t/anon/components/schemas/Blob/properties/",
+            "target": "type/anonymous/components/schemas/Blob/properties/",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1191,9 +1191,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Host": {
+    "type/openapi/components/schemas/Host": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Host",
+      "id": "type/openapi/components/schemas/Host",
       "name": {
         "source": "Host",
         "canonical": "host"
@@ -1207,19 +1207,19 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Host/properties/",
+          "id": "property/openapi/components/schemas/Host/properties/",
           "name": {
             "hint": "empty"
           },
           "type": {
-            "target": "t/anon/components/schemas/Host/properties/",
+            "target": "type/anonymous/components/schemas/Host/properties/",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1236,9 +1236,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Line": {
+    "type/openapi/components/schemas/Line": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Line",
+      "id": "type/openapi/components/schemas/Line",
       "name": {
         "source": "Line",
         "canonical": "line"
@@ -1251,16 +1251,16 @@
         "pointer": "/components/schemas/Line"
       },
       "base": {
-        "target": "t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
+        "target": "type/anonymous/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/List": {
+    "type/openapi/components/schemas/List": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/List",
+      "id": "type/openapi/components/schemas/List",
       "name": {
         "source": "List",
         "canonical": "list"
@@ -1274,19 +1274,19 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/List/properties/",
+          "id": "property/openapi/components/schemas/List/properties/",
           "name": {
             "hint": "empty"
           },
           "type": {
-            "target": "t/anon/components/schemas/List/properties/",
+            "target": "type/anonymous/components/schemas/List/properties/",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1303,9 +1303,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Maps": {
+    "type/openapi/components/schemas/Maps": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Maps",
+      "id": "type/openapi/components/schemas/Maps",
       "name": {
         "source": "Maps",
         "canonical": "maps"
@@ -1319,19 +1319,19 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Maps/properties/",
+          "id": "property/openapi/components/schemas/Maps/properties/",
           "name": {
             "hint": "empty"
           },
           "type": {
-            "target": "t/anon/components/schemas/Maps/properties/",
+            "target": "type/anonymous/components/schemas/Maps/properties/",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1348,9 +1348,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/MediaItem": {
+    "type/openapi/components/schemas/MediaItem": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/MediaItem",
+      "id": "type/openapi/components/schemas/MediaItem",
       "name": {
         "source": "MediaItem",
         "canonical": "media_item"
@@ -1363,16 +1363,16 @@
         "pointer": "/components/schemas/MediaItem"
       },
       "base": {
-        "target": "t/anon/components/mediaTypes//schema/items",
+        "target": "type/anonymous/components/mediaTypes//schema/items",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/MediaItemSchema": {
+    "type/openapi/components/schemas/MediaItemSchema": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/MediaItemSchema",
+      "id": "type/openapi/components/schemas/MediaItemSchema",
       "name": {
         "source": "MediaItemSchema",
         "canonical": "media_item_schema"
@@ -1385,16 +1385,16 @@
         "pointer": "/components/schemas/MediaItemSchema"
       },
       "base": {
-        "target": "t/anon/components/mediaTypes//itemSchema",
+        "target": "type/anonymous/components/mediaTypes//itemSchema",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Mixed": {
+    "type/openapi/components/schemas/Mixed": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Mixed",
+      "id": "type/openapi/components/schemas/Mixed",
       "name": {
         "source": "Mixed",
         "canonical": "mixed"
@@ -1408,19 +1408,19 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Mixed/properties/",
+          "id": "property/openapi/components/schemas/Mixed/properties/",
           "name": {
             "hint": "empty"
           },
           "type": {
-            "target": "t/anon/components/schemas/Mixed/properties/",
+            "target": "type/anonymous/components/schemas/Mixed/properties/",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1437,9 +1437,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Old": {
+    "type/openapi/components/schemas/Old": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Old",
+      "id": "type/openapi/components/schemas/Old",
       "name": {
         "source": "Old",
         "canonical": "old"
@@ -1463,19 +1463,19 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Old/properties/",
+          "id": "property/openapi/components/schemas/Old/properties/",
           "name": {
             "hint": "empty"
           },
           "type": {
-            "target": "t/anon/components/schemas/Old/properties/",
+            "target": "type/anonymous/components/schemas/Old/properties/",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1492,9 +1492,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ParamContentItem": {
+    "type/openapi/components/schemas/ParamContentItem": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ParamContentItem",
+      "id": "type/openapi/components/schemas/ParamContentItem",
       "name": {
         "source": "ParamContentItem",
         "canonical": "param_content_item"
@@ -1507,16 +1507,16 @@
         "pointer": "/components/schemas/ParamContentItem"
       },
       "base": {
-        "target": "t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items",
+        "target": "type/anonymous/components/parameters/UnnamedContent/content/application~1json/schema/items",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ParamItem": {
+    "type/openapi/components/schemas/ParamItem": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ParamItem",
+      "id": "type/openapi/components/schemas/ParamItem",
       "name": {
         "source": "ParamItem",
         "canonical": "param_item"
@@ -1529,16 +1529,16 @@
         "pointer": "/components/schemas/ParamItem"
       },
       "base": {
-        "target": "t/anon/components/parameters/UnnamedList/schema/items",
+        "target": "type/anonymous/components/parameters/UnnamedList/schema/items",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Patterns": {
+    "type/openapi/components/schemas/Patterns": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Patterns",
+      "id": "type/openapi/components/schemas/Patterns",
       "name": {
         "source": "Patterns",
         "canonical": "patterns"
@@ -1552,19 +1552,19 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Patterns/properties/",
+          "id": "property/openapi/components/schemas/Patterns/properties/",
           "name": {
             "hint": "empty"
           },
           "type": {
-            "target": "t/anon/components/schemas/Patterns/properties/",
+            "target": "type/anonymous/components/schemas/Patterns/properties/",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1581,9 +1581,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Rollout": {
+    "type/openapi/components/schemas/Rollout": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Rollout",
+      "id": "type/openapi/components/schemas/Rollout",
       "name": {
         "source": "Rollout",
         "canonical": "rollout"
@@ -1598,7 +1598,7 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/Rollout/s:",
+          "id": "enum-member/openapi/components/schemas/Rollout/string:",
           "name": {
             "hint": "empty"
           },
@@ -1608,26 +1608,26 @@
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/Rollout/s:empty",
+          "id": "enum-member/openapi/components/schemas/Rollout/string:empty",
           "name": {
             "source": "empty",
             "canonical": "empty"
           },
           "value": {
             "kind": "string",
-            "str": "empty"
+            "string": "empty"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/Rollout/s:done",
+          "id": "enum-member/openapi/components/schemas/Rollout/string:done",
           "name": {
             "source": "done",
             "canonical": "done"
           },
           "value": {
             "kind": "string",
-            "str": "done"
+            "string": "done"
           },
           "docs": {}
         }
@@ -1635,9 +1635,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Tuple": {
+    "type/openapi/components/schemas/Tuple": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Tuple",
+      "id": "type/openapi/components/schemas/Tuple",
       "name": {
         "source": "Tuple",
         "canonical": "tuple"
@@ -1651,19 +1651,19 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Tuple/properties/",
+          "id": "property/openapi/components/schemas/Tuple/properties/",
           "name": {
             "hint": "empty"
           },
           "type": {
-            "target": "t/anon/components/schemas/Tuple/properties/",
+            "target": "type/anonymous/components/schemas/Tuple/properties/",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1680,9 +1680,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Widget": {
+    "type/openapi/components/schemas/Widget": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Widget",
+      "id": "type/openapi/components/schemas/Widget",
       "name": {
         "source": "Widget",
         "canonical": "widget"
@@ -1696,19 +1696,19 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Widget/properties/",
+          "id": "property/openapi/components/schemas/Widget/properties/",
           "name": {
             "hint": "empty"
           },
           "type": {
-            "target": "t/anon/components/schemas/Widget/properties/",
+            "target": "type/anonymous/components/schemas/Widget/properties/",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1725,9 +1725,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1735,11 +1735,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1747,7 +1747,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "auth": {

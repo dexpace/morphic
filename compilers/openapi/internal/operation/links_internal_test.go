@@ -27,7 +27,7 @@ func TestLinksResolve_AnOperationTheServiceLacks(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	var links Links
-	links.add("op/x/gone", responseSlot{}, []linkDraft{{at: l.ctx, use: "/p/links/L", name: "L"}})
+	links.add("operation/x/gone", responseSlot{}, []linkDraft{{at: l.ctx, use: "/p/links/L", name: "L"}})
 	diags := links.Resolve(l.ctx, compileddoc.New(&ir.Document{}), servers.NewRegistry())
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
@@ -39,7 +39,7 @@ func TestLinksResolve_AnOperationTheServiceLacks(t *testing.T) {
 // compiler builds, is not, so the walk is bounded however deep a service is.
 func TestIndexOperations_StopsAtTheGroupDepthBound(t *testing.T) {
 	t.Parallel()
-	nested := func(id ir.OpID, level int) ir.OperationGroup {
+	nested := func(id ir.OperationID, level int) ir.OperationGroup {
 		g := ir.OperationGroup{Operations: []ir.Operation{{ID: id}}}
 		for range level {
 			g = ir.OperationGroup{Groups: []ir.OperationGroup{g}}
@@ -47,12 +47,12 @@ func TestIndexOperations_StopsAtTheGroupDepthBound(t *testing.T) {
 		return g
 	}
 	svc := &ir.Service{Groups: []ir.OperationGroup{
-		nested("op/x/top", 0), nested("op/x/cap", ir.MaxGroupDepth), nested("op/x/past", ir.MaxGroupDepth+1),
+		nested("operation/x/top", 0), nested("operation/x/cap", ir.MaxGroupDepth), nested("operation/x/past", ir.MaxGroupDepth+1),
 	}}
 	ix := indexOperations(newRawLowerer(&soa.OpenAPI{}).ctx, compileddoc.New(&ir.Document{Services: []ir.Service{*svc}}).Ops)
-	assert.Contains(t, ix.byID, ir.OpID("op/x/top"))
-	assert.Contains(t, ix.byID, ir.OpID("op/x/cap"), "a group at the bound is read")
-	assert.NotContains(t, ix.byID, ir.OpID("op/x/past"), "a group past it is not")
+	assert.Contains(t, ix.byID, ir.OperationID("operation/x/top"))
+	assert.Contains(t, ix.byID, ir.OperationID("operation/x/cap"), "a group at the bound is read")
+	assert.NotContains(t, ix.byID, ir.OperationID("operation/x/past"), "a group past it is not")
 }
 
 // membersSpec is a document whose link reads, through n steps along member a,

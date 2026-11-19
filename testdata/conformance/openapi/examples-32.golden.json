@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Examples32",
         "canonical": "examples_32"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1a/get",
+              "id": "operation/openapi/paths/~1a/get",
               "name": {
                 "source": "list",
                 "canonical": "list"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1a/get/parameters/limit/query",
+                  "id": "parameter/openapi/paths/~1a/get/parameters/limit/query",
                   "name": {
                     "source": "limit",
                     "canonical": "limit"
                   },
                   "type": {
-                    "target": "t/prim/integer",
+                    "target": "type/primitive/integer",
                     "nullable": false
                   },
                   "required": false,
@@ -84,7 +84,7 @@
                       "summary": "Five",
                       "value": {
                         "kind": "number",
-                        "num": "5"
+                        "number": "5"
                       }
                     }
                   ],
@@ -112,7 +112,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1a/get/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1a/get/responses/200/content/application~1json/schema",
                           "nullable": false
                         },
                         "examples": [
@@ -121,7 +121,7 @@
                             "summary": "Five",
                             "value": {
                               "kind": "number",
-                              "num": "5"
+                              "number": "5"
                             }
                           },
                           {
@@ -129,7 +129,7 @@
                             "summary": "Both",
                             "value": {
                               "kind": "number",
-                              "num": "2"
+                              "number": "2"
                             },
                             "unmodeled": {
                               "openapi:serializedValue": {
@@ -147,7 +147,7 @@
                             "summary": "One",
                             "value": {
                               "kind": "number",
-                              "num": "1"
+                              "number": "1"
                             }
                           },
                           {
@@ -170,21 +170,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1a/get/responses/200/headers/X-Rate",
+                      "id": "property/openapi/paths/~1a/get/responses/200/headers/X-Rate",
                       "name": {
                         "source": "X-Rate",
                         "canonical": "x_rate"
                       },
                       "wireName": "X-Rate",
                       "type": {
-                        "target": "t/prim/integer",
+                        "target": "type/primitive/integer",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -227,7 +227,7 @@
                     "uriTemplate": "/a",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1a/get/parameters/limit/query",
+                        "param": "parameter/openapi/paths/~1a/get/parameters/limit/query",
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",
@@ -257,9 +257,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1a/get/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1a/get/responses/200/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1a/get/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1a/get/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -272,21 +272,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1a/get/responses/200/content/application~1json/schema/properties/n",
+          "id": "property/openapi/paths/~1a/get/responses/200/content/application~1json/schema/properties/n",
           "name": {
             "source": "n",
             "canonical": "n"
           },
           "wireName": "n",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -303,9 +303,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -313,11 +313,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -325,7 +325,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

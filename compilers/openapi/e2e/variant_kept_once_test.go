@@ -83,7 +83,7 @@ func requireKeptOnce(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, v ir
 	require.True(t, ok, "the variant over branch %d is a model", i)
 	assert.Contains(t, m.Unmodeled, "openapi:oneOf/"+strconv.Itoa(i))
 	for id := range doc.Types {
-		own := strings.TrimPrefix(string(id), "t/anon")
+		own := strings.TrimPrefix(string(id), "type/anonymous")
 		assert.False(t, own == at || strings.HasPrefix(own, at+"/"), "%s holds branch %d again", id, i)
 	}
 	var found []string

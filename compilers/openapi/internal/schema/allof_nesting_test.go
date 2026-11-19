@@ -225,7 +225,7 @@ func TestAllOf_NestedWrapperRequiredAttachesBesideUnion(t *testing.T) {
     Q: {type: object, properties: {q: {type: string}}}
 `
 	for _, doc := range nestedOrders(t, u, nestedAB+pq) {
-		for _, id := range []ir.TypeID{"t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1"} {
+		for _, id := range []ir.TypeID{"type/composed/components/schemas/U/oneOf/0", "type/composed/components/schemas/U/oneOf/1"} {
 			model, ok := doc.Types[id].(*ir.Model)
 			require.True(t, ok, "%s should be a model", id)
 			assert.True(t, openapitest.PropsByWire(model.Properties)["y"].Required, id)
@@ -500,7 +500,7 @@ func TestAllOf_ABranchNamingNothingIsNamedForItsSchema(t *testing.T) {
 `
 	unnamed := "    \"\": {type: object, properties: {e: {type: string}}}\n"
 	for _, doc := range nestedOrders(t, m, outsider+unnamed+nestedAB) {
-		narrowed, ok := doc.Types["t/anon/components/schemas/M/allOf/1/allOf/1"]
+		narrowed, ok := doc.Types["type/anonymous/components/schemas/M/allOf/1/allOf/1"]
 		require.True(t, ok, "the narrowed branch is hoisted at its pointer")
 		assert.Equal(t, "m", narrowed.Common().Name.Hint)
 	}
@@ -714,7 +714,7 @@ type propView struct {
 // pointer, which differs by spelling: a component is kept by ID, anything else by
 // its kind.
 func projectTarget(doc *ir.Document, id ir.TypeID) string {
-	if strings.HasPrefix(string(id), "t/anon/") {
+	if strings.HasPrefix(string(id), "type/anonymous/") {
 		return "anon:" + string(doc.Types[id].Kind())
 	}
 	return string(id)

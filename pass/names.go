@@ -109,7 +109,7 @@ func (r *nameReader) groupList(in, id string, groups []ir.OperationGroup) {
 }
 
 // params reads the parameters of the operation op as one scope.
-func (r *nameReader) params(op ir.OpID, params []ir.Parameter) {
+func (r *nameReader) params(op ir.OperationID, params []ir.Parameter) {
 	if r.readScope(byWords, len(params), func(i int) ir.Naming { return params[i].Name }) {
 		r.report(scope{in: "operation", id: string(op), one: "parameter", many: "parameters",
 			ids: idsOf(len(params), func(i int) string { return string(params[i].ID) })})
@@ -119,7 +119,7 @@ func (r *nameReader) params(op ir.OpID, params []ir.Parameter) {
 // choices reads the parameter choices of the operation op as one scope, and
 // each choice's variants as one of its own. Neither holds an ID, so a party is
 // named by its index, and a target tells two named alike apart by position.
-func (r *nameReader) choices(op ir.OpID, choices []ir.ParamChoice) {
+func (r *nameReader) choices(op ir.OperationID, choices []ir.ParamChoice) {
 	if r.readScope(byWords, len(choices), func(i int) ir.Naming { return choices[i].Name }) {
 		r.report(scope{in: "operation", id: string(op), one: "parameter choice", many: "parameter choices",
 			apart: "position"})

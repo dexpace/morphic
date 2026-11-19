@@ -165,7 +165,7 @@ func viewOfVariant(doc *ir.Document, ref ir.TypeRef) variantView {
 		slices.Sort(v.Props)
 		slices.Sort(v.Required)
 	case *ir.Scalar:
-		v.Base = strings.TrimPrefix(string(n.Base.Target), "t/prim/")
+		v.Base = strings.TrimPrefix(string(n.Base.Target), "type/primitive/")
 	case *ir.Enum:
 		for _, m := range n.Members {
 			v.Members = append(v.Members, fmt.Sprint(m.Value))
@@ -185,7 +185,7 @@ func baseOf(base *ir.TypeRef) []ir.TypeRef {
 // viewOfPair reads the view of the component name in doc.
 func viewOfPair(doc *ir.Document, diags []ir.Diagnostic, name string) pairView {
 	pointer := "/components/schemas/" + name
-	td := doc.Types[ir.TypeID("t/openapi"+pointer)]
+	td := doc.Types[ir.TypeID("type/openapi"+pointer)]
 	if td == nil {
 		return pairView{}
 	}

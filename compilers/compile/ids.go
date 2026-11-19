@@ -40,7 +40,7 @@ const qualifier = "@"
 const UnresolvedSpace Space = ir.IDSpaceUnresolved
 
 // The primitive leaves take no Space of their own here. Their ID is
-// ir.PrimTypeID, derived in ir beside the PrimKind that is the whole of a
+// ir.PrimitiveTypeID, derived in ir beside the PrimitiveKind that is the whole of a
 // primitive's identity — the one path no compiler owns, and so the one an ir
 // consumer can check for itself (GitHub #73).
 
@@ -54,12 +54,12 @@ const UnresolvedSpace Space = ir.IDSpaceUnresolved
 // neighbouring naming grammar.
 const (
 	typeKind       = ir.IDKindType
-	opKind         = ir.IDKindOp
-	propKind       = ir.IDKindProp
+	opKind         = ir.IDKindOperation
+	propKind       = ir.IDKindProperty
 	authKind       = ir.IDKindAuth
 	serviceKind    = ir.IDKindService
 	groupKind      = ir.IDKindGroup
-	paramKind      = ir.IDKindParam
+	paramKind      = ir.IDKindParameter
 	enumMemberKind = ir.IDKindEnumMember
 	serverKind     = ir.IDKindServer
 )
@@ -73,11 +73,13 @@ const (
 // between them.
 func TypeID(space Space, path string) ir.TypeID { return ir.TypeID(idFor(typeKind, space, path)) }
 
-// OpID returns the ID of the operation at path within space.
-func OpID(space Space, path string) ir.OpID { return ir.OpID(idFor(opKind, space, path)) }
+// OperationID returns the ID of the operation at path within space.
+func OpID(space Space, path string) ir.OperationID { return ir.OperationID(idFor(opKind, space, path)) }
 
-// PropID returns the ID of the property at path within space.
-func PropID(space Space, path string) ir.PropID { return ir.PropID(idFor(propKind, space, path)) }
+// PropertyID returns the ID of the property at path within space.
+func PropID(space Space, path string) ir.PropertyID {
+	return ir.PropertyID(idFor(propKind, space, path))
+}
 
 // AuthID returns the ID of the security scheme at path within space.
 func AuthID(space Space, path string) ir.AuthID { return ir.AuthID(idFor(authKind, space, path)) }
@@ -92,9 +94,9 @@ func GroupID(space Space, path string) ir.GroupID {
 	return ir.GroupID(idFor(groupKind, space, path))
 }
 
-// ParamID returns the ID of the parameter at path within space.
-func ParamID(space Space, path string) ir.ParamID {
-	return ir.ParamID(idFor(paramKind, space, path))
+// ParameterID returns the ID of the parameter at path within space.
+func ParamID(space Space, path string) ir.ParameterID {
+	return ir.ParameterID(idFor(paramKind, space, path))
 }
 
 // EnumMemberID returns the ID of the enum member at path within space.
@@ -111,7 +113,7 @@ func ServerID(space Space, path string) ir.ServerID {
 //
 // The path's leading separator is supplied here rather than assumed, so a
 // compiler whose paths carry one and a compiler whose paths do not derive the
-// same ID, and neither can produce "t/openapicomponents/schemas/User". A space
+// same ID, and neither can produce "type/openapicomponents/schemas/User". A space
 // with no path is an ID in its own right — the space names one node — and gets no
 // trailing separator.
 func idFor(kind string, space Space, path string) string {

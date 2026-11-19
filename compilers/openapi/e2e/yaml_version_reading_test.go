@@ -108,14 +108,14 @@ func TestCompile_ADocumentDeclaringYAML11IsWarnedAtWhatItReadsOtherwise(t *testi
 
 	tree := irTree(t, doc)
 	defaults := map[string]map[string]any{
-		"m": {"kind": "number", "num": "644"},
-		"t": {"kind": "string", "str": "1:30"},
-		"o": {"kind": "number", "num": "15"},
-		"f": {"kind": "number", "num": "1e3"},
-		"h": {"kind": "string", "str": "0X1F"},
+		"m": {"kind": "number", "number": "644"},
+		"t": {"kind": "string", "string": "1:30"},
+		"o": {"kind": "number", "number": "15"},
+		"f": {"kind": "number", "number": "1e3"},
+		"h": {"kind": "string", "string": "0X1F"},
 	}
 	for name, d := range defaults {
-		p := findByID(tree, "p/openapi"+s+name)
+		p := findByID(tree, "property/openapi"+s+name)
 		require.NotNil(t, p, name)
 		assert.Equal(t, d, p["default"], name)
 	}
@@ -195,15 +195,15 @@ func TestCompile_TheYAML11FixtureIsReadAsYAML12(t *testing.T) {
 
 	tree := irTree(t, doc)
 	for name, value := range map[string]map[string]any{
-		"octal":     {"kind": "number", "num": "644"},
-		"tagged":    {"kind": "number", "num": "644"},
-		"coreOctal": {"kind": "number", "num": "15"},
-		"exponent":  {"kind": "number", "num": "1e3"},
-		"hex":       {"kind": "number", "num": "31"},
-		"binary":    {"kind": "string", "str": "0b1010"},
-		"separated": {"kind": "string", "str": "1_000"},
+		"octal":     {"kind": "number", "number": "644"},
+		"tagged":    {"kind": "number", "number": "644"},
+		"coreOctal": {"kind": "number", "number": "15"},
+		"exponent":  {"kind": "number", "number": "1e3"},
+		"hex":       {"kind": "number", "number": "31"},
+		"binary":    {"kind": "string", "string": "0b1010"},
+		"separated": {"kind": "string", "string": "1_000"},
 	} {
-		prop := findByID(tree, "p/openapi"+props+name)
+		prop := findByID(tree, "property/openapi"+props+name)
 		require.NotNil(t, prop, name)
 		assert.Equal(t, value, prop["default"], name)
 	}

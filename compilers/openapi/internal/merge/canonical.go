@@ -25,9 +25,9 @@ func canonicalValue(v ir.Value, depth int) (string, bool) {
 	case ir.ValueBool:
 		return strconv.FormatBool(v.Bool), true
 	case ir.ValueString:
-		return strconv.Quote(v.Str), true
+		return strconv.Quote(v.String), true
 	case ir.ValueNumber:
-		d, err := v.Num.Decimal()
+		d, err := v.Number.Decimal()
 		if err != nil {
 			return "", false
 		}
@@ -42,7 +42,7 @@ func canonicalValue(v ir.Value, depth int) (string, bool) {
 			member, ok := canonicalValue(fields[i].Value, depth+1)
 			return strconv.Quote(fields[i].Name) + ":" + member, ok
 		})
-	case ir.ValueBytes, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+	case ir.ValueBytes, ir.ValueSymbol, ir.ValueRefKind, ir.ValueConstructor, ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		return "", false
 	default:
 		return "", false

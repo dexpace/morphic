@@ -14,7 +14,7 @@ tag-mode matrix (each a distinct serializer) is normative ([unions](../../ir/uni
 - `WireTagged=true` + `Discriminator` → the tag travels in the payload, where the discriminator
   locates it: an OpenAPI `discriminator`, GraphQL `__typename`, an Erlang tagged tuple. It sits
   inline among the variant's own members (the property `PropertyName` names, or the tuple element
-  at `Index`), or, with `Discriminator.Envelope == "object"`, in a `{kind, value}` wrapper around
+  at `TupleElementIndex`), or, with `Discriminator.Envelope == "object"`, in a `{kind, value}` wrapper around
   them.
 - `WireTagged=true` + nil `Discriminator` → key-tagged: a single-key object keyed by the variant's
   wire name (Smithy unions, proto3-JSON oneof, GraphQL `@oneOf`).
@@ -116,7 +116,7 @@ admitting what its own decode order [below](#a-value-no-variant-recognizes) hold
 one the position's type admits, or, where text carries it, the position's type reads that text;
 `null` only where the position admits `null`; each closed model, literal and closed enum holds it,
 an enum's values counted as [TypePlan](../plan/types.md#variants-that-can-share-a-value) counts
-them, and a tuple with no `Rest` holds no element past its `Elems`; each scalar's codec reads its
+them, and a tuple with no `Rest` holds no element past its `ElementTypes`; each scalar's codec reads its
 text; every model it reaches reads its members as the shape it travels in declares them, a member
 that shape leaves out being undeclared, and carries each member its `TypePlan.Required` and
 `Undeclared` list that the shape holds and keeps required
@@ -219,7 +219,7 @@ one, and one a caller sends back goes out as it came. A closed union declares no
 `LowerDiscriminator` reads a `Discriminator` whose `Mapping` points at **TypeIDs, not names**, so a
 presentation rename never breaks the wiring. It emits a tag-dispatched decoder that peeks the
 discriminator **wire** key (never a rendered field name), typed factory functions, and an encoder
-that writes the tag. `Property` vs `PropertyName` vs `Index` (positional), `Envelope` vs inline, and
+that writes the tag. `Property` vs `PropertyName` vs `TupleElementIndex` (positional), `Envelope` vs inline, and
 the `Default` variant on an absent/unrecognized tag all survive un-lowered; the choice of factory vs
 native vs wrapper is the refiner's. A tag that selects no variant takes the order above.
 
@@ -254,7 +254,7 @@ pinning `code` to the number `10016` owns the tag `10016`, and one whose base li
 owns only the one of them that routes to it. A variant declaring no such member admits every tag. A
 variant that is a union, or a model narrowing one, is read through: a value of it is a value of one
 of its variants, which owns the tags of the outer variant its own member admits. The member is the
-property the discriminator names, or the tuple element at its `Index`. Where the tag sits outside
+property the discriminator names, or the tuple element at its `TupleElementIndex`. Where the tag sits outside
 the variant's value, in an `Envelope` or as the one key of a key-tagged union, no declaration admits
 or refuses it, so every tag routing to a variant is its own, a key-tagged variant's being its wire
 name. A polymorphic base routes a subtype by its `DiscriminatorValue` as well as by its `Mapping`

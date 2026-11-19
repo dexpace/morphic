@@ -149,7 +149,7 @@ func TestCompile_AValueOneReadingRefusesAndAnotherAcceptsIsKeptForTheOther(t *te
 		for _, d := range byCode(diags, typeMismatch) {
 			assert.Contains(t, d.Message, `Parameter Object field "required" must be a boolean`, name)
 		}
-		model, ok := doc.Types[ir.TypeID("t/anon/x-lib/n")].(*ir.Model)
+		model, ok := doc.Types[ir.TypeID("type/anonymous/x-lib/n")].(*ir.Model)
 		require.True(t, ok, name)
 		a, found := propByWire(model, "a")
 		require.True(t, found, name)

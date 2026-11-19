@@ -40,7 +40,7 @@ const MapKeySuffix = ".key"
 // rather than each caller's own string literal for the reason the rest of the
 // path grammar is one walk: two checkers reporting one defect can only be
 // deduped by a caller running both if the defect reads as one location.
-const DocumentPath = "doc"
+const DocumentPath = "document"
 
 // Visitor is shown each value a [WalkValues] traversal reaches.
 type Visitor interface {

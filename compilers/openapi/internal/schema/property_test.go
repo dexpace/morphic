@@ -37,7 +37,7 @@ func TestProperty_UnquotedDateDefaultPreserved(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, m.Properties, 1)
 	require.NotNil(t, m.Properties[0].Default)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *m.Properties[0].Default)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, *m.Properties[0].Default)
 }
 
 func TestLower_PropertyDetailRichSchema(t *testing.T) {
@@ -101,7 +101,7 @@ func TestModel_DefaultBigLiteral(t *testing.T) {
 	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].Default)
 	assert.Equal(t, ir.ValueNumber, m.Properties[0].Default.Kind)
-	assert.Equal(t, ir.BigVal("9007199254740993"), m.Properties[0].Default.Num)
+	assert.Equal(t, ir.BigVal("9007199254740993"), m.Properties[0].Default.Number)
 }
 
 func TestFillPropertyDetail_UnconvertibleExampleDiagnosed(t *testing.T) {
@@ -155,7 +155,7 @@ func TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere(t *testing.T) {
 	m := doc.Types[componentID("S")].(*ir.Model)
 	byName := openapitest.PropsByWire(m.Properties)
 
-	assert.Equal(t, ir.Visibility{None: true}, byName["both"].Visibility)
+	assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, byName["both"].Visibility)
 	assert.NotEqual(t, byName["r"].Visibility, byName["both"].Visibility,
 		"declaring both flags must not lower exactly as declaring readOnly alone does")
 	msg := openapitest.DiagMessageAt(t, diags, diag.DisjointVisibility, ir.SeverityWarning,
@@ -260,13 +260,13 @@ func TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty(t *testing.T) 
 			require.True(t, ok)
 			p, ok := openapitest.PropsByWire(m.Properties)["p"]
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
+			assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target,
 				"the property's own type is unchanged by the outside reference")
 			openapitest.AssertProbeDocsKept(t, p.Docs)
 			assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
 			assert.Contains(t, p.Unmodeled, "openapi:not")
 
-			sc, ok := doc.Types["t/anon/components/schemas/A/properties/p"].(*ir.Scalar)
+			sc, ok := doc.Types["type/anonymous/components/schemas/A/properties/p"].(*ir.Scalar)
 			require.True(t, ok, "and the referenced pointer still names the schema written there")
 			assertProbeAnnotationsKept(t, sc)
 		})
@@ -293,7 +293,7 @@ func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
 	assert.Nil(t, p.XML)
 	assert.Empty(t, p.Unmodeled)
 
-	inner := doc.Types["t/anon/components/schemas/A/properties/p"]
+	inner := doc.Types["type/anonymous/components/schemas/A/properties/p"]
 	require.NotNil(t, inner)
 	c := inner.Common()
 	assert.Equal(t, "DOC", c.Docs.Description)
@@ -316,8 +316,8 @@ func TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode(t *testing.T) {
 	require.True(t, ok)
 	p, ok := openapitest.PropsByWire(owner.Properties)["p"]
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "a property keeps resolving to the shared primitive")
-	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/properties/p"))
+	assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, "a property keeps resolving to the shared primitive")
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/A/properties/p"))
 	openapitest.AssertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
 	openapitest.AssertProbeExample(t, p.Examples)
@@ -477,7 +477,7 @@ components:
 	require.True(t, ok, "property f must be present")
 	require.Len(t, f.Examples, 1, "the example beside the $ref must bind the property")
 	require.NotNil(t, f.Examples[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "at-reference"}, *f.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "at-reference"}, *f.Examples[0].Value)
 }
 
 // TestLoweredToOwnNode_ReadsWhatThePositionLoweredTo holds the reading to what a
@@ -489,7 +489,7 @@ func TestLoweredToOwnNode_ReadsWhatThePositionLoweredTo(t *testing.T) {
 	t.Parallel()
 	const src = "    A:\n      type: object\n      properties:\n        p: {type: string, format: byte}\n"
 	const at = jsontext.Pointer("/components/schemas/A/properties/p")
-	own := ir.TypeID("t/anon/components/schemas/A/properties/p")
+	own := ir.TypeID("type/anonymous/components/schemas/A/properties/p")
 	tests := []struct {
 		name   string
 		built  bool
@@ -498,8 +498,8 @@ func TestLoweredToOwnNode_ReadsWhatThePositionLoweredTo(t *testing.T) {
 	}{
 		{"its own node, nothing built yet", false, own, true},
 		{"its own node, built", true, own, true},
-		{"a shared primitive, nothing built", false, "t/prim/string", false},
-		{"a shared primitive, its node built there", true, "t/prim/string", false},
+		{"a shared primitive, nothing built", false, "type/primitive/string", false},
+		{"a shared primitive, its node built there", true, "type/primitive/string", false},
 		{"another position's node", true, componentID("A"), false},
 	}
 	for _, tt := range tests {

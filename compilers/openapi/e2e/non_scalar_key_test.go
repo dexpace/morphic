@@ -64,7 +64,7 @@ func TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut(t *testing.T) {
 	}, got, "at the mapping's pointer, with the key's own line and column")
 	assert.Len(t, allOperations(doc), 1, "the path whose key is a list lowers no operation")
 	for id := range doc.Types {
-		assert.False(t, strings.HasPrefix(string(id), "t/openapi/components/schemas/"), "no schema is named: %s", id)
+		assert.False(t, strings.HasPrefix(string(id), "type/openapi/components/schemas/"), "no schema is named: %s", id)
 	}
 }
 
@@ -108,7 +108,7 @@ func TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder(t *testing.T
 		assert.Equal(t, "/components/schemas", string(d.Provenance.Pointer))
 	}
 	for id := range docAB.Types {
-		assert.False(t, strings.HasPrefix(string(id), "t/openapi/components/schemas/"), "no type under components/schemas: %s", id)
+		assert.False(t, strings.HasPrefix(string(id), "type/openapi/components/schemas/"), "no type under components/schemas: %s", id)
 	}
 }
 

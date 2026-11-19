@@ -24,9 +24,9 @@ func serverDoc() *ir.Document {
 		"server/default": {ID: "server/default", Name: named("root"), URLTemplate: "/"},
 	}
 	doc.Services = []ir.Service{{
-		ID: "s/x/S", Name: named("svc"), Servers: []ir.ServerID{"server/x/servers/0"},
-		Groups: []ir.OperationGroup{{ID: "g/x/G", Name: named("g"), Operations: []ir.Operation{{
-			ID: "op/x/get", Name: named("get"), Servers: []ir.ServerID{"server/default"},
+		ID: "service/x/S", Name: named("svc"), Servers: []ir.ServerID{"server/x/servers/0"},
+		Groups: []ir.OperationGroup{{ID: "operation-group/x/G", Name: named("g"), Operations: []ir.Operation{{
+			ID: "operation/x/get", Name: named("get"), Servers: []ir.ServerID{"server/default"},
 		}}}},
 	}}
 	return doc
@@ -81,7 +81,7 @@ func TestVerify_ServerSpaceMustBeDeclared(t *testing.T) {
 	doc := serverDoc()
 	doc.Sources = oneSource()
 	doc.IDSpaces = map[string][]string{
-		ir.IDKindGroup: {"x"}, ir.IDKindOp: {"x"}, ir.IDKindService: {"x"}, ir.IDKindType: {"x"},
+		ir.IDKindGroup: {"x"}, ir.IDKindOperation: {"x"}, ir.IDKindService: {"x"}, ir.IDKindType: {"x"},
 		ir.IDKindServer: {"default"},
 	}
 	found := irverify.Verify(doc)

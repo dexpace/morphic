@@ -111,9 +111,9 @@ func TestReferenceIdentity_ASchemaRefThroughAnAliasIsOneNode(t *testing.T) {
 			refSpec{spec: identitySpec(a)}.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 				t.Helper()
 				assertNoErrorDiags(t, diags)
-				declared := ir.TypeID("t/anon" + a.spell("Y"))
+				declared := ir.TypeID("type/anonymous" + a.spell("Y"))
 				require.Contains(t, doc.Types, declared, "the schema lowers where it is declared")
-				alias := ir.TypeID("t/anon" + a.spell("X"))
+				alias := ir.TypeID("type/anonymous" + a.spell("X"))
 				assert.NotContains(t, doc.Types, alias, "and at no pointer an alias spells")
 				for _, name := range []string{"through", "direct"} {
 					op, ok := opByName(doc, name)

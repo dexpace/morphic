@@ -25,15 +25,15 @@ func TestService_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.Service{},
 		`{"name":{},"docs":{},"provenance":{"source":0}}`,
 		ir.Service{
-			ID:        "s/openapi/petstore",
+			ID:        "service/openapi/petstore",
 			Name:      populatedNaming(),
 			Docs:      populatedDocs(),
 			Version:   "1.2.0",
 			Namespace: []string{"com", "example", "petstore"},
-			Extends:   []ir.ServiceID{"s/base1", "s/base2"},
+			Extends:   []ir.ServiceID{"service/base1", "service/base2"},
 			Groups: []ir.OperationGroup{
-				{ID: "g/tags/pets", Name: ir.Naming{Source: "pets"}},
-				{ID: "g/tags/owners", Name: ir.Naming{Source: "owners"}},
+				{ID: "operation-group/tags/pets", Name: ir.Naming{Source: "pets"}},
+				{ID: "operation-group/tags/owners", Name: ir.Naming{Source: "owners"}},
 			},
 			Auth: []ir.AuthRequirement{
 				{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey"}}},
@@ -47,8 +47,8 @@ func TestService_JSONContract(t *testing.T) {
 				{Name: "grpc"},
 			},
 			Renames: map[ir.TypeID]ir.Naming{
-				"t/z": {Source: "ZRenamed"},
-				"t/a": {Source: "ARenamed"},
+				"type/z": {Source: "ZRenamed"},
+				"type/a": {Source: "ARenamed"},
 			},
 			Servers:    []ir.ServerID{"server/openapi/servers/0", "server/openapi/servers/1"},
 			Unmodeled:  populatedUnmodeled(),
@@ -89,17 +89,17 @@ func TestService_RenamesDeterministic(t *testing.T) {
 	t.Parallel()
 	svc := ir.Service{
 		Renames: map[ir.TypeID]ir.Naming{
-			"t/z-type": {Source: "Z"},
-			"t/m-type": {Source: "M"},
-			"t/a-type": {Source: "A"},
-			"t/q-type": {Source: "Q"},
-			"t/b-type": {Source: "B"},
+			"type/z-type": {Source: "Z"},
+			"type/m-type": {Source: "M"},
+			"type/a-type": {Source: "A"},
+			"type/q-type": {Source: "Q"},
+			"type/b-type": {Source: "B"},
 		},
 	}
 	got := assertDeterministicMarshal(t, svc)
 	assert.Contains(t, got,
-		`"renames":{"t/a-type":{"source":"A"},"t/b-type":{"source":"B"},"t/m-type":{"source":"M"},`+
-			`"t/q-type":{"source":"Q"},"t/z-type":{"source":"Z"}}`)
+		`"renames":{"type/a-type":{"source":"A"},"type/b-type":{"source":"B"},"type/m-type":{"source":"M"},`+
+			`"type/q-type":{"source":"Q"},"type/z-type":{"source":"Z"}}`)
 }
 
 // TestProtocolDecl_JSONContract pins ProtocolDecl's omitempty contract (both
@@ -118,19 +118,19 @@ func TestProtocolDecl_JSONContract(t *testing.T) {
 func TestOperationGroup_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.OperationGroup{}, `{"name":{},"docs":{}}`, ir.OperationGroup{
-		ID:   "g/tags/pets",
+		ID:   "operation-group/tags/pets",
 		Name: populatedNaming(),
 		Docs: populatedDocs(),
 		Groups: []ir.OperationGroup{
-			{ID: "g/tags/pets/sub1", Name: ir.Naming{Source: "sub1"}},
-			{ID: "g/tags/pets/sub2", Name: ir.Naming{Source: "sub2"}},
+			{ID: "operation-group/tags/pets/sub1", Name: ir.Naming{Source: "sub1"}},
+			{ID: "operation-group/tags/pets/sub2", Name: ir.Naming{Source: "sub2"}},
 		},
 		Operations: []ir.Operation{
-			{ID: "op/list", Name: ir.Naming{Source: "list"}, Bindings: ir.OpBindings{}, Auth: []ir.AuthRequirement{}},
+			{ID: "operation/list", Name: ir.Naming{Source: "list"}, Bindings: ir.OpBindings{}, Auth: []ir.AuthRequirement{}},
 		},
 		Resource: &ir.ResourceInfo{
 			Identifiers: []ir.Property{populatedProperty()},
-			Lifecycle:   map[string]ir.OpID{"create": "op/create", "read": "op/read"},
+			Lifecycle:   map[string]ir.OperationID{"create": "operation/create", "read": "operation/read"},
 		},
 		Availability: populatedAvailability(),
 		Stability:    ir.StabilityBeta,
@@ -147,12 +147,12 @@ func TestOperationGroup_JSONContract(t *testing.T) {
 func TestResourceInfo_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.ResourceInfo{}, `{"noReplace":false}`, ir.ResourceInfo{
-		Identifiers:   []ir.Property{{ID: "p/id"}},
-		Properties:    []ir.Property{{ID: "p/name"}, {ID: "p/age"}},
-		Lifecycle:     map[string]ir.OpID{"create": "op/create", "read": "op/read", "delete": "op/delete"},
+		Identifiers:   []ir.Property{{ID: "property/id"}},
+		Properties:    []ir.Property{{ID: "property/name"}, {ID: "property/age"}},
+		Lifecycle:     map[string]ir.OperationID{"create": "operation/create", "read": "operation/read", "delete": "operation/delete"},
 		NoReplace:     true,
-		InstanceOps:   []ir.OpID{"op/get", "op/update"},
-		CollectionOps: []ir.OpID{"op/list", "op/create"},
+		InstanceOps:   []ir.OperationID{"operation/get", "operation/update"},
+		CollectionOps: []ir.OperationID{"operation/list", "operation/create"},
 	})
 }
 
@@ -161,15 +161,15 @@ func TestResourceInfo_JSONContract(t *testing.T) {
 func TestResourceInfo_LifecycleDeterministic(t *testing.T) {
 	t.Parallel()
 	info := ir.ResourceInfo{
-		Lifecycle: map[string]ir.OpID{
-			"z-op": "op/z",
-			"m-op": "op/m",
-			"a-op": "op/a",
-			"q-op": "op/q",
-			"b-op": "op/b",
+		Lifecycle: map[string]ir.OperationID{
+			"z-op": "operation/z",
+			"m-op": "operation/m",
+			"a-op": "operation/a",
+			"q-op": "operation/q",
+			"b-op": "operation/b",
 		},
 	}
 	got := assertDeterministicMarshal(t, info)
 	assert.Contains(t, got,
-		`"lifecycle":{"a-op":"op/a","b-op":"op/b","m-op":"op/m","q-op":"op/q","z-op":"op/z"}`)
+		`"lifecycle":{"a-op":"operation/a","b-op":"operation/b","m-op":"operation/m","q-op":"operation/q","z-op":"operation/z"}`)
 }

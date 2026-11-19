@@ -119,16 +119,16 @@ components:
 		withReader    bool
 	}{
 		"the source's component": {"#/components/mediaTypes/Pet",
-			"t/anon/components/mediaTypes/Pet/schema", "pet", false},
+			"type/anonymous/components/mediaTypes/Pet/schema", "pet", false},
 		"the source's component, read with a reader": {"#/components/mediaTypes/Pet",
-			"t/anon/components/mediaTypes/Pet/schema", "pet", true},
+			"type/anonymous/components/mediaTypes/Pet/schema", "pet", true},
 		"another document's component": {"other.yaml#/components/mediaTypes/Pet",
-			"t/anon@other.yaml/components/mediaTypes/Pet/schema", "pet", true},
+			"type/anonymous@other.yaml/components/mediaTypes/Pet/schema", "pet", true},
 		"an inline content entry": {"#/paths/~1inline/get/responses/200/content/application~1problem+json",
-			"t/anon/paths/~1inline/get/responses/200/content/application~1problem+json/schema", "response", false},
+			"type/anonymous/paths/~1inline/get/responses/200/content/application~1problem+json/schema", "response", false},
 		"an inline content entry, read with a reader": {
 			"#/paths/~1inline/get/responses/200/content/application~1problem+json",
-			"t/anon/paths/~1inline/get/responses/200/content/application~1problem+json/schema", "response", true},
+			"type/anonymous/paths/~1inline/get/responses/200/content/application~1problem+json/schema", "response", true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -150,7 +150,7 @@ components:
 			model, ok := td.(*ir.Model)
 			require.True(t, ok)
 			require.Len(t, model.Properties, 1)
-			assert.NotEqual(t, ir.PrimTypeID(ir.PrimAny), model.Properties[0].Type.Target,
+			assert.NotEqual(t, ir.PrimitiveTypeID(ir.PrimitiveAny), model.Properties[0].Type.Target,
 				"what the declaration holds, a schema $ref included, resolves where it is declared")
 		})
 	}
@@ -235,7 +235,7 @@ components:
 	require.Len(t, content.Encoding, 1)
 	for _, part := range content.Encoding {
 		require.Len(t, part.Headers, 1)
-		assert.Equal(t, ir.PrimTypeID(ir.PrimInteger), part.Headers[0].Type.Target)
+		assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveInteger), part.Headers[0].Type.Target)
 	}
 	for _, kept := range []string{"examples/One", "headers/Rate", "mediaTypes/Upload"} {
 		assert.NotContains(t, doc.Unmodeled, "openapi:components/"+kept, "a reached entry is not kept")
@@ -266,7 +266,7 @@ func TestMediaTypeRef_AnUnresolvedRefLowersNothing(t *testing.T) {
 	require.Len(t, op.Responses[0].Payload.Contents, 1)
 	assert.Equal(t, "text/plain", op.Responses[0].Payload.Contents[0].MediaType)
 	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.PrimTypeID(ir.PrimAny), op.Params[0].Type.Target)
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveAny), op.Params[0].Type.Target)
 	for _, at := range []string{"/paths/~1a/get/parameters/0/content/application~1json",
 		"/paths/~1a/get/responses/200/content/application~1json"} {
 		assert.Equal(t, 1, countDiagsAt(diags, diag.UnresolvedRef, at), "at %s: %v", at, diags)

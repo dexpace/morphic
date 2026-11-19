@@ -376,7 +376,7 @@ func TestCompile_DefsPointerWithNoSiblingDefsIsUnresolvedNotBorrowed(t *testing.
 			require.True(t, ok)
 			p, ok := propByWire(a, "p")
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/prim/any"), p.Type.Target,
+			assert.Equal(t, ir.TypeID("type/primitive/any"), p.Type.Target,
 				"an unresolved $ref degrades to any rather than borrowing B's sibling definition")
 
 			b, ok := doc.Types[componentID("B")].(*ir.Model)

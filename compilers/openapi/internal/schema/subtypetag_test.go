@@ -135,7 +135,7 @@ components:
 `)
 		openapitest.RequireNoErrorDiags(t, diags)
 		for name, tag := range map[string]string{"Cat": "Cat", "Bird": ""} {
-			m, ok := doc.Types[ir.TypeID("t/openapi@pets.yaml/components/schemas/"+name)].(*ir.Model)
+			m, ok := doc.Types[ir.TypeID("type/openapi@pets.yaml/components/schemas/"+name)].(*ir.Model)
 			require.True(t, ok, "%s lowers to a model", name)
 			assert.Equal(t, tag, m.DiscriminatorValue, name)
 		}

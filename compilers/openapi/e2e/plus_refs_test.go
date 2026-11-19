@@ -259,14 +259,14 @@ func TestCompile_AReferenceOfEveryKindThroughAPlusKeyIsLoweredWhereItIsDeclared(
 	assert.Equal(t, "/paths/~1a+b/get/parameters/0", string(relay.Params[0].Provenance.Pointer), "the parameter")
 	require.Len(t, relay.Responses, 1)
 	require.Len(t, relay.Responses[0].Headers, 1)
-	assert.Equal(t, ir.PropID("p/openapi/paths/~1a+b/get/responses/200/headers/H"), relay.Responses[0].Headers[0].ID, "the header")
+	assert.Equal(t, ir.PropertyID("property/openapi/paths/~1a+b/get/responses/200/headers/H"), relay.Responses[0].Headers[0].ID, "the header")
 	assert.Equal(t, ids.DocumentIDNamespace{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)),
 		openapitest.BodyTarget(t, &ir.Payload{Contents: relay.Responses[0].Payload.Contents[:1]}), "the response")
 
 	var mounted []string
 	for _, g := range doc.Services[0].Groups {
 		for _, op := range g.Operations {
-			if strings.HasPrefix(string(op.ID), "op/openapi/paths/~1c/") {
+			if strings.HasPrefix(string(op.ID), "operation/openapi/paths/~1c/") {
 				mounted = append(mounted, string(op.Provenance.Pointer))
 			}
 		}
@@ -395,7 +395,7 @@ paths:
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
-	put := opWithID(t, doc, "op/openapi/paths/~1m/put")
+	put := opWithID(t, doc, "operation/openapi/paths/~1m/put")
 	assert.Equal(t, "putBeside", put.Name.Source)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1a/x-n/put"}, put.Provenance)
 	for _, d := range diags {

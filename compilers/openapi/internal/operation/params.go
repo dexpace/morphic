@@ -69,7 +69,7 @@ func lowerParameters(c service.Ctx, w operationLoweringState, mount jsontext.Poi
 // lowerParameter lowers one resolved parameter into its logical Parameter and
 // HTTP binding, both naming the parameter by id. Path parameters are always
 // required regardless of the declared flag (OpenAPI requires it).
-func lowerParameter(c service.Ctx, w operationLoweringState, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameter(c service.Ctx, w operationLoweringState, id ir.ParameterID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
 		ID:         id,
@@ -475,7 +475,7 @@ func newParamLedger(mount jsontext.Pointer) *paramLedger {
 }
 
 // next returns the ID of the parameter holding name in in.
-func (l *paramLedger) next(name, in string) ir.ParamID {
+func (l *paramLedger) next(name, in string) ir.ParameterID {
 	return ids.Param(l.mount, name, in, l.count(name, in))
 }
 

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "MultiContent",
         "canonical": "multi_content"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1data/get",
+              "id": "operation/openapi/paths/~1data/get",
               "name": {
                 "source": "getData",
                 "canonical": "get_data"
@@ -83,14 +83,14 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1data/get/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1data/get/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       },
                       {
                         "mediaType": "application/xml",
                         "type": {
-                          "target": "t/anon/paths/~1data/get/responses/200/content/application~1xml/schema",
+                          "target": "type/anonymous/paths/~1data/get/responses/200/content/application~1xml/schema",
                           "nullable": false
                         }
                       }
@@ -130,9 +130,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1data/get/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1data/get/responses/200/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1data/get/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1data/get/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -147,9 +147,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1data/get/responses/200/content/application~1xml/schema": {
+    "type/anonymous/paths/~1data/get/responses/200/content/application~1xml/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1data/get/responses/200/content/application~1xml/schema",
+      "id": "type/anonymous/paths/~1data/get/responses/200/content/application~1xml/schema",
       "name": {
         "hint": "response"
       },

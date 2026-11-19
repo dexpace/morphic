@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "SchemaIdentifiers",
         "canonical": "schema_identifiers"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Address/$defs/zip": {
+    "type/anonymous/components/schemas/Address/$defs/zip": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Address/$defs/zip",
+      "id": "type/anonymous/components/schemas/Address/$defs/zip",
       "name": {
         "hint": "zip"
       },
@@ -73,7 +73,7 @@
         "pointer": "/components/schemas/Address/$defs/zip"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -81,9 +81,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/Address": {
+    "type/openapi/components/schemas/Address": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Address",
+      "id": "type/openapi/components/schemas/Address",
       "name": {
         "source": "Address",
         "canonical": "address"
@@ -107,21 +107,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Address/properties/street",
+          "id": "property/openapi/components/schemas/Address/properties/street",
           "name": {
             "source": "street",
             "canonical": "street"
           },
           "wireName": "street",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -134,21 +134,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Address/properties/country",
+          "id": "property/openapi/components/schemas/Address/properties/country",
           "name": {
             "source": "country",
             "canonical": "country"
           },
           "wireName": "country",
           "type": {
-            "target": "t/openapi/components/schemas/Country",
+            "target": "type/openapi/components/schemas/Country",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -161,21 +161,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Address/properties/next",
+          "id": "property/openapi/components/schemas/Address/properties/next",
           "name": {
             "source": "next",
             "canonical": "next"
           },
           "wireName": "next",
           "type": {
-            "target": "t/openapi/components/schemas/Address",
+            "target": "type/openapi/components/schemas/Address",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -188,21 +188,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Address/properties/zip",
+          "id": "property/openapi/components/schemas/Address/properties/zip",
           "name": {
             "source": "zip",
             "canonical": "zip"
           },
           "wireName": "zip",
           "type": {
-            "target": "t/anon/components/schemas/Address/$defs/zip",
+            "target": "type/anonymous/components/schemas/Address/$defs/zip",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -219,9 +219,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Country": {
+    "type/openapi/components/schemas/Country": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Country",
+      "id": "type/openapi/components/schemas/Country",
       "name": {
         "source": "Country",
         "canonical": "country"
@@ -244,13 +244,13 @@
         "pointer": "/components/schemas/Country"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Person": {
+    "type/openapi/components/schemas/Person": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Person",
+      "id": "type/openapi/components/schemas/Person",
       "name": {
         "source": "Person",
         "canonical": "person"
@@ -264,21 +264,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Person/properties/name",
+          "id": "property/openapi/components/schemas/Person/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -295,9 +295,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Pet": {
+    "type/openapi/components/schemas/Pet": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Pet",
+      "id": "type/openapi/components/schemas/Pet",
       "name": {
         "source": "Pet",
         "canonical": "pet"
@@ -311,21 +311,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Pet/properties/owner",
+          "id": "property/openapi/components/schemas/Pet/properties/owner",
           "name": {
             "source": "owner",
             "canonical": "owner"
           },
           "wireName": "owner",
           "type": {
-            "target": "t/openapi/components/schemas/Person",
+            "target": "type/openapi/components/schemas/Person",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -338,21 +338,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Pet/properties/tag",
+          "id": "property/openapi/components/schemas/Pet/properties/tag",
           "name": {
             "source": "tag",
             "canonical": "tag"
           },
           "wireName": "tag",
           "type": {
-            "target": "t/openapi/components/schemas/Tag",
+            "target": "type/openapi/components/schemas/Tag",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -365,21 +365,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Pet/properties/address",
+          "id": "property/openapi/components/schemas/Pet/properties/address",
           "name": {
             "source": "address",
             "canonical": "address"
           },
           "wireName": "address",
           "type": {
-            "target": "t/openapi/components/schemas/Address",
+            "target": "type/openapi/components/schemas/Address",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -396,9 +396,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Tag": {
+    "type/openapi/components/schemas/Tag": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Tag",
+      "id": "type/openapi/components/schemas/Tag",
       "name": {
         "source": "Tag",
         "canonical": "tag"
@@ -411,13 +411,13 @@
         "pointer": "/components/schemas/Tag"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -425,7 +425,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

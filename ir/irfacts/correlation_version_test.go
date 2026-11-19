@@ -28,6 +28,7 @@ var derivations = map[int]string{
 	2: "5323f633c155c54b465d5a7948acc33423d9e50963b90b9ce1bd5b2217fd581f",
 	3: "118d1d1bb955d6da722da0cdc6365ea0a5d104930efc4741aaab2367f9b0eeee",
 	4: "c6c94d4f9cb7b8ab547d4c3b477c230369a493d0b0a0b4b834e311497f6b8ac0",
+	5: "f6f10cc3302afff3aa7ab13cd7b33a888d28857f7e93cdb96387389fa8f51afa",
 }
 
 // derivationGolden lists every key correlationFixtures derive, so a change to

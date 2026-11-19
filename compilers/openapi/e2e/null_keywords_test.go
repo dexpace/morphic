@@ -192,8 +192,8 @@ func TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "nothing reads the schema as false")
 	tags, ok := doc.Types[componentID("Tags")].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/string"), tags.Elem.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), tags.ElementType.Target)
 	labels, ok := doc.Types[componentID("Labels")].(*ir.MapT)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/string"), labels.Value.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), labels.Value.Target)
 }

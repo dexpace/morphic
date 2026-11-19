@@ -144,7 +144,7 @@ func declarations() []declarationRow {
 		{name: "the key inside a flow mapping behind a tag", src: "a: !!map {\nopenapi: 3.1.0\n}\n"},
 		{name: "the key inside a flow mapping behind a tag and an anchor", src: "a: !!map &x {\nopenapi: 3.1.0\n}\n"},
 		{name: "the key inside a quoted scalar behind an anchor", src: "a: &x \"s\nopenapi: 3.1.0\n\"\n"},
-		{name: "the key inside a flow mapping item behind an anchor", src: "x:\n  - &a {\nopenapi: 3.1.0\n}\n"},
+		{name: "the key inside a flow mapping item behind an anchor", src: "bytes:\n  - &a {\nopenapi: 3.1.0\n}\n"},
 		{name: "the key inside a quoted scalar behind an anchor in flow style", src: "a: {b: &x \"}\nopenapi: 3.1.0\n\"}\n"},
 		{name: "a block key after an anchored flow document", src: "&x {\"a\":1}\nopenapi: 3.1.0\n"},
 		{name: "an anchored flow document", src: "&x {\"openapi\":\"3.1.0\"}", want: v},
@@ -160,7 +160,7 @@ func declarations() []declarationRow {
 		{name: "the key after a plain scalar with an opener in it", src: "description: a [b\nopenapi: 3.1.0\n", want: v},
 		{name: "the key after a block scalar with an opener in it", src: "description: |\n  {\nopenapi: 3.1.0\n", want: v},
 		{name: "the key after a folded block scalar with a quote in it", src: "info:\n  d: >-\n    \"a\n\n    b\nopenapi: 3.1.0\n", want: v},
-		{name: "the key after a block scalar item with an opener in it", src: "x:\n  - |\n    [\nopenapi: 3.1.0\n", want: v},
+		{name: "the key after a block scalar item with an opener in it", src: "bytes:\n  - |\n    [\nopenapi: 3.1.0\n", want: v},
 		{name: "the key after a block scalar with an indentation indicator", src: "d: |2\n   \"\nopenapi: 3.1.0\n", want: v},
 		{name: "the key after a block scalar behind an anchor", src: "a: &x |\n  {\nopenapi: 3.1.0\nb: x}\n", want: v},
 		// The brace the scalar carries is closed on a later root line, so this

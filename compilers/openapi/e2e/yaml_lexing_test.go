@@ -157,7 +157,7 @@ func TestCompile_AJSONDocumentReadsAlikeBehindEverySpelling(t *testing.T) {
 	for i, doc := range docs {
 		var found bool
 		for id, td := range doc.Types {
-			if !strings.HasPrefix(string(id), "t/anon@") {
+			if !strings.HasPrefix(string(id), "type/anonymous@") {
 				continue
 			}
 			found = true

@@ -29,7 +29,7 @@ func TestEnumValid_TiesToConstBlock(t *testing.T) {
 		{"AdditionalMode", func(s string) bool { return ir.AdditionalMode(s).Valid() }, true},
 		{"HTTPLocation", func(s string) bool { return ir.HTTPLocation(s).Valid() }, false},
 		{"IdempotencyKind", func(s string) bool { return ir.IdempotencyKind(s).Valid() }, true},
-		{"MsgDirection", func(s string) bool { return ir.MsgDirection(s).Valid() }, false},
+		{"MessageDirection", func(s string) bool { return ir.MessageDirection(s).Valid() }, false},
 		{"PageStrategy", func(s string) bool { return ir.PageStrategy(s).Valid() }, false},
 		{"PresenceKind", func(s string) bool { return ir.PresenceKind(s).Valid() }, true},
 	}

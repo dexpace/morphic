@@ -19,15 +19,15 @@ func defaults() promotion.Promoter {
 // registry is a type registry holding the primitives a test types a use by.
 func registry(extra ir.TypeRegistry) ir.TypeRegistry {
 	reg := ir.TypeRegistry{}
-	for _, k := range []ir.PrimKind{ir.PrimString, ir.PrimBytes, ir.PrimBool, ir.PrimDatetimeOffset, ir.PrimDate} {
-		reg[ir.PrimTypeID(k)] = &ir.Primitive{ID: ir.PrimTypeID(k), Prim: k}
+	for _, k := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveBytes, ir.PrimitiveBool, ir.PrimitiveDatetimeOffset, ir.PrimitiveDate} {
+		reg[ir.PrimitiveTypeID(k)] = &ir.Primitive{ID: ir.PrimitiveTypeID(k), PrimitiveKind: k}
 	}
 	maps.Copy(reg, extra)
 	return reg
 }
 
 // prim is a reference to the primitive k.
-func prim(k ir.PrimKind) ir.TypeRef { return ir.TypeRef{Target: ir.PrimTypeID(k)} }
+func prim(k ir.PrimitiveKind) ir.TypeRef { return ir.TypeRef{Target: ir.PrimitiveTypeID(k)} }
 
 // oneOperation is a document of one service holding op alone, over reg.
 func oneOperation(op ir.Operation, reg ir.TypeRegistry) *ir.Document {

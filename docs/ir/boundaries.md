@@ -24,8 +24,8 @@ a keyword beside it leaves inert, as `additionalProperties` leaves `unevaluatedP
 inert one is kept with that keyword, so the entry, read beside what its position states, means what
 the source means: nothing. Read as a schema of its own an `unevaluated*` entry means something
 else, as what it applies to depends on the keywords beside it. `propertyNames` is not a second
-carve-back onto `AdditionalProps.Key`: it constrains *every* key of the object, including the ones
-`properties` declares — where there is no `AdditionalProps` to hold a key type at all — and it is a
+carve-back onto `AdditionalProperties.Key`: it constrains *every* key of the object, including the ones
+`properties` declares — where there is no `AdditionalProperties` to hold a key type at all — and it is a
 whole schema rather than a type, so only its degenerate `{type: string}` form names one.
 
 Two neighbouring keyword groups are *not* part of this boundary — the content vocabulary
@@ -83,7 +83,7 @@ are ([`whole-schema-fallbacks`](../compilers/openapi.md#whole-schema-fallbacks),
   type node exists.
 - **Erlang heterogeneous map association lists** (`#{atom() => a(), integer() => b()}`) —
   lower to a `MapT` whose key and value are unions ([containers](./containers.md)), or to
-  union-typed `AdditionalProps` beside a map's `:=` associations, + `Unmodeled["erlang:map-assocs"]`
+  union-typed `AdditionalProperties` beside a map's `:=` associations, + `Unmodeled["erlang:map-assocs"]`
   verbatim, since a union on each side loses which key type pairs with which value type.
 - **Erlang `-opaque`** — the shape lowers structurally and losslessly; what degrades is the
   abstraction boundary the attribute declares, which no IR node states.

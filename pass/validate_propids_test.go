@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-// This file covers the PropID reference class, whose two checks make different
+// This file covers the PropertyID reference class, whose two checks make different
 // claims about the same kind of identity: membership anywhere in the document,
 // and — where the root is written down — membership in the type that names it.
 package pass_test
@@ -20,14 +20,14 @@ import (
 )
 
 // propPathOperation returns an operation whose HTTP binding walks path through
-// the response body — one of the PropID carriers the reference walk sees and no
+// the response body — one of the PropertyID carriers the reference walk sees and no
 // registry can resolve.
-func propPathOperation(path []ir.PropID) ir.Operation {
+func propPathOperation(path []ir.PropertyID) ir.Operation {
 	return ir.Operation{
-		ID: "op/o", Name: ir.Naming{Source: "o"},
+		ID: "operation/o", Name: ir.Naming{Source: "o"},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method:           "GET",
-			ResponseBodyPath: &ir.PropPath{Root: &ir.TypeRef{Target: "t/m"}, Segments: path},
+			ResponseBodyPath: &ir.PropPath{Root: &ir.TypeRef{Target: "type/m"}, Segments: path},
 		}}},
 	}
 }
@@ -39,22 +39,22 @@ func propPathOperation(path []ir.PropID) ir.Operation {
 // rather than in a document-level registry.
 func TestValidate_PropPathSegmentResolves(t *testing.T) {
 	t.Parallel()
-	ok := validated(t, docWithOperation(propPathOperation([]ir.PropID{"p/m/a"})))
-	assert.NotContains(t, irtest.DiagCodes(ok), "ir/dangling-prop-ref",
+	ok := validated(t, docWithOperation(propPathOperation([]ir.PropertyID{"property/m/a"})))
+	assert.NotContains(t, irtest.DiagCodes(ok), "ir/dangling-property-ref",
 		"a segment naming a declared property resolves")
 
-	bad := validated(t, docWithOperation(propPathOperation([]ir.PropID{"p/m/ghost"})))
-	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-prop-ref",
+	bad := validated(t, docWithOperation(propPathOperation([]ir.PropertyID{"property/m/ghost"})))
+	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-property-ref",
 		"a segment naming no property is reported")
 }
 
 // TestValidate_APropIDSpelledAsAnotherClassesIDDangles pins that only a
-// property declares a PropID: a segment spelling the operation's own ID, an
-// OpID, names no property.
+// property declares a PropertyID: a segment spelling the operation's own ID, an
+// OperationID, names no property.
 func TestValidate_APropIDSpelledAsAnotherClassesIDDangles(t *testing.T) {
 	t.Parallel()
-	bad := validated(t, docWithOperation(propPathOperation([]ir.PropID{"op/o"})))
-	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-prop-ref")
+	bad := validated(t, docWithOperation(propPathOperation([]ir.PropertyID{"operation/o"})))
+	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-property-ref")
 }
 
 // TestValidate_DanglingPropIDsAreReportedByLocation holds the diagnostics to
@@ -62,13 +62,13 @@ func TestValidate_APropIDSpelledAsAnotherClassesIDDangles(t *testing.T) {
 // walked [0] to [10], and "[10]" sorts between "[0]" and "[1]".
 func TestValidate_DanglingPropIDsAreReportedByLocation(t *testing.T) {
 	t.Parallel()
-	segments := make([]ir.PropID, 11)
+	segments := make([]ir.PropertyID, 11)
 	for i := range segments {
-		segments[i] = ir.PropID(fmt.Sprintf("p/m/ghost%d", i))
+		segments[i] = ir.PropertyID(fmt.Sprintf("property/m/ghost%d", i))
 	}
 	var where []string
 	for _, d := range validated(t, docWithOperation(propPathOperation(segments))) {
-		if d.Code == "ir/dangling-prop-ref" {
+		if d.Code == "ir/dangling-property-ref" {
 			where = append(where, d.Provenance.Node)
 		}
 	}
@@ -84,42 +84,42 @@ func TestValidate_DanglingPropIDsAreReportedByLocation(t *testing.T) {
 func TestValidate_ParamPathSegmentResolves(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
-		ID: "op/o", Name: ir.Naming{Source: "o"},
-		Params: []ir.Parameter{{Name: ir.Naming{Source: "book"}, Type: ir.TypeRef{Target: "t/m"}}},
+		ID: "operation/o", Name: ir.Naming{Source: "o"},
+		Params: []ir.Parameter{{Name: ir.Naming{Source: "book"}, Type: ir.TypeRef{Target: "type/m"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET",
 			ParamBindings: []ir.HTTPParamBinding{{
 				Param: "book", Location: ir.HTTPLocationPath,
-				ParamPath: []ir.PropID{"p/m/ghost"},
+				ParamPath: []ir.PropertyID{"property/m/ghost"},
 			}},
 		}}},
 	}
-	assert.Contains(t, irtest.DiagCodes(validated(t, docWithOperation(op))), "ir/dangling-prop-ref")
+	assert.Contains(t, irtest.DiagCodes(validated(t, docWithOperation(op))), "ir/dangling-property-ref")
 }
 
 // TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck pins the one exclusion. A
-// PropID reached as a map key is a Content.Encoding key, and checkEncodingKeys
+// PropertyID reached as a map key is a Content.Encoding key, and checkEncodingKeys
 // resolves it against the properties of the model the content names — a tighter
 // claim about the same defect. One defect must read as one location, so the
 // membership check stays out of that map.
 func TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck(t *testing.T) {
 	t.Parallel()
 	doc := docWithOperation(ir.Operation{
-		ID: "op/o", Name: ir.Naming{Source: "o"},
+		ID: "operation/o", Name: ir.Naming{Source: "o"},
 		Request: &ir.Payload{Contents: []ir.Content{
-			multipartContent(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}}),
+			multipartContent(map[ir.PropertyID]ir.PartEncoding{"property/m/ghost": {RepeatsPerArrayItem: true}}),
 		}},
 	})
 	got := irtest.DiagCodes(validated(t, doc))
 	assert.Contains(t, got, "ir/encoding-key-unknown-property", "the tighter claim is made")
-	assert.NotContains(t, got, "ir/dangling-prop-ref", "and it is the only one")
+	assert.NotContains(t, got, "ir/dangling-property-ref", "and it is the only one")
 }
 
 // discriminatedDoc returns a document whose model carries a discriminator
 // tagging prop.
-func discriminatedDoc(prop ir.PropID) *ir.Document {
+func discriminatedDoc(prop ir.PropertyID) *ir.Document {
 	doc := validDoc()
-	base := doc.Types["t/m"].(*ir.Model) // validDoc builds it
+	base := doc.Types["type/m"].(*ir.Model) // validDoc builds it
 	base.Discriminator = &ir.Discriminator{Property: prop}
 	return doc
 }
@@ -130,21 +130,21 @@ func discriminatedDoc(prop ir.PropID) *ir.Document {
 // emitter reads the tag off an instance of *this* model.
 func TestValidate_DiscriminatorPropertyBelongsToItsModel(t *testing.T) {
 	t.Parallel()
-	assert.NotContains(t, irtest.DiagCodes(validated(t, discriminatedDoc("p/m/a"))),
+	assert.NotContains(t, irtest.DiagCodes(validated(t, discriminatedDoc("property/m/a"))),
 		"pass/discriminator-unknown-property", "the model declares the tag property")
 
 	assert.NotContains(t, irtest.DiagCodes(validated(t, discriminatedDoc(""))),
 		"pass/discriminator-unknown-property",
 		"a union-style discriminator tags no property by identity")
 
-	doc := discriminatedDoc("p/other/a")
-	doc.Types["t/other"] = &ir.Model{ID: "t/other", Properties: []ir.Property{
-		{ID: "p/other/a", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"}},
+	doc := discriminatedDoc("property/other/a")
+	doc.Types["type/other"] = &ir.Model{ID: "type/other", Properties: []ir.Property{
+		{ID: "property/other/a", WireName: "a", Type: ir.TypeRef{Target: "type/primitive/string"}},
 	}}
 	got := irtest.DiagCodes(validated(t, doc))
 	assert.Contains(t, got, "pass/discriminator-unknown-property",
 		"a property of an unrelated model is not this model's tag")
-	assert.NotContains(t, got, "ir/dangling-prop-ref",
+	assert.NotContains(t, got, "ir/dangling-property-ref",
 		"it is a declared property, so membership has nothing to say")
 }
 
@@ -154,10 +154,10 @@ func TestValidate_DiscriminatorPropertyBelongsToItsModel(t *testing.T) {
 func TestValidate_DiscriminatorPropertyThroughComposition(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/sub"] = &ir.Model{
-		ID:            "t/sub",
-		Base:          &ir.TypeRef{Target: "t/m"},
-		Discriminator: &ir.Discriminator{Property: "p/m/a"},
+	doc.Types["type/sub"] = &ir.Model{
+		ID:            "type/sub",
+		Base:          &ir.TypeRef{Target: "type/m"},
+		Discriminator: &ir.Discriminator{Property: "property/m/a"},
 	}
 	assert.NotContains(t, irtest.DiagCodes(validated(t, doc)), "pass/discriminator-unknown-property",
 		"a tag property reached through Base is one the model exposes")

@@ -44,5 +44,5 @@ func TestNestedListValue_WrapsANumberInDepthLists(t *testing.T) {
 		require.Len(t, v.List, 1)
 		v = v.List[0]
 	}
-	assert.Equal(t, ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("0")}, v)
+	assert.Equal(t, ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("0")}, v)
 }

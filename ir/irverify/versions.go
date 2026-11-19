@@ -21,7 +21,7 @@ func checkVersions(doc *ir.Document) []Violation {
 	var vs []Violation
 	var first map[string]int
 	for i, label := range doc.Versions {
-		path := "doc.Versions[" + strconv.Itoa(i) + "]"
+		path := "document.Versions[" + strconv.Itoa(i) + "]"
 		if isBlankName(label) {
 			vs = append(vs, Violation{
 				Code: "ir/version-label-blank", Message: "version label is blank, so no order places it", Path: path,

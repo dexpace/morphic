@@ -67,15 +67,15 @@ func TestMessage_JSONContract(t *testing.T) {
 			Headers: &headers,
 			CorrelationID: &ir.PropPath{
 				In:       "header",
-				Segments: []ir.PropID{"p/correlationId"},
+				Segments: []ir.PropertyID{"property/correlationId"},
 			},
 			ContentType: "application/json",
 			Tags:        []string{"users", "events"},
 			Docs:        populatedDocs(),
 			Deprecation: populatedDeprecation(),
 			Examples: []ir.Example{
-				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}, Headers: &ir.Value{Kind: ir.ValueString, Str: "h1"}},
-				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueString, Str: "v2"}},
+				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, String: "v1"}, Headers: &ir.Value{Kind: ir.ValueString, String: "h1"}},
+				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueString, String: "v2"}},
 			},
 			Bindings: map[string]ir.RawConfig{
 				"kafka": {"key": ir.RawValue(`"userId"`)},

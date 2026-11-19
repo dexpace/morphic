@@ -49,11 +49,11 @@ func Scope(segments ...string) string {
 // what is chosen here is which namespace a node belongs in, and the pointer that
 // is its path.
 const (
-	// OpenAPISpace and AnonSpace both address source coordinates: a component
+	// OpenAPISpace and AnonymousSpace both address source coordinates: a component
 	// schema is named at its own pointer, an inline schema is anonymous at its
 	// own pointer, and no pointer is both.
-	OpenAPISpace compile.Space = "openapi"
-	AnonSpace    compile.Space = "anon"
+	OpenAPISpace   compile.Space = "openapi"
+	AnonymousSpace compile.Space = "anonymous"
 	// ComposedSpace holds what no schema or declaration in the source occupies:
 	// distributed union variants and the Union a routed subtype composes
 	// (docs/ir/models.md#composition-beside-a-union), the node a field's
@@ -128,20 +128,20 @@ func WebhookGroup() ir.GroupID { return compile.GroupID(WebhookGroupSpace, "") }
 // of others adds the spaces Document qualifies by it.
 func Namespaces(others ...DocumentIDNamespace) compile.Namespaces {
 	ns := compile.Namespaces{
-		ir.IDKindType:       {OpenAPISpace, AnonSpace, ComposedSpace},
-		ir.IDKindOp:         {OpenAPISpace},
-		ir.IDKindProp:       {OpenAPISpace, ComposedSpace},
+		ir.IDKindType:       {OpenAPISpace, AnonymousSpace, ComposedSpace},
+		ir.IDKindOperation:  {OpenAPISpace},
+		ir.IDKindProperty:   {OpenAPISpace, ComposedSpace},
 		ir.IDKindAuth:       {OpenAPISpace, compile.UnresolvedSpace},
 		ir.IDKindService:    {OpenAPISpace},
 		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, ExtensionGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
-		ir.IDKindParam:      {OpenAPISpace},
-		ir.IDKindEnumMember: {OpenAPISpace, AnonSpace, ComposedSpace},
+		ir.IDKindParameter:  {OpenAPISpace},
+		ir.IDKindEnumMember: {OpenAPISpace, AnonymousSpace, ComposedSpace},
 		ir.IDKindServer:     {OpenAPISpace, DefaultServerSpace},
 	}
 	for _, d := range others {
-		ns[ir.IDKindType] = append(ns[ir.IDKindType], d.space(OpenAPISpace), d.space(AnonSpace), d.space(ComposedSpace))
-		ns[ir.IDKindProp] = append(ns[ir.IDKindProp], d.space(OpenAPISpace), d.space(ComposedSpace))
-		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonSpace),
+		ns[ir.IDKindType] = append(ns[ir.IDKindType], d.space(OpenAPISpace), d.space(AnonymousSpace), d.space(ComposedSpace))
+		ns[ir.IDKindProperty] = append(ns[ir.IDKindProperty], d.space(OpenAPISpace), d.space(ComposedSpace))
+		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonymousSpace),
 			d.space(ComposedSpace))
 		ns[ir.IDKindServer] = append(ns[ir.IDKindServer], d.space(OpenAPISpace))
 		ns[ir.IDKindAuth] = append(ns[ir.IDKindAuth], d.space(OpenAPISpace))
@@ -191,7 +191,7 @@ func (d DocumentIDNamespace) NamedType(pointer jsontext.Pointer) ir.TypeID {
 
 // AnonType returns the stable ID of a hoisted inline type at pointer in d.
 func (d DocumentIDNamespace) AnonType(pointer jsontext.Pointer) ir.TypeID {
-	return compile.TypeID(d.space(AnonSpace), string(pointer))
+	return compile.TypeID(d.space(AnonymousSpace), string(pointer))
 }
 
 // ComposedType returns the stable ID of the node synthesized at pointer in d:
@@ -206,17 +206,17 @@ func (d DocumentIDNamespace) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 // ComposedProp returns the stable ID of a field the declaration at pointer in d
 // names, where another model carries the field's first declaration, so that no
 // declaration's own ID is taken.
-func (d DocumentIDNamespace) ComposedProp(pointer jsontext.Pointer) ir.PropID {
+func (d DocumentIDNamespace) ComposedProp(pointer jsontext.Pointer) ir.PropertyID {
 	return compile.PropID(d.space(ComposedSpace), string(pointer))
 }
 
 // Op returns the stable ID of the operation at pointer.
-func Op(pointer jsontext.Pointer) ir.OpID {
+func Op(pointer jsontext.Pointer) ir.OperationID {
 	return compile.OpID(OpenAPISpace, string(pointer))
 }
 
 // Prop returns the stable ID of the property at pointer in d.
-func (d DocumentIDNamespace) Prop(pointer jsontext.Pointer) ir.PropID {
+func (d DocumentIDNamespace) Prop(pointer jsontext.Pointer) ir.PropertyID {
 	return compile.PropID(d.space(OpenAPISpace), string(pointer))
 }
 
@@ -229,7 +229,7 @@ func (d DocumentIDNamespace) Prop(pointer jsontext.Pointer) ir.PropID {
 // confused, and reordering a list without repeats renames nothing. A repeat's
 // number follows the location (numbered) and equals no other parameter's ID:
 // that would take an operation mounted at another's parameters list.
-func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
+func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParameterID {
 	return compile.ParamID(OpenAPISpace, string(mount+ParamPath(name, in, occurrence)))
 }
 
@@ -392,12 +392,12 @@ func (d DocumentIDNamespace) ForPointer(pointer jsontext.Pointer) ir.TypeID {
 
 // schemaSpace returns the namespace of the type a schema at pointer lowers to:
 // OpenAPISpace for a top-level component schema, the one kind that declares a
-// named type, and AnonSpace for every other position.
+// named type, and AnonymousSpace for every other position.
 func schemaSpace(pointer jsontext.Pointer) compile.Space {
 	if _, state := ComponentSchema(pointer); state == NamedComponent {
 		return OpenAPISpace
 	}
-	return AnonSpace
+	return AnonymousSpace
 }
 
 // ComponentState is what a pointer is to a document's component schemas. It is

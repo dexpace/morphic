@@ -11,7 +11,7 @@ import (
 )
 
 // DomainParents exposes domainParents to ir's external tests.
-func (k PrimKind) DomainParents() []PrimKind { return k.domainParents() }
+func (k PrimitiveKind) DomainParents() []PrimitiveKind { return k.domainParents() }
 
 // Kept returns the references r keeps for Unresolved to settle, in walk order,
 // each with its path spelled, so ir's external tests can hold the walk to

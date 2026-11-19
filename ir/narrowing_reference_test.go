@@ -101,7 +101,7 @@ func narrowRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 			case 1:
 				u.WireTagged, u.Discriminator = true, &ir.Discriminator{PropertyName: "k", Envelope: "object"}
 			case 2:
-				u.WireTagged, u.Discriminator = true, &ir.Discriminator{Index: &index}
+				u.WireTagged, u.Discriminator = true, &ir.Discriminator{TupleElementIndex: &index}
 			case 3:
 				u.WireTagged, u.Discriminator = true, &ir.Discriminator{PropertyName: "k"}
 			default:
@@ -122,7 +122,7 @@ func randomModel(rng *rand.Rand, id ir.TypeID, pick func() ir.TypeID) *ir.Model 
 		for range rng.IntN(4) {
 			digit := rng.IntN(8)
 			p := ir.Property{
-				ID: ir.PropID(fmt.Sprintf("p%d", digit)), WireName: fmt.Sprintf("w%d", digit%3),
+				ID: ir.PropertyID(fmt.Sprintf("p%d", digit)), WireName: fmt.Sprintf("w%d", digit%3),
 				Required: digit == 1 || digit == 4, Secret: digit == 6,
 			}
 			if digit == 3 || digit == 5 {
@@ -184,7 +184,7 @@ func (nr *narrowingRef) distribute(over []sub, union ir.TypeID, depth int) ir.Un
 	nr.t.Helper()
 	require.Less(nr.t, depth, 32, "no union repeats along a distribution")
 	u := nr.types[union].(*ir.Union)
-	if u.WireTagged && (u.Discriminator == nil || u.Discriminator.Envelope != "" || u.Discriminator.Index != nil) {
+	if u.WireTagged && (u.Discriminator == nil || u.Discriminator.Envelope != "" || u.Discriminator.TupleElementIndex != nil) {
 		return ir.UndistributedNotValues
 	}
 	for _, v := range u.Variants {

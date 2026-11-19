@@ -23,7 +23,9 @@ func useDoc(op ir.Operation, defs ...ir.TypeDef) *ir.Document {
 }
 
 // useType is a type holding nothing: a place for a flag to land.
-func useType(id ir.TypeID) *ir.Primitive { return &ir.Primitive{ID: id, Prim: ir.PrimString} }
+func useType(id ir.TypeID) *ir.Primitive {
+	return &ir.Primitive{ID: id, PrimitiveKind: ir.PrimitiveString}
+}
 
 func useRef(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
@@ -145,7 +147,7 @@ func usageRootCases() map[string]usageRoot {
 		},
 		"message headers": {
 			func() *ir.Document {
-				doc := usageMessageDoc(&ir.MessageBinding{Direction: ir.MsgDirectionReceive, Messages: []ir.MessageID{"msg"}})
+				doc := usageMessageDoc(&ir.MessageBinding{Direction: ir.MessageDirectionReceive, Messages: []ir.MessageID{"msg"}})
 				doc.Messages["msg"] = ir.Message{ID: "msg", Headers: &ir.TypeRef{Target: "t"}}
 				return doc
 			}(), useOut, nil,
@@ -158,7 +160,7 @@ func usageRootCases() map[string]usageRoot {
 // usagePayloadCases name "t" at each place a payload names a type, under each
 // root a payload has.
 func usagePayloadCases() map[string]usageRoot {
-	encoded := map[ir.PropID]ir.PartEncoding{"p": {Headers: []ir.Header{{Property: useProp("t")}}}}
+	encoded := map[ir.PropertyID]ir.PartEncoding{"p": {Headers: []ir.Header{{Property: useProp("t")}}}}
 	contents := map[string]ir.Content{
 		"content type":  {Type: useRef("t")},
 		"content item":  {Type: useRef("u"), Item: &ir.TypeRef{Target: "t"}},
@@ -179,7 +181,7 @@ func usagePayloadCases() map[string]usageRoot {
 			return doc
 		}, useOut | useErr},
 		"sent message": {func(p *ir.Payload) *ir.Document {
-			doc := usageMessageDoc(&ir.MessageBinding{Direction: ir.MsgDirectionSend, Messages: []ir.MessageID{"msg"}})
+			doc := usageMessageDoc(&ir.MessageBinding{Direction: ir.MessageDirectionSend, Messages: []ir.MessageID{"msg"}})
 			doc.Messages["msg"] = ir.Message{ID: "msg", Payload: *p}
 			return doc
 		}, useIn},
@@ -219,17 +221,17 @@ func TestIndex_UsageOfAMessageFollowsItsBinding(t *testing.T) {
 		binding *ir.MessageBinding
 		want    irfacts.UsageFlags
 	}{
-		"sent":     {&ir.MessageBinding{Direction: ir.MsgDirectionSend, Messages: []ir.MessageID{"msg"}}, useIn},
-		"received": {&ir.MessageBinding{Direction: ir.MsgDirectionReceive, Messages: []ir.MessageID{"msg"}}, useOut},
+		"sent":     {&ir.MessageBinding{Direction: ir.MessageDirectionSend, Messages: []ir.MessageID{"msg"}}, useIn},
+		"received": {&ir.MessageBinding{Direction: ir.MessageDirectionReceive, Messages: []ir.MessageID{"msg"}}, useOut},
 		"the reply to a sent one": {
-			&ir.MessageBinding{Direction: ir.MsgDirectionSend, Reply: &ir.Reply{Messages: []ir.MessageID{"msg"}}}, useOut,
+			&ir.MessageBinding{Direction: ir.MessageDirectionSend, Reply: &ir.Reply{Messages: []ir.MessageID{"msg"}}}, useOut,
 		},
 		"the reply to a received one": {
-			&ir.MessageBinding{Direction: ir.MsgDirectionReceive, Reply: &ir.Reply{Messages: []ir.MessageID{"msg"}}}, useIn,
+			&ir.MessageBinding{Direction: ir.MessageDirectionReceive, Reply: &ir.Reply{Messages: []ir.MessageID{"msg"}}}, useIn,
 		},
 		"bound with no direction":       {&ir.MessageBinding{Messages: []ir.MessageID{"msg"}}, useIn | useOut},
-		"named by no binding":           {&ir.MessageBinding{Direction: ir.MsgDirectionSend}, 0},
-		"named but not in the registry": {&ir.MessageBinding{Direction: ir.MsgDirectionSend, Messages: []ir.MessageID{"gone"}}, 0},
+		"named by no binding":           {&ir.MessageBinding{Direction: ir.MessageDirectionSend}, 0},
+		"named but not in the registry": {&ir.MessageBinding{Direction: ir.MessageDirectionSend, Messages: []ir.MessageID{"gone"}}, 0},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -250,17 +252,17 @@ func usageEdgeCases() map[string]usageEdge {
 	return map[string]usageEdge{
 		"property": {build: func(root ir.TypeID) ir.TypeDef { return useHolder(root, "x") }},
 		"additional value": {build: func(root ir.TypeID) ir.TypeDef {
-			return irtest.ModelOf(root, func(m *ir.Model) { m.AdditionalProps = &ir.AdditionalProps{Value: new(useRef("x"))} })
+			return irtest.ModelOf(root, func(m *ir.Model) { m.AdditionalProperties = &ir.AdditionalProperties{Value: new(useRef("x"))} })
 		}},
 		"additional key": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
 			return irtest.ModelOf(root, func(m *ir.Model) {
-				m.AdditionalProps = &ir.AdditionalProps{Value: new(useRef("v")), Key: &ir.TypeRef{Target: "x"}}
+				m.AdditionalProperties = &ir.AdditionalProperties{Value: new(useRef("v")), Key: &ir.TypeRef{Target: "x"}}
 			})
 		}},
 		"additional pattern": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
 			return irtest.ModelOf(root, func(m *ir.Model) {
-				m.AdditionalProps = &ir.AdditionalProps{
-					Value: new(useRef("v")), Patterns: []ir.PatternProps{{Pattern: "^a", Value: useRef("x")}},
+				m.AdditionalProperties = &ir.AdditionalProperties{
+					Value: new(useRef("v")), Patterns: []ir.PatternProperties{{Pattern: "^a", Value: useRef("x")}},
 				}
 			})
 		}},
@@ -276,12 +278,12 @@ func usageEdgeCases() map[string]usageEdge {
 		"union variant": {build: func(root ir.TypeID) ir.TypeDef {
 			return &ir.Union{ID: root, Variants: []ir.Variant{{Type: useRef("x")}}}
 		}},
-		"list element": {build: func(root ir.TypeID) ir.TypeDef { return &ir.List{ID: root, Elem: useRef("x")} }},
+		"list element": {build: func(root ir.TypeID) ir.TypeDef { return &ir.List{ID: root, ElementType: useRef("x")} }},
 		"map key": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
 			return &ir.MapT{ID: root, Key: &ir.TypeRef{Target: "x"}, Value: useRef("v")}
 		}},
 		"map value":     {build: func(root ir.TypeID) ir.TypeDef { return &ir.MapT{ID: root, Value: useRef("x")} }},
-		"tuple element": {build: func(root ir.TypeID) ir.TypeDef { return &ir.Tuple{ID: root, Elems: irtest.RefsTo("x")} }},
+		"tuple element": {build: func(root ir.TypeID) ir.TypeDef { return &ir.Tuple{ID: root, ElementTypes: irtest.RefsTo("x")} }},
 		"tuple rest": {build: func(root ir.TypeID) ir.TypeDef {
 			return &ir.Tuple{ID: root, Rest: &ir.TypeRef{Target: "x"}}
 		}},
@@ -295,7 +297,7 @@ func usageEdgeCases() map[string]usageEdge {
 			return &ir.Scalar{ID: root, Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "x"}}}
 		}},
 		"list encoding schema": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
-			return &ir.List{ID: root, Elem: useRef("v"), Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "x"}}}
+			return &ir.List{ID: root, ElementType: useRef("v"), Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "x"}}}
 		}},
 	}
 }
@@ -450,7 +452,7 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 		t.Parallel()
 		parent := ir.Operation{ID: "parent", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method: "POST", URITemplate: "/subscribe",
-			Callbacks: []ir.Callback{{Expression: "{$request.body#/url}", Operations: []ir.OpID{"op"}}},
+			Callbacks: []ir.Callback{{Expression: "{$request.body#/url}", Operations: []ir.OperationID{"op"}}},
 		}}}}
 		callback := op
 		callback.Bindings.HTTP = []ir.HTTPBinding{{Method: "POST", URITemplate: "{$request.body#/url}"}}
@@ -465,7 +467,7 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 	t.Run("a webhook's callback is no less inbound", func(t *testing.T) {
 		t.Parallel()
 		callback := op
-		callback.Bindings.HTTP = []ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, Callbacks: []ir.Callback{{Operations: []ir.OpID{"op"}}}}}
+		callback.Bindings.HTTP = []ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, Callbacks: []ir.Callback{{Operations: []ir.OperationID{"op"}}}}}
 		assert.Equal(t, inbound, usageOf(useDoc(callback, defs()...)))
 	})
 }

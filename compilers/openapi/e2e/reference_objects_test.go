@@ -88,7 +88,7 @@ func requestType(t *testing.T, doc *ir.Document, name string) ir.TypeID {
 
 // bodyAt is the type ID of the JSON body a request body at pointer declares.
 func bodyAt(pointer string) ir.TypeID {
-	return ir.TypeID("t/anon" + pointer + "/requestBody/content/application~1json/schema")
+	return ir.TypeID("type/anonymous" + pointer + "/requestBody/content/application~1json/schema")
 }
 
 // TestReferenceObjects_APointerThroughAPathItemRefReadsWhereItsChainEnds pins
@@ -182,8 +182,8 @@ func TestReferenceObjects_AnEndingSlashNamesAnEmptyMember(t *testing.T) {
 				t.Helper()
 				assert.Equal(t, []string{"error " + diag.UnresolvedRef + " /paths/~1a/get/parameters/0: unresolved $ref \"" +
 					where + "x-params/q/\": it names nothing in the document it points into"}, placedFindings(diags))
-				assert.NotContains(t, doc.Types, ir.TypeID("t/anon/x-params/q//schema"))
-				assert.Contains(t, doc.Types, ir.TypeID("t/anon/x-params/q/schema"), "/b's parameter")
+				assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/x-params/q//schema"))
+				assert.Contains(t, doc.Types, ir.TypeID("type/anonymous/x-params/q/schema"), "/b's parameter")
 			})
 		})
 	}
@@ -194,7 +194,7 @@ func TestReferenceObjects_AnEndingSlashNamesAnEmptyMember(t *testing.T) {
 		op, ok := opByName(doc, "a")
 		require.True(t, ok)
 		require.Len(t, op.Params, 1)
-		assert.Equal(t, ir.TypeID("t/anon/x-params/q//schema"), op.Params[0].Type.Target, "the member keyed \"\"")
+		assert.Equal(t, ir.TypeID("type/anonymous/x-params/q//schema"), op.Params[0].Type.Target, "the member keyed \"\"")
 	})
 }
 
@@ -482,7 +482,7 @@ components:
 		require.True(t, ok)
 		require.Len(t, op.Params, 2)
 		assert.ElementsMatch(t, []string{"p", "q"}, []string{op.Params[0].Name.Source, op.Params[1].Name.Source})
-		assert.Equal(t, ir.TypeID("t/prim/string"), firstContent(t, op).Type.Target, "the response R declares")
+		assert.Equal(t, ir.TypeID("type/primitive/string"), firstContent(t, op).Type.Target, "the response R declares")
 	})
 }
 
@@ -515,7 +515,7 @@ components:
 		op, ok := opByName(doc, "a")
 		require.True(t, ok)
 		require.Len(t, op.Params, 1)
-		assert.Equal(t, ir.TypeID("t/prim/string"), op.Params[0].Type.Target, "the parameter P declares")
+		assert.Equal(t, ir.TypeID("type/primitive/string"), op.Params[0].Type.Target, "the parameter P declares")
 	})
 }
 
@@ -554,7 +554,7 @@ components:
 			require.Len(t, op.Responses, 1)
 			h, ok := headerByWire(op.Responses[0].Headers, "X-Rate")
 			require.True(t, ok, "the header lowers")
-			assert.Equal(t, ir.TypeID("t/prim/integer"), h.Type.Target)
+			assert.Equal(t, ir.TypeID("type/primitive/integer"), h.Type.Target)
 			assert.Len(t, firstContent(t, op).Examples, 1, "the example lowers")
 		})
 	})
@@ -607,7 +607,7 @@ x-params:
 	got := sitedFindings(diags)
 	assert.Equal(t, []string{duplicate}, got)
 	require.Len(t, doc.Services[0].Groups[0].Operations[0].Params, 1)
-	assert.Equal(t, ir.TypeID("t/prim/string"), doc.Services[0].Groups[0].Operations[0].Params[0].Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), doc.Services[0].Groups[0].Operations[0].Params[0].Type.Target)
 
 	swapped := strings.Replace(spec, "x-params:\n  q: {name: q, in: query, schema: {type: object",
 		"x-params:\n  q: {name: q, in: query, schema: {type: string}}\nx-params:\n  q: {name: q, in: query, schema: {type: object", 1)
@@ -687,7 +687,7 @@ components:
 			op, ok := opByName(doc, "a")
 			require.True(t, ok)
 			require.Len(t, op.Params, 1)
-			assert.Equal(t, ir.TypeID("t/prim/integer"), op.Params[0].Type.Target, "Q, in the source")
+			assert.Equal(t, ir.TypeID("type/primitive/integer"), op.Params[0].Type.Target, "Q, in the source")
 		})
 	})
 	t.Run("unread", func(t *testing.T) {
@@ -722,9 +722,9 @@ components:
     S: {$ref: '#/paths/~1a/get/responses/404/content/application~1json/schema'}
 `)
 	assert.Empty(t, diags)
-	s, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Scalar)
+	s, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")].(*ir.Scalar)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/anon/components/responses/NotFound/content/application~1json/schema"), s.Base.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/responses/NotFound/content/application~1json/schema"), s.Base.Target)
 }
 
 // TestReferenceObjects_AnEndInAnotherDocumentIsDeclaredThere pins a schema $ref

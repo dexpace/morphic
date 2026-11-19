@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "UnhomedKeywords",
         "canonical": "unhomed_keywords"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/AllOfWithObjectType": {
+    "type/openapi/components/schemas/AllOfWithObjectType": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/AllOfWithObjectType",
+      "id": "type/openapi/components/schemas/AllOfWithObjectType",
       "name": {
         "source": "AllOfWithObjectType",
         "canonical": "all_of_with_object_type"
@@ -74,16 +74,16 @@
         "pointer": "/components/schemas/AllOfWithObjectType"
       },
       "base": {
-        "target": "t/openapi/components/schemas/RefTargetObj",
+        "target": "type/openapi/components/schemas/RefTargetObj",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/AllOfWithScalarType": {
+    "type/openapi/components/schemas/AllOfWithScalarType": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/AllOfWithScalarType",
+      "id": "type/openapi/components/schemas/AllOfWithScalarType",
       "name": {
         "source": "AllOfWithScalarType",
         "canonical": "all_of_with_scalar_type"
@@ -106,16 +106,16 @@
         "pointer": "/components/schemas/AllOfWithScalarType"
       },
       "base": {
-        "target": "t/openapi/components/schemas/RefTargetObj",
+        "target": "type/openapi/components/schemas/RefTargetObj",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ConstWithBound": {
+    "type/openapi/components/schemas/ConstWithBound": {
       "kind": "literal",
-      "id": "t/openapi/components/schemas/ConstWithBound",
+      "id": "type/openapi/components/schemas/ConstWithBound",
       "name": {
         "source": "ConstWithBound",
         "canonical": "const_with_bound"
@@ -139,13 +139,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "ab"
+        "string": "ab"
       },
       "valueType": "string"
     },
-    "t/openapi/components/schemas/ConstWithFormat": {
+    "type/openapi/components/schemas/ConstWithFormat": {
       "kind": "literal",
-      "id": "t/openapi/components/schemas/ConstWithFormat",
+      "id": "type/openapi/components/schemas/ConstWithFormat",
       "name": {
         "source": "ConstWithFormat",
         "canonical": "const_with_format"
@@ -159,13 +159,13 @@
       },
       "value": {
         "kind": "number",
-        "num": "5"
+        "number": "5"
       },
       "valueType": "int32"
     },
-    "t/openapi/components/schemas/EnumWithProperties": {
+    "type/openapi/components/schemas/EnumWithProperties": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/EnumWithProperties",
+      "id": "type/openapi/components/schemas/EnumWithProperties",
       "name": {
         "source": "EnumWithProperties",
         "canonical": "enum_with_properties"
@@ -194,26 +194,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/EnumWithProperties/s:a",
+          "id": "enum-member/openapi/components/schemas/EnumWithProperties/string:a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "value": {
             "kind": "string",
-            "str": "a"
+            "string": "a"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/EnumWithProperties/s:b",
+          "id": "enum-member/openapi/components/schemas/EnumWithProperties/string:b",
           "name": {
             "source": "b",
             "canonical": "b"
           },
           "value": {
             "kind": "string",
-            "str": "b"
+            "string": "b"
           },
           "docs": {}
         }
@@ -221,9 +221,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/ItemsBoundOnArray": {
+    "type/openapi/components/schemas/ItemsBoundOnArray": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/ItemsBoundOnArray",
+      "id": "type/openapi/components/schemas/ItemsBoundOnArray",
       "name": {
         "source": "ItemsBoundOnArray",
         "canonical": "items_bound_on_array"
@@ -235,8 +235,8 @@
         "source": 0,
         "pointer": "/components/schemas/ItemsBoundOnArray"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -245,9 +245,9 @@
         "uniqueItems": true
       }
     },
-    "t/openapi/components/schemas/ItemsBoundOnObject": {
+    "type/openapi/components/schemas/ItemsBoundOnObject": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ItemsBoundOnObject",
+      "id": "type/openapi/components/schemas/ItemsBoundOnObject",
       "name": {
         "source": "ItemsBoundOnObject",
         "canonical": "items_bound_on_object"
@@ -271,21 +271,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ItemsBoundOnObject/properties/f",
+          "id": "property/openapi/components/schemas/ItemsBoundOnObject/properties/f",
           "name": {
             "source": "f",
             "canonical": "f"
           },
           "wireName": "f",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -302,9 +302,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ItemsBoundOnTuple": {
+    "type/openapi/components/schemas/ItemsBoundOnTuple": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/ItemsBoundOnTuple",
+      "id": "type/openapi/components/schemas/ItemsBoundOnTuple",
       "name": {
         "source": "ItemsBoundOnTuple",
         "canonical": "items_bound_on_tuple"
@@ -316,14 +316,14 @@
         "source": 0,
         "pointer": "/components/schemas/ItemsBoundOnTuple"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       },
       "constraints": {
@@ -331,9 +331,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/ObjectWithItems": {
+    "type/openapi/components/schemas/ObjectWithItems": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ObjectWithItems",
+      "id": "type/openapi/components/schemas/ObjectWithItems",
       "name": {
         "source": "ObjectWithItems",
         "canonical": "object_with_items"
@@ -359,21 +359,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ObjectWithItems/properties/h",
+          "id": "property/openapi/components/schemas/ObjectWithItems/properties/h",
           "name": {
             "source": "h",
             "canonical": "h"
           },
           "wireName": "h",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -390,9 +390,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RefAdditionalProperties": {
+    "type/openapi/components/schemas/RefAdditionalProperties": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RefAdditionalProperties",
+      "id": "type/openapi/components/schemas/RefAdditionalProperties",
       "name": {
         "source": "RefAdditionalProperties",
         "canonical": "ref_additional_properties"
@@ -405,7 +405,7 @@
         "pointer": "/components/schemas/RefAdditionalProperties"
       },
       "base": {
-        "target": "t/openapi/components/schemas/RefTargetObj",
+        "target": "type/openapi/components/schemas/RefTargetObj",
         "nullable": false
       },
       "additional": "closed",
@@ -413,9 +413,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RefCarrier": {
+    "type/openapi/components/schemas/RefCarrier": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RefCarrier",
+      "id": "type/openapi/components/schemas/RefCarrier",
       "name": {
         "source": "RefCarrier",
         "canonical": "ref_carrier"
@@ -429,21 +429,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RefCarrier/properties/p",
+          "id": "property/openapi/components/schemas/RefCarrier/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/openapi/components/schemas/RefTargetStr",
+            "target": "type/openapi/components/schemas/RefTargetStr",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -470,9 +470,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RefConst": {
+    "type/openapi/components/schemas/RefConst": {
       "kind": "literal",
-      "id": "t/openapi/components/schemas/RefConst",
+      "id": "type/openapi/components/schemas/RefConst",
       "name": {
         "source": "RefConst",
         "canonical": "ref_const"
@@ -496,13 +496,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "a"
+        "string": "a"
       },
       "valueType": "string"
     },
-    "t/openapi/components/schemas/RefConstrained": {
+    "type/openapi/components/schemas/RefConstrained": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/RefConstrained",
+      "id": "type/openapi/components/schemas/RefConstrained",
       "name": {
         "source": "RefConstrained",
         "canonical": "ref_constrained"
@@ -517,7 +517,7 @@
         "pointer": "/components/schemas/RefConstrained"
       },
       "base": {
-        "target": "t/openapi/components/schemas/RefTargetStr",
+        "target": "type/openapi/components/schemas/RefTargetStr",
         "nullable": false
       },
       "constraints": {
@@ -525,9 +525,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/RefDiscriminator": {
+    "type/openapi/components/schemas/RefDiscriminator": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RefDiscriminator",
+      "id": "type/openapi/components/schemas/RefDiscriminator",
       "name": {
         "source": "RefDiscriminator",
         "canonical": "ref_discriminator"
@@ -540,7 +540,7 @@
         "pointer": "/components/schemas/RefDiscriminator"
       },
       "base": {
-        "target": "t/openapi/components/schemas/RefTargetObj",
+        "target": "type/openapi/components/schemas/RefTargetObj",
         "nullable": false
       },
       "abstract": false,
@@ -551,9 +551,9 @@
       },
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RefEnum": {
+    "type/openapi/components/schemas/RefEnum": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/RefEnum",
+      "id": "type/openapi/components/schemas/RefEnum",
       "name": {
         "source": "RefEnum",
         "canonical": "ref_enum"
@@ -578,26 +578,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/RefEnum/s:a",
+          "id": "enum-member/openapi/components/schemas/RefEnum/string:a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "value": {
             "kind": "string",
-            "str": "a"
+            "string": "a"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/RefEnum/s:b",
+          "id": "enum-member/openapi/components/schemas/RefEnum/string:b",
           "name": {
             "source": "b",
             "canonical": "b"
           },
           "value": {
             "kind": "string",
-            "str": "b"
+            "string": "b"
           },
           "docs": {}
         }
@@ -605,9 +605,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/RefFormat": {
+    "type/openapi/components/schemas/RefFormat": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/RefFormat",
+      "id": "type/openapi/components/schemas/RefFormat",
       "name": {
         "source": "RefFormat",
         "canonical": "ref_format"
@@ -630,13 +630,13 @@
         "pointer": "/components/schemas/RefFormat"
       },
       "base": {
-        "target": "t/openapi/components/schemas/RefTargetStr",
+        "target": "type/openapi/components/schemas/RefTargetStr",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/RefRequired": {
+    "type/openapi/components/schemas/RefRequired": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RefRequired",
+      "id": "type/openapi/components/schemas/RefRequired",
       "name": {
         "source": "RefRequired",
         "canonical": "ref_required"
@@ -652,16 +652,16 @@
         "a"
       ],
       "base": {
-        "target": "t/openapi/components/schemas/RefTargetObj",
+        "target": "type/openapi/components/schemas/RefTargetObj",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RefTargetObj": {
+    "type/openapi/components/schemas/RefTargetObj": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RefTargetObj",
+      "id": "type/openapi/components/schemas/RefTargetObj",
       "name": {
         "source": "RefTargetObj",
         "canonical": "ref_target_obj"
@@ -675,21 +675,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RefTargetObj/properties/a",
+          "id": "property/openapi/components/schemas/RefTargetObj/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -706,9 +706,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RefTargetStr": {
+    "type/openapi/components/schemas/RefTargetStr": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/RefTargetStr",
+      "id": "type/openapi/components/schemas/RefTargetStr",
       "name": {
         "source": "RefTargetStr",
         "canonical": "ref_target_str"
@@ -721,13 +721,13 @@
         "pointer": "/components/schemas/RefTargetStr"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/ScalarWithProperties": {
+    "type/openapi/components/schemas/ScalarWithProperties": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/ScalarWithProperties",
+      "id": "type/openapi/components/schemas/ScalarWithProperties",
       "name": {
         "source": "ScalarWithProperties",
         "canonical": "scalar_with_properties"
@@ -754,13 +754,13 @@
         "pointer": "/components/schemas/ScalarWithProperties"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/UnionWithItems": {
+    "type/openapi/components/schemas/UnionWithItems": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/UnionWithItems",
+      "id": "type/openapi/components/schemas/UnionWithItems",
       "name": {
         "source": "UnionWithItems",
         "canonical": "union_with_items"
@@ -800,13 +800,13 @@
         "pointer": "/components/schemas/UnionWithItems"
       },
       "base": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/UntypedDiscriminator": {
+    "type/openapi/components/schemas/UntypedDiscriminator": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/UntypedDiscriminator",
+      "id": "type/openapi/components/schemas/UntypedDiscriminator",
       "name": {
         "source": "UntypedDiscriminator",
         "canonical": "untyped_discriminator"
@@ -831,13 +831,13 @@
         "pointer": "/components/schemas/UntypedDiscriminator"
       },
       "base": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/UntypedFormat": {
+    "type/openapi/components/schemas/UntypedFormat": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/UntypedFormat",
+      "id": "type/openapi/components/schemas/UntypedFormat",
       "name": {
         "source": "UntypedFormat",
         "canonical": "untyped_format"
@@ -860,13 +860,13 @@
         "pointer": "/components/schemas/UntypedFormat"
       },
       "base": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/UntypedItems": {
+    "type/openapi/components/schemas/UntypedItems": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/UntypedItems",
+      "id": "type/openapi/components/schemas/UntypedItems",
       "name": {
         "source": "UntypedItems",
         "canonical": "untyped_items"
@@ -879,14 +879,14 @@
         "pointer": "/components/schemas/UntypedItems",
         "inferred": "kind-inference"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/UntypedPrefixItems": {
+    "type/openapi/components/schemas/UntypedPrefixItems": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/UntypedPrefixItems",
+      "id": "type/openapi/components/schemas/UntypedPrefixItems",
       "name": {
         "source": "UntypedPrefixItems",
         "canonical": "untyped_prefix_items"
@@ -899,20 +899,20 @@
         "pointer": "/components/schemas/UntypedPrefixItems",
         "inferred": "kind-inference"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/UntypedRequired": {
+    "type/openapi/components/schemas/UntypedRequired": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/UntypedRequired",
+      "id": "type/openapi/components/schemas/UntypedRequired",
       "name": {
         "source": "UntypedRequired",
         "canonical": "untyped_required"
@@ -937,13 +937,13 @@
         "pointer": "/components/schemas/UntypedRequired"
       },
       "base": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -951,11 +951,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -963,7 +963,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

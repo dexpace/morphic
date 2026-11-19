@@ -32,10 +32,10 @@ func TestTagDef_HoldsItsKeptKeys(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(bare), "unmodeled")
 
-	group, err := json.Marshal(ir.OperationGroup{ID: "g/x", Inferred: "extension-promotion"}, json.Deterministic(true))
+	group, err := json.Marshal(ir.OperationGroup{ID: "operation-group/x", Inferred: "extension-promotion"}, json.Deterministic(true))
 	require.NoError(t, err)
 	assert.Contains(t, string(group), `"inferred":"extension-promotion"`)
-	plain, err := json.Marshal(ir.OperationGroup{ID: "g/x"}, json.Deterministic(true))
+	plain, err := json.Marshal(ir.OperationGroup{ID: "operation-group/x"}, json.Deterministic(true))
 	require.NoError(t, err)
 	assert.NotContains(t, string(plain), "inferred")
 }

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "KeptRefUnrenderable",
         "canonical": "kept_ref_unrenderable"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/A": {
+    "type/openapi/components/schemas/A": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/A",
+      "id": "type/openapi/components/schemas/A",
       "name": {
         "source": "A",
         "canonical": "a"
@@ -74,13 +74,13 @@
         "pointer": "/components/schemas/A"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Alike": {
+    "type/openapi/components/schemas/Alike": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Alike",
+      "id": "type/openapi/components/schemas/Alike",
       "name": {
         "source": "Alike",
         "canonical": "alike"
@@ -113,14 +113,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/Alike/s:a",
+          "id": "enum-member/openapi/components/schemas/Alike/string:a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "value": {
             "kind": "string",
-            "str": "a"
+            "string": "a"
           },
           "docs": {}
         }
@@ -128,9 +128,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/B": {
+    "type/openapi/components/schemas/B": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/B",
+      "id": "type/openapi/components/schemas/B",
       "name": {
         "source": "B",
         "canonical": "b"
@@ -143,13 +143,13 @@
         "pointer": "/components/schemas/B"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Distinct": {
+    "type/openapi/components/schemas/Distinct": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Distinct",
+      "id": "type/openapi/components/schemas/Distinct",
       "name": {
         "source": "Distinct",
         "canonical": "distinct"
@@ -182,14 +182,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/Distinct/s:a",
+          "id": "enum-member/openapi/components/schemas/Distinct/string:a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "value": {
             "kind": "string",
-            "str": "a"
+            "string": "a"
           },
           "docs": {}
         }
@@ -197,9 +197,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Same": {
+    "type/openapi/components/schemas/Same": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Same",
+      "id": "type/openapi/components/schemas/Same",
       "name": {
         "source": "Same",
         "canonical": "same"
@@ -224,14 +224,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/Same/s:a",
+          "id": "enum-member/openapi/components/schemas/Same/string:a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "value": {
             "kind": "string",
-            "str": "a"
+            "string": "a"
           },
           "docs": {}
         }
@@ -239,9 +239,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Twice": {
+    "type/openapi/components/schemas/Twice": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Twice",
+      "id": "type/openapi/components/schemas/Twice",
       "name": {
         "source": "Twice",
         "canonical": "twice"
@@ -274,14 +274,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/Twice/s:a",
+          "id": "enum-member/openapi/components/schemas/Twice/string:a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "value": {
             "kind": "string",
-            "str": "a"
+            "string": "a"
           },
           "docs": {}
         }
@@ -289,9 +289,9 @@
       "closed": true,
       "flags": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -299,7 +299,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

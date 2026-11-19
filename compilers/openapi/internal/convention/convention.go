@@ -119,7 +119,7 @@ const maxScalarHops = 64
 // the chain, and whether a node along it names an encoding, asks for
 // redaction, or writes a key the policy reads redaction from.
 type chain struct {
-	prim      ir.PrimKind
+	prim      ir.PrimitiveKind
 	encoded   bool
 	sensitive bool
 	spoken    bool
@@ -140,7 +140,7 @@ func readChain(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, 
 		ch.spoken = ch.spoken || p.Writes(common.Unmodeled, promotion.TargetRedaction)
 		switch n := td.(type) {
 		case *ir.Primitive:
-			ch.prim = n.Prim
+			ch.prim = n.PrimitiveKind
 			return ch, true
 		case *ir.Scalar:
 			ch.encoded = ch.encoded || n.Encoding != nil && n.Encoding.Name != ""

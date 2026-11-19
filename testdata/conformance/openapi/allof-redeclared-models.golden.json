@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "allOf redeclared models",
         "canonical": "all_of_redeclared_models"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/BareAndModel/allOf/0/properties/data": {
+    "type/anonymous/components/schemas/BareAndModel/allOf/0/properties/data": {
       "kind": "model",
-      "id": "t/anon/components/schemas/BareAndModel/allOf/0/properties/data",
+      "id": "type/anonymous/components/schemas/BareAndModel/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -76,9 +76,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner": {
+    "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner": {
       "kind": "model",
-      "id": "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner",
+      "id": "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner",
       "name": {
         "hint": "owner"
       },
@@ -91,21 +91,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/name",
+          "id": "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -118,21 +118,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
+          "id": "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
           "name": {
             "source": "address",
             "canonical": "address"
           },
           "wireName": "address",
           "type": {
-            "target": "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
+            "target": "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -149,9 +149,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address": {
+    "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address": {
       "kind": "model",
-      "id": "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
+      "id": "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
       "name": {
         "hint": "address"
       },
@@ -164,21 +164,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address/properties/street",
+          "id": "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address/properties/street",
           "name": {
             "source": "street",
             "canonical": "street"
           },
           "wireName": "street",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -195,9 +195,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/InlineFirst/allOf/0/properties/data": {
+    "type/anonymous/components/schemas/InlineFirst/allOf/0/properties/data": {
       "kind": "model",
-      "id": "t/anon/components/schemas/InlineFirst/allOf/0/properties/data",
+      "id": "type/anonymous/components/schemas/InlineFirst/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -210,21 +210,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/InlineFirst/allOf/0/properties/data/properties/ai",
+          "id": "property/openapi/components/schemas/InlineFirst/allOf/0/properties/data/properties/ai",
           "name": {
             "source": "ai",
             "canonical": "ai"
           },
           "wireName": "ai",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -241,9 +241,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data": {
+    "type/anonymous/components/schemas/ListsOfModels/allOf/0/properties/data": {
       "kind": "list",
-      "id": "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data",
+      "id": "type/anonymous/components/schemas/ListsOfModels/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -254,14 +254,14 @@
         "source": 0,
         "pointer": "/components/schemas/ListsOfModels/allOf/0/properties/data"
       },
-      "elem": {
-        "target": "t/openapi/components/schemas/Meeting",
+      "elementType": {
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/ListsOfModels/allOf/1/properties/data": {
+    "type/anonymous/components/schemas/ListsOfModels/allOf/1/properties/data": {
       "kind": "list",
-      "id": "t/anon/components/schemas/ListsOfModels/allOf/1/properties/data",
+      "id": "type/anonymous/components/schemas/ListsOfModels/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -272,14 +272,14 @@
         "source": 0,
         "pointer": "/components/schemas/ListsOfModels/allOf/1/properties/data"
       },
-      "elem": {
-        "target": "t/openapi/components/schemas/Recording",
+      "elementType": {
+        "target": "type/openapi/components/schemas/Recording",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/MapThenModel/allOf/0/properties/data": {
+    "type/anonymous/components/schemas/MapThenModel/allOf/0/properties/data": {
       "kind": "map",
-      "id": "t/anon/components/schemas/MapThenModel/allOf/0/properties/data",
+      "id": "type/anonymous/components/schemas/MapThenModel/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -291,13 +291,13 @@
         "pointer": "/components/schemas/MapThenModel/allOf/0/properties/data"
       },
       "value": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/MapsOfModels/allOf/0/properties/data": {
+    "type/anonymous/components/schemas/MapsOfModels/allOf/0/properties/data": {
       "kind": "map",
-      "id": "t/anon/components/schemas/MapsOfModels/allOf/0/properties/data",
+      "id": "type/anonymous/components/schemas/MapsOfModels/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -309,13 +309,13 @@
         "pointer": "/components/schemas/MapsOfModels/allOf/0/properties/data"
       },
       "value": {
-        "target": "t/openapi/components/schemas/Meeting",
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/MapsOfModels/allOf/1/properties/data": {
+    "type/anonymous/components/schemas/MapsOfModels/allOf/1/properties/data": {
       "kind": "map",
-      "id": "t/anon/components/schemas/MapsOfModels/allOf/1/properties/data",
+      "id": "type/anonymous/components/schemas/MapsOfModels/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -327,13 +327,13 @@
         "pointer": "/components/schemas/MapsOfModels/allOf/1/properties/data"
       },
       "value": {
-        "target": "t/openapi/components/schemas/Recording",
+        "target": "type/openapi/components/schemas/Recording",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/ModelThenMap/allOf/1/properties/data": {
+    "type/anonymous/components/schemas/ModelThenMap/allOf/1/properties/data": {
       "kind": "map",
-      "id": "t/anon/components/schemas/ModelThenMap/allOf/1/properties/data",
+      "id": "type/anonymous/components/schemas/ModelThenMap/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -345,13 +345,13 @@
         "pointer": "/components/schemas/ModelThenMap/allOf/1/properties/data"
       },
       "value": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/ModelThenUnion/allOf/1/properties/data": {
+    "type/anonymous/components/schemas/ModelThenUnion/allOf/1/properties/data": {
       "kind": "union",
-      "id": "t/anon/components/schemas/ModelThenUnion/allOf/1/properties/data",
+      "id": "type/anonymous/components/schemas/ModelThenUnion/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -368,7 +368,7 @@
             "hint": "meeting"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Meeting",
+            "target": "type/openapi/components/schemas/Meeting",
             "nullable": false
           },
           "docs": {}
@@ -378,7 +378,7 @@
             "hint": "recording"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Recording",
+            "target": "type/openapi/components/schemas/Recording",
             "nullable": false
           },
           "docs": {}
@@ -389,9 +389,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Owner/properties/address": {
+    "type/anonymous/components/schemas/Owner/properties/address": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Owner/properties/address",
+      "id": "type/anonymous/components/schemas/Owner/properties/address",
       "name": {
         "hint": "address"
       },
@@ -404,21 +404,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Owner/properties/address/properties/street",
+          "id": "property/openapi/components/schemas/Owner/properties/address/properties/street",
           "name": {
             "source": "street",
             "canonical": "street"
           },
           "wireName": "street",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -435,9 +435,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner": {
+    "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner": {
       "kind": "model",
-      "id": "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner",
+      "id": "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner",
       "name": {
         "hint": "owner"
       },
@@ -450,21 +450,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/name",
+          "id": "property/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -477,21 +477,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
+          "id": "property/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
           "name": {
             "source": "address",
             "canonical": "address"
           },
           "wireName": "address",
           "type": {
-            "target": "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
+            "target": "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -508,9 +508,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address": {
+    "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address": {
       "kind": "model",
-      "id": "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
+      "id": "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
       "name": {
         "hint": "address"
       },
@@ -523,21 +523,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address/properties/street",
+          "id": "property/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address/properties/street",
           "name": {
             "source": "street",
             "canonical": "street"
           },
           "wireName": "street",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -554,9 +554,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/RefFirst/allOf/1/properties/data": {
+    "type/anonymous/components/schemas/RefFirst/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/anon/components/schemas/RefFirst/allOf/1/properties/data",
+      "id": "type/anonymous/components/schemas/RefFirst/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -569,21 +569,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RefFirst/allOf/1/properties/data/properties/ai",
+          "id": "property/openapi/components/schemas/RefFirst/allOf/1/properties/data/properties/ai",
           "name": {
             "source": "ai",
             "canonical": "ai"
           },
           "wireName": "ai",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -600,9 +600,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/RefIntoBranch/allOf/0": {
+    "type/anonymous/components/schemas/RefIntoBranch/allOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/RefIntoBranch/allOf/0",
+      "id": "type/anonymous/components/schemas/RefIntoBranch/allOf/0",
       "name": {
         "hint": "ref_into_branch"
       },
@@ -615,21 +615,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RefIntoBranch/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/RefIntoBranch/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/openapi/components/schemas/Meeting",
+            "target": "type/openapi/components/schemas/Meeting",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -646,9 +646,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/RefIntoBranch/allOf/1": {
+    "type/anonymous/components/schemas/RefIntoBranch/allOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/RefIntoBranch/allOf/1",
+      "id": "type/anonymous/components/schemas/RefIntoBranch/allOf/1",
       "name": {
         "hint": "ref_into_branch"
       },
@@ -661,21 +661,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RefIntoBranch/allOf/1/properties/data",
+          "id": "property/openapi/components/schemas/RefIntoBranch/allOf/1/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/openapi/components/schemas/Recording",
+            "target": "type/openapi/components/schemas/Recording",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -692,9 +692,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/SharedFirst/allOf/0": {
+    "type/anonymous/components/schemas/SharedFirst/allOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/SharedFirst/allOf/0",
+      "id": "type/anonymous/components/schemas/SharedFirst/allOf/0",
       "name": {
         "hint": "shared_first"
       },
@@ -707,21 +707,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/SharedFirst/allOf/0/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/SharedFirst/allOf/0/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -738,9 +738,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/SharedLast/allOf/1": {
+    "type/anonymous/components/schemas/SharedLast/allOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/SharedLast/allOf/1",
+      "id": "type/anonymous/components/schemas/SharedLast/allOf/1",
       "name": {
         "hint": "shared_last"
       },
@@ -753,21 +753,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/SharedLast/allOf/1/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/SharedLast/allOf/1/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -784,9 +784,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/TitledAndModel/allOf/0/properties/data": {
+    "type/anonymous/components/schemas/TitledAndModel/allOf/0/properties/data": {
       "kind": "model",
-      "id": "t/anon/components/schemas/TitledAndModel/allOf/0/properties/data",
+      "id": "type/anonymous/components/schemas/TitledAndModel/allOf/0/properties/data",
       "name": {
         "hint": "held_on_the_composition"
       },
@@ -803,9 +803,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/TuplesOfModels/allOf/0/properties/data": {
+    "type/anonymous/components/schemas/TuplesOfModels/allOf/0/properties/data": {
       "kind": "tuple",
-      "id": "t/anon/components/schemas/TuplesOfModels/allOf/0/properties/data",
+      "id": "type/anonymous/components/schemas/TuplesOfModels/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -816,20 +816,20 @@
         "source": 0,
         "pointer": "/components/schemas/TuplesOfModels/allOf/0/properties/data"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/TuplesOfModels/allOf/1/properties/data": {
+    "type/anonymous/components/schemas/TuplesOfModels/allOf/1/properties/data": {
       "kind": "tuple",
-      "id": "t/anon/components/schemas/TuplesOfModels/allOf/1/properties/data",
+      "id": "type/anonymous/components/schemas/TuplesOfModels/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -840,20 +840,20 @@
         "source": 0,
         "pointer": "/components/schemas/TuplesOfModels/allOf/1/properties/data"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner": {
+    "type/anonymous/components/schemas/TwoCopies/allOf/0/properties/owner": {
       "kind": "model",
-      "id": "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner",
+      "id": "type/anonymous/components/schemas/TwoCopies/allOf/0/properties/owner",
       "name": {
         "hint": "owner"
       },
@@ -866,21 +866,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TwoCopies/allOf/0/properties/owner/properties/name",
+          "id": "property/openapi/components/schemas/TwoCopies/allOf/0/properties/owner/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -897,9 +897,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/TwoCopies/allOf/1/properties/owner": {
+    "type/anonymous/components/schemas/TwoCopies/allOf/1/properties/owner": {
       "kind": "model",
-      "id": "t/anon/components/schemas/TwoCopies/allOf/1/properties/owner",
+      "id": "type/anonymous/components/schemas/TwoCopies/allOf/1/properties/owner",
       "name": {
         "hint": "owner"
       },
@@ -912,21 +912,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TwoCopies/allOf/1/properties/owner/properties/name",
+          "id": "property/openapi/components/schemas/TwoCopies/allOf/1/properties/owner/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -943,9 +943,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/TwoInline/allOf/0/properties/data": {
+    "type/anonymous/components/schemas/TwoInline/allOf/0/properties/data": {
       "kind": "model",
-      "id": "t/anon/components/schemas/TwoInline/allOf/0/properties/data",
+      "id": "type/anonymous/components/schemas/TwoInline/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -958,21 +958,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TwoInline/allOf/0/properties/data/properties/first",
+          "id": "property/openapi/components/schemas/TwoInline/allOf/0/properties/data/properties/first",
           "name": {
             "source": "first",
             "canonical": "first"
           },
           "wireName": "first",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -989,9 +989,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/TwoInline/allOf/2/properties/data": {
+    "type/anonymous/components/schemas/TwoInline/allOf/2/properties/data": {
       "kind": "model",
-      "id": "t/anon/components/schemas/TwoInline/allOf/2/properties/data",
+      "id": "type/anonymous/components/schemas/TwoInline/allOf/2/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1004,21 +1004,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TwoInline/allOf/2/properties/data/properties/second",
+          "id": "property/openapi/components/schemas/TwoInline/allOf/2/properties/data/properties/second",
           "name": {
             "source": "second",
             "canonical": "second"
           },
           "wireName": "second",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1035,9 +1035,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/UnionThenModel/allOf/0/properties/data": {
+    "type/anonymous/components/schemas/UnionThenModel/allOf/0/properties/data": {
       "kind": "union",
-      "id": "t/anon/components/schemas/UnionThenModel/allOf/0/properties/data",
+      "id": "type/anonymous/components/schemas/UnionThenModel/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1054,7 +1054,7 @@
             "hint": "meeting"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Meeting",
+            "target": "type/openapi/components/schemas/Meeting",
             "nullable": false
           },
           "docs": {}
@@ -1064,7 +1064,7 @@
             "hint": "recording"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Recording",
+            "target": "type/openapi/components/schemas/Recording",
             "nullable": false
           },
           "docs": {}
@@ -1075,9 +1075,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data": {
+    "type/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1090,11 +1090,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/AtLeastTwoMembers",
+          "target": "type/openapi/components/schemas/AtLeastTwoMembers",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         }
       ],
@@ -1102,9 +1102,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet": {
+    "type/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet": {
       "kind": "model",
-      "id": "t/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet",
+      "id": "type/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet",
       "name": {
         "hint": "pet"
       },
@@ -1116,12 +1116,12 @@
         "pointer": "/components/schemas/DiscriminatedBase/allOf/1/properties/pet"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1129,9 +1129,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet": {
+    "type/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet": {
       "kind": "model",
-      "id": "t/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet",
+      "id": "type/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet",
       "name": {
         "hint": "pet"
       },
@@ -1143,12 +1143,12 @@
         "pointer": "/components/schemas/DiscriminatedFirst/allOf/1/properties/pet"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1156,9 +1156,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/InlineFirst/allOf/1/properties/data": {
+    "type/composed/components/schemas/InlineFirst/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/InlineFirst/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/InlineFirst/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1170,12 +1170,12 @@
         "pointer": "/components/schemas/InlineFirst/allOf/1/properties/data"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Meeting",
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/InlineFirst/allOf/0/properties/data",
+          "target": "type/anonymous/components/schemas/InlineFirst/allOf/0/properties/data",
           "nullable": false
         }
       ],
@@ -1183,9 +1183,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/KeptDefault/allOf/1/properties/data": {
+    "type/composed/components/schemas/KeptDefault/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/KeptDefault/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/KeptDefault/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1198,11 +1198,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1210,9 +1210,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data": {
+    "type/composed/components/schemas/ListsOfModels/allOf/1/properties/data": {
       "kind": "list",
-      "id": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/ListsOfModels/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1223,14 +1223,14 @@
         "source": 0,
         "pointer": "/components/schemas/ListsOfModels/allOf/1/properties/data"
       },
-      "elem": {
-        "target": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items",
+      "elementType": {
+        "target": "type/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items",
         "nullable": false
       }
     },
-    "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items": {
+    "type/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items": {
       "kind": "model",
-      "id": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items",
+      "id": "type/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items",
       "name": {
         "hint": "data_item"
       },
@@ -1243,11 +1243,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1255,9 +1255,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/MapThenModel/allOf/1/properties/data": {
+    "type/composed/components/schemas/MapThenModel/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/MapThenModel/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/MapThenModel/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1269,12 +1269,12 @@
         "pointer": "/components/schemas/MapThenModel/allOf/1/properties/data"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Meeting",
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/MapThenModel/allOf/0/properties/data",
+          "target": "type/anonymous/components/schemas/MapThenModel/allOf/0/properties/data",
           "nullable": false
         }
       ],
@@ -1282,9 +1282,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data": {
+    "type/composed/components/schemas/MapsOfModels/allOf/1/properties/data": {
       "kind": "map",
-      "id": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/MapsOfModels/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1296,13 +1296,13 @@
         "pointer": "/components/schemas/MapsOfModels/allOf/1/properties/data"
       },
       "value": {
-        "target": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties",
+        "target": "type/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties",
         "nullable": false
       }
     },
-    "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties": {
+    "type/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties": {
       "kind": "model",
-      "id": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties",
+      "id": "type/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties",
       "name": {
         "hint": "data_value"
       },
@@ -1315,11 +1315,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1327,9 +1327,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/ModelThenMap/allOf/1/properties/data": {
+    "type/composed/components/schemas/ModelThenMap/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/ModelThenMap/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/ModelThenMap/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1341,12 +1341,12 @@
         "pointer": "/components/schemas/ModelThenMap/allOf/1/properties/data"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Meeting",
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/ModelThenMap/allOf/1/properties/data",
+          "target": "type/anonymous/components/schemas/ModelThenMap/allOf/1/properties/data",
           "nullable": false
         }
       ],
@@ -1354,9 +1354,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/ModelThenUnion/allOf/1/properties/data": {
+    "type/composed/components/schemas/ModelThenUnion/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/ModelThenUnion/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/ModelThenUnion/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1368,12 +1368,12 @@
         "pointer": "/components/schemas/ModelThenUnion/allOf/1/properties/data"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Meeting",
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/ModelThenUnion/allOf/1/properties/data",
+          "target": "type/anonymous/components/schemas/ModelThenUnion/allOf/1/properties/data",
           "nullable": false
         }
       ],
@@ -1381,9 +1381,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/RefFirst/allOf/1/properties/data": {
+    "type/composed/components/schemas/RefFirst/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/RefFirst/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/RefFirst/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1395,12 +1395,12 @@
         "pointer": "/components/schemas/RefFirst/allOf/1/properties/data"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Meeting",
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/RefFirst/allOf/1/properties/data",
+          "target": "type/anonymous/components/schemas/RefFirst/allOf/1/properties/data",
           "nullable": false
         }
       ],
@@ -1408,9 +1408,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/RefIntoBranch/allOf/1/properties/data": {
+    "type/composed/components/schemas/RefIntoBranch/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/RefIntoBranch/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/RefIntoBranch/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1423,11 +1423,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1435,9 +1435,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data": {
+    "type/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1450,11 +1450,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1462,9 +1462,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/SharedFirst/allOf/1/properties/data": {
+    "type/composed/components/schemas/SharedFirst/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/SharedFirst/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/SharedFirst/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1476,16 +1476,16 @@
         "pointer": "/components/schemas/SharedFirst/allOf/1/properties/data"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1493,9 +1493,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data": {
+    "type/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data",
+      "id": "type/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1507,16 +1507,16 @@
         "pointer": "/components/schemas/SharedLast/allOf/1/allOf/0/properties/data"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1524,9 +1524,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data": {
+    "type/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1539,11 +1539,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1551,9 +1551,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/TitledAndModel/allOf/1/properties/data": {
+    "type/composed/components/schemas/TitledAndModel/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/TitledAndModel/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/TitledAndModel/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1565,12 +1565,12 @@
         "pointer": "/components/schemas/TitledAndModel/allOf/1/properties/data"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Meeting",
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/TitledAndModel/allOf/0/properties/data",
+          "target": "type/anonymous/components/schemas/TitledAndModel/allOf/0/properties/data",
           "nullable": false
         }
       ],
@@ -1578,9 +1578,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/TopAliasFirst/allOf/1/properties/data": {
+    "type/composed/components/schemas/TopAliasFirst/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/TopAliasFirst/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/TopAliasFirst/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1593,11 +1593,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1605,9 +1605,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/TopAliasLast/allOf/1/properties/data": {
+    "type/composed/components/schemas/TopAliasLast/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/TopAliasLast/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/TopAliasLast/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1620,11 +1620,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1632,9 +1632,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data": {
+    "type/composed/components/schemas/TuplesOfModels/allOf/1/properties/data": {
       "kind": "tuple",
-      "id": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/TuplesOfModels/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1645,20 +1645,20 @@
         "source": 0,
         "pointer": "/components/schemas/TuplesOfModels/allOf/1/properties/data"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0",
+          "target": "type/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0": {
+    "type/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0": {
       "kind": "model",
-      "id": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0",
+      "id": "type/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0",
       "name": {
         "hint": "data_0"
       },
@@ -1671,11 +1671,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1683,9 +1683,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/TwoComponents/allOf/1/properties/data": {
+    "type/composed/components/schemas/TwoComponents/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/TwoComponents/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/TwoComponents/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1698,11 +1698,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
+          "target": "type/openapi/components/schemas/Meeting",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "type/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1710,9 +1710,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/TwoInline/allOf/1/properties/data": {
+    "type/composed/components/schemas/TwoInline/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/TwoInline/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/TwoInline/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1725,11 +1725,11 @@
       },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/TwoInline/allOf/0/properties/data",
+          "target": "type/anonymous/components/schemas/TwoInline/allOf/0/properties/data",
           "nullable": false
         },
         {
-          "target": "t/anon/components/schemas/TwoInline/allOf/2/properties/data",
+          "target": "type/anonymous/components/schemas/TwoInline/allOf/2/properties/data",
           "nullable": false
         }
       ],
@@ -1737,9 +1737,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/UnionThenModel/allOf/1/properties/data": {
+    "type/composed/components/schemas/UnionThenModel/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/UnionThenModel/allOf/1/properties/data",
+      "id": "type/composed/components/schemas/UnionThenModel/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -1751,12 +1751,12 @@
         "pointer": "/components/schemas/UnionThenModel/allOf/1/properties/data"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Meeting",
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/UnionThenModel/allOf/0/properties/data",
+          "target": "type/anonymous/components/schemas/UnionThenModel/allOf/0/properties/data",
           "nullable": false
         }
       ],
@@ -1764,9 +1764,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/AliasAndModel": {
+    "type/openapi/components/schemas/AliasAndModel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/AliasAndModel",
+      "id": "type/openapi/components/schemas/AliasAndModel",
       "name": {
         "source": "AliasAndModel",
         "canonical": "alias_and_model"
@@ -1780,21 +1780,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/AliasAndModel/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/AliasAndModel/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/openapi/components/schemas/MeetingAlias",
+            "target": "type/openapi/components/schemas/MeetingAlias",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1813,9 +1813,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/AnyObject": {
+    "type/openapi/components/schemas/AnyObject": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/AnyObject",
+      "id": "type/openapi/components/schemas/AnyObject",
       "name": {
         "source": "AnyObject",
         "canonical": "any_object"
@@ -1831,9 +1831,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Anything": {
+    "type/openapi/components/schemas/Anything": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Anything",
+      "id": "type/openapi/components/schemas/Anything",
       "name": {
         "source": "Anything",
         "canonical": "anything"
@@ -1848,13 +1848,13 @@
         "pointer": "/components/schemas/Anything"
       },
       "base": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/AtLeastTwoMembers": {
+    "type/openapi/components/schemas/AtLeastTwoMembers": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/AtLeastTwoMembers",
+      "id": "type/openapi/components/schemas/AtLeastTwoMembers",
       "name": {
         "source": "AtLeastTwoMembers",
         "canonical": "at_least_two_members"
@@ -1867,20 +1867,20 @@
         "pointer": "/components/schemas/AtLeastTwoMembers"
       },
       "base": {
-        "target": "t/openapi/components/schemas/AnyObject",
+        "target": "type/openapi/components/schemas/AnyObject",
         "nullable": false
       },
       "constraints": {
         "uniqueItems": false,
-        "minProps": 2
+        "minProperties": 2
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BareAndModel": {
+    "type/openapi/components/schemas/BareAndModel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BareAndModel",
+      "id": "type/openapi/components/schemas/BareAndModel",
       "name": {
         "source": "BareAndModel",
         "canonical": "bare_and_model"
@@ -1894,21 +1894,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BareAndModel/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/BareAndModel/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/openapi/components/schemas/Meeting",
+            "target": "type/openapi/components/schemas/Meeting",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1925,9 +1925,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BranchUser": {
+    "type/openapi/components/schemas/BranchUser": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BranchUser",
+      "id": "type/openapi/components/schemas/BranchUser",
       "name": {
         "source": "BranchUser",
         "canonical": "branch_user"
@@ -1941,21 +1941,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BranchUser/properties/branch",
+          "id": "property/openapi/components/schemas/BranchUser/properties/branch",
           "name": {
             "source": "branch",
             "canonical": "branch"
           },
           "wireName": "branch",
           "type": {
-            "target": "t/anon/components/schemas/RefIntoBranch/allOf/0",
+            "target": "type/anonymous/components/schemas/RefIntoBranch/allOf/0",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1968,21 +1968,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/BranchUser/properties/other",
+          "id": "property/openapi/components/schemas/BranchUser/properties/other",
           "name": {
             "source": "other",
             "canonical": "other"
           },
           "wireName": "other",
           "type": {
-            "target": "t/anon/components/schemas/RefIntoBranch/allOf/1",
+            "target": "type/anonymous/components/schemas/RefIntoBranch/allOf/1",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1999,9 +1999,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ConstrainedAliasAndBare": {
+    "type/openapi/components/schemas/ConstrainedAliasAndBare": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ConstrainedAliasAndBare",
+      "id": "type/openapi/components/schemas/ConstrainedAliasAndBare",
       "name": {
         "source": "ConstrainedAliasAndBare",
         "canonical": "constrained_alias_and_bare"
@@ -2015,21 +2015,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ConstrainedAliasAndBare/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/ConstrainedAliasAndBare/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/openapi/components/schemas/AtLeastTwoMembers",
+            "target": "type/openapi/components/schemas/AtLeastTwoMembers",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2046,9 +2046,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ConstrainedAliasAndModel": {
+    "type/openapi/components/schemas/ConstrainedAliasAndModel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ConstrainedAliasAndModel",
+      "id": "type/openapi/components/schemas/ConstrainedAliasAndModel",
       "name": {
         "source": "ConstrainedAliasAndModel",
         "canonical": "constrained_alias_and_model"
@@ -2062,21 +2062,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ConstrainedAliasAndModel/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/ConstrainedAliasAndModel/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2093,9 +2093,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/CopyThenOwner": {
+    "type/openapi/components/schemas/CopyThenOwner": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/CopyThenOwner",
+      "id": "type/openapi/components/schemas/CopyThenOwner",
       "name": {
         "source": "CopyThenOwner",
         "canonical": "copy_then_owner"
@@ -2109,21 +2109,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner",
+          "id": "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner",
           "name": {
             "source": "owner",
             "canonical": "owner"
           },
           "wireName": "owner",
           "type": {
-            "target": "t/openapi/components/schemas/Owner",
+            "target": "type/openapi/components/schemas/Owner",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2140,9 +2140,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/DiscriminatedBase": {
+    "type/openapi/components/schemas/DiscriminatedBase": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/DiscriminatedBase",
+      "id": "type/openapi/components/schemas/DiscriminatedBase",
       "name": {
         "source": "DiscriminatedBase",
         "canonical": "discriminated_base"
@@ -2156,21 +2156,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/DiscriminatedBase/allOf/0/properties/pet",
+          "id": "property/openapi/components/schemas/DiscriminatedBase/allOf/0/properties/pet",
           "name": {
             "source": "pet",
             "canonical": "pet"
           },
           "wireName": "pet",
           "type": {
-            "target": "t/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet",
+            "target": "type/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2187,9 +2187,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/DiscriminatedFirst": {
+    "type/openapi/components/schemas/DiscriminatedFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/DiscriminatedFirst",
+      "id": "type/openapi/components/schemas/DiscriminatedFirst",
       "name": {
         "source": "DiscriminatedFirst",
         "canonical": "discriminated_first"
@@ -2203,21 +2203,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/DiscriminatedFirst/allOf/0/properties/pet",
+          "id": "property/openapi/components/schemas/DiscriminatedFirst/allOf/0/properties/pet",
           "name": {
             "source": "pet",
             "canonical": "pet"
           },
           "wireName": "pet",
           "type": {
-            "target": "t/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet",
+            "target": "type/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2234,9 +2234,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Dog": {
+    "type/openapi/components/schemas/Dog": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Dog",
+      "id": "type/openapi/components/schemas/Dog",
       "name": {
         "source": "Dog",
         "canonical": "dog"
@@ -2250,21 +2250,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Dog/allOf/1/properties/barks",
+          "id": "property/openapi/components/schemas/Dog/allOf/1/properties/barks",
           "name": {
             "source": "barks",
             "canonical": "barks"
           },
           "wireName": "barks",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2278,7 +2278,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
@@ -2286,9 +2286,9 @@
       "discriminatorValue": "Dog",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/FirstWrapperUser": {
+    "type/openapi/components/schemas/FirstWrapperUser": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/FirstWrapperUser",
+      "id": "type/openapi/components/schemas/FirstWrapperUser",
       "name": {
         "source": "FirstWrapperUser",
         "canonical": "first_wrapper_user"
@@ -2302,21 +2302,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/FirstWrapperUser/properties/wrapper",
+          "id": "property/openapi/components/schemas/FirstWrapperUser/properties/wrapper",
           "name": {
             "source": "wrapper",
             "canonical": "wrapper"
           },
           "wireName": "wrapper",
           "type": {
-            "target": "t/anon/components/schemas/SharedFirst/allOf/0",
+            "target": "type/anonymous/components/schemas/SharedFirst/allOf/0",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2333,9 +2333,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/InlineFirst": {
+    "type/openapi/components/schemas/InlineFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/InlineFirst",
+      "id": "type/openapi/components/schemas/InlineFirst",
       "name": {
         "source": "InlineFirst",
         "canonical": "inline_first"
@@ -2349,21 +2349,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/InlineFirst/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/InlineFirst/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/InlineFirst/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/InlineFirst/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2380,9 +2380,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/KeptDefault": {
+    "type/openapi/components/schemas/KeptDefault": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/KeptDefault",
+      "id": "type/openapi/components/schemas/KeptDefault",
       "name": {
         "source": "KeptDefault",
         "canonical": "kept_default"
@@ -2396,21 +2396,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/KeptDefault/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/KeptDefault/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/KeptDefault/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/KeptDefault/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2442,9 +2442,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/LastWrapperUser": {
+    "type/openapi/components/schemas/LastWrapperUser": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/LastWrapperUser",
+      "id": "type/openapi/components/schemas/LastWrapperUser",
       "name": {
         "source": "LastWrapperUser",
         "canonical": "last_wrapper_user"
@@ -2458,21 +2458,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/LastWrapperUser/properties/wrapper",
+          "id": "property/openapi/components/schemas/LastWrapperUser/properties/wrapper",
           "name": {
             "source": "wrapper",
             "canonical": "wrapper"
           },
           "wireName": "wrapper",
           "type": {
-            "target": "t/anon/components/schemas/SharedLast/allOf/1",
+            "target": "type/anonymous/components/schemas/SharedLast/allOf/1",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2489,9 +2489,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ListsOfModels": {
+    "type/openapi/components/schemas/ListsOfModels": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ListsOfModels",
+      "id": "type/openapi/components/schemas/ListsOfModels",
       "name": {
         "source": "ListsOfModels",
         "canonical": "lists_of_models"
@@ -2505,21 +2505,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ListsOfModels/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/ListsOfModels/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/ListsOfModels/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2536,9 +2536,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/MapThenModel": {
+    "type/openapi/components/schemas/MapThenModel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/MapThenModel",
+      "id": "type/openapi/components/schemas/MapThenModel",
       "name": {
         "source": "MapThenModel",
         "canonical": "map_then_model"
@@ -2552,21 +2552,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/MapThenModel/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/MapThenModel/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/MapThenModel/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/MapThenModel/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2583,9 +2583,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/MapsOfModels": {
+    "type/openapi/components/schemas/MapsOfModels": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/MapsOfModels",
+      "id": "type/openapi/components/schemas/MapsOfModels",
       "name": {
         "source": "MapsOfModels",
         "canonical": "maps_of_models"
@@ -2599,21 +2599,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/MapsOfModels/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/MapsOfModels/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/MapsOfModels/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2630,9 +2630,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Meeting": {
+    "type/openapi/components/schemas/Meeting": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Meeting",
+      "id": "type/openapi/components/schemas/Meeting",
       "name": {
         "source": "Meeting",
         "canonical": "meeting"
@@ -2646,21 +2646,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Meeting/properties/id",
+          "id": "property/openapi/components/schemas/Meeting/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2677,9 +2677,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/MeetingAlias": {
+    "type/openapi/components/schemas/MeetingAlias": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/MeetingAlias",
+      "id": "type/openapi/components/schemas/MeetingAlias",
       "name": {
         "source": "MeetingAlias",
         "canonical": "meeting_alias"
@@ -2694,16 +2694,16 @@
         "pointer": "/components/schemas/MeetingAlias"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Meeting",
+        "target": "type/openapi/components/schemas/Meeting",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ModelThenMap": {
+    "type/openapi/components/schemas/ModelThenMap": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ModelThenMap",
+      "id": "type/openapi/components/schemas/ModelThenMap",
       "name": {
         "source": "ModelThenMap",
         "canonical": "model_then_map"
@@ -2717,21 +2717,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ModelThenMap/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/ModelThenMap/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/ModelThenMap/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/ModelThenMap/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2748,9 +2748,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ModelThenUnion": {
+    "type/openapi/components/schemas/ModelThenUnion": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ModelThenUnion",
+      "id": "type/openapi/components/schemas/ModelThenUnion",
       "name": {
         "source": "ModelThenUnion",
         "canonical": "model_then_union"
@@ -2764,21 +2764,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ModelThenUnion/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/ModelThenUnion/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/ModelThenUnion/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/ModelThenUnion/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2795,9 +2795,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Owner": {
+    "type/openapi/components/schemas/Owner": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Owner",
+      "id": "type/openapi/components/schemas/Owner",
       "name": {
         "source": "Owner",
         "canonical": "owner"
@@ -2811,21 +2811,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Owner/properties/name",
+          "id": "property/openapi/components/schemas/Owner/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2838,21 +2838,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Owner/properties/address",
+          "id": "property/openapi/components/schemas/Owner/properties/address",
           "name": {
             "source": "address",
             "canonical": "address"
           },
           "wireName": "address",
           "type": {
-            "target": "t/anon/components/schemas/Owner/properties/address",
+            "target": "type/anonymous/components/schemas/Owner/properties/address",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2869,9 +2869,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/OwnerThenCopy": {
+    "type/openapi/components/schemas/OwnerThenCopy": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/OwnerThenCopy",
+      "id": "type/openapi/components/schemas/OwnerThenCopy",
       "name": {
         "source": "OwnerThenCopy",
         "canonical": "owner_then_copy"
@@ -2885,21 +2885,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/0/properties/owner",
+          "id": "property/openapi/components/schemas/OwnerThenCopy/allOf/0/properties/owner",
           "name": {
             "source": "owner",
             "canonical": "owner"
           },
           "wireName": "owner",
           "type": {
-            "target": "t/openapi/components/schemas/Owner",
+            "target": "type/openapi/components/schemas/Owner",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2916,9 +2916,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Pet": {
+    "type/openapi/components/schemas/Pet": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Pet",
+      "id": "type/openapi/components/schemas/Pet",
       "name": {
         "source": "Pet",
         "canonical": "pet"
@@ -2932,21 +2932,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Pet/properties/kind",
+          "id": "property/openapi/components/schemas/Pet/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2962,14 +2962,14 @@
       "abstract": false,
       "positional": false,
       "discriminator": {
-        "property": "p/openapi/components/schemas/Pet/properties/kind",
+        "property": "property/openapi/components/schemas/Pet/properties/kind",
         "inferred": false
       },
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Recording": {
+    "type/openapi/components/schemas/Recording": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Recording",
+      "id": "type/openapi/components/schemas/Recording",
       "name": {
         "source": "Recording",
         "canonical": "recording"
@@ -2983,21 +2983,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Recording/properties/url",
+          "id": "property/openapi/components/schemas/Recording/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3014,9 +3014,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RefFirst": {
+    "type/openapi/components/schemas/RefFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RefFirst",
+      "id": "type/openapi/components/schemas/RefFirst",
       "name": {
         "source": "RefFirst",
         "canonical": "ref_first"
@@ -3030,21 +3030,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RefFirst/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/RefFirst/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/RefFirst/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/RefFirst/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3061,9 +3061,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RefIntoBranch": {
+    "type/openapi/components/schemas/RefIntoBranch": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RefIntoBranch",
+      "id": "type/openapi/components/schemas/RefIntoBranch",
       "name": {
         "source": "RefIntoBranch",
         "canonical": "ref_into_branch"
@@ -3077,21 +3077,21 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/RefIntoBranch/allOf/1/properties/data",
+          "id": "property/composed/components/schemas/RefIntoBranch/allOf/1/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/RefIntoBranch/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/RefIntoBranch/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3108,9 +3108,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/SharedFirst": {
+    "type/openapi/components/schemas/SharedFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/SharedFirst",
+      "id": "type/openapi/components/schemas/SharedFirst",
       "name": {
         "source": "SharedFirst",
         "canonical": "shared_first"
@@ -3124,21 +3124,21 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/SharedFirst/allOf/1/properties/data",
+          "id": "property/composed/components/schemas/SharedFirst/allOf/1/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/SharedFirst/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/SharedFirst/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3155,9 +3155,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/SharedLast": {
+    "type/openapi/components/schemas/SharedLast": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/SharedLast",
+      "id": "type/openapi/components/schemas/SharedLast",
       "name": {
         "source": "SharedLast",
         "canonical": "shared_last"
@@ -3171,21 +3171,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/SharedLast/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/SharedLast/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data",
+            "target": "type/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3202,9 +3202,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/SubtypeAndBase": {
+    "type/openapi/components/schemas/SubtypeAndBase": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/SubtypeAndBase",
+      "id": "type/openapi/components/schemas/SubtypeAndBase",
       "name": {
         "source": "SubtypeAndBase",
         "canonical": "subtype_and_base"
@@ -3218,21 +3218,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/SubtypeAndBase/allOf/0/properties/pet",
+          "id": "property/openapi/components/schemas/SubtypeAndBase/allOf/0/properties/pet",
           "name": {
             "source": "pet",
             "canonical": "pet"
           },
           "wireName": "pet",
           "type": {
-            "target": "t/openapi/components/schemas/Dog",
+            "target": "type/openapi/components/schemas/Dog",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3249,9 +3249,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/TitledAndModel": {
+    "type/openapi/components/schemas/TitledAndModel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/TitledAndModel",
+      "id": "type/openapi/components/schemas/TitledAndModel",
       "name": {
         "source": "TitledAndModel",
         "canonical": "titled_and_model"
@@ -3265,21 +3265,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TitledAndModel/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/TitledAndModel/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/TitledAndModel/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/TitledAndModel/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3296,9 +3296,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/TopAliasFirst": {
+    "type/openapi/components/schemas/TopAliasFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/TopAliasFirst",
+      "id": "type/openapi/components/schemas/TopAliasFirst",
       "name": {
         "source": "TopAliasFirst",
         "canonical": "top_alias_first"
@@ -3312,21 +3312,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TopAliasFirst/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/TopAliasFirst/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/TopAliasFirst/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/TopAliasFirst/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3345,9 +3345,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/TopAliasLast": {
+    "type/openapi/components/schemas/TopAliasLast": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/TopAliasLast",
+      "id": "type/openapi/components/schemas/TopAliasLast",
       "name": {
         "source": "TopAliasLast",
         "canonical": "top_alias_last"
@@ -3361,21 +3361,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TopAliasLast/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/TopAliasLast/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/TopAliasLast/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/TopAliasLast/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3394,9 +3394,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/TuplesOfModels": {
+    "type/openapi/components/schemas/TuplesOfModels": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/TuplesOfModels",
+      "id": "type/openapi/components/schemas/TuplesOfModels",
       "name": {
         "source": "TuplesOfModels",
         "canonical": "tuples_of_models"
@@ -3410,21 +3410,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TuplesOfModels/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/TuplesOfModels/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/TuplesOfModels/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3441,9 +3441,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/TwoComponents": {
+    "type/openapi/components/schemas/TwoComponents": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/TwoComponents",
+      "id": "type/openapi/components/schemas/TwoComponents",
       "name": {
         "source": "TwoComponents",
         "canonical": "two_components"
@@ -3457,21 +3457,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TwoComponents/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/TwoComponents/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/TwoComponents/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/TwoComponents/allOf/1/properties/data",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3488,9 +3488,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/TwoCopies": {
+    "type/openapi/components/schemas/TwoCopies": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/TwoCopies",
+      "id": "type/openapi/components/schemas/TwoCopies",
       "name": {
         "source": "TwoCopies",
         "canonical": "two_copies"
@@ -3504,21 +3504,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TwoCopies/allOf/0/properties/owner",
+          "id": "property/openapi/components/schemas/TwoCopies/allOf/0/properties/owner",
           "name": {
             "source": "owner",
             "canonical": "owner"
           },
           "wireName": "owner",
           "type": {
-            "target": "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner",
+            "target": "type/anonymous/components/schemas/TwoCopies/allOf/0/properties/owner",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3535,9 +3535,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/TwoInline": {
+    "type/openapi/components/schemas/TwoInline": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/TwoInline",
+      "id": "type/openapi/components/schemas/TwoInline",
       "name": {
         "source": "TwoInline",
         "canonical": "two_inline"
@@ -3551,21 +3551,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TwoInline/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/TwoInline/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/TwoInline/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/TwoInline/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3582,9 +3582,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/UnionThenModel": {
+    "type/openapi/components/schemas/UnionThenModel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/UnionThenModel",
+      "id": "type/openapi/components/schemas/UnionThenModel",
       "name": {
         "source": "UnionThenModel",
         "canonical": "union_then_model"
@@ -3598,21 +3598,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/UnionThenModel/allOf/0/properties/data",
+          "id": "property/openapi/components/schemas/UnionThenModel/allOf/0/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/UnionThenModel/allOf/1/properties/data",
+            "target": "type/composed/components/schemas/UnionThenModel/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -3629,9 +3629,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -3639,11 +3639,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/bool": {
+    "type/primitive/bool": {
       "kind": "primitive",
-      "id": "t/prim/bool",
+      "id": "type/primitive/bool",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -3651,11 +3651,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bool"
+      "primitiveKind": "bool"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -3663,7 +3663,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

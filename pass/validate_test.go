@@ -27,9 +27,9 @@ func validDoc() *ir.Document {
 	return &ir.Document{
 		IRVersion: ir.IRVersion, Name: "t", Version: "1",
 		Types: ir.TypeRegistry{
-			"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: "string"},
-			"t/m": &ir.Model{ID: "t/m", Properties: []ir.Property{
-				{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"}},
+			"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: "string"},
+			"type/m": &ir.Model{ID: "type/m", Properties: []ir.Property{
+				{ID: "property/m/a", WireName: "a", Type: ir.TypeRef{Target: "type/primitive/string"}},
 			}},
 		},
 	}
@@ -173,8 +173,8 @@ func TestValidate_SharedRouteIsLegal(t *testing.T) {
 func TestValidator_RunHandsBackItsInputWithValidatesFindings(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/m"] = &ir.Model{ID: "t/m", Properties: []ir.Property{
-		{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/missing"}},
+	doc.Types["type/m"] = &ir.Model{ID: "type/m", Properties: []ir.Property{
+		{ID: "property/m/a", WireName: "a", Type: ir.TypeRef{Target: "type/missing"}},
 	}}
 	want := validated(t, doc)
 	require.Contains(t, irtest.DiagCodes(want), "ir/dangling-type-ref")
@@ -195,8 +195,8 @@ func TestValidator_RunHandsBackItsInputWithValidatesFindings(t *testing.T) {
 // declares, so a whole Validate reports it.
 func danglingDoc() *ir.Document {
 	doc := validDoc()
-	doc.Types["t/m"] = &ir.Model{ID: "t/m", Properties: []ir.Property{
-		{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/missing"}},
+	doc.Types["type/m"] = &ir.Model{ID: "type/m", Properties: []ir.Property{
+		{ID: "property/m/a", WireName: "a", Type: ir.TypeRef{Target: "type/missing"}},
 	}}
 	return doc
 }

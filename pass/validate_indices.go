@@ -31,7 +31,7 @@ func checkResponseIndices(doc *ir.Document) []ir.Diagnostic {
 // HTTP binding i of operation op that addresses none of the declared responses,
 // in ascending key order so map iteration cannot reach the output. Only the
 // keys reported are sorted, and only their location spelled.
-func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared int, op ir.OpID, i int) []ir.Diagnostic {
+func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared int, op ir.OperationID, i int) []ir.Diagnostic {
 	var outside []int
 	for index := range status {
 		if index < 0 || index >= declared {

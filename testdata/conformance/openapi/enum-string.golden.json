@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "EnumString",
         "canonical": "enum_string"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Color": {
+    "type/openapi/components/schemas/Color": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Color",
+      "id": "type/openapi/components/schemas/Color",
       "name": {
         "source": "Color",
         "canonical": "color"
@@ -76,38 +76,38 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/Color/s:red",
+          "id": "enum-member/openapi/components/schemas/Color/string:red",
           "name": {
             "source": "red",
             "canonical": "red"
           },
           "value": {
             "kind": "string",
-            "str": "red"
+            "string": "red"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/Color/s:green",
+          "id": "enum-member/openapi/components/schemas/Color/string:green",
           "name": {
             "source": "green",
             "canonical": "green"
           },
           "value": {
             "kind": "string",
-            "str": "green"
+            "string": "green"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/Color/s:blue",
+          "id": "enum-member/openapi/components/schemas/Color/string:blue",
           "name": {
             "source": "blue",
             "canonical": "blue"
           },
           "value": {
             "kind": "string",
-            "str": "blue"
+            "string": "blue"
           },
           "docs": {}
         }
@@ -115,9 +115,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Pinned": {
+    "type/openapi/components/schemas/Pinned": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Pinned",
+      "id": "type/openapi/components/schemas/Pinned",
       "name": {
         "source": "Pinned",
         "canonical": "pinned"
@@ -132,14 +132,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/Pinned/s:only",
+          "id": "enum-member/openapi/components/schemas/Pinned/string:only",
           "name": {
             "source": "only",
             "canonical": "only"
           },
           "value": {
             "kind": "string",
-            "str": "only"
+            "string": "only"
           },
           "docs": {}
         }

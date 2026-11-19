@@ -20,44 +20,44 @@ import (
 //
 // No row maps to its bare type's kind, which would leave the format nowhere
 // (TestFormatTable_EveryRowDistinguishesTheBareType).
-var formatTable = map[string]ir.PrimKind{
-	"string":                 ir.PrimString,
-	"string/date":            ir.PrimDate,
-	"string/time-local":      ir.PrimTime,
-	"string/duration":        ir.PrimDuration,
-	"string/uuid":            ir.PrimUUID,
-	"string/uri":             ir.PrimURL,
-	"string/date-time":       ir.PrimDatetimeOffset,
-	"string/date-time-local": ir.PrimDatetime,
-	"string/binary":          ir.PrimBytes,
-	"integer":                ir.PrimInteger,
-	"integer/int8":           ir.PrimInt8,
-	"integer/int16":          ir.PrimInt16,
-	"integer/int32":          ir.PrimInt32,
-	"integer/int64":          ir.PrimInt64,
-	"integer/uint8":          ir.PrimUint8,
-	"integer/uint16":         ir.PrimUint16,
-	"integer/uint32":         ir.PrimUint32,
-	"integer/uint64":         ir.PrimUint64,
-	"number":                 ir.PrimNumber,
-	"number/int8":            ir.PrimInt8,
-	"number/int16":           ir.PrimInt16,
-	"number/int32":           ir.PrimInt32,
-	"number/int64":           ir.PrimInt64,
-	"number/uint8":           ir.PrimUint8,
-	"number/uint16":          ir.PrimUint16,
-	"number/uint32":          ir.PrimUint32,
-	"number/uint64":          ir.PrimUint64,
-	"number/float":           ir.PrimFloat32,
-	"number/double":          ir.PrimFloat64,
-	"number/decimal":         ir.PrimDecimal,
-	"number/decimal128":      ir.PrimDecimal128,
-	"boolean":                ir.PrimBool,
+var formatTable = map[string]ir.PrimitiveKind{
+	"string":                 ir.PrimitiveString,
+	"string/date":            ir.PrimitiveDate,
+	"string/time-local":      ir.PrimitiveTime,
+	"string/duration":        ir.PrimitiveDuration,
+	"string/uuid":            ir.PrimitiveUUID,
+	"string/uri":             ir.PrimitiveURL,
+	"string/date-time":       ir.PrimitiveDatetimeOffset,
+	"string/date-time-local": ir.PrimitiveDatetime,
+	"string/binary":          ir.PrimitiveBytes,
+	"integer":                ir.PrimitiveInteger,
+	"integer/int8":           ir.PrimitiveInt8,
+	"integer/int16":          ir.PrimitiveInt16,
+	"integer/int32":          ir.PrimitiveInt32,
+	"integer/int64":          ir.PrimitiveInt64,
+	"integer/uint8":          ir.PrimitiveUint8,
+	"integer/uint16":         ir.PrimitiveUint16,
+	"integer/uint32":         ir.PrimitiveUint32,
+	"integer/uint64":         ir.PrimitiveUint64,
+	"number":                 ir.PrimitiveNumber,
+	"number/int8":            ir.PrimitiveInt8,
+	"number/int16":           ir.PrimitiveInt16,
+	"number/int32":           ir.PrimitiveInt32,
+	"number/int64":           ir.PrimitiveInt64,
+	"number/uint8":           ir.PrimitiveUint8,
+	"number/uint16":          ir.PrimitiveUint16,
+	"number/uint32":          ir.PrimitiveUint32,
+	"number/uint64":          ir.PrimitiveUint64,
+	"number/float":           ir.PrimitiveFloat32,
+	"number/double":          ir.PrimitiveFloat64,
+	"number/decimal":         ir.PrimitiveDecimal,
+	"number/decimal128":      ir.PrimitiveDecimal128,
+	"boolean":                ir.PrimitiveBool,
 }
 
 // Lookup returns the primitive a "type" or "type/format" key selects, and
 // whether the table has a row for it.
-func Lookup(key string) (ir.PrimKind, bool) {
+func Lookup(key string) (ir.PrimitiveKind, bool) {
 	prim, ok := formatTable[key]
 	return prim, ok
 }
@@ -66,12 +66,12 @@ func Lookup(key string) (ir.PrimKind, bool) {
 // the JSON type it is written on, in a text other than that primitive's own.
 type Encoded struct {
 	// Prim is the primitive the value is.
-	Prim ir.PrimKind
+	Prim ir.PrimitiveKind
 	// Encoding names the text, as docs/ir/constraints.md#encodings does.
 	Encoding string
 	// Wire is the primitive the value travels as, or "" where Prim's own
 	// spelling says it, as a datetime_offset travels as a string.
-	Wire ir.PrimKind
+	Wire ir.PrimitiveKind
 }
 
 // encodedTable maps a "type/format" key to the pairing it selects
@@ -84,12 +84,12 @@ type Encoded struct {
 // document came from. Its Wire is the JSON type it is written on, which tells
 // whole seconds from a fraction or a decimal text.
 var encodedTable = map[string]Encoded{
-	"string/byte":      {Prim: ir.PrimBytes, Encoding: "base64", Wire: ir.PrimString},
-	"string/base64url": {Prim: ir.PrimBytes, Encoding: "base64url", Wire: ir.PrimString},
-	"string/http-date": {Prim: ir.PrimDatetimeOffset, Encoding: "http-date"},
-	"integer/unixtime": {Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimInteger},
-	"number/unixtime":  {Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimNumber},
-	"string/unixtime":  {Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimString},
+	"string/byte":      {Prim: ir.PrimitiveBytes, Encoding: "base64", Wire: ir.PrimitiveString},
+	"string/base64url": {Prim: ir.PrimitiveBytes, Encoding: "base64url", Wire: ir.PrimitiveString},
+	"string/http-date": {Prim: ir.PrimitiveDatetimeOffset, Encoding: "http-date"},
+	"integer/unixtime": {Prim: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveInteger},
+	"number/unixtime":  {Prim: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveNumber},
+	"string/unixtime":  {Prim: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveString},
 }
 
 // LookupEncoded returns the pairing a "type/format" key selects, and whether
@@ -122,7 +122,7 @@ const (
 // admits 0), or when one is bytes and the other a string-spelled format.
 // Otherwise they are disjoint: different families, or two different string
 // formats, since no string satisfies the grammar of two.
-func Relate(a, b ir.PrimKind) Relation {
+func Relate(a, b ir.PrimitiveKind) Relation {
 	switch {
 	case a == b:
 		return Same
@@ -138,15 +138,15 @@ func Relate(a, b ir.PrimKind) Relation {
 }
 
 // narrows reports whether narrow is strictly within broad: by value domain
-// (ir.PrimKind.StrictlyWithin), or because narrow is a string-spelled format
+// (ir.PrimitiveKind.StrictlyWithin), or because narrow is a string-spelled format
 // and broad is string.
-func narrows(narrow, broad ir.PrimKind) bool {
-	return narrow.StrictlyWithin(broad) || (broad == ir.PrimString && refinesString(narrow))
+func narrows(narrow, broad ir.PrimitiveKind) bool {
+	return narrow.StrictlyWithin(broad) || (broad == ir.PrimitiveString && refinesString(narrow))
 }
 
 // refinesString reports whether some string/* row of the table selects k. The
 // edge set is read off the table rather than restated beside it.
-func refinesString(k ir.PrimKind) bool {
+func refinesString(k ir.PrimitiveKind) bool {
 	for key, prim := range formatTable {
 		if prim == k && strings.HasPrefix(key, "string/") {
 			return true
@@ -156,12 +156,12 @@ func refinesString(k ir.PrimKind) bool {
 }
 
 // numeric reports whether k is number or lies within it.
-func numeric(k ir.PrimKind) bool {
-	return k == ir.PrimNumber || k.StrictlyWithin(ir.PrimNumber)
+func numeric(k ir.PrimitiveKind) bool {
+	return k == ir.PrimitiveNumber || k.StrictlyWithin(ir.PrimitiveNumber)
 }
 
 // bytesAgainstFormat reports whether b is bytes and a is another
 // string-spelled format: octets may spell any string.
-func bytesAgainstFormat(a, b ir.PrimKind) bool {
-	return b == ir.PrimBytes && a != ir.PrimBytes && refinesString(a)
+func bytesAgainstFormat(a, b ir.PrimitiveKind) bool {
+	return b == ir.PrimitiveBytes && a != ir.PrimitiveBytes && refinesString(a)
 }

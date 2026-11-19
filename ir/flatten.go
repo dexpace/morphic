@@ -65,7 +65,7 @@ type PropertyDecl struct {
 // entry are read through alias scalars. The walk goes depth first, following a
 // model's Base, then Implements, then Mixins, and reads each model's own
 // properties after those of every model it composes that does not compose it
-// too: layout order. It reads the declarations [ExposedProps] reaches, one
+// too: layout order. It reads the declarations [ExposedProperties] reaches, one
 // member per wire name, a later declaration overriding an earlier one in its
 // place. A root naming no model has an empty shape; a cyclic composition is
 // read to its fixpoint. It writes nothing to types.
@@ -369,7 +369,7 @@ func (f *flattener) result() Flattening {
 func (f *flattener) flat(mb member) FlatProperty {
 	last := taken(mb.reads)
 	fp := FlatProperty{PropertyDecl: last, Required: f.required[last.Property.EffectiveWireName()]}
-	var listed map[PropID]bool
+	var listed map[PropertyID]bool
 	for _, d := range mb.reads {
 		fp.Required = fp.Required || d.Property.Required
 		fp.Secret = fp.Secret || d.Property.Secret || f.sensitive(d.Property.Type.Target)
@@ -380,7 +380,7 @@ func (f *flattener) flat(mb member) FlatProperty {
 			continue
 		}
 		if listed == nil {
-			listed = map[PropID]bool{}
+			listed = map[PropertyID]bool{}
 		}
 		listed[d.Property.ID] = true
 		fp.Overridden = append(fp.Overridden, d)

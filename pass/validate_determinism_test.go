@@ -28,7 +28,7 @@ type twoFinding struct {
 
 // operationsOf is validDoc holding an operation of each ID, in that order,
 // built by mk: the way a family that reads operations draws two findings.
-func operationsOf(mk func(id ir.OpID) ir.Operation, ids ...ir.OpID) *ir.Document {
+func operationsOf(mk func(id ir.OperationID) ir.Operation, ids ...ir.OperationID) *ir.Document {
 	ops := make([]ir.Operation, 0, len(ids))
 	for _, id := range ids {
 		ops = append(ops, mk(id))
@@ -52,8 +52,8 @@ func registryRow(name string) twoFinding {
 	for _, tc := range registryCases() {
 		if tc.name == name {
 			return twoFinding{
-				family: name, code: tc.code, want: []string{tc.at("t/b"), tc.at("t/z")},
-				doc: func() *ir.Document { return typesOf(tc.typeOf, "t/z", "t/b") },
+				family: name, code: tc.code, want: []string{tc.at("type/b"), tc.at("type/z")},
+				doc: func() *ir.Document { return typesOf(tc.typeOf, "type/z", "type/b") },
 			}
 		}
 	}
@@ -64,27 +64,27 @@ func registryRow(name string) twoFinding {
 // them. A family added without a row fails the length check below, so the new
 // family is held to one order the day it exists.
 var twoFindings = []twoFinding{
-	{family: "checkNilTypes", code: "ir/nil-type", want: []string{"types[t/b]", "types[t/z]"},
+	{family: "checkNilTypes", code: "ir/nil-type", want: []string{"types[type/b]", "types[type/z]"},
 		doc: func() *ir.Document {
-			return typesOf(func(ir.TypeID) ir.TypeDef { return (*ir.Model)(nil) }, "t/z", "t/b")
+			return typesOf(func(ir.TypeID) ir.TypeDef { return (*ir.Model)(nil) }, "type/z", "type/b")
 		}},
 	{family: "checkDanglingRefs", code: "ir/dangling-type-ref",
-		want: []string{"doc.Types[t/b].Properties[0].Type.Target", "doc.Types[t/z].Properties[0].Type.Target"},
+		want: []string{"document.Types[type/b].Properties[0].Type.Target", "document.Types[type/z].Properties[0].Type.Target"},
 		doc: func() *ir.Document {
 			return typesOf(func(id ir.TypeID) ir.TypeDef {
-				return &ir.Model{ID: id, Properties: []ir.Property{{ID: ir.PropID("p/" + id), WireName: "a", Type: ir.TypeRef{Target: "t/none"}}}}
-			}, "t/z", "t/b")
+				return &ir.Model{ID: id, Properties: []ir.Property{{ID: ir.PropertyID("property/" + id), WireName: "a", Type: ir.TypeRef{Target: "type/none"}}}}
+			}, "type/z", "type/b")
 		}},
 	{family: "checkEmptyRefs", code: "ir/empty-channel-ref",
-		want: []string{scenarioOpPath + ".Bindings.Message.Channel", "doc.Services[0].Groups[0].Operations[1].Bindings.Message.Channel"},
+		want: []string{scenarioOpPath + ".Bindings.Message.Channel", "document.Services[0].Groups[0].Operations[1].Bindings.Message.Channel"},
 		doc: func() *ir.Document {
-			return operationsOf(func(id ir.OpID) ir.Operation {
+			return operationsOf(func(id ir.OperationID) ir.Operation {
 				op := ir.Operation{ID: id}
-				op.Bindings.Message = &ir.MessageBinding{Direction: ir.MsgDirectionSend}
+				op.Bindings.Message = &ir.MessageBinding{Direction: ir.MessageDirectionSend}
 				return op
-			}, "op/z", "op/b")
+			}, "operation/z", "operation/b")
 		}},
-	{family: "checkGroupWalkTruncated", code: "ir/walk-truncated", want: []string{"doc"},
+	{family: "checkGroupWalkTruncated", code: "ir/walk-truncated", want: []string{"document"},
 		once: "a stopped walk of the groups is one finding, whatever its depth past the bound",
 		doc: func() *ir.Document {
 			return nestGroups(ir.MaxGroupDepth+1, ir.Operation{ID: "deep"})
@@ -93,43 +93,43 @@ var twoFindings = []twoFinding{
 		want: []string{"op/bindings/http/0/successStatus/1", "op/bindings/http/0/successStatus/3"},
 		doc:  func() *ir.Document { return opWithSuccessStatus(map[int]int{3: 203, 1: 201}) }},
 	{family: "checkEncodingKeys", code: "ir/encoding-key-unknown-property",
-		want: []string{"op/request/contents/0/encoding/p/m/b", "op/request/contents/0/encoding/p/m/z"},
+		want: []string{"op/request/contents/0/encoding/property/m/b", "op/request/contents/0/encoding/property/m/z"},
 		doc: func() *ir.Document {
 			doc := validDoc()
-			requestContent(doc).Encoding = map[ir.PropID]ir.PartEncoding{"p/m/z": {}, "p/m/b": {}}
+			requestContent(doc).Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/z": {}, "property/m/b": {}}
 			return doc
 		}},
 	{family: "checkCatchAllEncodingKeys", code: "ir/encoding-key-unknown-catch-all",
-		want: []string{"op/request/contents/0/catchAllEncoding/t/b", "op/request/contents/0/catchAllEncoding/t/z"},
+		want: []string{"op/request/contents/0/catchAllEncoding/type/b", "op/request/contents/0/catchAllEncoding/type/z"},
 		doc: func() *ir.Document {
 			doc := validDoc()
-			value := &ir.PartEncoding{Filename: true}
+			value := &ir.PartEncoding{HasFilename: true}
 			// Two declared models holding no catch-all: a key naming no type is the
 			// dangling check's.
-			doc.Types["t/z"], doc.Types["t/b"] = &ir.Model{ID: "t/z"}, &ir.Model{ID: "t/b"}
-			requestContent(doc).CatchAllEncoding = map[ir.TypeID]ir.CatchAllParts{"t/z": {Value: value}, "t/b": {Value: value}}
+			doc.Types["type/z"], doc.Types["type/b"] = &ir.Model{ID: "type/z"}, &ir.Model{ID: "type/b"}
+			requestContent(doc).CatchAllEncoding = map[ir.TypeID]ir.CatchAllParts{"type/z": {Value: value}, "type/b": {Value: value}}
 			return doc
 		}},
 	{family: "checkPayloadRequired", code: "ir/payload-required-outside-request",
-		want: []string{"op/z/responses/0", "op/b/responses/0"},
+		want: []string{"operation/z/responses/0", "operation/b/responses/0"},
 		doc: func() *ir.Document {
-			return operationsOf(func(id ir.OpID) ir.Operation {
+			return operationsOf(func(id ir.OperationID) ir.Operation {
 				payload := multipartPayload(nil)
 				payload.Required = new(false)
 				return ir.Operation{ID: id, Responses: []ir.Response{{Payload: &payload}}}
-			}, "op/z", "op/b")
+			}, "operation/z", "operation/b")
 		}},
-	{family: "checkPropIDRefs", code: "ir/dangling-prop-ref",
+	{family: "checkPropIDRefs", code: "ir/dangling-property-ref",
 		want: []string{
-			"doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].ResponseBodyPath.Segments[0]",
-			"doc.Services[0].Groups[0].Operations[1].Bindings.HTTP[0].ResponseBodyPath.Segments[0]",
+			"document.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].ResponseBodyPath.Segments[0]",
+			"document.Services[0].Groups[0].Operations[1].Bindings.HTTP[0].ResponseBodyPath.Segments[0]",
 		},
 		doc: func() *ir.Document {
-			return operationsOf(func(id ir.OpID) ir.Operation {
-				op := propPathOperation([]ir.PropID{"p/m/ghost"})
+			return operationsOf(func(id ir.OperationID) ir.Operation {
+				op := propPathOperation([]ir.PropertyID{"property/m/ghost"})
 				op.ID = id
 				return op
-			}, "op/z", "op/b")
+			}, "operation/z", "operation/b")
 		}},
 	registryRow("checkDiscriminators"),
 	registryRow("checkRepeatedVariants"),
@@ -137,65 +137,65 @@ var twoFindings = []twoFinding{
 	registryRow("checkAmbiguousAliases"),
 	registryRow("checkDuplicateMemberIDs"),
 	{family: "checkParams", code: "pass/param-binding-mismatch",
-		want: []string{"op/z/bindings/http/0", "op/b/bindings/http/0"},
+		want: []string{"operation/z/bindings/http/0", "operation/b/bindings/http/0"},
 		doc: func() *ir.Document {
-			return operationsOf(func(id ir.OpID) ir.Operation {
-				op := paramBindingOp(id, ir.Parameter{ID: ir.ParamID("param/" + id), Name: ir.Naming{Source: "q"}})
+			return operationsOf(func(id ir.OperationID) ir.Operation {
+				op := paramBindingOp(id, ir.Parameter{ID: ir.ParameterID("parameter/" + id), Name: ir.Naming{Source: "q"}})
 				op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings, op.Bindings.HTTP[0].ParamBindings[0])
 				return op
-			}, "op/z", "op/b")
+			}, "operation/z", "operation/b")
 		}},
 	{family: "checkIdempotency", code: "pass/idempotency-token-mismatch",
-		want: []string{"op/z/idempotency", "op/b/idempotency"},
+		want: []string{"operation/z/idempotency", "operation/b/idempotency"},
 		doc: func() *ir.Document {
-			return operationsOf(func(id ir.OpID) ir.Operation {
+			return operationsOf(func(id ir.OperationID) ir.Operation {
 				return ir.Operation{ID: id, Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken}}
-			}, "op/z", "op/b")
+			}, "operation/z", "operation/b")
 		}},
 	{family: "checkMessageBindings", code: "pass/message-not-in-channel",
-		want: []string{"op/z/bindings/message/messages/0", "op/b/bindings/message/messages/0"},
+		want: []string{"operation/z/bindings/message/messages/0", "operation/b/bindings/message/messages/0"},
 		doc: func() *ir.Document {
-			doc := messageBindingDoc("chan/a", []ir.MessageID{"msg/a"}, nil)
+			doc := messageBindingDoc("channel/a", []ir.MessageID{"message/a"}, nil)
 			doc.Services[0].Groups[0].Operations = nil
-			for _, id := range []ir.OpID{"op/z", "op/b"} {
+			for _, id := range []ir.OperationID{"operation/z", "operation/b"} {
 				op := ir.Operation{ID: id}
-				op.Bindings.Message = &ir.MessageBinding{Channel: "chan/a", Messages: []ir.MessageID{"msg/b"}}
+				op.Bindings.Message = &ir.MessageBinding{Channel: "channel/a", Messages: []ir.MessageID{"message/b"}}
 				doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations, op)
 			}
 			return doc
 		}},
 	{family: "checkOneWay", code: "pass/oneway-with-responses",
-		want: []string{"op/z", "op/b"},
+		want: []string{"operation/z", "operation/b"},
 		doc: func() *ir.Document {
-			return operationsOf(func(id ir.OpID) ir.Operation {
+			return operationsOf(func(id ir.OperationID) ir.Operation {
 				return ir.Operation{ID: id, OneWay: true, Responses: []ir.Response{{}}}
-			}, "op/z", "op/b")
+			}, "operation/z", "operation/b")
 		}},
 	{family: "checkDefaultResponses", code: "ir/default-response-conditions",
-		want: []string{"op/z/default", "op/b/default"},
+		want: []string{"operation/z/default", "operation/b/default"},
 		doc: func() *ir.Document {
-			return operationsOf(func(id ir.OpID) ir.Operation {
+			return operationsOf(func(id ir.OperationID) ir.Operation {
 				return ir.Operation{ID: id, Default: &ir.Response{}}
-			}, "op/z", "op/b")
+			}, "operation/z", "operation/b")
 		}},
 	registryRow("checkArgsOutsideGraphQL"),
 	// The families that read what a source says, in the order Validate runs
 	// them after the rest.
-	{family: "checkBounds", code: boundsCode, want: []string{"t/b", "t/z"},
+	{family: "checkBounds", code: boundsCode, want: []string{"type/b", "type/z"},
 		doc: func() *ir.Document {
 			return typesOf(func(id ir.TypeID) ir.TypeDef {
-				return &ir.List{ID: id, Elem: strT, Constraints: &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(1))}}
-			}, "t/z", "t/b")
+				return &ir.List{ID: id, ElementType: strT, Constraints: &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(1))}}
+			}, "type/z", "type/b")
 		}},
-	{family: "checkValues", code: exampleCode, want: []string{"t/b", "t/z"},
+	{family: "checkValues", code: exampleCode, want: []string{"type/b", "type/z"},
 		doc: func() *ir.Document {
 			return typesOf(func(id ir.TypeID) ir.TypeDef {
-				return &ir.List{ID: id, Elem: strT, Examples: []ir.Example{{Value: text("not a list")}}}
-			}, "t/z", "t/b")
+				return &ir.List{ID: id, ElementType: strT, Examples: []ir.Example{{Value: text("not a list")}}}
+			}, "type/z", "type/b")
 		}},
-	{family: "checkKnots", code: cycleCode, want: []string{"t/b", "t/z"},
+	{family: "checkCompositionCyclesAndInfiniteTypes", code: cycleCode, want: []string{"type/b", "type/z"},
 		doc: func() *ir.Document {
-			return typesOf(func(id ir.TypeID) ir.TypeDef { return composed(string(id), new(ref(string(id)))) }, "t/z", "t/b")
+			return typesOf(func(id ir.TypeID) ir.TypeDef { return composed(string(id), new(ref(string(id)))) }, "type/z", "type/b")
 		}},
 }
 

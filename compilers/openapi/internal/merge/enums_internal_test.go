@@ -27,12 +27,12 @@ func TestFold_TwoEnumsCostTheirWidth(t *testing.T) {
 		for i := range ms {
 			ms[i] = ir.EnumMember{Value: str("v" + strconv.Itoa(from+i))}
 		}
-		return &ir.Enum{ID: id, ValueType: ir.PrimString, Members: ms}
+		return &ir.Enum{ID: id, ValueType: ir.PrimitiveString, Members: ms}
 	}
 	cost := func(n int) float64 {
-		reg := map[ir.TypeID]ir.TypeDef{"t/x": enum("t/x", 0, n), "t/y": enum("t/y", n/2, n)}
+		reg := map[ir.TypeID]ir.TypeDef{"type/x": enum("type/x", 0, n), "type/y": enum("type/y", n/2, n)}
 		g, recorded := stubMerger(reg)
-		decls := declsOf("t/x", "t/y")
+		decls := declsOf("type/x", "type/y")
 		got := g.fold(decls)
 		e, ok := reg[got.Type.Target].(*ir.Enum)
 		require.True(t, ok)
@@ -83,17 +83,17 @@ func TestMemberIndex_FindsTheFirstMemberHoldingAValue(t *testing.T) {
 func valueTypedRegistry() map[ir.TypeID]ir.TypeDef {
 	reg := narrowingRegistry()
 	for n, e := range []struct {
-		kind   ir.PrimKind
+		kind   ir.PrimitiveKind
 		values []string
 	}{
-		{ir.PrimNumber, []string{"1", "2"}}, {ir.PrimInteger, []string{"1"}},
-		{ir.PrimNumber, []string{"1"}}, {ir.PrimInteger, []string{"1", "2"}},
-		{ir.PrimNumber, []string{"1", "2.5"}}, {ir.PrimInteger, []string{"1", "3"}},
-		{ir.PrimNumber, []string{"1", "2", "3"}}, {ir.PrimInteger, []string{"1", "2", "5"}},
-		{ir.PrimInt32, []string{"2", "3", "7"}}, {ir.PrimInt32, []string{"1", "2", "4"}},
-		{ir.PrimUint32, []string{"2", "3", "5"}},
+		{ir.PrimitiveNumber, []string{"1", "2"}}, {ir.PrimitiveInteger, []string{"1"}},
+		{ir.PrimitiveNumber, []string{"1"}}, {ir.PrimitiveInteger, []string{"1", "2"}},
+		{ir.PrimitiveNumber, []string{"1", "2.5"}}, {ir.PrimitiveInteger, []string{"1", "3"}},
+		{ir.PrimitiveNumber, []string{"1", "2", "3"}}, {ir.PrimitiveInteger, []string{"1", "2", "5"}},
+		{ir.PrimitiveInt32, []string{"2", "3", "7"}}, {ir.PrimitiveInt32, []string{"1", "2", "4"}},
+		{ir.PrimitiveUint32, []string{"2", "3", "5"}},
 	} {
-		id := ir.TypeID("t/" + string(e.kind) + "-" + strings.Join(e.values, ","))
+		id := ir.TypeID("type/" + string(e.kind) + "-" + strings.Join(e.values, ","))
 		members := make([]ir.EnumMember, len(e.values))
 		for k, v := range e.values {
 			members[k] = ir.EnumMember{Value: num(v)}
@@ -116,9 +116,9 @@ func TestFold_EnumsOfDifferentValueTypesAreJudgedByTheirValues(t *testing.T) {
 		within ir.TypeID // the field's type, or "" where the two meet
 		values []ir.Value
 	}{
-		{a: "t/number-1,2", b: "t/integer-1", within: "t/integer-1"},
-		{a: "t/number-1", b: "t/integer-1,2", values: []ir.Value{num("1")}},
-		{a: "t/number-1,2.5", b: "t/integer-1,3", values: []ir.Value{num("1")}},
+		{a: "type/number-1,2", b: "type/integer-1", within: "type/integer-1"},
+		{a: "type/number-1", b: "type/integer-1,2", values: []ir.Value{num("1")}},
+		{a: "type/number-1,2.5", b: "type/integer-1,3", values: []ir.Value{num("1")}},
 	} {
 		for _, order := range [][]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
 			reg := valueTypedRegistry()
@@ -136,7 +136,7 @@ func TestFold_EnumsOfDifferentValueTypesAreJudgedByTheirValues(t *testing.T) {
 			e, ok := reg[got.Type.Target].(*ir.Enum)
 			require.True(t, ok, "%v", order)
 			assert.Equal(t, composedAt(declaredAt(1)), got.Type.Target, "%v", order)
-			assert.Equal(t, ir.PrimInteger, e.ValueType, "%v: of the narrower value type", order)
+			assert.Equal(t, ir.PrimitiveInteger, e.ValueType, "%v: of the narrower value type", order)
 			assert.Equal(t, tc.values, valuesOf(e), "%v", order)
 		}
 	}
@@ -154,8 +154,8 @@ func TestFold_ThreeEnumsMeetInTheNarrowestValueType(t *testing.T) {
 		enums []ir.TypeID
 		kept  ir.TypeID // the field's type where no enum holds the three
 	}{
-		{"one value type within the next", []ir.TypeID{"t/number-1,2,3", "t/integer-1,2,5", "t/int32-2,3,7"}, ""},
-		{"no value type within both others", []ir.TypeID{"t/number-1,2,3", "t/int32-1,2,4", "t/uint32-2,3,5"}, "t/number-1,2,3"},
+		{"one value type within the next", []ir.TypeID{"type/number-1,2,3", "type/integer-1,2,5", "type/int32-2,3,7"}, ""},
+		{"no value type within both others", []ir.TypeID{"type/number-1,2,3", "type/int32-1,2,4", "type/uint32-2,3,5"}, "type/number-1,2,3"},
 	} {
 		for _, perm := range permutations(len(tc.enums)) {
 			order := make([]ir.TypeID, len(perm))
@@ -179,7 +179,7 @@ func TestFold_ThreeEnumsMeetInTheNarrowestValueType(t *testing.T) {
 			}
 			e, ok := reg[got.Type.Target].(*ir.Enum)
 			require.True(t, ok, "%s: %v", tc.name, order)
-			assert.Equal(t, ir.PrimInt32, e.ValueType, "%s: %v", tc.name, order)
+			assert.Equal(t, ir.PrimitiveInt32, e.ValueType, "%s: %v", tc.name, order)
 			assert.Equal(t, []ir.Value{num("2")}, valuesOf(e), "%s: %v", tc.name, order)
 			assert.Empty(t, *recorded, "%s: %v", tc.name, order)
 		}

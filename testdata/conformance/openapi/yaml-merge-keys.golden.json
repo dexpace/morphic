@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "YAMLMergeKeys",
         "canonical": "yaml_merge_keys"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1merged/get",
+              "id": "operation/openapi/paths/~1merged/get",
               "name": {
                 "source": "getMerged",
                 "canonical": "get_merged"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1merged/get/parameters/q/query",
+                  "id": "parameter/openapi/paths/~1merged/get/parameters/q/query",
                   "name": {
                     "source": "q",
                     "canonical": "q"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -102,7 +102,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1merged/get/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1merged/get/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -110,21 +110,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1merged/get/responses/200/headers/X-Rate",
+                      "id": "property/openapi/paths/~1merged/get/responses/200/headers/X-Rate",
                       "name": {
                         "source": "X-Rate",
                         "canonical": "x_rate"
                       },
                       "wireName": "X-Rate",
                       "type": {
-                        "target": "t/prim/integer",
+                        "target": "type/primitive/integer",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -144,7 +144,7 @@
                         "source": "self",
                         "canonical": "self"
                       },
-                      "operation": "op/openapi/paths/~1merged/get",
+                      "operation": "operation/openapi/paths/~1merged/get",
                       "docs": {},
                       "provenance": {
                         "source": 0,
@@ -173,7 +173,7 @@
                     },
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1merged/get/parameters/q/query",
+                        "param": "parameter/openapi/paths/~1merged/get/parameters/q/query",
                         "location": "query",
                         "wireName": "q",
                         "style": "form",
@@ -228,7 +228,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1merged/post",
+              "id": "operation/openapi/paths/~1merged/post",
               "name": {
                 "source": "postMerged",
                 "canonical": "post_merged"
@@ -239,17 +239,17 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1merged/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1merged/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1merged/post/requestBody/content/multipart~1form-data/schema/properties/f": {
+                      "property/openapi/paths/~1merged/post/requestBody/content/multipart~1form-data/schema/properties/f": {
                         "style": "form",
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": true
                       }
                     }
@@ -330,9 +330,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1merged/get/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1merged/get/responses/200/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1merged/get/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1merged/get/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -348,14 +348,14 @@
                 "name": "a",
                 "value": {
                   "kind": "number",
-                  "num": "1"
+                  "number": "1"
                 }
               },
               {
                 "name": "b",
                 "value": {
                   "kind": "number",
-                  "num": "2"
+                  "number": "2"
                 }
               }
             ]
@@ -384,9 +384,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1merged/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1merged/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1merged/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1merged/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "post_merged_request"
       },
@@ -399,21 +399,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1merged/post/requestBody/content/multipart~1form-data/schema/properties/f",
+          "id": "property/openapi/paths/~1merged/post/requestBody/content/multipart~1form-data/schema/properties/f",
           "name": {
             "source": "f",
             "canonical": "f"
           },
           "wireName": "f",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -430,9 +430,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -440,11 +440,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -452,7 +452,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "auth": {

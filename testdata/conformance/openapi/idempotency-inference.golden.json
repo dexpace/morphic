@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "IdempotencyInference",
         "canonical": "idempotency_inference"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1payments/get",
+              "id": "operation/openapi/paths/~1payments/get",
               "name": {
                 "source": "listPayments",
                 "canonical": "list_payments"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1payments/get/parameters/Idempotency-Key/header",
+                  "id": "parameter/openapi/paths/~1payments/get/parameters/Idempotency-Key/header",
                   "name": {
                     "source": "Idempotency-Key",
                     "canonical": "idempotency_key"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -111,7 +111,7 @@
                     "uriTemplate": "/payments",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1payments/get/parameters/Idempotency-Key/header",
+                        "param": "parameter/openapi/paths/~1payments/get/parameters/Idempotency-Key/header",
                         "location": "header",
                         "wireName": "Idempotency-Key",
                         "style": "simple",
@@ -130,7 +130,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1payments/post",
+              "id": "operation/openapi/paths/~1payments/post",
               "name": {
                 "source": "createPayment",
                 "canonical": "create_payment"
@@ -138,13 +138,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1payments/post/parameters/Idempotency-Key/header",
+                  "id": "parameter/openapi/paths/~1payments/post/parameters/Idempotency-Key/header",
                   "name": {
                     "source": "Idempotency-Key",
                     "canonical": "idempotency_key"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -176,7 +176,7 @@
               "oneWay": false,
               "idempotency": {
                 "kind": "idempotency_token",
-                "tokenParam": "param/openapi/paths/~1payments/post/parameters/Idempotency-Key/header"
+                "tokenParam": "parameter/openapi/paths/~1payments/post/parameters/Idempotency-Key/header"
               },
               "bindings": {
                 "http": [
@@ -185,7 +185,7 @@
                     "uriTemplate": "/payments",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1payments/post/parameters/Idempotency-Key/header",
+                        "param": "parameter/openapi/paths/~1payments/post/parameters/Idempotency-Key/header",
                         "location": "header",
                         "wireName": "Idempotency-Key",
                         "style": "simple",
@@ -205,7 +205,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1payments~1{id}/put",
+              "id": "operation/openapi/paths/~1payments~1{id}/put",
               "name": {
                 "source": "replacePayment",
                 "canonical": "replace_payment"
@@ -213,13 +213,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header",
+                  "id": "parameter/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header",
                   "name": {
                     "source": "idempotency-key",
                     "canonical": "idempotency_key"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -230,13 +230,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1payments~1{id}/put/parameters/id/path",
+                  "id": "parameter/openapi/paths/~1payments~1{id}/put/parameters/id/path",
                   "name": {
                     "source": "id",
                     "canonical": "id"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -268,7 +268,7 @@
               "oneWay": false,
               "idempotency": {
                 "kind": "idempotency_token",
-                "tokenParam": "param/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header"
+                "tokenParam": "parameter/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header"
               },
               "bindings": {
                 "http": [
@@ -277,7 +277,7 @@
                     "uriTemplate": "/payments/{id}",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header",
+                        "param": "parameter/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header",
                         "location": "header",
                         "wireName": "idempotency-key",
                         "style": "simple",
@@ -285,7 +285,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1payments~1{id}/put/parameters/id/path",
+                        "param": "parameter/openapi/paths/~1payments~1{id}/put/parameters/id/path",
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
@@ -305,7 +305,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1payments~1{id}/delete",
+              "id": "operation/openapi/paths/~1payments~1{id}/delete",
               "name": {
                 "source": "deletePayment",
                 "canonical": "delete_payment"
@@ -313,13 +313,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1payments~1{id}/delete/parameters/Idempotency-Key/header",
+                  "id": "parameter/openapi/paths/~1payments~1{id}/delete/parameters/Idempotency-Key/header",
                   "name": {
                     "source": "Idempotency-Key",
                     "canonical": "idempotency_key"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -330,13 +330,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1payments~1{id}/delete/parameters/IDEMPOTENCY-KEY/header",
+                  "id": "parameter/openapi/paths/~1payments~1{id}/delete/parameters/IDEMPOTENCY-KEY/header",
                   "name": {
                     "source": "IDEMPOTENCY-KEY",
                     "canonical": "idempotency_key"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -347,13 +347,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1payments~1{id}/delete/parameters/id/path",
+                  "id": "parameter/openapi/paths/~1payments~1{id}/delete/parameters/id/path",
                   "name": {
                     "source": "id",
                     "canonical": "id"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -391,7 +391,7 @@
                     "uriTemplate": "/payments/{id}",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1payments~1{id}/delete/parameters/Idempotency-Key/header",
+                        "param": "parameter/openapi/paths/~1payments~1{id}/delete/parameters/Idempotency-Key/header",
                         "location": "header",
                         "wireName": "Idempotency-Key",
                         "style": "simple",
@@ -399,7 +399,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1payments~1{id}/delete/parameters/IDEMPOTENCY-KEY/header",
+                        "param": "parameter/openapi/paths/~1payments~1{id}/delete/parameters/IDEMPOTENCY-KEY/header",
                         "location": "header",
                         "wireName": "IDEMPOTENCY-KEY",
                         "style": "simple",
@@ -407,7 +407,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1payments~1{id}/delete/parameters/id/path",
+                        "param": "parameter/openapi/paths/~1payments~1{id}/delete/parameters/id/path",
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
@@ -426,7 +426,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1payments~1{id}/patch",
+              "id": "operation/openapi/paths/~1payments~1{id}/patch",
               "name": {
                 "source": "patchPayment",
                 "canonical": "patch_payment"
@@ -434,13 +434,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1payments~1{id}/patch/parameters/Idempotency-Key/query",
+                  "id": "parameter/openapi/paths/~1payments~1{id}/patch/parameters/Idempotency-Key/query",
                   "name": {
                     "source": "Idempotency-Key",
                     "canonical": "idempotency_key"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -451,13 +451,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1payments~1{id}/patch/parameters/id/path",
+                  "id": "parameter/openapi/paths/~1payments~1{id}/patch/parameters/id/path",
                   "name": {
                     "source": "id",
                     "canonical": "id"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -495,7 +495,7 @@
                     "uriTemplate": "/payments/{id}",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1payments~1{id}/patch/parameters/Idempotency-Key/query",
+                        "param": "parameter/openapi/paths/~1payments~1{id}/patch/parameters/Idempotency-Key/query",
                         "location": "query",
                         "wireName": "Idempotency-Key",
                         "style": "form",
@@ -503,7 +503,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1payments~1{id}/patch/parameters/id/path",
+                        "param": "parameter/openapi/paths/~1payments~1{id}/patch/parameters/id/path",
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
@@ -533,9 +533,9 @@
     }
   ],
   "types": {
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -543,7 +543,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

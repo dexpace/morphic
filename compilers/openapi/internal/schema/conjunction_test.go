@@ -126,7 +126,7 @@ func TestUnion_ABranchSayingNothingButARefIsItsTarget(t *testing.T) {
 	require.Len(t, u.Variants, 2)
 	assert.Equal(t, componentID("Pet"), u.Variants[0].Type.Target)
 	assert.Equal(t, "pet", u.Variants[0].Name.Hint)
-	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/U/oneOf/0"))
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/U/oneOf/0"))
 }
 
 // TestComponent_AnAllOfOfOneRefOverAnObjectIsTheModelThatOwnsIt pins that a
@@ -150,7 +150,7 @@ func TestComponent_AnAllOfOfOneRefOverAnObjectIsTheModelThatOwnsIt(t *testing.T)
 	v, ok := typeByName(doc, "V").(*ir.Scalar)
 	require.True(t, ok, "got %T", typeByName(doc, "V"))
 	assert.Equal(t, componentID("Str"), useTargetOf(t, v))
-	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/W/allOf/0"))
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/W/allOf/0"))
 }
 
 // TestAllOf_TwoDiscriminatedBasesElectAndTagAlikeInEitherOrder pins the Base
@@ -232,7 +232,7 @@ func TestUnion_ANoteBesideAVariantsRefRidesOnItsBranchNode(t *testing.T) {
 	require.NotNil(t, variant.Base)
 	branch, ok := doc.Types[variant.Base.Target].(*ir.Model)
 	require.True(t, ok, "the branch's own node")
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/U/oneOf/0"), branch.ID)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/U/oneOf/0"), branch.ID)
 	assert.Equal(t, componentID("Mixed"), useTargetOf(t, branch))
 	assert.Equal(t, "the mixed variant", branch.Docs.Description)
 }

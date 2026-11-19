@@ -15,7 +15,7 @@ func (x *DocumentFacts) SubtypeIndexAnswer(target, base ir.TypeID) (sub, settled
 // ExposesIndexAnswer answers Exposes from x's exposure index alone, with
 // settled false where only a walk can, as SubtypeIndexAnswer does for
 // IsSubtype.
-func (x *DocumentFacts) ExposesIndexAnswer(id ir.TypeID, prop ir.PropID) (exposed, settled bool) {
+func (x *DocumentFacts) ExposesIndexAnswer(id ir.TypeID, prop ir.PropertyID) (exposed, settled bool) {
 	return x.exposureIndex().exposes(id, prop)
 }
 

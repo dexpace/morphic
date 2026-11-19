@@ -11,9 +11,9 @@ import (
 
 var _ Visitor = (*IDReferences)(nil)
 
-// propIDType is the reflect.Type of [PropID], the one class of ID no registry
+// propIDType is the reflect.Type of [PropertyID], the one class of ID no registry
 // resolves; see [IDReferences] for why.
-var propIDType = reflect.TypeFor[PropID]()
+var propIDType = reflect.TypeFor[PropertyID]()
 
 // ownIDField names the field of a struct that holds the identity the struct
 // declares. A string of a map-keyed class at such a field is its node's
@@ -39,7 +39,7 @@ type IDReference struct {
 // references Document.Channels wherever it sits, bar a registry node's own ID,
 // so no field is listed and none can be forgotten.
 //
-// Integer indices have nothing to key on, and a [PropID] names a position inside
+// Integer indices have nothing to key on, and a [PropertyID] names a position inside
 // a model, so neither is kept; each is resolved by hand where checked. Only
 // [NewIDReferences] builds a usable one, for one walk on one goroutine.
 type IDReferences struct {
@@ -61,7 +61,7 @@ type IDReferences struct {
 
 // NewIDReferences returns the IDReferences of a walk of doc, holding the IDs
 // each of doc's map-keyed registries declares. Every other class resolves
-// against what the walk's nodes declare, PropID aside; such a registry is
+// against what the walk's nodes declare, PropertyID aside; such a registry is
 // labelled "<noun> declarations". A nil doc keys nothing, so a reference into
 // one of its maps is unresolved rather than the call panicking.
 func NewIDReferences(doc *Document) *IDReferences {
@@ -178,7 +178,7 @@ func (r *IDReferences) dangles(s IDReference, truncated bool) bool {
 
 // Declares reports whether a node the walk reached declares id as its identity
 // of class, which is what a reference of a class no Document map keys resolves
-// against. PropID is answered too, so a check holding one to a declared property
+// against. PropertyID is answered too, so a check holding one to a declared property
 // need not read the declarations again. A map-keyed class is not: its references
 // resolve against the map, so Declares reports false for it.
 func (r *IDReferences) Declares(class reflect.Type, id string) bool {

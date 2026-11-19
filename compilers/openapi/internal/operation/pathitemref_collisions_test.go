@@ -104,10 +104,10 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning,
 		"/paths/~1a/parameters/0"), `the parameter "dup" in query is declared here`, "a parameter is named as written")
 	require.Len(t, getA.Params, 1, "the referent's parameter is not lowered beside the use site's")
-	assert.Equal(t, ir.TypeID("t/prim/string"), getA.Params[0].Type.Target, "the use site's is the one kept")
+	assert.Equal(t, ir.TypeID("type/primitive/string"), getA.Params[0].Type.Target, "the use site's is the one kept")
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/parameters/0"), getA.Params[0].Provenance.Pointer)
 
-	// One operation at the mount, so no OpID is claimed twice.
+	// One operation at the mount, so no OperationID is claimed twice.
 	assert.False(t, openapitest.HasDiag(diags, diag.DuplicateOperationID))
 	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingOperationID))
 }
@@ -230,5 +230,5 @@ paths:
 	getA := opByPath(t, doc, "GET", "/a")
 	require.Len(t, getA.Params, 1, "the referent's parameter is not lowered beside the use site's")
 	assert.Equal(t, "x-dup", getA.Params[0].Name.Source)
-	assert.Equal(t, ir.TypeID("t/prim/string"), getA.Params[0].Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), getA.Params[0].Type.Target)
 }

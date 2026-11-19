@@ -263,17 +263,17 @@ func (t *Types) Building(id ir.TypeID) bool {
 // It claims neither ID nor space, since both claims are about a coordinate
 // owning an ID. Another node landing in the prim space is caught, for every
 // producer, by irverify's ir/prim-space-reserved.
-func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
-	id := ir.PrimTypeID(k)
+func (t *Types) PrimRef(k ir.PrimitiveKind) ir.TypeRef {
+	id := ir.PrimitiveTypeID(k)
 	if _, ok := t.reg[id]; !ok {
 		t.reg[id] = &ir.Primitive{
-			ID:         id,
-			Provenance: ir.Provenance{Source: ir.NoSource},
-			Prim:       k,
+			ID:            id,
+			Provenance:    ir.Provenance{Source: ir.NoSource},
+			PrimitiveKind: k,
 		}
 	}
 	return ir.TypeRef{Target: id}
 }
 
 // PrimID interns the primitive of kind k and returns its ID.
-func (t *Types) PrimID(k ir.PrimKind) ir.TypeID { return t.PrimRef(k).Target }
+func (t *Types) PrimID(k ir.PrimitiveKind) ir.TypeID { return t.PrimRef(k).Target }

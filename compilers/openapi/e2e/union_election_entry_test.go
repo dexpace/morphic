@@ -179,7 +179,7 @@ func requireDistributedOneOf(t *testing.T, doc *ir.Document, at jsontext.Pointer
 		for _, r := range composed {
 			targets = append(targets, r.Target)
 		}
-		assert.Contains(t, targets, ir.TypeID(fmt.Sprintf("t/anon%s/allOf/1/oneOf/%d", at, i)), "variant %d composes its branch", i)
+		assert.Contains(t, targets, ir.TypeID(fmt.Sprintf("type/anonymous%s/allOf/1/oneOf/%d", at, i)), "variant %d composes its branch", i)
 		if ref {
 			assert.Contains(t, targets, componentID("T"), "variant %d composes the $ref", i)
 			continue

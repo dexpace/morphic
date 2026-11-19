@@ -80,7 +80,7 @@ func TestConflictOnce_IsReportedOncePerPairOfDeclarations(t *testing.T) {
 		decided              []string
 	}
 	member := func(model int, field string) string {
-		return fmt.Sprintf("p/composed/components/schemas/M%d/allOf/properties/%s", model, field)
+		return fmt.Sprintf("property/composed/components/schemas/M%d/allOf/properties/%s", model, field)
 	}
 	for name, tc := range map[string]struct {
 		models []string
@@ -197,7 +197,7 @@ func TestConflictOnce_AModelsOwnDeclarationsListTheMember(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/M/allOf/0/properties/p"}, got[0].Provenance)
 	kept, decided := concerns(t, got[0])
 	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/M/allOf/1/properties/p"}, kept)
-	assert.Equal(t, []string{"p/openapi/components/schemas/M/allOf/0/properties/p"}, decided)
+	assert.Equal(t, []string{"property/openapi/components/schemas/M/allOf/0/properties/p"}, decided)
 }
 
 // TestConflictOnce_InlineCompositionsAtOperationsAreOneReport pins the shape

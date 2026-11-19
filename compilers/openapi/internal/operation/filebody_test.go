@@ -41,20 +41,20 @@ func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 		file      bool
 		target    ir.TypeID // "" names the position's own node
 	}{
-		{"a schemaless pdf", "application/pdf", "{}", openapi.Options{}, marker, true, "t/prim/any"},
-		{"an empty schema on a pdf", "application/pdf", "{schema: {}}", openapi.Options{}, marker, true, "t/prim/any"},
-		{"a string png", "image/png", "{schema: {type: string}}", openapi.Options{}, marker, true, "t/prim/string"},
+		{"a schemaless pdf", "application/pdf", "{}", openapi.Options{}, marker, true, "type/primitive/any"},
+		{"an empty schema on a pdf", "application/pdf", "{schema: {}}", openapi.Options{}, marker, true, "type/primitive/any"},
+		{"a string png", "image/png", "{schema: {type: string}}", openapi.Options{}, marker, true, "type/primitive/string"},
 		{"a documented string png", "image/png", "{schema: {type: string, description: PNG binary.}}",
 			openapi.Options{}, marker, true, ""},
 		{"a png bounded in octets", "image/png", "{schema: {type: string, maxLength: 9}}",
 			openapi.Options{}, marker, true, ""},
 		{"a png carrying an extension", "image/png", "{schema: {type: string, x-acme-kind: screenshot}}",
 			openapi.Options{}, marker, true, ""},
-		{"a wildcard image", "image/*", "{}", openapi.Options{}, marker, true, "t/prim/any"},
-		{"a spelling of a binary type", "Image/PNG; q=1", "{}", openapi.Options{}, marker, true, "t/prim/any"},
+		{"a wildcard image", "image/*", "{}", openapi.Options{}, marker, true, "type/primitive/any"},
+		{"a spelling of a binary type", "Image/PNG; q=1", "{}", openapi.Options{}, marker, true, "type/primitive/any"},
 		{"a format binary with no type", "image/png", "{schema: {format: binary}}", openapi.Options{}, "", true, ""},
 		{"a binary string on JSON", "application/json", "{schema: {type: string, format: binary}}",
-			openapi.Options{}, "", true, "t/prim/bytes"},
+			openapi.Options{}, "", true, "type/primitive/bytes"},
 		{"base64 bytes on JSON", "application/json", "{schema: {type: string, format: binary, contentEncoding: base64}}",
 			openapi.Options{}, "", false, ""},
 		{"an identified string pdf", "application/pdf",
@@ -75,9 +75,9 @@ func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 			"{schema: {$schema: 'https://json-schema.org/draft/2020-12/schema', type: string, format: date}}",
 			openapi.Options{}, "", false, ""},
 		{"a false schema on octet-stream", "application/octet-stream", "{schema: false}", openapi.Options{}, "", false, ""},
-		{"an svg", "image/svg+xml", "{}", openapi.Options{}, "", false, "t/prim/any"},
-		{"a schemaless JSON body", "application/json", "{}", openapi.Options{}, "", false, "t/prim/any"},
-		{"a text string", "text/plain", "{schema: {type: string}}", openapi.Options{}, "", false, "t/prim/string"},
+		{"an svg", "image/svg+xml", "{}", openapi.Options{}, "", false, "type/primitive/any"},
+		{"a schemaless JSON body", "application/json", "{}", openapi.Options{}, "", false, "type/primitive/any"},
+		{"a text string", "text/plain", "{schema: {type: string}}", openapi.Options{}, "", false, "type/primitive/string"},
 		{"a base64 png", "image/png", "{schema: {type: string, contentEncoding: base64}}",
 			openapi.Options{}, "", false, ""},
 		{"a format byte png", "image/png", "{schema: {type: string, format: byte}}", openapi.Options{}, "", false, ""},
@@ -132,10 +132,10 @@ func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 			openapi.Options{}, "", false, ""},
 		{"a chain whose middle writes contentEncoding", "application/octet-stream",
 			`{schema: {$ref: "#/components/schemas/Encoded"}}`, openapi.Options{}, "", false, ""},
-		{"the policy off", "application/pdf", "{}", disabled, "", false, "t/prim/any"},
-		{"octet-stream with the policy off", "application/octet-stream", "{schema: {}}", disabled, "", true, "t/prim/bytes"},
-		{"a caller's type", "application/vnd.acme", "{}", acme, marker, true, "t/prim/any"},
-		{"a caller's list replacing the default", "application/pdf", "{}", acme, "", false, "t/prim/any"},
+		{"the policy off", "application/pdf", "{}", disabled, "", false, "type/primitive/any"},
+		{"octet-stream with the policy off", "application/octet-stream", "{schema: {}}", disabled, "", true, "type/primitive/bytes"},
+		{"a caller's type", "application/vnd.acme", "{}", acme, marker, true, "type/primitive/any"},
+		{"a caller's list replacing the default", "application/pdf", "{}", acme, "", false, "type/primitive/any"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -195,7 +195,7 @@ func TestBodyFile_AnUnresolvedRefDecidesNoFile(t *testing.T) {
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
 	content := openapitest.FindOp(t, doc, "f").Request.Contents[0]
 	assert.Nil(t, content.File)
-	assert.Equal(t, ir.TypeID("t/prim/any"), content.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), content.Type.Target)
 }
 
 // TestBodyFile_ReadsAChainOfRefsUpToItsBound holds the reading of what a chain of

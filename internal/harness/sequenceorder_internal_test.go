@@ -363,7 +363,7 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			name: "a tie whose composed model mints for its own member",
 			src: schemas(composes("M", "I1", "I2", "LX", "LY"),
 				listsOfModels("{type: array, items: {type: string, description: d}}", "{type: array, items: {type: string, maxLength: 3}}")),
-			kept: []string{`"t/composed/components/schemas/M/allOf/properties/p/items/allOf/allOf/properties/q"`},
+			kept: []string{`"type/composed/components/schemas/M/allOf/properties/p/items/allOf/allOf/properties/q"`},
 			want: passed(OracleSequenceOrder),
 		},
 		{
@@ -375,7 +375,7 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 				"D0: {type: object, properties: {p: {type: array, minItems: 1, items: {type: string}}}}",
 				"D1: {type: object, properties: {p: {type: array, maxItems: 5, items: {type: string}}}}",
 				"D2: {type: object, properties: {p: {type: integer}}}"),
-			kept:  []string{`"target":"t/composed/components/schemas/M/allOf/properties/p"`},
+			kept:  []string{`"target":"type/composed/components/schemas/M/allOf/properties/p"`},
 			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/D2/properties/p"},
 			want:  passed(OracleSequenceOrder),
 		},
@@ -422,8 +422,8 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			src: schemas("X: {allOf: [{$id: 'https://example.test/a', type: object, properties: " +
 				"{toB: {$ref: 'https://example.test/b'}, x: {type: string}}}, " +
 				"{$id: 'https://example.test/b', type: object, properties: {toA: {$ref: 'https://example.test/a'}, y: {type: integer}}}]}"),
-			kept: []string{`"target":"t/anon/components/schemas/X/allOf/1"`,
-				`"target":"t/anon/components/schemas/X/allOf/0"`},
+			kept: []string{`"target":"type/anonymous/components/schemas/X/allOf/1"`,
+				`"target":"type/anonymous/components/schemas/X/allOf/0"`},
 			want: declined(OracleSequenceOrder, DeclineReferenceCycle),
 		},
 	}
@@ -689,7 +689,7 @@ func composesAll(name string, entries ...string) string {
 }
 
 // abID is the model every detection fixture declares.
-const abID ir.TypeID = "t/openapi/components/schemas/AB"
+const abID ir.TypeID = "type/openapi/components/schemas/AB"
 
 // property is the member of AB with the wire name.
 func property(t *testing.T, doc *ir.Document, wire string) *ir.Property {
@@ -719,7 +719,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 	integer := func(wire string) planted {
 		return func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 			if reversed {
-				property(t, doc, wire).Type.Target = "t/prim/integer"
+				property(t, doc, wire).Type.Target = "type/primitive/integer"
 			}
 			return doc, diags, nil
 		}
@@ -791,7 +791,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "a type naming an inline node by its position",
 			src:  fixtureZ,
 			edit: func(t *testing.T, _ bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				property(t, doc, "p").Type.Target = "t/anon/components/schemas/AB/allOf/0/properties/p"
+				property(t, doc, "p").Type.Target = "type/anonymous/components/schemas/AB/allOf/0/properties/p"
 				return doc, diags, nil
 			},
 			found:    true,
@@ -804,7 +804,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			src:  fixtureX,
 			edit: func(_ *testing.T, _ bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 				diags = append(slices.Clip(diags),
-					diagnostic(ir.SeverityInfo, "x/node", "", "t/anon/components/schemas/AB/allOf/0"))
+					diagnostic(ir.SeverityInfo, "x/node", "", "type/anonymous/components/schemas/AB/allOf/0"))
 				return doc, diags, nil
 			},
 			found:    true,
@@ -867,11 +867,11 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			src: fixtureX + "    X: {allOf: [{type: object, properties: {p: {type: string}}}]}\n---\n" +
 				schemas("X: {allOf: [{title: a}, {title: b}]}"),
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				m, ok := doc.Types["t/openapi/components/schemas/X"].(*ir.Model)
+				m, ok := doc.Types["type/openapi/components/schemas/X"].(*ir.Model)
 				require.True(t, ok, "the fixture must lower X to a model")
 				require.Len(t, m.Properties, 1, "the fixture must fold X's one branch into it")
 				if reversed {
-					m.Properties[0].Type.Target = "t/prim/integer"
+					m.Properties[0].Type.Target = "type/primitive/integer"
 				}
 				return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/at", "/components/schemas/X/allOf/0", "")), nil
 			},
@@ -886,7 +886,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			src:  fixtureSwap,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 				if reversed {
-					property(t, doc, "p").Type.Target = "t/prim/bool"
+					property(t, doc, "p").Type.Target = "type/primitive/bool"
 					property(t, doc, "p").Constraints = &ir.Constraints{MinLength: new(int64(1))}
 				}
 				return doc, diags, nil
@@ -919,7 +919,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "a report a tie moves between declarations forgives neither declaration",
 			src:  fixtureSwap,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				alpha, ok := doc.Types["t/openapi/components/schemas/alpha"].(*ir.Model)
+				alpha, ok := doc.Types["type/openapi/components/schemas/alpha"].(*ir.Model)
 				require.True(t, ok, "the fixture must lower alpha to a model")
 				if reversed {
 					alpha.Properties[0].Docs.Description = "reversed"
@@ -979,11 +979,11 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "a member no tie decides taking another type beside ties two models trade",
 			src:  fixtureOutvoted,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				w, ok := doc.Types["t/openapi/components/schemas/W"].(*ir.Model)
+				w, ok := doc.Types["type/openapi/components/schemas/W"].(*ir.Model)
 				require.True(t, ok, "the fixture must lower W to a model")
 				require.Len(t, w.Properties, 1, "the fixture must fold W's p into W")
 				if !reversed {
-					w.Properties[0].Type.Target = "t/prim/integer"
+					w.Properties[0].Type.Target = "type/primitive/integer"
 				}
 				return doc, diags, nil
 			},
@@ -996,16 +996,16 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "a tied member taking in each order the type its report says lost",
 			src:  fixtureSwap,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				property(t, doc, "p").Type.Target = "t/prim/string"
+				property(t, doc, "p").Type.Target = "type/primitive/string"
 				if reversed {
-					property(t, doc, "p").Type.Target = "t/prim/integer"
+					property(t, doc, "p").Type.Target = "type/primitive/integer"
 				}
 				return doc, diags, nil
 			},
 			found: true,
 			contains: []string{
 				"a tie's reports name the declaration the member takes as the one that lost",
-				"p/composed/components/schemas/AB/allOf/properties/p takes in each order",
+				"property/composed/components/schemas/AB/allOf/properties/p takes in each order",
 			},
 			not: []string{"AB2"},
 		},
@@ -1126,7 +1126,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "a node written where a tied member stands, differing",
 			src:  fixtureBeneath,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				const written = "t/anon/components/schemas/AB/allOf/0/properties/p"
+				const written = "type/anonymous/components/schemas/AB/allOf/0/properties/p"
 				if !reversed {
 					return doc, diags, nil
 				}
@@ -1213,7 +1213,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "a member sharing a declaration with a tie differing where its declarations hold no report",
 			src:  fixtureBeside,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				bg, ok := doc.Types["t/openapi/components/schemas/BG"].(*ir.Model)
+				bg, ok := doc.Types["type/openapi/components/schemas/BG"].(*ir.Model)
 				require.True(t, ok, "the fixture must lower BG to a model")
 				require.Len(t, bg.Properties, 1, "the fixture must fold BG's p into BG")
 				if reversed {
@@ -1230,7 +1230,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "a member of one declaration differing where ties report at it in either order",
 			src:  fixtureLoser,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				beta, ok := doc.Types["t/openapi/components/schemas/beta"].(*ir.Model)
+				beta, ok := doc.Types["type/openapi/components/schemas/beta"].(*ir.Model)
 				require.True(t, ok, "the fixture must lower beta to a model")
 				require.Len(t, beta.Properties, 1, "the fixture must declare beta's p")
 				if reversed {
@@ -1248,7 +1248,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "a member folding a declaration ties report at in either order differing",
 			src:  fixtureLoser,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				bg, ok := doc.Types["t/openapi/components/schemas/BG"].(*ir.Model)
+				bg, ok := doc.Types["type/openapi/components/schemas/BG"].(*ir.Model)
 				require.True(t, ok, "the fixture must lower BG to a model")
 				require.Len(t, bg.Properties, 1, "the fixture must fold BG's p into BG")
 				if reversed {
@@ -1267,7 +1267,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "a member taking one type in either order beside other ties' moving reports",
 			src:  fixtureFar,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				bg, ok := doc.Types["t/openapi/components/schemas/BG"].(*ir.Model)
+				bg, ok := doc.Types["type/openapi/components/schemas/BG"].(*ir.Model)
 				require.True(t, ok, "the fixture must lower BG to a model")
 				require.Len(t, bg.Properties, 1, "the fixture must fold BG's p into BG")
 				if reversed {

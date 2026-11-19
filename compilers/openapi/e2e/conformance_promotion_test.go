@@ -144,7 +144,7 @@ func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		{componentID("Credential"), "a model"},
 		{openapitest.BodyTarget(t, op.Request), "request content schema"},
 		{mapOf(t, doc, "Bag").Value.Target, "additionalProperties"},
-		{listOf(t, doc, "Tokens").Elem.Target, "items"},
+		{listOf(t, doc, "Tokens").ElementType.Target, "items"},
 		{unionOf(t, doc, "Either").Variants[0].Type.Target, "a union branch"},
 	} {
 		node := requireSensitive(t, doc, tc.id, tc.position)
@@ -227,8 +227,8 @@ func unionOf(t *testing.T, doc *ir.Document, name string) *ir.Union {
 // wireNames spells segments by the wire names of the properties they name,
 // read off every model of doc, so a page value reads as the document writes
 // it.
-func wireNames(doc *ir.Document, segments []ir.PropID) []string {
-	names := map[ir.PropID]string{}
+func wireNames(doc *ir.Document, segments []ir.PropertyID) []string {
+	names := map[ir.PropertyID]string{}
 	for _, td := range doc.Types {
 		if m, ok := td.(*ir.Model); ok {
 			for _, p := range m.Properties {
@@ -297,7 +297,7 @@ func assertExtensionPagination(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Nil(t, noNextPage.Pagination)
 	assert.Empty(t, noNextPage.Provenance.Inferred)
 	require.Len(t, diags, 1, "the one walk with no next page: %+v", diags)
-	assert.Equal(t, `operation "op/openapi/paths/~1offsets/get": the pagination the policy reads from its `+
+	assert.Equal(t, `operation "operation/openapi/paths/~1offsets/get": the pagination the policy reads from its `+
 		`extensions names neither an input continuing it nor a next link, so it fills none`, diags[0].Message)
 }
 

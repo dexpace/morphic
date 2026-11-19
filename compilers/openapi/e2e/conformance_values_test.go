@@ -23,14 +23,14 @@ func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.NotNil(t, n.Default)
 	assert.Equal(t, ir.ValueNumber, n.Default.Kind)
-	assert.Equal(t, ir.BigVal("9007199254740993"), n.Default.Num)
+	assert.Equal(t, ir.BigVal("9007199254740993"), n.Default.Number)
 
 	// A declaration-site default reaches the referencing property, and the
 	// declaration keeps it verbatim because the type node has no field for it.
 	viaRef, ok := propByWire(m, "viaRef")
 	require.True(t, ok)
 	require.NotNil(t, viaRef.Default, "the referent's default binds the reference site")
-	assert.Equal(t, ir.BigVal("41"), viaRef.Default.Num)
+	assert.Equal(t, ir.BigVal("41"), viaRef.Default.Number)
 
 	decl, ok := doc.Types[componentID("DeclaredDefault")].(*ir.Scalar)
 	require.True(t, ok)
@@ -70,8 +70,8 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 	require.NotNil(t, list.Default)
 	assert.Equal(t, ir.ValueList, list.Default.Kind)
 	require.Len(t, list.Default.List, 2)
-	assert.Equal(t, ir.BigVal("1"), list.Default.List[0].Num)
-	assert.Equal(t, ir.BigVal("2"), list.Default.List[1].Num)
+	assert.Equal(t, ir.BigVal("1"), list.Default.List[0].Number)
+	assert.Equal(t, ir.BigVal("2"), list.Default.List[1].Number)
 }
 
 // assertYAMLTimestampScalars covers a YAML 1.1 quirk: an unquoted date like
@@ -97,24 +97,24 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 
 	d, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum of the real dates, not a union of null literals")
-	assert.Equal(t, ir.PrimDate, d.ValueType)
+	assert.Equal(t, ir.PrimitiveDate, d.ValueType)
 	require.Len(t, d.Members, 2)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, d.Members[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2022-02-02"}, d.Members[1].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, d.Members[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2022-02-02"}, d.Members[1].Value)
 
 	k, ok := doc.Types[componentID("K")].(*ir.Literal)
 	require.True(t, ok, "K's const hoists a real Literal, not the schemaless top type")
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, k.Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, k.Value)
 
 	s, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, s.Properties, 1)
 	prop := s.Properties[0]
 	require.NotNil(t, prop.Default, "the property default is preserved")
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *prop.Default)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, *prop.Default)
 	require.Len(t, prop.Examples, 1, "the schema-level example is preserved")
 	require.NotNil(t, prop.Examples[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *prop.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, *prop.Examples[0].Value)
 
 	op, ok := opByName(doc, "getItem")
 	require.True(t, ok)
@@ -123,7 +123,7 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	mediaExamples := op.Responses[0].Payload.Contents[0].Examples
 	require.Len(t, mediaExamples, 1, "the media-type example is preserved")
 	require.NotNil(t, mediaExamples[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *mediaExamples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, *mediaExamples[0].Value)
 
 	assert.Equal(t, "2021-01-01", doc.Version, "a string field holds the date as its text")
 	assert.Equal(t, "2021-01-01", op.Docs.Summary, "a string field holds the date as its text")
@@ -175,7 +175,7 @@ func assertRefCollectionBounds(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 	element, ok := doc.Types[componentID("Element")].(*ir.List)
 	require.True(t, ok)
-	alias, ok := doc.Types[element.Elem.Target].(*ir.Scalar)
+	alias, ok := doc.Types[element.ElementType.Target].(*ir.Scalar)
 	require.True(t, ok)
 	assert.Equal(t, maxThree, alias.Constraints)
 
@@ -215,10 +215,10 @@ func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	// The object's own cardinality bound lands on the Model, not on a property
 	// and not nowhere (GitHub #129).
 	require.NotNil(t, m.Constraints)
-	require.NotNil(t, m.Constraints.MinProps)
-	require.NotNil(t, m.Constraints.MaxProps)
-	assert.Equal(t, int64(1), *m.Constraints.MinProps)
-	assert.Equal(t, int64(4), *m.Constraints.MaxProps)
+	require.NotNil(t, m.Constraints.MinProperties)
+	require.NotNil(t, m.Constraints.MaxProperties)
+	assert.Equal(t, int64(1), *m.Constraints.MinProperties)
+	assert.Equal(t, int64(4), *m.Constraints.MaxProperties)
 
 	assertLengthAndCollectionBounds(t, doc, m)
 	assertCoDeclaredBounds(t, m, diags)
@@ -254,7 +254,7 @@ func assertBoundsATypeCannotTake(t *testing.T, doc *ir.Document, m *ir.Model, di
 		} else {
 			assert.Nil(t, tc.held, "%s holds its bound on a %T", tc.wire, node)
 		}
-		assert.Equal(t, ir.TypeID("t/anon"+tc.at), node.Common().ID, "%s owns its node", tc.wire)
+		assert.Equal(t, ir.TypeID("type/anonymous"+tc.at), node.Common().ID, "%s owns its node", tc.wire)
 		assert.Equal(t, tc.kept, slices.Sorted(maps.Keys(node.Common().Unmodeled)), tc.wire)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", tc.at), tc.wire)
 	}
@@ -393,7 +393,7 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.NotNil(t, withDefault.Default)
 	assert.Equal(t, ir.ValueNumber, withDefault.Default.Kind)
-	assert.Equal(t, ir.BigVal("1.8e308"), withDefault.Default.Num)
+	assert.Equal(t, ir.BigVal("1.8e308"), withDefault.Default.Number)
 
 	// A const beyond float64 range hoists a Literal over the exact number.
 	pinned, ok := propByWire(m, "pinned")
@@ -401,7 +401,7 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	lit, ok := doc.Types[pinned.Type.Target].(*ir.Literal)
 	require.True(t, ok)
 	assert.Equal(t, ir.ValueNumber, lit.Value.Kind)
-	assert.Equal(t, ir.BigVal("1.8e308"), lit.Value.Num)
+	assert.Equal(t, ir.BigVal("1.8e308"), lit.Value.Number)
 
 	// Numeric enum members keep their exact value past int64 range.
 	choice, ok := propByWire(m, "choice")
@@ -409,14 +409,14 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	enum, ok := doc.Types[choice.Type.Target].(*ir.Enum)
 	require.True(t, ok)
 	require.Len(t, enum.Members, 2)
-	assert.Equal(t, ir.BigVal("123456789012345678901234567890"), enum.Members[1].Value.Num)
+	assert.Equal(t, ir.BigVal("123456789012345678901234567890"), enum.Members[1].Value.Number)
 
 	// A leading-dot example is canonicalized losslessly.
 	sampled, ok := propByWire(m, "sampled")
 	require.True(t, ok)
 	require.Len(t, sampled.Examples, 1)
 	require.NotNil(t, sampled.Examples[0].Value)
-	assert.Equal(t, ir.BigVal("0.5"), sampled.Examples[0].Value.Num)
+	assert.Equal(t, ir.BigVal("0.5"), sampled.Examples[0].Value.Number)
 
 	assertYAMLIntegerBases(t, doc, m)
 	assertRawPreservedNumbers(t, m)
@@ -455,13 +455,13 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	mode, ok := propByWire(m, "mode")
 	require.True(t, ok)
 	require.NotNil(t, mode.Default)
-	assert.Equal(t, ir.BigVal("420"), mode.Default.Num, "0o644 is octal in YAML 1.2")
+	assert.Equal(t, ir.BigVal("420"), mode.Default.Number, "0o644 is octal in YAML 1.2")
 
 	enum, ok := doc.Types[mode.Type.Target].(*ir.Enum)
 	require.True(t, ok)
 	require.Len(t, enum.Members, 2)
-	assert.Equal(t, ir.BigVal("420"), enum.Members[0].Value.Num)
-	assert.Equal(t, ir.BigVal("493"), enum.Members[1].Value.Num)
+	assert.Equal(t, ir.BigVal("420"), enum.Members[0].Value.Number)
+	assert.Equal(t, ir.BigVal("493"), enum.Members[1].Value.Number)
 
 	bounds, ok := propByWire(m, "bounds")
 	require.True(t, ok)
@@ -474,18 +474,18 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	assert.Equal(t, ir.BigVal("10"), *bounds.Constraints.MultipleOf, "10 is a plain integer")
 	require.Len(t, bounds.Examples, 1)
 	require.NotNil(t, bounds.Examples[0].Value)
-	assert.Equal(t, ir.BigVal("30"), bounds.Examples[0].Value.Num, "30 is a plain integer")
+	assert.Equal(t, ir.BigVal("30"), bounds.Examples[0].Value.Number, "30 is a plain integer")
 
 	// A plain digit string is the integer it spells, and a leading zero is a
 	// base ten integer that still has to come out as a JSON-valid literal.
 	counted, ok := propByWire(m, "counted")
 	require.True(t, ok)
 	require.NotNil(t, counted.Default)
-	assert.Equal(t, ir.BigVal("1000000"), counted.Default.Num)
+	assert.Equal(t, ir.BigVal("1000000"), counted.Default.Number)
 	loose, ok := propByWire(m, "loose")
 	require.True(t, ok)
 	require.NotNil(t, loose.Default)
-	assert.Equal(t, ir.BigVal("9"), loose.Default.Num)
+	assert.Equal(t, ir.BigVal("9"), loose.Default.Number)
 }
 
 // assertReferenceBounds pins that a bound written beside a schema that names
@@ -527,12 +527,12 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assert.Empty(t, inline.Unmodeled, "the list the entry builds stands at the property and keeps the bound")
 	list, ok := doc.Types[inline.Type.Target].(*ir.List)
 	require.True(t, ok, "%T", doc.Types[inline.Type.Target])
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Failure/properties/inline"), list.ID)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Failure/properties/inline"), list.ID)
 	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, list.Unmodeled, "openapi:minLength").Reason)
 
 	composed, found := propByWire(holder, "composed")
 	require.True(t, found)
-	minProps := &ir.Constraints{MinProps: new(int64(2))}
+	minProps := &ir.Constraints{MinProperties: new(int64(2))}
 	assert.Nil(t, composed.Constraints, "the property leaves the count to the model it owns")
 	model, ok := doc.Types[composed.Type.Target].(*ir.Model)
 	require.True(t, ok, "%T", doc.Types[composed.Type.Target])
@@ -580,7 +580,7 @@ func assertUnionJoinedValueSets(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	memberStrings := func(e *ir.Enum) []string {
 		out := make([]string, 0, len(e.Members))
 		for _, m := range e.Members {
-			out = append(out, m.Value.Str)
+			out = append(out, m.Value.String)
 		}
 		return out
 	}

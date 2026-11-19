@@ -17,14 +17,14 @@ import (
 
 // responding is a document of one operation whose one response declares h.
 func responding(h ir.Header, reg ir.TypeRegistry) *ir.Document {
-	h.ID = "p/h"
+	h.ID = "property/h"
 	h.Provenance = ir.Provenance{Pointer: "/paths/~1a/get/responses/200/headers/h", Inferred: "extension-promotion"}
-	return oneOperation(ir.Operation{ID: "op/a", Responses: []ir.Response{{Headers: []ir.Header{h}}}}, registry(reg))
+	return oneOperation(ir.Operation{ID: "operation/a", Responses: []ir.Response{{Headers: []ir.Header{h}}}}, registry(reg))
 }
 
 // dated is a header named name, holding an instant.
 func dated(name string) ir.Header {
-	return ir.Header{WireName: name, Type: prim(ir.PrimDatetimeOffset)}
+	return ir.Header{WireName: name, Type: prim(ir.PrimitiveDatetimeOffset)}
 }
 
 // TestHTTPDate_AFieldItsRFCDefinesAsADate pins which response headers are
@@ -37,14 +37,14 @@ func TestHTTPDate_AFieldItsRFCDefinesAsADate(t *testing.T) {
 	prefixed.Prefix = new("Date")
 	content := dated("Last-Modified")
 	content.Encoding = &ir.Encoding{MediaType: "application/json"}
-	named := ir.Header{Name: ir.NamingFor("Expires"), Type: prim(ir.PrimDatetimeOffset)}
+	named := ir.Header{Name: ir.NamingFor("Expires"), Type: prim(ir.PrimitiveDatetimeOffset)}
 	scalar := dated("Last-Modified")
-	scalar.Type = ir.TypeRef{Target: "t/s"}
+	scalar.Type = ir.TypeRef{Target: "type/s"}
 	encoded := dated("Last-Modified")
-	encoded.Type = ir.TypeRef{Target: "t/e"}
+	encoded.Type = ir.TypeRef{Target: "type/e"}
 	reg := ir.TypeRegistry{
-		"t/s": &ir.Scalar{ID: "t/s", Base: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimDatetimeOffset)}},
-		"t/e": &ir.Scalar{ID: "t/e", Base: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimDatetimeOffset)},
+		"type/s": &ir.Scalar{ID: "type/s", Base: &ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset)}},
+		"type/e": &ir.Scalar{ID: "type/e", Base: &ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset)},
 			Encoding: &ir.Encoding{Name: "unixTimestamp"}},
 	}
 	for _, tc := range []struct {
@@ -66,8 +66,8 @@ func TestHTTPDate_AFieldItsRFCDefinesAsADate(t *testing.T) {
 		{"a field under a prefix", prefixed, false},
 		{"a content header", content, false},
 		{"a scalar naming an encoding", encoded, false},
-		{"a date", ir.Header{WireName: "Date", Type: prim(ir.PrimDate)}, false},
-		{"text", ir.Header{WireName: "Date", Type: prim(ir.PrimString)}, false},
+		{"a date", ir.Header{WireName: "Date", Type: prim(ir.PrimitiveDate)}, false},
+		{"text", ir.Header{WireName: "Date", Type: prim(ir.PrimitiveString)}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -98,23 +98,23 @@ func TestHTTPDate_AFieldItsRFCDefinesAsADate(t *testing.T) {
 func TestHTTPDate_ReadsEveryResponseAndNoPart(t *testing.T) {
 	t.Parallel()
 	build := func() *ir.Document {
-		h := func(id ir.PropID) []ir.Header {
+		h := func(id ir.PropertyID) []ir.Header {
 			d := dated("Last-Modified")
 			d.ID = id
 			return []ir.Header{d}
 		}
 		return oneOperation(ir.Operation{
-			ID:        "op/a",
-			Request:   &ir.Payload{Contents: []ir.Content{{Encoding: map[ir.PropID]ir.PartEncoding{"p/part": {Headers: h("p/part")}}}}},
-			Responses: []ir.Response{{Headers: h("p/response")}},
-			Errors:    []ir.ErrorCase{{Headers: h("p/error")}},
-			Default:   &ir.Response{Headers: h("p/default")},
+			ID:        "operation/a",
+			Request:   &ir.Payload{Contents: []ir.Content{{Encoding: map[ir.PropertyID]ir.PartEncoding{"property/part": {Headers: h("property/part")}}}}},
+			Responses: []ir.Response{{Headers: h("property/response")}},
+			Errors:    []ir.ErrorCase{{Headers: h("property/error")}},
+			Default:   &ir.Response{Headers: h("property/default")},
 		}, registry(nil))
 	}
-	encoded := func(doc *ir.Document) []ir.PropID {
+	encoded := func(doc *ir.Document) []ir.PropertyID {
 		op := operationOf(doc)
-		var ids []ir.PropID
-		for _, hs := range [][]ir.Header{op.Request.Contents[0].Encoding["p/part"].Headers, op.Responses[0].Headers,
+		var ids []ir.PropertyID
+		for _, hs := range [][]ir.Header{op.Request.Contents[0].Encoding["property/part"].Headers, op.Responses[0].Headers,
 			op.Errors[0].Headers, op.Default.Headers} {
 			if hs[0].Encoding != nil {
 				ids = append(ids, hs[0].ID)
@@ -125,7 +125,7 @@ func TestHTTPDate_ReadsEveryResponseAndNoPart(t *testing.T) {
 
 	on := build()
 	assert.Len(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(on)), 3)
-	assert.Equal(t, []ir.PropID{"p/response", "p/error", "p/default"}, encoded(on))
+	assert.Equal(t, []ir.PropertyID{"property/response", "property/error", "property/default"}, encoded(on))
 
 	off := build()
 	assert.Empty(t, convention.Apply(convention.Policy{HTTPDate: convention.HTTPDateInference{Disabled: true}}, defaults(),

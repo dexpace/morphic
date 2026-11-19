@@ -18,14 +18,14 @@ import (
 func TestThroughAliases_ReadsAtMostTheBound(t *testing.T) {
 	t.Parallel()
 	chain := func(hops int) ir.TypeRegistry {
-		reg := ir.TypeRegistry{"t/lit": lit("t/lit", "a")}
-		next := ir.TypeID("t/lit")
+		reg := ir.TypeRegistry{"type/lit": lit("type/lit", "a")}
+		next := ir.TypeID("type/lit")
 		for i := range hops {
-			id := ir.TypeID(fmt.Sprintf("t/alias%d", i))
+			id := ir.TypeID(fmt.Sprintf("type/alias%d", i))
 			reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: next}}
 			next = id
 		}
-		reg["t/x"] = reg[next]
+		reg["type/x"] = reg[next]
 		return reg
 	}
 	for name, tc := range map[string]struct {
@@ -35,13 +35,13 @@ func TestThroughAliases_ReadsAtMostTheBound(t *testing.T) {
 		"within the bound": {chain(maxTagAliasHops), true},
 		"past the bound":   {chain(maxTagAliasHops + 1), false},
 		"a loop": {ir.TypeRegistry{
-			"t/x": &ir.Scalar{ID: "t/x", Base: &ir.TypeRef{Target: "t/y"}},
-			"t/y": &ir.Scalar{ID: "t/y", Base: &ir.TypeRef{Target: "t/x"}},
+			"type/x": &ir.Scalar{ID: "type/x", Base: &ir.TypeRef{Target: "type/y"}},
+			"type/y": &ir.Scalar{ID: "type/y", Base: &ir.TypeRef{Target: "type/x"}},
 		}, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.bound, valueOf(newReadings(t), tc.reg, to("t/x")).pins())
+			assert.Equal(t, tc.bound, valueOf(newReadings(t), tc.reg, to("type/x")).pins())
 		})
 	}
 }

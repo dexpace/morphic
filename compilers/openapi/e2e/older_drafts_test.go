@@ -44,13 +44,13 @@ func TestOlderDrafts_AListOfItemsIsATuple(t *testing.T) {
 				openapitest.RequireNoErrorDiags(t, diags)
 				closed, ok := doc.Types[componentID("C")].(*ir.Tuple)
 				require.True(t, ok, "a list of items is a tuple")
-				require.Len(t, closed.Elems, 2)
-				assert.Equal(t, componentID("B"), closed.Elems[1].Target)
+				require.Len(t, closed.ElementTypes, 2)
+				assert.Equal(t, componentID("B"), closed.ElementTypes[1].Target)
 				assert.Nil(t, closed.Rest, "additionalItems: false admits nothing past them")
 				open, ok := doc.Types[componentID("O")].(*ir.Tuple)
 				require.True(t, ok)
 				require.NotNil(t, open.Rest, "an absent additionalItems admits anything past them")
-				assert.Equal(t, ir.TypeID("t/prim/any"), open.Rest.Target)
+				assert.Equal(t, ir.TypeID("type/primitive/any"), open.Rest.Target)
 			})
 		}
 	}
@@ -76,7 +76,7 @@ func TestOlderDrafts_AListOfItemsIsATuple(t *testing.T) {
 			assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "the list reads as no items, not a false schema")
 			l, ok := doc.Types[componentID("L")].(*ir.List)
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
+			assert.Equal(t, ir.TypeID("type/primitive/any"), l.ElementType.Target)
 			assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, l.Unmodeled, "openapi:additionalItems").Reason,
 				"the rest beside the list is kept as at a position lowering to no tuple")
 		})
@@ -101,14 +101,14 @@ func TestOlderDrafts_ATupleBelowAnotherSchemaIsATuple(t *testing.T) {
 	elem := func(id ir.TypeID) ir.TypeDef {
 		l, ok := doc.Types[id].(*ir.List)
 		require.True(t, ok, "%s is a list", id)
-		return doc.Types[l.Elem.Target]
+		return doc.Types[l.ElementType.Target]
 	}
 	pair, ok := elem(componentID("Pairs")).(*ir.Tuple)
 	require.True(t, ok, "an array's items is the tuple written")
-	assert.Len(t, pair.Elems, 2)
+	assert.Len(t, pair.ElementTypes, 2)
 	cube, ok := elem(elem(componentID("Cube")).Common().ID).(*ir.Tuple)
 	require.True(t, ok, "three arrays deep")
-	assert.Len(t, cube.Elems, 1)
+	assert.Len(t, cube.ElementTypes, 1)
 	row, ok := elem(componentID("Rows")).(*ir.Model)
 	require.True(t, ok, "an array's items above a tuple is the model written")
 	at, ok := propByWire(row, "at")
@@ -140,14 +140,14 @@ func TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten(t *testing.T) {
 			assert.NotContains(t, u.Unmodeled, "openapi:additionalItems")
 			v, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Tuple)
 			require.True(t, ok, "the array variant is the tuple")
-			require.Len(t, v.Elems, 2)
-			assert.Equal(t, ir.TypeID("t/prim/integer"), v.Elems[1].Target)
+			require.Len(t, v.ElementTypes, 2)
+			assert.Equal(t, ir.TypeID("type/primitive/integer"), v.ElementTypes[1].Target)
 			require.NotNil(t, v.Rest)
-			assert.Equal(t, ir.TypeID("t/prim/bool"), v.Rest.Target)
-			inner, ok := doc.Types[v.Elems[0].Target].(*ir.Tuple)
+			assert.Equal(t, ir.TypeID("type/primitive/bool"), v.Rest.Target)
+			inner, ok := doc.Types[v.ElementTypes[0].Target].(*ir.Tuple)
 			require.True(t, ok, "a tuple among its entries")
-			require.Len(t, inner.Elems, 1)
-			assert.Equal(t, ir.TypeID("t/prim/string"), inner.Elems[0].Target)
+			require.Len(t, inner.ElementTypes, 1)
+			assert.Equal(t, ir.TypeID("type/primitive/string"), inner.ElementTypes[0].Target)
 			assert.Nil(t, inner.Rest)
 		})
 	}
@@ -169,12 +169,12 @@ func TestOlderDrafts_ATupleIsReadInTheDialectWhereItIsWritten(t *testing.T) {
 			", type: [string, array], items: [{type: string}]}, {description: d}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, id := range []ir.TypeID{
-		"t/anon/components/schemas/Variant/type/1/items", "t/anon/components/schemas/Array/items", "t/anon/components/schemas/Entry/type/1",
+		"type/anonymous/components/schemas/Variant/type/1/items", "type/anonymous/components/schemas/Array/items", "type/anonymous/components/schemas/Entry/type/1",
 	} {
 		tuple, ok := doc.Types[id].(*ir.Tuple)
 		require.True(t, ok, "%s is the tuple its resource writes", id)
-		require.Len(t, tuple.Elems, 1)
-		assert.Equal(t, ir.TypeID("t/prim/string"), tuple.Elems[0].Target)
+		require.Len(t, tuple.ElementTypes, 1)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), tuple.ElementTypes[0].Target)
 	}
 }
 
@@ -201,10 +201,10 @@ func TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs(t *testing.T) {
 				tp, ok := doc.Types[componentID("T")].(*ir.Tuple)
 				require.True(t, ok, src)
 				var open []bool
-				for _, e := range tp.Elems {
-					open = append(open, e.Target == "t/prim/any")
+				for _, e := range tp.ElementTypes {
+					open = append(open, e.Target == "type/primitive/any")
 				}
-				return said, append(open, tp.Rest != nil && tp.Rest.Target == "t/prim/any")
+				return said, append(open, tp.Rest != nil && tp.Rest.Target == "type/primitive/any")
 			}
 			draftSaid, draftOpen := read("$schema: "+draft07+", type: array, items: [5, null, {}], additionalItems: "+rest,
 				"items", "additionalItems")
@@ -298,7 +298,7 @@ func TestOlderDrafts_AnIdentifierBesideARefSetsNoBase(t *testing.T) {
 			require.True(t, ok)
 			p, ok := propByWire(tm, "p")
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/"+c.defs+"/"+c.want), p.Type.Target)
+			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/T/"+c.defs+"/"+c.want), p.Type.Target)
 			assert.Empty(t, openapitest.PointersOf(diags, diag.LaterVersionConstruct), "the identifier is read as the draft reads it")
 			said := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/T/properties/p/"+c.id)
 			ignored := c.want == "base_foo"
@@ -327,7 +327,7 @@ func TestOlderDrafts_AnIDNamesAResource(t *testing.T) {
 	assert.Equal(t, componentID("U"), u.Type.Target, "u resolves against the id above it")
 	leaf, ok := propByWire(tm, "leaf")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/definitions/Leaf"), leaf.Type.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/T/definitions/Leaf"), leaf.Type.Target)
 	assert.Equal(t, ir.ReasonOutOfScope, unmodeledEntry(t, tm.Unmodeled, "openapi:id").Reason)
 	_, diags = parseFull(t, openapitest.ComponentSpec("    W: {$schema: "+draft04+", $id: 'https://example.com/w', type: string}\n"+
 		"    V: {$ref: 'https://example.com/w'}\n"))
@@ -366,8 +366,8 @@ func TestOlderDrafts_AValueNamingNoDialectLeavesItsDocumentsDraft(t *testing.T) 
 	assert.Equal(t, componentID("I"), useTarget(t, doc, "R"))
 	e, ok := doc.Types[componentID("E")].(*ir.Tuple)
 	require.True(t, ok, "a list of items is a draft 4 tuple")
-	require.Len(t, e.Elems, 1)
-	assert.Equal(t, componentID("S"), e.Elems[0].Target)
+	require.Len(t, e.ElementTypes, 1)
+	assert.Equal(t, componentID("S"), e.ElementTypes[0].Target)
 }
 
 // TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition pins a node an
@@ -386,7 +386,7 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition(t *testing.T)
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/D4/properties/a/description"},
 		openapitest.PointersOf(diags, diag.LaterVersionConstruct))
 	reason := func(at string) ir.UnmodeledReason {
-		td := doc.Types[ir.TypeID("t/anon/components/schemas/"+at)]
+		td := doc.Types[ir.TypeID("type/anonymous/components/schemas/"+at)]
 		require.NotNil(t, td, at)
 		return unmodeledEntry(t, td.Common().Unmodeled, "openapi:dependencies").Reason
 	}
@@ -437,7 +437,7 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader(t *
 			assert.Equal(t, []string{want}, bounds,
 				"the rule table's check judges the node once in each place, sound under the draft")
 			unmodeled := func(at string) ir.Unmodeled {
-				td := doc.Types[ir.TypeID("t/anon/components/schemas/"+at+"/properties/dep")]
+				td := doc.Types[ir.TypeID("type/anonymous/components/schemas/"+at+"/properties/dep")]
 				require.NotNil(t, td, at)
 				return td.Common().Unmodeled
 			}

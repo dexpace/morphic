@@ -91,13 +91,13 @@ func checkCarriedTags(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	}
 	assert.Equal(t, []string{"openapi/unpromoted-extension info /tags/1/x-stability"}, findings(diags))
 
-	g, ok := groupTree(t, doc, "g/tags/T")
+	g, ok := groupTree(t, doc, "operation-group/tags/T")
 	require.True(t, ok, "tag T forms a group")
 	assert.Equal(t, "beta", at(g, "stability"))
 	assert.Equal(t, "extension-promotion", at(g, "inferred"))
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-note": "n", "openapi:x-stability": "beta"},
 		keptValues(at(g, "unmodeled"))))
-	_, ok = groupTree(t, doc, "g/tags/Lone")
+	_, ok = groupTree(t, doc, "operation-group/tags/Lone")
 	assert.False(t, ok, "no operation names Lone, so it forms no group")
 }
 
@@ -213,7 +213,7 @@ func TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd(t *testing.T) {
 	assert.Empty(t, diags)
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-note": "n", "openapi:x-stability": "beta"},
 		keptValues(at(tree(t, doc), "tagDefs", "0", "unmodeled"))))
-	g, ok := groupTree(t, doc, "g/tags/Billing")
+	g, ok := groupTree(t, doc, "operation-group/tags/Billing")
 	require.True(t, ok)
 	assert.Equal(t, "beta", at(g, "stability"))
 	assert.Equal(t, "extension-promotion", at(g, "inferred"))
@@ -232,7 +232,7 @@ func TestTags_ARepeatedNameKeepsEachDeclaration(t *testing.T) {
 		keptValues(at(d, "tagDefs", "0", "unmodeled"))))
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-second": float64(2), "openapi:x-stability": "alpha"},
 		keptValues(at(d, "tagDefs", "1", "unmodeled"))))
-	g, ok := groupTree(t, doc, "g/tags/T")
+	g, ok := groupTree(t, doc, "operation-group/tags/T")
 	require.True(t, ok)
 	assert.Equal(t, "beta", at(g, "stability"), "the first declaration of a name wins")
 	assert.Equal(t, []string{"openapi:x-first", "openapi:x-stability"}, sortedKeys(keptValues(at(g, "unmodeled"))))

@@ -18,11 +18,11 @@ import (
 // examplesDoc returns a document whose one model carries each value as an
 // example, with the scalar a constructor value names declared so that nothing
 // but the values can be wrong. The walk reaches example i at
-// doc.Types[t/x/M].Examples[i].Value.
+// document.Types[t/x/M].Examples[i].Value.
 func examplesDoc(values ...ir.Value) *ir.Document {
-	scalar := &ir.Scalar{ID: "t/x/S", Name: named("s"), Base: &ir.TypeRef{Target: "t/prim/string"}}
-	prim := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString, Provenance: ir.Provenance{Source: ir.NoSource}}
-	model := &ir.Model{ID: "t/x/M", Name: named("m")}
+	scalar := &ir.Scalar{ID: "type/x/S", Name: named("s"), Base: &ir.TypeRef{Target: "type/primitive/string"}}
+	prim := &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
+	model := &ir.Model{ID: "type/x/M", Name: named("m")}
 	for i := range values {
 		model.Examples = append(model.Examples, ir.Example{Value: &values[i]})
 	}
@@ -33,7 +33,9 @@ func examplesDoc(values ...ir.Value) *ir.Document {
 }
 
 // ctorValue returns a constructor value over c.
-func ctorValue(c *ir.CtorValue) ir.Value { return ir.Value{Kind: ir.ValueCtor, Ctor: c} }
+func ctorValue(c *ir.ConstructorValue) ir.Value {
+	return ir.Value{Kind: ir.ValueConstructor, Constructor: c}
+}
 
 // listValue returns a list value over l.
 func listValue(l []ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: l} }
@@ -65,32 +67,32 @@ var cyclicDocs = []struct {
 }{
 	{
 		name:  "a constructor that is its own argument",
-		types: []string{"*ir.CtorValue"},
+		types: []string{"*ir.ConstructorValue"},
 		doc:   selfArgumentDoc,
-		want:  []string{"doc.Types[t/x/M].Examples[0].Value.Ctor.Args[0].Ctor"},
+		want:  []string{"document.Types[type/x/M].Examples[0].Value.Constructor.Args[0].Constructor"},
 	},
 	{
 		name: "a constructor that is both of its arguments",
 		doc: func() *ir.Document {
-			c := &ir.CtorValue{Scalar: "t/x/S", Name: "from"}
+			c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
 			c.Args = []ir.Value{ctorValue(c), ctorValue(c)}
 			return examplesDoc(ctorValue(c))
 		},
 		want: []string{
-			"doc.Types[t/x/M].Examples[0].Value.Ctor.Args[0].Ctor",
-			"doc.Types[t/x/M].Examples[0].Value.Ctor.Args[1].Ctor",
+			"document.Types[type/x/M].Examples[0].Value.Constructor.Args[0].Constructor",
+			"document.Types[type/x/M].Examples[0].Value.Constructor.Args[1].Constructor",
 		},
 	},
 	{
 		name: "two constructors that are each other's argument",
 		doc: func() *ir.Document {
-			a := &ir.CtorValue{Scalar: "t/x/S", Name: "a"}
-			b := &ir.CtorValue{Scalar: "t/x/S", Name: "b"}
+			a := &ir.ConstructorValue{Scalar: "type/x/S", Name: "a"}
+			b := &ir.ConstructorValue{Scalar: "type/x/S", Name: "b"}
 			a.Args = []ir.Value{ctorValue(b)}
 			b.Args = []ir.Value{ctorValue(a)}
 			return examplesDoc(ctorValue(a))
 		},
-		want: []string{"doc.Types[t/x/M].Examples[0].Value.Ctor.Args[0].Ctor.Args[0].Ctor"},
+		want: []string{"document.Types[type/x/M].Examples[0].Value.Constructor.Args[0].Constructor.Args[0].Constructor"},
 	},
 	{
 		// GitHub #736: a list that is its own element, which a guard on pointers
@@ -102,7 +104,7 @@ var cyclicDocs = []struct {
 			l[0] = listValue(l)
 			return examplesDoc(listValue(l))
 		},
-		want: []string{"doc.Types[t/x/M].Examples[0].Value.List[0].List"},
+		want: []string{"document.Types[type/x/M].Examples[0].Value.List[0].List"},
 	},
 	{
 		name: "a list that is each of its three elements",
@@ -114,9 +116,9 @@ var cyclicDocs = []struct {
 			return examplesDoc(listValue(l))
 		},
 		want: []string{
-			"doc.Types[t/x/M].Examples[0].Value.List[0].List",
-			"doc.Types[t/x/M].Examples[0].Value.List[1].List",
-			"doc.Types[t/x/M].Examples[0].Value.List[2].List",
+			"document.Types[type/x/M].Examples[0].Value.List[0].List",
+			"document.Types[type/x/M].Examples[0].Value.List[1].List",
+			"document.Types[type/x/M].Examples[0].Value.List[2].List",
 		},
 	},
 	{
@@ -126,7 +128,7 @@ var cyclicDocs = []struct {
 			l[0] = listValue(l[:1])
 			return examplesDoc(listValue(l[:1]))
 		},
-		want: []string{"doc.Types[t/x/M].Examples[0].Value.List[0].List"},
+		want: []string{"document.Types[type/x/M].Examples[0].Value.List[0].List"},
 	},
 	{
 		name:  "an object that is its own member",
@@ -136,19 +138,19 @@ var cyclicDocs = []struct {
 			f[0] = ir.Field{Name: "a", Value: ir.Value{Kind: ir.ValueObject, Object: f}}
 			return examplesDoc(ir.Value{Kind: ir.ValueObject, Object: f})
 		},
-		want: []string{"doc.Types[t/x/M].Examples[0].Value.Object[0].Value.Object"},
+		want: []string{"document.Types[type/x/M].Examples[0].Value.Object[0].Value.Object"},
 	},
 	{
 		name:  "a group that is each of its two subgroups",
 		types: []string{"[]ir.OperationGroup"},
 		doc: func() *ir.Document {
-			g := []ir.OperationGroup{{ID: "g/x/A", Name: named("a")}, {ID: "g/x/B", Name: named("b")}}
+			g := []ir.OperationGroup{{ID: "operation-group/x/A", Name: named("a")}, {ID: "operation-group/x/B", Name: named("b")}}
 			g[0].Groups, g[1].Groups = g, g
 			return groupsDoc(g)
 		},
 		want: []string{
-			"doc.Services[0].Groups[0].Groups",
-			"doc.Services[0].Groups[1].Groups",
+			"document.Services[0].Groups[0].Groups",
+			"document.Services[0].Groups[1].Groups",
 		},
 	},
 }
@@ -156,7 +158,7 @@ var cyclicDocs = []struct {
 // selfArgumentDoc is GitHub #573's reproducer: a constructor whose one argument
 // is a value holding the same constructor, as the first example of a model.
 func selfArgumentDoc() *ir.Document {
-	c := &ir.CtorValue{Scalar: "t/x/S", Name: "from"}
+	c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
 	c.Args = []ir.Value{ctorValue(c)}
 	return examplesDoc(ctorValue(c))
 }
@@ -165,7 +167,7 @@ func selfArgumentDoc() *ir.Document {
 func groupsDoc(g []ir.OperationGroup) *ir.Document {
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
-		Services:  []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: g}},
+		Services:  []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: g}},
 	}
 }
 
@@ -193,8 +195,8 @@ func TestVerify_CyclicStructureNamesWhereItWasEntered(t *testing.T) {
 	t.Parallel()
 	got := verifyDeclared(selfArgumentDoc())
 	require.Len(t, got, 1)
-	assert.Contains(t, got[0].Message, "*ir.CtorValue")
-	assert.Contains(t, got[0].Message, strconv.Quote("doc.Types[t/x/M].Examples[0].Value.Ctor"))
+	assert.Contains(t, got[0].Message, "*ir.ConstructorValue")
+	assert.Contains(t, got[0].Message, strconv.Quote("document.Types[type/x/M].Examples[0].Value.Constructor"))
 }
 
 // sharedDocs are documents that hold a reference in two places without either
@@ -207,15 +209,15 @@ var sharedDocs = []struct {
 	{
 		name: "a constructor two examples share",
 		doc: func() *ir.Document {
-			c := &ir.CtorValue{Scalar: "t/x/S", Name: "from"}
+			c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
 			return examplesDoc(ctorValue(c), ctorValue(c))
 		},
 	},
 	{
 		name: "a constructor that is two arguments of another",
 		doc: func() *ir.Document {
-			leaf := &ir.CtorValue{Scalar: "t/x/S", Name: "leaf"}
-			root := &ir.CtorValue{Scalar: "t/x/S", Name: "root", Args: []ir.Value{ctorValue(leaf), ctorValue(leaf)}}
+			leaf := &ir.ConstructorValue{Scalar: "type/x/S", Name: "leaf"}
+			root := &ir.ConstructorValue{Scalar: "type/x/S", Name: "root", Args: []ir.Value{ctorValue(leaf), ctorValue(leaf)}}
 			return examplesDoc(ctorValue(root))
 		},
 	},
@@ -260,14 +262,14 @@ func TestVerify_SharedReferenceIsNotACycle(t *testing.T) {
 
 // TestVerify_RegistryKeysCannotMakeASharedPointerACycle builds the one place a
 // path spelling could lie. A registry key is any string, so the entry under
-// "t/x/M]." is written doc.Types[t/x/M].], which reads as nested below
-// doc.Types[t/x/M] to anything that tells ancestry from the rendered path. The
+// "type/x/M]." is written document.Types[t/x/M].], which reads as nested below
+// document.Types[t/x/M] to anything that tells ancestry from the rendered path. The
 // one model both keys hold is shared, not contained, so the only defect is the
 // key that disagrees with the node.
 func TestVerify_RegistryKeysCannotMakeASharedPointerACycle(t *testing.T) {
 	t.Parallel()
 	doc := examplesDoc()
-	doc.Types["t/x/M]."] = doc.Types["t/x/M"]
+	doc.Types["type/x/M]."] = doc.Types["type/x/M"]
 
 	got := verifyDeclared(doc)
 	assert.Empty(t, violationPaths(got, "ir/cyclic-structure"))
@@ -285,8 +287,8 @@ func TestVerify_CyclicStructureIsReportedOnceAtEachWayIn(t *testing.T) {
 	doc := examplesDoc(listValue(l), listValue(l))
 
 	assert.Equal(t, []string{
-		"doc.Types[t/x/M].Examples[0].Value.List[0].List",
-		"doc.Types[t/x/M].Examples[1].Value.List[0].List",
+		"document.Types[type/x/M].Examples[0].Value.List[0].List",
+		"document.Types[type/x/M].Examples[1].Value.List[0].List",
 	}, cyclePaths(t, doc))
 	assert.True(t, irtest.RefusedAsCyclic(doc))
 }

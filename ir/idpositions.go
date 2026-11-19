@@ -71,7 +71,7 @@ var idPositions = map[string]idRule{
 	"Channel.Servers":              idRequired,
 	"Content.CatchAllEncoding":     idRequired,
 	"Content.Encoding":             idRequired,
-	"CtorValue.Scalar":             idRequired,
+	"ConstructorValue.Scalar":      idRequired,
 	"Discriminator.Mapping":        idRequired,
 	"DocRef.Type":                  idRequired,
 	"HTTPParamBinding.BodyPath":    idRequired,

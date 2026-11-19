@@ -176,7 +176,7 @@ func condition(p promotion.Promoter, w *compileddoc.CompiledDocumentView, op *ir
 // namesBoolean reports whether id stands for the boolean primitive.
 func namesBoolean(w *compileddoc.CompiledDocumentView, id ir.TypeID) bool {
 	prim, ok := w.Stands(id).(*ir.Primitive)
-	return ok && prim.Prim == ir.PrimBool
+	return ok && prim.PrimitiveKind == ir.PrimitiveBool
 }
 
 // choosesStream reports whether op streams a response and a success response

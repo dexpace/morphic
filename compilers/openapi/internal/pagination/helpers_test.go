@@ -67,11 +67,11 @@ func describe(doc *ir.Document, op ir.Operation) string {
 	if pg == nil {
 		return "-"
 	}
-	params := map[ir.ParamID]string{}
+	params := map[ir.ParameterID]string{}
 	for _, p := range op.Params {
 		params[p.ID] = p.Name.Source
 	}
-	members := map[ir.PropID]string{}
+	members := map[ir.PropertyID]string{}
 	for _, td := range doc.Types {
 		if m, ok := td.(*ir.Model); ok {
 			for _, p := range m.Properties {

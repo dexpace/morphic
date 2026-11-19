@@ -14,9 +14,9 @@ import (
 	"github.com/dexpace/morphic/scratchstate"
 )
 
-// paramIDType is the reflect.Type of ir.ParamID, the class of identity a
+// paramIDType is the reflect.Type of ir.ParameterID, the class of identity a
 // parameter declares.
-var paramIDType = reflect.TypeFor[ir.ParamID]()
+var paramIDType = reflect.TypeFor[ir.ParameterID]()
 
 // checkParams holds every reference an operation makes to a parameter — its
 // HTTP bindings, its pagination inputs, the inputs selecting a stream, its
@@ -35,7 +35,7 @@ func checkParams(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 // one the document declares nowhere, and checkEmptyRefs an empty one, each
 // once. Past the walk's bounds none reports it, and ir/walk-truncated says
 // why.
-func reportedHere(id ir.ParamID, refs *ir.IDReferences) bool {
+func reportedHere(id ir.ParameterID, refs *ir.IDReferences) bool {
 	return id != "" && refs.Declares(paramIDType, string(id))
 }
 
@@ -60,8 +60,8 @@ func checkParamBindings(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic
 // bindingMaps are what checkParamBindings reads an operation and each of its
 // HTTP bindings through.
 type bindingMaps struct {
-	names       scratchstate.Map[ir.ParamID, string]
-	bound       scratchstate.Map[ir.ParamID, int]
+	names       scratchstate.Map[ir.ParameterID, string]
+	bound       scratchstate.Map[ir.ParameterID, int]
 	perLocation scratchstate.Map[paramLocation, int]
 }
 
@@ -69,7 +69,7 @@ type bindingMaps struct {
 // identified by its ID, not its name, so two parameters sharing a name never
 // count against each other.
 type paramLocation struct {
-	param    ir.ParamID
+	param    ir.ParameterID
 	location ir.HTTPLocation
 }
 
@@ -79,7 +79,7 @@ type paramLocation struct {
 // twice in one non-host location is an error, and an unbound parameter is a
 // pass/param-unbound warning (body-carried operations bind nothing). The binding's location is
 // spelled only for a diagnostic.
-func checkHTTPParamBinding(op ir.Operation, idx int, names map[ir.ParamID]string, refs *ir.IDReferences,
+func checkHTTPParamBinding(op ir.Operation, idx int, names map[ir.ParameterID]string, refs *ir.IDReferences,
 	read *bindingMaps,
 ) []ir.Diagnostic {
 	b := op.Bindings.HTTP[idx]
@@ -112,13 +112,13 @@ func checkHTTPParamBinding(op ir.Operation, idx int, names map[ir.ParamID]string
 
 // bindingWhere spells where HTTP binding idx of operation op sits, for a
 // diagnostic to be placed there.
-func bindingWhere(op ir.OpID, idx int) string {
+func bindingWhere(op ir.OperationID, idx int) string {
 	return fmt.Sprintf("%s/bindings/http/%d", op, idx)
 }
 
 // unboundParamWarnings reports each logical parameter that HTTP binding idx of
 // op placed nowhere on the wire.
-func unboundParamWarnings(op ir.Operation, idx int, bound map[ir.ParamID]int) []ir.Diagnostic {
+func unboundParamWarnings(op ir.Operation, idx int, bound map[ir.ParameterID]int) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, p := range op.Params {
 		if bound[p.ID] == 0 {
@@ -135,13 +135,13 @@ func unboundParamWarnings(op ir.Operation, idx int, bound map[ir.ParamID]int) []
 // bindings, with where it sits: the field of the operation it is in, or, for a
 // key of a scenario's input, no field and the index of the example holding it.
 type paramRef struct {
-	id      ir.ParamID
+	id      ir.ParameterID
 	field   string
 	example int
 }
 
 // where spells where r sits in operation op, for a report.
-func (r paramRef) where(op ir.OpID) string {
+func (r paramRef) where(op ir.OperationID) string {
 	if r.field == "" {
 		return string(op) + "/examples/" + strconv.Itoa(r.example) + "/input"
 	}
@@ -212,7 +212,7 @@ func appendInputRef(dst []paramRef, in *ir.InputPath, field string) []paramRef {
 // so none costs one of its own.
 func checkParamReferences(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var declared scratchstate.Map[ir.ParamID, bool]
+	var declared scratchstate.Map[ir.ParameterID, bool]
 	var carried []paramRef
 	ir.ForEachOperation(doc, func(op ir.Operation) {
 		own := declared.Emptied()

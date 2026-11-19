@@ -61,7 +61,7 @@ func fieldClosure(t *testing.T, doc *ir.Document, id, wire string) string {
 			for _, r := range refs {
 				if ref, ok := r.(string); ok {
 					if name, found := strings.CutPrefix(ref, "#/components/schemas/"); found {
-						reached = append(reached, "t/openapi/components/schemas/"+name)
+						reached = append(reached, "type/openapi/components/schemas/"+name)
 					}
 				}
 			}
@@ -115,7 +115,7 @@ var typedTargets = []struct {
 	name, kind, target, fact string
 }{
 	{"bound", "integer", "T: {type: integer, minimum: 5}", `"min":"5"`},
-	{"value set", "integer", "T: {enum: [1, 2]}", `"num":"2"`},
+	{"value set", "integer", "T: {enum: [1, 2]}", `"number":"2"`},
 	{"pattern", "string", "T: {type: string, pattern: '^a'}", `"pattern":"^a"`},
 	{"union branch", "integer", "T: {anyOf: [{type: object}, {type: integer, minimum: 5}]}", `"min":"5"`},
 }
@@ -143,10 +143,10 @@ func TestCompile_AnAllOfOverATypedTargetFoldsAsItsRef(t *testing.T) {
 					inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 						doc, diags := compileAnnotationSpec(t, "typed", admissionSpec(version, "", schemas...))
 						requireErrorsAndWarnings(t, diags, nil)
-						target, _ := redeclaredField(t, doc, diags, "t/openapi/components/schemas/C", "p", "/components/schemas/C")
-						refTarget, _ := redeclaredField(t, doc, diags, "t/openapi/components/schemas/D", "p", "/components/schemas/D")
+						target, _ := redeclaredField(t, doc, diags, "type/openapi/components/schemas/C", "p", "/components/schemas/C")
+						refTarget, _ := redeclaredField(t, doc, diags, "type/openapi/components/schemas/D", "p", "/components/schemas/D")
 						assert.Equal(t, refTarget, target, "the field is what the $ref spelling gives")
-						requireHeld(t, fieldClosure(t, doc, "t/openapi/components/schemas/C", "p"),
+						requireHeld(t, fieldClosure(t, doc, "type/openapi/components/schemas/C", "p"),
 							[][]string{{tc.fact}, {`"openapi:properties"`}})
 					})
 				})
@@ -185,15 +185,15 @@ func TestCompile_AStructureAdmittingPartOfAKindConflictsWithIt(t *testing.T) {
 						}})
 						kept := "openapi:conflicting-redeclaration/components/schemas/C/allOf/0/properties/p"
 						assert.Equal(t, []string{"/components/schemas/C/allOf/0/properties/p"}, keptEntries(t, doc, kept))
-						target, _ := redeclaredField(t, doc, diags, "t/openapi/components/schemas/C", "p", "/components/schemas/C")
+						target, _ := redeclaredField(t, doc, diags, "type/openapi/components/schemas/C", "p", "/components/schemas/C")
 						facts := append([][]string{{`"wireName":"a"`, `"properties":{"a":`}}, tc.facts...)
 						if swapped {
-							assert.Equal(t, ir.TypeID("t/prim/"+tc.kind), target, "the later declaration's kind")
+							assert.Equal(t, ir.TypeID("type/primitive/"+tc.kind), target, "the later declaration's kind")
 						} else {
-							assert.Equal(t, ir.TypeID("t/anon/components/schemas/C/allOf/1/properties/p"), target)
+							assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/C/allOf/1/properties/p"), target)
 							facts = append(facts, []string{`"value":{"type":"` + tc.kind + `"}`})
 						}
-						requireHeld(t, fieldClosure(t, doc, "t/openapi/components/schemas/C", "p"), facts)
+						requireHeld(t, fieldClosure(t, doc, "type/openapi/components/schemas/C", "p"), facts)
 					})
 				})
 			}

@@ -90,12 +90,12 @@ func TestCompile_SharedCompositionAncestorsDoNotAmplify(t *testing.T) {
 	case r := <-done:
 		require.NoError(t, r.err)
 		require.NotNil(t, r.doc, "a diamond composition is ordinary input, not a refusal")
-		leaf, ok := r.doc.Types[ir.TypeID("t/openapi/components/schemas/"+prev)].(*ir.Model)
+		leaf, ok := r.doc.Types[ir.TypeID("type/openapi/components/schemas/"+prev)].(*ir.Model)
 		require.True(t, ok, "the deepest subtype lowers to a model")
 		assert.Equal(t, prev, leaf.DiscriminatorValue,
 			"and still answers to the tag its distant ancestor spells for it")
 		require.NotNil(t, leaf.Base, "its parent takes part in Root's hierarchy, so it is the Base")
-		assert.True(t, ir.IsSubtype(r.doc, leaf.ID, "t/openapi/components/schemas/Root"))
+		assert.True(t, ir.IsSubtype(r.doc, leaf.ID, "type/openapi/components/schemas/Root"))
 	case <-time.After(bound):
 		t.Fatalf("compiling %d levels of shared ancestors did not finish within %v — "+
 			"the discriminator ancestor walk is revisiting schemas it has already seen", levels, bound)

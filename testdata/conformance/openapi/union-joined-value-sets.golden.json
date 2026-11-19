@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "JoinedValueSets",
         "canonical": "joined_value_sets"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Many/allOf/0/oneOf/0": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/0": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/0",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -75,14 +75,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/0/s:v1",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/0/string:v1",
           "name": {
             "source": "v1",
             "canonical": "v_1"
           },
           "value": {
             "kind": "string",
-            "str": "v1"
+            "string": "v1"
           },
           "docs": {}
         }
@@ -90,9 +90,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Many/allOf/0/oneOf/1": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/1": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/1",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -106,14 +106,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/1/s:v2",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/1/string:v2",
           "name": {
             "source": "v2",
             "canonical": "v_2"
           },
           "value": {
             "kind": "string",
-            "str": "v2"
+            "string": "v2"
           },
           "docs": {}
         }
@@ -121,9 +121,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Many/allOf/0/oneOf/2": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/2": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/2",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/2",
       "name": {
         "hint": "variant_2"
       },
@@ -137,14 +137,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/2/s:v3",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/2/string:v3",
           "name": {
             "source": "v3",
             "canonical": "v_3"
           },
           "value": {
             "kind": "string",
-            "str": "v3"
+            "string": "v3"
           },
           "docs": {}
         }
@@ -152,9 +152,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Many/allOf/0/oneOf/3": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/3": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/3",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/3",
       "name": {
         "hint": "variant_3"
       },
@@ -168,14 +168,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/3/s:v4",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/3/string:v4",
           "name": {
             "source": "v4",
             "canonical": "v_4"
           },
           "value": {
             "kind": "string",
-            "str": "v4"
+            "string": "v4"
           },
           "docs": {}
         }
@@ -183,9 +183,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Many/allOf/0/oneOf/4": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/4": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/4",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/4",
       "name": {
         "hint": "variant_4"
       },
@@ -199,14 +199,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/4/s:v5",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/4/string:v5",
           "name": {
             "source": "v5",
             "canonical": "v_5"
           },
           "value": {
             "kind": "string",
-            "str": "v5"
+            "string": "v5"
           },
           "docs": {}
         }
@@ -214,9 +214,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Many/allOf/0/oneOf/5": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/5": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/5",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/5",
       "name": {
         "hint": "variant_5"
       },
@@ -230,14 +230,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/5/s:v6",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/5/string:v6",
           "name": {
             "source": "v6",
             "canonical": "v_6"
           },
           "value": {
             "kind": "string",
-            "str": "v6"
+            "string": "v6"
           },
           "docs": {}
         }
@@ -245,9 +245,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Many/allOf/0/oneOf/6": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/6": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/6",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/6",
       "name": {
         "hint": "variant_6"
       },
@@ -261,14 +261,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/6/s:v7",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/6/string:v7",
           "name": {
             "source": "v7",
             "canonical": "v_7"
           },
           "value": {
             "kind": "string",
-            "str": "v7"
+            "string": "v7"
           },
           "docs": {}
         }
@@ -276,9 +276,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Many/allOf/0/oneOf/7": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/7": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/7",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/7",
       "name": {
         "hint": "variant_7"
       },
@@ -292,14 +292,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/7/s:v8",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/7/string:v8",
           "name": {
             "source": "v8",
             "canonical": "v_8"
           },
           "value": {
             "kind": "string",
-            "str": "v8"
+            "string": "v8"
           },
           "docs": {}
         }
@@ -307,9 +307,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Many/allOf/0/oneOf/8": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/8": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/8",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/8",
       "name": {
         "hint": "variant_8"
       },
@@ -323,14 +323,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/8/s:v9",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/8/string:v9",
           "name": {
             "source": "v9",
             "canonical": "v_9"
           },
           "value": {
             "kind": "string",
-            "str": "v9"
+            "string": "v9"
           },
           "docs": {}
         }
@@ -338,9 +338,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Many/allOf/0/oneOf/9": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/9": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/9",
+      "id": "type/anonymous/components/schemas/Many/allOf/0/oneOf/9",
       "name": {
         "hint": "variant_9"
       },
@@ -354,14 +354,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/9/s:v10",
+          "id": "enum-member/anonymous/components/schemas/Many/allOf/0/oneOf/9/string:v10",
           "name": {
             "source": "v10",
             "canonical": "v_10"
           },
           "value": {
             "kind": "string",
-            "str": "v10"
+            "string": "v10"
           },
           "docs": {}
         }
@@ -369,9 +369,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Shared/allOf/0/anyOf/0": {
+    "type/anonymous/components/schemas/Shared/allOf/0/anyOf/0": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Shared/allOf/0/anyOf/0",
+      "id": "type/anonymous/components/schemas/Shared/allOf/0/anyOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -385,26 +385,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Shared/allOf/0/anyOf/0/s:a",
+          "id": "enum-member/anonymous/components/schemas/Shared/allOf/0/anyOf/0/string:a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "value": {
             "kind": "string",
-            "str": "a"
+            "string": "a"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Shared/allOf/0/anyOf/0/s:b",
+          "id": "enum-member/anonymous/components/schemas/Shared/allOf/0/anyOf/0/string:b",
           "name": {
             "source": "b",
             "canonical": "b"
           },
           "value": {
             "kind": "string",
-            "str": "b"
+            "string": "b"
           },
           "docs": {}
         }
@@ -412,9 +412,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Shared/allOf/0/anyOf/1": {
+    "type/anonymous/components/schemas/Shared/allOf/0/anyOf/1": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Shared/allOf/0/anyOf/1",
+      "id": "type/anonymous/components/schemas/Shared/allOf/0/anyOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -428,26 +428,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Shared/allOf/0/anyOf/1/s:b",
+          "id": "enum-member/anonymous/components/schemas/Shared/allOf/0/anyOf/1/string:b",
           "name": {
             "source": "b",
             "canonical": "b"
           },
           "value": {
             "kind": "string",
-            "str": "b"
+            "string": "b"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Shared/allOf/0/anyOf/1/s:c",
+          "id": "enum-member/anonymous/components/schemas/Shared/allOf/0/anyOf/1/string:c",
           "name": {
             "source": "c",
             "canonical": "c"
           },
           "value": {
             "kind": "string",
-            "str": "c"
+            "string": "c"
           },
           "docs": {}
         }
@@ -455,9 +455,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Many": {
+    "type/openapi/components/schemas/Many": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Many",
+      "id": "type/openapi/components/schemas/Many",
       "name": {
         "source": "Many",
         "canonical": "many"
@@ -488,7 +488,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/0",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -498,7 +498,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/1",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -508,7 +508,7 @@
             "hint": "variant_2"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/2",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/2",
             "nullable": false
           },
           "docs": {}
@@ -518,7 +518,7 @@
             "hint": "variant_3"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/3",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/3",
             "nullable": false
           },
           "docs": {}
@@ -528,7 +528,7 @@
             "hint": "variant_4"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/4",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/4",
             "nullable": false
           },
           "docs": {}
@@ -538,7 +538,7 @@
             "hint": "variant_5"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/5",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/5",
             "nullable": false
           },
           "docs": {}
@@ -548,7 +548,7 @@
             "hint": "variant_6"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/6",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/6",
             "nullable": false
           },
           "docs": {}
@@ -558,7 +558,7 @@
             "hint": "variant_7"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/7",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/7",
             "nullable": false
           },
           "docs": {}
@@ -568,7 +568,7 @@
             "hint": "variant_8"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/8",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/8",
             "nullable": false
           },
           "docs": {}
@@ -578,7 +578,7 @@
             "hint": "variant_9"
           },
           "type": {
-            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/9",
+            "target": "type/anonymous/components/schemas/Many/allOf/0/oneOf/9",
             "nullable": false
           },
           "docs": {}
@@ -589,9 +589,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Nested": {
+    "type/openapi/components/schemas/Nested": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Nested",
+      "id": "type/openapi/components/schemas/Nested",
       "name": {
         "source": "Nested",
         "canonical": "nested"
@@ -641,26 +641,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/Nested/s:s1",
+          "id": "enum-member/openapi/components/schemas/Nested/string:s1",
           "name": {
             "source": "s1",
             "canonical": "s_1"
           },
           "value": {
             "kind": "string",
-            "str": "s1"
+            "string": "s1"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/Nested/s:p",
+          "id": "enum-member/openapi/components/schemas/Nested/string:p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "value": {
             "kind": "string",
-            "str": "p"
+            "string": "p"
           },
           "docs": {}
         }
@@ -668,9 +668,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Shared": {
+    "type/openapi/components/schemas/Shared": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Shared",
+      "id": "type/openapi/components/schemas/Shared",
       "name": {
         "source": "Shared",
         "canonical": "shared"
@@ -701,7 +701,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Shared/allOf/0/anyOf/0",
+            "target": "type/anonymous/components/schemas/Shared/allOf/0/anyOf/0",
             "nullable": false
           },
           "docs": {}
@@ -711,7 +711,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Shared/allOf/0/anyOf/1",
+            "target": "type/anonymous/components/schemas/Shared/allOf/0/anyOf/1",
             "nullable": false
           },
           "docs": {}

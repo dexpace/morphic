@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "ExtensionStability",
         "canonical": "extension_stability"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1tiers/get",
+              "id": "operation/openapi/paths/~1tiers/get",
               "name": {
                 "source": "alphaWord",
                 "canonical": "alpha_word"
@@ -113,7 +113,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1tiers/put",
+              "id": "operation/openapi/paths/~1tiers/put",
               "name": {
                 "source": "betaWord",
                 "canonical": "beta_word"
@@ -167,7 +167,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1tiers/post",
+              "id": "operation/openapi/paths/~1tiers/post",
               "name": {
                 "source": "previewWord",
                 "canonical": "preview_word"
@@ -221,7 +221,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1tiers/delete",
+              "id": "operation/openapi/paths/~1tiers/delete",
               "name": {
                 "source": "gaWord",
                 "canonical": "ga_word"
@@ -275,7 +275,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1tiers/patch",
+              "id": "operation/openapi/paths/~1tiers/patch",
               "name": {
                 "source": "stableWord",
                 "canonical": "stable_word"
@@ -329,7 +329,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1sources/get",
+              "id": "operation/openapi/paths/~1sources/get",
               "name": {
                 "source": "sourcesAgree",
                 "canonical": "sources_agree"
@@ -391,7 +391,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1sources/put",
+              "id": "operation/openapi/paths/~1sources/put",
               "name": {
                 "source": "sourcesDisagree",
                 "canonical": "sources_disagree"
@@ -453,7 +453,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1deprecated/get",
+              "id": "operation/openapi/paths/~1deprecated/get",
               "name": {
                 "source": "deprecatedWord",
                 "canonical": "deprecated_word"
@@ -507,7 +507,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1deprecated/put",
+              "id": "operation/openapi/paths/~1deprecated/put",
               "name": {
                 "source": "deprecatedAndBeta",
                 "canonical": "deprecated_and_beta"
@@ -570,7 +570,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1deprecated/post",
+              "id": "operation/openapi/paths/~1deprecated/post",
               "name": {
                 "source": "stabilityKeyDeprecated",
                 "canonical": "stability_key_deprecated"
@@ -624,7 +624,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1deprecated/patch",
+              "id": "operation/openapi/paths/~1deprecated/patch",
               "name": {
                 "source": "keywordFalse",
                 "canonical": "keyword_false"
@@ -678,7 +678,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1unread/get",
+              "id": "operation/openapi/paths/~1unread/get",
               "name": {
                 "source": "legacyWord",
                 "canonical": "legacy_word"
@@ -730,7 +730,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1unread/put",
+              "id": "operation/openapi/paths/~1unread/put",
               "name": {
                 "source": "unknownWord",
                 "canonical": "unknown_word"
@@ -782,7 +782,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1unread/post",
+              "id": "operation/openapi/paths/~1unread/post",
               "name": {
                 "source": "notText",
                 "canonical": "not_text"
@@ -834,7 +834,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1unread/delete",
+              "id": "operation/openapi/paths/~1unread/delete",
               "name": {
                 "source": "unstated",
                 "canonical": "unstated"
@@ -876,7 +876,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1unread/patch",
+              "id": "operation/openapi/paths/~1unread/patch",
               "name": {
                 "source": "notAWord",
                 "canonical": "not_a_word"
@@ -928,7 +928,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1pathitem/get",
+              "id": "operation/openapi/paths/~1pathitem/get",
               "name": {
                 "source": "underPathItemKey",
                 "canonical": "under_path_item_key"

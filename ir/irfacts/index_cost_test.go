@@ -19,10 +19,10 @@ import (
 func hierarchyOf(n int) *ir.Document {
 	doc := &ir.Document{Types: ir.TypeRegistry{}}
 	for i := range n {
-		base := ir.TypeID(fmt.Sprintf("t/x/M%d", i))
-		doc.Types[base] = &ir.Model{ID: base, Properties: []ir.Property{{ID: ir.PropID(fmt.Sprintf("p/x/M%d/a", i))}}}
+		base := ir.TypeID(fmt.Sprintf("type/x/M%d", i))
+		doc.Types[base] = &ir.Model{ID: base, Properties: []ir.Property{{ID: ir.PropertyID(fmt.Sprintf("property/x/M%d/a", i))}}}
 		for j := range 12 {
-			sub := ir.TypeID(fmt.Sprintf("t/x/M%d/S%d", i, j))
+			sub := ir.TypeID(fmt.Sprintf("type/x/M%d/S%d", i, j))
 			doc.Types[sub] = &ir.Model{ID: sub, Base: &ir.TypeRef{Target: base}}
 		}
 	}
@@ -39,8 +39,8 @@ func TestIndex_AWalkedQuestionAllocatesNothing(t *testing.T) {
 	construction := testing.AllocsPerRun(10, func() { kept = irfacts.New(doc) })
 	require.NotNil(t, kept)
 
-	subtype := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).IsSubtype("t/x/M0/S0", "t/x/M0") })
-	exposes := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).Exposes("t/x/M0/S0", "p/x/M0/a") })
+	subtype := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).IsSubtype("type/x/M0/S0", "type/x/M0") })
+	exposes := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).Exposes("type/x/M0/S0", "property/x/M0/a") })
 
 	assert.Equal(t, construction, subtype, "IsSubtype beyond New's allocations")
 	assert.Equal(t, construction, exposes, "Exposes beyond New's allocations")
@@ -54,7 +54,7 @@ func TestIndex_TheHierarchyGrowsByLessThanAnAllocationATypeAdded(t *testing.T) {
 	allocs := map[int]float64{}
 	for _, n := range []int{50, 100, 200} {
 		doc := hierarchyOf(n)
-		allocs[n] = testing.AllocsPerRun(5, func() { _ = irfacts.New(doc).Subtypes("t/x/M0") })
+		allocs[n] = testing.AllocsPerRun(5, func() { _ = irfacts.New(doc).Subtypes("type/x/M0") })
 	}
 
 	for _, n := range []int{50, 100} {

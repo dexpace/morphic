@@ -22,7 +22,7 @@ API functions). Lowering conventions: a gen_server ≈ one `Channel`; `handle_ca
 APIs are `Operation`s with an `OTPBinding`; unsolicited `handle_info` messages are channel
 `Messages` consumed via `MessageBinding{Direction: receive}`; a gen_event manager is a Channel
 with one message shape per event. Tagged-tuple protocols (`{ok, V} | {error, R}`) are `WireTagged`
-Unions of Tuples discriminated by `Discriminator.Index`; records are `Model{Positional: true}`
+Unions of Tuples discriminated by `Discriminator.TupleElementIndex`; records are `Model{Positional: true}`
 with the record tag as an index-1 `Literal`-typed property. Splitting a tagged reply union into
 `Responses` vs `Errors` (`{error, Reason}` is in-band data, not transport failure) is injectable
 compiler policy, marked `Inferred`. Erlang `string()` is `[char()]` and must lower as a List of

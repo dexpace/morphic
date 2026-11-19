@@ -64,5 +64,5 @@ paths:
 `)
 	assert.Empty(t, diags)
 	got := at(opTree(t, doc, "a"), "responses", "0", "payload", "contents", "0", "examples")
-	assert.JSONEq(t, `[{"name":"one","value":{"kind":"number","num":"1"}}]`, toJSON(t, got))
+	assert.JSONEq(t, `[{"name":"one","value":{"kind":"number","number":"1"}}]`, toJSON(t, got))
 }

@@ -63,7 +63,7 @@ func readAndReported(t *testing.T, src string) (read, reported bool) {
 		compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	_, read = doc.Types["t/anon/x-lib/T"]
+	_, read = doc.Types["type/anonymous/x-lib/T"]
 	for _, d := range diags {
 		switch {
 		case d.Code == "openapi/unresolved-ref" && strings.HasSuffix(string(d.Provenance.Pointer), "/mapping/x"):
@@ -234,7 +234,7 @@ func TestMappingTargets_ARawReferenceResolvesInEitherOrder(t *testing.T) {
 		types = append(types, doc.Types)
 	}
 	assert.Empty(t, cmp.Diff(types[0], types[1]), "declaration order changed the registry")
-	assert.Contains(t, types[0], ir.TypeID("t/anon/x-defs/Dog"))
+	assert.Contains(t, types[0], ir.TypeID("type/anonymous/x-defs/Dog"))
 }
 
 // TestMappingTargets_ALoopThroughARawPositionIsReportedInEitherOrder pins a
@@ -343,7 +343,7 @@ func TestMappingTargets_ARawPositionACopyReachesResolvesInEitherOrder(t *testing
 				types = append(types, doc.Types)
 			}
 			assert.Empty(t, cmp.Diff(types[0], types[1]), "declaration order changed the registry")
-			assert.Contains(t, types[0], ir.TypeID("t/anon/x-lib/Dog"))
+			assert.Contains(t, types[0], ir.TypeID("type/anonymous/x-lib/Dog"))
 		})
 	}
 }
@@ -373,7 +373,7 @@ func TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits(t *tes
 				mapped = append(mapped, m.Discriminator.Mapping["x"])
 			}
 		}
-		assert.Equal(t, []ir.TypeID{"t/anon/x-lib/T"}, mapped, c.name)
+		assert.Equal(t, []ir.TypeID{"type/anonymous/x-lib/T"}, mapped, c.name)
 		for _, d := range diags {
 			assert.NotEqual(t, "openapi/unresolved-ref", d.Code, "%s: %+v", c.name, d)
 		}

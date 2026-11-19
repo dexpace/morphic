@@ -110,7 +110,7 @@ func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 	switch len(types) {
 	case 0:
 		return keepingUnread(c, ts, s, pointer, d, fin, st, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return ts.PrimID(ir.PrimAny), 0, nil
+			return ts.PrimID(ir.PrimitiveAny), 0, nil
 		})
 	case 1:
 		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {

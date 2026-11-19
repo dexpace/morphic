@@ -182,7 +182,7 @@ func hasEmptyForm(owner reflect.Value, position string) bool {
 		position == "Idempotency.TokenParam":
 		return true
 	case position == "Discriminator.Property":
-		return owner.FieldByName("PropertyName").String() != "" || !owner.FieldByName("Index").IsNil()
+		return owner.FieldByName("PropertyName").String() != "" || !owner.FieldByName("TupleElementIndex").IsNil()
 	default:
 		return false
 	}
@@ -249,27 +249,27 @@ func sweepDocuments(t *testing.T) []sweepDocument {
 // keys.
 func reachDocument() *ir.Document {
 	doc := validDoc()
-	overloaded, replies := ir.OpID("op/x/a"), ir.ChannelID("chan/x/r")
+	overloaded, replies := ir.OperationID("operation/x/a"), ir.ChannelID("channel/x/r")
 	sends := ir.Operation{
-		ID: "op/x/b", OverloadOf: &overloaded,
-		Params: []ir.Parameter{{ID: "param/x/b/q", Name: ir.Naming{Source: "q"}}},
+		ID: "operation/x/b", OverloadOf: &overloaded,
+		Params: []ir.Parameter{{ID: "parameter/x/b/q", Name: ir.Naming{Source: "q"}}},
 		Bindings: ir.OpBindings{Message: &ir.MessageBinding{
-			Channel: "chan/x/c", Direction: ir.MsgDirectionSend, Messages: []ir.MessageID{"msg/x/m"},
-			Reply: &ir.Reply{Channel: &replies, Messages: []ir.MessageID{"msg/x/m"}},
+			Channel: "channel/x/c", Direction: ir.MessageDirectionSend, Messages: []ir.MessageID{"message/x/m"},
+			Reply: &ir.Reply{Channel: &replies, Messages: []ir.MessageID{"message/x/m"}},
 		}},
 		Examples: []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{
-			Params: map[ir.ParamID]ir.Value{"param/x/b/q": {Kind: ir.ValueString, Str: "v"}},
+			Params: map[ir.ParameterID]ir.Value{"parameter/x/b/q": {Kind: ir.ValueString, String: "v"}},
 		}}},
 	}
-	doc.Services = []ir.Service{{ID: "s/x/S", Servers: []ir.ServerID{"server/x/s"}, Groups: []ir.OperationGroup{{
-		ID: "g/x/G", Operations: []ir.Operation{{ID: "op/x/a"}, sends},
+	doc.Services = []ir.Service{{ID: "service/x/S", Servers: []ir.ServerID{"server/x/s"}, Groups: []ir.OperationGroup{{
+		ID: "operation-group/x/G", Operations: []ir.Operation{{ID: "operation/x/a"}, sends},
 	}}}}
 	doc.Servers = map[ir.ServerID]ir.Server{"server/x/s": {ID: "server/x/s"}}
 	doc.Channels = map[ir.ChannelID]ir.Channel{
-		"chan/x/c": {ID: "chan/x/c", Messages: []ir.MessageID{"msg/x/m"}, Servers: []ir.ServerID{"server/x/s"}},
-		"chan/x/r": {ID: "chan/x/r", Messages: []ir.MessageID{"msg/x/m"}},
+		"channel/x/c": {ID: "channel/x/c", Messages: []ir.MessageID{"message/x/m"}, Servers: []ir.ServerID{"server/x/s"}},
+		"channel/x/r": {ID: "channel/x/r", Messages: []ir.MessageID{"message/x/m"}},
 	}
-	doc.Messages = map[ir.MessageID]ir.Message{"msg/x/m": {ID: "msg/x/m"}}
+	doc.Messages = map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m"}}
 	return doc
 }
 

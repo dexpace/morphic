@@ -68,7 +68,7 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 	require.True(t, ok)
 	require.NotNil(t, throttled.Payload)
 	require.Len(t, throttled.Payload.Contents, 2, "every media type is kept, none elected")
-	assert.Equal(t, "t/openapi/components/schemas/Problem",
+	assert.Equal(t, "type/openapi/components/schemas/Problem",
 		string(throttled.Payload.Contents[1].Type.Target),
 		"the second media type keeps its own schema rather than the first's")
 	wire := make([]string, 0, len(throttled.Headers))
@@ -191,7 +191,7 @@ func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	since := op.Params[1]
 	assert.Equal(t, "If-Unmodified-Since", since.Name.Source)
 	assert.Equal(t, &ir.Encoding{Name: "http-date"}, since.Encoding, "the parameter's own text")
-	assert.Equal(t, ir.PrimTypeID(ir.PrimDatetimeOffset), since.Type.Target, "its type is still the instant")
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset), since.Type.Target, "its type is still the instant")
 	assert.Equal(t, openapi.HTTPDateInferenceHeuristic, since.Provenance.Inferred)
 	assert.Equal(t, 1, countCode(diags, diag.InferredHTTPDate, "/paths/~1files~1{name}/put/parameters/1"))
 	reported := 0
@@ -209,6 +209,6 @@ func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	require.Len(t, offOp.Params, 2)
 	assert.Nil(t, offOp.Params[1].Encoding, "the policy off leaves the parameter as declared")
 	assert.Empty(t, offOp.Params[1].Provenance.Inferred)
-	assert.Equal(t, ir.PrimTypeID(ir.PrimDatetimeOffset), offOp.Params[1].Type.Target)
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset), offOp.Params[1].Type.Target)
 	assert.Empty(t, offDiags)
 }

@@ -15,7 +15,7 @@ import (
 // to how a key is derived, so a consumer storing keys records it beside them: a
 // key another version derived agrees with none of this one's.
 // TestCorrelationVersion_PinsTheDerivation holds it to the keys derived.
-const CorrelationVersion = 4
+const CorrelationVersion = 5
 
 // Correlation returns the correlation key of the entity id names, of any class
 // of ID (docs/ir/derived-facts.md#correlation-keys): a key built from what the
@@ -66,9 +66,9 @@ type correlator struct {
 	pending     candidateHeap
 	settled     map[string]bool // every entity decided, keyed or not
 	out         *correlations
-	inline      map[ir.TypeID]bool        // anonymous models another model composes
-	ops         map[ir.OpID]*ir.Operation // every operation the walk reaches
-	partHeaders map[ir.PropID][]ir.Header // each multipart part's headers, by the property it encodes
+	inline      map[ir.TypeID]bool               // anonymous models another model composes
+	ops         map[ir.OperationID]*ir.Operation // every operation the walk reaches
+	partHeaders map[ir.PropertyID][]ir.Header    // each multipart part's headers, by the property it encodes
 }
 
 // newCorrelations derives the correlation keys of doc. A nil doc has none.
@@ -79,7 +79,7 @@ func newCorrelations(doc *ir.Document) *correlations {
 	}
 	c := &correlator{
 		doc: doc, settled: map[string]bool{}, out: out,
-		inline: inlineConjuncts(doc.Types), ops: map[ir.OpID]*ir.Operation{},
+		inline: inlineConjuncts(doc.Types), ops: map[ir.OperationID]*ir.Operation{},
 	}
 	c.seedLayer()
 	c.seedTypes()

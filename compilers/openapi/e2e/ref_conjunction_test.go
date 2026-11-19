@@ -137,7 +137,7 @@ func TestRefConjunction_AKeywordBesideAValueSetIsKeptOnceOnItsNode(t *testing.T)
 		for _, site := range conjSites[:2] {
 			doc, diags := compileUnrefused(t, site.write("3.1.0", schema, conjTargets["Str"]))
 			at := name + " at " + site.name
-			id := ir.TypeID("t/anon" + site.pointer)
+			id := ir.TypeID("type/anonymous" + site.pointer)
 			if site.name == "component" {
 				id = componentID("Use")
 			}

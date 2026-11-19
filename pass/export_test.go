@@ -22,7 +22,7 @@ func DanglingRefs(tb testing.TB, doc *ir.Document) []ir.Diagnostic {
 	return checkDanglingRefs(w.refs, w.truncated)
 }
 
-// KeptPropIDs returns where the PropID references one walk of doc keeps for
+// KeptPropIDs returns where the PropertyID references one walk of doc keeps for
 // checkPropIDRefs to settle sit, in walk order, for the external tests.
 func KeptPropIDs(tb testing.TB, doc *ir.Document) []string {
 	tb.Helper()
@@ -168,7 +168,7 @@ func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {
 }
 
 // NarrowedHolds is narrowedHolds, for the external tests that cross its limit.
-func NarrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropID, limit int) bool {
+func NarrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropertyID, limit int) bool {
 	return narrowedHolds(types, target, key, limit)
 }
 

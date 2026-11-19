@@ -28,7 +28,7 @@ const (
 // of: the operation carrying it, the list it sits in, and where in the list.
 // The default response is the one of ListDefault, at Index 0.
 type ResponseKey struct {
-	Op    ir.OpID
+	Op    ir.OperationID
 	List  ResponseList
 	Index int
 }
@@ -54,8 +54,8 @@ type CompiledDocumentView struct {
 	names   *ir.MemberReader
 	taken   map[memberKey]*ir.Property
 	members map[ir.TypeID][]*ir.Property
-	params  map[ir.OpID]ParamIndex
-	headers map[ResponseKey]map[string][]ir.PropID
+	params  map[ir.OperationID]ParamIndex
+	headers map[ResponseKey]map[string][]ir.PropertyID
 	// flatten is ir.FlattenedProperties, which this package's tests count
 	// through.
 	flatten func(ir.TypeRegistry, ir.TypeID) ir.Flattening
@@ -76,8 +76,8 @@ func New(doc *ir.Document) *CompiledDocumentView {
 		names:   ir.NewMemberReader(doc.Types),
 		taken:   map[memberKey]*ir.Property{},
 		members: map[ir.TypeID][]*ir.Property{},
-		params:  map[ir.OpID]ParamIndex{},
-		headers: map[ResponseKey]map[string][]ir.PropID{},
+		params:  map[ir.OperationID]ParamIndex{},
+		headers: map[ResponseKey]map[string][]ir.PropertyID{},
 		flatten: ir.FlattenedProperties,
 	}
 	for i := range doc.Services {
@@ -127,8 +127,8 @@ func (w *CompiledDocumentView) Member(id ir.TypeID, wire string) (*ir.Property, 
 // Walk returns the property each token names, from the model root through the
 // type of each member it reaches, and false where a step reaches no model, or
 // a model declaring no member of that name.
-func (w *CompiledDocumentView) Walk(root ir.TypeID, tokens []string) ([]ir.PropID, bool) {
-	segments := make([]ir.PropID, 0, len(tokens))
+func (w *CompiledDocumentView) Walk(root ir.TypeID, tokens []string) ([]ir.PropertyID, bool) {
+	segments := make([]ir.PropertyID, 0, len(tokens))
 	at := root
 	for _, token := range tokens {
 		member, ok := w.Member(at, token)
@@ -179,10 +179,10 @@ func (w *CompiledDocumentView) Params(op *ir.Operation) ParamIndex {
 // as HTTP compares header names. headers are those of the response at names:
 // the first read of a response indexes them and a later read takes that index,
 // so reads of one key pass the same headers.
-func (w *CompiledDocumentView) Header(at ResponseKey, headers []ir.Header, name string) []ir.PropID {
+func (w *CompiledDocumentView) Header(at ResponseKey, headers []ir.Header, name string) []ir.PropertyID {
 	byName, indexed := w.headers[at]
 	if !indexed {
-		byName = make(map[string][]ir.PropID, len(headers))
+		byName = make(map[string][]ir.PropertyID, len(headers))
 		for i := range headers {
 			p := &headers[i].Property
 			key := strings.ToLower(p.EffectiveWireName())

@@ -34,7 +34,7 @@ func (s streamCandidate) frame(reg ir.TypeRegistry) ir.TypeRef {
 		return s.events
 	}
 	if list, ok := listBehind(reg, s.events.Target); ok {
-		return list.Elem
+		return list.ElementType
 	}
 	return s.events
 }
@@ -178,7 +178,7 @@ func streamCandidates(ts *compile.Types, payload *ir.Payload) []streamCandidate 
 // bytes, whatever its docs or bounds say of the whole.
 func frameType(ts *compile.Types, content ir.Content) ir.TypeRef {
 	if content.File != nil {
-		return ts.PrimRef(ir.PrimBytes)
+		return ts.PrimRef(ir.PrimitiveBytes)
 	}
 	return content.Type
 }
@@ -188,7 +188,7 @@ func frameType(ts *compile.Types, content ir.Content) ir.TypeRef {
 func streamingMode(request, response bool) ir.StreamingMode {
 	switch {
 	case request && response:
-		return ir.StreamingBidi
+		return ir.StreamingBidirectional
 	case request:
 		return ir.StreamingClient
 	default:

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "AllOfRedeclaredBounds",
         "canonical": "all_of_redeclared_bounds"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/BareListFirst/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BareListFirst/allOf/0/properties/p": {
       "kind": "list",
-      "id": "t/anon/components/schemas/BareListFirst/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BareListFirst/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -72,14 +72,14 @@
         "source": 0,
         "pointer": "/components/schemas/BareListFirst/allOf/0/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/BareListFirst/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BareListFirst/allOf/1/properties/p": {
       "kind": "list",
-      "id": "t/anon/components/schemas/BareListFirst/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BareListFirst/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -90,8 +90,8 @@
         "source": 0,
         "pointer": "/components/schemas/BareListFirst/allOf/1/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -99,9 +99,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/BareMapFirst/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BareMapFirst/allOf/0/properties/p": {
       "kind": "map",
-      "id": "t/anon/components/schemas/BareMapFirst/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BareMapFirst/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -113,13 +113,13 @@
         "pointer": "/components/schemas/BareMapFirst/allOf/0/properties/p"
       },
       "value": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/BareMapFirst/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BareMapFirst/allOf/1/properties/p": {
       "kind": "map",
-      "id": "t/anon/components/schemas/BareMapFirst/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BareMapFirst/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -131,17 +131,17 @@
         "pointer": "/components/schemas/BareMapFirst/allOf/1/properties/p"
       },
       "value": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
         "uniqueItems": false,
-        "maxProps": 5
+        "maxProperties": 5
       }
     },
-    "t/anon/components/schemas/BareScalarFirst/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BareScalarFirst/allOf/0/properties/p": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/BareScalarFirst/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BareScalarFirst/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -153,16 +153,16 @@
         "pointer": "/components/schemas/BareScalarFirst/allOf/0/properties/p"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "encoding": {
         "name": "x-custom"
       }
     },
-    "t/anon/components/schemas/BareScalarFirst/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BareScalarFirst/allOf/1/properties/p": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/BareScalarFirst/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BareScalarFirst/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -174,7 +174,7 @@
         "pointer": "/components/schemas/BareScalarFirst/allOf/1/properties/p"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -185,9 +185,9 @@
         "name": "x-custom"
       }
     },
-    "t/anon/components/schemas/BareTupleFirst/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BareTupleFirst/allOf/0/properties/p": {
       "kind": "tuple",
-      "id": "t/anon/components/schemas/BareTupleFirst/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BareTupleFirst/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -198,20 +198,20 @@
         "source": 0,
         "pointer": "/components/schemas/BareTupleFirst/allOf/0/properties/p"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/BareTupleFirst/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BareTupleFirst/allOf/1/properties/p": {
       "kind": "tuple",
-      "id": "t/anon/components/schemas/BareTupleFirst/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BareTupleFirst/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -222,14 +222,14 @@
         "source": 0,
         "pointer": "/components/schemas/BareTupleFirst/allOf/1/properties/p"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       },
       "constraints": {
@@ -237,9 +237,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p": {
       "kind": "list",
-      "id": "t/anon/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -250,8 +250,8 @@
         "source": 0,
         "pointer": "/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -259,9 +259,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {
       "kind": "list",
-      "id": "t/anon/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -272,8 +272,8 @@
         "source": 0,
         "pointer": "/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -281,9 +281,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p": {
       "kind": "list",
-      "id": "t/anon/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -294,8 +294,8 @@
         "source": 0,
         "pointer": "/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -303,9 +303,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p": {
       "kind": "list",
-      "id": "t/anon/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -316,8 +316,8 @@
         "source": 0,
         "pointer": "/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -325,9 +325,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/BothMapBounds/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BothMapBounds/allOf/0/properties/p": {
       "kind": "map",
-      "id": "t/anon/components/schemas/BothMapBounds/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BothMapBounds/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -339,17 +339,17 @@
         "pointer": "/components/schemas/BothMapBounds/allOf/0/properties/p"
       },
       "value": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
         "uniqueItems": false,
-        "minProps": 1
+        "minProperties": 1
       }
     },
-    "t/anon/components/schemas/BothMapBounds/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BothMapBounds/allOf/1/properties/p": {
       "kind": "map",
-      "id": "t/anon/components/schemas/BothMapBounds/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BothMapBounds/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -361,17 +361,17 @@
         "pointer": "/components/schemas/BothMapBounds/allOf/1/properties/p"
       },
       "value": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
         "uniqueItems": false,
-        "maxProps": 5
+        "maxProperties": 5
       }
     },
-    "t/anon/components/schemas/BothScalarBounds/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BothScalarBounds/allOf/0/properties/p": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/BothScalarBounds/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BothScalarBounds/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -383,7 +383,7 @@
         "pointer": "/components/schemas/BothScalarBounds/allOf/0/properties/p"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -394,9 +394,9 @@
         "name": "x-custom"
       }
     },
-    "t/anon/components/schemas/BothScalarBounds/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BothScalarBounds/allOf/1/properties/p": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/BothScalarBounds/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BothScalarBounds/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -408,7 +408,7 @@
         "pointer": "/components/schemas/BothScalarBounds/allOf/1/properties/p"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -419,9 +419,9 @@
         "name": "x-custom"
       }
     },
-    "t/anon/components/schemas/BothTupleBounds/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BothTupleBounds/allOf/0/properties/p": {
       "kind": "tuple",
-      "id": "t/anon/components/schemas/BothTupleBounds/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BothTupleBounds/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -432,14 +432,14 @@
         "source": 0,
         "pointer": "/components/schemas/BothTupleBounds/allOf/0/properties/p"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       },
       "constraints": {
@@ -447,9 +447,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/BothTupleBounds/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BothTupleBounds/allOf/1/properties/p": {
       "kind": "tuple",
-      "id": "t/anon/components/schemas/BothTupleBounds/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BothTupleBounds/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -460,14 +460,14 @@
         "source": 0,
         "pointer": "/components/schemas/BothTupleBounds/allOf/1/properties/p"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       },
       "constraints": {
@@ -475,9 +475,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/BoundedListFirst/allOf/0/properties/p": {
+    "type/anonymous/components/schemas/BoundedListFirst/allOf/0/properties/p": {
       "kind": "list",
-      "id": "t/anon/components/schemas/BoundedListFirst/allOf/0/properties/p",
+      "id": "type/anonymous/components/schemas/BoundedListFirst/allOf/0/properties/p",
       "name": {
         "hint": "p"
       },
@@ -488,8 +488,8 @@
         "source": 0,
         "pointer": "/components/schemas/BoundedListFirst/allOf/0/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -497,9 +497,9 @@
         "uniqueItems": false
       }
     },
-    "t/anon/components/schemas/BoundedListFirst/allOf/1/properties/p": {
+    "type/anonymous/components/schemas/BoundedListFirst/allOf/1/properties/p": {
       "kind": "list",
-      "id": "t/anon/components/schemas/BoundedListFirst/allOf/1/properties/p",
+      "id": "type/anonymous/components/schemas/BoundedListFirst/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -510,14 +510,14 @@
         "source": 0,
         "pointer": "/components/schemas/BoundedListFirst/allOf/1/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {
+    "type/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {
       "kind": "list",
-      "id": "t/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
+      "id": "type/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -528,8 +528,8 @@
         "source": 0,
         "pointer": "/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -538,9 +538,9 @@
         "uniqueItems": false
       }
     },
-    "t/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p": {
+    "type/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p": {
       "kind": "list",
-      "id": "t/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
+      "id": "type/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -551,8 +551,8 @@
         "source": 0,
         "pointer": "/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -561,9 +561,9 @@
         "uniqueItems": false
       }
     },
-    "t/composed/components/schemas/BothMapBounds/allOf/1/properties/p": {
+    "type/composed/components/schemas/BothMapBounds/allOf/1/properties/p": {
       "kind": "map",
-      "id": "t/composed/components/schemas/BothMapBounds/allOf/1/properties/p",
+      "id": "type/composed/components/schemas/BothMapBounds/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -575,18 +575,18 @@
         "pointer": "/components/schemas/BothMapBounds/allOf/1/properties/p"
       },
       "value": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
         "uniqueItems": false,
-        "minProps": 1,
-        "maxProps": 5
+        "minProperties": 1,
+        "maxProperties": 5
       }
     },
-    "t/composed/components/schemas/BothScalarBounds/allOf/1/properties/p": {
+    "type/composed/components/schemas/BothScalarBounds/allOf/1/properties/p": {
       "kind": "scalar",
-      "id": "t/composed/components/schemas/BothScalarBounds/allOf/1/properties/p",
+      "id": "type/composed/components/schemas/BothScalarBounds/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -598,7 +598,7 @@
         "pointer": "/components/schemas/BothScalarBounds/allOf/1/properties/p"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -610,9 +610,9 @@
         "name": "x-custom"
       }
     },
-    "t/composed/components/schemas/BothTupleBounds/allOf/1/properties/p": {
+    "type/composed/components/schemas/BothTupleBounds/allOf/1/properties/p": {
       "kind": "tuple",
-      "id": "t/composed/components/schemas/BothTupleBounds/allOf/1/properties/p",
+      "id": "type/composed/components/schemas/BothTupleBounds/allOf/1/properties/p",
       "name": {
         "hint": "p"
       },
@@ -623,14 +623,14 @@
         "source": 0,
         "pointer": "/components/schemas/BothTupleBounds/allOf/1/properties/p"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       },
       "constraints": {
@@ -639,9 +639,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/BareListFirst": {
+    "type/openapi/components/schemas/BareListFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BareListFirst",
+      "id": "type/openapi/components/schemas/BareListFirst",
       "name": {
         "source": "BareListFirst",
         "canonical": "bare_list_first"
@@ -655,21 +655,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BareListFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BareListFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/anon/components/schemas/BareListFirst/allOf/1/properties/p",
+            "target": "type/anonymous/components/schemas/BareListFirst/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -686,9 +686,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BareMapFirst": {
+    "type/openapi/components/schemas/BareMapFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BareMapFirst",
+      "id": "type/openapi/components/schemas/BareMapFirst",
       "name": {
         "source": "BareMapFirst",
         "canonical": "bare_map_first"
@@ -702,21 +702,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BareMapFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BareMapFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/anon/components/schemas/BareMapFirst/allOf/1/properties/p",
+            "target": "type/anonymous/components/schemas/BareMapFirst/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -733,9 +733,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BareScalarFirst": {
+    "type/openapi/components/schemas/BareScalarFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BareScalarFirst",
+      "id": "type/openapi/components/schemas/BareScalarFirst",
       "name": {
         "source": "BareScalarFirst",
         "canonical": "bare_scalar_first"
@@ -749,21 +749,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BareScalarFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BareScalarFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/anon/components/schemas/BareScalarFirst/allOf/1/properties/p",
+            "target": "type/anonymous/components/schemas/BareScalarFirst/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -780,9 +780,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BareTupleFirst": {
+    "type/openapi/components/schemas/BareTupleFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BareTupleFirst",
+      "id": "type/openapi/components/schemas/BareTupleFirst",
       "name": {
         "source": "BareTupleFirst",
         "canonical": "bare_tuple_first"
@@ -796,21 +796,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BareTupleFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BareTupleFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/anon/components/schemas/BareTupleFirst/allOf/1/properties/p",
+            "target": "type/anonymous/components/schemas/BareTupleFirst/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -827,9 +827,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BothListBoundsLowerFirst": {
+    "type/openapi/components/schemas/BothListBoundsLowerFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BothListBoundsLowerFirst",
+      "id": "type/openapi/components/schemas/BothListBoundsLowerFirst",
       "name": {
         "source": "BothListBoundsLowerFirst",
         "canonical": "both_list_bounds_lower_first"
@@ -843,21 +843,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
+            "target": "type/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -874,9 +874,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BothListBoundsUpperFirst": {
+    "type/openapi/components/schemas/BothListBoundsUpperFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BothListBoundsUpperFirst",
+      "id": "type/openapi/components/schemas/BothListBoundsUpperFirst",
       "name": {
         "source": "BothListBoundsUpperFirst",
         "canonical": "both_list_bounds_upper_first"
@@ -890,21 +890,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
+            "target": "type/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -921,9 +921,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BothMapBounds": {
+    "type/openapi/components/schemas/BothMapBounds": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BothMapBounds",
+      "id": "type/openapi/components/schemas/BothMapBounds",
       "name": {
         "source": "BothMapBounds",
         "canonical": "both_map_bounds"
@@ -937,21 +937,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BothMapBounds/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BothMapBounds/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/composed/components/schemas/BothMapBounds/allOf/1/properties/p",
+            "target": "type/composed/components/schemas/BothMapBounds/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -968,9 +968,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BothScalarBounds": {
+    "type/openapi/components/schemas/BothScalarBounds": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BothScalarBounds",
+      "id": "type/openapi/components/schemas/BothScalarBounds",
       "name": {
         "source": "BothScalarBounds",
         "canonical": "both_scalar_bounds"
@@ -984,21 +984,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BothScalarBounds/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BothScalarBounds/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/composed/components/schemas/BothScalarBounds/allOf/1/properties/p",
+            "target": "type/composed/components/schemas/BothScalarBounds/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1015,9 +1015,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BothTupleBounds": {
+    "type/openapi/components/schemas/BothTupleBounds": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BothTupleBounds",
+      "id": "type/openapi/components/schemas/BothTupleBounds",
       "name": {
         "source": "BothTupleBounds",
         "canonical": "both_tuple_bounds"
@@ -1031,21 +1031,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BothTupleBounds/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BothTupleBounds/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/composed/components/schemas/BothTupleBounds/allOf/1/properties/p",
+            "target": "type/composed/components/schemas/BothTupleBounds/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1062,9 +1062,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BoundedListFirst": {
+    "type/openapi/components/schemas/BoundedListFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/BoundedListFirst",
+      "id": "type/openapi/components/schemas/BoundedListFirst",
       "name": {
         "source": "BoundedListFirst",
         "canonical": "bounded_list_first"
@@ -1078,21 +1078,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/BoundedListFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/BoundedListFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/anon/components/schemas/BoundedListFirst/allOf/0/properties/p",
+            "target": "type/anonymous/components/schemas/BoundedListFirst/allOf/0/properties/p",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1109,9 +1109,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst": {
+    "type/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst",
+      "id": "type/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst",
       "name": {
         "source": "DefaultPastAnotherBoundBoundFirst",
         "canonical": "default_past_another_bound_bound_first"
@@ -1125,21 +1125,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "maxLength": 3,
@@ -1173,9 +1173,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst": {
+    "type/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst",
+      "id": "type/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst",
       "name": {
         "source": "DefaultPastAnotherBoundDefaultFirst",
         "canonical": "default_past_another_bound_default_first"
@@ -1189,21 +1189,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "maxLength": 3,
@@ -1237,9 +1237,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/DefaultPastItsOwnBound": {
+    "type/openapi/components/schemas/DefaultPastItsOwnBound": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/DefaultPastItsOwnBound",
+      "id": "type/openapi/components/schemas/DefaultPastItsOwnBound",
       "name": {
         "source": "DefaultPastItsOwnBound",
         "canonical": "default_past_its_own_bound"
@@ -1253,25 +1253,25 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/DefaultPastItsOwnBound/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/DefaultPastItsOwnBound/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "default": {
             "kind": "string",
-            "str": "hello"
+            "string": "hello"
           },
           "constraints": {
             "maxLength": 3,
@@ -1292,9 +1292,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/NumberBoundsLooserFirst": {
+    "type/openapi/components/schemas/NumberBoundsLooserFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/NumberBoundsLooserFirst",
+      "id": "type/openapi/components/schemas/NumberBoundsLooserFirst",
       "name": {
         "source": "NumberBoundsLooserFirst",
         "canonical": "number_bounds_looser_first"
@@ -1308,21 +1308,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/NumberBoundsLooserFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/NumberBoundsLooserFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/number",
+            "target": "type/primitive/number",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "min": "2",
@@ -1344,9 +1344,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/NumberBoundsTighterFirst": {
+    "type/openapi/components/schemas/NumberBoundsTighterFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/NumberBoundsTighterFirst",
+      "id": "type/openapi/components/schemas/NumberBoundsTighterFirst",
       "name": {
         "source": "NumberBoundsTighterFirst",
         "canonical": "number_bounds_tighter_first"
@@ -1360,21 +1360,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/NumberBoundsTighterFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/NumberBoundsTighterFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/number",
+            "target": "type/primitive/number",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "min": "2",
@@ -1396,9 +1396,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/PatternsAThenB": {
+    "type/openapi/components/schemas/PatternsAThenB": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/PatternsAThenB",
+      "id": "type/openapi/components/schemas/PatternsAThenB",
       "name": {
         "source": "PatternsAThenB",
         "canonical": "patterns_a_then_b"
@@ -1412,21 +1412,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/PatternsAThenB/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/PatternsAThenB/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "pattern": "^b",
@@ -1460,9 +1460,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/PatternsBThenA": {
+    "type/openapi/components/schemas/PatternsBThenA": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/PatternsBThenA",
+      "id": "type/openapi/components/schemas/PatternsBThenA",
       "name": {
         "source": "PatternsBThenA",
         "canonical": "patterns_b_then_a"
@@ -1476,21 +1476,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/PatternsBThenA/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/PatternsBThenA/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "pattern": "^a",
@@ -1524,9 +1524,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/StepsLooserFirst": {
+    "type/openapi/components/schemas/StepsLooserFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/StepsLooserFirst",
+      "id": "type/openapi/components/schemas/StepsLooserFirst",
       "name": {
         "source": "StepsLooserFirst",
         "canonical": "steps_looser_first"
@@ -1540,21 +1540,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/StepsLooserFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/StepsLooserFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/number",
+            "target": "type/primitive/number",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "multipleOf": "12",
@@ -1575,9 +1575,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/StepsTighterFirst": {
+    "type/openapi/components/schemas/StepsTighterFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/StepsTighterFirst",
+      "id": "type/openapi/components/schemas/StepsTighterFirst",
       "name": {
         "source": "StepsTighterFirst",
         "canonical": "steps_tighter_first"
@@ -1591,21 +1591,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/StepsTighterFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/StepsTighterFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/number",
+            "target": "type/primitive/number",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "multipleOf": "12",
@@ -1626,9 +1626,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/StringBoundsLooserFirst": {
+    "type/openapi/components/schemas/StringBoundsLooserFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/StringBoundsLooserFirst",
+      "id": "type/openapi/components/schemas/StringBoundsLooserFirst",
       "name": {
         "source": "StringBoundsLooserFirst",
         "canonical": "string_bounds_looser_first"
@@ -1642,21 +1642,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/StringBoundsLooserFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/StringBoundsLooserFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "minLength": 2,
@@ -1678,9 +1678,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/StringBoundsTighterFirst": {
+    "type/openapi/components/schemas/StringBoundsTighterFirst": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/StringBoundsTighterFirst",
+      "id": "type/openapi/components/schemas/StringBoundsTighterFirst",
       "name": {
         "source": "StringBoundsTighterFirst",
         "canonical": "string_bounds_tighter_first"
@@ -1694,21 +1694,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/StringBoundsTighterFirst/allOf/0/properties/p",
+          "id": "property/openapi/components/schemas/StringBoundsTighterFirst/allOf/0/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "minLength": 2,
@@ -1730,9 +1730,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1740,11 +1740,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/number": {
+    "type/primitive/number": {
       "kind": "primitive",
-      "id": "t/prim/number",
+      "id": "type/primitive/number",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1752,11 +1752,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "number"
+      "primitiveKind": "number"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1764,7 +1764,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {
@@ -1819,7 +1819,7 @@
           "role": "decided",
           "provenance": {
             "source": -1,
-            "node": "p/openapi/components/schemas/PatternsAThenB/allOf/0/properties/p"
+            "node": "property/openapi/components/schemas/PatternsAThenB/allOf/0/properties/p"
           }
         }
       ]
@@ -1844,7 +1844,7 @@
           "role": "decided",
           "provenance": {
             "source": -1,
-            "node": "p/openapi/components/schemas/PatternsBThenA/allOf/0/properties/p"
+            "node": "property/openapi/components/schemas/PatternsBThenA/allOf/0/properties/p"
           }
         }
       ]

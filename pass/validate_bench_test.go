@@ -223,10 +223,10 @@ func BenchmarkValidate_GraphQLReachability(b *testing.B) {
 // operations' roots are spread across the registry so they reach most of it.
 func buildGraphQLDoc(b *testing.B) *ir.Document {
 	b.Helper()
-	str := ir.TypeID("t/prim/string")
+	str := ir.TypeID("type/primitive/string")
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion, Name: "gql", Version: "1",
-		Types: ir.TypeRegistry{str: &ir.Primitive{ID: str, Prim: "string"}},
+		Types: ir.TypeRegistry{str: &ir.Primitive{ID: str, PrimitiveKind: "string"}},
 	}
 	ids := make([]ir.TypeID, 1, 1+gqlTypes)
 	ids[0] = str
@@ -236,17 +236,17 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 		return ir.TypeRef{Target: ids[len(ids)-1-rng.IntN(min(len(ids), gqlRefWindow))]}
 	}
 	for i := range gqlTypes {
-		id := ir.TypeID(fmt.Sprintf("t/g%d", i))
+		id := ir.TypeID(fmt.Sprintf("type/g%d", i))
 		common := ir.TypeCommon{ID: id}
 		switch i % 10 {
 		case 0, 1:
 			base := ir.TypeRef{Target: str}
 			if i >= 2 {
-				base = ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/g%d", i-2))}
+				base = ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("type/g%d", i-2))}
 			}
 			doc.Types[id] = &ir.Scalar{TypeCommon: common, Base: &base}
 		case 2:
-			doc.Types[id] = &ir.List{TypeCommon: common, Elem: pick()}
+			doc.Types[id] = &ir.List{TypeCommon: common, ElementType: pick()}
 		case 3:
 			doc.Types[id] = &ir.MapT{TypeCommon: common, Value: pick()}
 		case 4:
@@ -273,7 +273,7 @@ func graphQLModel(common ir.TypeCommon, pick func() ir.TypeRef, models []ir.Type
 	m := &ir.Model{TypeCommon: common}
 	for p := range 3 {
 		m.Properties = append(m.Properties, ir.Property{
-			ID:       ir.PropID(fmt.Sprintf("p/%s/%d", common.ID, p)),
+			ID:       ir.PropertyID(fmt.Sprintf("property/%s/%d", common.ID, p)),
 			Name:     ir.Naming{Source: fmt.Sprintf("f%d", p)},
 			WireName: fmt.Sprintf("f%d", p),
 			Type:     pick(),
@@ -295,7 +295,7 @@ func addGraphQLOperations(doc *ir.Document, ids []ir.TypeID) {
 	for o := range gqlOperations {
 		root := ids[len(ids)-1-(o*gqlRootStride)%len(ids)]
 		ops = append(ops, ir.Operation{
-			ID:       ir.OpID(fmt.Sprintf("op/q%d", o)),
+			ID:       ir.OperationID(fmt.Sprintf("operation/q%d", o)),
 			Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: root}}},
 			Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{fmt.Sprintf("q%d", o)}}},
 		})

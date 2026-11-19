@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "UnionRestatedBranches",
         "canonical": "union_restated_branches"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/RenderJoint/allOf/0/properties/kind": {
+    "type/anonymous/components/schemas/RenderJoint/allOf/0/properties/kind": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/RenderJoint/allOf/0/properties/kind",
+      "id": "type/anonymous/components/schemas/RenderJoint/allOf/0/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -75,26 +75,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/RenderJoint/allOf/0/properties/kind/s:page",
+          "id": "enum-member/anonymous/components/schemas/RenderJoint/allOf/0/properties/kind/string:page",
           "name": {
             "source": "page",
             "canonical": "page"
           },
           "value": {
             "kind": "string",
-            "str": "page"
+            "string": "page"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/RenderJoint/allOf/0/properties/kind/s:link",
+          "id": "enum-member/anonymous/components/schemas/RenderJoint/allOf/0/properties/kind/string:link",
           "name": {
             "source": "link",
             "canonical": "link"
           },
           "value": {
             "kind": "string",
-            "str": "link"
+            "string": "link"
           },
           "docs": {}
         }
@@ -102,9 +102,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/RenderJoint/properties/url": {
+    "type/anonymous/components/schemas/RenderJoint/properties/url": {
       "kind": "model",
-      "id": "t/anon/components/schemas/RenderJoint/properties/url",
+      "id": "type/anonymous/components/schemas/RenderJoint/properties/url",
       "name": {
         "hint": "url"
       },
@@ -117,21 +117,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderJoint/properties/url/properties/href",
+          "id": "property/openapi/components/schemas/RenderJoint/properties/url/properties/href",
           "name": {
             "source": "href",
             "canonical": "href"
           },
           "wireName": "href",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "minLength": 1,
@@ -152,9 +152,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/RenderSizes/oneOf/0": {
+    "type/anonymous/components/schemas/RenderSizes/oneOf/0": {
       "kind": "list",
-      "id": "t/anon/components/schemas/RenderSizes/oneOf/0",
+      "id": "type/anonymous/components/schemas/RenderSizes/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -166,14 +166,14 @@
         "pointer": "/components/schemas/RenderSizes/oneOf/0",
         "inferred": "kind-inference"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/RenderSizes/oneOf/1": {
+    "type/anonymous/components/schemas/RenderSizes/oneOf/1": {
       "kind": "list",
-      "id": "t/anon/components/schemas/RenderSizes/oneOf/1",
+      "id": "type/anonymous/components/schemas/RenderSizes/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -185,14 +185,14 @@
         "pointer": "/components/schemas/RenderSizes/oneOf/1",
         "inferred": "kind-inference"
       },
-      "elem": {
-        "target": "t/prim/integer",
+      "elementType": {
+        "target": "type/primitive/integer",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/RenderTagged/oneOf/0": {
+    "type/anonymous/components/schemas/RenderTagged/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/RenderTagged/oneOf/0",
+      "id": "type/anonymous/components/schemas/RenderTagged/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -206,21 +206,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderTagged/oneOf/0/properties/kind",
+          "id": "property/openapi/components/schemas/RenderTagged/oneOf/0/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/RenderTagged/oneOf/0/properties/kind",
+            "target": "type/anonymous/components/schemas/RenderTagged/oneOf/0/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -237,9 +237,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/RenderTagged/oneOf/0/properties/kind": {
+    "type/anonymous/components/schemas/RenderTagged/oneOf/0/properties/kind": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/RenderTagged/oneOf/0/properties/kind",
+      "id": "type/anonymous/components/schemas/RenderTagged/oneOf/0/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -252,13 +252,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "html"
+        "string": "html"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/RenderTagged/oneOf/1": {
+    "type/anonymous/components/schemas/RenderTagged/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/RenderTagged/oneOf/1",
+      "id": "type/anonymous/components/schemas/RenderTagged/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -272,21 +272,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderTagged/oneOf/1/properties/kind",
+          "id": "property/openapi/components/schemas/RenderTagged/oneOf/1/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/RenderTagged/oneOf/1/properties/kind",
+            "target": "type/anonymous/components/schemas/RenderTagged/oneOf/1/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -303,9 +303,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/RenderTagged/oneOf/1/properties/kind": {
+    "type/anonymous/components/schemas/RenderTagged/oneOf/1/properties/kind": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/RenderTagged/oneOf/1/properties/kind",
+      "id": "type/anonymous/components/schemas/RenderTagged/oneOf/1/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -318,13 +318,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "url"
+        "string": "url"
       },
       "valueType": "string"
     },
-    "t/composed/components/schemas/RenderTagged/oneOf/0": {
+    "type/composed/components/schemas/RenderTagged/oneOf/0": {
       "kind": "model",
-      "id": "t/composed/components/schemas/RenderTagged/oneOf/0",
+      "id": "type/composed/components/schemas/RenderTagged/oneOf/0",
       "name": {
         "hint": "render_tagged_variant_0"
       },
@@ -337,21 +337,21 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/RenderTagged/oneOf/0/allOf/allOf/properties/kind",
+          "id": "property/composed/components/schemas/RenderTagged/oneOf/0/allOf/allOf/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/RenderTagged/oneOf/0/properties/kind",
+            "target": "type/anonymous/components/schemas/RenderTagged/oneOf/0/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -365,16 +365,16 @@
         }
       ],
       "base": {
-        "target": "t/anon/components/schemas/RenderTagged/oneOf/0",
+        "target": "type/anonymous/components/schemas/RenderTagged/oneOf/0",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/RenderTagged/oneOf/1": {
+    "type/composed/components/schemas/RenderTagged/oneOf/1": {
       "kind": "model",
-      "id": "t/composed/components/schemas/RenderTagged/oneOf/1",
+      "id": "type/composed/components/schemas/RenderTagged/oneOf/1",
       "name": {
         "hint": "render_tagged_variant_1"
       },
@@ -387,21 +387,21 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/RenderTagged/oneOf/1/allOf/allOf/properties/kind",
+          "id": "property/composed/components/schemas/RenderTagged/oneOf/1/allOf/allOf/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/RenderTagged/oneOf/1/properties/kind",
+            "target": "type/anonymous/components/schemas/RenderTagged/oneOf/1/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -415,16 +415,16 @@
         }
       ],
       "base": {
-        "target": "t/anon/components/schemas/RenderTagged/oneOf/1",
+        "target": "type/anonymous/components/schemas/RenderTagged/oneOf/1",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Render": {
+    "type/openapi/components/schemas/Render": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Render",
+      "id": "type/openapi/components/schemas/Render",
       "name": {
         "source": "Render",
         "canonical": "render"
@@ -469,21 +469,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Render/properties/html",
+          "id": "property/openapi/components/schemas/Render/properties/html",
           "name": {
             "source": "html",
             "canonical": "html"
           },
           "wireName": "html",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -496,21 +496,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Render/properties/url",
+          "id": "property/openapi/components/schemas/Render/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -527,9 +527,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderBare": {
+    "type/openapi/components/schemas/RenderBare": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderBare",
+      "id": "type/openapi/components/schemas/RenderBare",
       "name": {
         "source": "RenderBare",
         "canonical": "render_bare"
@@ -564,21 +564,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderBare/properties/html",
+          "id": "property/openapi/components/schemas/RenderBare/properties/html",
           "name": {
             "source": "html",
             "canonical": "html"
           },
           "wireName": "html",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -591,21 +591,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/RenderBare/properties/url",
+          "id": "property/openapi/components/schemas/RenderBare/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -622,9 +622,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderBase": {
+    "type/openapi/components/schemas/RenderBase": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderBase",
+      "id": "type/openapi/components/schemas/RenderBase",
       "name": {
         "source": "RenderBase",
         "canonical": "render_base"
@@ -638,21 +638,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderBase/properties/html",
+          "id": "property/openapi/components/schemas/RenderBase/properties/html",
           "name": {
             "source": "html",
             "canonical": "html"
           },
           "wireName": "html",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -665,21 +665,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/RenderBase/properties/url",
+          "id": "property/openapi/components/schemas/RenderBase/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -696,9 +696,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderBounded": {
+    "type/openapi/components/schemas/RenderBounded": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderBounded",
+      "id": "type/openapi/components/schemas/RenderBounded",
       "name": {
         "source": "RenderBounded",
         "canonical": "render_bounded"
@@ -739,21 +739,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderBounded/properties/html",
+          "id": "property/openapi/components/schemas/RenderBounded/properties/html",
           "name": {
             "source": "html",
             "canonical": "html"
           },
           "wireName": "html",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -766,21 +766,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/RenderBounded/properties/url",
+          "id": "property/openapi/components/schemas/RenderBounded/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -797,9 +797,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderComposed": {
+    "type/openapi/components/schemas/RenderComposed": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderComposed",
+      "id": "type/openapi/components/schemas/RenderComposed",
       "name": {
         "source": "RenderComposed",
         "canonical": "render_composed"
@@ -843,16 +843,16 @@
         "pointer": "/components/schemas/RenderComposed"
       },
       "base": {
-        "target": "t/openapi/components/schemas/RenderBase",
+        "target": "type/openapi/components/schemas/RenderBase",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderConjoined": {
+    "type/openapi/components/schemas/RenderConjoined": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderConjoined",
+      "id": "type/openapi/components/schemas/RenderConjoined",
       "name": {
         "source": "RenderConjoined",
         "canonical": "render_conjoined"
@@ -903,21 +903,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderConjoined/properties/html",
+          "id": "property/openapi/components/schemas/RenderConjoined/properties/html",
           "name": {
             "source": "html",
             "canonical": "html"
           },
           "wireName": "html",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -930,21 +930,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/RenderConjoined/properties/links",
+          "id": "property/openapi/components/schemas/RenderConjoined/properties/links",
           "name": {
             "source": "links",
             "canonical": "links"
           },
           "wireName": "links",
           "type": {
-            "target": "t/openapi/components/schemas/RenderLinks",
+            "target": "type/openapi/components/schemas/RenderLinks",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -961,9 +961,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderDescribed": {
+    "type/openapi/components/schemas/RenderDescribed": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderDescribed",
+      "id": "type/openapi/components/schemas/RenderDescribed",
       "name": {
         "source": "RenderDescribed",
         "canonical": "render_described"
@@ -1009,21 +1009,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderDescribed/properties/html",
+          "id": "property/openapi/components/schemas/RenderDescribed/properties/html",
           "name": {
             "source": "html",
             "canonical": "html"
           },
           "wireName": "html",
           "type": {
-            "target": "t/prim/url",
+            "target": "type/primitive/url",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1038,21 +1038,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/RenderDescribed/properties/url",
+          "id": "property/openapi/components/schemas/RenderDescribed/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1069,9 +1069,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderDocumented": {
+    "type/openapi/components/schemas/RenderDocumented": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderDocumented",
+      "id": "type/openapi/components/schemas/RenderDocumented",
       "name": {
         "source": "RenderDocumented",
         "canonical": "render_documented"
@@ -1118,21 +1118,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderDocumented/properties/html",
+          "id": "property/openapi/components/schemas/RenderDocumented/properties/html",
           "name": {
             "source": "html",
             "canonical": "html"
           },
           "wireName": "html",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1147,21 +1147,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/RenderDocumented/properties/url",
+          "id": "property/openapi/components/schemas/RenderDocumented/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/url",
+            "target": "type/primitive/url",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1178,9 +1178,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderExclusive": {
+    "type/openapi/components/schemas/RenderExclusive": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderExclusive",
+      "id": "type/openapi/components/schemas/RenderExclusive",
       "name": {
         "source": "RenderExclusive",
         "canonical": "render_exclusive"
@@ -1255,21 +1255,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderExclusive/properties/html",
+          "id": "property/openapi/components/schemas/RenderExclusive/properties/html",
           "name": {
             "source": "html",
             "canonical": "html"
           },
           "wireName": "html",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1284,21 +1284,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/RenderExclusive/properties/url",
+          "id": "property/openapi/components/schemas/RenderExclusive/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1317,9 +1317,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderFormats": {
+    "type/openapi/components/schemas/RenderFormats": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/RenderFormats",
+      "id": "type/openapi/components/schemas/RenderFormats",
       "name": {
         "source": "RenderFormats",
         "canonical": "render_formats"
@@ -1349,13 +1349,13 @@
         "pointer": "/components/schemas/RenderFormats"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/RenderJoint": {
+    "type/openapi/components/schemas/RenderJoint": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderJoint",
+      "id": "type/openapi/components/schemas/RenderJoint",
       "name": {
         "source": "RenderJoint",
         "canonical": "render_joint"
@@ -1409,21 +1409,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderJoint/allOf/0/properties/kind",
+          "id": "property/openapi/components/schemas/RenderJoint/allOf/0/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/RenderJoint/allOf/0/properties/kind",
+            "target": "type/anonymous/components/schemas/RenderJoint/allOf/0/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1436,21 +1436,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/RenderJoint/properties/url",
+          "id": "property/openapi/components/schemas/RenderJoint/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/anon/components/schemas/RenderJoint/properties/url",
+            "target": "type/anonymous/components/schemas/RenderJoint/properties/url",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1467,9 +1467,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderLinks": {
+    "type/openapi/components/schemas/RenderLinks": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/RenderLinks",
+      "id": "type/openapi/components/schemas/RenderLinks",
       "name": {
         "source": "RenderLinks",
         "canonical": "render_links"
@@ -1481,14 +1481,14 @@
         "source": 0,
         "pointer": "/components/schemas/RenderLinks"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/RenderSelf": {
+    "type/openapi/components/schemas/RenderSelf": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/RenderSelf",
+      "id": "type/openapi/components/schemas/RenderSelf",
       "name": {
         "source": "RenderSelf",
         "canonical": "render_self"
@@ -1528,21 +1528,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderSelf/properties/html",
+          "id": "property/openapi/components/schemas/RenderSelf/properties/html",
           "name": {
             "source": "html",
             "canonical": "html"
           },
           "wireName": "html",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1555,21 +1555,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/RenderSelf/properties/url",
+          "id": "property/openapi/components/schemas/RenderSelf/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1583,16 +1583,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/RenderSelf",
+        "target": "type/openapi/components/schemas/RenderSelf",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderSizes": {
+    "type/openapi/components/schemas/RenderSizes": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/RenderSizes",
+      "id": "type/openapi/components/schemas/RenderSizes",
       "name": {
         "source": "RenderSizes",
         "canonical": "render_sizes"
@@ -1610,7 +1610,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/RenderSizes/oneOf/0",
+            "target": "type/anonymous/components/schemas/RenderSizes/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1620,7 +1620,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/RenderSizes/oneOf/1",
+            "target": "type/anonymous/components/schemas/RenderSizes/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1631,9 +1631,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/RenderTagged": {
+    "type/openapi/components/schemas/RenderTagged": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/RenderTagged",
+      "id": "type/openapi/components/schemas/RenderTagged",
       "name": {
         "source": "RenderTagged",
         "canonical": "render_tagged"
@@ -1651,7 +1651,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/composed/components/schemas/RenderTagged/oneOf/0",
+            "target": "type/composed/components/schemas/RenderTagged/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1661,7 +1661,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/composed/components/schemas/RenderTagged/oneOf/1",
+            "target": "type/composed/components/schemas/RenderTagged/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1672,9 +1672,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1682,11 +1682,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1694,11 +1694,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     },
-    "t/prim/url": {
+    "type/primitive/url": {
       "kind": "primitive",
-      "id": "t/prim/url",
+      "id": "type/primitive/url",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1706,7 +1706,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "url"
+      "primitiveKind": "url"
     }
   },
   "servers": {

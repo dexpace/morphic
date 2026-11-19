@@ -20,8 +20,8 @@ var linkValueCodes = []string{
 // linkValueViolations returns the paths checkLinkValues reports for a link
 // that passes lv as its body, each prefixed by its code.
 func linkValueViolations(lv ir.LinkValue) []string {
-	op := ir.Operation{ID: "op/x/S/op", Responses: []ir.Response{{Links: []ir.OperationLink{{
-		Name: named("next"), Operation: "op/x/S/op", Body: &lv,
+	op := ir.Operation{ID: "operation/x/S/op", Responses: []ir.Response{{Links: []ir.OperationLink{{
+		Name: named("next"), Operation: "operation/x/S/op", Body: &lv,
 	}}}}}
 	var got []string
 	for _, v := range irverify.Verify(opDoc(op)) {
@@ -39,9 +39,9 @@ func linkValueViolations(lv ir.LinkValue) []string {
 // sound: an input path with neither a parameter nor a segment is the body.
 func TestVerify_ALinkValueSetsWhatItsKindNames(t *testing.T) {
 	t.Parallel()
-	const at = "doc.Services[0].Groups[0].Operations[0].Responses[0].Links[0].Body"
-	param := ir.ParamID("param/x/S/op/id")
-	constant := &ir.Value{Kind: ir.ValueString, Str: "x"}
+	const at = "document.Services[0].Groups[0].Operations[0].Responses[0].Links[0].Body"
+	param := ir.ParameterID("parameter/x/S/op/id")
+	constant := &ir.Value{Kind: ir.ValueString, String: "x"}
 	for _, tc := range []struct {
 		name string
 		lv   ir.LinkValue
@@ -72,7 +72,7 @@ func TestVerify_ALinkValueSetsWhatItsKindNames(t *testing.T) {
 			"ir/link-value-stray-payload " + at + ".Request",
 			"ir/link-value-stray-payload " + at + ".Response",
 		}},
-		{"a response with a root", ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Root: &ir.TypeRef{Target: "t/x/M"}}},
+		{"a response with a root", ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Root: &ir.TypeRef{Target: "type/x/M"}}},
 			[]string{"ir/link-value-stray-payload " + at + ".Response.Root"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

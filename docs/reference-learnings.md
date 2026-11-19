@@ -346,7 +346,7 @@ stamps `.Ref`; a `ResolveCtx` ref-stack detects cycles; generic `resolveComponen
 per-kind duplication. openapi-python keeps *two* registries (`classes_by_reference` by $ref path =
 identity, `classes_by_name` = presentation) but name-collisions are **fatal** (`"duplicate models with
 name X"`). **Adopt `RefKey{file, jsonpointer}` → `TypeID` verbatim** for Morphic's ID construction
-(`t/openapi/components/schemas/User`); use the two-map idea only as *compiler bookkeeping* (source
+(`type/openapi/components/schemas/User`); use the two-map idea only as *compiler bookkeeping* (source
 pointer → TypeID), never as IR storage. Morphic's ID-sole-key design means renames never collide — the
 `duplicate name` fatal error simply cannot occur. Keep `operationId` as `Naming.Source` (display) but
 derive identity from the source pointer (fastapi confirms the two roles are distinct; it injects
@@ -381,7 +381,7 @@ Repeatedly, references *drop* what a richer emitter needs: openapi-python captur
 ignores them (only `format` drives type choice), drops `patternProperties`/`unevaluatedProperties`/
 non-string keys, has no open/closed enum bit; oagen/openapi-generator/datamodel have no enum openness;
 fastapi strips `x-*` from `info` (a losslessness violation). Morphic must keep `Constraints`,
-`Enum{Closed,Flags,FallbackMember,ValueType}`, `AdditionalProps{Value,Key,Patterns}` + `AdditionalMode`,
+`Enum{Closed,Flags,FallbackMember,ValueType}`, `AdditionalProperties{Value,Key,Patterns}` + `AdditionalMode`,
 `Exclusive`/`WireTagged`, `x-*` everywhere — the OpenAPI compiler sets `Enum.Closed=true` (JSON-Schema
 default) but the bit exists for Smithy(open)/protobuf/Avro(fallback) compilers. Enum specifics: allow
 **duplicate member values** (protobuf `allow_alias`) — ogen's hard rejection is the thing NOT to copy

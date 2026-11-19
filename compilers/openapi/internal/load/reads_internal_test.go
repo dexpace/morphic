@@ -36,7 +36,7 @@ func TestExternalReads_OnceReadsEachDocumentOnce(t *testing.T) {
 		}
 	}
 	gone := answer{err: errors.New("GET k: 404 Not Found")}
-	found := answer{body: []byte("doc")}
+	found := answer{body: []byte("document")}
 
 	first := r.once("k", compilers.SpaceUnstated, readAs("k", gone))
 	again := r.once("k", compilers.SpaceUnstated, readAs("k", found))

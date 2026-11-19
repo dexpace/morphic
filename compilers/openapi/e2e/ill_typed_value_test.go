@@ -309,7 +309,7 @@ func TestCompile_ANodeASchemaAndAPropertiesMapReadStaysAsWritten(t *testing.T) {
 	a, ok := typeByName(doc, "A").(*ir.Scalar)
 	require.True(t, ok, "A reads the shared node as a schema: it was not turned")
 	require.NotNil(t, a.Base)
-	assert.Equal(t, ir.TypeID("t/prim/string"), a.Base.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), a.Base.Target)
 	require.NotNil(t, a.Constraints)
 	require.NotNil(t, a.Constraints.MaxLength)
 	assert.EqualValues(t, 3, *a.Constraints.MaxLength)
@@ -414,7 +414,7 @@ func TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt(t *testing.T
 			require.Len(t, ops, 1)
 			require.Len(t, ops[0].Params, 1)
 			assert.False(t, ops[0].Params[0].Required, "required is read as left out")
-			assert.True(t, containsJSON(t, doc, `"str":"yes"`), "the value renders what the source wrote")
+			assert.True(t, containsJSON(t, doc, `"string":"yes"`), "the value renders what the source wrote")
 		})
 	}
 }
@@ -432,7 +432,7 @@ func TestCompile_AMappingAValueSharesRendersWhatItsRefusedMemberWrote(t *testing
 
 	require.NotNil(t, doc)
 	require.Len(t, byCode(diags, typeMismatch), 1, "%+v", diags)
-	assert.True(t, containsJSON(t, doc, `{"name":"maxLength","value":{"kind":"string","str":"hello"}}`),
+	assert.True(t, containsJSON(t, doc, `{"name":"maxLength","value":{"kind":"string","string":"hello"}}`),
 		"the example renders what was written")
 	assert.False(t, containsJSON(t, doc, `{"name":"maxLength","value":{"kind":"null"}}`),
 		"and never the null the schema reads there")

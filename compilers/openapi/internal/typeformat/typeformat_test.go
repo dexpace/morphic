@@ -23,16 +23,16 @@ import (
 
 // hopOnly are the kinds the domain edges pass through that no table row
 // spells. Every other kind on an edge is a row's kind.
-var hopOnly = map[ir.PrimKind]string{
-	ir.PrimFloat: "the arbitrary-precision binary float, which no (type, format) pairing selects",
+var hopOnly = map[ir.PrimitiveKind]string{
+	ir.PrimitiveFloat: "the arbitrary-precision binary float, which no (type, format) pairing selects",
 }
 
 // relationRoots are the declared kinds that narrow nothing but any.
-var relationRoots = map[ir.PrimKind]string{
-	ir.PrimBool:   "no other kind is a boolean",
-	ir.PrimString: "the root of the string formats",
-	ir.PrimNumber: "the root of the numeric kinds",
-	ir.PrimAny:    "the top",
+var relationRoots = map[ir.PrimitiveKind]string{
+	ir.PrimitiveBool:   "no other kind is a boolean",
+	ir.PrimitiveString: "the root of the string formats",
+	ir.PrimitiveNumber: "the root of the numeric kinds",
+	ir.PrimitiveAny:    "the top",
 }
 
 func irDeclared(t *testing.T) *decls.Package {
@@ -42,19 +42,19 @@ func irDeclared(t *testing.T) *decls.Package {
 	return p
 }
 
-func declaredKinds(t *testing.T) []ir.PrimKind {
+func declaredKinds(t *testing.T) []ir.PrimitiveKind {
 	t.Helper()
-	consts, err := irDeclared(t).StringConsts("PrimKind")
+	consts, err := irDeclared(t).StringConsts("PrimitiveKind")
 	require.NoError(t, err)
-	kinds := make([]ir.PrimKind, 0, len(consts))
+	kinds := make([]ir.PrimitiveKind, 0, len(consts))
 	for _, c := range consts {
-		kinds = append(kinds, ir.PrimKind(c.Value))
+		kinds = append(kinds, ir.PrimitiveKind(c.Value))
 	}
 	require.NotEmpty(t, kinds)
 	return kinds
 }
 
-func spelled(k ir.PrimKind) bool {
+func spelled(k ir.PrimitiveKind) bool {
 	for _, prim := range typeformat.FormatTable {
 		if prim == k {
 			return true
@@ -93,17 +93,17 @@ func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
 // the rows off the table, so a row added or dropped fails here too.
 func TestFormatTable_EveryStringRowLowersToItsPrimitive(t *testing.T) {
 	t.Parallel()
-	want := map[string]ir.PrimKind{
-		"date":            ir.PrimDate,
-		"time-local":      ir.PrimTime,
-		"duration":        ir.PrimDuration,
-		"uuid":            ir.PrimUUID,
-		"uri":             ir.PrimURL,
-		"date-time":       ir.PrimDatetimeOffset,
-		"date-time-local": ir.PrimDatetime,
-		"binary":          ir.PrimBytes,
+	want := map[string]ir.PrimitiveKind{
+		"date":            ir.PrimitiveDate,
+		"time-local":      ir.PrimitiveTime,
+		"duration":        ir.PrimitiveDuration,
+		"uuid":            ir.PrimitiveUUID,
+		"uri":             ir.PrimitiveURL,
+		"date-time":       ir.PrimitiveDatetimeOffset,
+		"date-time-local": ir.PrimitiveDatetime,
+		"binary":          ir.PrimitiveBytes,
 	}
-	got := make(map[string]ir.PrimKind, len(want))
+	got := make(map[string]ir.PrimitiveKind, len(want))
 	for key := range typeformat.FormatTable {
 		if format, ok := strings.CutPrefix(key, "string/"); ok {
 			got[format] = loweredStringFormat(t, format)
@@ -116,19 +116,19 @@ func TestFormatTable_EveryStringRowLowersToItsPrimitive(t *testing.T) {
 // and returns the primitive it reaches. The rule gives such a pairing no node
 // of its own, so a position resolving to anything else fails. That reach
 // through openapi is why openapitest cannot hold it.
-func loweredStringFormat(t *testing.T, format string) ir.PrimKind {
+func loweredStringFormat(t *testing.T, format string) ir.PrimitiveKind {
 	t.Helper()
 	spec := openapitest.ComponentSpec("    H: {type: object, properties: {p: {type: string, format: " + format + "}}}\n")
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(spec)}, compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	require.Empty(t, diags, "the format is homed, so nothing is reported")
-	h, ok := doc.Types["t/openapi/components/schemas/H"].(*ir.Model)
+	h, ok := doc.Types["type/openapi/components/schemas/H"].(*ir.Model)
 	require.True(t, ok, "H lowers to a model")
 	require.Len(t, h.Properties, 1)
 	prim, ok := doc.Types[h.Properties[0].Type.Target].(*ir.Primitive)
 	require.True(t, ok, "%s resolves to a shared primitive", format)
-	return prim.Prim
+	return prim.PrimitiveKind
 }
 
 // TestFormatTable_EveryRowNarrowsItsBareType holds the relation to what the
@@ -161,7 +161,7 @@ func TestFormatTable_EveryRelatedKindIsSpelledOrAHop(t *testing.T) {
 	kinds := declaredKinds(t)
 	for _, k := range kinds {
 		for _, p := range coveringKinds(kinds, k) {
-			for _, end := range []ir.PrimKind{k, p} {
+			for _, end := range []ir.PrimitiveKind{k, p} {
 				_, hop := hopOnly[end]
 				assert.True(t, spelled(end) || hop, "%s on an edge is spelled by no row and is no listed hop", end)
 			}
@@ -180,7 +180,7 @@ func TestRelation_EveryDeclaredKindIsRelatedOrARoot(t *testing.T) {
 	for _, k := range kinds {
 		related := false
 		for _, other := range kinds {
-			related = related || (other != ir.PrimAny && typeformat.Narrows(k, other))
+			related = related || (other != ir.PrimitiveAny && typeformat.Narrows(k, other))
 		}
 		_, root := relationRoots[k]
 		assert.Equal(t, !root, related, "%s must narrow a kind or be a listed root, not both", k)
@@ -198,8 +198,8 @@ func TestRelation_LongestChainFitsTheCap(t *testing.T) {
 	require.NoError(t, err)
 
 	kinds := declaredKinds(t)
-	var longest func(k ir.PrimKind, depth int) int
-	longest = func(k ir.PrimKind, depth int) int {
+	var longest func(k ir.PrimitiveKind, depth int) int
+	longest = func(k ir.PrimitiveKind, depth int) int {
 		require.LessOrEqual(t, int64(depth), limit, "a chain past the cap: a cycle or a cap too low")
 		best := 0
 		for _, p := range coveringKinds(kinds, k) {
@@ -219,29 +219,29 @@ func TestRelation_LongestChainFitsTheCap(t *testing.T) {
 // unrelated pairs hold neither way.
 func TestNarrows_HoldsEveryContainment(t *testing.T) {
 	t.Parallel()
-	holds := [][2]ir.PrimKind{
-		{ir.PrimInt8, ir.PrimInt16}, {ir.PrimInt16, ir.PrimInt32}, {ir.PrimInt32, ir.PrimInt64},
-		{ir.PrimInt64, ir.PrimInteger}, {ir.PrimUint8, ir.PrimUint16}, {ir.PrimUint16, ir.PrimUint32},
-		{ir.PrimUint32, ir.PrimUint64}, {ir.PrimUint64, ir.PrimInteger}, {ir.PrimInteger, ir.PrimDecimal},
-		{ir.PrimDecimal128, ir.PrimDecimal}, {ir.PrimDecimal, ir.PrimNumber}, {ir.PrimFloat32, ir.PrimFloat64},
-		{ir.PrimFloat64, ir.PrimFloat}, {ir.PrimFloat, ir.PrimNumber}, {ir.PrimDate, ir.PrimString},
-		{ir.PrimTime, ir.PrimString}, {ir.PrimDatetime, ir.PrimString}, {ir.PrimDatetimeOffset, ir.PrimString},
-		{ir.PrimDuration, ir.PrimString}, {ir.PrimURL, ir.PrimString}, {ir.PrimUUID, ir.PrimString},
-		{ir.PrimBytes, ir.PrimString},
-		{ir.PrimInt8, ir.PrimNumber}, {ir.PrimUint8, ir.PrimDecimal}, {ir.PrimInt32, ir.PrimInteger},
-		{ir.PrimFloat32, ir.PrimNumber}, {ir.PrimUint8, ir.PrimInt16}, {ir.PrimInt16, ir.PrimFloat32},
-		{ir.PrimUint16, ir.PrimFloat32}, {ir.PrimInt32, ir.PrimFloat64}, {ir.PrimUint32, ir.PrimFloat64},
-		{ir.PrimInteger, ir.PrimFloat}, {ir.PrimUUID, ir.PrimAny}, {ir.PrimInteger, ir.PrimAny},
+	holds := [][2]ir.PrimitiveKind{
+		{ir.PrimitiveInt8, ir.PrimitiveInt16}, {ir.PrimitiveInt16, ir.PrimitiveInt32}, {ir.PrimitiveInt32, ir.PrimitiveInt64},
+		{ir.PrimitiveInt64, ir.PrimitiveInteger}, {ir.PrimitiveUint8, ir.PrimitiveUint16}, {ir.PrimitiveUint16, ir.PrimitiveUint32},
+		{ir.PrimitiveUint32, ir.PrimitiveUint64}, {ir.PrimitiveUint64, ir.PrimitiveInteger}, {ir.PrimitiveInteger, ir.PrimitiveDecimal},
+		{ir.PrimitiveDecimal128, ir.PrimitiveDecimal}, {ir.PrimitiveDecimal, ir.PrimitiveNumber}, {ir.PrimitiveFloat32, ir.PrimitiveFloat64},
+		{ir.PrimitiveFloat64, ir.PrimitiveFloat}, {ir.PrimitiveFloat, ir.PrimitiveNumber}, {ir.PrimitiveDate, ir.PrimitiveString},
+		{ir.PrimitiveTime, ir.PrimitiveString}, {ir.PrimitiveDatetime, ir.PrimitiveString}, {ir.PrimitiveDatetimeOffset, ir.PrimitiveString},
+		{ir.PrimitiveDuration, ir.PrimitiveString}, {ir.PrimitiveURL, ir.PrimitiveString}, {ir.PrimitiveUUID, ir.PrimitiveString},
+		{ir.PrimitiveBytes, ir.PrimitiveString},
+		{ir.PrimitiveInt8, ir.PrimitiveNumber}, {ir.PrimitiveUint8, ir.PrimitiveDecimal}, {ir.PrimitiveInt32, ir.PrimitiveInteger},
+		{ir.PrimitiveFloat32, ir.PrimitiveNumber}, {ir.PrimitiveUint8, ir.PrimitiveInt16}, {ir.PrimitiveInt16, ir.PrimitiveFloat32},
+		{ir.PrimitiveUint16, ir.PrimitiveFloat32}, {ir.PrimitiveInt32, ir.PrimitiveFloat64}, {ir.PrimitiveUint32, ir.PrimitiveFloat64},
+		{ir.PrimitiveInteger, ir.PrimitiveFloat}, {ir.PrimitiveUUID, ir.PrimitiveAny}, {ir.PrimitiveInteger, ir.PrimitiveAny},
 	}
 	for _, p := range holds {
 		assert.True(t, typeformat.Narrows(p[0], p[1]), "%s narrows %s", p[0], p[1])
 		assert.False(t, typeformat.Narrows(p[1], p[0]), "%s does not narrow %s", p[1], p[0])
 	}
 
-	unrelated := [][2]ir.PrimKind{
-		{ir.PrimString, ir.PrimInteger}, {ir.PrimUUID, ir.PrimDatetimeOffset}, {ir.PrimInt32, ir.PrimUint32},
-		{ir.PrimDatetime, ir.PrimDatetimeOffset}, {ir.PrimBool, ir.PrimString}, {ir.PrimBool, ir.PrimInteger},
-		{ir.PrimBytes, ir.PrimInteger}, {ir.PrimTime, ir.PrimDatetime},
+	unrelated := [][2]ir.PrimitiveKind{
+		{ir.PrimitiveString, ir.PrimitiveInteger}, {ir.PrimitiveUUID, ir.PrimitiveDatetimeOffset}, {ir.PrimitiveInt32, ir.PrimitiveUint32},
+		{ir.PrimitiveDatetime, ir.PrimitiveDatetimeOffset}, {ir.PrimitiveBool, ir.PrimitiveString}, {ir.PrimitiveBool, ir.PrimitiveInteger},
+		{ir.PrimitiveBytes, ir.PrimitiveInteger}, {ir.PrimitiveTime, ir.PrimitiveDatetime},
 	}
 	for _, p := range unrelated {
 		assert.False(t, typeformat.Narrows(p[0], p[1]), "%s does not narrow %s", p[0], p[1])
@@ -262,10 +262,10 @@ func TestNarrows_HoldsEveryContainment(t *testing.T) {
 // and the second reported.
 func TestNarrows_OmitsRoundingContainments(t *testing.T) {
 	t.Parallel()
-	rounding := [][2]ir.PrimKind{
-		{ir.PrimInt32, ir.PrimFloat32}, {ir.PrimUint32, ir.PrimFloat32}, {ir.PrimInt64, ir.PrimFloat32}, {ir.PrimUint64, ir.PrimFloat32},
-		{ir.PrimInt64, ir.PrimFloat64}, {ir.PrimUint64, ir.PrimFloat64},
-		{ir.PrimInteger, ir.PrimFloat32}, {ir.PrimInteger, ir.PrimFloat64},
+	rounding := [][2]ir.PrimitiveKind{
+		{ir.PrimitiveInt32, ir.PrimitiveFloat32}, {ir.PrimitiveUint32, ir.PrimitiveFloat32}, {ir.PrimitiveInt64, ir.PrimitiveFloat32}, {ir.PrimitiveUint64, ir.PrimitiveFloat32},
+		{ir.PrimitiveInt64, ir.PrimitiveFloat64}, {ir.PrimitiveUint64, ir.PrimitiveFloat64},
+		{ir.PrimitiveInteger, ir.PrimitiveFloat32}, {ir.PrimitiveInteger, ir.PrimitiveFloat64},
 	}
 	for _, p := range rounding {
 		assert.False(t, typeformat.Narrows(p[0], p[1]), "%s is not narrower than %s", p[0], p[1])
@@ -279,22 +279,22 @@ func TestRelate_ClassifiesEveryVerdict(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		a, b ir.PrimKind
+		a, b ir.PrimitiveKind
 		want typeformat.Relation
 		back typeformat.Relation
 	}{
-		{"same", ir.PrimString, ir.PrimString, typeformat.Same, typeformat.Same},
-		{"domain narrowing", ir.PrimInt32, ir.PrimInteger, typeformat.ANarrower, typeformat.BNarrower},
-		{"spelling narrowing", ir.PrimUUID, ir.PrimString, typeformat.ANarrower, typeformat.BNarrower},
-		{"numeric overlap", ir.PrimInt32, ir.PrimUint32, typeformat.Overlap, typeformat.Overlap},
-		{"number kinds overlap", ir.PrimDecimal128, ir.PrimFloat32, typeformat.Overlap, typeformat.Overlap},
-		{"bytes against uuid", ir.PrimBytes, ir.PrimUUID, typeformat.Overlap, typeformat.Overlap},
-		{"two string formats", ir.PrimUUID, ir.PrimDatetimeOffset, typeformat.Disjoint, typeformat.Disjoint},
-		{"string against number", ir.PrimString, ir.PrimInteger, typeformat.Disjoint, typeformat.Disjoint},
-		{"bool against string", ir.PrimBool, ir.PrimString, typeformat.Disjoint, typeformat.Disjoint},
-		{"datetime against a format", ir.PrimDatetime, ir.PrimDate, typeformat.Disjoint, typeformat.Disjoint},
-		{"any is the top", ir.PrimUUID, ir.PrimAny, typeformat.ANarrower, typeformat.BNarrower},
-		{"any against itself", ir.PrimAny, ir.PrimAny, typeformat.Same, typeformat.Same},
+		{"same", ir.PrimitiveString, ir.PrimitiveString, typeformat.Same, typeformat.Same},
+		{"domain narrowing", ir.PrimitiveInt32, ir.PrimitiveInteger, typeformat.ANarrower, typeformat.BNarrower},
+		{"spelling narrowing", ir.PrimitiveUUID, ir.PrimitiveString, typeformat.ANarrower, typeformat.BNarrower},
+		{"numeric overlap", ir.PrimitiveInt32, ir.PrimitiveUint32, typeformat.Overlap, typeformat.Overlap},
+		{"number kinds overlap", ir.PrimitiveDecimal128, ir.PrimitiveFloat32, typeformat.Overlap, typeformat.Overlap},
+		{"bytes against uuid", ir.PrimitiveBytes, ir.PrimitiveUUID, typeformat.Overlap, typeformat.Overlap},
+		{"two string formats", ir.PrimitiveUUID, ir.PrimitiveDatetimeOffset, typeformat.Disjoint, typeformat.Disjoint},
+		{"string against number", ir.PrimitiveString, ir.PrimitiveInteger, typeformat.Disjoint, typeformat.Disjoint},
+		{"bool against string", ir.PrimitiveBool, ir.PrimitiveString, typeformat.Disjoint, typeformat.Disjoint},
+		{"datetime against a format", ir.PrimitiveDatetime, ir.PrimitiveDate, typeformat.Disjoint, typeformat.Disjoint},
+		{"any is the top", ir.PrimitiveUUID, ir.PrimitiveAny, typeformat.ANarrower, typeformat.BNarrower},
+		{"any against itself", ir.PrimitiveAny, ir.PrimitiveAny, typeformat.Same, typeformat.Same},
 	}
 	for _, tc := range tests {
 		assert.Equal(t, tc.want, typeformat.Relate(tc.a, tc.b), "%s: %s against %s", tc.name, tc.a, tc.b)
@@ -308,7 +308,7 @@ func TestLookup_ReadsTheTable(t *testing.T) {
 	t.Parallel()
 	prim, ok := typeformat.Lookup("integer/int32")
 	assert.True(t, ok)
-	assert.Equal(t, ir.PrimInt32, prim)
+	assert.Equal(t, ir.PrimitiveInt32, prim)
 
 	_, ok = typeformat.Lookup("string/password")
 	assert.False(t, ok)
@@ -321,7 +321,7 @@ func TestLookupEncoded_ReadsTheTable(t *testing.T) {
 	t.Parallel()
 	row, ok := typeformat.LookupEncoded("integer/unixtime")
 	assert.True(t, ok)
-	assert.Equal(t, typeformat.Encoded{Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimInteger}, row)
+	assert.Equal(t, typeformat.Encoded{Prim: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveInteger}, row)
 
 	for _, key := range []string{"string/date-time", "boolean/unixtime", "string"} {
 		_, ok = typeformat.LookupEncoded(key)
@@ -383,15 +383,15 @@ func documentedEncodings(t *testing.T) []string {
 // is strictly within, with no declared kind between, and never the top type.
 // It reads the containment through the exported StrictlyWithin, which is what
 // the unexported edge table in ir yields.
-func coveringKinds(kinds []ir.PrimKind, k ir.PrimKind) []ir.PrimKind {
-	var out []ir.PrimKind
+func coveringKinds(kinds []ir.PrimitiveKind, k ir.PrimitiveKind) []ir.PrimitiveKind {
+	var out []ir.PrimitiveKind
 	for _, p := range kinds {
-		if p == ir.PrimAny || !k.StrictlyWithin(p) {
+		if p == ir.PrimitiveAny || !k.StrictlyWithin(p) {
 			continue
 		}
 		between := false
 		for _, m := range kinds {
-			between = between || (m != ir.PrimAny && k.StrictlyWithin(m) && m.StrictlyWithin(p))
+			between = between || (m != ir.PrimitiveAny && k.StrictlyWithin(m) && m.StrictlyWithin(p))
 		}
 		if !between {
 			out = append(out, p)

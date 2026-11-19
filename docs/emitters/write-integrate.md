@@ -6,7 +6,7 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
 
 - **Generation manifest keyed by IR stable IDs.** Records what the generation was built from, a
   **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
-  `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the
+  `TypeID`/`OperationID`/`PropertyID`** — assembled from the `Origin` on every emitted node. This is the
   biggest win of stable-ID keying: a rename of anything an ID is not built from is "same ID, new
   symbol" — a lookup, not oagen's structural rename-inference machinery — and one of what it is
   built from is carried by the correlation key each entry records where the key's own source holds,

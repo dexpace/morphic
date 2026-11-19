@@ -38,7 +38,7 @@ func Decorated(td TypeDef) (TypeRef, bool) {
 func modelAddsNothing(m *Model) bool {
 	return len(m.Properties) == 0 && len(m.Requires) == 0 &&
 		len(m.Implements) == 0 && len(m.Mixins) == 0 &&
-		m.AdditionalProps == nil && m.Additional == AdditionalUnspecified && m.Constraints == nil &&
+		m.AdditionalProperties == nil && m.Additional == AdditionalUnspecified && m.Constraints == nil &&
 		!m.Abstract && !m.Positional && len(m.ExtensionRanges) == 0 &&
 		m.Discriminator == nil && m.DiscriminatorValue == "" && !m.InputOnly
 }

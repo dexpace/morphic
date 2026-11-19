@@ -19,12 +19,12 @@ import (
 // is not run in parallel: AllocsPerRun measures the process.
 func TestCheckInferred_VisitingCostsNoAllocation(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/pet": &ir.Model{
-			ID:         "t/pet",
+		"type/pet": &ir.Model{
+			ID:         "type/pet",
 			Provenance: ir.Provenance{Inferred: "group-path-prefix,streaming-inference,extension-promotion"},
 			Properties: []ir.Property{
-				{ID: "p/pet/a", Type: ir.TypeRef{Target: "t/pet", Nullable: true, Inferred: "nullable-inference"}},
-				{ID: "p/pet/b", Provenance: ir.Provenance{Inferred: "extension-promotion"}},
+				{ID: "property/pet/a", Type: ir.TypeRef{Target: "type/pet", Nullable: true, Inferred: "nullable-inference"}},
+				{ID: "property/pet/b", Provenance: ir.Provenance{Inferred: "extension-promotion"}},
 			},
 		},
 	}}

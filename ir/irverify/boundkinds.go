@@ -54,7 +54,7 @@ func beyondProps(c *ir.Constraints) bool {
 		return false
 	}
 	rest := *c
-	rest.MinProps, rest.MaxProps = nil, nil
+	rest.MinProperties, rest.MaxProperties = nil, nil
 	return rest != ir.Constraints{}
 }
 

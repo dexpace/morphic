@@ -30,15 +30,15 @@ func TestCheckNaming_VisitingCostsNoAllocation(t *testing.T) {
 		aliased.Aliases = append(aliased.Aliases, "com.example.Aliased"+strconv.Itoa(i))
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/pet": &ir.Model{ID: "t/pet", Name: named("PetStore"), Properties: []ir.Property{
-			{ID: "p/pet/a", Name: named("userID")},
-			{ID: "p/pet/b", Name: named("HTTPServer2FA")},
-			{ID: "p/pet/c", Name: named("already_canonical")},
-			{ID: "p/pet/d", Name: named("com.example.User")},
+		"type/pet": &ir.Model{ID: "type/pet", Name: named("PetStore"), Properties: []ir.Property{
+			{ID: "property/pet/a", Name: named("userID")},
+			{ID: "property/pet/b", Name: named("HTTPServer2FA")},
+			{ID: "property/pet/c", Name: named("already_canonical")},
+			{ID: "property/pet/d", Name: named("com.example.User")},
 		}},
-		"t/anon":     &ir.Model{ID: "t/anon", Name: ir.Naming{Hint: "anon_pet"}},
-		"t/aliased":  &ir.Model{ID: "t/aliased", Name: aliased},
-		"t/prim/str": &ir.Primitive{ID: "t/prim/str", Prim: ir.PrimString},
+		"type/anonymous":     &ir.Model{ID: "type/anonymous", Name: ir.Naming{Hint: "anon_pet"}},
+		"type/aliased":       &ir.Model{ID: "type/aliased", Name: aliased},
+		"type/primitive/str": &ir.Primitive{ID: "type/primitive/str", PrimitiveKind: ir.PrimitiveString},
 	}}
 	check := checkNaming(doc)
 	assert.Empty(t, irtest.AllocatingVisits(doc, check))
@@ -71,10 +71,10 @@ func TestNameExempt_IsTheOptionalNodesOwnNameAlone(t *testing.T) {
 		return true
 	}))
 	assert.Equal(t, map[string]bool{
-		"doc.Listed.Name":       true,
-		"doc.Listed.Other":      false,
-		"doc.Listed.Inner.Name": false,
-		"doc.Unlisted.Name":     false,
+		"document.Listed.Name":       true,
+		"document.Listed.Other":      false,
+		"document.Listed.Inner.Name": false,
+		"document.Unlisted.Name":     false,
 	}, got)
 }
 
@@ -97,7 +97,7 @@ func TestCheckNaming_ExemptsAPrimitiveInAFieldNotOneEmbedded(t *testing.T) {
 		want []string
 	}{
 		{"held in a field", held{}, nil},
-		{"embedded beside a Name", embedding{}, []string{"doc.Name", "doc.Name"}},
+		{"embedded beside a Name", embedding{}, []string{"document.Name", "document.Name"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -144,14 +144,14 @@ func (r reader) variants(name string, fields map[string]jsontext.Value, where ir
 
 // variantParams resolves the parameter names the variant holds, a list of one name
 // or more, each naming one parameter of the operation and each once.
-func (r reader) variantParams(variant string, raw jsontext.Value, where ir.Provenance) ([]ir.ParamID, *refusal) {
+func (r reader) variantParams(variant string, raw jsontext.Value, where ir.Provenance) ([]ir.ParameterID, *refusal) {
 	var names []string
 	if err := json.Unmarshal(raw, &names); err != nil || len(names) == 0 {
 		return nil, &refusal{"names no parameter in variant " + strconv.Quote(variant), where}
 	}
 	index := r.w.Params(r.op)
-	out := make([]ir.ParamID, 0, len(names))
-	seen := make(map[ir.ParamID]bool, len(names))
+	out := make([]ir.ParameterID, 0, len(names))
+	seen := make(map[ir.ParameterID]bool, len(names))
 	for k, name := range names {
 		id, matched := index.Named(name)
 		pos := at(where, strconv.Itoa(k))

@@ -82,7 +82,7 @@ func TestGroups_WritesEachValidInstanceAsADefault(t *testing.T) {
 	assert.JSONEq(t, `{"type": "integer"}`, string(doc.Sources[2].Data))
 	assert.Equal(t, map[string]string{"allow-external-refs": "true"}, doc.Options)
 	assert.Equal(t, []harness.Instance{
-		{Node: "p/openapi/paths/~1c/get/responses/200/headers/H0", Valid: true, Name: "remote ref valid"},
+		{Node: "property/openapi/paths/~1c/get/responses/200/headers/H0", Valid: true, Name: "remote ref valid"},
 	}, doc.Instances)
 }
 
@@ -95,11 +95,11 @@ func TestGroups_WritesEachValidInstanceAsADefault(t *testing.T) {
 func TestGroups_NamesEachCarriersNode(t *testing.T) {
 	c := openapicases.Groups()
 	for position, want := range map[string][]string{
-		"property": {"p/openapi/components/schemas/C/properties/t0", "p/openapi/components/schemas/C/properties/t1"},
-		"parameter": {"param/openapi/paths/~1c/get/parameters/q0/query",
-			"param/openapi/paths/~1c/get/parameters/q1/query"},
-		"header": {"p/openapi/paths/~1c/get/responses/200/headers/H0",
-			"p/openapi/paths/~1c/get/responses/200/headers/H1"},
+		"property": {"property/openapi/components/schemas/C/properties/t0", "property/openapi/components/schemas/C/properties/t1"},
+		"parameter": {"parameter/openapi/paths/~1c/get/parameters/q0/query",
+			"parameter/openapi/paths/~1c/get/parameters/q1/query"},
+		"header": {"property/openapi/paths/~1c/get/responses/200/headers/H0",
+			"property/openapi/paths/~1c/get/responses/200/headers/H1"},
 	} {
 		at := groupAt(t, c, "required.json%2Frequired properties whose names are Javascript object "+
 			"property names", position)

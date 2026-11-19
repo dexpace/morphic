@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -50,7 +50,7 @@
   },
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "LaterVersionConstructs",
         "canonical": "later_version_constructs"
@@ -58,7 +58,7 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/tags/catalog",
+          "id": "operation-group/tags/catalog",
           "name": {
             "source": "catalog",
             "canonical": "catalog"
@@ -66,7 +66,7 @@
           "docs": {},
           "groups": [
             {
-              "id": "g/tags/books",
+              "id": "operation-group/tags/books",
               "name": {
                 "source": "books",
                 "canonical": "books"
@@ -76,7 +76,7 @@
               },
               "operations": [
                 {
-                  "id": "op/openapi/paths/~1books/get",
+                  "id": "operation/openapi/paths/~1books/get",
                   "name": {
                     "source": "listBooks",
                     "canonical": "list_books"
@@ -84,13 +84,13 @@
                   "docs": {},
                   "params": [
                     {
-                      "id": "param/openapi/paths/~1books/get/parameters/filter/querystring",
+                      "id": "parameter/openapi/paths/~1books/get/parameters/filter/querystring",
                       "name": {
                         "source": "filter",
                         "canonical": "filter"
                       },
                       "type": {
-                        "target": "t/anon/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+                        "target": "type/anonymous/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
                         "nullable": false
                       },
                       "required": false,
@@ -119,12 +119,12 @@
                           {
                             "mediaType": "application/jsonl",
                             "type": {
-                              "target": "t/prim/any",
+                              "target": "type/primitive/any",
                               "nullable": false
                             },
                             "stream": {},
                             "item": {
-                              "target": "t/openapi/components/schemas/Book",
+                              "target": "type/openapi/components/schemas/Book",
                               "nullable": false
                             },
                             "examples": [
@@ -137,7 +137,7 @@
                                       "name": "title",
                                       "value": {
                                         "kind": "string",
-                                        "str": "Dune"
+                                        "string": "Dune"
                                       }
                                     }
                                   ]
@@ -190,7 +190,7 @@
                   "streaming": "server",
                   "responseStream": {
                     "events": {
-                      "target": "t/openapi/components/schemas/Book",
+                      "target": "type/openapi/components/schemas/Book",
                       "nullable": false
                     },
                     "requiresLength": false
@@ -206,7 +206,7 @@
                         "uriTemplate": "/books",
                         "paramBindings": [
                           {
-                            "param": "param/openapi/paths/~1books/get/parameters/filter/querystring",
+                            "param": "parameter/openapi/paths/~1books/get/parameters/filter/querystring",
                             "location": "querystring",
                             "wireName": "filter",
                             "allowReserved": false,
@@ -225,7 +225,7 @@
                   }
                 },
                 {
-                  "id": "op/openapi/paths/~1books/query",
+                  "id": "operation/openapi/paths/~1books/query",
                   "name": {
                     "source": "searchBooks",
                     "canonical": "search_books"
@@ -274,14 +274,14 @@
           ]
         },
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1books/post",
+              "id": "operation/openapi/paths/~1books/post",
               "name": {
                 "source": "addBooks",
                 "canonical": "add_books"
@@ -292,22 +292,22 @@
                   {
                     "mediaType": "multipart/mixed",
                     "type": {
-                      "target": "t/prim/any",
+                      "target": "type/primitive/any",
                       "nullable": false
                     },
                     "itemEncoding": {
                       "contentTypes": [
                         "text/plain"
                       ],
-                      "multi": true,
-                      "filename": false,
+                      "repeatsPerArrayItem": true,
+                      "hasFilename": false,
                       "allowReserved": false
                     }
                   },
                   {
                     "mediaType": "multipart/related",
                     "type": {
-                      "target": "t/prim/any",
+                      "target": "type/primitive/any",
                       "nullable": false
                     },
                     "unmodeled": {
@@ -328,16 +328,16 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1books/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1books/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1books/post/requestBody/content/multipart~1form-data/schema/properties/cover": {
+                      "property/openapi/paths/~1books/post/requestBody/content/multipart~1form-data/schema/properties/cover": {
                         "contentTypes": [
                           "multipart/mixed"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       }
                     },
@@ -381,7 +381,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/openapi/components/schemas/Book",
+                      "target": "type/openapi/components/schemas/Book",
                       "nullable": false
                     },
                     "docs": {
@@ -433,7 +433,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1books/additionalOperations/PURGE",
+              "id": "operation/openapi/paths/~1books/additionalOperations/PURGE",
               "name": {
                 "source": "purgeBooks",
                 "canonical": "purge_books"
@@ -477,14 +477,14 @@
           ]
         },
         {
-          "id": "g/webhooks",
+          "id": "operation-group/webhooks",
           "name": {
             "hint": "webhooks"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/webhooks/bookAdded/post",
+              "id": "operation/openapi/webhooks/bookAdded/post",
               "name": {
                 "source": "bookAdded",
                 "canonical": "book_added"
@@ -538,9 +538,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Edition/properties/number": {
+    "type/anonymous/components/schemas/Edition/properties/number": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Edition/properties/number",
+      "id": "type/anonymous/components/schemas/Edition/properties/number",
       "name": {
         "hint": "number"
       },
@@ -551,7 +551,7 @@
         {
           "value": {
             "kind": "number",
-            "num": "1"
+            "number": "1"
           }
         }
       ],
@@ -561,13 +561,13 @@
       },
       "value": {
         "kind": "number",
-        "num": "1"
+        "number": "1"
       },
       "valueType": "integer"
     },
-    "t/anon/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
+    "type/anonymous/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+      "id": "type/anonymous/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
       "name": {
         "hint": "filter"
       },
@@ -580,21 +580,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/author",
+          "id": "property/openapi/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/author",
           "name": {
             "source": "author",
             "canonical": "author"
           },
           "wireName": "author",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -611,9 +611,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1books/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1books/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1books/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1books/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "add_books_request"
       },
@@ -626,21 +626,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1books/post/requestBody/content/multipart~1form-data/schema/properties/cover",
+          "id": "property/openapi/paths/~1books/post/requestBody/content/multipart~1form-data/schema/properties/cover",
           "name": {
             "source": "cover",
             "canonical": "cover"
           },
           "wireName": "cover",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -657,9 +657,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Book": {
+    "type/openapi/components/schemas/Book": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Book",
+      "id": "type/openapi/components/schemas/Book",
       "name": {
         "source": "Book",
         "canonical": "book"
@@ -673,21 +673,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Book/properties/title",
+          "id": "property/openapi/components/schemas/Book/properties/title",
           "name": {
             "source": "title",
             "canonical": "title"
           },
           "wireName": "title",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -704,9 +704,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Edition": {
+    "type/openapi/components/schemas/Edition": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Edition",
+      "id": "type/openapi/components/schemas/Edition",
       "name": {
         "source": "Edition",
         "canonical": "edition"
@@ -734,21 +734,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Edition/properties/number",
+          "id": "property/openapi/components/schemas/Edition/properties/number",
           "name": {
             "source": "number",
             "canonical": "number"
           },
           "wireName": "number",
           "type": {
-            "target": "t/anon/components/schemas/Edition/properties/number",
+            "target": "type/anonymous/components/schemas/Edition/properties/number",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -761,21 +761,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Edition/properties/isbn",
+          "id": "property/openapi/components/schemas/Edition/properties/isbn",
           "name": {
             "source": "isbn",
             "canonical": "isbn"
           },
           "wireName": "isbn",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -788,21 +788,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Edition/properties/publisher",
+          "id": "property/openapi/components/schemas/Edition/properties/publisher",
           "name": {
             "source": "publisher",
             "canonical": "publisher"
           },
           "wireName": "publisher",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -819,9 +819,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Item": {
+    "type/openapi/components/schemas/Item": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Item",
+      "id": "type/openapi/components/schemas/Item",
       "name": {
         "source": "Item",
         "canonical": "item"
@@ -838,21 +838,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Item/properties/kind",
+          "id": "property/openapi/components/schemas/Item/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -868,15 +868,15 @@
       "abstract": false,
       "positional": false,
       "discriminator": {
-        "property": "p/openapi/components/schemas/Item/properties/kind",
-        "default": "t/openapi/components/schemas/Novel",
+        "property": "property/openapi/components/schemas/Item/properties/kind",
+        "default": "type/openapi/components/schemas/Novel",
         "inferred": false
       },
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Novel": {
+    "type/openapi/components/schemas/Novel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Novel",
+      "id": "type/openapi/components/schemas/Novel",
       "name": {
         "source": "Novel",
         "canonical": "novel"
@@ -889,7 +889,7 @@
         "pointer": "/components/schemas/Novel"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Item",
+        "target": "type/openapi/components/schemas/Item",
         "nullable": false
       },
       "abstract": false,
@@ -897,9 +897,9 @@
       "discriminatorValue": "Novel",
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -907,11 +907,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -919,7 +919,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "auth": {

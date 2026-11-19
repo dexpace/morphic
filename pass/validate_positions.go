@@ -36,7 +36,7 @@ type position struct {
 // Not read: Property.Args, which is GraphQL's, and a resource's properties,
 // which no compiler writes (#1413). A stop of ir.ForEachOperation is the one
 // Validate reports for each check that visits operations.
-func eachPosition(doc *ir.Document, live []ir.TypeID, keys *[]ir.PropID, visit func(*position)) {
+func eachPosition(doc *ir.Document, live []ir.TypeID, keys *[]ir.PropertyID, visit func(*position)) {
 	var p position
 	for _, id := range live {
 		m, ok := doc.Types[id].(*ir.Model)
@@ -77,7 +77,7 @@ func headerPositions(p *position, headers []ir.Header, owner string, visit func(
 }
 
 // operationPositions visits the positions of op.
-func operationPositions(p *position, op *ir.Operation, keys *[]ir.PropID, visit func(*position)) {
+func operationPositions(p *position, op *ir.Operation, keys *[]ir.PropertyID, visit func(*position)) {
 	for i := range op.Params {
 		pm := &op.Params[i]
 		*p = position{
@@ -110,7 +110,7 @@ func operationPositions(p *position, op *ir.Operation, keys *[]ir.PropID, visit 
 
 // partPositions visits the headers of the parts of each content of payload: the
 // item's, then each part's, in the order of its sorted keys.
-func partPositions(p *position, payload *ir.Payload, owner string, keys *[]ir.PropID, visit func(*position)) {
+func partPositions(p *position, payload *ir.Payload, owner string, keys *[]ir.PropertyID, visit func(*position)) {
 	if payload == nil {
 		return
 	}

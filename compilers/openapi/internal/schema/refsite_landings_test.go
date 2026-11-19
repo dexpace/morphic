@@ -72,13 +72,13 @@ func TestPromiseLandings_LowersWhatNothingElseReached(t *testing.T) {
 `))
 
 	for _, id := range []ir.TypeID{
-		"t/anon/components/schemas/Kept/$defs/Sub",
-		"t/anon/components/schemas/Through/$defs/Mid",
-		"t/anon/components/schemas/Through/$defs/End",
+		"type/anonymous/components/schemas/Kept/$defs/Sub",
+		"type/anonymous/components/schemas/Through/$defs/Mid",
+		"type/anonymous/components/schemas/Through/$defs/End",
 	} {
 		assert.NotContains(t, plain.Types, id, "lowerings alone do not reach %s", id)
 		require.Contains(t, promised.Types, id, "promising reaches %s", id)
-		assert.Equal(t, string(id[len("t/anon"):]), string(promised.Types[id].Common().Provenance.Pointer))
+		assert.Equal(t, string(id[len("type/anonymous"):]), string(promised.Types[id].Common().Provenance.Pointer))
 	}
-	assert.Equal(t, "mid", promised.Types["t/anon/components/schemas/Through/$defs/Mid"].Common().Docs.Description)
+	assert.Equal(t, "mid", promised.Types["type/anonymous/components/schemas/Through/$defs/Mid"].Common().Docs.Description)
 }

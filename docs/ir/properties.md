@@ -5,7 +5,7 @@ that say when it is visible.
 
 ```go
 type Property struct {
-    ID         PropID
+    ID         PropertyID
     Name       Naming
     WireName   string              // serialized name; defaults to Name.Source; a prefix header
                                    // has none (responses.md, prefix headers)
@@ -76,7 +76,7 @@ type Lifecycle = string // OPEN set. Canonical values: "create" | "read" | "upda
 
 type Visibility struct {
     Only []Lifecycle   // empty = visible in all lifecycles (unless None)
-    None bool          // visible in NO lifecycle: excluded from every projection
+    InvisibleInEveryLifecycle bool          // visible in NO lifecycle: excluded from every projection
                        // (TypeSpec @invisible) — distinct from the zero value
 }
 ```

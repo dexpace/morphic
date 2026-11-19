@@ -20,7 +20,7 @@ func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	content := &ir.Content{MediaType: "multipart/mixed"}
 	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
 	diags := fillSequential(l.ctx, l.serviceWalk(), content, media, "/mp")
-	assert.Equal(t, &ir.PartEncoding{Multi: true}, content.ItemEncoding,
+	assert.Equal(t, &ir.PartEncoding{RepeatsPerArrayItem: true}, content.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
 	assert.Nil(t, content.Unmodeled, "nothing is preserved raw")
 	assert.Empty(t, diags)

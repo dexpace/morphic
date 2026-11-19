@@ -147,7 +147,7 @@ func TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict(t *te
 	got, diags := thingIDVisibility(t, "allof-visibility-disjoint", allOfVisibilityDisjointSpec)
 
 	assertNoErrorDiags(t, diags)
-	assert.Equal(t, ir.Visibility{None: true}, got)
+	assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, got)
 	assert.True(t, openapitest.HasDiag(diags, diag.DisjointVisibility),
 		"an allOf that leaves a field visible nowhere is reported, not merged in silence")
 	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingRedecl),

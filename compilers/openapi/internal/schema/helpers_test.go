@@ -79,7 +79,7 @@ func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 // copy for the reason openapitest's doc comment gives: a spelled-out ID belongs
 // in a test file, which the idderivations rule does not hold.
 func componentID(name string) ir.TypeID {
-	return ir.TypeID("t/openapi/components/schemas/" + name)
+	return ir.TypeID("type/openapi/components/schemas/" + name)
 }
 
 // typeByName returns the named component schema's lowered TypeDef.
@@ -114,7 +114,7 @@ func unionReading(doc *ir.Document, name string) string {
 		return ""
 	}
 	if slices.ContainsFunc(u.Variants, func(v ir.Variant) bool {
-		return strings.HasPrefix(string(v.Type.Target), "t/composed/")
+		return strings.HasPrefix(string(v.Type.Target), "type/composed/")
 	}) {
 		return readDistributed
 	}
@@ -245,7 +245,7 @@ type stolenPosition struct {
 // declared first or last. Components lower in source order, so the two are the
 // two orders in which the pointer's node can be reached.
 func (p stolenPosition) spec(refFirst bool) string {
-	outsider := "    Outsider: {$ref: '#" + strings.TrimPrefix(string(p.id), "t/anon") + "'}\n"
+	outsider := "    Outsider: {$ref: '#" + strings.TrimPrefix(string(p.id), "type/anonymous") + "'}\n"
 	if refFirst {
 		return openapitest.ComponentSpec(outsider + p.owner)
 	}

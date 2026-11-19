@@ -145,7 +145,7 @@ func TestUse_ADefaultBesideItsValueSetStands(t *testing.T) {
 	for _, wire := range []string{"plain", "onBranch", "beside", "viaOnBranch", "viaBeside", "viaLost"} {
 		got := propertyOf(t, doc, "Holder", wire).Default
 		if assert.NotNil(t, got, wire) {
-			assert.Equal(t, "other", got.Str, wire)
+			assert.Equal(t, "other", got.String, wire)
 		}
 	}
 }
@@ -290,7 +290,7 @@ func TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement(t *testing.T) {
 		for _, wire := range []string{"refines", "viaRefines"} {
 			p := propertyOf(t, doc, "Holder", wire)
 			require.NotNil(t, p.Default, wire)
-			assert.Equal(t, "lent", p.Default.Str, wire)
+			assert.Equal(t, "lent", p.Default.String, wire)
 		}
 		assert.Equal(t, "from Str", propertyOf(t, doc, "Holder", "viaRefines").Docs.Description)
 		for _, wire := range []string{"composes", "viaComposes"} {

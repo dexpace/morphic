@@ -74,13 +74,13 @@ func TestWriteText_WithAndWithoutSourcePath(t *testing.T) {
 		},
 		{
 			name: "a node beside a source: the file is printed, not the node",
-			prov: ir.Provenance{Source: 0, Node: "op/x"},
+			prov: ir.Provenance{Source: 0, Node: "operation/x"},
 			want: "error openapi/bad spec.yaml: m\n",
 		},
 		{
 			name: "NoSource with a node prints the node bare",
-			prov: ir.Provenance{Source: ir.NoSource, Node: "op/x"},
-			want: "error openapi/bad op/x: m\n",
+			prov: ir.Provenance{Source: ir.NoSource, Node: "operation/x"},
+			want: "error openapi/bad operation/x: m\n",
 		},
 		{
 			name: "an unresolvable source with a position prints the position bare",
@@ -373,13 +373,13 @@ func TestWriteText_NamesEachUnusedRule(t *testing.T) {
 	r := report.Report{UnusedRules: []triage.Rule{
 		{Code: "a", Severity: ir.SeverityInfo, Reason: "r"},
 		{Code: "b", Pointer: "/p", Accept: true, Reason: "r"},
-		{Code: "c", Node: "s/x", Severity: ir.SeverityError, Reason: "r"},
+		{Code: "c", Node: "service/x", Severity: ir.SeverityError, Reason: "r"},
 	}}
 	var w strings.Builder
 	require.NoError(t, report.WriteText(&w, r, report.TextOptions{}))
 	assert.Equal(t, "  triage rule for a matched no finding\n"+
 		"  triage rule for b at /p matched no finding\n"+
-		"  triage rule for c at node s/x matched no finding\n", w.String())
+		"  triage rule for c at node service/x matched no finding\n", w.String())
 }
 
 // TestWriteText_CountsUnusedRulesPastTheCountOfACode holds the unused rules to

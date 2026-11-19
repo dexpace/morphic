@@ -103,9 +103,9 @@ var brokenDocuments = []struct {
 	{"a duplicate operation ID", func(d *ir.Document) {
 		group := &d.Services[0].Groups[0]
 		group.Operations = append(slices.Clone(group.Operations), group.Operations[0])
-	}, []string{"ir/duplicate-op-id"}, true},
+	}, []string{"ir/duplicate-operation-id"}, true},
 	{"a registry key unequal to its node's ID", func(d *ir.Document) {
-		d.Types = ir.TypeRegistry{"t/openapi/a": &ir.Scalar{ID: "t/openapi/b"}}
+		d.Types = ir.TypeRegistry{"type/openapi/a": &ir.Scalar{ID: "type/openapi/b"}}
 	}, []string{"ir/type-id-mismatch"}, false},
 	{"a cased canonical name", func(d *ir.Document) {
 		d.Services[0].Name.Canonical = "Ping"
@@ -471,14 +471,14 @@ func TestVerifyError_NamesTheFirstViolationsOnOneLine(t *testing.T) {
 		violations []irverify.Violation
 		want       string
 	}{
-		{"one", []irverify.Violation{violation("ir/a", "doc.A")},
-			`engine: verify stage: the document breaks 1 invariants: ir/a at "doc.A"`},
-		{"three", []irverify.Violation{violation("ir/a", "doc.A"), violation("ir/b", "doc.B"), violation("ir/c", "doc.C")},
-			`engine: verify stage: the document breaks 3 invariants: ir/a at "doc.A"; ir/b at "doc.B"; ir/c at "doc.C"`},
+		{"one", []irverify.Violation{violation("ir/a", "document.A")},
+			`engine: verify stage: the document breaks 1 invariants: ir/a at "document.A"`},
+		{"three", []irverify.Violation{violation("ir/a", "document.A"), violation("ir/b", "document.B"), violation("ir/c", "document.C")},
+			`engine: verify stage: the document breaks 3 invariants: ir/a at "document.A"; ir/b at "document.B"; ir/c at "document.C"`},
 		{"four", []irverify.Violation{violation("ir/a", "A"), violation("ir/b", "B"), violation("ir/c", "C"), violation("ir/d", "D")},
 			`engine: verify stage: the document breaks 4 invariants: ir/a at "A"; ir/b at "B"; ir/c at "C"; and 1 more`},
-		{"a path with a line break and a quote", []irverify.Violation{violation("ir/a", "doc.Types[a\n\"b\"]")},
-			`engine: verify stage: the document breaks 1 invariants: ir/a at "doc.Types[a\n\"b\"]"`},
+		{"a path with a line break and a quote", []irverify.Violation{violation("ir/a", "document.Types[a\n\"b\"]")},
+			`engine: verify stage: the document breaks 1 invariants: ir/a at "document.Types[a\n\"b\"]"`},
 		{"a path past the bound", []irverify.Violation{violation("ir/a", strings.Repeat("k", 5000))},
 			fmt.Sprintf(`engine: verify stage: the document breaks 1 invariants: ir/a at "%s"`, strings.Repeat("k", 200))},
 	}

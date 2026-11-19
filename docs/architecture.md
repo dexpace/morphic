@@ -382,9 +382,9 @@ Built, and in the default list:
   `--disable-pass const-unions` hands an emitter the union instead.
 - **validate** — referential integrity and the well-formedness rules the IR states, each rule family
   in a `pass/validate_<family>.go` of its own. Integrity means every typed-ID reference resolves to
-  something the document declares (a `TypeRef` target against the type registry, an `OpID` against
+  something the document declares (a `TypeRef` target against the type registry, an `OperationID` against
   the operations the service tree declares, and so on for every ID class), and every integer index
-  and `PropID` addresses a declared entry. Well-formedness is what the IR asks of a node beyond
+  and `PropertyID` addresses a declared entry. Well-formedness is what the IR asks of a node beyond
   that, such as discriminator mappings that point at actual variants, wire names and aliases unique
   within a model, a one-way operation that declares no response, and binding completeness: a
   parameter an HTTP binding places twice at one non-host location is an error

@@ -42,7 +42,7 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		site := valueSite{doc: doc, node: string(id), from: c.Provenance, ref: ir.TypeRef{Target: id}, typeLevel: true}
 		diags = site.appendExamples(diags, c.Examples)
 	}
-	var keys []ir.PropID
+	var keys []ir.PropertyID
 	eachPosition(doc, live, &keys, func(p *position) {
 		site := valueSite{doc: doc, node: p.node, from: p.from, ref: p.typ, own: p.own, encoded: p.encoded}
 		if why := site.fits(p.def); why != "" {
@@ -50,7 +50,7 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		}
 		diags = site.appendExamples(diags, p.examples)
 	})
-	var params []ir.ParamID
+	var params []ir.ParameterID
 	ir.ForEachOperation(doc, func(op ir.Operation) {
 		diags = appendScenarioValues(diags, doc, &op, &params)
 	})
@@ -86,7 +86,7 @@ func exampleLabel(ex *ir.Example, i int) string {
 // they stand for does not admit: each input parameter, against the parameter
 // of its ID, and the content of the error a scenario ends in, against the
 // error's type. params holds the sorted IDs of one input.
-func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation, params *[]ir.ParamID) []ir.Diagnostic {
+func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation, params *[]ir.ParameterID) []ir.Diagnostic {
 	for i := range op.Examples {
 		ex := &op.Examples[i]
 		if ex.Input != nil {
@@ -108,7 +108,7 @@ func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operat
 // naming a parameter op does not declare is skipped: pass/param-binding-mismatch
 // has it.
 func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation, ex *ir.Example, i int,
-	params *[]ir.ParamID,
+	params *[]ir.ParameterID,
 ) []ir.Diagnostic {
 	*params = (*params)[:0]
 	for id := range ex.Input.Params {
@@ -131,7 +131,7 @@ func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation
 }
 
 // parameterOf returns the parameter of op with the ID id, or nil.
-func parameterOf(op *ir.Operation, id ir.ParamID) *ir.Parameter {
+func parameterOf(op *ir.Operation, id ir.ParameterID) *ir.Parameter {
 	for i := range op.Params {
 		if op.Params[i].ID == id {
 			return &op.Params[i]
@@ -145,7 +145,7 @@ func parameterOf(op *ir.Operation, id ir.ParamID) *ir.Parameter {
 // type nothing declares, one holding anything, a union or an external type, and
 // a value written in an encoding.
 func (s *valueSite) fits(v *ir.Value) string {
-	if v == nil || v.Kind == ir.ValueRefKind || v.Kind == ir.ValueCtor {
+	if v == nil || v.Kind == ir.ValueRefKind || v.Kind == ir.ValueConstructor {
 		return ""
 	}
 	var b bounds
@@ -192,7 +192,7 @@ func fitsShape(v *ir.Value, sh shape, target ir.TypeID, b *bounds) string {
 		return "is " + kindWords(v.Kind) + ", and " + string(target) + " holds " + shapeWords(sh)
 	}
 	if sh == shapeInteger {
-		if d, err := v.Num.Decimal(); err == nil && !d.IsInt() {
+		if d, err := v.Number.Decimal(); err == nil && !d.IsInt() {
 			return "is no integer, and " + string(target) + " holds one"
 		}
 	}
@@ -212,7 +212,7 @@ func admits(sh shape, k ir.ValueKind) bool {
 	case shapeBytes:
 		return k == ir.ValueBytes || k == ir.ValueString
 	case shapeNumber:
-		return k == ir.ValueNumber || k == ir.ValueInf || k == ir.ValueNegInf || k == ir.ValueNaN
+		return k == ir.ValueNumber || k == ir.ValueInfinity || k == ir.ValueNegativeInfinity || k == ir.ValueNaN
 	case shapeInteger:
 		return k == ir.ValueNumber
 	case shapeList:
@@ -260,11 +260,11 @@ func kindWords(k ir.ValueKind) string {
 		return "a list"
 	case ir.ValueObject:
 		return "an object"
-	case ir.ValueInf, ir.ValueNegInf:
+	case ir.ValueInfinity, ir.ValueNegativeInfinity:
 		return "an infinity"
 	case ir.ValueNaN:
 		return "a NaN"
-	case ir.ValueNull, ir.ValueRefKind, ir.ValueCtor:
+	case ir.ValueNull, ir.ValueRefKind, ir.ValueConstructor:
 		return "a " + string(k)
 	default:
 		return "a " + string(k)
@@ -277,7 +277,7 @@ func kindWords(k ir.ValueKind) string {
 func outside(v *ir.Value, sh shape, b *bounds) bool {
 	switch {
 	case sh == shapeText:
-		return beyond(int64(utf8.RuneCountInString(v.Str)), b.minLen, b.maxLen)
+		return beyond(int64(utf8.RuneCountInString(v.String)), b.minLen, b.maxLen)
 	case sh == shapeBytes && v.Kind == ir.ValueBytes:
 		return beyond(int64(len(v.Bytes)), b.minLen, b.maxLen)
 	case sh == shapeList:
@@ -285,7 +285,7 @@ func outside(v *ir.Value, sh shape, b *bounds) bool {
 	case sh == shapeObject:
 		return beyond(int64(len(v.Object)), b.minProps, b.maxProps)
 	case (sh == shapeNumber || sh == shapeInteger) && v.Kind == ir.ValueNumber:
-		d, err := v.Num.Decimal()
+		d, err := v.Number.Decimal()
 		return err == nil && ((b.loSet && below(d.Cmp(b.lo), b.loOpen)) || (b.hiSet && below(-d.Cmp(b.hi), b.hiOpen)))
 	default:
 		return false
@@ -312,7 +312,7 @@ func same(a, b *ir.Value) bool {
 	text := func(k ir.ValueKind) bool { return k == ir.ValueString || k == ir.ValueSymbol }
 	switch {
 	case text(a.Kind) && text(b.Kind):
-		return a.Str == b.Str
+		return a.String == b.String
 	case a.Kind != b.Kind:
 		return false
 	case a.Kind == ir.ValueBool:
@@ -320,8 +320,8 @@ func same(a, b *ir.Value) bool {
 	case a.Kind == ir.ValueBytes:
 		return string(a.Bytes) == string(b.Bytes)
 	case a.Kind == ir.ValueNumber:
-		x, errX := a.Num.Decimal()
-		y, errY := b.Num.Decimal()
+		x, errX := a.Number.Decimal()
+		y, errY := b.Number.Decimal()
 		return errX != nil || errY != nil || x.Cmp(y) == 0
 	default:
 		return true

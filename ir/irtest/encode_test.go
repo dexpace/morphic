@@ -18,7 +18,7 @@ import (
 // own encoding, not a rendering of its own.
 func TestEncoded_IsTheDocumentsCanonicalJSON(t *testing.T) {
 	t.Parallel()
-	doc := irtest.DocOf(irtest.ScalarOf("t/x/S", ""))
+	doc := irtest.DocOf(irtest.ScalarOf("type/x/S", ""))
 	doc.IRVersion = ir.IRVersion
 	want, err := json.Marshal(doc)
 	require.NoError(t, err)
@@ -46,10 +46,10 @@ func TestEncoded_FailsTheTestOnADocumentThatDoesNotEncode(t *testing.T) {
 // nor one refused for another reason is.
 func TestRefusedAsCyclic_ReadsOnlyTheCycleRefusal(t *testing.T) {
 	t.Parallel()
-	c := &ir.CtorValue{Scalar: "t/x/S", Name: "from"}
-	self := ir.Value{Kind: ir.ValueCtor, Ctor: c}
+	c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
+	self := ir.Value{Kind: ir.ValueConstructor, Constructor: c}
 	c.Args = []ir.Value{self}
-	cyclic := irtest.DocOf(irtest.ModelOf("t/x/M", func(m *ir.Model) {
+	cyclic := irtest.DocOf(irtest.ModelOf("type/x/M", func(m *ir.Model) {
 		m.Examples = []ir.Example{{Value: &self}}
 	}))
 	cyclic.IRVersion = ir.IRVersion

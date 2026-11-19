@@ -27,7 +27,7 @@ func inferred(target ir.TypeID) ir.TypeRef {
 }
 
 // prim is the shared primitive of kind k.
-func prim(k ir.PrimKind) ir.TypeID { return ir.PrimTypeID(k) }
+func prim(k ir.PrimitiveKind) ir.TypeID { return ir.PrimitiveTypeID(k) }
 
 // compileNullable compiles src, a whole document, with the nullable-inference
 // policy on or off. That reach through openapi is why openapitest cannot hold
@@ -69,8 +69,8 @@ func diagMessage(diags []ir.Diagnostic, code string) string {
 func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p"
-	anon := ir.TypeID("t/anon/components/schemas/Holder/properties/p")
-	str := ir.TypeRef{Target: prim(ir.PrimString)}
+	anon := ir.TypeID("type/anonymous/components/schemas/Holder/properties/p")
+	str := ir.TypeRef{Target: prim(ir.PrimitiveString)}
 	for _, tc := range []struct {
 		name, version, p, rest string
 		on, off                ir.TypeRef
@@ -82,16 +82,16 @@ func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 		also   jsontext.Pointer
 	}{
 		{"3.1 beside a type", "3.1.0", "{type: string, nullable: true}", "",
-			inferred(prim(ir.PrimString)), str, at + "/nullable", "no nullable keyword", ""},
+			inferred(prim(ir.PrimitiveString)), str, at + "/nullable", "no nullable keyword", ""},
 		{"3.2 beside a type", "3.2.0", "{type: string, nullable: true}", "",
-			inferred(prim(ir.PrimString)), str, at + "/nullable", "no nullable keyword", ""},
+			inferred(prim(ir.PrimitiveString)), str, at + "/nullable", "no nullable keyword", ""},
 		{"3.1 beside a type array admitting null", "3.1.0", `{type: [string, "null"], nullable: true}`, "",
-			ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, "", "", ""},
+			ir.TypeRef{Target: prim(ir.PrimitiveString), Nullable: true}, ir.TypeRef{Target: prim(ir.PrimitiveString), Nullable: true}, "", "", ""},
 		{"3.1 false", "3.1.0", "{type: string, nullable: false}", "", str, str, "", "", ""},
 		{"3.0 beside a type", "3.0.3", "{type: string, nullable: true}", "",
-			ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, "", "", ""},
+			ir.TypeRef{Target: prim(ir.PrimitiveString), Nullable: true}, ir.TypeRef{Target: prim(ir.PrimitiveString), Nullable: true}, "", "", ""},
 		{"3.0 with no type", "3.0.3", "{nullable: true}", "",
-			inferred(prim(ir.PrimAny)), ir.TypeRef{Target: prim(ir.PrimAny)}, at + "/nullable", "writes none", ""},
+			inferred(prim(ir.PrimitiveAny)), ir.TypeRef{Target: prim(ir.PrimitiveAny)}, at + "/nullable", "writes none", ""},
 		{"3.0 beside an enum listing no null", "3.0.3", "{type: string, nullable: true, enum: [a, b]}", "",
 			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "enum lists no null", ""},
 		{"3.0 beside an enum listing null", "3.0.3", "{type: string, nullable: true, enum: [a, null]}", "",
@@ -130,7 +130,7 @@ func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at, "keywords beside this $ref",
 			at + "/nullable"},
 		{"3.1 in an allOf branch", "3.1.0", "{allOf: [{type: string, nullable: true}]}", "",
-			inferred(ir.PrimTypeID(ir.PrimString)), ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)},
+			inferred(ir.PrimitiveTypeID(ir.PrimitiveString)), ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)},
 			at + "/allOf/0/nullable", "no nullable keyword", ""},
 		{"3.1 beside a type and an enum listing null", "3.1.0", "{type: string, nullable: true, enum: [a, null]}", "",
 			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "no nullable keyword", ""},
@@ -140,7 +140,7 @@ func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 			"/components/schemas/N/nullable", "no nullable keyword", ""},
 		{"3.0 beside a $ref and a type, over an untyped target, which the type decides", "3.0.3",
 			"{$ref: '#/components/schemas/Free', type: string, nullable: true}", "    Free: {}\n",
-			ir.TypeRef{Target: "t/prim/string", Nullable: true}, ir.TypeRef{Target: "t/prim/string", Nullable: true},
+			ir.TypeRef{Target: "type/primitive/string", Nullable: true}, ir.TypeRef{Target: "type/primitive/string", Nullable: true},
 			"", "", ""},
 		{"3.0 beside a $ref and a type, over a target excluding null", "3.0.3",
 			"{$ref: '#/components/schemas/Plain', type: string, nullable: true}", "",
@@ -173,7 +173,7 @@ func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 			inferred(componentID("Plain")), ir.TypeRef{Target: anon}, at + "/oneOf/1/nullable", "no nullable keyword", ""},
 		{"3.1 on a null branch beside one admitting null", "3.1.0",
 			`{anyOf: [{type: object, enum: [null], nullable: true}, {type: [string, "null"]}]}`, "",
-			ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, ir.TypeRef{Target: anon},
+			ir.TypeRef{Target: prim(ir.PrimitiveString), Nullable: true}, ir.TypeRef{Target: anon},
 			at + "/anyOf/0/nullable", "no nullable keyword", ""},
 		{"3.1 on a null branch beside two others", "3.1.0",
 			"{oneOf: [{$ref: '#/components/schemas/Plain'}, {$ref: '#/components/schemas/Pet'}, " +
@@ -248,7 +248,7 @@ func TestNullableInference_OnlyABooleanStatesNull(t *testing.T) {
 func TestNullableInference_AnEnumsNullMemberFollowsTheReadingInForce(t *testing.T) {
 	t.Parallel()
 	src := openapitest.HolderSpec("3.1.0", "{type: string, nullable: true, enum: [a, null]}", "")
-	at := ir.TypeID("t/anon/components/schemas/Holder/properties/p")
+	at := ir.TypeID("type/anonymous/components/schemas/Holder/properties/p")
 	const member = "/components/schemas/Holder/properties/p/enum/1"
 
 	for _, disabled := range []bool{false, true} {
@@ -256,8 +256,8 @@ func TestNullableInference_AnEnumsNullMemberFollowsTheReadingInForce(t *testing.
 		enum, ok := doc.Types[at].(*ir.Enum)
 		require.True(t, ok, "the null member is no member, the policy disabled: %v", disabled)
 		require.Len(t, enum.Members, 1)
-		assert.Equal(t, "a", enum.Members[0].Value.Str)
-		holder, ok := doc.Types["t/openapi/components/schemas/Holder"].(*ir.Model)
+		assert.Equal(t, "a", enum.Members[0].Value.String)
+		holder, ok := doc.Types["type/openapi/components/schemas/Holder"].(*ir.Model)
 		require.True(t, ok)
 		assert.Equal(t, !disabled, holder.Properties[0].Type.Nullable, "the reference admits null only under the policy")
 		assert.Equal(t, disabled, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, member),
@@ -531,9 +531,9 @@ func TestSchemaRef_NullableNormalization(t *testing.T) {
 		wantNullable          bool
 		wantTarget            ir.TypeID
 	}{
-		{"3.0 nullable", "3.0.3", "{type: string, nullable: true}", true, "t/prim/string"},
-		{"3.1 type array", "3.1.0", `{type: [string, "null"]}`, true, "t/prim/string"},
-		{"plain", "3.1.0", "{type: string}", false, "t/prim/string"},
+		{"3.0 nullable", "3.0.3", "{type: string, nullable: true}", true, "type/primitive/string"},
+		{"3.1 type array", "3.1.0", `{type: [string, "null"]}`, true, "type/primitive/string"},
+		{"plain", "3.1.0", "{type: string}", false, "type/primitive/string"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -584,7 +584,7 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 	midID := componentID("Mid")
 	// A hoisted sub-schema lands in the anonymous namespace, not the component
 	// one — the ref must resolve to that node, never to a synthesized name.
-	subSchemaID := ir.TypeID("t/anon/components/schemas/Holder/properties/inner")
+	subSchemaID := ir.TypeID("type/anonymous/components/schemas/Holder/properties/inner")
 	cases := []struct {
 		name         string
 		version      string
@@ -1001,11 +1001,11 @@ func TestSchema_RefNullableAtNonPropertyPosition(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	list, ok := doc.Types["t/anon/components/schemas/Owner/properties/p"].(*ir.List)
+	list, ok := doc.Types["type/anonymous/components/schemas/Owner/properties/p"].(*ir.List)
 	require.True(t, ok)
-	assert.True(t, list.Elem.Nullable,
+	assert.True(t, list.ElementType.Nullable,
 		"a nullable union target lifts to the ref wherever it is used, including a list element")
-	assert.Equal(t, componentID("Target"), list.Elem.Target)
+	assert.Equal(t, componentID("Target"), list.ElementType.Target)
 }
 
 // TestNullAlone_ReadsTheSchemasOwnKeywords holds the predicate a schema of null

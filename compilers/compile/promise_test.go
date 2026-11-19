@@ -19,7 +19,7 @@ import (
 func builds(types *compile.Types, order *[]string, coordinate string) func() []ir.Diagnostic {
 	return func() []ir.Diagnostic {
 		*order = append(*order, coordinate)
-		id := ir.TypeID("t/anon" + coordinate)
+		id := ir.TypeID("type/anonymous" + coordinate)
 		types.Intern(coordinate, id, func() ir.TypeDef { return &ir.Model{ID: id} })
 		return []ir.Diagnostic{{Code: coordinate}}
 	}
@@ -36,7 +36,7 @@ func TestTypes_FulfilBuildsWhatNoLoweringBuiltInCoordinateOrder(t *testing.T) {
 	for _, coordinate := range []string{"/c", "/a", "/owned", "/b"} {
 		types.ReserveNodeAtCoordinate(coordinate, builds(types, &order, coordinate))
 	}
-	types.Intern("/owned", "t/anon/owned", func() ir.TypeDef { return &ir.Model{ID: "t/anon/owned"} })
+	types.Intern("/owned", "type/anonymous/owned", func() ir.TypeDef { return &ir.Model{ID: "type/anonymous/owned"} })
 
 	diags := types.Fulfil(t.Context())
 
@@ -61,8 +61,8 @@ func TestTypes_FulfilBuildsWhatABuildPromisesInALaterRound(t *testing.T) {
 	var order []string
 	types.ReserveNodeAtCoordinate("/b", func() []ir.Diagnostic {
 		order = append(order, "/b")
-		types.Intern("/b", "t/anon/b", func() ir.TypeDef { return &ir.Model{ID: "t/anon/b"} })
-		types.Intern("/b/x", "t/anon/b/x", func() ir.TypeDef { return &ir.Model{ID: "t/anon/b/x"} })
+		types.Intern("/b", "type/anonymous/b", func() ir.TypeDef { return &ir.Model{ID: "type/anonymous/b"} })
+		types.Intern("/b/x", "type/anonymous/b/x", func() ir.TypeDef { return &ir.Model{ID: "type/anonymous/b/x"} })
 		types.ReserveNodeAtCoordinate("/0", builds(types, &order, "/0"))
 		types.ReserveNodeAtCoordinate("/b/x", builds(types, &order, "/b/x"))
 		return nil

@@ -60,10 +60,10 @@ type Constraints struct {
 	MaxItems *int64 `json:"maxItems,omitzero"`
 	// UniqueItems requires distinct collection elements.
 	UniqueItems bool `json:"uniqueItems"`
-	// MinProps is the minimum number of a model's properties or a map's entries.
-	MinProps *int64 `json:"minProps,omitzero"`
-	// MaxProps is the maximum number of a model's properties or a map's entries.
-	MaxProps *int64 `json:"maxProps,omitzero"`
+	// MinProperties is the minimum number of a model's properties or a map's entries.
+	MinProperties *int64 `json:"minProperties,omitzero"`
+	// MaxProperties is the maximum number of a model's properties or a map's entries.
+	MaxProperties *int64 `json:"maxProperties,omitzero"`
 }
 
 // Encoding is the logical-type / encoding-name / wire-type triple that reifies

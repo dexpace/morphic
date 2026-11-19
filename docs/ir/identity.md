@@ -4,9 +4,9 @@ Part of the [IR design](./README.md). How a named entity is identified: the gram
 shares, the rule for each class of ID, and what `irverify` holds them to.
 
 ```go
-type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
-type OpID   string      // operation identity, same construction
-type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID, ParamID, EnumMemberID string
+type TypeID string      // e.g. "type/openapi/components/schemas/User" or "type/anonymous/paths/~1users/get/responses/200/content/application~1json"
+type OperationID   string      // operation identity, same construction
+type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropertyID, ParameterID, EnumMemberID string
 type ServerID string
 ```
 
@@ -19,8 +19,9 @@ structurally identical anonymous types; aliases are recorded so both IDs stay re
 
 ## The ID grammar
 
-The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `g`, `auth`, `param`, `e`, `server`, `chan`, `msg`), then the namespace, then the path. Only
+The shape around the pointer is one grammar every compiler shares: a kind prefix (`type`, `operation`,
+`property`, `service`, `operation-group`, `auth`, `parameter`, `enum-member`, `server`, `channel`,
+`message`), then the namespace, then the path. Only
 the path is the format's, because a JSON Pointer, a GraphQL structural path and a protobuf
 fully-qualified name are different things and nothing outside the format can compute one. Whatever
 the format, `Provenance.Pointer` records the path as an RFC 6901 pointer, and the ID's path is that
@@ -38,7 +39,7 @@ document, so one pointer in two documents is two IDs and each ID's path is still
 node records; its `Provenance.Source` names that document's `Sources` entry
 ([provenance](./provenance.md)). The qualifier is an `@` and the document's location from the
 source's directory, as one segment, escaped as RFC 6901 escapes a token:
-`t/openapi@schemas~1pet.yaml/components/schemas/Pet` is the `Pet` component that `schemas/pet.yaml`
+`type/openapi@schemas~1pet.yaml/components/schemas/Pet` is the `Pet` component that `schemas/pet.yaml`
 declares. The location, not the entry's index, qualifies it, so an ID moves only when its document
 does. A document's label is its location from the directory its source lies in, whatever spelling
 names it, a relative path, an absolute one or a `file:` URI; an absolute reference changes no label,
@@ -59,7 +60,7 @@ in opposite ways:
   consumer comparing by ID reads one entity removed and another added.
 - **A reordered array gives an old ID to another entity.** A pointer through an array names a
   position in it, so an entry inserted before it moves the next revision's entity onto the old
-  index: `t/anon/paths/~1things/get/parameters/0/schema` is the `sort` parameter's enum in one
+  index: `type/anonymous/paths/~1things/get/parameters/0/schema` is the `sort` parameter's enum in one
   revision and the `color` parameter's in the next, once `color` is listed first. The same holds
   for every other array a pointer passes through: `allOf`, `anyOf` and `oneOf` branches,
   `prefixItems`, a list of `type`s, an `enum`'s values and a list of `servers`. A consumer
@@ -87,10 +88,10 @@ two revisions, inside Morphic or outside it, rests on the key for the same reaso
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is
-its `PrimKind`, and its ID is `t/prim/<kind>` — derived by `ir.PrimTypeID` rather than by any
+its `PrimitiveKind`, and its ID is `type/primitive/<kind>` — derived by `ir.PrimitiveTypeID` rather than by any
 compiler, `ir` being the only place that can compute it. Two documents lowered from different
 formats must reach that same node for the same kind, or they disagree about the identity of the
-same type. The `prim` namespace is reserved for exactly those nodes: anything else addressed there
+same type. The `primitive` namespace is reserved for exactly those nodes: anything else addressed there
 either collides with the primitive of that kind or squats the name of the next one. `irverify`
 holds both halves — `ir/prim-id-not-derived` and `ir/prim-space-reserved` — for every document,
 whatever produced it.
@@ -125,7 +126,7 @@ placed at the source's root, as one nothing declares is, so its path has no poin
 
 `unresolved` is `ir.IDSpaceUnresolved`, one spelling for every format, since `irverify` holds the
 kind to it whichever format minted the scheme. A consumer reads the kind, an ID being opaque to it.
-The namespace is reserved, like `prim`: `irverify` reports a scheme of that kind outside it, and one
+The namespace is reserved, like `primitive`: `irverify` reports a scheme of that kind outside it, and one
 of any other kind inside it (`ir/unresolved-auth-space`).
 
 ## Named entities
@@ -140,9 +141,9 @@ messages (AsyncAPI reuses one named message across channels, operations, and rep
 An operation group is the plainest minted node. OpenAPI has no construct that is a group: a Tag
 Object is metadata about a name, and an operation may use a tag no Tag Object declares. The rule
 that forms the group therefore mints its ID, in a namespace named for the rule — the OpenAPI
-compiler's are `g/tags/<tag name>`, `g/path-prefix/<first segment>`,
-`g/extension/<segment>/<segment>…` for the group path a vendor extension states, and the two
-singletons `g/default` and `g/webhooks`. A format that declares its groups (a TypeSpec interface, a
+compiler's are `operation-group/tags/<tag name>`, `operation-group/path-prefix/<first segment>`,
+`operation-group/extension/<segment>/<segment>…` for the group path a vendor extension states, and the two
+singletons `operation-group/default` and `operation-group/webhooks`. A format that declares its groups (a TypeSpec interface, a
 Smithy resource, a protobuf service) takes the declaration's own coordinate as the path, as it does
 for any other entity. Either way the ID is unique across the whole document, nested groups and every
 service included, because a consumer keys a group by it alone; `irverify` reports a repeat as
@@ -153,7 +154,7 @@ that collision is a rendering decision it makes by ID ([naming](../emitters/refi
 ## Parameters
 
 A parameter is identified by the operation it belongs to, its name and its location. The OpenAPI
-compiler's are `param/openapi/<operation mount pointer>/parameters/<name>/<in>`: the mount is the
+compiler's are `parameter/openapi/<operation mount pointer>/parameters/<name>/<in>`: the mount is the
 pointer the operation is lowered at, the name is one escaped RFC 6901 token, and `<in>` is the
 source's location. A path-item parameter copied into two operations is two parameters, one ID
 apiece, and a path item reached from two paths gives each mount's parameters IDs rooted at that
@@ -166,7 +167,7 @@ a `$ref` gets past the bundled parser's check, and both parameters are kept: the
 has the bare ID, each repeat of one spelling appends its occurrence number as one more token
 (`…/<in>/2`), so `X-Trace` beside `x-trace` keeps the ID each has alone, and the compiler reports
 it (`openapi/duplicate-parameter`), in every list the source writes whether or not an operation
-lowers it. The path is injective and the only rule minting into kind `param`, so it takes the
+lowers it. The path is injective and the only rule minting into kind `parameter`, so it takes the
 format's own namespace, `openapi`, with no space of its own.
 
 Two things are left open. Nothing holds a parameter's ID beneath its own operation's: `irverify`
@@ -178,7 +179,7 @@ them fixes it here.
 ## Enum members
 
 An enum member is identified by the enum that declares it and the value it holds:
-`e/<the enum's namespace>/<the enum's path>/<key>`. The member lives in the namespace of its
+`enum-member/<the enum's namespace>/<the enum's path>/<key>`. The member lives in the namespace of its
 enum's own `TypeID` (`openapi` for a component schema, `anon` for an inline one, `composed` for one
 a merge mints) and beneath its path, so it needs no namespace of its own: only enums hold members.
 `irverify` holds it there (`ir/member-id-scope`); a member records no pointer for the agreement
@@ -195,7 +196,7 @@ well-formed (`ir/id-malformed`). It carries the pointer its node records, where 
 pointer its path was derived from (`ir/id-provenance-disagreement`). And it lives in a namespace the
 document declares (`ir/id-space-undeclared`).
 
-The first two cannot tell every lost separator. Shape alone does not: `t/anonaddr` reads as a
+The first two cannot tell every lost separator. Shape alone does not: `type/anonymousaddr` reads as a
 namespace named `anonaddr`. Agreement does, but only where a node records its pointer. A type, a
 security scheme, a server and a property are held to it. An operation is not, because its provenance
 records where its body is declared and its ID where it is mounted, and the two differ for an
@@ -217,7 +218,7 @@ a namespace no ID uses is not an error here; a compiler's own test holds its voc
 corpus uses, in both directions. In this repository a lint rule also holds a compiler to building a
 namespace only from a literal, which is where a path gets glued on, or through the framework's
 qualifier for another document (`compile.Space.Qualified`). Every class of ID has a kind prefix, a
-channel's `chan` and a message's `msg` among them, so every ID is held to its shape and to the
+channel's `channel` and a message's `message` among them, so every ID is held to its shape and to the
 declaration.
 
 ## IDs as references
@@ -227,7 +228,7 @@ declaring entity's own `ID` — names an entity, so it is never empty. A referen
 omit is a nil pointer (`Operation.OverloadOf`, `Reply.Channel`), as an optional type is a nil
 `*TypeRef` ([type-graph](./type-graph.md#type-references)). A few positions document an empty value
 as meaningful: `Discriminator.Default`, whose zero value means no default; `Discriminator.Property`,
-empty when `PropertyName` or `Index` locates the tag instead ([models](./models.md#discriminator));
+empty when `PropertyName` or `TupleElementIndex` locates the tag instead ([models](./models.md#discriminator));
 `Idempotency.TokenParam`, empty on an operation that is not token-keyed; and every field of an
 `EntityRef` but the one of its entity's class. Which positions those are is one table in `ir`, read
 by both checkers through `ir.EmptyReferences`.

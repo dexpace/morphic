@@ -10,11 +10,11 @@ import "strings"
 // They are never derived from display names and never rewritten by renames.
 
 // TypeID identifies a TypeDef in Document.Types,
-// e.g. "t/openapi/components/schemas/User".
+// e.g. "type/openapi/components/schemas/User".
 type TypeID string
 
-// OpID identifies an Operation, same construction as TypeID.
-type OpID string
+// OperationID identifies an Operation, same construction as TypeID.
+type OperationID string
 
 // ServiceID identifies a Service.
 type ServiceID string
@@ -37,13 +37,13 @@ type AuthID string
 // operation each name the servers that serve it by one, in preference order.
 type ServerID string
 
-// PropID identifies a Property within the document.
-type PropID string
+// PropertyID identifies a Property within the document.
+type PropertyID string
 
-// ParamID identifies a Parameter. It is unique across the whole document: an
+// ParameterID identifies a Parameter. It is unique across the whole document: an
 // operation's parameters are scoped by the operation they belong to, so two
 // operations that declare the same name never share one.
-type ParamID string
+type ParameterID string
 
 // EnumMemberID identifies an EnumMember. It is unique across the whole
 // document: it sits in the namespace and beneath the path of its Enum's TypeID,
@@ -60,46 +60,46 @@ type EnumMemberID string
 // grammar that assembles an ID from these; irverify holds every compiler to the
 // shape fixed here (GitHub #141).
 const (
-	IDKindType       = "t"
-	IDKindOp         = "op"
-	IDKindProp       = "p"
+	IDKindType       = "type"
+	IDKindOperation  = "operation"
+	IDKindProperty   = "property"
 	IDKindAuth       = "auth"
-	IDKindService    = "s"
-	IDKindGroup      = "g"
-	IDKindParam      = "param"
-	IDKindEnumMember = "e"
+	IDKindService    = "service"
+	IDKindGroup      = "operation-group"
+	IDKindParameter  = "parameter"
+	IDKindEnumMember = "enum-member"
 	IDKindServer     = "server"
-	IDKindChannel    = "chan"
-	IDKindMessage    = "msg"
+	IDKindChannel    = "channel"
+	IDKindMessage    = "message"
 )
 
 // IDKinds returns every kind prefix a synthetic ID may open with, in a fixed
 // order. Document.IDSpaces is keyed by them.
 func IDKinds() []string {
-	return []string{IDKindType, IDKindOp, IDKindProp, IDKindAuth, IDKindService, IDKindGroup, IDKindParam,
+	return []string{IDKindType, IDKindOperation, IDKindProperty, IDKindAuth, IDKindService, IDKindGroup, IDKindParameter,
 		IDKindEnumMember, IDKindServer, IDKindChannel, IDKindMessage}
 }
 
 // IDSeparator separates an ID's kind, space and path segments.
 const IDSeparator = "/"
 
-// IDSpacePrim is the space the primitive leaves are addressed in.
+// IDSpacePrimitive is the space the primitive leaves are addressed in.
 //
 // It is the one space that is not some format's own: every compiler must reach
-// the same node for the same PrimKind, or two documents lowered from different
+// the same node for the same PrimitiveKind, or two documents lowered from different
 // formats disagree about the identity of the same type. A space shared by
 // accident rather than on purpose is what naming it here makes visible.
-const IDSpacePrim = "prim"
+const IDSpacePrimitive = "primitive"
 
 // IDSpaceUnresolved is the space the schemes of kind AuthKindUnresolved are
 // addressed in.
 //
-// It is every format's, like IDSpacePrim, and reserved like it, so no pointer a
+// It is every format's, like IDSpacePrimitive, and reserved like it, so no pointer a
 // reference can spell reaches such a scheme, and irverify can hold the kind and
 // the space together whichever format minted it (docs/ir/identity.md).
 const IDSpaceUnresolved = "unresolved"
 
-// PrimTypeID returns the shared TypeID of the primitive of kind k.
+// PrimitiveTypeID returns the shared TypeID of the primitive of kind k.
 //
 // It is the one ID this package derives from no other, as an enum member's
 // extends its enum's ([EnumMemberIDFor]). Every other path is the compiler's own
@@ -109,8 +109,8 @@ const IDSpaceUnresolved = "unresolved"
 //
 // That placement is what lets irverify hold every Document to this ID rather
 // than only the ones this repository's compilers produce.
-func PrimTypeID(k PrimKind) TypeID {
-	return TypeID(IDKindType + IDSeparator + IDSpacePrim + IDSeparator + string(k))
+func PrimitiveTypeID(k PrimitiveKind) TypeID {
+	return TypeID(IDKindType + IDSeparator + IDSpacePrimitive + IDSeparator + string(k))
 }
 
 // WellFormedID reports whether id has the shape kind requires: the kind prefix,
@@ -119,7 +119,7 @@ func PrimTypeID(k PrimKind) TypeID {
 // is optional.
 //
 // Shape alone cannot catch every malformed ID. One that lost the separator
-// between its space and its path ("t/anonaddr") reads as a space named
+// between its space and its path ("type/anonaddr") reads as a space named
 // "anonaddr" and is indistinguishable from a legitimate one here; irverify
 // catches it from the provenance pointer the path was derived from, or from an
 // undeclared space.

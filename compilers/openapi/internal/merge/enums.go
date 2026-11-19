@@ -46,14 +46,14 @@ func (j typeJudge) enums(a, b *ir.Enum) relation {
 // all the other does (typeformat.Relate), and one says all the other does of
 // itself. It is false where neither is within the other, since no value type
 // says both.
-func valueTypeHolding(a, b ir.PrimKind) (holding, bool) {
+func valueTypeHolding(a, b ir.PrimitiveKind) (holding, bool) {
 	return holdingOf(fromSpelling(typeformat.Relate(a, b)))
 }
 
 // narrowestValueType returns the value type within every other of the enums
 // nodes holds, and false where no one is, or a node is no enum.
-func narrowestValueType(nodes []ir.TypeDef) (ir.PrimKind, bool) {
-	var narrowest ir.PrimKind
+func narrowestValueType(nodes []ir.TypeDef) (ir.PrimitiveKind, bool) {
+	var narrowest ir.PrimitiveKind
 	for k, td := range nodes {
 		e, ok := td.(*ir.Enum)
 		if !ok {

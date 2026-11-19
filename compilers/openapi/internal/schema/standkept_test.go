@@ -228,7 +228,7 @@ func TestPrincipalKept_APatternBesideThePrincipalsKeepsBoth(t *testing.T) {
 			"    List: {allOf: [{type: array, items: {type: string}, pattern: '^p$'}], pattern: '^b$'}\n"))
 	held := map[string]*ir.Constraints{
 		"Union":    doc.Types[componentID("Union")].(*ir.Union).Constraints,
-		"TypeList": doc.Types["t/anon/components/schemas/TypeList/type/0"].(*ir.Scalar).Constraints,
+		"TypeList": doc.Types["type/anonymous/components/schemas/TypeList/type/0"].(*ir.Scalar).Constraints,
 		"Scalar":   doc.Types[componentID("Scalar")].(*ir.Scalar).Constraints,
 		"Shared":   doc.Types[componentID("Shared")].(*ir.Scalar).Constraints,
 	}

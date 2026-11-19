@@ -123,7 +123,7 @@ func (e *Editor) RemoveGroup(id GroupID) {
 // read and never changed; UpdateOperation changes a copy. An ID the edit holds
 // several operations at holds none, and nor does one ForEachOperation does not
 // reach.
-func (e *Editor) Operation(id OpID) (Operation, bool) {
+func (e *Editor) Operation(id OperationID) (Operation, bool) {
 	if n, held := e.indexed().find(operationNode, string(id)); held == 1 {
 		return *n.operation, true
 	}
@@ -134,7 +134,7 @@ func (e *Editor) Operation(id OpID) (Operation, bool) {
 // any part but its ID, and holds the copy in its place. It refuses what
 // UpdateType refuses of an id and a change, and an id the edit holds several
 // operations at.
-func (e *Editor) UpdateOperation(id OpID, change func(*Operation)) {
+func (e *Editor) UpdateOperation(id OperationID, change func(*Operation)) {
 	n, ok := e.nodeAt("update", operationNode, string(id))
 	if !ok {
 		return
@@ -155,7 +155,7 @@ func operationKind() nodeKind[*Operation] {
 
 // RemoveOperation removes the operation at id; the group holding it stays,
 // even emptied. It refuses an id the edit holds no operation at, or several.
-func (e *Editor) RemoveOperation(id OpID) {
+func (e *Editor) RemoveOperation(id OperationID) {
 	if n, ok := e.nodeAt("remove", operationNode, string(id)); ok {
 		e.tree.remove(n)
 	}

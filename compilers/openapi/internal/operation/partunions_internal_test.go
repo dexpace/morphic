@@ -23,12 +23,12 @@ func unionRegistry() (ir.TypeRegistry, map[ir.TypeID]bool) {
 	variants := make([]ir.Variant, 0, unionWidth)
 	models := map[ir.TypeID]bool{}
 	for i := range unionWidth {
-		id := ir.TypeID(fmt.Sprintf("t/m%02d", i))
+		id := ir.TypeID(fmt.Sprintf("type/m%02d", i))
 		reg[id] = &ir.Model{ID: id}
 		models[id] = true
 		variants = append(variants, ir.Variant{Type: ir.TypeRef{Target: id}})
 	}
-	reg["t/u"] = &ir.Union{ID: "t/u", Variants: variants}
+	reg["type/u"] = &ir.Union{ID: "type/u", Variants: variants}
 	return reg, models
 }
 
@@ -52,7 +52,7 @@ func countingNode(reg ir.TypeRegistry, counted map[ir.TypeID]bool, reads *int) f
 func TestPartUnions_ReadAUnionOncePerRun(t *testing.T) {
 	t.Parallel()
 	reg, models := unionRegistry()
-	ref := ir.TypeRef{Target: "t/u"}
+	ref := ir.TypeRef{Target: "type/u"}
 	decls := []*ir.Property{{Type: ref}}
 	readers := map[string]func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)){
 		"a part's flags": func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)) {
@@ -90,7 +90,7 @@ func TestPartUnions_ReadAUnionOncePerRun(t *testing.T) {
 func TestPartUnions_ReadADefaultContentTypeOncePerRun(t *testing.T) {
 	t.Parallel()
 	reg, models := unionRegistry()
-	reg["t/list"] = &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/u"}}
+	reg["type/list"] = &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/u"}}
 	rules := specrules.Table().EncodingRules("3.1.0")
 	partOf := func(id ir.TypeID) func(*partUnions, func(ir.TypeID) (ir.TypeDef, bool)) {
 		return func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)) {
@@ -99,12 +99,12 @@ func TestPartUnions_ReadADefaultContentTypeOncePerRun(t *testing.T) {
 		}
 	}
 	item := func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)) {
-		got := unions.itemDefault(node, rules, ir.TypeRef{Target: "t/u"}, unencoded)
+		got := unions.itemDefault(node, rules, ir.TypeRef{Target: "type/u"}, unencoded)
 		assert.Equal(t, []string{"application/json"}, got, "an item of objects takes JSON")
 	}
 	readers := map[string]func(*partUnions, func(ir.TypeID) (ir.TypeDef, bool)){
-		"a part of the union":      partOf("t/u"),
-		"a part listing the union": partOf("t/list"),
+		"a part of the union":      partOf("type/u"),
+		"a part listing the union": partOf("type/list"),
 		"an item of the union":     item,
 	}
 	for name, read := range readers {
@@ -128,7 +128,7 @@ func TestPartUnions_ReadADefaultContentTypeOncePerRun(t *testing.T) {
 	n := 0
 	unions := newPartUnions()
 	node := countingNode(reg, models, &n)
-	partOf("t/list")(unions, node)
+	partOf("type/list")(unions, node)
 	first := n
 	item(unions, node)
 	assert.LessOrEqual(t, n-first, unionWidth, "an item of the union reads its members' values, not its variants again")
@@ -143,9 +143,9 @@ func TestPartUnions_ReadADefaultContentTypeOncePerRun(t *testing.T) {
 func TestPartUnions_KeepsADefaultContentTypeByAllItTurnsOn(t *testing.T) {
 	t.Parallel()
 	reg := ir.TypeRegistry{
-		"t/text":   &ir.Primitive{ID: "t/text", Prim: ir.PrimString},
-		"t/tags":   &ir.List{ID: "t/tags", Elem: ir.TypeRef{Target: "t/text"}},
-		"t/nested": &ir.List{ID: "t/nested", Elem: ir.TypeRef{Target: "t/tags"}},
+		"type/text":   &ir.Primitive{ID: "type/text", PrimitiveKind: ir.PrimitiveString},
+		"type/tags":   &ir.List{ID: "type/tags", ElementType: ir.TypeRef{Target: "type/text"}},
+		"type/nested": &ir.List{ID: "type/nested", ElementType: ir.TypeRef{Target: "type/tags"}},
 	}
 	node := func(id ir.TypeID) (ir.TypeDef, bool) {
 		td, ok := reg[id]
@@ -166,11 +166,11 @@ func TestPartUnions_KeepsADefaultContentTypeByAllItTurnsOn(t *testing.T) {
 		}
 	}
 	for name, pair := range map[string][2]func(*testing.T, *partUnions) []string{
-		"a part and an item of one list":   {part("t/tags", v32, unencoded), item("t/tags", v32, unencoded)},
-		"an item under two minors' rules":  {item("t/tags", v31, unencoded), item("t/tags", v32, unencoded)},
-		"an item encoded and not":          {item("t/text", v31, unencoded), item("t/text", v31, encoded)},
-		"one type under two minors' rules": {part("t/nested", v31, unencoded), part("t/nested", v32, unencoded)},
-		"one type encoded and not":         {part("t/text", v31, unencoded), part("t/text", v31, encoded)},
+		"a part and an item of one list":   {part("type/tags", v32, unencoded), item("type/tags", v32, unencoded)},
+		"an item under two minors' rules":  {item("type/tags", v31, unencoded), item("type/tags", v32, unencoded)},
+		"an item encoded and not":          {item("type/text", v31, unencoded), item("type/text", v31, encoded)},
+		"one type under two minors' rules": {part("type/nested", v31, unencoded), part("type/nested", v32, unencoded)},
+		"one type encoded and not":         {part("type/text", v31, unencoded), part("type/text", v31, encoded)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

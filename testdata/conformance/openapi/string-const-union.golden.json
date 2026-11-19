@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "StringConstUnion",
         "canonical": "string_const_union"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Color/oneOf/0": {
+    "type/anonymous/components/schemas/Color/oneOf/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Color/oneOf/0",
+      "id": "type/anonymous/components/schemas/Color/oneOf/0",
       "name": {
         "hint": "red"
       },
@@ -77,13 +77,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "red"
+        "string": "red"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Color/oneOf/1": {
+    "type/anonymous/components/schemas/Color/oneOf/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Color/oneOf/1",
+      "id": "type/anonymous/components/schemas/Color/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -97,13 +97,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "green"
+        "string": "green"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Compass/oneOf/0": {
+    "type/anonymous/components/schemas/Compass/oneOf/0": {
       "kind": "union",
-      "id": "t/anon/components/schemas/Compass/oneOf/0",
+      "id": "type/anonymous/components/schemas/Compass/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -120,7 +120,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Compass/oneOf/0/oneOf/0",
+            "target": "type/anonymous/components/schemas/Compass/oneOf/0/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -130,7 +130,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Compass/oneOf/0/oneOf/1",
+            "target": "type/anonymous/components/schemas/Compass/oneOf/0/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -141,9 +141,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Compass/oneOf/0/oneOf/0": {
+    "type/anonymous/components/schemas/Compass/oneOf/0/oneOf/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Compass/oneOf/0/oneOf/0",
+      "id": "type/anonymous/components/schemas/Compass/oneOf/0/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -156,13 +156,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "north"
+        "string": "north"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Compass/oneOf/0/oneOf/1": {
+    "type/anonymous/components/schemas/Compass/oneOf/0/oneOf/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Compass/oneOf/0/oneOf/1",
+      "id": "type/anonymous/components/schemas/Compass/oneOf/0/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -175,13 +175,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "south"
+        "string": "south"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Compass/oneOf/1": {
+    "type/anonymous/components/schemas/Compass/oneOf/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Compass/oneOf/1",
+      "id": "type/anonymous/components/schemas/Compass/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -194,13 +194,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "east"
+        "string": "east"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Direction/oneOf/0": {
+    "type/anonymous/components/schemas/Direction/oneOf/0": {
       "kind": "union",
-      "id": "t/anon/components/schemas/Direction/oneOf/0",
+      "id": "type/anonymous/components/schemas/Direction/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -217,7 +217,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Direction/oneOf/0/oneOf/0",
+            "target": "type/anonymous/components/schemas/Direction/oneOf/0/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -228,9 +228,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Direction/oneOf/0/oneOf/0": {
+    "type/anonymous/components/schemas/Direction/oneOf/0/oneOf/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Direction/oneOf/0/oneOf/0",
+      "id": "type/anonymous/components/schemas/Direction/oneOf/0/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -243,13 +243,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "up"
+        "string": "up"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Direction/oneOf/1": {
+    "type/anonymous/components/schemas/Direction/oneOf/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Direction/oneOf/1",
+      "id": "type/anonymous/components/schemas/Direction/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -262,13 +262,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "down"
+        "string": "down"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Fit/anyOf/1": {
+    "type/anonymous/components/schemas/Fit/anyOf/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Fit/anyOf/1",
+      "id": "type/anonymous/components/schemas/Fit/anyOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -281,13 +281,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "one-size"
+        "string": "one-size"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Level/anyOf/0": {
+    "type/anonymous/components/schemas/Level/anyOf/0": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Level/anyOf/0",
+      "id": "type/anonymous/components/schemas/Level/anyOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -303,14 +303,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Level/anyOf/0/s:low",
+          "id": "enum-member/anonymous/components/schemas/Level/anyOf/0/string:low",
           "name": {
             "source": "low",
             "canonical": "low"
           },
           "value": {
             "kind": "string",
-            "str": "low"
+            "string": "low"
           },
           "docs": {}
         }
@@ -318,9 +318,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Level/anyOf/1": {
+    "type/anonymous/components/schemas/Level/anyOf/1": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Level/anyOf/1",
+      "id": "type/anonymous/components/schemas/Level/anyOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -334,14 +334,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Level/anyOf/1/s:high",
+          "id": "enum-member/anonymous/components/schemas/Level/anyOf/1/string:high",
           "name": {
             "source": "high",
             "canonical": "high"
           },
           "value": {
             "kind": "string",
-            "str": "high"
+            "string": "high"
           },
           "docs": {}
         }
@@ -349,9 +349,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Pinned/oneOf/0": {
+    "type/anonymous/components/schemas/Pinned/oneOf/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Pinned/oneOf/0",
+      "id": "type/anonymous/components/schemas/Pinned/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -374,13 +374,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "a"
+        "string": "a"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Pinned/oneOf/1": {
+    "type/anonymous/components/schemas/Pinned/oneOf/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Pinned/oneOf/1",
+      "id": "type/anonymous/components/schemas/Pinned/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -393,13 +393,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "c"
+        "string": "c"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Plan/oneOf/0": {
+    "type/anonymous/components/schemas/Plan/oneOf/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Plan/oneOf/0",
+      "id": "type/anonymous/components/schemas/Plan/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -412,13 +412,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "trial"
+        "string": "trial"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Plan/oneOf/1": {
+    "type/anonymous/components/schemas/Plan/oneOf/1": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Plan/oneOf/1",
+      "id": "type/anonymous/components/schemas/Plan/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -434,26 +434,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Plan/oneOf/1/s:team",
+          "id": "enum-member/anonymous/components/schemas/Plan/oneOf/1/string:team",
           "name": {
             "source": "team",
             "canonical": "team"
           },
           "value": {
             "kind": "string",
-            "str": "team"
+            "string": "team"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Plan/oneOf/1/s:business",
+          "id": "enum-member/anonymous/components/schemas/Plan/oneOf/1/string:business",
           "name": {
             "source": "business",
             "canonical": "business"
           },
           "value": {
             "kind": "string",
-            "str": "business"
+            "string": "business"
           },
           "docs": {}
         }
@@ -461,9 +461,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Shade/oneOf/0": {
+    "type/anonymous/components/schemas/Shade/oneOf/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Shade/oneOf/0",
+      "id": "type/anonymous/components/schemas/Shade/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -476,13 +476,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "dark"
+        "string": "dark"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Size/anyOf/0": {
+    "type/anonymous/components/schemas/Size/anyOf/0": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Size/anyOf/0",
+      "id": "type/anonymous/components/schemas/Size/anyOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -496,38 +496,38 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Size/anyOf/0/s:s",
+          "id": "enum-member/anonymous/components/schemas/Size/anyOf/0/string:s",
           "name": {
             "source": "s",
             "canonical": "s"
           },
           "value": {
             "kind": "string",
-            "str": "s"
+            "string": "s"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Size/anyOf/0/s:m",
+          "id": "enum-member/anonymous/components/schemas/Size/anyOf/0/string:m",
           "name": {
             "source": "m",
             "canonical": "m"
           },
           "value": {
             "kind": "string",
-            "str": "m"
+            "string": "m"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Size/anyOf/0/s:l",
+          "id": "enum-member/anonymous/components/schemas/Size/anyOf/0/string:l",
           "name": {
             "source": "l",
             "canonical": "l"
           },
           "value": {
             "kind": "string",
-            "str": "l"
+            "string": "l"
           },
           "docs": {}
         }
@@ -535,9 +535,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Size/anyOf/1": {
+    "type/anonymous/components/schemas/Size/anyOf/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Size/anyOf/1",
+      "id": "type/anonymous/components/schemas/Size/anyOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -550,13 +550,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "xl"
+        "string": "xl"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Tier/oneOf/0": {
+    "type/anonymous/components/schemas/Tier/oneOf/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Tier/oneOf/0",
+      "id": "type/anonymous/components/schemas/Tier/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -569,13 +569,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "free"
+        "string": "free"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Tier/oneOf/1": {
+    "type/anonymous/components/schemas/Tier/oneOf/1": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Tier/oneOf/1",
+      "id": "type/anonymous/components/schemas/Tier/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -589,26 +589,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Tier/oneOf/1/s:pro",
+          "id": "enum-member/anonymous/components/schemas/Tier/oneOf/1/string:pro",
           "name": {
             "source": "pro",
             "canonical": "pro"
           },
           "value": {
             "kind": "string",
-            "str": "pro"
+            "string": "pro"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Tier/oneOf/1/s:enterprise",
+          "id": "enum-member/anonymous/components/schemas/Tier/oneOf/1/string:enterprise",
           "name": {
             "source": "enterprise",
             "canonical": "enterprise"
           },
           "value": {
             "kind": "string",
-            "str": "enterprise"
+            "string": "enterprise"
           },
           "docs": {}
         }
@@ -616,9 +616,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Color": {
+    "type/openapi/components/schemas/Color": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Color",
+      "id": "type/openapi/components/schemas/Color",
       "name": {
         "source": "Color",
         "canonical": "color"
@@ -636,7 +636,7 @@
             "hint": "red"
           },
           "type": {
-            "target": "t/anon/components/schemas/Color/oneOf/0",
+            "target": "type/anonymous/components/schemas/Color/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -646,7 +646,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Color/oneOf/1",
+            "target": "type/anonymous/components/schemas/Color/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -657,9 +657,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Compass": {
+    "type/openapi/components/schemas/Compass": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Compass",
+      "id": "type/openapi/components/schemas/Compass",
       "name": {
         "source": "Compass",
         "canonical": "compass"
@@ -677,7 +677,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Compass/oneOf/0",
+            "target": "type/anonymous/components/schemas/Compass/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -687,7 +687,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Compass/oneOf/1",
+            "target": "type/anonymous/components/schemas/Compass/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -698,9 +698,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Direction": {
+    "type/openapi/components/schemas/Direction": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Direction",
+      "id": "type/openapi/components/schemas/Direction",
       "name": {
         "source": "Direction",
         "canonical": "direction"
@@ -718,7 +718,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Direction/oneOf/0",
+            "target": "type/anonymous/components/schemas/Direction/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -728,7 +728,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Direction/oneOf/1",
+            "target": "type/anonymous/components/schemas/Direction/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -739,9 +739,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Fit": {
+    "type/openapi/components/schemas/Fit": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Fit",
+      "id": "type/openapi/components/schemas/Fit",
       "name": {
         "source": "Fit",
         "canonical": "fit"
@@ -759,7 +759,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Size/anyOf/0",
+            "target": "type/anonymous/components/schemas/Size/anyOf/0",
             "nullable": false
           },
           "docs": {}
@@ -769,7 +769,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Fit/anyOf/1",
+            "target": "type/anonymous/components/schemas/Fit/anyOf/1",
             "nullable": false
           },
           "docs": {}
@@ -780,9 +780,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Level": {
+    "type/openapi/components/schemas/Level": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Level",
+      "id": "type/openapi/components/schemas/Level",
       "name": {
         "source": "Level",
         "canonical": "level"
@@ -800,7 +800,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Level/anyOf/0",
+            "target": "type/anonymous/components/schemas/Level/anyOf/0",
             "nullable": false
           },
           "docs": {}
@@ -810,7 +810,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Level/anyOf/1",
+            "target": "type/anonymous/components/schemas/Level/anyOf/1",
             "nullable": false
           },
           "docs": {}
@@ -821,9 +821,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Light": {
+    "type/openapi/components/schemas/Light": {
       "kind": "literal",
-      "id": "t/openapi/components/schemas/Light",
+      "id": "type/openapi/components/schemas/Light",
       "name": {
         "source": "Light",
         "canonical": "light"
@@ -837,13 +837,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "light"
+        "string": "light"
       },
       "valueType": "string"
     },
-    "t/openapi/components/schemas/Pinned": {
+    "type/openapi/components/schemas/Pinned": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Pinned",
+      "id": "type/openapi/components/schemas/Pinned",
       "name": {
         "source": "Pinned",
         "canonical": "pinned"
@@ -861,7 +861,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Pinned/oneOf/0",
+            "target": "type/anonymous/components/schemas/Pinned/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -871,7 +871,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Pinned/oneOf/1",
+            "target": "type/anonymous/components/schemas/Pinned/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -882,9 +882,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Plan": {
+    "type/openapi/components/schemas/Plan": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Plan",
+      "id": "type/openapi/components/schemas/Plan",
       "name": {
         "source": "Plan",
         "canonical": "plan"
@@ -902,7 +902,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Plan/oneOf/0",
+            "target": "type/anonymous/components/schemas/Plan/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -912,7 +912,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Plan/oneOf/1",
+            "target": "type/anonymous/components/schemas/Plan/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -923,9 +923,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Shade": {
+    "type/openapi/components/schemas/Shade": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Shade",
+      "id": "type/openapi/components/schemas/Shade",
       "name": {
         "source": "Shade",
         "canonical": "shade"
@@ -943,7 +943,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Shade/oneOf/0",
+            "target": "type/anonymous/components/schemas/Shade/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -953,7 +953,7 @@
             "hint": "light"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Light",
+            "target": "type/openapi/components/schemas/Light",
             "nullable": false
           },
           "docs": {}
@@ -964,9 +964,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Size": {
+    "type/openapi/components/schemas/Size": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Size",
+      "id": "type/openapi/components/schemas/Size",
       "name": {
         "source": "Size",
         "canonical": "size"
@@ -984,7 +984,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Size/anyOf/0",
+            "target": "type/anonymous/components/schemas/Size/anyOf/0",
             "nullable": false
           },
           "docs": {}
@@ -994,7 +994,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Size/anyOf/1",
+            "target": "type/anonymous/components/schemas/Size/anyOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1005,9 +1005,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Tier": {
+    "type/openapi/components/schemas/Tier": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Tier",
+      "id": "type/openapi/components/schemas/Tier",
       "name": {
         "source": "Tier",
         "canonical": "tier"
@@ -1025,7 +1025,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Tier/oneOf/0",
+            "target": "type/anonymous/components/schemas/Tier/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1035,7 +1035,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Tier/oneOf/1",
+            "target": "type/anonymous/components/schemas/Tier/oneOf/1",
             "nullable": false
           },
           "docs": {}

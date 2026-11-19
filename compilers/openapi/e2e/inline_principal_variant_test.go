@@ -64,7 +64,7 @@ func requireStringLengths(t *testing.T, doc *ir.Document, id ir.TypeID, minLengt
 // other entry writes, and neither Union keeps what a variant holds.
 func TestInlinePrincipal_AReferenceToAVariantEntryNamesWhatTheEntryWrites(t *testing.T) {
 	t.Parallel()
-	const at = "t/anon/components/schemas/"
+	const at = "type/anonymous/components/schemas/"
 	docs := map[string]string{}
 	inBothOrders(t, variantEntrySchemas, func(t *testing.T, schemas []string) {
 		doc, diags := compileUnrefused(t, admissionSpec("3.1.0", "", schemas...))
@@ -74,13 +74,13 @@ func TestInlinePrincipal_AReferenceToAVariantEntryNamesWhatTheEntryWrites(t *tes
 			assert.NotEqual(t, diag.DegradedConstruct, d.Code, "no report of a keyword kept: %s", d.Message)
 		}
 
-		requireVariants(t, doc, componentID("X"), at+"X/type/0", "t/prim/integer")
+		requireVariants(t, doc, componentID("X"), at+"X/type/0", "type/primitive/integer")
 		requireStringLengths(t, doc, at+"X/type/0", new(int64(1)), new(int64(5)))
-		requireVariants(t, doc, at+"X/allOf/0", at+"X/allOf/0/type/0", "t/prim/integer")
+		requireVariants(t, doc, at+"X/allOf/0", at+"X/allOf/0/type/0", "type/primitive/integer")
 		requireStringLengths(t, doc, at+"X/allOf/0/type/0", nil, new(int64(5)))
 
-		requireVariants(t, doc, componentID("Y"), "t/prim/string", at+"Y/type/1")
-		requireVariants(t, doc, at+"Y/allOf/1", "t/prim/string", at+"Y/allOf/1/type/1")
+		requireVariants(t, doc, componentID("Y"), "type/primitive/string", at+"Y/type/1")
+		requireVariants(t, doc, at+"Y/allOf/1", "type/primitive/string", at+"Y/allOf/1/type/1")
 		for _, id := range []ir.TypeID{at + "Y/type/1", at + "Y/allOf/1/type/1"} {
 			m, ok := kindNode(t, doc, id).(*ir.Model)
 			require.True(t, ok, "%s is the object variant", id)
@@ -194,8 +194,8 @@ var unionShapedBounds = []unionShapedBound{
 	{"type list's array", "type: [string, array], items: {type: string}", "minItems", "minItems", "13", "/type/1", false, true},
 	{"inferred array", "items: {type: string}, properties: {a: {type: string}}", "minItems", "minItems", "13", "/type/1", false, true},
 	{"union's array branch", "oneOf: [{type: array, items: {type: string}}, {type: string}]", "minItems", "minItems", "13", "", true, true},
-	{"type list's object", "type: [string, object]", "minProperties", "minProps", "19", "", true, false},
-	{"inferred object", "items: {type: string}, properties: {a: {type: string}}", "minProperties", "minProps", "19", "", true, false},
+	{"type list's object", "type: [string, object]", "minProperties", "minProperties", "19", "", true, false},
+	{"inferred object", "items: {type: string}, properties: {a: {type: string}}", "minProperties", "minProperties", "19", "", true, false},
 }
 
 // TestInlinePrincipal_ABoundBesideAUnionShapedPrincipalLandsOnce holds a
@@ -221,7 +221,7 @@ func TestInlinePrincipal_ABoundBesideAUnionShapedPrincipalLandsOnce(t *testing.T
 			for _, site := range conjSites {
 				doc, diags := compileUnrefused(t, site.write("3.1.0", schema))
 				at := fmt.Sprintf("%s %s at the %s", b.name, name, site.name)
-				want := "t/anon" + site.pointer + b.at + " holds"
+				want := "type/anonymous" + site.pointer + b.at + " holds"
 				if b.kept {
 					want = string(entryPositionID(jsontext.Pointer(site.pointer))) + " keeps degraded_lowering"
 					assert.NotEmpty(t, degradedInfoPointers(diags), "%s: the bound kept is reported", at)

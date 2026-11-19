@@ -185,7 +185,7 @@ func TestDanglingRefs_f07(t *testing.T) {
 	target, ok := pet.Discriminator.Mapping["x"]
 	require.True(t, ok, "the mapping entry survives")
 	// The schema is literally named "A/B"; its pointer segment is RFC 6901-escaped.
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/A~1B"), target,
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/A~1B"), target,
 		"resolves to the existing schema named A/B")
 	_, ok = doc.Types[target]
 	assert.True(t, ok, "the resolved target is present in the registry")
@@ -218,7 +218,7 @@ func TestDanglingRefs_f10(t *testing.T) {
 	require.True(t, ok)
 	x, ok := propByWire(foo, "x")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Foo/properties/bar"), x.Type.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Foo/properties/bar"), x.Type.Target)
 	_, ok = doc.Types[x.Type.Target]
 	assert.True(t, ok, "the referenced sub-schema is interned under its pointer-derived ID")
 }

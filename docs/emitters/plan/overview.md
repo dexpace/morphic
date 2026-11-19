@@ -13,7 +13,7 @@ package plan
 func Build(doc *ir.Document, facts *irfacts.Index, pp Policy) (*Plan, []ir.Diagnostic)
 
 type Plan struct {
-    Ops       map[ir.OpID]OpPlan        // one entry per operation
+    Ops       map[ir.OperationID]OpPlan        // one entry per operation
     Types     map[ir.TypeID]TypePlan    // one entry per registry type
     Examples  map[string][]Example      // by the ID of each type, property, parameter, enum
                                         // member, operation and message: its declared examples,

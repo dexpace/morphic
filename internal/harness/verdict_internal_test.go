@@ -179,7 +179,7 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 	})
 	t.Run("a stage the verified run refuses", func(t *testing.T) {
 		withPasses(t, faulting{first: func(own *ir.Document) *ir.Document {
-			own.Types = ir.TypeRegistry{ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"}}
+			own.Types = ir.TypeRegistry{ir.TypeID("type/x/Key"): &ir.Any{ID: "type/x/Other"}}
 			return own
 		}})
 

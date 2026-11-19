@@ -23,7 +23,7 @@ type ResponsePlan struct {
 type TextPlan struct {
     Content bool           // the content itself: a text/plain one whose type is no leaf, or a
                            // response's form or multipart one read raw (below)
-    Props   []ir.PropID    // a request content's fields and parts, in TypePlan.Flattened's
+    Props   []ir.PropertyID    // a request content's fields and parts, in TypePlan.Flattened's
                            // order; a response's headers, in Headers' order
     Rest    bool           // a request content's fields and parts no member declares: its
                            // model's catch-all's, or its entries where its type is a map

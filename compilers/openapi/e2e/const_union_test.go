@@ -98,14 +98,14 @@ func TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion(t *testing.T) {
 	require.Empty(t, diags)
 
 	want := &ir.Constraints{MaxLength: new(int64(1))}
-	for _, id := range []ir.TypeID{componentID("Union"), "t/anon/components/schemas/H/properties/u"} {
+	for _, id := range []ir.TypeID{componentID("Union"), "type/anonymous/components/schemas/H/properties/u"} {
 		u, ok := got.Types[id].(*ir.Union)
 		require.True(t, ok, "%s stays a union, got %T", id, got.Types[id])
 		assert.Same(t, doc.Types[id], got.Types[id], id)
 		assert.Equal(t, want, u.Constraints, id)
 		assert.Empty(t, u.Unmodeled, id)
 	}
-	for _, id := range []ir.TypeID{componentID("Enum"), "t/anon/components/schemas/H/properties/e"} {
+	for _, id := range []ir.TypeID{componentID("Enum"), "type/anonymous/components/schemas/H/properties/e"} {
 		enum, ok := got.Types[id].(*ir.Enum)
 		require.True(t, ok, "%s is an enum, got %T", id, got.Types[id])
 		assert.Equal(t, []string{"openapi:maxLength"}, slices.Sorted(maps.Keys(enum.Unmodeled)), id)

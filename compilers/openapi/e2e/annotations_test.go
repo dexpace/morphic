@@ -148,7 +148,7 @@ components:
 			require.Equal(t, ir.ValueObject, ex.Value.Kind)
 			require.Len(t, ex.Value.Object, 1)
 			assert.Equal(t, "f", ex.Value.Object[0].Name)
-			assert.Equal(t, "at-declaration", ex.Value.Object[0].Value.Str)
+			assert.Equal(t, "at-declaration", ex.Value.Object[0].Value.String)
 		},
 	}
 }
@@ -168,9 +168,9 @@ components:
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			require.Len(t, sc.Examples, 1)
 			require.NotNil(t, sc.Examples[0].Value)
-			assert.Equal(t, "at-declaration", sc.Examples[0].Value.Str)
+			assert.Equal(t, "at-declaration", sc.Examples[0].Value.String)
 
-			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Examples,
+			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("type/primitive/string")).Common().Examples,
 				"an example on the declaration must not leak onto the shared primitive")
 		},
 	}
@@ -201,7 +201,7 @@ components:
 			// The example belongs to the position it is written at.
 			require.Len(t, p.Examples, 1, "example beside a $ref belongs to the reference site")
 			require.NotNil(t, p.Examples[0].Value)
-			assert.Equal(t, "at-reference", p.Examples[0].Value.Str)
+			assert.Equal(t, "at-reference", p.Examples[0].Value.String)
 
 			// ...and must not have leaked onto the referent.
 			target, ok := doc.Types[componentID("Target")]
@@ -236,8 +236,8 @@ components:
 			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "S owns a Model node")
 			require.NotNil(t, m.Constraints, "an object component's own minProperties lands in Model.Constraints")
-			require.NotNil(t, m.Constraints.MinProps)
-			assert.Equal(t, int64(1), *m.Constraints.MinProps)
+			require.NotNil(t, m.Constraints.MinProperties)
+			assert.Equal(t, int64(1), *m.Constraints.MinProperties)
 		},
 	}
 }
@@ -259,7 +259,7 @@ components:
 			require.NotNil(t, sc.Constraints.Min)
 			assert.Equal(t, "5", sc.Constraints.Min.String())
 
-			node := marshalToMap(t, primitiveNode(t, doc, ir.TypeID("t/prim/integer")))
+			node := marshalToMap(t, primitiveNode(t, doc, ir.TypeID("type/primitive/integer")))
 			assert.NotContains(t, node, "constraints",
 				"a minimum on the declaration must not leak onto the shared primitive")
 		},
@@ -341,7 +341,7 @@ components:
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			assert.Equal(t, "at-declaration", sc.Docs.Description)
 
-			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Docs.Description,
+			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("type/primitive/string")).Common().Docs.Description,
 				"a description on the declaration must not leak onto the shared primitive")
 		},
 	}
@@ -422,7 +422,7 @@ components:
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			assert.NotNil(t, sc.Deprecation)
 
-			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Deprecation,
+			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("type/primitive/string")).Common().Deprecation,
 				"a deprecated on the declaration must not leak onto the shared primitive")
 		},
 	}
@@ -509,7 +509,7 @@ components:
 				"a default binds a use of the type, so it gets no field on the type node")
 			assertResidueKept(t, sc.Unmodeled, "openapi:default", `7`)
 
-			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/integer")).Common().Unmodeled["openapi:default"]
+			_, leaked := primitiveNode(t, doc, ir.TypeID("type/primitive/integer")).Common().Unmodeled["openapi:default"]
 			assert.False(t, leaked, "a default on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
@@ -540,7 +540,7 @@ components:
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
 			require.NotNil(t, p.Default, "a default beside a $ref binds the reference site")
-			assert.Equal(t, "7", p.Default.Num.String())
+			assert.Equal(t, "7", p.Default.Number.String())
 
 			target, ok := doc.Types[componentID("Target")].(*ir.Scalar)
 			require.True(t, ok)
@@ -600,7 +600,7 @@ components:
 				"readOnly binds a use of the type, so it gets no field on the type node")
 			assertResidueKept(t, sc.Unmodeled, "openapi:readOnly", `true`)
 
-			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Unmodeled["openapi:readOnly"]
+			_, leaked := primitiveNode(t, doc, ir.TypeID("type/primitive/string")).Common().Unmodeled["openapi:readOnly"]
 			assert.False(t, leaked, "a readOnly on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
@@ -691,7 +691,7 @@ components:
 			assert.JSONEq(t, `"at-declaration"`, string(raw.Value))
 			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
-			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Unmodeled,
+			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("type/primitive/string")).Common().Unmodeled,
 				"an x-vendor on the declaration must not leak onto the shared primitive")
 		},
 	}
@@ -776,7 +776,7 @@ components:
 			require.NotNil(t, sc.XML)
 			assert.Equal(t, "Renamed", sc.XML.Name)
 
-			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().XML,
+			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("type/primitive/string")).Common().XML,
 				"an xml hint on the declaration must not leak onto the shared primitive")
 		},
 	}
@@ -879,7 +879,7 @@ components:
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
 			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 
-			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Unmodeled["openapi:if-then-else"]
+			_, leaked := primitiveNode(t, doc, ir.TypeID("type/primitive/string")).Common().Unmodeled["openapi:if-then-else"]
 			assert.False(t, leaked, "if/then on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {

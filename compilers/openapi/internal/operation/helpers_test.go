@@ -56,7 +56,7 @@ func compileService(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Di
 // spelled-out ID belongs in a test file, which the idderivations rule
 // does not hold.
 func typeByName(doc *ir.Document, name string) ir.TypeDef {
-	return doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)]
+	return doc.Types[ir.TypeID("type/openapi/components/schemas/"+name)]
 }
 
 // serviceWithGrouping runs the phases beneath the service walk and then the walk

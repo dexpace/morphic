@@ -1,4 +1,4 @@
-member 0 0 AdditionalProps.key
+member 0 0 AdditionalProperties.key
 member 0 0 AuthScheme.credentials
 member 0 0 Availability.added
 member 0 0 Availability.deprecated
@@ -20,14 +20,14 @@ member 0 0 Channel.unmodeled
 member 0 0 Constraints.patternMessage
 member 0 0 Constraints.precision
 member 0 0 Constraints.scale
+member 0 0 ConstructorValue.args
+member 0 0 ConstructorValue.name
+member 0 0 ConstructorValue.scalar
 member 0 0 Content.schemaFormat
-member 0 0 CtorValue.args
-member 0 0 CtorValue.name
-member 0 0 CtorValue.scalar
 member 0 0 Deprecation.removalVersion
 member 0 0 Discriminator.envelope
 member 0 0 Discriminator.envelopeValueName
-member 0 0 Discriminator.index
+member 0 0 Discriminator.tupleElementIndex
 member 0 0 DocRef.endByte
 member 0 0 DocRef.startByte
 member 0 0 DocRef.type
@@ -204,7 +204,7 @@ member 0 0 TypeCommon.namespace
 member 0 0 TypeCommon.tags
 member 0 0 TypeCommon.wireNameByFormat
 member 0 0 Union.inputOnly
-member 0 0 Value.ctor
+member 0 0 Value.constructor
 member 0 0 Value.ref
 member 0 0 ValueRef.member
 member 0 0 ValueRef.type
@@ -238,19 +238,19 @@ value 0 0 HTTPLocation "body_property"
 value 0 0 HTTPLocation "host"
 value 0 0 IdempotencyKind "idempotent"
 value 0 0 IdempotencyKind "safe"
-value 0 0 MsgDirection "receive"
-value 0 0 MsgDirection "send"
+value 0 0 MessageDirection "receive"
+value 0 0 MessageDirection "send"
 value 0 0 PageStop "empty"
 value 0 0 PageStop "short"
 value 0 0 PageStop "total"
 value 0 0 PresenceKind "explicit"
 value 0 0 PresenceKind "implicit"
 value 0 0 PresenceKind "required"
-value 0 0 PrimKind "float"
+value 0 0 PrimitiveKind "float"
 value 0 0 TypeKind "external"
-value 0 0 ValueKind "ctor"
-value 0 0 ValueKind "inf"
+value 0 0 ValueKind "constructor"
+value 0 0 ValueKind "infinity"
 value 0 0 ValueKind "nan"
-value 0 0 ValueKind "neginf"
-value 0 0 ValueKind "ref"
+value 0 0 ValueKind "negative-infinity"
+value 0 0 ValueKind "reference"
 value 0 0 ValueKind "symbol"

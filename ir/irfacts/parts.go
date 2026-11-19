@@ -36,11 +36,11 @@ func (p *typeParts) read(td ir.TypeDef) {
 			p.held = appendTarget(p.held, t.Variants[i].Type.Target)
 		}
 	case *ir.List:
-		p.held = appendDecoded(appendTarget(p.held, t.Elem.Target), t.Encoding)
+		p.held = appendDecoded(appendTarget(p.held, t.ElementType.Target), t.Encoding)
 	case *ir.MapT:
 		p.held = appendTarget(appendRef(p.held, t.Key), t.Value.Target)
 	case *ir.Tuple:
-		p.held = appendRef(appendRefs(p.held, t.Elems), t.Rest)
+		p.held = appendRef(appendRefs(p.held, t.ElementTypes), t.Rest)
 	case *ir.Scalar:
 		if t.Base != nil {
 			p.alias = t.Base.Target
@@ -62,7 +62,7 @@ func (p *typeParts) model(m *ir.Model) {
 			p.args = appendDecoded(appendTarget(p.args, prop.Args[j].Type.Target), prop.Args[j].Encoding)
 		}
 	}
-	if extra := m.AdditionalProps; extra != nil {
+	if extra := m.AdditionalProperties; extra != nil {
 		p.held = appendRef(appendRef(p.held, extra.Value), extra.Key)
 		for i := range extra.Patterns {
 			p.held = appendTarget(p.held, extra.Patterns[i].Value.Target)

@@ -52,8 +52,8 @@ func dupKeyDoc() *ir.Document {
 	named := ir.Naming{Source: "node", Canonical: "node"}
 	sources, services, spaces := tables()
 	return &ir.Document{IRVersion: ir.IRVersion, IDSpaces: spaces, Sources: sources, Services: services, Types: ir.TypeRegistry{
-		ir.TypeID("t/x/\xff"): &ir.Any{ID: "t/x/\xff", Name: named},
-		ir.TypeID("t/x/\xfe"): &ir.Any{ID: "t/x/\xfe", Name: named},
+		ir.TypeID("type/x/\xff"): &ir.Any{ID: "type/x/\xff", Name: named},
+		ir.TypeID("type/x/\xfe"): &ir.Any{ID: "type/x/\xfe", Name: named},
 	}}
 }
 
@@ -67,7 +67,7 @@ func cyclicDoc() *ir.Document {
 	list[0] = ir.Value{Kind: ir.ValueList, List: list}
 	example := ir.Value{Kind: ir.ValueList, List: list}
 	doc := soundDoc()
-	doc.Types["t/x/Model"].Common().Examples = []ir.Example{{Value: &example}}
+	doc.Types["type/x/Model"].Common().Examples = []ir.Example{{Value: &example}}
 	return doc
 }
 
@@ -78,7 +78,7 @@ func cyclicDoc() *ir.Document {
 // under test.
 func soundDoc() *ir.Document {
 	m := &ir.Model{
-		ID:   "t/x/Model",
+		ID:   "type/x/Model",
 		Name: ir.Naming{Source: "Model", Canonical: "model"},
 	}
 	sources, services, spaces := tables()
@@ -101,7 +101,7 @@ func TestRoundTrips_UnmarshalError(t *testing.T) {
 	// A nil TypeDef marshals to `null`; the registry decoder then reads an empty
 	// kind tag and rejects it as unknown, so marshal succeeds but the reverse
 	// fails.
-	doc := &ir.Document{Types: ir.TypeRegistry{ir.TypeID("t/x/nil"): nil}}
+	doc := &ir.Document{Types: ir.TypeRegistry{ir.TypeID("type/x/nil"): nil}}
 	detail, ok := roundTrips(doc)
 	assert.False(t, ok)
 	assert.Contains(t, detail, "unmarshal:")
@@ -317,7 +317,7 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		// A registry key that disagrees with the node ID is a structural violation.
 		return &ir.Document{Types: ir.TypeRegistry{
-			ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"},
+			ir.TypeID("type/x/Key"): &ir.Any{ID: "type/x/Other"},
 		}}, nil, nil
 	})
 
@@ -333,7 +333,7 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 func TestCheck_ViolationsComeBeforeTheSpecsErrors(t *testing.T) {
 	refused := []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/refused", "the spec is wrong",
 		ir.Provenance{Source: ir.NoSource})}
-	misKeyed := &ir.Document{Types: ir.TypeRegistry{ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"}}}
+	misKeyed := &ir.Document{Types: ir.TypeRegistry{ir.TypeID("type/x/Key"): &ir.Any{ID: "type/x/Other"}}}
 	for _, tc := range []struct {
 		name   string
 		doc    *ir.Document
@@ -341,7 +341,7 @@ func TestCheck_ViolationsComeBeforeTheSpecsErrors(t *testing.T) {
 		want   Outcome
 		detail string
 	}{
-		{"a broken document beside an error", misKeyed, refused, OutcomeViolations, "t/x/Key"},
+		{"a broken document beside an error", misKeyed, refused, OutcomeViolations, "type/x/Key"},
 		{"a refusal", nil, refused, OutcomeErrorDiag, "stub/refused"},
 		{"no document and no error", nil, nil, OutcomeViolations, "ir/nil-document"},
 	} {
@@ -364,7 +364,7 @@ func TestCheck_ViolationsComeBeforeTheSpecsErrors(t *testing.T) {
 // the violations it is, naming the stage, rather than as an error.
 func TestCheck_AStageBreakingAnInvariantIsAViolation(t *testing.T) {
 	misKeyed := func(own *ir.Document) *ir.Document {
-		own.Types = ir.TypeRegistry{ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"}}
+		own.Types = ir.TypeRegistry{ir.TypeID("type/x/Key"): &ir.Any{ID: "type/x/Other"}}
 		return own
 	}
 	for _, tc := range []struct {
@@ -388,7 +388,7 @@ func TestCheck_AStageBreakingAnInvariantIsAViolation(t *testing.T) {
 
 			assert.Equal(t, OutcomeViolations, r.Outcome, r.Detail)
 			assert.True(t, strings.HasPrefix(r.Detail, tc.stage), r.Detail)
-			assert.Contains(t, r.Detail, "t/x/Key")
+			assert.Contains(t, r.Detail, "type/x/Key")
 		})
 	}
 }
@@ -491,7 +491,7 @@ func stubDocument(sources []compilers.Source, byFirstKey bool) *ir.Document {
 	}}
 	if byFirstKey {
 		key, _, _ := strings.Cut(string(sources[0].Data), ":")
-		id := ir.TypeID("t/x/" + key)
+		id := ir.TypeID("type/x/" + key)
 		doc.Types = ir.TypeRegistry{id: &ir.Model{ID: id, Name: ir.Naming{Source: key, Canonical: key}}}
 	}
 	return doc

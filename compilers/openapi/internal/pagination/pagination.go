@@ -21,7 +21,7 @@ import (
 // parameters name a walk it cannot settle keeps none, reported as an info
 // diagnostic. It reads no operation in stated, whose extensions speak of a
 // pagination, nor any while policy is off. w is the whole document.
-func InferWalks(policy Inference, w *compileddoc.CompiledDocumentView, stated map[ir.OpID]bool) []ir.Diagnostic {
+func InferWalks(policy Inference, w *compileddoc.CompiledDocumentView, stated map[ir.OperationID]bool) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}
@@ -116,7 +116,7 @@ func build(in inputs, pg page) *ir.Pagination {
 }
 
 // pathTo is the path through segments, or nil for none.
-func pathTo(segments []ir.PropID) *ir.PropPath {
+func pathTo(segments []ir.PropertyID) *ir.PropPath {
 	if segments == nil {
 		return nil
 	}

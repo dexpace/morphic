@@ -44,7 +44,7 @@ func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
 			require.Len(t, m.Properties, 1)
 
 			p := m.Properties[0]
-			assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target)
+			assert.Equal(t, ir.TypeID("type/primitive/integer"), p.Type.Target)
 			assert.Nil(t, p.Default, "the refused default does not land")
 			require.Len(t, diags, 1, "one info and nothing else")
 			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
@@ -151,7 +151,7 @@ func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
 
 		assert.Equal(t, ir.KindScalar, doc.Types[p.Type.Target].Kind(), "the format's scalar types the field (order %d)", i)
 		require.NotNil(t, p.Default, "order %d", i)
-		assert.Equal(t, "x", p.Default.Str, "order %d", i)
+		assert.Equal(t, "x", p.Default.String, "order %d", i)
 		assert.Nil(t, p.Constraints, "order %d", i)
 		sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
 		require.True(t, ok, "order %d", i)
@@ -177,7 +177,7 @@ func TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder(t *testing.
 		require.Len(t, m.Properties, 1)
 		p := m.Properties[0]
 
-		assert.Equal(t, ir.TypeRef{Target: "t/prim/integer", Nullable: true}, p.Type, "order %d", i)
+		assert.Equal(t, ir.TypeRef{Target: "type/primitive/integer", Nullable: true}, p.Type, "order %d", i)
 		assert.Empty(t, p.Unmodeled, "order %d", i)
 		assert.Empty(t, diags, "order %d", i)
 	}
@@ -316,7 +316,7 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 				win   ir.TypeID // the type that stands
 				same  bool
 			}{
-				{[2]string{body, body}, "t/anon/components/schemas/T/allOf/0/properties/v", true},
+				{[2]string{body, body}, "type/anonymous/components/schemas/T/allOf/0/properties/v", true},
 				{[2]string{p, body}, componentID("P"), true},
 				{[2]string{body, p}, componentID("P"), true},
 				{[2]string{p, q}, componentID("Q"), false},
@@ -359,7 +359,7 @@ func TestAllOf_ARefToAnInlineNodeIsDeclaredApart(t *testing.T) {
 	const enum = "{type: string, enum: [a, b]}"
 	extra := "    X: {type: object, properties: {c: " + enum + ", d: " + enum + "}}\n"
 	c, d := "{$ref: '#/components/schemas/X/properties/c'}", "{$ref: '#/components/schemas/X/properties/d'}"
-	at := func(p string) ir.TypeID { return ir.TypeID("t/anon/components/schemas/X/properties/" + p) }
+	at := func(p string) ir.TypeID { return ir.TypeID("type/anonymous/components/schemas/X/properties/" + p) }
 	for i, tc := range []struct {
 		order [2]string
 		win   ir.TypeID
@@ -434,7 +434,7 @@ func TestAllOf_AListOfAComponentWinsOverAListOfItsCopy(t *testing.T) {
 		require.Len(t, m.Properties, 1, "order %d", i)
 		list, ok := doc.Types[m.Properties[0].Type.Target].(*ir.List)
 		require.True(t, ok, "the field is a list (order %d)", i)
-		assert.Equal(t, componentID("Color"), list.Elem.Target, "order %d", i)
+		assert.Equal(t, componentID("Color"), list.ElementType.Target, "order %d", i)
 		assert.Empty(t, diags, "order %d", i)
 		assert.Empty(t, m.Properties[0].Unmodeled, "order %d", i)
 	}
@@ -466,7 +466,7 @@ func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 			}
 		}
 		require.NotNil(t, v, "order %d", i)
-		assert.Equal(t, ir.TypeID("t/anon"+vx), v.Type.Target, "order %d", i)
+		assert.Equal(t, ir.TypeID("type/anonymous"+vx), v.Type.Target, "order %d", i)
 		assert.Empty(t, diags, "order %d", i)
 		assert.Empty(t, v.Unmodeled, "order %d", i)
 	}
@@ -513,7 +513,7 @@ func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
 				if tc.def == "" {
 					assert.Nil(t, prop.Default, "%v", order)
 				} else if assert.NotNil(t, prop.Default, "%v", order) {
-					assert.Equal(t, tc.def, prop.Default.Str, "%v", order)
+					assert.Equal(t, tc.def, prop.Default.String, "%v", order)
 				}
 				if tc.code == "" {
 					assert.Empty(t, diags, "%v", order)
@@ -654,13 +654,13 @@ func TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder(t *testing.T) {
 		name, broad, narrow string
 		want                ir.TypeID
 	}{
-		{"number and integer", "{type: number}", "{type: integer}", "t/prim/integer"},
-		{"integer and int32", "{type: integer}", "{type: integer, format: int32}", "t/prim/int32"},
-		{"string and date-time", "{type: string}", "{type: string, format: date-time}", "t/prim/datetime_offset"},
-		{"int32 and int64", "{type: integer, format: int64}", "{type: integer, format: int32}", "t/prim/int32"},
-		{"uri and string", "{type: string}", "{type: string, format: uri}", "t/prim/url"},
-		{"double and number", "{type: number}", "{type: number, format: double}", "t/prim/float64"},
-		{"uuid and string", "{type: string}", "{type: string, format: uuid}", "t/prim/uuid"},
+		{"number and integer", "{type: number}", "{type: integer}", "type/primitive/integer"},
+		{"integer and int32", "{type: integer}", "{type: integer, format: int32}", "type/primitive/int32"},
+		{"string and date-time", "{type: string}", "{type: string, format: date-time}", "type/primitive/datetime_offset"},
+		{"int32 and int64", "{type: integer, format: int64}", "{type: integer, format: int32}", "type/primitive/int32"},
+		{"uri and string", "{type: string}", "{type: string, format: uri}", "type/primitive/url"},
+		{"double and number", "{type: number}", "{type: number, format: double}", "type/primitive/float64"},
+		{"uuid and string", "{type: string}", "{type: string, format: uuid}", "type/primitive/uuid"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -714,7 +714,7 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 				e, ok := doc.Types[target].(*ir.Enum)
 				require.True(t, ok)
 				require.Len(t, e.Members, 1)
-				assert.Equal(t, "a", e.Members[0].Value.Str)
+				assert.Equal(t, "a", e.Members[0].Value.String)
 			}},
 		{"a described list", "{type: array, description: d, items: {type: integer}}",
 			"{type: array, items: {type: integer, format: int32}}",
@@ -722,7 +722,7 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 				t.Helper()
 				l, ok := doc.Types[target].(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, ir.TypeID("t/prim/int32"), l.Elem.Target)
+				assert.Equal(t, ir.TypeID("type/primitive/int32"), l.ElementType.Target)
 				assert.Equal(t, "d", l.Docs.Description)
 			}},
 		{"a bounded list", "{type: array, minItems: 1, items: {type: integer}}",
@@ -731,7 +731,7 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 				t.Helper()
 				l, ok := doc.Types[target].(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, ir.TypeID("t/prim/int32"), l.Elem.Target)
+				assert.Equal(t, ir.TypeID("type/primitive/int32"), l.ElementType.Target)
 				assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, l.Constraints)
 			}},
 		{"an extended list", "{type: array, x-kept: 1, items: {type: integer}}",
@@ -740,7 +740,7 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 				t.Helper()
 				l, ok := doc.Types[target].(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, ir.TypeID("t/prim/int32"), l.Elem.Target)
+				assert.Equal(t, ir.TypeID("type/primitive/int32"), l.ElementType.Target)
 				assert.Contains(t, l.Unmodeled, "openapi:x-kept")
 			}},
 	} {
@@ -764,16 +764,16 @@ func TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem(t *testing.T) {
 	p, doc, diags := redeclared(t, "{type: string, enum: [a, b]}", "{type: string, enum: [b, c]}")
 
 	assert.Empty(t, diags)
-	require.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
+	require.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
 	e, ok := doc.Types[p.Type.Target].(*ir.Enum)
 	require.True(t, ok)
 	require.Len(t, e.Members, 1)
-	assert.Equal(t, "b", e.Members[0].Value.Str)
-	assert.Equal(t, ir.EnumMemberID("e/composed/components/schemas/T/allOf/1/properties/v/s:b"), e.Members[0].ID)
+	assert.Equal(t, "b", e.Members[0].Value.String)
+	assert.Equal(t, ir.EnumMemberID("enum-member/composed/components/schemas/T/allOf/1/properties/v/string:b"), e.Members[0].ID)
 	assert.Empty(t, validated(t, doc), "the minted enum's members live where irverify holds them")
-	declared, ok := doc.Types["t/anon/components/schemas/T/allOf/0/properties/v"].(*ir.Enum)
+	declared, ok := doc.Types["type/anonymous/components/schemas/T/allOf/0/properties/v"].(*ir.Enum)
 	require.True(t, ok)
-	assert.Equal(t, ir.EnumMemberID("e/anon/components/schemas/T/allOf/0/properties/v/s:b"), declared.Members[1].ID,
+	assert.Equal(t, ir.EnumMemberID("enum-member/anonymous/components/schemas/T/allOf/0/properties/v/string:b"), declared.Members[1].ID,
 		"the declared enum's members are as they were")
 }
 
@@ -827,7 +827,7 @@ func TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues(t *testing.T) {
 		p, _, diags := redeclared(t, order[0], order[1])
 		assert.Empty(t, diags, "%v", order)
 		assert.Empty(t, p.Unmodeled, "%v", order)
-		want := fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", 1-i)
+		want := fmt.Sprintf("type/anonymous/components/schemas/T/allOf/%d/properties/v", 1-i)
 		assert.Equal(t, ir.TypeID(want), p.Type.Target, "%v: the enum of integer", order)
 	}
 
@@ -837,12 +837,12 @@ func TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues(t *testing.T) {
 	} {
 		p, doc, diags := redeclared(t, order[0], order[1])
 		assert.Empty(t, diags, "%v", order)
-		require.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
+		require.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
 		e, ok := doc.Types[p.Type.Target].(*ir.Enum)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, ir.PrimInteger, e.ValueType, "%v", order)
+		assert.Equal(t, ir.PrimitiveInteger, e.ValueType, "%v", order)
 		require.Len(t, e.Members, 1, "%v", order)
-		assert.Equal(t, ir.BigVal("1"), e.Members[0].Value.Num, "%v", order)
+		assert.Equal(t, ir.BigVal("1"), e.Members[0].Value.Number, "%v", order)
 		assert.Empty(t, validated(t, doc), "%v", order)
 	}
 }
@@ -879,16 +879,16 @@ func TestAllOf_AnAliasMeetsAsTheNodeItStandsFor(t *testing.T) {
 			assert.Empty(t, diags, "%v", order)
 			p := propertyOf(t, doc, "T", "v")
 			assert.Empty(t, p.Unmodeled, "%v", order)
-			require.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
+			require.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
 			target := p.Type.Target
 			if tc.list {
 				l, ok := doc.Types[target].(*ir.List)
 				require.True(t, ok, "%v", order)
-				target = l.Elem.Target
+				target = l.ElementType.Target
 			}
 			e, ok := doc.Types[target].(*ir.Enum)
 			require.True(t, ok, "%v", order)
-			assert.Equal(t, []string{"b", "c"}, []string{e.Members[0].Value.Str, e.Members[1].Value.Str}, "%v", order)
+			assert.Equal(t, []string{"b", "c"}, []string{e.Members[0].Value.String, e.Members[1].Value.String}, "%v", order)
 			assert.Equal(t, tc.docs, doc.Types[p.Type.Target].Common().Docs.Description, "%v", order)
 			assert.Empty(t, validated(t, doc), "%v", order)
 		}
@@ -959,7 +959,7 @@ func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
 			if tc.want != "" {
 				assert.Equal(t, tc.want, p.Type.Target, "%v", order)
 			} else {
-				assert.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
+				assert.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
 			}
 			if tc.docs.Summary != "" || tc.docs.Description != "" {
 				assert.Equal(t, tc.docs, doc.Types[p.Type.Target].Common().Docs, "%v", order)

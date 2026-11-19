@@ -109,7 +109,7 @@ func TestSpelled_ADifferenceIsFoundWithWhereItLies(t *testing.T) {
 		name, partner, spelling, what string
 	}{
 		{"a use's description", `{type: array, items: {allOf: [{$ref: '#/components/schemas/Obj'}], description: d}}`,
-			`{type: array, items: {$ref: '#/components/schemas/Obj', description: e}}`, "types.elem.use.docs.description"},
+			`{type: array, items: {$ref: '#/components/schemas/Obj', description: e}}`, "types.elementType.use.docs.description"},
 		{"a bound", `{allOf: [{$ref: '#/components/schemas/T'}], pattern: '^a4'}`,
 			`{allOf: [{$ref: '#/components/schemas/T'}, {pattern: '^a3'}]}`, "types.constraints.pattern"},
 		{"a decorator's description and kept keyword",
@@ -188,7 +188,7 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 func TestRelocatedSet_RelocatesEachPointerAndNode(t *testing.T) {
 	reportAt := func(at string) ir.Diagnostic {
 		return ir.Diagnostic{Severity: ir.SeverityWarning, Code: "x/y",
-			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at), Node: "t/openapi" + at}}
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at), Node: "type/openapi" + at}}
 	}
 
 	got := relocatedSet([]ir.Diagnostic{reportAt(useAt + "/allOf/1")}, eraseAllOf)
@@ -363,11 +363,11 @@ func TestReadTree_RefusesWhatItCannotRelocate(t *testing.T) {
 
 func TestDiffersIn_NamesEachPlaceOnce(t *testing.T) {
 	a := map[string]any{"types": map[string]any{
-		"t/x": map[string]any{"id": "t/x", "kind": "model", "list": []any{"a", "b"}},
-		"t/y": map[string]any{"id": "t/y"},
+		"type/x": map[string]any{"id": "type/x", "kind": "model", "list": []any{"a", "b"}},
+		"type/y": map[string]any{"id": "type/y"},
 	}}
 	b := map[string]any{"types": map[string]any{
-		"t/x": map[string]any{"id": "t/x", "kind": "scalar", "list": []any{"a"}},
+		"type/x": map[string]any{"id": "type/x", "kind": "scalar", "list": []any{"a"}},
 	}}
 	diags := diagnosed{mine: []string{"warning\x00a/b\x00x"}, theirs: []string{"warning\x00a/b\x00y", "info\x00c\x00z"}}
 
@@ -386,7 +386,7 @@ func TestDiffersIn_NamesEachPlaceOnce(t *testing.T) {
 
 func TestComparableSide_ADocumentNestedPastTheBoundIsDeclined(t *testing.T) {
 	deep := strings.Repeat("[", maxSpellingDepth) + strings.Repeat("]", maxSpellingDepth)
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x": &ir.Scalar{ID: "t/x",
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/x": &ir.Scalar{ID: "type/x",
 		Unmodeled: ir.Unmodeled{"x": {Value: ir.RawValue(deep)}}}}}
 	_, why, err := comparableSide(doc, eraseAllOf)
 	require.NoError(t, err)

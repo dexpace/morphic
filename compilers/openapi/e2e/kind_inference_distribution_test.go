@@ -131,9 +131,9 @@ func TestKindInference_ACatchAllBesideAUnionOfObjectsDistributes(t *testing.T) {
 					variants := distributedOver(t, doc, componentID("Open"))
 					require.Len(t, variants, 2)
 					for base, m := range variants {
-						require.NotNil(t, m.AdditionalProps, "%s holds the catch-all", base)
-						require.NotNil(t, m.AdditionalProps.Value, base)
-						assert.Equal(t, prim(ir.PrimString), m.AdditionalProps.Value.Target, base)
+						require.NotNil(t, m.AdditionalProperties, "%s holds the catch-all", base)
+						require.NotNil(t, m.AdditionalProperties.Value, base)
+						assert.Equal(t, prim(ir.PrimitiveString), m.AdditionalProperties.Value.Target, base)
 					}
 					assert.Empty(t, keptUnder(doc, "/components/schemas/Open"))
 				})
@@ -182,7 +182,7 @@ func TestKindInference_AClosedFormBodyBesideAUnionKeysNoPartItsModelsLack(t *tes
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		for _, off := range []bool{false, true} {
 			doc, _ := compileKindInference(t, "form", admissionSpec(version, body, closedObjects...), off)
-			held := map[ir.PropID]bool{}
+			held := map[ir.PropertyID]bool{}
 			for _, td := range doc.Types {
 				if m, ok := td.(*ir.Model); ok {
 					for _, p := range m.Properties {

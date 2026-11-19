@@ -162,14 +162,14 @@ func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := openapitest.FirstOp(t, svc).Params[0]
-	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
+	assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target,
 		"the parameter's own type is unchanged by the outside reference")
 	openapitest.AssertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
 	assert.Contains(t, p.Unmodeled, "openapi:schema/x-vendor")
 	assert.Contains(t, p.Unmodeled, "openapi:schema/not")
 
-	sc, ok := doc.Types["t/anon/paths/~1x/get/parameters/0/schema"].(*ir.Scalar)
+	sc, ok := doc.Types["type/anonymous/paths/~1x/get/parameters/0/schema"].(*ir.Scalar)
 	require.True(t, ok, "and the referenced pointer still names the schema written there")
 	openapitest.AssertProbeDocsKept(t, sc.Docs)
 }
@@ -219,7 +219,7 @@ func TestParams_RefSchemaInheritsFromItsReferent(t *testing.T) {
 	assert.Equal(t, "REFERENT", p.Docs.Description, "the referent's description reaches the parameter")
 	assert.NotNil(t, p.Deprecation, "and its deprecation")
 	require.NotNil(t, p.Default, "and its default")
-	assert.Equal(t, "referent", p.Default.Str)
+	assert.Equal(t, "referent", p.Default.String)
 	assert.Nil(t, p.Constraints,
 		"but never its constraints: fillPropertyConstraints keeps those use-site-only too")
 }
@@ -236,7 +236,7 @@ func TestParams_RefSchemaUseSiteWinsOverItsReferent(t *testing.T) {
 	p := paramsOf(t, svc)["override"]
 	assert.Equal(t, "USE_SITE", p.Docs.Description, "the use-site description wins")
 	require.NotNil(t, p.Default)
-	assert.Equal(t, "use-site", p.Default.Str, "and the use-site default")
+	assert.Equal(t, "use-site", p.Default.String, "and the use-site default")
 	assert.NotNil(t, p.Deprecation, "but a deprecated: false beside the $ref withdraws no referent's true")
 }
 
@@ -253,7 +253,7 @@ func TestParams_RefSchemaInheritsThroughARefChain(t *testing.T) {
 	assert.Equal(t, "REFERENT", p.Docs.Description, "one hop reaches Hop, which declares nothing")
 	assert.NotNil(t, p.Deprecation)
 	require.NotNil(t, p.Default)
-	assert.Equal(t, "referent", p.Default.Str)
+	assert.Equal(t, "referent", p.Default.String)
 }
 
 const paramXMLSpec = `openapi: 3.1.0
@@ -493,7 +493,7 @@ func TestParams_SchemaDefaultIsNotAlsoKeptVerbatim(t *testing.T) {
 
 	p := paramsOf(t, svc)["ro"]
 	require.NotNil(t, p.Default, "the default lands in its own field")
-	assert.Equal(t, "dq", p.Default.Str)
+	assert.Equal(t, "dq", p.Default.String)
 	assert.NotContains(t, p.Unmodeled, "openapi:schema/default", "and is not restated verbatim beside it")
 	for _, d := range diags {
 		assert.NotEqual(t, jsontext.Pointer("/paths/~1x/get/parameters/0/schema/default"), d.Provenance.Pointer,
@@ -717,7 +717,7 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags)
 	param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), "q")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Str"), param.Type.Target)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Str"), param.Type.Target)
 	assert.Equal(t, "mine", param.Docs.Description)
 	assert.Equal(t, "A string", param.Docs.Summary)
 	require.NotNil(t, param.Constraints)
@@ -871,7 +871,7 @@ func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
 		for i, name := range []string{"q", "r"} {
 			p, ok := openapitest.ParamBySource(op, name)
 			require.True(t, ok, name)
-			assert.Equal(t, ir.ParamID("param/openapi/paths/~1a/get/parameters/"+name+"/query"), p.ID, name)
+			assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1a/get/parameters/"+name+"/query"), p.ID, name)
 			assert.Nil(t, p.Constraints, name)
 			entry, ok := p.Unmodeled["openapi:schema/minimum"]
 			require.True(t, ok, "%s: got %v", name, p.Unmodeled)
@@ -893,7 +893,7 @@ func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
 		require.Len(t, op.Responses, 1)
 		require.Len(t, op.Responses[0].Headers, 1)
 		header := op.Responses[0].Headers[0]
-		assert.Equal(t, ir.PropID("p/openapi/paths/~1a/get/responses/200/headers/X-Names"), header.ID)
+		assert.Equal(t, ir.PropertyID("property/openapi/paths/~1a/get/responses/200/headers/X-Names"), header.ID)
 		assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, header.Constraints)
 		entry, ok := header.Unmodeled["openapi:schema/maxLength"]
 		require.True(t, ok, "got %v", header.Unmodeled)

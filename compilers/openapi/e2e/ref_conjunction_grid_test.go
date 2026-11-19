@@ -218,7 +218,7 @@ func TestRefConjunction_APromotedFactAndItsMarkSitOnOneNodeInEverySpelling(t *te
 						doc, _ := compileUnrefused(t, site.write(version, schema, conjTargets[target]))
 						tree := documentTree(t, doc)
 						if carrierName(site) == "" {
-							id := "t/anon" + site.pointer
+							id := "type/anonymous" + site.pointer
 							if site.name == "component" {
 								id = string(componentID("Use"))
 							}
@@ -499,7 +499,7 @@ func TestRefConjunction_ARedactionBesideARefInItemsIsAModelOverItsTarget(t *test
 			for _, property := range []string{"p", "d"} {
 				list, ok := kindNode(t, beside, holderPropType(t, beside, property)).(*ir.List)
 				require.True(t, ok, property)
-				elem, ok := kindNode(t, beside, list.Elem.Target).(*ir.Model)
+				elem, ok := kindNode(t, beside, list.ElementType.Target).(*ir.Model)
 				require.True(t, ok, "the element of %s is a model over the object", property)
 				require.NotNil(t, elem.Base)
 				assert.Equal(t, componentID("Obj"), elem.Base.Target)
@@ -629,7 +629,7 @@ func TestRefConjunction_ADynamicRefReadAsARefIsThatConjunctUnderEitherKeyword(t 
 			requireOnlyFindings(t, dynDiags, "a $dynamicRef read as a $ref")
 
 			tree := documentTree(t, dynamic)
-			node := nodeAt(tree, "t/anon"+site.pointer)
+			node := nodeAt(tree, "type/anonymous"+site.pointer)
 			if site.name == "component" {
 				node = nodeAt(tree, string(componentID("Use")))
 			}

@@ -27,7 +27,7 @@ type Links struct {
 
 // pendingLink is one drafted link and the response that carries it.
 type pendingLink struct {
-	from  ir.OpID
+	from  ir.OperationID
 	slot  responseSlot
 	draft linkDraft
 }
@@ -42,7 +42,7 @@ type responseSlot struct {
 }
 
 // add holds drafts, the links of the response slot names on from.
-func (l *Links) add(from ir.OpID, slot responseSlot, drafts []linkDraft) {
+func (l *Links) add(from ir.OperationID, slot responseSlot, drafts []linkDraft) {
 	for i := range drafts {
 		l.pending = append(l.pending, pendingLink{from: from, slot: slot, draft: drafts[i]})
 	}

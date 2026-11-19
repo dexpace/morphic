@@ -52,7 +52,7 @@ func TestCompile_ComponentScalarConstraintsPreserved(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := compileComponentSpec(t, head+tc.body+"\n")
-			sc, ok := doc.Types["t/openapi/components/schemas/N"].(*ir.Scalar)
+			sc, ok := doc.Types["type/openapi/components/schemas/N"].(*ir.Scalar)
 			require.True(t, ok, "N lowers to a scalar")
 			require.NotNil(t, sc.Constraints, "component scalar keeps its constraints")
 			require.NotNil(t, sc.Constraints.Min)
@@ -106,7 +106,7 @@ func TestCompile_ANumericFieldIsReadPastARationalsRange(t *testing.T) {
 	}
 
 	doc := compileComponentSpec(t, head+"{type: number, minimum: 1e2000000000}}}\n")
-	sc, ok := doc.Types["t/openapi/components/schemas/N"].(*ir.Scalar)
+	sc, ok := doc.Types["type/openapi/components/schemas/N"].(*ir.Scalar)
 	require.True(t, ok, "N lowers to a scalar")
 	require.NotNil(t, sc.Constraints)
 	require.NotNil(t, sc.Constraints.Min)
@@ -135,7 +135,7 @@ func TestCompile_HoistedSubSchemaConstraintsPreserved(t *testing.T) {
 		"        b: {$ref: '#/components/schemas/Foo/properties/bar'}\n"
 	doc := compileComponentSpec(t, spec)
 
-	uses, ok := doc.Types["t/openapi/components/schemas/Uses"].(*ir.Model)
+	uses, ok := doc.Types["type/openapi/components/schemas/Uses"].(*ir.Model)
 	require.True(t, ok, "Uses lowers to a model")
 	var target ir.TypeID
 	for _, p := range uses.Properties {

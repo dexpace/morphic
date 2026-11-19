@@ -44,7 +44,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		}
 		elem, elemDiags := Ref(c, ts, depth, c.Statements().Subschema(itemsSchema(s)), pointer+ids.Ptr("items"))
 		diags = append(diags, elemDiags...)
-		return &ir.List{TypeCommon: common, Elem: elem, Constraints: cons}, read
+		return &ir.List{TypeCommon: common, ElementType: elem, Constraints: cons}, read
 	}, fin)
 	return id, diags
 }
@@ -100,7 +100,7 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: cons}
+	t := &ir.Tuple{TypeCommon: common, ElementTypes: elems, Constraints: cons}
 	diags = append(diags, keepPrefixItems(c, &t.Unmodeled, s, pointer)...)
 	rest := ids.Ptr("additionalItems")
 	if js := heldAt(there, site+rest); !js.Truth.ReadsFalse() {
@@ -193,7 +193,7 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: cons}
+	t := &ir.Tuple{TypeCommon: common, ElementTypes: elems, Constraints: cons}
 	if items := c.Statements().Subschema(itemsSchema(s)); !items.Truth.ReadsFalse() {
 		rest, restDiags := Ref(c, ts, depth, items, pointer+ids.Ptr("items"))
 		diags = append(diags, restDiags...)

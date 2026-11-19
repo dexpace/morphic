@@ -167,7 +167,7 @@ func TestCompile_AnAllOfCycleBesideABoundIsReadAlikeFromEveryEntry(t *testing.T)
 			doc, _ := compileAnnotationSpec(t, "cycle", admissionSpec("3.1.0", "", schemas...))
 			whole = append(whole, comparableDocument(t, doc))
 			for _, id := range []string{"A", "B"} {
-				raw, err := json.Marshal(doc.Types[ir.TypeID("t/openapi/components/schemas/"+id)])
+				raw, err := json.Marshal(doc.Types[ir.TypeID("type/openapi/components/schemas/"+id)])
 				require.NoError(t, err)
 				cycleNodes = append(cycleNodes, id+" "+string(raw))
 			}
@@ -511,12 +511,12 @@ func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *t
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "redecl", admissionSpec("3.1.0", "", schemas...))
 				requireStructure(t, doc, "U", swapped)
-				target, conflicts := redeclaredField(t, doc, diags, "t/openapi/components/schemas/U", "f", "/components/schemas/U")
-				assert.Equal(t, ir.TypeID("t/prim/integer"), target, "U's field takes the narrower, integer")
+				target, conflicts := redeclaredField(t, doc, diags, "type/openapi/components/schemas/U", "f", "/components/schemas/U")
+				assert.Equal(t, ir.TypeID("type/primitive/integer"), target, "U's field takes the narrower, integer")
 				assert.Zero(t, conflicts, "no conflict is reported for U")
 				assert.Empty(t, keptEntries(t, doc, "openapi:conflicting-redeclaration/components/schemas/U/allOf/0/properties/f"))
 
-				_, conflicts = redeclaredField(t, doc, diags, "t/openapi/components/schemas/T", "f", "/components/schemas/T")
+				_, conflicts = redeclaredField(t, doc, diags, "type/openapi/components/schemas/T", "f", "/components/schemas/T")
 				assert.Equal(t, 1, conflicts, "T keeps its one conflict: a not refuses what the read cannot follow")
 			})
 		})
@@ -541,8 +541,8 @@ func TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind(t *tes
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "redecl", admissionSpec("3.1.0", "", schemas...))
 				assert.NotContains(t, doc.Types, redeclaredNode("U", swapped), "the declaration is a use, not a node of its own")
-				target, conflicts := redeclaredField(t, doc, diags, "t/openapi/components/schemas/U", "f", "/components/schemas/U")
-				assert.Equal(t, ir.TypeID("t/prim/integer"), target, "U's field takes the narrower, integer")
+				target, conflicts := redeclaredField(t, doc, diags, "type/openapi/components/schemas/U", "f", "/components/schemas/U")
+				assert.Equal(t, ir.TypeID("type/primitive/integer"), target, "U's field takes the narrower, integer")
 				assert.Zero(t, conflicts, "no conflict is reported for U")
 			})
 		})
@@ -566,7 +566,7 @@ func redeclaredNode(name string, swapped bool) ir.TypeID {
 	if swapped {
 		branch = "0"
 	}
-	return ir.TypeID("t/anon/components/schemas/" + name + "/allOf/" + branch + "/properties/f")
+	return ir.TypeID("type/anonymous/components/schemas/" + name + "/allOf/" + branch + "/properties/f")
 }
 
 // requireStructure requires the declaration of f other than integer in the
@@ -594,8 +594,8 @@ func TestCompile_ANullNotOnAStructuresEntryIsTheKeywordLeftOut(t *testing.T) {
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "nullnot", admissionSpec("3.1.0", "", schemas...))
 				requireStructure(t, doc, "V", swapped)
-				target, conflicts := redeclaredField(t, doc, diags, "t/openapi/components/schemas/V", "f", "/components/schemas/V")
-				assert.Equal(t, ir.TypeID("t/prim/integer"), target)
+				target, conflicts := redeclaredField(t, doc, diags, "type/openapi/components/schemas/V", "f", "/components/schemas/V")
+				assert.Equal(t, ir.TypeID("type/primitive/integer"), target)
 				assert.Zero(t, conflicts)
 				var found []string
 				for _, d := range diags {

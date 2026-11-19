@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "NestedEncoding32",
         "canonical": "nested_encoding_32"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1upload/post",
+              "id": "operation/openapi/paths/~1upload/post",
               "name": {
                 "source": "upload",
                 "canonical": "upload"
@@ -70,16 +70,16 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       }
                     },
@@ -163,9 +163,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "upload_request"
       },
@@ -178,21 +178,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note",
           "name": {
             "source": "note",
             "canonical": "note"
           },
           "wireName": "note",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -209,9 +209,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -219,7 +219,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

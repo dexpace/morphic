@@ -12,46 +12,46 @@ import (
 )
 
 // scenarioValue is the string value a scenario's parameters and body hold.
-var scenarioValue = ir.Value{Kind: ir.ValueString, Str: "v"}
+var scenarioValue = ir.Value{Kind: ir.ValueString, String: "v"}
 
 // scenarioOp is the path of the first operation of scenarioBase.
-const scenarioOp = "doc.Services[0].Groups[0].Operations[0]"
+const scenarioOp = "document.Services[0].Groups[0].Operations[0]"
 
 // scenarioBase returns the document the identity and scenario cases below
 // mutate: two operations, the first with a query parameter bound once, and
 // every namespace its IDs live in declared. It draws no violation of the codes
 // those cases look for.
 func scenarioBase() *ir.Document {
-	prim := &ir.Primitive{ID: "t/prim/string", Name: named("string"), Prim: ir.PrimString}
+	prim := &ir.Primitive{ID: "type/primitive/string", Name: named("string"), PrimitiveKind: ir.PrimitiveString}
 	prim.Provenance = ir.Provenance{Source: ir.NoSource}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
 		IDSpaces: map[string][]string{
-			"t": {"x"}, "op": {"x"}, "s": {"x"}, "g": {"x"}, "p": {"x"}, "param": {"x"}, "e": {"x"},
+			"type": {"x"}, "operation": {"x"}, "service": {"x"}, "operation-group": {"x"}, "property": {"x"}, "parameter": {"x"}, "enum-member": {"x"},
 		},
 		Types: ir.TypeRegistry{
 			prim.ID: prim,
-			"t/x/M": &ir.Model{ID: "t/x/M", Name: named("m"), Properties: []ir.Property{
-				{ID: "p/x/M/a", Name: named("a"), Type: ir.TypeRef{Target: "t/prim/string"}},
+			"type/x/M": &ir.Model{ID: "type/x/M", Name: named("m"), Properties: []ir.Property{
+				{ID: "property/x/M/a", Name: named("a"), Type: ir.TypeRef{Target: "type/primitive/string"}},
 			}},
-			"t/x/E": &ir.Enum{ID: "t/x/E", Name: named("e"), ValueType: ir.PrimString, Members: []ir.EnumMember{
-				{ID: "e/x/E/s:a", Name: named("a"), Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+			"type/x/E": &ir.Enum{ID: "type/x/E", Name: named("e"), ValueType: ir.PrimitiveString, Members: []ir.EnumMember{
+				{ID: "enum-member/x/E/string:a", Name: named("a"), Value: ir.Value{Kind: ir.ValueString, String: "a"}},
 			}},
 		},
-		Services: []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
-			ID: "g/x/G", Name: named("g"),
+		Services: []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+			ID: "operation-group/x/G", Name: named("g"),
 			Operations: []ir.Operation{
 				{
-					ID: "op/x/o", Name: named("o"),
-					Params: []ir.Parameter{{ID: "param/x/o/q", Name: named("q"), Type: ir.TypeRef{Target: "t/prim/string"}}},
+					ID: "operation/x/o", Name: named("o"),
+					Params: []ir.Parameter{{ID: "parameter/x/o/q", Name: named("q"), Type: ir.TypeRef{Target: "type/primitive/string"}}},
 					Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 						Method: "GET", URITemplate: "/o",
-						ParamBindings: []ir.HTTPParamBinding{{Param: "param/x/o/q", Location: ir.HTTPLocationQuery}},
+						ParamBindings: []ir.HTTPParamBinding{{Param: "parameter/x/o/q", Location: ir.HTTPLocationQuery}},
 					}}},
 				},
 				{
-					ID: "op/x/p", Name: named("p"),
-					Params: []ir.Parameter{{ID: "param/x/p/z", Name: named("z"), Type: ir.TypeRef{Target: "t/prim/string"}}},
+					ID: "operation/x/p", Name: named("p"),
+					Params: []ir.Parameter{{ID: "parameter/x/p/z", Name: named("z"), Type: ir.TypeRef{Target: "type/primitive/string"}}},
 				},
 			},
 		}}}},
@@ -74,17 +74,17 @@ func scenarioCodes(doc *ir.Document, code string) []string {
 // reference, at the key, and a declared one is clean.
 func TestVerify_ScenarioKeyNamesADeclaredParameter(t *testing.T) {
 	t.Parallel()
-	const code = "ir/dangling-param-ref"
+	const code = "ir/dangling-parameter-ref"
 	doc := scenarioBase()
 	scenarioOperation(doc).Examples = []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{
-		Params: map[ir.ParamID]ir.Value{"param/x/none": scenarioValue},
+		Params: map[ir.ParameterID]ir.Value{"parameter/x/none": scenarioValue},
 	}}}
 
-	assert.Equal(t, []string{scenarioOp + ".Examples[0].Input.Params[param/x/none].key"}, scenarioCodes(doc, code))
+	assert.Equal(t, []string{scenarioOp + ".Examples[0].Input.Params[parameter/x/none].key"}, scenarioCodes(doc, code))
 
 	valid := scenarioBase()
 	scenarioOperation(valid).Examples = []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{
-		Params: map[ir.ParamID]ir.Value{"param/x/o/q": scenarioValue},
+		Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioValue},
 	}}}
 	assert.Empty(t, scenarioCodes(valid, code))
 }
@@ -94,17 +94,17 @@ func TestVerify_ScenarioKeyNamesADeclaredParameter(t *testing.T) {
 // map's key and not only its value.
 func TestVerify_ScenarioKeyIsNeverEmpty(t *testing.T) {
 	t.Parallel()
-	const code = "ir/empty-param-ref"
+	const code = "ir/empty-parameter-ref"
 	doc := scenarioBase()
 	scenarioOperation(doc).Examples = []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{
-		Params: map[ir.ParamID]ir.Value{"": scenarioValue},
+		Params: map[ir.ParameterID]ir.Value{"": scenarioValue},
 	}}}
 
 	assert.Equal(t, []string{scenarioOp + ".Examples[0].Input.Params[].key"}, scenarioCodes(doc, code))
 
 	valid := scenarioBase()
 	scenarioOperation(valid).Examples = []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{
-		Params: map[ir.ParamID]ir.Value{"param/x/o/q": scenarioValue},
+		Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioValue},
 	}}}
 	assert.Empty(t, scenarioCodes(valid, code))
 }
@@ -151,14 +151,14 @@ func TestVerify_ScenarioBodyIsStatedOneWay(t *testing.T) {
 		{
 			name: "a parameter bound into the body by property",
 			bind: ir.HTTPParamBinding{
-				Param: "param/x/o/q", Location: ir.HTTPLocationBodyProperty, BodyPath: []ir.PropID{"p/x/M/a"},
+				Param: "parameter/x/o/q", Location: ir.HTTPLocationBodyProperty, BodyPath: []ir.PropertyID{"property/x/M/a"},
 			},
 			input: ir.ScenarioInput{Body: &object},
 		},
 		{
 			name:  "a parameter bound as the whole body, valued beside the Body",
-			bind:  ir.HTTPParamBinding{Param: "param/x/o/q", Location: ir.HTTPLocationBody},
-			input: ir.ScenarioInput{Params: map[ir.ParamID]ir.Value{"param/x/o/q": scenarioValue}, Body: &str},
+			bind:  ir.HTTPParamBinding{Param: "parameter/x/o/q", Location: ir.HTTPLocationBody},
+			input: ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioValue}, Body: &str},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -189,14 +189,14 @@ func TestVerify_ScenarioParamValueIsHeldAsAnyValue(t *testing.T) {
 	const code = "ir/unknown-value-kind"
 	doc := scenarioBase()
 	scenarioOperation(doc).Examples = []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{
-		Params: map[ir.ParamID]ir.Value{"param/x/o/q": {Kind: "bogus"}},
+		Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": {Kind: "bogus"}},
 	}}}
 
-	assert.Equal(t, []string{scenarioOp + ".Examples[0].Input.Params[param/x/o/q].Kind"}, scenarioCodes(doc, code))
+	assert.Equal(t, []string{scenarioOp + ".Examples[0].Input.Params[parameter/x/o/q].Kind"}, scenarioCodes(doc, code))
 
 	valid := scenarioBase()
 	scenarioOperation(valid).Examples = []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{
-		Params: map[ir.ParamID]ir.Value{"param/x/o/q": scenarioValue},
+		Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioValue},
 	}}}
 	assert.Empty(t, scenarioCodes(valid, code))
 }
@@ -209,7 +209,7 @@ func TestVerify_ScenarioKeyOfAnotherOperationIsNotIrverifys(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
 	scenarioOperation(doc).Examples = []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{
-		Params: map[ir.ParamID]ir.Value{"param/x/p/z": scenarioValue},
+		Params: map[ir.ParameterID]ir.Value{"parameter/x/p/z": scenarioValue},
 	}}}
 
 	got := verifyDeclared(doc)

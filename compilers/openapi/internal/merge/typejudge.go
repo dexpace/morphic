@@ -180,11 +180,11 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 	aFor, bFor := j.standsFor(at, b.Target), j.standsFor(bt, a.Target).flipped()
 	switch {
 	case aBare && bBare:
-		return fromSpelling(typeformat.Relate(ap.Prim, bp.Prim))
+		return fromSpelling(typeformat.Relate(ap.PrimitiveKind, bp.PrimitiveKind))
 	case bBare:
-		return j.nodeAgainstBare(a, at, b, bp.Prim)
+		return j.nodeAgainstBare(a, at, b, bp.PrimitiveKind)
 	case aBare:
-		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
+		return j.nodeAgainstBare(b, bt, a, ap.PrimitiveKind).flipped()
 	case aFor != relUnrelated && bFor == relUnrelated:
 		return aFor
 	case bFor != relUnrelated && aFor == relUnrelated:
@@ -336,7 +336,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	au, bu := j.unaliased(at), j.unaliased(bt)
 	aSites, bSites := j.sites.written[0], j.sites.written[1]
 	switch {
-	case aok && ak.prim == ir.PrimAny, bok && bk.prim == ir.PrimAny:
+	case aok && ak.prim == ir.PrimitiveAny, bok && bk.prim == ir.PrimitiveAny:
 		return relUnrelated
 	case aok && bok:
 		if relateKinds(ak, bk) == relDisjoint || enumMisses(au, bk, b.Nullable) || enumMisses(bu, ak, a.Nullable) {
@@ -403,13 +403,13 @@ func sourceAdmits(walk FieldDeclarationContext, at ir.Provenance, kind JSONInsta
 
 // primInstance returns the kind of JSON instance a value of p is: a boolean, an
 // integer, a number, or a string, which every other primitive is written as.
-func primInstance(p ir.PrimKind) JSONInstanceKind {
+func primInstance(p ir.PrimitiveKind) JSONInstanceKind {
 	switch {
-	case p == ir.PrimBool:
+	case p == ir.PrimitiveBool:
 		return InstanceBoolean
-	case p == ir.PrimInteger || p.StrictlyWithin(ir.PrimInteger):
+	case p == ir.PrimitiveInteger || p.StrictlyWithin(ir.PrimitiveInteger):
 		return InstanceInteger
-	case p == ir.PrimNumber || p.StrictlyWithin(ir.PrimNumber):
+	case p == ir.PrimitiveNumber || p.StrictlyWithin(ir.PrimitiveNumber):
 		return InstanceNumber
 	default:
 		return InstanceString
@@ -433,7 +433,7 @@ func nodeInstance(td ir.TypeDef) JSONInstanceKind {
 		return InstanceBoolean
 	case lit.Value.Kind == ir.ValueNull:
 		return InstanceNull
-	case lit.Value.Kind == ir.ValueNumber && strings.ContainsAny(string(lit.Value.Num), ".eE"):
+	case lit.Value.Kind == ir.ValueNumber && strings.ContainsAny(string(lit.Value.Number), ".eE"):
 		return InstanceNumber
 	case lit.Value.Kind == ir.ValueNumber:
 		return InstanceInteger
@@ -593,7 +593,7 @@ func instanceKind(td ir.TypeDef) ir.TypeKind {
 // something only a node can hold gets an alias over the top type.
 func (r registry) isAnyType(ref ir.TypeRef) bool {
 	if k, ok := r.kindOf(ref); ok {
-		return k.prim == ir.PrimAny
+		return k.prim == ir.PrimitiveAny
 	}
 	td, ok := r.resolve(ref.Target)
 	return ok && td.Kind() == ir.KindAny
@@ -743,13 +743,13 @@ func fromSpelling(r typeformat.Relation) relation {
 	return relDisjoint
 }
 
-// isTop reports whether td is the schemaless top type, a bare PrimAny. An
+// isTop reports whether td is the schemaless top type, a bare PrimitiveAny. An
 // *ir.Any node is not: this compiler mints one only for a degraded lowering (an
 // enum past its member budget, an unconvertible const), which stands for a
 // narrower declaration.
 func isTop(td ir.TypeDef) bool {
 	p, ok := td.(*ir.Primitive)
-	return ok && p.Prim == ir.PrimAny
+	return ok && p.PrimitiveKind == ir.PrimitiveAny
 }
 
 // topAt reports whether a type a judgment at depth reads as td stands for the
@@ -807,7 +807,7 @@ func isDegraded(td ir.TypeDef) bool {
 // value, so an enum with no members is disjoint from any such kind. An enum or a
 // literal behind aliases is judged by its members or its value, which the
 // aliases can only narrow.
-func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRef, bareKind ir.PrimKind) relation {
+func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRef, bareKind ir.PrimitiveKind) relation {
 	end := j.unaliased(td)
 	if lit, ok := end.(*ir.Literal); ok {
 		return literalAgainst(lit.Value, valueKind{prim: bareKind}, bare.Nullable)
@@ -905,7 +905,7 @@ func (j typeJudge) boundedNodes(at, bt ir.TypeDef, depth int) relation {
 		if !ok {
 			return relUnrelated
 		}
-		return j.contained(a.Elem, b.Elem, extras{a.Constraints, a.Encoding, a.TypeCommon},
+		return j.contained(a.ElementType, b.ElementType, extras{a.Constraints, a.Encoding, a.TypeCommon},
 			extras{b.Constraints, b.Encoding, b.TypeCommon}, depth)
 	case *ir.MapT:
 		b, ok := bt.(*ir.MapT)
@@ -953,12 +953,12 @@ func boundsHolding(a, b *ir.Constraints) holding {
 // other's, and otherwise by verdict over every position, their bounds and what
 // else they say.
 func (j typeJudge) tuples(a, b *ir.Tuple, depth int) relation {
-	if len(a.Elems) != len(b.Elems) || (a.Rest == nil) != (b.Rest == nil) {
+	if len(a.ElementTypes) != len(b.ElementTypes) || (a.Rest == nil) != (b.Rest == nil) {
 		return relUnrelated
 	}
 	values := boundsHolding(a.Constraints, b.Constraints)
-	for i := range a.Elems {
-		h, ok := j.memberHolding(a.Elems[i], b.Elems[i], j.relateAt(a.Elems[i], b.Elems[i], depth+1))
+	for i := range a.ElementTypes {
+		h, ok := j.memberHolding(a.ElementTypes[i], b.ElementTypes[i], j.relateAt(a.ElementTypes[i], b.ElementTypes[i], depth+1))
 		if !ok {
 			return relUnrelated
 		}
@@ -1020,13 +1020,13 @@ func (j typeJudge) contained(ae, be ir.TypeRef, ax, bx extras, depth int) relati
 }
 
 // admitsEmpty reports whether a container with x admits the empty one: true when
-// x.Constraints is nil or holds neither MinItems nor MinProps above zero.
+// x.Constraints is nil or holds neither MinItems nor MinProperties above zero.
 func admitsEmpty(x extras) bool {
 	c := x.Constraints
 	if c == nil {
 		return true
 	}
-	return (c.MinItems == nil || *c.MinItems <= 0) && (c.MinProps == nil || *c.MinProps <= 0)
+	return (c.MinItems == nil || *c.MinItems <= 0) && (c.MinProperties == nil || *c.MinProperties <= 0)
 }
 
 // byNull orders two members of one target by null: the one that admits less is
@@ -1054,7 +1054,7 @@ const maxTypeResolveDepth = 64
 // string format of its own, as the table's string formats are kinds
 // (relateKinds).
 type valueKind struct {
-	prim   ir.PrimKind
+	prim   ir.PrimitiveKind
 	format string
 	// unjudged marks a string format whose values an Encoding writes in a text
 	// of its own, as http-date writes a datetime_offset, so prim's grammar,
@@ -1079,7 +1079,7 @@ func (k valueKind) admits(v ir.Value) bool {
 
 // judged reports whether k has a judge that can refuse a value: bytes has
 // none, and neither has a kind an encoding leaves unjudged.
-func (k valueKind) judged() bool { return k.prim != ir.PrimBytes && !k.unjudged }
+func (k valueKind) judged() bool { return k.prim != ir.PrimitiveBytes && !k.unjudged }
 
 // heldFormat returns the format enc names where the compiler holds its grammar
 // (admitsFormat) and enc says nothing else. An Encoding that also gives a wire
@@ -1118,9 +1118,9 @@ func formatAgainst(f string, k valueKind) relation {
 	switch {
 	case k.format == f:
 		return relSame
-	case k.format == "" && (k.prim == ir.PrimString || k.prim == ir.PrimAny):
+	case k.format == "" && (k.prim == ir.PrimitiveString || k.prim == ir.PrimitiveAny):
 		return firstTypeIsNarrower
-	case k.format == "" && k.prim == ir.PrimBytes:
+	case k.format == "" && k.prim == ir.PrimitiveBytes:
 		return relOverlap
 	default:
 		return relDisjoint
@@ -1147,7 +1147,7 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 		}
 		switch t := td.(type) {
 		case *ir.Primitive:
-			return kindUnder(first, t.Prim), true
+			return kindUnder(first, t.PrimitiveKind), true
 		case *ir.Enum:
 			return valueKind{prim: t.ValueType}, true
 		case *ir.Scalar:
@@ -1177,7 +1177,7 @@ func (r registry) travelsAs(s *ir.Scalar) ir.TypeID {
 	wire, wireOK := r.resolve(s.Encoding.WireType.Target)
 	bp, baseIsPrim := base.(*ir.Primitive)
 	wp, wireIsPrim := wire.(*ir.Primitive)
-	if !baseOK || !wireOK || !baseIsPrim || !wireIsPrim || spelledIn(bp.Prim, wp.Prim) {
+	if !baseOK || !wireOK || !baseIsPrim || !wireIsPrim || spelledIn(bp.PrimitiveKind, wp.PrimitiveKind) {
 		return s.Base.Target
 	}
 	return s.Encoding.WireType.Target
@@ -1185,7 +1185,7 @@ func (r registry) travelsAs(s *ir.Scalar) ir.TypeID {
 
 // spelledIn reports whether JSON writes a value of k as an instance of wire:
 // k is wire or narrows it, as bytes and datetime_offset narrow string.
-func spelledIn(k, wire ir.PrimKind) bool {
+func spelledIn(k, wire ir.PrimitiveKind) bool {
 	rel := typeformat.Relate(k, wire)
 	return rel == typeformat.Same || rel == typeformat.ANarrower
 }
@@ -1194,8 +1194,8 @@ func spelledIn(k, wire ir.PrimKind) bool {
 // Encoding on the chain: a held format over string narrows it (heldFormat),
 // and a text enc names over a string format leaves it unjudged
 // (rewritesText).
-func kindUnder(enc *ir.Encoding, k ir.PrimKind) valueKind {
-	if format, held := heldFormat(enc); held && k == ir.PrimString {
+func kindUnder(enc *ir.Encoding, k ir.PrimitiveKind) valueKind {
+	if format, held := heldFormat(enc); held && k == ir.PrimitiveString {
 		return valueKind{prim: k, format: format}
 	}
 	return valueKind{prim: k, unjudged: rewritesText(enc, k)}
@@ -1207,8 +1207,8 @@ func kindUnder(enc *ir.Encoding, k ir.PrimKind) valueKind {
 // the compiler holds, as time's is another text. A kind JSON spells otherwise,
 // string itself included, is judged by its JSON type, which no encoding name
 // changes.
-func rewritesText(enc *ir.Encoding, k ir.PrimKind) bool {
-	return enc != nil && enc.Name != "" && typeformat.Relate(k, ir.PrimString) == typeformat.ANarrower
+func rewritesText(enc *ir.Encoding, k ir.PrimitiveKind) bool {
+	return enc != nil && enc.Name != "" && typeformat.Relate(k, ir.PrimitiveString) == typeformat.ANarrower
 }
 
 // admits reports whether v is a value of the type ref names. A null is judged
@@ -1229,7 +1229,7 @@ func (r registry) admitsAt(ref ir.TypeRef, v ir.Value, depth int) bool {
 	}
 	switch t := td.(type) {
 	case *ir.Primitive:
-		return Admits(t.Prim, v)
+		return Admits(t.PrimitiveKind, v)
 	case *ir.Any:
 		return true
 	case *ir.Enum:
@@ -1245,7 +1245,7 @@ func (r registry) admitsAt(ref ir.TypeRef, v ir.Value, depth int) bool {
 		return t.Base != nil && encodingAdmits(t.Encoding, v) && admitsConstraints(t.Constraints, v, depth) &&
 			r.admitsAt(*t.Base, v, depth+1)
 	case *ir.List:
-		return v.Kind == ir.ValueList && admitsConstraints(t.Constraints, v, depth) && r.admitsAll(t.Elem, v.List, depth)
+		return v.Kind == ir.ValueList && admitsConstraints(t.Constraints, v, depth) && r.admitsAll(t.ElementType, v.List, depth)
 	case *ir.MapT:
 		return v.Kind == ir.ValueObject && admitsConstraints(t.Constraints, v, depth) &&
 			r.admitsFields(t.Value, v.Object, depth)

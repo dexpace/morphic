@@ -17,13 +17,13 @@ import (
 func TestValidate_DiscriminatorMissingVariant(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/u"] = &ir.Union{
-		ID:       "t/u",
-		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
+	doc.Types["type/u"] = &ir.Union{
+		ID:       "type/u",
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/m"}}},
 		Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
 			// t/prim/string exists but is not one of the union's variants.
-			Mapping: map[string]ir.TypeID{"a": "t/prim/string"},
+			Mapping: map[string]ir.TypeID{"a": "type/primitive/string"},
 		},
 	}
 	diags := validated(t, doc)
@@ -39,26 +39,26 @@ func TestValidate_DiscriminatorMissingVariant(t *testing.T) {
 func TestValidate_ModelDiscriminator(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	base := &ir.Model{ID: "t/base", Abstract: true}
-	doc.Types["t/base"] = base
+	base := &ir.Model{ID: "type/base", Abstract: true}
+	doc.Types["type/base"] = base
 	// Legal subtype via Base.
-	doc.Types["t/viaBase"] = &ir.Model{
-		ID: "t/viaBase", Base: &ir.TypeRef{Target: "t/base"},
+	doc.Types["type/viaBase"] = &ir.Model{
+		ID: "type/viaBase", Base: &ir.TypeRef{Target: "type/base"},
 	}
 	// Legal subtype via Implements.
-	doc.Types["t/viaImpl"] = &ir.Model{
-		ID: "t/viaImpl", Implements: []ir.TypeRef{{Target: "t/base"}},
+	doc.Types["type/viaImpl"] = &ir.Model{
+		ID: "type/viaImpl", Implements: []ir.TypeRef{{Target: "type/base"}},
 	}
 	// Model that is neither a subtype nor implementer of base.
-	doc.Types["t/unrelated"] = &ir.Model{ID: "t/unrelated"}
+	doc.Types["type/unrelated"] = &ir.Model{ID: "type/unrelated"}
 
 	base.Discriminator = &ir.Discriminator{
 		PropertyName: "kind",
 		Mapping: map[string]ir.TypeID{
-			"a": "t/viaBase",     // valid via Base
-			"b": "t/viaImpl",     // valid via Implements
-			"c": "t/prim/string", // not a model -> invalid
-			"d": "t/unrelated",   // model but not a subtype -> invalid
+			"a": "type/viaBase",          // valid via Base
+			"b": "type/viaImpl",          // valid via Implements
+			"c": "type/primitive/string", // not a model -> invalid
+			"d": "type/unrelated",        // model but not a subtype -> invalid
 		},
 	}
 	diags := validated(t, doc)
@@ -73,11 +73,11 @@ func TestValidate_ModelDiscriminatorRoutesToItsConcreteBase(t *testing.T) {
 	t.Parallel()
 	for _, abstract := range []bool{false, true} {
 		doc := validDoc()
-		base := &ir.Model{ID: "t/base", Abstract: abstract, Discriminator: &ir.Discriminator{
-			PropertyName: "kind", Mapping: map[string]ir.TypeID{"base": "t/base", "sub": "t/sub"}, Default: "t/base",
+		base := &ir.Model{ID: "type/base", Abstract: abstract, Discriminator: &ir.Discriminator{
+			PropertyName: "kind", Mapping: map[string]ir.TypeID{"base": "type/base", "sub": "type/sub"}, Default: "type/base",
 		}}
-		doc.Types["t/base"] = base
-		doc.Types["t/sub"] = &ir.Model{ID: "t/sub", Base: &ir.TypeRef{Target: "t/base"}, DiscriminatorValue: "sub"}
+		doc.Types["type/base"] = base
+		doc.Types["type/sub"] = &ir.Model{ID: "type/sub", Base: &ir.TypeRef{Target: "type/base"}, DiscriminatorValue: "sub"}
 		diags := validated(t, doc)
 
 		want := map[bool]int{false: 0, true: 2}[abstract]
@@ -99,35 +99,35 @@ func TestValidate_ModelDiscriminatorRoutesToItsConcreteBase(t *testing.T) {
 func TestValidate_SubtypeThroughAliasChain(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/base"] = &ir.Model{ID: "t/base", Abstract: true}
-	doc.Types["t/alias"] = &ir.Scalar{
-		ID: "t/alias", Base: &ir.TypeRef{Target: "t/aliasOfAlias"},
+	doc.Types["type/base"] = &ir.Model{ID: "type/base", Abstract: true}
+	doc.Types["type/alias"] = &ir.Scalar{
+		ID: "type/alias", Base: &ir.TypeRef{Target: "type/aliasOfAlias"},
 	}
-	doc.Types["t/aliasOfAlias"] = &ir.Scalar{
-		ID: "t/aliasOfAlias", Base: &ir.TypeRef{Target: "t/base"},
+	doc.Types["type/aliasOfAlias"] = &ir.Scalar{
+		ID: "type/aliasOfAlias", Base: &ir.TypeRef{Target: "type/base"},
 	}
-	doc.Types["t/sub"] = &ir.Model{
-		ID: "t/sub", Base: &ir.TypeRef{Target: "t/alias"},
+	doc.Types["type/sub"] = &ir.Model{
+		ID: "type/sub", Base: &ir.TypeRef{Target: "type/alias"},
 	}
 	// A two-node alias cycle: following it must stop, not recurse forever.
-	doc.Types["t/loopA"] = &ir.Scalar{
-		ID: "t/loopA", Base: &ir.TypeRef{Target: "t/loopB"},
+	doc.Types["type/loopA"] = &ir.Scalar{
+		ID: "type/loopA", Base: &ir.TypeRef{Target: "type/loopB"},
 	}
-	doc.Types["t/loopB"] = &ir.Scalar{
-		ID: "t/loopB", Base: &ir.TypeRef{Target: "t/loopA"},
+	doc.Types["type/loopB"] = &ir.Scalar{
+		ID: "type/loopB", Base: &ir.TypeRef{Target: "type/loopA"},
 	}
-	doc.Types["t/looped"] = &ir.Model{
-		ID: "t/looped", Base: &ir.TypeRef{Target: "t/loopA"},
+	doc.Types["type/looped"] = &ir.Model{
+		ID: "type/looped", Base: &ir.TypeRef{Target: "type/loopA"},
 	}
-	doc.Types["t/base"].(*ir.Model).Discriminator = &ir.Discriminator{
+	doc.Types["type/base"].(*ir.Model).Discriminator = &ir.Discriminator{
 		PropertyName: "kind",
-		Mapping:      map[string]ir.TypeID{"a": "t/sub", "b": "t/looped"},
+		Mapping:      map[string]ir.TypeID{"a": "type/sub", "b": "type/looped"},
 	}
 
 	diags := validated(t, doc)
 	assert.Equal(t, 1, countCode(t, diags, "pass/discriminator-missing-variant"),
 		"only the cyclic alias fails to reach the base: %v", irtest.DiagCodes(diags))
-	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"), "t/looped")
+	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"), "type/looped")
 }
 
 // TestValidate_TransitiveSubtypeIsAVariant pins that a mapping onto a descendant
@@ -141,30 +141,30 @@ func TestValidate_SubtypeThroughAliasChain(t *testing.T) {
 func TestValidate_TransitiveSubtypeIsAVariant(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/base"] = &ir.Model{ID: "t/base", Abstract: true}
-	doc.Types["t/child"] = &ir.Model{
-		ID: "t/child", Base: &ir.TypeRef{Target: "t/base"},
+	doc.Types["type/base"] = &ir.Model{ID: "type/base", Abstract: true}
+	doc.Types["type/child"] = &ir.Model{
+		ID: "type/child", Base: &ir.TypeRef{Target: "type/base"},
 	}
-	doc.Types["t/grandchild"] = &ir.Model{
-		ID: "t/grandchild", Base: &ir.TypeRef{Target: "t/child"},
+	doc.Types["type/grandchild"] = &ir.Model{
+		ID: "type/grandchild", Base: &ir.TypeRef{Target: "type/child"},
 	}
 	// Conformance reached through an inherited interface: the same distance, on
 	// the other composition relation.
-	doc.Types["t/viaIface"] = &ir.Model{
-		ID: "t/viaIface", Implements: []ir.TypeRef{{Target: "t/child"}},
+	doc.Types["type/viaIface"] = &ir.Model{
+		ID: "type/viaIface", Implements: []ir.TypeRef{{Target: "type/child"}},
 	}
-	doc.Types["t/base"].(*ir.Model).Discriminator = &ir.Discriminator{
+	doc.Types["type/base"].(*ir.Model).Discriminator = &ir.Discriminator{
 		PropertyName: "kind",
 		Mapping: map[string]ir.TypeID{
-			"child": "t/child",
-			"grand": "t/grandchild",
-			"iface": "t/viaIface",
-			"other": "t/m", // composes nothing: still not a variant.
+			"child": "type/child",
+			"grand": "type/grandchild",
+			"iface": "type/viaIface",
+			"other": "type/m", // composes nothing: still not a variant.
 		},
 	}
 
 	assert.Contains(t, messageForCode(t, validated(t, doc), "pass/discriminator-missing-variant"),
-		"t/m", "only the model composing nothing is refused")
+		"type/m", "only the model composing nothing is refused")
 }
 
 // TestValidate_SubtypeWalkTerminatesOnACompositionCycle pins that walking the
@@ -174,32 +174,32 @@ func TestValidate_TransitiveSubtypeIsAVariant(t *testing.T) {
 func TestValidate_SubtypeWalkTerminatesOnACompositionCycle(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/base"] = &ir.Model{
-		ID:       "t/base",
+	doc.Types["type/base"] = &ir.Model{
+		ID:       "type/base",
 		Abstract: true,
 		Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
-			Mapping:      map[string]ir.TypeID{"a": "t/loopA"},
+			Mapping:      map[string]ir.TypeID{"a": "type/loopA"},
 		},
 	}
-	doc.Types["t/loopA"] = &ir.Model{
-		ID: "t/loopA", Base: &ir.TypeRef{Target: "t/loopB"},
+	doc.Types["type/loopA"] = &ir.Model{
+		ID: "type/loopA", Base: &ir.TypeRef{Target: "type/loopB"},
 	}
-	doc.Types["t/loopB"] = &ir.Model{
-		ID: "t/loopB", Base: &ir.TypeRef{Target: "t/loopA"},
+	doc.Types["type/loopB"] = &ir.Model{
+		ID: "type/loopB", Base: &ir.TypeRef{Target: "type/loopA"},
 	}
 
 	assert.Contains(t, messageForCode(t, validated(t, doc), "pass/discriminator-missing-variant"),
-		"t/loopA", "a cycle reaches no base, so the mapping is reported")
+		"type/loopA", "a cycle reaches no base, so the mapping is reported")
 }
 
 // discriminatedUnion returns a document whose union declares t/m as its only
 // variant and maps the wire value "a" onto target.
 func discriminatedUnion(target ir.TypeID) *ir.Document {
 	doc := validDoc()
-	doc.Types["t/u"] = &ir.Union{
-		ID:       "t/u",
-		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
+	doc.Types["type/u"] = &ir.Union{
+		ID:       "type/u",
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/m"}}},
 		Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
 			Mapping:      map[string]ir.TypeID{"a": target},
@@ -216,7 +216,7 @@ func discriminatedUnion(target ir.TypeID) *ir.Document {
 // a reference-integrity code to learn about its own defect.
 func TestValidate_DanglingDiscriminatorTargetIsReportedTwice(t *testing.T) {
 	t.Parallel()
-	diags := validated(t, discriminatedUnion("t/ghost"))
+	diags := validated(t, discriminatedUnion("type/ghost"))
 
 	assert.Equal(t, 1, countCode(t, diags, "ir/dangling-type-ref"))
 	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"),
@@ -230,7 +230,7 @@ func TestValidate_DanglingDiscriminatorTargetIsReportedTwice(t *testing.T) {
 // discriminator check firing twice.
 func TestValidate_DeclaredNonVariantIsReportedOnce(t *testing.T) {
 	t.Parallel()
-	diags := validated(t, discriminatedUnion("t/prim/string"))
+	diags := validated(t, discriminatedUnion("type/primitive/string"))
 
 	assert.Equal(t, 0, countCode(t, diags, "ir/dangling-type-ref"))
 	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"),
@@ -241,16 +241,16 @@ func TestValidate_DeclaredNonVariantIsReportedOnce(t *testing.T) {
 // onto target, with t/sub composing the base so a legal member exists.
 func discriminatedModel(target ir.TypeID) *ir.Document {
 	doc := validDoc()
-	doc.Types["t/base"] = &ir.Model{
-		ID:       "t/base",
+	doc.Types["type/base"] = &ir.Model{
+		ID:       "type/base",
 		Abstract: true,
 		Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
 			Mapping:      map[string]ir.TypeID{"a": target},
 		},
 	}
-	doc.Types["t/sub"] = &ir.Model{
-		ID: "t/sub", Base: &ir.TypeRef{Target: "t/base"},
+	doc.Types["type/sub"] = &ir.Model{
+		ID: "type/sub", Base: &ir.TypeRef{Target: "type/base"},
 	}
 	return doc
 }
@@ -269,14 +269,14 @@ func discriminatorArms() []struct {
 		legal ir.TypeID
 		doc   func(def ir.TypeID) *ir.Document
 	}{
-		{"union", "t/m", func(def ir.TypeID) *ir.Document {
-			doc := discriminatedUnion("t/m")
-			doc.Types["t/u"].(*ir.Union).Discriminator.Default = def
+		{"union", "type/m", func(def ir.TypeID) *ir.Document {
+			doc := discriminatedUnion("type/m")
+			doc.Types["type/u"].(*ir.Union).Discriminator.Default = def
 			return doc
 		}},
-		{"model", "t/sub", func(def ir.TypeID) *ir.Document {
-			doc := discriminatedModel("t/sub")
-			doc.Types["t/base"].(*ir.Model).Discriminator.Default = def
+		{"model", "type/sub", func(def ir.TypeID) *ir.Document {
+			doc := discriminatedModel("type/sub")
+			doc.Types["type/base"].(*ir.Model).Discriminator.Default = def
 			return doc
 		}},
 	}
@@ -295,7 +295,7 @@ func TestValidate_DiscriminatorDefaultIsHeldToVariantMembership(t *testing.T) {
 	for _, tc := range discriminatorArms() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			diags := validated(t, tc.doc("t/prim/string"))
+			diags := validated(t, tc.doc("type/primitive/string"))
 
 			assert.Equal(t, 0, countCode(t, diags, "ir/dangling-type-ref"))
 			msg := messageForCode(t, diags, "pass/discriminator-missing-variant")
@@ -329,7 +329,7 @@ func TestValidate_DanglingDiscriminatorDefaultIsReportedTwice(t *testing.T) {
 	for _, tc := range discriminatorArms() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			diags := validated(t, tc.doc("t/ghost"))
+			diags := validated(t, tc.doc("type/ghost"))
 
 			assert.Equal(t, 1, countCode(t, diags, "ir/dangling-type-ref"))
 			assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"),
@@ -344,11 +344,11 @@ func TestValidate_DanglingDiscriminatorDefaultIsReportedTwice(t *testing.T) {
 // the union, follow the wire values their messages name.
 func TestValidate_MappingDiagnosticsAreDeterministic(t *testing.T) {
 	t.Parallel()
-	doc := discriminatedUnion("t/m")
-	u, ok := doc.Types["t/u"].(*ir.Union)
+	doc := discriminatedUnion("type/m")
+	u, ok := doc.Types["type/u"].(*ir.Union)
 	require.True(t, ok)
 	for _, key := range []string{"z", "b", "q", "c", "m"} {
-		u.Discriminator.Mapping[key] = "t/none"
+		u.Discriminator.Mapping[key] = "type/none"
 	}
 	messages := func() []string {
 		found := withCode(validated(t, doc), "pass/discriminator-missing-variant")
@@ -374,17 +374,17 @@ func TestValidate_MappingDiagnosticsAreDeterministic(t *testing.T) {
 // next would let the mapping through.
 func TestValidate_UnionMappingIsHeldToItsOwnVariants(t *testing.T) {
 	t.Parallel()
-	doc := discriminatedUnion("t/n")
-	doc.Types["t/n"] = &ir.Model{ID: "t/n"}
-	doc.Types["t/a"] = &ir.Union{ // sorts before t/u, so it is read first
-		ID:            "t/a",
-		Variants:      []ir.Variant{{Type: ir.TypeRef{Target: "t/n"}}},
-		Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{"n": "t/n"}},
+	doc := discriminatedUnion("type/n")
+	doc.Types["type/n"] = &ir.Model{ID: "type/n"}
+	doc.Types["type/a"] = &ir.Union{ // sorts before t/u, so it is read first
+		ID:            "type/a",
+		Variants:      []ir.Variant{{Type: ir.TypeRef{Target: "type/n"}}},
+		Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{"n": "type/n"}},
 	}
 
 	found := withCode(validated(t, doc), "pass/discriminator-missing-variant")
-	require.Len(t, found, 1, "the union listing t/n routes to it, and the other does not")
-	assert.Equal(t, `discriminator mapping "a" on t/u references "t/n", which is not a variant of it`, found[0].Message)
+	require.Len(t, found, 1, "the union listing type/n routes to it, and the other does not")
+	assert.Equal(t, `discriminator mapping "a" on type/u references "type/n", which is not a variant of it`, found[0].Message)
 }
 
 // TestValidate_UnionDiscriminatorAsksNothingOfAVariantsTag pins that a union's
@@ -395,25 +395,25 @@ func TestValidate_UnionMappingIsHeldToItsOwnVariants(t *testing.T) {
 func TestValidate_UnionDiscriminatorAsksNothingOfAVariantsTag(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/prim/int64"] = &ir.Primitive{ID: "t/prim/int64", Prim: ir.PrimInt64}
+	doc.Types["type/primitive/int64"] = &ir.Primitive{ID: "type/primitive/int64", PrimitiveKind: ir.PrimitiveInt64}
 	variant := func(id ir.TypeID, tag *ir.Property) *ir.Model {
 		m := &ir.Model{ID: id}
 		if tag != nil {
-			tag.ID = ir.PropID("p/" + id + "/kind")
+			tag.ID = ir.PropertyID("property/" + id + "/kind")
 			m.Properties = []ir.Property{*tag}
 		}
 		return m
 	}
 	variants := map[ir.TypeID]*ir.Model{
-		"t/has":      variant("t/has", &ir.Property{WireName: "kind", Required: true, Type: ir.TypeRef{Target: "t/prim/string"}}),
-		"t/lacks":    variant("t/lacks", nil),
-		"t/optional": variant("t/optional", &ir.Property{WireName: "kind", Type: ir.TypeRef{Target: "t/prim/string"}}),
-		"t/number":   variant("t/number", &ir.Property{WireName: "kind", Required: true, Type: ir.TypeRef{Target: "t/prim/int64"}}),
+		"type/has":      variant("type/has", &ir.Property{WireName: "kind", Required: true, Type: ir.TypeRef{Target: "type/primitive/string"}}),
+		"type/lacks":    variant("type/lacks", nil),
+		"type/optional": variant("type/optional", &ir.Property{WireName: "kind", Type: ir.TypeRef{Target: "type/primitive/string"}}),
+		"type/number":   variant("type/number", &ir.Property{WireName: "kind", Required: true, Type: ir.TypeRef{Target: "type/primitive/int64"}}),
 	}
-	u := &ir.Union{ID: "t/pet", Exclusive: true, WireTagged: true, Closed: true, Discriminator: &ir.Discriminator{
+	u := &ir.Union{ID: "type/pet", Exclusive: true, WireTagged: true, Closed: true, Discriminator: &ir.Discriminator{
 		PropertyName: "kind", Mapping: map[string]ir.TypeID{},
 	}}
-	for _, id := range []ir.TypeID{"t/has", "t/lacks", "t/optional", "t/number"} {
+	for _, id := range []ir.TypeID{"type/has", "type/lacks", "type/optional", "type/number"} {
 		doc.Types[id] = variants[id]
 		u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: id}})
 		u.Discriminator.Mapping[string(id)] = id

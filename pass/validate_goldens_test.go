@@ -45,7 +45,7 @@ func withTheCode(code string) func(ir.Diagnostic) bool {
 
 const (
 	schemas      = "conformance/openapi/"
-	componentsOf = "p/openapi/components/schemas/"
+	componentsOf = "property/openapi/components/schemas/"
 )
 
 // TestValidate_BoundsFireOnTheGoldensWhereTheirSpecsContradictThemselves holds
@@ -77,7 +77,7 @@ func TestValidate_DefaultsFireOnTheGoldensWhereTheirTypeAdmitsNothingLikeThem(t 
 		schemas + "allof-redeclared-bounds.golden.json @ " + componentsOf + "DefaultPastItsOwnBound/allOf/0/properties/p: " +
 			"default lies outside the bounds declared for it",
 		schemas + "defaults.golden.json @ " + componentsOf + "S/properties/blob: " +
-			"default is bytes, and t/prim/string holds a string",
+			"default is bytes, and type/primitive/string holds a string",
 	}, got)
 }
 
@@ -97,8 +97,8 @@ func TestValidate_ACompositionCycleFiresOnTheGoldenWhoseModelExtendsItself(t *te
 	got := onTheGoldens(t, validatesOnce(t), withTheCode(cycleCode))
 
 	assert.Equal(t, []string{
-		schemas + "union-restated-branches.golden.json @ t/openapi/components/schemas/RenderSelf: composition never ends: " +
-			"base t/openapi/components/schemas/RenderSelf leads back into a cycle of bases and mixins",
+		schemas + "union-restated-branches.golden.json @ type/openapi/components/schemas/RenderSelf: composition never ends: " +
+			"base type/openapi/components/schemas/RenderSelf leads back into a cycle of bases and mixins",
 	}, got)
 }
 
@@ -119,7 +119,7 @@ func TestNames_HeaderCollisionsFireOnTheGoldenHoldingOneAndInheritedPropertiesOn
 	}
 
 	assert.Equal(t, []string{
-		schemas + "header-name-case.golden.json @ op/openapi/paths/~1traces/get: in operation op/openapi/paths/~1traces/get, " +
+		schemas + "header-name-case.golden.json @ operation/openapi/paths/~1traces/get: in operation operation/openapi/paths/~1traces/get, " +
 			`response "200", headers 0 ("x-rate") and 1 ("X-Rate") share the neutral name "x_rate", ` +
 			"so a target can tell them apart only by ID",
 	}, onTheGoldens(t, names, scope("response ")))

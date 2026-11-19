@@ -262,7 +262,7 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 					scalar, ok := typeByName(doc, name).(*ir.Scalar)
 					require.True(t, ok, "%s is a scalar, got %T", name, typeByName(doc, name))
 					require.NotNil(t, scalar.Base)
-					assert.Equal(t, ir.PrimTypeID(ir.PrimAny), scalar.Base.Target, "%s lowers to any", name)
+					assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveAny), scalar.Base.Target, "%s lowers to any", name)
 				}
 				if tc.alias != "" {
 					scalar, ok := typeByName(doc, tc.alias).(*ir.Scalar)
@@ -540,7 +540,7 @@ components:
 
 // TestCompile_NonUTF8FragmentReachesNoIdentifier is the compiler-level half of
 // the GitHub #520 fix. A fragment that decodes to bytes that are not UTF-8 must
-// never reach a PropID, since no document key can spell them and the IR cannot
+// never reach a PropertyID, since no document key can spell them and the IR cannot
 // encode one that does: the multipart body's part, the property written beside
 // the $ref, keys the body's own property, whose pointer is the body's.
 func TestCompile_NonUTF8FragmentReachesNoIdentifier(t *testing.T) {

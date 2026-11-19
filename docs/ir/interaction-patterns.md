@@ -31,12 +31,12 @@ type PropPath struct {
                        // (the enclosing response body, message payload, …)
     In       string    // "" = body/payload | "header" — continuation tokens and reply addresses
                        // can live in response/message headers, not just bodies
-    Segments []PropID
+    Segments []PropertyID
 }
-type InputPath struct{ Param *ParamID; Segments []PropID } // nil Param = the request body;
+type InputPath struct{ Param *ParameterID; Segments []PropertyID } // nil Param = the request body;
                                                             // no Segments = the root whole
 // InputPath.Param, like Idempotency.TokenParam, names a parameter of the operation
-// carrying it: another operation's ParamID, or a field argument's, is a well-formed
+// carrying it: another operation's ParameterID, or a field argument's, is a well-formed
 // reference to the wrong parameter, and pass.Validate rejects it
 // (pass/param-binding-mismatch).
 ```
@@ -81,9 +81,9 @@ speaks of a walk ([`pagination-policy`](../compilers/openapi.md#pagination-polic
 ```go
 type LongRunning struct {
     FinalStateVia string       // "operation-location" | "status-monitor" | "original-uri" | …
-    PollingOperation *OpID     // declared poll op (Azure.Core @pollingOperation — a library
+    PollingOperation *OperationID     // declared poll op (Azure.Core @pollingOperation — a library
                                // convention, not core TypeSpec)
-    FinalOperation   *OpID     // declared final-result op (Azure.Core @finalOperation)
+    FinalOperation   *OperationID     // declared final-result op (Azure.Core @finalOperation)
     PollingType   *TypeRef
     FinalType     *TypeRef
     ResultPath    *PropPath
@@ -97,7 +97,7 @@ acceptor lists and JMESPath matchers are preserved verbatim in `Operation.Unmode
 ## Streaming
 
 ```go
-type StreamingMode string      // "" (none) | "client" | "server" | "bidi"
+type StreamingMode string      // "" (none) | "client" | "server" | "bidirectional"
 
 type StreamDetail struct {
     Events  *TypeRef   // stream element type, of any kind; nil where the contents that stream
@@ -131,7 +131,7 @@ length-prefixed events) has no field of its own: over HTTP the streaming content
 states it, another binding frames its own messages, and the plan derives which
 ([streams](../emitters/plan/streams.md)). `Content.Item` declares what one item is; a compiler that
 reads a stream from a media type alone names what one frame holds as `Events`, a list `Type`'s
-`Elem`, else the `Type`, or `bytes` for a file, whose `Type` describes the whole, a reading the
+`ElementType`, else the `Type`, or `bytes` for a file, whose `Type` describes the whole, a reading the
 operation's `Provenance.Inferred` and each such content's `Stream.Inferred` mark. An element need
 not be a union, and `Variant.Event` applies only where it is one.
 

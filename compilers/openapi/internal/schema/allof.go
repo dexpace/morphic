@@ -418,7 +418,7 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir
 	}
 
 	closer := comp.closer
-	if closer.schema != nil && m.Additional == ir.AdditionalClosed && m.AdditionalProps != nil && m.AdditionalProps.Value != nil {
+	if closer.schema != nil && m.Additional == ir.AdditionalClosed && m.AdditionalProperties != nil && m.AdditionalProperties.Value != nil {
 		_, keptDiags := annotation.PreserveSchemaKeyword(&m.Unmodeled, closer.schema, "additionalProperties",
 			ir.ReasonDegradedLowering, closer.at, c.Place())
 		diags = append(diags, keptDiags...)

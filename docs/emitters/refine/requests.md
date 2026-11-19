@@ -85,6 +85,6 @@ for each such content needs a name the shape rules do not give, since which memb
 the content's encoding and no shape. T-48 holds it. An emitter that does not read
 `Content.CatchAllEncoding` degrades to its own rule for the parts a catch-all admits, as for a
 property with no `Encoding` entry: the field restates the content type OpenAPI gives the value's type
-by default and the part's `Multi` and `Filename`, so a rule deriving those from the type sends what
+by default and the part's `RepeatsPerArrayItem` and `HasFilename`, so a rule deriving those from the type sends what
 the field says, and one that does not, sending an array value as one part or a binary one with no
 file name, sends a request the API may refuse, though never one missing a member.

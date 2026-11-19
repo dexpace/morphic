@@ -239,7 +239,7 @@ func orderFree(arrange func(elems [][]byte) []byte) *json.Marshalers {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.OperationGroup) error {
 			return writeOrderFree(enc, len(v), func(i int) any { return v[i] }, arrange)
 		}),
-		sortedElements[ir.PatternProps](arrange),
+		sortedElements[ir.PatternProperties](arrange),
 		sortedElements[ir.Field](arrange),
 		sortedElements[ir.ServerVariable](arrange),
 		sortedElements[ir.OAuthScope](arrange),

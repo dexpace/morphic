@@ -17,7 +17,7 @@ func declaredIn(pointers ...jsontext.Pointer) []declaration {
 	decls := make([]declaration, 0, len(pointers))
 	for _, p := range pointers {
 		decls = append(decls, declaration{prop: ir.Property{
-			ID: ir.PropID("p/test" + p), WireName: "p", Provenance: ptrAt(p), Type: ir.TypeRef{Target: "t/prim/string"},
+			ID: ir.PropertyID("property/test" + p), WireName: "p", Provenance: ptrAt(p), Type: ir.TypeRef{Target: "type/primitive/string"},
 		}, source: written(`{}`)})
 	}
 	return decls
@@ -84,17 +84,17 @@ func TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn(t *testing.T) {
 		name    string
 		decls   []jsontext.Pointer
 		nodes   []jsontext.Pointer
-		id      ir.PropID
+		id      ir.PropertyID
 		pointer jsontext.Pointer
 	}{
-		{"no other node", []jsontext.Pointer{first, later}, nil, "p/test" + first, first},
+		{"no other node", []jsontext.Pointer{first, later}, nil, "property/test" + first, first},
 		{"the branch holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, mintedProp(later), later},
 		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, mintedProp(later), later},
-		{"the schema holding every declaration", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s"}, "p/test" + first, first},
-		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, "p/test" + first, first},
-		{"a branch holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "p/test" + first, first},
+		{"the schema holding every declaration", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s"}, "property/test" + first, first},
+		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, "property/test" + first, first},
+		{"a branch holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "property/test" + first, first},
 	} {
-		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}})
+		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}})
 		g.walk.interned = tc.nodes
 
 		got := g.fold(declaredIn(tc.decls...))
@@ -112,13 +112,13 @@ func TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
 	const first, later = "/s/allOf/0/properties/p", "/s/allOf/1/properties/p"
 	for _, tc := range []struct {
 		name  string
-		names ir.PropID
-		want  ir.PropID
+		names ir.PropertyID
+		want  ir.PropertyID
 	}{
-		{"the folded field", "p/test" + first, mintedProp(later)},
-		{"another field", "p/test/other", "p/test/other"},
+		{"the folded field", "property/test" + first, mintedProp(later)},
+		{"another field", "property/test/other", "property/test/other"},
 	} {
-		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}})
+		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}})
 		g.walk.interned = []jsontext.Pointer{"/s/allOf/0"}
 		m := &ir.Model{Discriminator: &ir.Discriminator{Property: tc.names}}
 		idx, settle := indexOver(m, g)

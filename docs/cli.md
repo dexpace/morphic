@@ -120,7 +120,7 @@ exactly, and a reason:
   two of the document's types at `doc`, so a rule accepting one there accepts the next (#1825).
 - `pointer` places the rule at the findings this JSON Pointer locates in the spec, the file
   compiled, an overlay's writing into it included; `node` places it at the findings an IR pass
-  located at that IR node, such as `s/openapi/0`. A rule names at most one place, and one naming a
+  located at that IR node, such as `service/openapi/0`. A rule names at most one place, and one naming a
   place outranks one naming only the code. A finding in a document a `$ref` reads (#1804), or
   located by a line alone, can be ruled by its code only.
 

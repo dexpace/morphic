@@ -388,23 +388,23 @@ func fillCatchAll(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, add
 	default:
 		ref, refDiags := Ref(c, ts, depth, ap, pointer+ids.Ptr("additionalProperties"))
 		diags = append(diags, refDiags...)
-		m.AdditionalProps = &ir.AdditionalProps{Value: &ref}
+		m.AdditionalProperties = &ir.AdditionalProperties{Value: &ref}
 	}
 	patterns, patternDiags := patternProps(c, ts, depth, s, pointer)
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
-		if m.AdditionalProps == nil {
+		if m.AdditionalProperties == nil {
 			// A key no pattern matches is unconstrained unless a closure says
 			// otherwise. Beside one after composition the source writes no schema
 			// for it, so none is supplied: such a key is admitted only where
 			// composition evaluates it.
-			m.AdditionalProps = &ir.AdditionalProps{}
+			m.AdditionalProperties = &ir.AdditionalProperties{}
 			if !closes {
-				top := ts.PrimRef(ir.PrimAny)
-				m.AdditionalProps.Value = &top
+				top := ts.PrimRef(ir.PrimitiveAny)
+				m.AdditionalProperties.Value = &top
 			}
 		}
-		m.AdditionalProps.Patterns = patterns
+		m.AdditionalProperties.Patterns = patterns
 	}
 	forbidRest(m)
 	if closes {
@@ -418,29 +418,29 @@ func fillCatchAll(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, add
 // when no pattern is left (docs/ir/models.md#catch-alls). Each writer of a
 // closure beside a catch-all calls it once the closure is decided.
 func forbidRest(m *ir.Model) {
-	if m.Additional != ir.AdditionalClosed || m.AdditionalProps == nil {
+	if m.Additional != ir.AdditionalClosed || m.AdditionalProperties == nil {
 		return
 	}
 
-	m.AdditionalProps.Value = nil
-	if len(m.AdditionalProps.Patterns) == 0 {
-		m.AdditionalProps = nil
+	m.AdditionalProperties.Value = nil
+	if len(m.AdditionalProperties.Patterns) == 0 {
+		m.AdditionalProperties = nil
 	}
 }
 
 // patternProps lowers patternProperties into pattern/value bindings in source
 // order.
-func patternProps(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) ([]ir.PatternProps, []ir.Diagnostic) {
+func patternProps(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) ([]ir.PatternProperties, []ir.Diagnostic) {
 	pp := s.ObjectKeywords().PatternProperties
 	if len(pp) == 0 {
 		return nil, nil
 	}
 	var diags []ir.Diagnostic
-	out := make([]ir.PatternProps, 0, len(pp))
+	out := make([]ir.PatternProperties, 0, len(pp))
 	for _, p := range pp {
 		ref, refDiags := Ref(c, ts, depth, c.Statements().Subschema(p), pointer+ids.Ptr("patternProperties", p.Name))
 		diags = append(diags, refDiags...)
-		out = append(out, ir.PatternProps{Pattern: p.Name, Value: ref})
+		out = append(out, ir.PatternProperties{Pattern: p.Name, Value: ref})
 	}
 	return out, diags
 }

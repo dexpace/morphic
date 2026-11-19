@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "NullabilityConjunction",
         "canonical": "nullability_conjunction"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/composed/components/schemas/DistributedUnion/oneOf/0": {
+    "type/composed/components/schemas/DistributedUnion/oneOf/0": {
       "kind": "model",
-      "id": "t/composed/components/schemas/DistributedUnion/oneOf/0",
+      "id": "type/composed/components/schemas/DistributedUnion/oneOf/0",
       "name": {
         "hint": "distributed_union_nullable_model"
       },
@@ -74,21 +74,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/DistributedUnion/properties/z",
+          "id": "property/openapi/components/schemas/DistributedUnion/properties/z",
           "name": {
             "source": "z",
             "canonical": "z"
           },
           "wireName": "z",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -102,16 +102,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/NullableModel",
+        "target": "type/openapi/components/schemas/NullableModel",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/DistributedUnion/oneOf/1": {
+    "type/composed/components/schemas/DistributedUnion/oneOf/1": {
       "kind": "model",
-      "id": "t/composed/components/schemas/DistributedUnion/oneOf/1",
+      "id": "type/composed/components/schemas/DistributedUnion/oneOf/1",
       "name": {
         "hint": "distributed_union_plain_model"
       },
@@ -124,21 +124,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/DistributedUnion/properties/z",
+          "id": "property/openapi/components/schemas/DistributedUnion/properties/z",
           "name": {
             "source": "z",
             "canonical": "z"
           },
           "wireName": "z",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -152,16 +152,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/PlainModel",
+        "target": "type/openapi/components/schemas/PlainModel",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/DistributedUnion": {
+    "type/openapi/components/schemas/DistributedUnion": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/DistributedUnion",
+      "id": "type/openapi/components/schemas/DistributedUnion",
       "name": {
         "source": "DistributedUnion",
         "canonical": "distributed_union"
@@ -179,7 +179,7 @@
             "hint": "nullable_model"
           },
           "type": {
-            "target": "t/composed/components/schemas/DistributedUnion/oneOf/0",
+            "target": "type/composed/components/schemas/DistributedUnion/oneOf/0",
             "nullable": true
           },
           "docs": {}
@@ -189,7 +189,7 @@
             "hint": "plain_model"
           },
           "type": {
-            "target": "t/composed/components/schemas/DistributedUnion/oneOf/1",
+            "target": "type/composed/components/schemas/DistributedUnion/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -200,9 +200,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -216,21 +216,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/direct",
+          "id": "property/openapi/components/schemas/Holder/properties/direct",
           "name": {
             "source": "direct",
             "canonical": "direct"
           },
           "wireName": "direct",
           "type": {
-            "target": "t/openapi/components/schemas/NullableScalar",
+            "target": "type/openapi/components/schemas/NullableScalar",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -243,21 +243,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/viaAllOf",
+          "id": "property/openapi/components/schemas/Holder/properties/viaAllOf",
           "name": {
             "source": "viaAllOf",
             "canonical": "via_all_of"
           },
           "wireName": "viaAllOf",
           "type": {
-            "target": "t/openapi/components/schemas/WrapNullableScalar",
+            "target": "type/openapi/components/schemas/WrapNullableScalar",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -270,21 +270,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/directModel",
+          "id": "property/openapi/components/schemas/Holder/properties/directModel",
           "name": {
             "source": "directModel",
             "canonical": "direct_model"
           },
           "wireName": "directModel",
           "type": {
-            "target": "t/openapi/components/schemas/NullableModel",
+            "target": "type/openapi/components/schemas/NullableModel",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -297,21 +297,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/viaAllOfModel",
+          "id": "property/openapi/components/schemas/Holder/properties/viaAllOfModel",
           "name": {
             "source": "viaAllOfModel",
             "canonical": "via_all_of_model"
           },
           "wireName": "viaAllOfModel",
           "type": {
-            "target": "t/openapi/components/schemas/WrapNullableModel",
+            "target": "type/openapi/components/schemas/WrapNullableModel",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -324,21 +324,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/viaAllOfBoth",
+          "id": "property/openapi/components/schemas/Holder/properties/viaAllOfBoth",
           "name": {
             "source": "viaAllOfBoth",
             "canonical": "via_all_of_both"
           },
           "wireName": "viaAllOfBoth",
           "type": {
-            "target": "t/openapi/components/schemas/WrapBoth",
+            "target": "type/openapi/components/schemas/WrapBoth",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -355,9 +355,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/NullableModel": {
+    "type/openapi/components/schemas/NullableModel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/NullableModel",
+      "id": "type/openapi/components/schemas/NullableModel",
       "name": {
         "source": "NullableModel",
         "canonical": "nullable_model"
@@ -371,21 +371,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/NullableModel/properties/a",
+          "id": "property/openapi/components/schemas/NullableModel/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -402,9 +402,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/NullableScalar": {
+    "type/openapi/components/schemas/NullableScalar": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/NullableScalar",
+      "id": "type/openapi/components/schemas/NullableScalar",
       "name": {
         "source": "NullableScalar",
         "canonical": "nullable_scalar"
@@ -417,13 +417,13 @@
         "pointer": "/components/schemas/NullableScalar"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": true
       }
     },
-    "t/openapi/components/schemas/PlainModel": {
+    "type/openapi/components/schemas/PlainModel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/PlainModel",
+      "id": "type/openapi/components/schemas/PlainModel",
       "name": {
         "source": "PlainModel",
         "canonical": "plain_model"
@@ -437,21 +437,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/PlainModel/properties/b",
+          "id": "property/openapi/components/schemas/PlainModel/properties/b",
           "name": {
             "source": "b",
             "canonical": "b"
           },
           "wireName": "b",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -468,9 +468,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/PlainUnion": {
+    "type/openapi/components/schemas/PlainUnion": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/PlainUnion",
+      "id": "type/openapi/components/schemas/PlainUnion",
       "name": {
         "source": "PlainUnion",
         "canonical": "plain_union"
@@ -488,7 +488,7 @@
             "hint": "nullable_model"
           },
           "type": {
-            "target": "t/openapi/components/schemas/NullableModel",
+            "target": "type/openapi/components/schemas/NullableModel",
             "nullable": true
           },
           "docs": {}
@@ -498,7 +498,7 @@
             "hint": "plain_model"
           },
           "type": {
-            "target": "t/openapi/components/schemas/PlainModel",
+            "target": "type/openapi/components/schemas/PlainModel",
             "nullable": false
           },
           "docs": {}
@@ -509,9 +509,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/WrapBoth": {
+    "type/openapi/components/schemas/WrapBoth": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/WrapBoth",
+      "id": "type/openapi/components/schemas/WrapBoth",
       "name": {
         "source": "WrapBoth",
         "canonical": "wrap_both"
@@ -525,11 +525,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/NullableModel",
+          "target": "type/openapi/components/schemas/NullableModel",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/PlainModel",
+          "target": "type/openapi/components/schemas/PlainModel",
           "nullable": false
         }
       ],
@@ -537,9 +537,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/WrapNullableModel": {
+    "type/openapi/components/schemas/WrapNullableModel": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/WrapNullableModel",
+      "id": "type/openapi/components/schemas/WrapNullableModel",
       "name": {
         "source": "WrapNullableModel",
         "canonical": "wrap_nullable_model"
@@ -552,13 +552,13 @@
         "pointer": "/components/schemas/WrapNullableModel"
       },
       "base": {
-        "target": "t/openapi/components/schemas/NullableModel",
+        "target": "type/openapi/components/schemas/NullableModel",
         "nullable": true
       }
     },
-    "t/openapi/components/schemas/WrapNullableScalar": {
+    "type/openapi/components/schemas/WrapNullableScalar": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/WrapNullableScalar",
+      "id": "type/openapi/components/schemas/WrapNullableScalar",
       "name": {
         "source": "WrapNullableScalar",
         "canonical": "wrap_nullable_scalar"
@@ -571,13 +571,13 @@
         "pointer": "/components/schemas/WrapNullableScalar"
       },
       "base": {
-        "target": "t/openapi/components/schemas/NullableScalar",
+        "target": "type/openapi/components/schemas/NullableScalar",
         "nullable": true
       }
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -585,7 +585,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

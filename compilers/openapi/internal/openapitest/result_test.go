@@ -90,12 +90,12 @@ func TestFirstOp_ReturnsTheFirstOperationOfTheFirstGroup(t *testing.T) {
 func TestParamBySource_FindsTheParameterBySourceName(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{Params: []ir.Parameter{
-		{ID: "p/a", Name: ir.Naming{Source: "a"}},
-		{ID: "p/b", Name: ir.Naming{Source: "b"}},
+		{ID: "property/a", Name: ir.Naming{Source: "a"}},
+		{ID: "property/b", Name: ir.Naming{Source: "b"}},
 	}}
 	p, ok := openapitest.ParamBySource(op, "b")
 	require.True(t, ok)
-	assert.Equal(t, ir.ParamID("p/b"), p.ID)
+	assert.Equal(t, ir.ParameterID("property/b"), p.ID)
 
 	_, ok = openapitest.ParamBySource(op, "c")
 	assert.False(t, ok)
@@ -123,8 +123,8 @@ func TestIndexBy_KeysEveryItem(t *testing.T) {
 // and panics. The passing case executes both of those guards.
 func TestBodyTarget_RequiresExactlyOneMediaType(t *testing.T) {
 	t.Parallel()
-	one := &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/prim/string"}}}}
-	assert.Equal(t, ir.TypeID("t/prim/string"), openapitest.BodyTarget(t, one))
+	one := &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "type/primitive/string"}}}}
+	assert.Equal(t, ir.TypeID("type/primitive/string"), openapitest.BodyTarget(t, one))
 
 	r := &recorder{}
 	openapitest.BodyTarget(r, &ir.Payload{Contents: []ir.Content{{}, {}}})
@@ -291,7 +291,7 @@ func TestAssertProbeDocsKept_ChecksAllThreeDocumentationKeywords(t *testing.T) {
 // the dropped case, which returns before reading the value.
 func TestAssertProbeExample_ChecksTheSingleExampleValue(t *testing.T) {
 	t.Parallel()
-	openapitest.AssertProbeExample(t, []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "abc"}}})
+	openapitest.AssertProbeExample(t, []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, String: "abc"}}})
 
 	r := &recorder{}
 	openapitest.AssertProbeExample(r, nil)

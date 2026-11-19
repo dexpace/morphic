@@ -20,7 +20,7 @@ func scalar(tag, value string) *yaml.Node {
 
 // TestEnumMemberPrim_ReadsWhatEnumMembersGives pins enumMemberPrim, the reading
 // a position asking only its ValueType takes, to enumMembers' under a type's
-// ID: one PrimKind and one refusal for each list, members of one kind, of two,
+// ID: one PrimitiveKind and one refusal for each list, members of one kind, of two,
 // of a kind no Enum holds, and none.
 func TestEnumMemberPrim_ReadsWhatEnumMembersGives(t *testing.T) {
 	t.Parallel()
@@ -33,11 +33,11 @@ func TestEnumMemberPrim_ReadsWhatEnumMembersGives(t *testing.T) {
 		"none":     nil,
 	} {
 		entries := readEnum(nodes)
-		members, wantPrim, wantOK := enumMembers(entries, "t/openapi/components/schemas/E")
+		members, wantPrim, wantOK := enumMembers(entries, "type/openapi/components/schemas/E")
 		prim, ok := enumMemberPrim(entries)
 		assert.Equal(t, wantOK, ok, name)
 		assert.Equal(t, wantPrim, prim, name)
-		for _, p := range []ir.PrimKind{ir.PrimString, ir.PrimInteger, ir.PrimNumber, ir.PrimBool} {
+		for _, p := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveInteger, ir.PrimitiveNumber, ir.PrimitiveBool} {
 			assert.Equal(t, enumMembersAre(members, p), !wantOK || entriesAre(entries, p), "%s %s", name, p)
 		}
 	}
@@ -53,7 +53,7 @@ func TestEnumMemberPrim_BuildsNoMember(t *testing.T) {
 	}
 	entries := readEnum(nodes)
 	allocs := testing.AllocsPerRun(10, func() {
-		if _, ok := enumMemberPrim(entries); !ok || !entriesAre(entries, ir.PrimString) {
+		if _, ok := enumMemberPrim(entries); !ok || !entriesAre(entries, ir.PrimitiveString) {
 			t.Fatal("200 strings are an Enum of strings")
 		}
 	})

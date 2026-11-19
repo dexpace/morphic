@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "SharedResponseAcrossStatus",
         "canonical": "shared_response_across_status"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1widgets/get",
+              "id": "operation/openapi/paths/~1widgets/get",
               "name": {
                 "source": "listWidgets",
                 "canonical": "list_widgets"
@@ -83,7 +83,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/components/responses/Envelope/content/application~1json/schema",
+                          "target": "type/anonymous/components/responses/Envelope/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -112,7 +112,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/components/responses/Envelope/content/application~1json/schema",
+                          "target": "type/anonymous/components/responses/Envelope/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -142,7 +142,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1widgets/post",
+              "id": "operation/openapi/paths/~1widgets/post",
               "name": {
                 "source": "createWidget",
                 "canonical": "create_widget"
@@ -166,7 +166,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1widgets/post/responses/201/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1widgets/post/responses/201/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -195,7 +195,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1gadgets/post",
+              "id": "operation/openapi/paths/~1gadgets/post",
               "name": {
                 "source": "createGadget",
                 "canonical": "create_gadget"
@@ -219,7 +219,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1widgets/post/responses/201/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1widgets/post/responses/201/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -260,9 +260,9 @@
     }
   ],
   "types": {
-    "t/anon/components/responses/Envelope/content/application~1json/schema": {
+    "type/anonymous/components/responses/Envelope/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/components/responses/Envelope/content/application~1json/schema",
+      "id": "type/anonymous/components/responses/Envelope/content/application~1json/schema",
       "name": {
         "hint": "envelope"
       },
@@ -275,21 +275,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/responses/Envelope/content/application~1json/schema/properties/message",
+          "id": "property/openapi/components/responses/Envelope/content/application~1json/schema/properties/message",
           "name": {
             "source": "message",
             "canonical": "message"
           },
           "wireName": "message",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -306,9 +306,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1widgets/post/responses/201/content/application~1json/schema": {
+    "type/anonymous/paths/~1widgets/post/responses/201/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1widgets/post/responses/201/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1widgets/post/responses/201/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -321,21 +321,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1widgets/post/responses/201/content/application~1json/schema/properties/id",
+          "id": "property/openapi/paths/~1widgets/post/responses/201/content/application~1json/schema/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -352,9 +352,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -362,7 +362,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

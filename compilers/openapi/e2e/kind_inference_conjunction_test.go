@@ -58,7 +58,7 @@ func usedAt(t *testing.T, doc *ir.Document, at jsontext.Pointer) ir.TypeID {
 	case conjunctionPositions[2]:
 		list, ok := kindNode(t, doc, componentID("Els")).(*ir.List)
 		require.True(t, ok)
-		id = list.Elem.Target
+		id = list.ElementType.Target
 	default:
 		op := operationAt(t, doc, "GET", "/x")
 		require.Len(t, op.Params, 1)
@@ -161,7 +161,7 @@ func TestKindInference_ADeclaredKindDecidesBesideAnEntryTheKeywordsClaim(t *test
 						assert.Empty(t, markedNodes(doc), tc.name)
 						for _, at := range conjunctionPositions {
 							entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", tc.entry))
-							assert.Equal(t, prim(ir.PrimString), usedAt(t, doc, at), "%s at %s", tc.name, at)
+							assert.Equal(t, prim(ir.PrimitiveString), usedAt(t, doc, at), "%s at %s", tc.name, at)
 							assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry + "/items": ir.ReasonDegradedLowering},
 								keptUnder(doc, at), "%s at %s", tc.name, at)
 							assert.Equal(t, []jsontext.Pointer{entry}, degradedUnder(diags, at), "%s at %s", tc.name, at)
@@ -249,7 +249,7 @@ func assertOutvotedRef(t *testing.T, spec, target string, refAt int) {
 		}
 		for _, at := range conjunctionPositions {
 			entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", refAt))
-			assert.Equal(t, prim(ir.PrimString), usedAt(t, doc, at), "off=%t at %s", off, at)
+			assert.Equal(t, prim(ir.PrimitiveString), usedAt(t, doc, at), "off=%t at %s", off, at)
 			assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry: ir.ReasonDegradedLowering},
 				keptUnder(doc, at), "off=%t at %s", off, at)
 			assert.Equal(t, []jsontext.Pointer{entry}, degradedUnder(diags, at), "off=%t at %s", off, at)
@@ -390,7 +390,7 @@ func TestKindInference_AnEntryReadAloneIsItsOwnPosition(t *testing.T) {
 		"Out: {$ref: '#/components/schemas/Pos/allOf/1'}",
 		"Pos: " + declaredBesideClaim[0].schema,
 	}
-	entryID := ir.TypeID("t/anon/components/schemas/Pos/allOf/1")
+	entryID := ir.TypeID("type/anonymous/components/schemas/Pos/allOf/1")
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
@@ -403,7 +403,7 @@ func TestKindInference_AnEntryReadAloneIsItsOwnPosition(t *testing.T) {
 					require.True(t, ok)
 					require.NotNil(t, out.Base)
 					assert.Equal(t, entryID, out.Base.Target, "off=%t", off)
-					assert.Equal(t, prim(ir.PrimString), usedAt(t, doc, conjunctionPositions[0]), "off=%t", off)
+					assert.Equal(t, prim(ir.PrimitiveString), usedAt(t, doc, conjunctionPositions[0]), "off=%t", off)
 					assert.Equal(t, !off, entry.Kind() == ir.KindList, "off=%t: %s", off, entry.Kind())
 					assert.Equal(t, !off, markedKindInference(entry), "off=%t", off)
 				}
@@ -431,7 +431,7 @@ func TestKindInference_AFormBodyKeysNoPartItsModelLacks(t *testing.T) {
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		for _, off := range []bool{false, true} {
 			doc, _ := compileKindInference(t, "form", admissionSpec(version, body), off)
-			held := map[ir.PropID]bool{}
+			held := map[ir.PropertyID]bool{}
 			for _, td := range doc.Types {
 				if m, ok := td.(*ir.Model); ok {
 					for _, p := range m.Properties {

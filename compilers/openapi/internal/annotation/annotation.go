@@ -48,7 +48,7 @@ func EffectiveVisibility(chain []*statement.Schema) (ir.Visibility, bool) {
 
 	switch {
 	case readOnly && writeOnly:
-		return ir.Visibility{None: true}, true
+		return ir.Visibility{InvisibleInEveryLifecycle: true}, true
 	case readOnly:
 		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, false
 	case writeOnly:

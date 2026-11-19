@@ -71,8 +71,8 @@ func TestDynamicRefEntry_OnAnEntryLowersAsBesideTheAllOf(t *testing.T) {
 			assert.Equal(t, kind, entry.Kind, "%s over %s", anchor, target)
 			assert.Equal(t, componentID(target), entry.Base, "%s over %s", anchor, target)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s over %s", anchor, target)
-			items := dynamicSpellingOf(t, doc.Types[ir.TypeID("t/anon/components/schemas/EntryItems"+target+"/items")])
-			assert.Equal(t, dynamicSpellingOf(t, doc.Types[ir.TypeID("t/anon/components/schemas/BesideItems"+target+"/items")]), items,
+			items := dynamicSpellingOf(t, doc.Types[ir.TypeID("type/anonymous/components/schemas/EntryItems"+target+"/items")])
+			assert.Equal(t, dynamicSpellingOf(t, doc.Types[ir.TypeID("type/anonymous/components/schemas/BesideItems"+target+"/items")]), items,
 				"%s over %s at items", anchor, target)
 		}
 	}

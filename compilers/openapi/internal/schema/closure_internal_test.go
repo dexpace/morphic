@@ -90,9 +90,9 @@ func TestKeepUnclosing_AClosureBesideAnEntrysMembersIsKeptOnce(t *testing.T) {
 			t.Parallel()
 			doc, diags := LowerSpec(t, openapitest.ComponentSpec("    M: {allOf: "+allOf+", additionalProperties: {type: string}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types["t/openapi/components/schemas/M"].(*ir.Model)
+			m, ok := doc.Types["type/openapi/components/schemas/M"].(*ir.Model)
 			require.True(t, ok, "M is a model")
-			assert.Nil(t, m.AdditionalProps, "the model takes no catch-all")
+			assert.Nil(t, m.AdditionalProperties, "the model takes no catch-all")
 			kept, ok := m.Unmodeled["openapi:additionalProperties"]
 			require.True(t, ok, "the keyword is kept; got %+v", m.Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)

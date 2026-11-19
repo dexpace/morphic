@@ -24,7 +24,7 @@ func deepDoc() *ir.Document {
 	for range ir.MaxWalkDepth {
 		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
 	}
-	m := &ir.Model{ID: "t/x/M", Examples: []ir.Example{{Value: &v}}}
+	m := &ir.Model{ID: "type/x/M", Examples: []ir.Example{{Value: &v}}}
 	return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 }
 
@@ -39,7 +39,7 @@ func TestVerify_ReportsTruncationOnce(t *testing.T) {
 			continue
 		}
 		truncations++
-		assert.Equal(t, "doc", v.Path, "truncation is a fact about the document, not about a node")
+		assert.Equal(t, "document", v.Path, "truncation is a fact about the document, not about a node")
 		assert.Equal(t, "document nests deeper or unfolds larger than the bounded walk reads; part of it went unchecked",
 			v.Message)
 	}

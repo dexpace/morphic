@@ -20,7 +20,7 @@ func (c *correlator) seedTypes() {
 			continue
 		}
 		if prim, ok := td.(*ir.Primitive); ok {
-			c.offerType(segment("prim", string(prim.Prim)), id, td)
+			c.offerType(segment("prim", string(prim.PrimitiveKind)), id, td)
 			continue
 		}
 		common := td.Common()
@@ -74,14 +74,14 @@ func (c *correlator) typeParts(key string, td ir.TypeDef) {
 	case *ir.Enum:
 		c.members(key, t)
 	case *ir.List:
-		c.ref(part(key, "elem"), &t.Elem)
+		c.ref(part(key, "elem"), &t.ElementType)
 		c.decoded(key, t.Encoding)
 	case *ir.MapT:
 		c.ref(part(key, "key"), t.Key)
 		c.ref(part(key, "value"), &t.Value)
 	case *ir.Tuple:
-		for i := range t.Elems {
-			c.ref(child(key, "elem", strconv.Itoa(i)), &t.Elems[i])
+		for i := range t.ElementTypes {
+			c.ref(child(key, "elem", strconv.Itoa(i)), &t.ElementTypes[i])
 		}
 		c.ref(part(key, "rest"), t.Rest)
 	case *ir.Scalar:
@@ -113,7 +113,7 @@ func (c *correlator) model(key string, m *ir.Model) {
 		}
 	}
 	for id, model := range own {
-		c.additional(key, model.AdditionalProps)
+		c.additional(key, model.AdditionalProperties)
 		if id != m.ID {
 			c.offerType(part(key, "allOf"), id, model)
 		}
@@ -204,7 +204,7 @@ func (c *correlator) property(key string, p *ir.Property) {
 
 // additional keys the types a model's catch-all names: its value, its key and
 // each pattern's value.
-func (c *correlator) additional(key string, extra *ir.AdditionalProps) {
+func (c *correlator) additional(key string, extra *ir.AdditionalProperties) {
 	if extra == nil {
 		return
 	}

@@ -123,7 +123,7 @@ func resolveLink(ix opIndex, w *compileddoc.CompiledDocumentView, from *ir.Opera
 		Provenance: d.c.Place().At(d.ptr), Unmodeled: d.extra,
 	}
 	ex := exchange{w: w, from: from, at: at}
-	given := map[ir.ParamID]string{}
+	given := map[ir.ParameterID]string{}
 	for _, dp := range d.params {
 		id, failed := targetParam(w, target, dp.key)
 		if failed != nil {
@@ -152,7 +152,7 @@ func resolveLink(ix opIndex, w *compileddoc.CompiledDocumentView, from *ir.Opera
 // opIndex finds the operations of a service by ID, by operationId, and by
 // where the source declares them.
 type opIndex struct {
-	byID   map[ir.OpID]*ir.Operation
+	byID   map[ir.OperationID]*ir.Operation
 	byName map[string][]*ir.Operation
 	byDecl map[jsontext.Pointer][]*ir.Operation
 }
@@ -160,7 +160,7 @@ type opIndex struct {
 // indexOperations indexes ops, the document's operations (compileddoc.CompiledDocumentView.Ops).
 // byDecl holds those the source declares, whose provenance names c's source.
 func indexOperations(c service.Ctx, ops []*ir.Operation) opIndex {
-	ix := opIndex{byID: map[ir.OpID]*ir.Operation{}, byName: map[string][]*ir.Operation{}, byDecl: map[jsontext.Pointer][]*ir.Operation{}}
+	ix := opIndex{byID: map[ir.OperationID]*ir.Operation{}, byName: map[string][]*ir.Operation{}, byDecl: map[jsontext.Pointer][]*ir.Operation{}}
 	source := c.Place().Source
 	for _, op := range ops {
 		ix.add(op, source)

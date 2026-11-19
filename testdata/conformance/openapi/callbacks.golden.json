@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Callbacks",
         "canonical": "callbacks"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1subscribe/post",
+              "id": "operation/openapi/paths/~1subscribe/post",
               "name": {
                 "source": "subscribe",
                 "canonical": "subscribe"
@@ -95,7 +95,7 @@
                         "name": "onEvent",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
-                          "op/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post"
+                          "operation/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post"
                         ]
                       }
                     ],
@@ -110,7 +110,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post",
+              "id": "operation/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post",
               "name": {
                 "source": "onEvent",
                 "canonical": "on_event"
@@ -150,7 +150,7 @@
                         "name": "onReply",
                         "expression": "{$response.body#/replyUrl}",
                         "operations": [
-                          "op/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post/callbacks/onReply/{$response.body#~1replyUrl}/post"
+                          "operation/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post/callbacks/onReply/{$response.body#~1replyUrl}/post"
                         ]
                       }
                     ],
@@ -165,7 +165,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post/callbacks/onReply/{$response.body#~1replyUrl}/post",
+              "id": "operation/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post/callbacks/onReply/{$response.body#~1replyUrl}/post",
               "name": {
                 "source": "onReply",
                 "canonical": "on_reply"

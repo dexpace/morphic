@@ -18,7 +18,7 @@ import (
 
 // TestFlattenedProperties_AgreesWithAnOrderFreeReading holds every flattening
 // of random registries to what a reading that orders nothing says it must
-// hold: the declarations ExposedProps reaches, grouped by wire name; a
+// hold: the declarations ExposedProperties reaches, grouped by wire name; a
 // requirement wherever a declaration or a Requires states one; a redaction
 // wherever a declaration asks for one; the names and entries left over; and no
 // member taken by a declaration of a model that the overridden declaration's
@@ -47,18 +47,18 @@ func TestFlattenedProperties_AgreesWithAnOrderFreeReading(t *testing.T) {
 
 // requireDeclarations holds f's members to one per wire name, each declaration
 // sharing it and held by its owner, and every declaration together to the set
-// ExposedProps reaches.
+// ExposedProperties reaches.
 func requireDeclarations(t *testing.T, doc *ir.Document, root ir.TypeID, f ir.Flattening,
 	models map[ir.TypeID]*ir.Model, what string,
 ) {
 	t.Helper()
-	declared := map[ir.PropID]bool{}
+	declared := map[ir.PropertyID]bool{}
 	wires := map[string]bool{}
 	for _, fp := range f.Properties {
 		wire := fp.Property.EffectiveWireName()
 		require.False(t, wires[wire], "%s: wire name %q is one member", what, wire)
 		wires[wire] = true
-		listed := map[ir.PropID]bool{}
+		listed := map[ir.PropertyID]bool{}
 		for _, d := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
 			require.False(t, listed[d.Property.ID], "%s: %s is listed once in its member", what, d.Property.ID)
 			listed[d.Property.ID] = true
@@ -68,7 +68,7 @@ func requireDeclarations(t *testing.T, doc *ir.Document, root ir.TypeID, f ir.Fl
 			declared[d.Property.ID] = true
 		}
 	}
-	assert.Equal(t, ir.ExposedProps(doc, root), declared, "%s: the declarations are those ExposedProps reaches", what)
+	assert.Equal(t, ir.ExposedProperties(doc, root), declared, "%s: the declarations are those ExposedProps reaches", what)
 }
 
 // holds reports whether p points at one of m's properties.

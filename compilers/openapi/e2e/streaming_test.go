@@ -143,7 +143,7 @@ func assertStreamingMedia30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	both, ok := opByName(doc, "ingestRows")
 	require.True(t, ok)
-	assert.Equal(t, ir.StreamingBidi, both.Streaming)
+	assert.Equal(t, ir.StreamingBidirectional, both.Streaming)
 	require.NotNil(t, both.RequestStream)
 	require.NotNil(t, both.RequestStream.Events)
 	require.NotNil(t, both.Request)
@@ -157,7 +157,7 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Equal(t, ir.StreamingClient, upload.Streaming, "only the request streams")
 	require.NotNil(t, upload.RequestStream)
 	require.NotNil(t, upload.RequestStream.Events)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), upload.RequestStream.Events.Target)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Frame"), upload.RequestStream.Events.Target)
 	assert.Nil(t, upload.ResponseStream, "a 204 has nothing to stream back")
 	assert.Equal(t, ir.Inferred("streaming-inference"), upload.Provenance.Inferred)
 
@@ -175,7 +175,7 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	require.True(t, ok)
 	require.NotNil(t, feed.ResponseStream)
 	require.NotNil(t, feed.ResponseStream.Events, "a list and its element name one frame")
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), feed.ResponseStream.Events.Target)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Frame"), feed.ResponseStream.Events.Target)
 	require.NotNil(t, feed.Responses[0].Payload)
 	listBody := feed.Responses[0].Payload.Contents[0].Type.Target
 	assert.IsType(t, &ir.List{}, doc.Types[listBody], "the content keeps the whole body's type")
@@ -186,7 +186,7 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	require.NotNil(t, negotiated.ResponseStream)
 	require.NotNil(t, negotiated.ResponseStream.Events,
 		"two contents naming one element type elect it: there is nothing to choose between")
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"),
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Frame"),
 		negotiated.ResponseStream.Events.Target)
 	require.NotNil(t, negotiated.Responses[0].Payload)
 	assert.Len(t, negotiated.Responses[0].Payload.Contents, 2,
@@ -227,5 +227,5 @@ func assertTailMetrics(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, ir.StreamingServer, metrics.Streaming)
 	require.NotNil(t, metrics.ResponseStream)
 	require.NotNil(t, metrics.ResponseStream.Events, "only the success response's stream is elected from")
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), metrics.ResponseStream.Events.Target)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Frame"), metrics.ResponseStream.Events.Target)
 }

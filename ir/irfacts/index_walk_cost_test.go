@@ -21,24 +21,24 @@ import (
 // fill the registry, so the walk is within the steps the index walks before it
 // indexes. It is not run in parallel: AllocsPerRun measures the process.
 func TestIndex_AWalkedQuestionOverSeveralParentsAllocatesNothing(t *testing.T) {
-	model := func(id ir.TypeID, prop ir.PropID) *ir.Model {
+	model := func(id ir.TypeID, prop ir.PropertyID) *ir.Model {
 		return &ir.Model{ID: id, Properties: []ir.Property{{ID: prop}}}
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/x/A": model("t/x/A", "p/x/A/a"), "t/x/B": model("t/x/B", "p/x/B/b"), "t/x/C": model("t/x/C", "p/x/C/c"),
-		"t/x/S": &ir.Model{ID: "t/x/S", Base: &ir.TypeRef{Target: "t/x/A"},
-			Implements: []ir.TypeRef{{Target: "t/x/B"}}, Mixins: []ir.TypeRef{{Target: "t/x/C"}}},
+		"type/x/A": model("type/x/A", "property/x/A/a"), "type/x/B": model("type/x/B", "property/x/B/b"), "type/x/C": model("type/x/C", "property/x/C/c"),
+		"type/x/S": &ir.Model{ID: "type/x/S", Base: &ir.TypeRef{Target: "type/x/A"},
+			Implements: []ir.TypeRef{{Target: "type/x/B"}}, Mixins: []ir.TypeRef{{Target: "type/x/C"}}},
 	}}
 	for i := range 16 {
-		id := ir.TypeID(fmt.Sprintf("t/x/F%d", i))
+		id := ir.TypeID(fmt.Sprintf("type/x/F%d", i))
 		doc.Types[id] = &ir.Model{ID: id}
 	}
 	var kept *irfacts.DocumentFacts // an Index left unused is inlined onto the stack and measures nothing
 	construction := testing.AllocsPerRun(10, func() { kept = irfacts.New(doc) })
 	require.NotNil(t, kept)
 
-	subtype := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).IsSubtype("t/x/S", "t/x/C") })
-	exposes := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).Exposes("t/x/S", "p/x/none") })
+	subtype := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).IsSubtype("type/x/S", "type/x/C") })
+	exposes := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).Exposes("type/x/S", "property/x/none") })
 
 	assert.Equal(t, construction, subtype, "IsSubtype beyond New's allocations")
 	assert.Equal(t, construction, exposes, "Exposes beyond New's allocations")

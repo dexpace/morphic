@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	intT  = ir.TypeRef{Target: ir.PrimTypeID(ir.PrimInteger)}
-	strT  = ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}
-	boolT = ir.TypeRef{Target: ir.PrimTypeID(ir.PrimBool)}
-	anyT  = ir.TypeRef{Target: ir.PrimTypeID(ir.PrimAny)}
+	intT  = ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveInteger)}
+	strT  = ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}
+	boolT = ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveBool)}
+	anyT  = ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveAny)}
 )
 
 // finding is a diagnostic as a row states it: where it sits and what it says.
@@ -32,9 +32,9 @@ func provAt(node string) ir.Provenance {
 // valueDoc is validDoc plus the primitives the rows of these checks read.
 func valueDoc() *ir.Document {
 	doc := validDoc()
-	for _, kind := range []ir.PrimKind{ir.PrimInteger, ir.PrimBool, ir.PrimDecimal, ir.PrimAny} {
-		id := ir.PrimTypeID(kind)
-		doc.Types[id] = &ir.Primitive{ID: id, Prim: kind}
+	for _, kind := range []ir.PrimitiveKind{ir.PrimitiveInteger, ir.PrimitiveBool, ir.PrimitiveDecimal, ir.PrimitiveAny} {
+		id := ir.PrimitiveTypeID(kind)
+		doc.Types[id] = &ir.Primitive{ID: id, PrimitiveKind: kind}
 	}
 	return doc
 }
@@ -42,7 +42,7 @@ func valueDoc() *ir.Document {
 // prop is a property of the ID id and the type typ, carrying its own
 // provenance and a wire name no other property has, shaped by set.
 func prop(id string, typ ir.TypeRef, set func(*ir.Property)) ir.Property {
-	p := ir.Property{ID: ir.PropID(id), WireName: id, Type: typ, Provenance: provAt(id)}
+	p := ir.Property{ID: ir.PropertyID(id), WireName: id, Type: typ, Provenance: provAt(id)}
 	if set != nil {
 		set(&p)
 	}
@@ -52,7 +52,7 @@ func prop(id string, typ ir.TypeRef, set func(*ir.Property)) ir.Property {
 // modelOf is valueDoc holding the model t/a over props.
 func modelOf(props ...ir.Property) *ir.Document {
 	doc := valueDoc()
-	doc.Types["t/a"] = &ir.Model{ID: "t/a", Properties: props, Provenance: provAt("t/a")}
+	doc.Types["type/a"] = &ir.Model{ID: "type/a", Properties: props, Provenance: provAt("type/a")}
 	return doc
 }
 
@@ -127,13 +127,13 @@ func TestValidate_BoundsThatAdmitNoValueAreReported(t *testing.T) {
 		return doc
 	}
 	list := func(c *ir.Constraints) ir.TypeDef {
-		return &ir.List{ID: "t/l", Elem: strT, Constraints: c, Provenance: provAt("t/l")}
+		return &ir.List{ID: "type/l", ElementType: strT, Constraints: c, Provenance: provAt("type/l")}
 	}
 	object := func(c *ir.Constraints) ir.TypeDef {
-		return &ir.Model{ID: "t/o", Constraints: c, Provenance: provAt("t/o")}
+		return &ir.Model{ID: "type/o", Constraints: c, Provenance: provAt("type/o")}
 	}
 	union := func(c *ir.Constraints) ir.TypeDef {
-		return &ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: strT}, {Type: intT}}, Constraints: c, Provenance: provAt("t/u")}
+		return &ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: strT}, {Type: intT}}, Constraints: c, Provenance: provAt("type/u")}
 	}
 	// eachKind is bounds of every kind that admit one value apiece, which set
 	// spoils for one kind.
@@ -141,15 +141,15 @@ func TestValidate_BoundsThatAdmitNoValueAreReported(t *testing.T) {
 		c := numeric("5", "", "5", "")
 		c.MinLength, c.MaxLength = new(int64(6)), new(int64(6))
 		c.MinItems, c.MaxItems = new(int64(2)), new(int64(2))
-		c.MinProps, c.MaxProps = new(int64(1)), new(int64(1))
+		c.MinProperties, c.MaxProperties = new(int64(1)), new(int64(1))
 		if set != nil {
 			set(c)
 		}
 		return c
 	}
-	number := func(c *ir.Constraints) *ir.Document { return modelOf(prop("p/a/n", intT, bounded(c))) }
+	number := func(c *ir.Constraints) *ir.Document { return modelOf(prop("property/a/n", intT, bounded(c))) }
 	atMost := func(msg string) []finding {
-		return []finding{{"p/a/n", "bounds admit no number: none is " + msg}}
+		return []finding{{"property/a/n", "bounds admit no number: none is " + msg}}
 	}
 	for _, tc := range []struct {
 		name string
@@ -166,37 +166,37 @@ func TestValidate_BoundsThatAdmitNoValueAreReported(t *testing.T) {
 		{"a minimum the maximum meets", number(numeric("10", "", "10", "")), nil},
 		{"two exclusive bounds with no integer between", number(numeric("", "5", "", "6")), nil},
 		{"a multiple of 5 in no range of 1 to 2", number(withMultiple(numeric("1", "", "2", ""), "5")), nil},
-		{"a string with a minimum above its maximum", modelOf(prop("p/a/s", strT, bounded(lengths(6, 5)))),
-			[]finding{{"p/a/s", "bounds admit no string: none has at least 6 characters and at most 5"}}},
-		{"a string with a maximum that meets its minimum", modelOf(prop("p/a/s", strT, bounded(lengths(6, 6)))), nil},
+		{"a string with a minimum above its maximum", modelOf(prop("property/a/s", strT, bounded(lengths(6, 5)))),
+			[]finding{{"property/a/s", "bounds admit no string: none has at least 6 characters and at most 5"}}},
+		{"a string with a maximum that meets its minimum", modelOf(prop("property/a/s", strT, bounded(lengths(6, 6)))), nil},
 		{"a string that is nullable, which still admits no string", modelOf(
-			prop("p/a/s", strT, bounded(lengths(6, 5))), prop("p/a/t", strT, func(p *ir.Property) {
+			prop("property/a/s", strT, bounded(lengths(6, 5))), prop("property/a/t", strT, func(p *ir.Property) {
 				bounded(lengths(6, 5))(p)
 				nullable(p)
 			})), []finding{
-			{"p/a/s", "bounds admit no string: none has at least 6 characters and at most 5"},
-			{"p/a/t", "bounds admit no string: none has at least 6 characters and at most 5"},
+			{"property/a/s", "bounds admit no string: none has at least 6 characters and at most 5"},
+			{"property/a/t", "bounds admit no string: none has at least 6 characters and at most 5"},
 		}},
 		{"bytes with a minimum above the maximum", func() *ir.Document {
-			doc := modelOf(prop("p/a/b", ir.TypeRef{Target: "t/bytes"}, bounded(lengths(2, 1))))
-			doc.Types["t/bytes"] = &ir.Primitive{ID: "t/bytes", Prim: ir.PrimBytes}
+			doc := modelOf(prop("property/a/b", ir.TypeRef{Target: "type/bytes"}, bounded(lengths(2, 1))))
+			doc.Types["type/bytes"] = &ir.Primitive{ID: "type/bytes", PrimitiveKind: ir.PrimitiveBytes}
 			return doc
-		}(), []finding{{"p/a/b", "bounds admit no bytes: none has at least 2 bytes and at most 1"}}},
-		{"a list with a minimum above its maximum", typed("t/l", list, &ir.Constraints{MinItems: new(int64(6)), MaxItems: new(int64(5))}),
-			[]finding{{"t/l", "bounds admit no list: none has at least 6 items and at most 5"}}},
-		{"a list with a maximum that meets its minimum", typed("t/l", list, &ir.Constraints{MinItems: new(int64(6)), MaxItems: new(int64(6))}), nil},
-		{"an object with a minimum above its maximum", typed("t/o", object, &ir.Constraints{MinProps: new(int64(2)), MaxProps: new(int64(1))}),
-			[]finding{{"t/o", "bounds admit no object: none has at least 2 members and at most 1"}}},
-		{"an object with a maximum that meets its minimum", typed("t/o", object, &ir.Constraints{MinProps: new(int64(2)), MaxProps: new(int64(2))}), nil},
-		{"a union whose bounds of each kind admit a value", typed("t/u", union, eachKind(nil)), nil},
-		{"a union whose numbers admit none", typed("t/u", union, eachKind(func(c *ir.Constraints) { c.Min = big("6") })),
-			[]finding{{"t/u", "bounds admit no number: none is at least 6 and at most 5"}}},
-		{"a union whose strings admit none", typed("t/u", union, eachKind(func(c *ir.Constraints) { c.MinLength = new(int64(7)) })),
-			[]finding{{"t/u", "bounds admit no string: none has at least 7 characters and at most 6"}}},
-		{"a union whose lists admit none", typed("t/u", union, eachKind(func(c *ir.Constraints) { c.MinItems = new(int64(3)) })),
-			[]finding{{"t/u", "bounds admit no list: none has at least 3 items and at most 2"}}},
-		{"a union whose objects admit none", typed("t/u", union, eachKind(func(c *ir.Constraints) { c.MinProps = new(int64(2)) })),
-			[]finding{{"t/u", "bounds admit no object: none has at least 2 members and at most 1"}}},
+		}(), []finding{{"property/a/b", "bounds admit no bytes: none has at least 2 bytes and at most 1"}}},
+		{"a list with a minimum above its maximum", typed("type/l", list, &ir.Constraints{MinItems: new(int64(6)), MaxItems: new(int64(5))}),
+			[]finding{{"type/l", "bounds admit no list: none has at least 6 items and at most 5"}}},
+		{"a list with a maximum that meets its minimum", typed("type/l", list, &ir.Constraints{MinItems: new(int64(6)), MaxItems: new(int64(6))}), nil},
+		{"an object with a minimum above its maximum", typed("type/o", object, &ir.Constraints{MinProperties: new(int64(2)), MaxProperties: new(int64(1))}),
+			[]finding{{"type/o", "bounds admit no object: none has at least 2 members and at most 1"}}},
+		{"an object with a maximum that meets its minimum", typed("type/o", object, &ir.Constraints{MinProperties: new(int64(2)), MaxProperties: new(int64(2))}), nil},
+		{"a union whose bounds of each kind admit a value", typed("type/u", union, eachKind(nil)), nil},
+		{"a union whose numbers admit none", typed("type/u", union, eachKind(func(c *ir.Constraints) { c.Min = big("6") })),
+			[]finding{{"type/u", "bounds admit no number: none is at least 6 and at most 5"}}},
+		{"a union whose strings admit none", typed("type/u", union, eachKind(func(c *ir.Constraints) { c.MinLength = new(int64(7)) })),
+			[]finding{{"type/u", "bounds admit no string: none has at least 7 characters and at most 6"}}},
+		{"a union whose lists admit none", typed("type/u", union, eachKind(func(c *ir.Constraints) { c.MinItems = new(int64(3)) })),
+			[]finding{{"type/u", "bounds admit no list: none has at least 3 items and at most 2"}}},
+		{"a union whose objects admit none", typed("type/u", union, eachKind(func(c *ir.Constraints) { c.MinProperties = new(int64(2)) })),
+			[]finding{{"type/u", "bounds admit no object: none has at least 2 members and at most 1"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -213,16 +213,16 @@ func TestValidate_BoundsAreJudgedOnlyForTheValueTheyApply(t *testing.T) {
 	t.Parallel()
 	pair := bounded(lengths(6, 5))
 	doc := modelOf(
-		prop("p/a/i", intT, pair),
-		prop("p/a/y", anyT, pair),
-		prop("p/a/u", ir.TypeRef{Target: "t/u"}, pair),
-		prop("p/a/e", ir.TypeRef{Target: "t/e"}, pair),
-		prop("p/a/g", ir.TypeRef{Target: "t/ghost"}, pair),
-		prop("p/a/z", ir.TypeRef{}, pair),
-		prop("p/a/f", boolT, pair),
+		prop("property/a/i", intT, pair),
+		prop("property/a/y", anyT, pair),
+		prop("property/a/u", ir.TypeRef{Target: "type/u"}, pair),
+		prop("property/a/e", ir.TypeRef{Target: "type/e"}, pair),
+		prop("property/a/g", ir.TypeRef{Target: "type/ghost"}, pair),
+		prop("property/a/z", ir.TypeRef{}, pair),
+		prop("property/a/f", boolT, pair),
 	)
-	doc.Types["t/u"] = &ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: strT}}}
-	doc.Types["t/e"] = &ir.Enum{ID: "t/e", ValueType: ir.PrimString, Members: []ir.EnumMember{{ID: "e/a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}}}}
+	doc.Types["type/u"] = &ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: strT}}}
+	doc.Types["type/e"] = &ir.Enum{ID: "type/e", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{ID: "enum-member/a", Value: ir.Value{Kind: ir.ValueString, String: "a"}}}}
 
 	assert.Empty(t, found(t, doc, boundsCode))
 }
@@ -234,12 +234,12 @@ func TestValidate_BoundsAreJudgedOnlyForTheValueTheyApply(t *testing.T) {
 func TestValidate_BoundsAreJoinedWithThoseOfTheAliasesAPositionReaches(t *testing.T) {
 	t.Parallel()
 	alias := func(c *ir.Constraints) *ir.Scalar {
-		return &ir.Scalar{ID: "t/s", Base: &strT, Constraints: c, Provenance: provAt("t/s")}
+		return &ir.Scalar{ID: "type/s", Base: &strT, Constraints: c, Provenance: provAt("type/s")}
 	}
 	min6, max5 := &ir.Constraints{MinLength: new(int64(6))}, &ir.Constraints{MaxLength: new(int64(5))}
 	onAlias := func(c *ir.Constraints, own *ir.Constraints) *ir.Document {
-		doc := modelOf(prop("p/a/r", ir.TypeRef{Target: "t/s"}, bounded(own)))
-		doc.Types["t/s"] = alias(c)
+		doc := modelOf(prop("property/a/r", ir.TypeRef{Target: "type/s"}, bounded(own)))
+		doc.Types["type/s"] = alias(c)
 		return doc
 	}
 	const message = "bounds admit no string: none has at least 6 characters and at most "
@@ -248,11 +248,11 @@ func TestValidate_BoundsAreJoinedWithThoseOfTheAliasesAPositionReaches(t *testin
 		doc  *ir.Document
 		want []finding
 	}{
-		{"an alias's minimum and a property's maximum", onAlias(min6, max5), []finding{{"p/a/r", message + "5"}}},
+		{"an alias's minimum and a property's maximum", onAlias(min6, max5), []finding{{"property/a/r", message + "5"}}},
 		{"the same property with no bounds of its own", onAlias(min6, nil), nil},
 		{"the same property with a maximum the minimum meets", onAlias(min6, &ir.Constraints{MaxLength: new(int64(6))}), nil},
 		{"an alias that contradicts itself, and a property that tightens it",
-			onAlias(lengths(6, 5), &ir.Constraints{MaxLength: new(int64(4))}), []finding{{"t/s", message + "5"}}},
+			onAlias(lengths(6, 5), &ir.Constraints{MaxLength: new(int64(4))}), []finding{{"type/s", message + "5"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -268,13 +268,13 @@ func hdr(id string) ir.Header {
 
 // partsPayload is a payload whose one content encodes its parts by encoding
 // and its items by item, each with the headers named.
-func partsPayload(item *ir.Header, parts map[ir.PropID]ir.Header) *ir.Payload {
-	content := ir.Content{MediaType: "multipart/mixed", Type: ir.TypeRef{Target: "t/m"}}
+func partsPayload(item *ir.Header, parts map[ir.PropertyID]ir.Header) *ir.Payload {
+	content := ir.Content{MediaType: "multipart/mixed", Type: ir.TypeRef{Target: "type/m"}}
 	if item != nil {
 		content.ItemEncoding = &ir.PartEncoding{Headers: []ir.Header{*item}}
 	}
 	if len(parts) > 0 {
-		content.Encoding = map[ir.PropID]ir.PartEncoding{}
+		content.Encoding = map[ir.PropertyID]ir.PartEncoding{}
 		for key, h := range parts {
 			content.Encoding[key] = ir.PartEncoding{Headers: []ir.Header{h}}
 		}
@@ -292,21 +292,21 @@ func partsPayload(item *ir.Header, parts map[ir.PropID]ir.Header) *ir.Payload {
 func TestValidate_BoundsAreJudgedAtEverySiteAPositionSits(t *testing.T) {
 	t.Parallel()
 	const message = "bounds admit no string: none has at least 6 characters and at most 5"
-	doc := modelOf(prop("p/a/n", strT, bounded(lengths(6, 5))))
-	doc.Types["t/o"] = &ir.Model{ID: "t/o", Constraints: &ir.Constraints{MinProps: new(int64(2)), MaxProps: new(int64(1))}, Provenance: provAt("t/o")}
-	doc.Types["t/l"] = &ir.List{ID: "t/l", Elem: strT, Constraints: &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(1))}, Provenance: provAt("t/l")}
+	doc := modelOf(prop("property/a/n", strT, bounded(lengths(6, 5))))
+	doc.Types["type/o"] = &ir.Model{ID: "type/o", Constraints: &ir.Constraints{MinProperties: new(int64(2)), MaxProperties: new(int64(1))}, Provenance: provAt("type/o")}
+	doc.Types["type/l"] = &ir.List{ID: "type/l", ElementType: strT, Constraints: &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(1))}, Provenance: provAt("type/l")}
 	op := ir.Operation{
-		ID: "op/x", Provenance: provAt("op/x"),
-		Params:    []ir.Parameter{{ID: "param/x/q", Type: intT, Constraints: numeric("10", "", "5", ""), Provenance: provAt("param/x/q")}},
-		Request:   partsPayload(new(hdr("h/req/item")), map[ir.PropID]ir.Header{"p/m/b": hdr("h/req/b"), "p/m/a": hdr("h/req/a")}),
-		Responses: []ir.Response{{Headers: []ir.Header{hdr("h/resp")}, Payload: partsPayload(nil, map[ir.PropID]ir.Header{"p/m/a": hdr("h/resp/c")})}},
-		Default:   &ir.Response{Headers: []ir.Header{hdr("h/def")}, Payload: partsPayload(nil, map[ir.PropID]ir.Header{"p/m/a": hdr("h/def/c")})},
-		Errors:    []ir.ErrorCase{{Headers: []ir.Header{hdr("h/err")}, Payload: partsPayload(nil, map[ir.PropID]ir.Header{"p/m/a": hdr("h/err/c")})}},
+		ID: "operation/x", Provenance: provAt("operation/x"),
+		Params:    []ir.Parameter{{ID: "parameter/x/q", Type: intT, Constraints: numeric("10", "", "5", ""), Provenance: provAt("parameter/x/q")}},
+		Request:   partsPayload(new(hdr("h/req/item")), map[ir.PropertyID]ir.Header{"property/m/b": hdr("h/req/b"), "property/m/a": hdr("h/req/a")}),
+		Responses: []ir.Response{{Headers: []ir.Header{hdr("h/resp")}, Payload: partsPayload(nil, map[ir.PropertyID]ir.Header{"property/m/a": hdr("h/resp/c")})}},
+		Default:   &ir.Response{Headers: []ir.Header{hdr("h/def")}, Payload: partsPayload(nil, map[ir.PropertyID]ir.Header{"property/m/a": hdr("h/def/c")})},
+		Errors:    []ir.ErrorCase{{Headers: []ir.Header{hdr("h/err")}, Payload: partsPayload(nil, map[ir.PropertyID]ir.Header{"property/m/a": hdr("h/err/c")})}},
 	}
 	doc.Services = []ir.Service{{
-		ID: "s/x", Provenance: provAt("s/x"),
+		ID: "service/x", Provenance: provAt("service/x"),
 		CommonErrors: []ir.ErrorCase{{Headers: []ir.Header{hdr("h/ce")}}},
-		Groups:       []ir.OperationGroup{{ID: "g/x", Operations: []ir.Operation{op}}},
+		Groups:       []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{op}}},
 	}}
 	str := finding{message: message}
 	num := finding{message: "bounds admit no number: none is at least 10 and at most 5"}
@@ -315,9 +315,9 @@ func TestValidate_BoundsAreJudgedAtEverySiteAPositionSits(t *testing.T) {
 	at := func(f finding, node string) finding { f.node = node; return f }
 
 	assert.Equal(t, []finding{
-		at(list, "t/l"), at(obj, "t/o"),
-		at(str, "p/a/n"), at(str, "h/ce"),
-		at(num, "param/x/q"), at(str, "h/resp"), at(str, "h/def"), at(str, "h/err"),
+		at(list, "type/l"), at(obj, "type/o"),
+		at(str, "property/a/n"), at(str, "h/ce"),
+		at(num, "parameter/x/q"), at(str, "h/resp"), at(str, "h/def"), at(str, "h/err"),
 		at(str, "h/req/item"), at(str, "h/req/a"), at(str, "h/req/b"),
 		at(str, "h/resp/c"), at(str, "h/def/c"), at(str, "h/err/c"),
 	}, found(t, doc, boundsCode))
@@ -335,13 +335,13 @@ func TestValidate_AnEntityWithNoIDIsReportedAtItsOwner(t *testing.T) {
 	header.Provenance = where
 
 	doc := modelOf(blank)
-	doc.Services = []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{ID: "g/x", Operations: []ir.Operation{
-		{ID: "op/x", Responses: []ir.Response{{Headers: []ir.Header{header}}}},
+	doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{
+		{ID: "operation/x", Responses: []ir.Response{{Headers: []ir.Header{header}}}},
 	}}}}}
 
 	got := withCode(validated(t, doc), boundsCode)
 
-	assert.Equal(t, []string{"t/a", "op/x"}, pointers(got))
+	assert.Equal(t, []string{"type/a", "operation/x"}, pointers(got))
 	for _, d := range got {
 		assert.Equal(t, ir.Provenance{Pointer: where.Pointer, Node: d.Provenance.Node}, d.Provenance)
 	}

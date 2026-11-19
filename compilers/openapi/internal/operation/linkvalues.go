@@ -36,14 +36,14 @@ func (ex exchange) value(node *yaml.Node) (ir.LinkValue, *linkFailure) {
 		}
 		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}, nil
 	}
-	e, isExpression, err := runtimeexpr.Parse(v.Str)
+	e, isExpression, err := runtimeexpr.Parse(v.String)
 	switch {
 	case err != nil:
-		return ir.LinkValue{}, invalid("passes %q, which breaks the runtime expression grammar", v.Str)
+		return ir.LinkValue{}, invalid("passes %q, which breaks the runtime expression grammar", v.String)
 	case isExpression:
 		return ex.read(e)
-	case runtimeexpr.Embeds(v.Str):
-		return ir.LinkValue{}, untyped("passes %q, a string an expression is substituted into", v.Str)
+	case runtimeexpr.Embeds(v.String):
+		return ir.LinkValue{}, untyped("passes %q, a string an expression is substituted into", v.String)
 	default:
 		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}, nil
 	}
@@ -60,8 +60,8 @@ func substitutedString(v *ir.Value) (string, bool) {
 		stack = stack[:len(stack)-1]
 		switch top.Kind {
 		case ir.ValueString:
-			if runtimeexpr.Embeds(top.Str) {
-				return top.Str, true
+			if runtimeexpr.Embeds(top.String) {
+				return top.String, true
 			}
 		case ir.ValueList:
 			for i := len(top.List) - 1; i >= 0; i-- {
@@ -72,7 +72,7 @@ func substitutedString(v *ir.Value) (string, bool) {
 				stack = append(stack, &top.Object[i].Value)
 			}
 		case ir.ValueNull, ir.ValueBool, ir.ValueNumber, ir.ValueBytes, ir.ValueSymbol, ir.ValueRefKind,
-			ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+			ir.ValueConstructor, ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 			// value.FromNode builds none of these holding a string.
 		default:
 			// Nor a kind ir does not declare.
@@ -139,7 +139,7 @@ func (ex exchange) response(e runtimeexpr.Expression) (ir.LinkValue, *linkFailur
 
 // targetParam returns the parameter of op that a link's parameters key names
 // (compileddoc.ParamIndex.Named), which must name one parameter only.
-func targetParam(w *compileddoc.CompiledDocumentView, op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
+func targetParam(w *compileddoc.CompiledDocumentView, op *ir.Operation, key string) (ir.ParameterID, *linkFailure) {
 	id, matched := w.Params(op).Named(key)
 	switch matched {
 	case 1:

@@ -32,7 +32,7 @@ func prevLinkNames() linkNames {
 // pageLink returns the path to the one member of body, or, where deep is set, of a
 // model one of its members holds, that names is a link under, and nil where
 // none or several are.
-func pageLink(ms *models, body *model, deep bool, names linkNames) []ir.PropID {
+func pageLink(ms *models, body *model, deep bool, names linkNames) []ir.PropertyID {
 	path, found := findLink(ms, body, deep, names.named, true)
 	if found == 0 {
 		path, found = findLink(ms, body, deep, names.bare, false)
@@ -46,16 +46,16 @@ func pageLink(ms *models, body *model, deep bool, names linkNames) []ir.PropID {
 // findLink returns how many members of body, and, where deep is set, of a
 // model one of its members holds, are named one of names and typed as a url,
 // or as a plain string where plain is set, and the path to one of them.
-func findLink(ms *models, body *model, deep bool, names []string, plain bool) ([]ir.PropID, int) {
-	var path []ir.PropID
+func findLink(ms *models, body *model, deep bool, names []string, plain bool) ([]ir.PropertyID, int) {
+	var path []ir.PropertyID
 	found := 0
-	at := func(m *model, through []ir.PropID) {
+	at := func(m *model, through []ir.PropertyID) {
 		for _, name := range names {
 			for _, p := range m.urls[name] {
 				path, found = append(slices.Clone(through), p.ID), found+1
 			}
 			for _, s := range m.scalars[name] {
-				if plain && s.prim == ir.PrimString {
+				if plain && s.prim == ir.PrimitiveString {
 					path, found = append(slices.Clone(through), s.member.ID), found+1
 				}
 			}
@@ -64,7 +64,7 @@ func findLink(ms *models, body *model, deep bool, names []string, plain bool) ([
 	at(body, nil)
 	if deep {
 		for _, o := range body.objects {
-			at(ms.of(o.id), []ir.PropID{o.member.ID})
+			at(ms.of(o.id), []ir.PropertyID{o.member.ID})
 		}
 	}
 	return path, found
@@ -73,7 +73,7 @@ func findLink(ms *models, body *model, deep bool, names []string, plain bool) ([
 // agreed returns what of reads off every page of pages, where each reads the
 // same, and nil where two differ: a pager reads whichever content arrives, so
 // a link one content holds apart from another is no link of the walk.
-func agreed(pages []page, of func(page) []ir.PropID) []ir.PropID {
+func agreed(pages []page, of func(page) []ir.PropertyID) []ir.PropertyID {
 	first := of(pages[0])
 	for _, pg := range pages[1:] {
 		if !slices.Equal(first, of(pg)) {
@@ -116,7 +116,7 @@ func headerCursor(w *compileddoc.CompiledDocumentView, op *ir.Operation, cursor 
 // isURL reports whether td is the url primitive.
 func isURL(td ir.TypeDef) bool {
 	p, ok := td.(*ir.Primitive)
-	return ok && p.Prim == ir.PrimURL
+	return ok && p.PrimitiveKind == ir.PrimitiveURL
 }
 
 // linkWalk returns the walk op's response alone continues, where no place
@@ -198,8 +198,8 @@ const (
 // total_pages.
 func linkPartOf(canonical string, td ir.TypeDef) linkPart {
 	prim, _ := td.(*ir.Primitive)
-	text := prim != nil && (prim.Prim == ir.PrimString || prim.Prim == ir.PrimURL)
-	url := prim != nil && prim.Prim == ir.PrimURL
+	text := prim != nil && (prim.PrimitiveKind == ir.PrimitiveString || prim.PrimitiveKind == ir.PrimitiveURL)
+	url := prim != nil && prim.PrimitiveKind == ir.PrimitiveURL
 	switch canonical {
 	case "next_link":
 		return partIf(text, partNext)
@@ -210,7 +210,7 @@ func linkPartOf(canonical string, td ir.TypeDef) linkPart {
 	case "prev", "previous":
 		return partIf(url, partPrev)
 	case "count", "total", "total_count", "total_pages":
-		return partIf(prim != nil && (prim.Prim == ir.PrimInteger || prim.Prim.StrictlyWithin(ir.PrimInteger)), partCount)
+		return partIf(prim != nil && (prim.PrimitiveKind == ir.PrimitiveInteger || prim.PrimitiveKind.StrictlyWithin(ir.PrimitiveInteger)), partCount)
 	}
 	if _, list := td.(*ir.List); list && (itemsName(canonical) || canonical == "value") {
 		return partItems
@@ -243,7 +243,7 @@ func (r *reader) linkPage(id ir.TypeID) page {
 		return page{why: "is no page"}
 	}
 	body := r.models.of(id)
-	return page{items: []ir.PropID{parts[partItems][0].ID}, nextLink: pageLink(r.models, body, false, nextLinkNames()),
+	return page{items: []ir.PropertyID{parts[partItems][0].ID}, nextLink: pageLink(r.models, body, false, nextLinkNames()),
 		prevLink: pageLink(r.models, body, false, prevLinkNames()), totalCount: pageTotal(r.models, body, "total_count"),
 		totalPages: pageTotal(r.models, body, "total_pages")}
 }
@@ -263,7 +263,7 @@ func linkHeader(w *compileddoc.CompiledDocumentView, op *ir.Operation) bool {
 			return false
 		}
 		at := slices.IndexFunc(headers, func(h ir.Header) bool { return h.ID == found[0] })
-		if prim, ok := w.Stands(headers[at].Type.Target).(*ir.Primitive); !ok || prim.Prim != ir.PrimString {
+		if prim, ok := w.Stands(headers[at].Type.Target).(*ir.Primitive); !ok || prim.PrimitiveKind != ir.PrimitiveString {
 			return false
 		}
 		declared = true

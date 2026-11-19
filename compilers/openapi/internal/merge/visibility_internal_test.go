@@ -23,7 +23,7 @@ import (
 func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 	t.Parallel()
 	unrestricted := ir.Visibility{}
-	invisible := ir.Visibility{None: true}
+	invisible := ir.Visibility{InvisibleInEveryLifecycle: true}
 
 	tests := []struct {
 		name     string
@@ -118,5 +118,5 @@ func TestMergeVisibility_ReorderedBranchesAgree(t *testing.T) {
 	assert.Equal(t, forward, reversed, "allOf branch order must not reach the merged Only")
 	assert.ElementsMatch(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleQuery}, forward.Only,
 		"the merge is still the intersection, whichever order it is spelled in")
-	assert.False(t, forward.None, "a non-empty intersection is a restriction, not invisibility")
+	assert.False(t, forward.InvisibleInEveryLifecycle, "a non-empty intersection is a restriction, not invisibility")
 }

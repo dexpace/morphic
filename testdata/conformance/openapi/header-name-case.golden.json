@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Header Name Case",
         "canonical": "header_name_case"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1traces/get",
+              "id": "operation/openapi/paths/~1traces/get",
               "name": {
                 "source": "listTraces",
                 "canonical": "list_traces"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1traces/get/parameters/x-trace/header",
+                  "id": "parameter/openapi/paths/~1traces/get/parameters/x-trace/header",
                   "name": {
                     "source": "x-trace",
                     "canonical": "x_trace"
                   },
                   "type": {
-                    "target": "t/prim/integer",
+                    "target": "type/primitive/integer",
                     "nullable": false
                   },
                   "required": false,
@@ -99,21 +99,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1traces/get/responses/200/headers/x-rate",
+                      "id": "property/openapi/paths/~1traces/get/responses/200/headers/x-rate",
                       "name": {
                         "source": "x-rate",
                         "canonical": "x_rate"
                       },
                       "wireName": "x-rate",
                       "type": {
-                        "target": "t/prim/integer",
+                        "target": "type/primitive/integer",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -126,21 +126,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1traces/get/responses/200/headers/X-Rate",
+                      "id": "property/openapi/paths/~1traces/get/responses/200/headers/X-Rate",
                       "name": {
                         "source": "X-Rate",
                         "canonical": "x_rate"
                       },
                       "wireName": "X-Rate",
                       "type": {
-                        "target": "t/prim/string",
+                        "target": "type/primitive/string",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -167,7 +167,7 @@
                     "uriTemplate": "/traces",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1traces/get/parameters/x-trace/header",
+                        "param": "parameter/openapi/paths/~1traces/get/parameters/x-trace/header",
                         "location": "header",
                         "wireName": "x-trace",
                         "style": "simple",
@@ -186,7 +186,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1traces/post",
+              "id": "operation/openapi/paths/~1traces/post",
               "name": {
                 "source": "uploadTrace",
                 "canonical": "upload_trace"
@@ -194,13 +194,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1traces/post/parameters/X-Trace/header",
+                  "id": "parameter/openapi/paths/~1traces/post/parameters/X-Trace/header",
                   "name": {
                     "source": "X-Trace",
                     "canonical": "x_trace"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -216,31 +216,31 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1traces/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1traces/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1traces/post/requestBody/content/multipart~1form-data/schema/properties/part": {
+                      "property/openapi/paths/~1traces/post/requestBody/content/multipart~1form-data/schema/properties/part": {
                         "contentTypes": [
                           "text/plain"
                         ],
                         "headers": [
                           {
-                            "id": "p/openapi/paths/~1traces/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part",
+                            "id": "property/openapi/paths/~1traces/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part",
                             "name": {
                               "source": "X-Part",
                               "canonical": "x_part"
                             },
                             "wireName": "X-Part",
                             "type": {
-                              "target": "t/prim/string",
+                              "target": "type/primitive/string",
                               "nullable": false
                             },
                             "required": false,
                             "clientOptional": false,
                             "defaultAdded": false,
                             "visibility": {
-                              "none": false
+                              "invisibleInEveryLifecycle": false
                             },
                             "flatten": false,
                             "eventHeader": false,
@@ -253,21 +253,21 @@
                             }
                           },
                           {
-                            "id": "p/openapi/paths/~1traces/post/requestBody/content/multipart~1form-data/encoding/part/headers/x-part",
+                            "id": "property/openapi/paths/~1traces/post/requestBody/content/multipart~1form-data/encoding/part/headers/x-part",
                             "name": {
                               "source": "x-part",
                               "canonical": "x_part"
                             },
                             "wireName": "x-part",
                             "type": {
-                              "target": "t/prim/integer",
+                              "target": "type/primitive/integer",
                               "nullable": false
                             },
                             "required": false,
                             "clientOptional": false,
                             "defaultAdded": false,
                             "visibility": {
-                              "none": false
+                              "invisibleInEveryLifecycle": false
                             },
                             "flatten": false,
                             "eventHeader": false,
@@ -280,8 +280,8 @@
                             }
                           }
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       }
                     }
@@ -316,7 +316,7 @@
                     "uriTemplate": "/traces",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1traces/post/parameters/X-Trace/header",
+                        "param": "parameter/openapi/paths/~1traces/post/parameters/X-Trace/header",
                         "location": "header",
                         "wireName": "X-Trace",
                         "style": "simple",
@@ -349,9 +349,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1traces/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1traces/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1traces/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1traces/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "upload_trace_request"
       },
@@ -364,21 +364,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1traces/post/requestBody/content/multipart~1form-data/schema/properties/part",
+          "id": "property/openapi/paths/~1traces/post/requestBody/content/multipart~1form-data/schema/properties/part",
           "name": {
             "source": "part",
             "canonical": "part"
           },
           "wireName": "part",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -395,9 +395,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -405,11 +405,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -417,7 +417,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

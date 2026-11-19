@@ -260,13 +260,13 @@ func TestContent_RequestBodyRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	require.NotNil(t, postA.Request)
 	require.NotNil(t, postB.Request)
 
-	wantID := ir.TypeID("t/anon/components/requestBodies/Body/content/application~1json/schema")
+	wantID := ir.TypeID("type/anonymous/components/requestBodies/Body/content/application~1json/schema")
 	assert.Equal(t, wantID, postA.Request.Contents[0].Type.Target)
 	assert.Equal(t, wantID, postB.Request.Contents[0].Type.Target,
 		"both operations resolve the same shared body schema")
 
-	_, fabricatedA := doc.Types[ir.TypeID("t/anon/paths/~1a/post/requestBody/content/application~1json/schema")]
-	_, fabricatedB := doc.Types[ir.TypeID("t/anon/paths/~1b/post/requestBody/content/application~1json/schema")]
+	_, fabricatedA := doc.Types[ir.TypeID("type/anonymous/paths/~1a/post/requestBody/content/application~1json/schema")]
+	_, fabricatedB := doc.Types[ir.TypeID("type/anonymous/paths/~1b/post/requestBody/content/application~1json/schema")]
 	assert.False(t, fabricatedA, "no fabricated per-operation ID for /a")
 	assert.False(t, fabricatedB, "no fabricated per-operation ID for /b")
 }

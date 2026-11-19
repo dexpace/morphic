@@ -100,7 +100,7 @@ components:
 	c := op.Responses[0].Payload.Contents[0]
 	require.Len(t, c.Examples, 1, "the convertible $ref'd example still lowers")
 	require.NotNil(t, c.Examples[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "fine"}, *c.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "fine"}, *c.Examples[0].Value)
 
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	d, ok := openapitest.FirstDegradedWarning(diags)
@@ -210,7 +210,7 @@ func TestParamContent_OwnAndMediaExamplesAreBothKept(t *testing.T) {
 		out := make([]ir.BigVal, 0, len(examples))
 		for _, e := range examples {
 			require.NotNil(t, e.Value)
-			out = append(out, e.Value.Num)
+			out = append(out, e.Value.Number)
 		}
 		return out
 	}
@@ -268,7 +268,7 @@ func TestExamples_EverySpellingReachesTheIR(t *testing.T) {
 				assert.Nil(t, examples[0].Value)
 			} else {
 				require.NotNil(t, examples[0].Value)
-				assert.Equal(t, tc.value, examples[0].Value.Num)
+				assert.Equal(t, tc.value, examples[0].Value.Number)
 			}
 			if tc.kept == "" {
 				assert.Empty(t, examples[0].Unmodeled)

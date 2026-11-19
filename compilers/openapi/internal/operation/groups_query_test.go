@@ -42,18 +42,18 @@ func TestGroups_PathPrefixStopsAtTheQuery(t *testing.T) {
     get: {operationId: probe, responses: {"200": {description: ok}}}
 `
 	const head = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"
-	want := map[ir.GroupID][]ir.OpID{
-		"g/path-prefix/users": {"op/openapi/paths/~1users/get", "op/openapi/paths/~1users?role=admin/get"},
-		"g/path-prefix":       {"op/openapi/paths/~1?probe=1/get"},
+	want := map[ir.GroupID][]ir.OperationID{
+		"operation-group/path-prefix/users": {"operation/openapi/paths/~1users/get", "operation/openapi/paths/~1users?role=admin/get"},
+		"operation-group/path-prefix":       {"operation/openapi/paths/~1?probe=1/get"},
 	}
 	for _, tc := range []struct {
 		name  string
 		paths string
 		order []ir.GroupID
 	}{
-		{"the key without a query first", users + admins + probe, []ir.GroupID{"g/path-prefix/users", "g/path-prefix"}},
-		{"the key with a query first", admins + users + probe, []ir.GroupID{"g/path-prefix/users", "g/path-prefix"}},
-		{"the root first", probe + admins + users, []ir.GroupID{"g/path-prefix", "g/path-prefix/users"}},
+		{"the key without a query first", users + admins + probe, []ir.GroupID{"operation-group/path-prefix/users", "operation-group/path-prefix"}},
+		{"the key with a query first", admins + users + probe, []ir.GroupID{"operation-group/path-prefix/users", "operation-group/path-prefix"}},
+		{"the root first", probe + admins + users, []ir.GroupID{"operation-group/path-prefix", "operation-group/path-prefix/users"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -66,9 +66,9 @@ func TestGroups_PathPrefixStopsAtTheQuery(t *testing.T) {
 				"one warning per key carrying a query, and none from the grouping")
 			for _, g := range svc.Groups {
 				switch g.ID {
-				case "g/path-prefix":
+				case "operation-group/path-prefix":
 					assert.Equal(t, ir.Naming{Hint: "empty"}, g.Name)
-				case "g/path-prefix/users":
+				case "operation-group/path-prefix/users":
 					assert.Equal(t, "users", g.Name.Source)
 				}
 			}
@@ -89,7 +89,7 @@ paths:
 
 	require.Len(t, svc.Groups, 1)
 	require.Len(t, svc.Groups[0].Operations, 1)
-	assert.Equal(t, "g/path-prefix/users", string(svc.Groups[0].ID))
+	assert.Equal(t, "operation-group/path-prefix/users", string(svc.Groups[0].ID))
 	require.Len(t, svc.Groups[0].Operations[0].Bindings.HTTP, 1)
 	assert.Equal(t, "/users?role=admin", svc.Groups[0].Operations[0].Bindings.HTTP[0].URITemplate)
 }
@@ -108,5 +108,5 @@ paths:
       responses: {"200": {description: ok}}
 `, service.GroupByPathPrefix)
 
-	assert.Equal(t, []ir.GroupID{"g/path-prefix/{a?b}"}, groupIDs(svc.Groups))
+	assert.Equal(t, []ir.GroupID{"operation-group/path-prefix/{a?b}"}, groupIDs(svc.Groups))
 }

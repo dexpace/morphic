@@ -368,7 +368,7 @@ func loweredKinds(t *testing.T, doc *ir.Document, id ir.TypeID) kindSet {
 			require.NotNil(t, td.Base, "%s is an alias", id)
 			id = td.Base.Target
 		case *ir.Primitive:
-			return map[ir.PrimKind]kindSet{ir.PrimString: kindString, ir.PrimAny: anyInstance}[td.Prim]
+			return map[ir.PrimitiveKind]kindSet{ir.PrimitiveString: kindString, ir.PrimitiveAny: anyInstance}[td.PrimitiveKind]
 		case *ir.List:
 			return kindArray
 		case *ir.Model:
@@ -417,7 +417,7 @@ func TestAdmissionOf_KindsAreWhatEachConjunctionLowersTo(t *testing.T) {
 		doc := l.Document(t)
 		for name, st := range l.Schemas() {
 			r := admissionOf(l.Ctx, st)
-			assert.Equal(t, r.kinds, loweredKinds(t, doc, ir.TypeID("t/openapi/components/schemas/"+name)), "%s swapped=%t", name, swap)
+			assert.Equal(t, r.kinds, loweredKinds(t, doc, ir.TypeID("type/openapi/components/schemas/"+name)), "%s swapped=%t", name, swap)
 			if row, ok := rows[name]; ok {
 				assert.Equal(t, row.kinds, r.kinds, "%s swapped=%t", name, swap)
 			}

@@ -24,24 +24,24 @@ import (
 func TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
-		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
+		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
+		"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 	})
 	loser := ir.Property{
 		WireName:   "id",
-		Type:       ir.TypeRef{Target: "t/int", Nullable: true},
+		Type:       ir.TypeRef{Target: "type/int", Nullable: true},
 		Provenance: ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/0/properties/id"},
 	}
 	winner := ir.Property{
 		WireName:   "id",
-		Type:       ir.TypeRef{Target: "t/str"},
+		Type:       ir.TypeRef{Target: "type/str"},
 		Provenance: ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/1/properties/id"},
 	}
 
 	dst := g.fold([]declaration{{prop: loser, source: written(`{"type":"integer","nullable":true}`)}, {prop: winner, source: unread(t)}})
 
 	require.Len(t, *recorded, 1, "the conflict is still diagnosed")
-	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the later declaration wins the shape")
+	assert.Equal(t, ir.TypeID("type/str"), dst.Type.Target, "the later declaration wins the shape")
 
 	key := "openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/id"
 	entry, ok := dst.Unmodeled[key]
@@ -60,17 +60,17 @@ func TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration(t *testing.T) {
 func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
-		"t/str":  &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
-		"t/int":  &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
-		"t/bool": &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool},
+		"type/str":  &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
+		"type/int":  &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
+		"type/bool": &ir.Primitive{ID: "type/bool", PrimitiveKind: ir.PrimitiveBool},
 	}
 	g, _ := stubMerger(reg)
 	m := &ir.Model{}
 	idx, settle := indexOver(m, g)
 
-	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}, written(`{"type":"string"}`), "")
-	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}, written(`{"type":"integer"}`), "")
-	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/bool"}, Provenance: ptrAt("/c")}, unread(t), "")
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/str"}, Provenance: ptrAt("/a")}, written(`{"type":"string"}`), "")
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/int"}, Provenance: ptrAt("/b")}, written(`{"type":"integer"}`), "")
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/bool"}, Provenance: ptrAt("/c")}, unread(t), "")
 	settle()
 
 	require.Len(t, m.Properties, 1, "three declarations still reconcile to one property")
@@ -97,19 +97,19 @@ func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
 	})
-	agreeing := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
+	agreeing := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/str"}}
 
-	agreeing = foldTwo(g, agreeing, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/b")}, unread(t))
+	agreeing = foldTwo(g, agreeing, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/str"}, Provenance: ptrAt("/b")}, unread(t))
 
 	assert.Empty(t, *recorded, "agreeing declarations are not a conflict")
 	assert.Empty(t, agreeing.Unmodeled, "and nothing was discarded to keep")
 
 	bounded := g.fold([]declaration{
-		{prop: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "t/str"}, Constraints: &ir.Constraints{Pattern: "^a$"},
+		{prop: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "type/str"}, Constraints: &ir.Constraints{Pattern: "^a$"},
 			Provenance: ptrAt("/a")}, source: written(`{"type":"string","pattern":"^a$"}`)},
-		{prop: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "t/str"}, Constraints: &ir.Constraints{Pattern: "^b$"},
+		{prop: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "type/str"}, Constraints: &ir.Constraints{Pattern: "^b$"},
 			Provenance: ptrAt("/b")}, source: unread(t)},
 	})
 

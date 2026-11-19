@@ -95,9 +95,9 @@ func TestNumberText_ABoundBesideAPrincipalIsKeptAsFlat(t *testing.T) {
 				// The type list's text variant holds what its own entry writes, so
 				// one written elsewhere is kept on the Union, where a second
 				// writer of the keyword cannot overwrite it.
-				owner := "doc.Types[t/openapi/components/schemas/X].Unmodeled"
+				owner := "document.Types[type/openapi/components/schemas/X].Unmodeled"
 				if cell.property {
-					owner = "doc.Types[t/anon/components/schemas/X/properties/p].Unmodeled"
+					owner = "document.Types[type/anonymous/components/schemas/X/properties/p].Unmodeled"
 				}
 				flat.kept = []string{owner + " " + string(ir.ReasonNoIRHome)}
 			}

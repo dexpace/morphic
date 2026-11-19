@@ -102,29 +102,29 @@ func cleanRegistry(n int) *ir.Document {
 		Auth:      map[ir.AuthID]ir.AuthScheme{},
 		Servers:   map[ir.ServerID]ir.Server{},
 		IDSpaces:  map[string][]string{},
-		Services:  []ir.Service{{ID: "s/x"}},
+		Services:  []ir.Service{{ID: "service/x"}},
 	}
-	for _, kind := range []ir.PrimKind{ir.PrimString, ir.PrimInt32, ir.PrimBool} {
-		doc.Types[ir.PrimTypeID(kind)] = &ir.Primitive{
-			ID: ir.PrimTypeID(kind), Prim: kind, Provenance: ir.Provenance{Source: ir.NoSource},
+	for _, kind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveInt32, ir.PrimitiveBool} {
+		doc.Types[ir.PrimitiveTypeID(kind)] = &ir.Primitive{
+			ID: ir.PrimitiveTypeID(kind), PrimitiveKind: kind, Provenance: ir.Provenance{Source: ir.NoSource},
 		}
 	}
 	for i := range n {
 		suffix := fmt.Sprintf("%04d", i)
-		model := &ir.Model{ID: ir.TypeID("t/x/M" + suffix), Constraints: &ir.Constraints{MinProps: new(int64(1))}}
+		model := &ir.Model{ID: ir.TypeID("type/x/M" + suffix), Constraints: &ir.Constraints{MinProperties: new(int64(1))}}
 		for j := range 12 {
 			model.Properties = append(model.Properties, ir.Property{WireName: fmt.Sprintf("own%d", j)})
 			model.Requires = append(model.Requires, fmt.Sprintf("inherited%d", j))
 		}
 		enumPath := "components/schemas/Enumeration" + suffix
-		enum := &ir.Enum{ID: ir.TypeID("t/x/" + enumPath), ValueType: ir.PrimString, Members: []ir.EnumMember{
-			{ID: ir.EnumMemberID("e/x/" + enumPath + "/a"), Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
-			{ID: ir.EnumMemberID("e/x/" + enumPath + "/b"), Value: ir.Value{Kind: ir.ValueString, Str: "b"}},
+		enum := &ir.Enum{ID: ir.TypeID("type/x/" + enumPath), ValueType: ir.PrimitiveString, Members: []ir.EnumMember{
+			{ID: ir.EnumMemberID("enum-member/x/" + enumPath + "/a"), Value: ir.Value{Kind: ir.ValueString, String: "a"}},
+			{ID: ir.EnumMemberID("enum-member/x/" + enumPath + "/b"), Value: ir.Value{Kind: ir.ValueString, String: "b"}},
 		}}
 		for _, td := range []ir.TypeDef{
 			model, enum,
-			&ir.Union{ID: ir.TypeID("t/x/U" + suffix), Variants: []ir.Variant{{}}},
-			&ir.MapT{ID: ir.TypeID("t/x/Map" + suffix), Constraints: &ir.Constraints{MaxProps: new(int64(1))}},
+			&ir.Union{ID: ir.TypeID("type/x/U" + suffix), Variants: []ir.Variant{{}}},
+			&ir.MapT{ID: ir.TypeID("type/x/Map" + suffix), Constraints: &ir.Constraints{MaxProperties: new(int64(1))}},
 		} {
 			doc.Types[td.Common().ID] = td
 		}

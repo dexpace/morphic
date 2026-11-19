@@ -16,7 +16,7 @@ import (
 // checkEncodingKeys reports Content.Encoding keys that name no property of the
 // model the content's Type addresses.
 //
-// A key is a PropID, which no document-level registry resolves, so the
+// A key is a PropertyID, which no document-level registry resolves, so the
 // type-driven walk has nothing to resolve it against and the keys are
 // enumerated here. An emitter rendering multipart parts looks the key up among
 // the body's properties and silently renders no part for a miss.
@@ -26,7 +26,7 @@ import (
 // it. Only this pass reports it today. facts indexes doc.
 func checkEncodingKeys(doc *ir.Document, facts *irfacts.DocumentFacts) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var keys []ir.PropID // every content's keys are sorted in this one list
+	var keys []ir.PropertyID // every content's keys are sorted in this one list
 	forEachPayload(doc, func(site payloadSite) {
 		diags = appendEncodingKeyDiags(diags, doc.Types, facts, site, &keys)
 	})
@@ -87,12 +87,12 @@ func appendCatchAllDiags(dst []ir.Diagnostic, types ir.TypeRegistry, c ir.Conten
 // appendCatchAllPartDiags appends to dst a diagnostic for a Value parts states
 // where holder, at at's key, has none, and for each Patterns key, in ascending
 // order, holder does not list. ir.CatchAllHolders gives a map, which has a
-// value and no pattern, or a model holding AdditionalProps.
+// value and no pattern, or a model holding AdditionalProperties.
 func appendCatchAllPartDiags(dst []ir.Diagnostic, holder ir.TypeDef, parts ir.CatchAllParts, at string) []ir.Diagnostic {
 	value, listed := true, []string(nil)
 	if m, ok := holder.(*ir.Model); ok {
-		value = m.AdditionalProps.Value != nil
-		for _, p := range m.AdditionalProps.Patterns {
+		value = m.AdditionalProperties.Value != nil
+		for _, p := range m.AdditionalProperties.Patterns {
 			listed = append(listed, p.Pattern)
 		}
 	}
@@ -227,7 +227,7 @@ func siteOf(p ir.Payload, owner, field string, index int, request bool) payloadS
 // is reported beside checkDanglingRefs's finding on the type. The claims
 // differ, as with checkMapping.
 func appendEncodingKeyDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.DocumentFacts, site payloadSite,
-	keys *[]ir.PropID,
+	keys *[]ir.PropertyID,
 ) []ir.Diagnostic {
 	for i, c := range site.contents {
 		dst = appendUnknownPartDiags(dst, types, facts, c, site, i, keys)
@@ -244,7 +244,7 @@ func appendEncodingKeyDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 // has it name the one taken: flattening every type asked about grows
 // quadratically down a deep hierarchy.
 func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.DocumentFacts, c ir.Content,
-	site payloadSite, i int, keys *[]ir.PropID,
+	site payloadSite, i int, keys *[]ir.PropertyID,
 ) []ir.Diagnostic {
 	*keys = (*keys)[:0]
 	for key := range c.Encoding {
@@ -269,7 +269,7 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 // distributed across a union puts the body's properties on every variant;
 // else one a shape of such a type that is a model narrowing a union holds
 // (narrowedHolds), which is read only then (docs/ir/payloads.md).
-func partNamed(types ir.TypeRegistry, facts *irfacts.DocumentFacts, target ir.TypeID, key ir.PropID) bool {
+func partNamed(types ir.TypeRegistry, facts *irfacts.DocumentFacts, target ir.TypeID, key ir.PropertyID) bool {
 	return anyHolder(types, target, func(h ir.TypeID) bool { return facts.Exposes(h, key) }) ||
 		anyHolder(types, target, func(h ir.TypeID) bool { return narrowedHolds(types, h, key, maxNarrowedSteps) })
 }
@@ -312,7 +312,7 @@ const maxNarrowedSteps = 100_000
 // a union (ir.NarrowedShapes), holds a member declared as key: a part only one
 // of the union's variants declares, which the model exposes nowhere. A walk
 // past limit steps lists no shape, so it holds none.
-func narrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropID, limit int) bool {
+func narrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropertyID, limit int) bool {
 	n, _, _ := ir.NarrowedShapes(types, target, limit)
 	for _, shape := range n.Shapes {
 		if slices.ContainsFunc(shape.Properties, func(fp ir.FlatProperty) bool { return fp.Property.ID == key }) {

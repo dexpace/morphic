@@ -109,7 +109,7 @@ func docsPropertyCase() retentionCase {
 		spec: carrierPropertySpec(`{type: string, description: at-carrier}`),
 		assert: func(t *testing.T, doc *ir.Document) {
 			assert.Equal(t, "at-carrier", carriedProperty(t, doc).Docs.Description)
-			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Docs.Description,
+			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("type/primitive/string")).Common().Docs.Description,
 				"a carrier's docs must not leak onto the shared primitive")
 		},
 	}
@@ -133,7 +133,7 @@ func examplesPropertyCase() retentionCase {
 			ex := carriedProperty(t, doc).Examples
 			require.Len(t, ex, 1)
 			require.NotNil(t, ex[0].Value)
-			assert.Equal(t, "at-carrier", ex[0].Value.Str)
+			assert.Equal(t, "at-carrier", ex[0].Value.String)
 		},
 	}
 }
@@ -146,7 +146,7 @@ func examplesParameterCase() retentionCase {
 			ex := carriedParameter(t, doc).Examples
 			require.Len(t, ex, 1)
 			require.NotNil(t, ex[0].Value)
-			assert.Equal(t, "at-carrier", ex[0].Value.Str)
+			assert.Equal(t, "at-carrier", ex[0].Value.String)
 		},
 	}
 }
@@ -160,7 +160,7 @@ func constraintsPropertyCase() retentionCase {
 			require.NotNil(t, p.Constraints)
 			require.NotNil(t, p.Constraints.MinLength)
 			assert.Equal(t, int64(2), *p.Constraints.MinLength)
-			assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
+			assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target,
 				"the bound rides on the carrier, so the position still resolves to the shared primitive")
 		},
 	}
@@ -186,7 +186,7 @@ func defaultPropertyCase() retentionCase {
 		assert: func(t *testing.T, doc *ir.Document) {
 			d := carriedProperty(t, doc).Default
 			require.NotNil(t, d)
-			assert.Equal(t, "at-carrier", d.Str)
+			assert.Equal(t, "at-carrier", d.String)
 		},
 	}
 }
@@ -198,7 +198,7 @@ func defaultParameterCase() retentionCase {
 		assert: func(t *testing.T, doc *ir.Document) {
 			d := carriedParameter(t, doc).Default
 			require.NotNil(t, d)
-			assert.Equal(t, "at-carrier", d.Str)
+			assert.Equal(t, "at-carrier", d.String)
 		},
 	}
 }
@@ -209,7 +209,7 @@ func deprecatedPropertyCase() retentionCase {
 		spec: carrierPropertySpec(`{type: string, deprecated: true}`),
 		assert: func(t *testing.T, doc *ir.Document) {
 			assert.NotNil(t, carriedProperty(t, doc).Deprecation)
-			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Deprecation,
+			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("type/primitive/string")).Common().Deprecation,
 				"a carrier's deprecation must not leak onto the shared primitive")
 		},
 	}

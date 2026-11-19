@@ -25,7 +25,7 @@ func TestPropIDByName_NotFound(t *testing.T) {
 	assert.False(t, ok)
 	id, ok := propIDByName(m, "a")
 	assert.True(t, ok)
-	assert.Equal(t, ir.PropID("p1"), id)
+	assert.Equal(t, ir.PropertyID("p1"), id)
 }
 
 // TestDiscriminatorMapping_DefsValueNamesItsOwnInternedSibling drives the
@@ -106,15 +106,15 @@ func TestDiscriminatorMapping_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
 	for name, reg := range map[string]ir.TypeRegistry{
-		"model missing": {"t/other": &ir.Model{ID: "t/other"}},
-		"no model":      {"t/ghost": &ir.Scalar{ID: "t/ghost"}},
-		"nil model":     {"t/ghost": (*ir.Model)(nil)},
-		"nil map":       {"t/ghost": (*ir.MapT)(nil)},
+		"model missing": {"type/other": &ir.Model{ID: "type/other"}},
+		"no model":      {"type/ghost": &ir.Scalar{ID: "type/ghost"}},
+		"nil model":     {"type/ghost": (*ir.Model)(nil)},
+		"nil map":       {"type/ghost": (*ir.MapT)(nil)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-			d := besideUnionDiscriminator{c: c.Ctx, pointer: "/components/schemas/Ghost", model: "t/ghost"}
+			d := besideUnionDiscriminator{c: c.Ctx, pointer: "/components/schemas/Ghost", model: "type/ghost"}
 
 			diags := d.Settle(t.Context(), reg)
 
@@ -130,13 +130,13 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 // so the second has nothing to settle and reports nothing.
 func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 	t.Parallel()
-	mt := &ir.MapT{ID: "t/pet", Value: ir.TypeRef{Target: "t/prim/string"}}
-	reg := ir.TypeRegistry{"t/pet": mt}
+	mt := &ir.MapT{ID: "type/pet", Value: ir.TypeRef{Target: "type/primitive/string"}}
+	reg := ir.TypeRegistry{"type/pet": mt}
 	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	d := besideUnionDiscriminator{c: c.Ctx, pointer: "/components/schemas/Pet", model: "t/pet"}
+	d := besideUnionDiscriminator{c: c.Ctx, pointer: "/components/schemas/Pet", model: "type/pet"}
 
 	assert.Empty(t, d.Settle(t.Context(), reg))
-	assert.Same(t, mt, reg["t/pet"], "the map is left in place")
+	assert.Same(t, mt, reg["type/pet"], "the map is left in place")
 }
 
 // petDiscriminator returns the discriminator the component schema Pet holds

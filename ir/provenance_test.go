@@ -111,8 +111,8 @@ func TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey(t *testing.T) {
 		},
 		{
 			name: "node only",
-			prov: ir.Provenance{Source: ir.NoSource, Node: "op/x"},
-			want: `{"source":-1,"node":"op/x"}`,
+			prov: ir.Provenance{Source: ir.NoSource, Node: "operation/x"},
+			want: `{"source":-1,"node":"operation/x"}`,
 		},
 		{
 			name: "zero value",
@@ -403,8 +403,8 @@ func relatedDiagnostic() ir.Diagnostic {
 	d := ir.NewDiagnostic(ir.SeverityWarning, "x/conflict", "m", ir.Provenance{Pointer: "/a"})
 	d.Related = []ir.Related{
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/b", WrittenBy: 1, Position: ir.Position{Line: 2, Column: 3}}},
-		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/m"}},
-		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/n", Inferred: "h"}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/m"}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/n", Inferred: "h"}},
 	}
 	return d
 }
@@ -467,7 +467,7 @@ func TestDiagnostic_KeyIsTheWholeValue(t *testing.T) {
 		"related writer":   func(d *ir.Diagnostic) { d.Related[0].Provenance.WrittenBy = 2 },
 		"related line":     func(d *ir.Diagnostic) { d.Related[0].Provenance.Position.Line = 9 },
 		"related column":   func(d *ir.Diagnostic) { d.Related[0].Provenance.Position.Column = 9 },
-		"related node":     func(d *ir.Diagnostic) { d.Related[1].Provenance.Node = "p/x/o" },
+		"related node":     func(d *ir.Diagnostic) { d.Related[1].Provenance.Node = "property/x/o" },
 		"related inferred": func(d *ir.Diagnostic) { d.Related[2].Provenance.Inferred = "g" },
 		"text moved between fields": func(d *ir.Diagnostic) {
 			d.Related[1].Provenance.Pointer, d.Related[1].Provenance.Node = "p", "/x/m"
@@ -485,7 +485,7 @@ func TestDiagnostic_KeyIsTheWholeValue(t *testing.T) {
 	spaced := func(node string, inferred ir.Inferred) ir.DiagnosticKey {
 		return ir.Diagnostic{Related: []ir.Related{{Provenance: ir.Provenance{Node: node, Inferred: inferred}}}}.Key()
 	}
-	assert.NotEqual(t, spaced("p/x b", "c"), spaced("p/x", "b c"), "a space between two neighbouring fields is no boundary")
+	assert.NotEqual(t, spaced("p/x b", "c"), spaced("property/x", "b c"), "a space between two neighbouring fields is no boundary")
 }
 
 // TestMergeDiagnostics_TellsFindingsApartByTheirRelatedEntries holds the merge

@@ -71,8 +71,8 @@ func Constraints(s *statement.Schema, take Bounds, exclusiveBoolean bool, pointe
 		c.Pattern = s.Text.Pattern
 	}
 	if take&ObjectBounds != 0 && s.Object != nil {
-		c.MinProps = ExactCount(s, "minProperties", s.Object.MinProperties)
-		c.MaxProps = ExactCount(s, "maxProperties", s.Object.MaxProperties)
+		c.MinProperties = ExactCount(s, "minProperties", s.Object.MinProperties)
+		c.MaxProperties = ExactCount(s, "maxProperties", s.Object.MaxProperties)
 	}
 	if emptyConstraints(c) {
 		return nil, residue.kept, diags
@@ -290,5 +290,5 @@ func emptyConstraints(c *ir.Constraints) bool {
 		c.MultipleOf == nil && c.Precision == nil && c.Scale == nil &&
 		c.MinLength == nil && c.MaxLength == nil &&
 		c.Pattern == "" && c.PatternMessage == "" &&
-		c.MinProps == nil && c.MaxProps == nil
+		c.MinProperties == nil && c.MaxProperties == nil
 }

@@ -31,7 +31,7 @@ func typeDefZeroShapeTests() []struct {
 		{
 			name: "primitive",
 			td:   &ir.Primitive{},
-			want: `{"kind":"primitive","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"prim":""}`,
+			want: `{"kind":"primitive","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"primitiveKind":""}`,
 		},
 		{
 			name: "scalar",
@@ -56,7 +56,7 @@ func typeDefZeroShapeTests() []struct {
 		{
 			name: "list",
 			td:   &ir.List{},
-			want: `{"kind":"list","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"elem":{"target":"","nullable":false}}`,
+			want: `{"kind":"list","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"elementType":{"target":"","nullable":false}}`,
 		},
 		{
 			name: "map",
@@ -91,8 +91,8 @@ func typeDefZeroShapeTests() []struct {
 func TestPrimitive_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Primitive{
-		TypeCommon: populatedTypeCommon("t/prim/string"),
-		Prim:       ir.PrimString,
+		TypeCommon:    populatedTypeCommon("type/primitive/string"),
+		PrimitiveKind: ir.PrimitiveString,
 	}
 	assertTypeDefRoundTrip(t, want)
 }
@@ -102,8 +102,8 @@ func TestPrimitive_PopulatedRoundTrip(t *testing.T) {
 func TestScalar_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Scalar{
-		TypeCommon:  populatedTypeCommon("t/scalar/positive-int"),
-		Base:        &ir.TypeRef{Target: "t/prim/int32"},
+		TypeCommon:  populatedTypeCommon("type/scalar/positive-int"),
+		Base:        &ir.TypeRef{Target: "type/primitive/int32"},
 		Constraints: populatedConstraints(),
 		Encoding:    populatedEncoding(),
 	}
@@ -117,16 +117,16 @@ func TestScalar_PopulatedRoundTrip(t *testing.T) {
 func TestModel_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Model{
-		TypeCommon: populatedTypeCommon("t/model/User"),
+		TypeCommon: populatedTypeCommon("type/model/User"),
 		Properties: []ir.Property{populatedProperty()},
-		Base:       &ir.TypeRef{Target: "t/model/Base"},
-		Implements: []ir.TypeRef{{Target: "t/iface/A"}, {Target: "t/iface/B"}},
-		Mixins:     []ir.TypeRef{{Target: "t/mixin/M1"}},
+		Base:       &ir.TypeRef{Target: "type/model/Base"},
+		Implements: []ir.TypeRef{{Target: "type/iface/A"}, {Target: "type/iface/B"}},
+		Mixins:     []ir.TypeRef{{Target: "type/mixin/M1"}},
 		Requires:   []string{"createdAt"},
-		AdditionalProps: &ir.AdditionalProps{
+		AdditionalProperties: &ir.AdditionalProperties{
 			Value: new(populatedTypeRef()),
-			Key:   &ir.TypeRef{Target: "t/prim/string"},
-			Patterns: []ir.PatternProps{
+			Key:   &ir.TypeRef{Target: "type/primitive/string"},
+			Patterns: []ir.PatternProperties{
 				{Pattern: "^x-", Value: populatedTypeRef()},
 			},
 		},
@@ -136,8 +136,8 @@ func TestModel_PopulatedRoundTrip(t *testing.T) {
 		Positional:      true,
 		ExtensionRanges: []ir.WireIDRange{{From: 100, To: 199}},
 		Discriminator: &ir.Discriminator{
-			Property: "p/kind",
-			Mapping:  map[string]ir.TypeID{"dog": "t/Dog", "cat": "t/Cat"},
+			Property: "property/kind",
+			Mapping:  map[string]ir.TypeID{"dog": "type/Dog", "cat": "type/Cat"},
 		},
 		DiscriminatorValue: "user",
 		InputOnly:          true,
@@ -150,10 +150,10 @@ func TestModel_PopulatedRoundTrip(t *testing.T) {
 func TestUnion_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Union{
-		TypeCommon: populatedTypeCommon("t/union/Pet"),
+		TypeCommon: populatedTypeCommon("type/union/Pet"),
 		Variants: []ir.Variant{
-			{Name: ir.Naming{Source: "dog"}, Type: ir.TypeRef{Target: "t/Dog"}},
-			{Name: ir.Naming{Source: "cat"}, Type: ir.TypeRef{Target: "t/Cat"}},
+			{Name: ir.Naming{Source: "dog"}, Type: ir.TypeRef{Target: "type/Dog"}},
+			{Name: ir.Naming{Source: "cat"}, Type: ir.TypeRef{Target: "type/Cat"}},
 		},
 		Exclusive:  true,
 		WireTagged: true,
@@ -161,9 +161,9 @@ func TestUnion_PopulatedRoundTrip(t *testing.T) {
 		InputOnly:  true,
 		Discriminator: &ir.Discriminator{
 			PropertyName: "petType",
-			Mapping:      map[string]ir.TypeID{"dog": "t/Dog"},
+			Mapping:      map[string]ir.TypeID{"dog": "type/Dog"},
 		},
-		Constraints: &ir.Constraints{MinProps: new(int64(1))},
+		Constraints: &ir.Constraints{MinProperties: new(int64(1))},
 	}
 	assertTypeDefRoundTrip(t, want)
 }
@@ -172,11 +172,11 @@ func TestUnion_PopulatedRoundTrip(t *testing.T) {
 func TestEnum_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Enum{
-		TypeCommon: populatedTypeCommon("t/enum/Status"),
-		ValueType:  ir.PrimString,
+		TypeCommon: populatedTypeCommon("type/enum/Status"),
+		ValueType:  ir.PrimitiveString,
 		Members: []ir.EnumMember{
-			{Name: ir.Naming{Source: "ACTIVE"}, Value: ir.Value{Kind: ir.ValueString, Str: "active"}},
-			{Name: ir.Naming{Source: "INACTIVE"}, Value: ir.Value{Kind: ir.ValueString, Str: "inactive"}},
+			{Name: ir.Naming{Source: "ACTIVE"}, Value: ir.Value{Kind: ir.ValueString, String: "active"}},
+			{Name: ir.Naming{Source: "INACTIVE"}, Value: ir.Value{Kind: ir.ValueString, String: "inactive"}},
 		},
 		Closed:         true,
 		Flags:          true,
@@ -189,8 +189,8 @@ func TestEnum_PopulatedRoundTrip(t *testing.T) {
 func TestList_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.List{
-		TypeCommon:  populatedTypeCommon("t/list/Tags"),
-		Elem:        populatedTypeRef(),
+		TypeCommon:  populatedTypeCommon("type/list/Tags"),
+		ElementType: populatedTypeRef(),
 		Constraints: populatedConstraints(),
 		Encoding:    populatedEncoding(),
 	}
@@ -201,8 +201,8 @@ func TestList_PopulatedRoundTrip(t *testing.T) {
 func TestMapT_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.MapT{
-		TypeCommon:  populatedTypeCommon("t/map/Attrs"),
-		Key:         &ir.TypeRef{Target: "t/prim/int64"},
+		TypeCommon:  populatedTypeCommon("type/map/Attrs"),
+		Key:         &ir.TypeRef{Target: "type/primitive/int64"},
 		Value:       populatedTypeRef(),
 		Constraints: populatedConstraints(),
 	}
@@ -214,10 +214,10 @@ func TestMapT_PopulatedRoundTrip(t *testing.T) {
 func TestTuple_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Tuple{
-		TypeCommon:  populatedTypeCommon("t/tuple/Pair"),
-		Elems:       []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/int32"}},
-		Rest:        &ir.TypeRef{Target: "t/prim/bool", Nullable: true},
-		Constraints: populatedConstraints(),
+		TypeCommon:   populatedTypeCommon("type/tuple/Pair"),
+		ElementTypes: []ir.TypeRef{{Target: "type/primitive/string"}, {Target: "type/primitive/int32"}},
+		Rest:         &ir.TypeRef{Target: "type/primitive/bool", Nullable: true},
+		Constraints:  populatedConstraints(),
 	}
 	assertTypeDefRoundTrip(t, want)
 }
@@ -227,9 +227,9 @@ func TestTuple_PopulatedRoundTrip(t *testing.T) {
 func TestLiteral_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Literal{
-		TypeCommon: populatedTypeCommon("t/literal/Fixed"),
-		Value:      ir.Value{Kind: ir.ValueString, Str: "fixed"},
-		ValueType:  ir.PrimString,
+		TypeCommon: populatedTypeCommon("type/literal/Fixed"),
+		Value:      ir.Value{Kind: ir.ValueString, String: "fixed"},
+		ValueType:  ir.PrimitiveString,
 	}
 	assertTypeDefRoundTrip(t, want)
 }
@@ -239,7 +239,7 @@ func TestLiteral_PopulatedRoundTrip(t *testing.T) {
 func TestExternal_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.External{
-		TypeCommon: populatedTypeCommon("t/external/Pid"),
+		TypeCommon: populatedTypeCommon("type/external/Pid"),
 		Identity:   "erlang:pid",
 		Package:    "erlang",
 		MinVersion: "24.0",
@@ -251,147 +251,147 @@ func TestExternal_PopulatedRoundTrip(t *testing.T) {
 // round-trips.
 func TestAny_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
-	want := &ir.Any{TypeCommon: populatedTypeCommon("t/any/Freeform")}
+	want := &ir.Any{TypeCommon: populatedTypeCommon("type/any/Freeform")}
 	assertTypeDefRoundTrip(t, want)
 }
 
 // primKindSpellings is the whole primitive vocabulary and its on-disk spelling.
 // It is a package-level fixture rather than a literal inside the test below
 // because the ID tests walk the same vocabulary, and a second list of the kinds
-// would be one more thing to keep in step with ir.PrimKind's constants.
-var primKindSpellings = map[ir.PrimKind]string{
-	ir.PrimBool:           "bool",
-	ir.PrimString:         "string",
-	ir.PrimBytes:          "bytes",
-	ir.PrimInt8:           "int8",
-	ir.PrimInt16:          "int16",
-	ir.PrimInt32:          "int32",
-	ir.PrimInt64:          "int64",
-	ir.PrimUint8:          "uint8",
-	ir.PrimUint16:         "uint16",
-	ir.PrimUint32:         "uint32",
-	ir.PrimUint64:         "uint64",
-	ir.PrimInteger:        "integer",
-	ir.PrimFloat32:        "float32",
-	ir.PrimFloat64:        "float64",
-	ir.PrimFloat:          "float",
-	ir.PrimNumber:         "number",
-	ir.PrimDecimal:        "decimal",
-	ir.PrimDecimal128:     "decimal128",
-	ir.PrimDate:           "date",
-	ir.PrimTime:           "time",
-	ir.PrimDatetime:       "datetime",
-	ir.PrimDatetimeOffset: "datetime_offset",
-	ir.PrimDuration:       "duration",
-	ir.PrimURL:            "url",
-	ir.PrimUUID:           "uuid",
-	ir.PrimAny:            "any",
+// would be one more thing to keep in step with ir.PrimitiveKind's constants.
+var primKindSpellings = map[ir.PrimitiveKind]string{
+	ir.PrimitiveBool:           "bool",
+	ir.PrimitiveString:         "string",
+	ir.PrimitiveBytes:          "bytes",
+	ir.PrimitiveInt8:           "int8",
+	ir.PrimitiveInt16:          "int16",
+	ir.PrimitiveInt32:          "int32",
+	ir.PrimitiveInt64:          "int64",
+	ir.PrimitiveUint8:          "uint8",
+	ir.PrimitiveUint16:         "uint16",
+	ir.PrimitiveUint32:         "uint32",
+	ir.PrimitiveUint64:         "uint64",
+	ir.PrimitiveInteger:        "integer",
+	ir.PrimitiveFloat32:        "float32",
+	ir.PrimitiveFloat64:        "float64",
+	ir.PrimitiveFloat:          "float",
+	ir.PrimitiveNumber:         "number",
+	ir.PrimitiveDecimal:        "decimal",
+	ir.PrimitiveDecimal128:     "decimal128",
+	ir.PrimitiveDate:           "date",
+	ir.PrimitiveTime:           "time",
+	ir.PrimitiveDatetime:       "datetime",
+	ir.PrimitiveDatetimeOffset: "datetime_offset",
+	ir.PrimitiveDuration:       "duration",
+	ir.PrimitiveURL:            "url",
+	ir.PrimitiveUUID:           "uuid",
+	ir.PrimitiveAny:            "any",
 }
 
-// TestPrimKind_Constants pins the on-disk spelling of every PrimKind value.
+// TestPrimitiveKind_Constants pins the on-disk spelling of every PrimitiveKind value.
 // These strings are the primitive-scalar vocabulary written into every
 // golden IR snapshot; a typo fix later would be a silent breaking change.
-func TestPrimKind_Constants(t *testing.T) {
+func TestPrimitiveKind_Constants(t *testing.T) {
 	t.Parallel()
 	assertConstantSpellings(t, primKindSpellings, "unspecified")
 }
 
-// TestPrimKind_TiesToConstBlock keeps PrimKind.Valid tied to the const block.
-// Nothing rejects an invented kind on deserialization and ir.PrimTypeID derives
+// TestPrimitiveKind_TiesToConstBlock keeps PrimitiveKind.Valid tied to the const block.
+// Nothing rejects an invented kind on deserialization and ir.PrimitiveTypeID derives
 // an ID from any string, so irverify has Valid and nothing else to test
 // against. The tie is made by reading the ir package's declarations, as
 // typedef_completeness_test.go does for TypeKind. primKindSpellings and the
 // declared constants must name the same set, and every declared kind must be
 // Valid. The converse, a case added to Valid for a kind no constant declares,
 // cannot be enforced here: a switch body is not enumerable at run time.
-func TestPrimKind_TiesToConstBlock(t *testing.T) {
+func TestPrimitiveKind_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
-	declared := declaredConstsOfType(t, "PrimKind")
-	require.NotEmpty(t, declared, "the ir sources must declare PrimKind constants")
+	declared := declaredConstsOfType(t, "PrimitiveKind")
+	require.NotEmpty(t, declared, "the ir sources must declare PrimitiveKind constants")
 
 	values := make([]string, 0, len(declared))
 	for _, c := range declared {
 		values = append(values, c.Value)
-		assert.True(t, ir.PrimKind(c.Value).Valid(), "declared kind %q must be Valid", c.Value)
+		assert.True(t, ir.PrimitiveKind(c.Value).Valid(), "declared kind %q must be Valid", c.Value)
 	}
 
 	spelled := slices.Collect(maps.Values(primKindSpellings))
 	require.ElementsMatch(t, spelled, values)
 }
 
-// TestPrimKind_UnknownIsInvalid pins the other direction: Valid must reject a
+// TestPrimitiveKind_UnknownIsInvalid pins the other direction: Valid must reject a
 // kind no const declares, including the zero value a compiler leaves behind when
 // it forgets the field, and a re-cased spelling of a real one.
-func TestPrimKind_UnknownIsInvalid(t *testing.T) {
+func TestPrimitiveKind_UnknownIsInvalid(t *testing.T) {
 	t.Parallel()
-	assert.False(t, ir.PrimKind("").Valid())
-	assert.False(t, ir.PrimKind("flt").Valid())
-	assert.False(t, ir.PrimKind("Float64").Valid())
-	assert.False(t, ir.PrimKind("datetimeOffset").Valid())
+	assert.False(t, ir.PrimitiveKind("").Valid())
+	assert.False(t, ir.PrimitiveKind("flt").Valid())
+	assert.False(t, ir.PrimitiveKind("Float64").Valid())
+	assert.False(t, ir.PrimitiveKind("datetimeOffset").Valid())
 }
 
 // domainEdges is every immediate containment, written out once so the edge
 // test holds DomainParents to it in both directions.
-var domainEdges = map[ir.PrimKind][]ir.PrimKind{
-	ir.PrimInt8:       {ir.PrimInt16},
-	ir.PrimInt16:      {ir.PrimInt32, ir.PrimFloat32},
-	ir.PrimInt32:      {ir.PrimInt64, ir.PrimFloat64},
-	ir.PrimInt64:      {ir.PrimInteger, ir.PrimDecimal128},
-	ir.PrimUint8:      {ir.PrimUint16, ir.PrimInt16},
-	ir.PrimUint16:     {ir.PrimUint32, ir.PrimInt32, ir.PrimFloat32},
-	ir.PrimUint32:     {ir.PrimUint64, ir.PrimInt64, ir.PrimFloat64},
-	ir.PrimUint64:     {ir.PrimInteger, ir.PrimDecimal128},
-	ir.PrimInteger:    {ir.PrimFloat},
-	ir.PrimFloat32:    {ir.PrimFloat64},
-	ir.PrimFloat64:    {ir.PrimFloat},
-	ir.PrimFloat:      {ir.PrimDecimal},
-	ir.PrimDecimal128: {ir.PrimDecimal},
-	ir.PrimDecimal:    {ir.PrimNumber},
+var domainEdges = map[ir.PrimitiveKind][]ir.PrimitiveKind{
+	ir.PrimitiveInt8:       {ir.PrimitiveInt16},
+	ir.PrimitiveInt16:      {ir.PrimitiveInt32, ir.PrimitiveFloat32},
+	ir.PrimitiveInt32:      {ir.PrimitiveInt64, ir.PrimitiveFloat64},
+	ir.PrimitiveInt64:      {ir.PrimitiveInteger, ir.PrimitiveDecimal128},
+	ir.PrimitiveUint8:      {ir.PrimitiveUint16, ir.PrimitiveInt16},
+	ir.PrimitiveUint16:     {ir.PrimitiveUint32, ir.PrimitiveInt32, ir.PrimitiveFloat32},
+	ir.PrimitiveUint32:     {ir.PrimitiveUint64, ir.PrimitiveInt64, ir.PrimitiveFloat64},
+	ir.PrimitiveUint64:     {ir.PrimitiveInteger, ir.PrimitiveDecimal128},
+	ir.PrimitiveInteger:    {ir.PrimitiveFloat},
+	ir.PrimitiveFloat32:    {ir.PrimitiveFloat64},
+	ir.PrimitiveFloat64:    {ir.PrimitiveFloat},
+	ir.PrimitiveFloat:      {ir.PrimitiveDecimal},
+	ir.PrimitiveDecimal128: {ir.PrimitiveDecimal},
+	ir.PrimitiveDecimal:    {ir.PrimitiveNumber},
 }
 
 // domainRoots are the kinds with no immediate supertype: they sit directly
-// under PrimAny, which is a rule of StrictlyWithin and not an edge.
-var domainRoots = []ir.PrimKind{
-	ir.PrimBool, ir.PrimString, ir.PrimBytes, ir.PrimNumber,
-	ir.PrimDate, ir.PrimTime, ir.PrimDatetime, ir.PrimDatetimeOffset, ir.PrimDuration,
-	ir.PrimURL, ir.PrimUUID, ir.PrimAny,
+// under PrimitiveAny, which is a rule of StrictlyWithin and not an edge.
+var domainRoots = []ir.PrimitiveKind{
+	ir.PrimitiveBool, ir.PrimitiveString, ir.PrimitiveBytes, ir.PrimitiveNumber,
+	ir.PrimitiveDate, ir.PrimitiveTime, ir.PrimitiveDatetime, ir.PrimitiveDatetimeOffset, ir.PrimitiveDuration,
+	ir.PrimitiveURL, ir.PrimitiveUUID, ir.PrimitiveAny,
 }
 
-// declaredPrimKinds returns every PrimKind the ir sources declare.
-func declaredPrimKinds(t *testing.T) []ir.PrimKind {
+// declaredPrimKinds returns every PrimitiveKind the ir sources declare.
+func declaredPrimKinds(t *testing.T) []ir.PrimitiveKind {
 	t.Helper()
-	consts := declaredConstsOfType(t, "PrimKind")
-	kinds := make([]ir.PrimKind, 0, len(consts))
+	consts := declaredConstsOfType(t, "PrimitiveKind")
+	kinds := make([]ir.PrimitiveKind, 0, len(consts))
 	for _, c := range consts {
-		kinds = append(kinds, ir.PrimKind(c.Value))
+		kinds = append(kinds, ir.PrimitiveKind(c.Value))
 	}
 	require.NotEmpty(t, kinds)
 	return kinds
 }
 
-// TestPrimKind_DomainParentsAreTheContainmentEdges holds the whole edge table,
+// TestPrimitiveKind_DomainParentsAreTheContainmentEdges holds the whole edge table,
 // strictly in both directions: every edge listed is returned, and nothing else.
-func TestPrimKind_DomainParentsAreTheContainmentEdges(t *testing.T) {
+func TestPrimitiveKind_DomainParentsAreTheContainmentEdges(t *testing.T) {
 	t.Parallel()
 	for _, k := range declaredPrimKinds(t) {
 		assert.ElementsMatch(t, domainEdges[k], k.DomainParents(), "parents of %s", k)
 	}
-	assert.Empty(t, ir.PrimKind("flt").DomainParents())
-	got := ir.PrimInt16.DomainParents()
-	got[0] = ir.PrimBool
-	assert.Equal(t, ir.PrimInt32, ir.PrimInt16.DomainParents()[0], "the result must be fresh")
+	assert.Empty(t, ir.PrimitiveKind("flt").DomainParents())
+	got := ir.PrimitiveInt16.DomainParents()
+	got[0] = ir.PrimitiveBool
+	assert.Equal(t, ir.PrimitiveInt32, ir.PrimitiveInt16.DomainParents()[0], "the result must be fresh")
 }
 
-// TestPrimKind_StrictlyWithinIsAStrictOrder checks irreflexivity,
+// TestPrimitiveKind_StrictlyWithinIsAStrictOrder checks irreflexivity,
 // antisymmetry and transitivity over every pair of declared kinds, and that
 // any is the top.
-func TestPrimKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
+func TestPrimitiveKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
 	t.Parallel()
 	kinds := declaredPrimKinds(t)
 	for _, a := range kinds {
 		assert.False(t, a.StrictlyWithin(a), "%s within itself", a)
-		assert.Equal(t, a != ir.PrimAny, a.StrictlyWithin(ir.PrimAny), "%s within any", a)
-		assert.False(t, ir.PrimAny.StrictlyWithin(a), "any within %s", a)
+		assert.Equal(t, a != ir.PrimitiveAny, a.StrictlyWithin(ir.PrimitiveAny), "%s within any", a)
+		assert.False(t, ir.PrimitiveAny.StrictlyWithin(a), "any within %s", a)
 		for _, b := range kinds {
 			if a.StrictlyWithin(b) {
 				assert.False(t, b.StrictlyWithin(a), "%s and %s within each other", a, b)
@@ -403,24 +403,24 @@ func TestPrimKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
 			}
 		}
 	}
-	assert.True(t, ir.PrimInt8.StrictlyWithin(ir.PrimNumber))
-	assert.True(t, ir.PrimUint8.StrictlyWithin(ir.PrimInt16))
-	for _, k := range []ir.PrimKind{ir.PrimFloat32, ir.PrimFloat64, ir.PrimFloat, ir.PrimInteger} {
-		assert.True(t, k.StrictlyWithin(ir.PrimDecimal), "%s within decimal", k)
+	assert.True(t, ir.PrimitiveInt8.StrictlyWithin(ir.PrimitiveNumber))
+	assert.True(t, ir.PrimitiveUint8.StrictlyWithin(ir.PrimitiveInt16))
+	for _, k := range []ir.PrimitiveKind{ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveInteger} {
+		assert.True(t, k.StrictlyWithin(ir.PrimitiveDecimal), "%s within decimal", k)
 	}
-	assert.True(t, ir.PrimFloat.StrictlyWithin(ir.PrimNumber))
-	assert.False(t, ir.PrimNumber.StrictlyWithin(ir.PrimFloat32))
-	assert.False(t, ir.PrimInt64.StrictlyWithin(ir.PrimFloat64))
-	assert.False(t, ir.PrimInt32.StrictlyWithin(ir.PrimFloat32))
-	assert.False(t, ir.PrimInt32.StrictlyWithin(ir.PrimUint32))
-	assert.False(t, ir.PrimUUID.StrictlyWithin(ir.PrimString))
-	assert.False(t, ir.PrimKind("flt").StrictlyWithin(ir.PrimAny))
-	assert.False(t, ir.PrimInt8.StrictlyWithin(ir.PrimKind("flt")))
+	assert.True(t, ir.PrimitiveFloat.StrictlyWithin(ir.PrimitiveNumber))
+	assert.False(t, ir.PrimitiveNumber.StrictlyWithin(ir.PrimitiveFloat32))
+	assert.False(t, ir.PrimitiveInt64.StrictlyWithin(ir.PrimitiveFloat64))
+	assert.False(t, ir.PrimitiveInt32.StrictlyWithin(ir.PrimitiveFloat32))
+	assert.False(t, ir.PrimitiveInt32.StrictlyWithin(ir.PrimitiveUint32))
+	assert.False(t, ir.PrimitiveUUID.StrictlyWithin(ir.PrimitiveString))
+	assert.False(t, ir.PrimitiveKind("flt").StrictlyWithin(ir.PrimitiveAny))
+	assert.False(t, ir.PrimitiveInt8.StrictlyWithin(ir.PrimitiveKind("flt")))
 }
 
-// TestPrimKind_EveryDeclaredKindHasADomainParentOrIsARoot holds domainRoots to
+// TestPrimitiveKind_EveryDeclaredKindHasADomainParentOrIsARoot holds domainRoots to
 // the declared set, so a kind added without an edge reddens here.
-func TestPrimKind_EveryDeclaredKindHasADomainParentOrIsARoot(t *testing.T) {
+func TestPrimitiveKind_EveryDeclaredKindHasADomainParentOrIsARoot(t *testing.T) {
 	t.Parallel()
 	for _, k := range declaredPrimKinds(t) {
 		isRoot := slices.Contains(domainRoots, k)
@@ -431,15 +431,15 @@ func TestPrimKind_EveryDeclaredKindHasADomainParentOrIsARoot(t *testing.T) {
 	}
 }
 
-// TestPrimKind_LongestDomainChainFitsTheCap reads the walk's cap from the
+// TestPrimitiveKind_LongestDomainChainFitsTheCap reads the walk's cap from the
 // source and holds the longest chain DomainParents makes to it.
-func TestPrimKind_LongestDomainChainFitsTheCap(t *testing.T) {
+func TestPrimitiveKind_LongestDomainChainFitsTheCap(t *testing.T) {
 	t.Parallel()
 	limit, err := irDecls(t).IntConst("maxDomainDepth")
 	require.NoError(t, err)
 
-	var longest func(k ir.PrimKind, depth int) int
-	longest = func(k ir.PrimKind, depth int) int {
+	var longest func(k ir.PrimitiveKind, depth int) int
+	longest = func(k ir.PrimitiveKind, depth int) int {
 		require.LessOrEqual(t, int64(depth), limit, "a chain past maxDomainDepth: a cycle or a cap too low")
 		best := 0
 		for _, p := range k.DomainParents() {
@@ -473,29 +473,29 @@ func TestWireIDRange_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.WireIDRange{}, `{"from":0,"to":0}`, ir.WireIDRange{From: 100, To: 199})
 }
 
-// TestAdditionalProps_JSONContract pins AdditionalProps' contract that Value
+// TestAdditionalProperties_JSONContract pins AdditionalProperties' contract that Value
 // carries no omitempty (a catch-all always has a value schema) and that a
-// fully populated AdditionalProps — key schema and pattern-scoped value
+// fully populated AdditionalProperties — key schema and pattern-scoped value
 // schemas — round-trips.
-func TestAdditionalProps_JSONContract(t *testing.T) {
+func TestAdditionalProperties_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.AdditionalProps{}, `{}`,
-		ir.AdditionalProps{
+	assertJSONContract(t, ir.AdditionalProperties{}, `{}`,
+		ir.AdditionalProperties{
 			Value: new(populatedTypeRef()),
-			Key:   &ir.TypeRef{Target: "t/prim/string"},
-			Patterns: []ir.PatternProps{
+			Key:   &ir.TypeRef{Target: "type/primitive/string"},
+			Patterns: []ir.PatternProperties{
 				{Pattern: "^x-", Value: populatedTypeRef()},
-				{Pattern: "^y-", Value: ir.TypeRef{Target: "t/prim/int32"}},
+				{Pattern: "^y-", Value: ir.TypeRef{Target: "type/primitive/int32"}},
 			},
 		})
 }
 
-// TestPatternProps_JSONContract pins PatternProps' contract that both fields
-// carry no omitempty and that a populated PatternProps round-trips.
-func TestPatternProps_JSONContract(t *testing.T) {
+// TestPatternProperties_JSONContract pins PatternProperties' contract that both fields
+// carry no omitempty and that a populated PatternProperties round-trips.
+func TestPatternProperties_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.PatternProps{}, `{"pattern":"","value":{"target":"","nullable":false}}`,
-		ir.PatternProps{Pattern: "^x-", Value: populatedTypeRef()})
+	assertJSONContract(t, ir.PatternProperties{}, `{"pattern":"","value":{"target":"","nullable":false}}`,
+		ir.PatternProperties{Pattern: "^x-", Value: populatedTypeRef()})
 }
 
 // TestDiscriminator_JSONContract pins Discriminator's contract that Inferred
@@ -508,11 +508,11 @@ func TestPatternProps_JSONContract(t *testing.T) {
 func TestDiscriminator_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Discriminator{}, `{"inferred":false}`, ir.Discriminator{
-		Property:          "p/kind",
+		Property:          "property/kind",
 		PropertyName:      "kind",
-		Index:             new(0),
-		Mapping:           map[string]ir.TypeID{"dog": "t/Dog", "cat": "t/Cat"},
-		Default:           "t/Unknown",
+		TupleElementIndex: new(0),
+		Mapping:           map[string]ir.TypeID{"dog": "type/Dog", "cat": "type/Cat"},
+		Default:           "type/Unknown",
 		Envelope:          "object",
 		EnvelopeValueName: "value",
 		Inferred:          true,
@@ -525,12 +525,12 @@ func TestDiscriminator_MappingDeterministic(t *testing.T) {
 	t.Parallel()
 	d := ir.Discriminator{
 		Mapping: map[string]ir.TypeID{
-			"z-tag": "t/Z", "m-tag": "t/M", "a-tag": "t/A", "q-tag": "t/Q", "b-tag": "t/B",
+			"z-tag": "type/Z", "m-tag": "type/M", "a-tag": "type/A", "q-tag": "type/Q", "b-tag": "type/B",
 		},
 	}
 	got := assertDeterministicMarshal(t, d)
 	assert.Contains(t, got,
-		`"mapping":{"a-tag":"t/A","b-tag":"t/B","m-tag":"t/M","q-tag":"t/Q","z-tag":"t/Z"}`)
+		`"mapping":{"a-tag":"type/A","b-tag":"type/B","m-tag":"type/M","q-tag":"type/Q","z-tag":"type/Z"}`)
 }
 
 // TestVariant_JSONContract pins Variant's omitempty contract (Name, Type, and
@@ -550,7 +550,7 @@ func TestVariant_JSONContract(t *testing.T) {
 			Deprecation:  populatedDeprecation(),
 			Availability: populatedAvailability(),
 			Examples: []ir.Example{
-				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
+				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, String: "v1"}},
 			},
 			Unmodeled: populatedUnmodeled(),
 		})
@@ -572,15 +572,15 @@ func TestEnumMember_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.EnumMember{},
 		`{"id":"","name":{},"value":{"kind":""},"docs":{}}`,
 		ir.EnumMember{
-			ID:           "e/openapi/components/schemas/Status/s:active",
+			ID:           "enum-member/openapi/components/schemas/Status/string:active",
 			Name:         populatedNaming(),
-			Value:        ir.Value{Kind: ir.ValueString, Str: "active"},
+			Value:        ir.Value{Kind: ir.ValueString, String: "active"},
 			WireName:     "ACTIVE",
 			Docs:         populatedDocs(),
 			Deprecation:  populatedDeprecation(),
 			Availability: populatedAvailability(),
 			Examples: []ir.Example{
-				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "active"}},
+				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, String: "active"}},
 			},
 			Unmodeled: populatedUnmodeled(),
 		})

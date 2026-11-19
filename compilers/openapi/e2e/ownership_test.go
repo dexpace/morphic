@@ -132,14 +132,14 @@ var ownershipCases = []struct {
 			"    Out: {$ref: '#/components/schemas/A/enum/0', description: x}\n" +
 			"    A: {enum: [{type: object}, s]}\n",
 		check: func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-			_, literal := doc.Types["t/anon/components/schemas/A/enum/0"].(*ir.Literal)
+			_, literal := doc.Types["type/anonymous/components/schemas/A/enum/0"].(*ir.Literal)
 			assert.True(t, literal, "the member is the enum's literal, which owns the position")
 		}},
 	{name: "a $ref to a boolean schema before its owner (GitHub #861)",
 		spec: ownershipHead + "paths: {}\ncomponents:\n  schemas:\n" +
 			"    O: {$ref: '#/components/schemas/L/items'}\n    L: {type: array, items: false}\n",
 		check: func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-			_, built := doc.Types["t/anon/components/schemas/L/items"]
+			_, built := doc.Types["type/anonymous/components/schemas/L/items"]
 			assert.True(t, built)
 		}},
 	{name: "a request body another operation mounts (GitHub #433)",
@@ -150,7 +150,7 @@ var ownershipCases = []struct {
 			"      requestBody: {content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}}\n" +
 			"      responses: {'204': {description: none}}\n",
 		check: func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-			body := doc.Types["t/anon/paths/~1a/post/requestBody/content/application~1json/schema"]
+			body := doc.Types["type/anonymous/paths/~1a/post/requestBody/content/application~1json/schema"]
 			require.NotNil(t, body)
 			assert.Equal(t, "post_a_request", body.Common().Name.Hint, "named by the operation declaring it")
 		}},
@@ -164,7 +164,7 @@ var ownershipCases = []struct {
 			"components:\n  pathItems:\n    P:\n      put:\n        operationId: putP\n" +
 			"        responses: {'204': {description: none}}\n",
 		check: func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-			body := doc.Types["t/anon/paths/~1a/put/requestBody/content/application~1json/schema"]
+			body := doc.Types["type/anonymous/paths/~1a/put/requestBody/content/application~1json/schema"]
 			require.NotNil(t, body)
 			assert.Equal(t, "beside_put_request", body.Common().Name.Hint,
 				"named by the operation written beside the $ref, not the one it names")
@@ -176,7 +176,7 @@ var ownershipCases = []struct {
 			"  /a:\n    get:\n      operationId: getA\n      responses:\n        '200':\n          description: ok\n" +
 			"          headers: {X: {schema: {type: object, properties: {v: {type: string}}}}}\n",
 		check: func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-			header := doc.Types["t/anon/paths/~1a/get/responses/200/headers/X/schema"]
+			header := doc.Types["type/anonymous/paths/~1a/get/responses/200/headers/X/schema"]
 			require.NotNil(t, header)
 			assert.Equal(t, "x", header.Common().Name.Hint, "named by the key it is declared under")
 		}},

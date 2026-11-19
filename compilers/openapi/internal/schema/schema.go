@@ -124,11 +124,11 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.
 		// left out before it gets here (docs/compilers/openapi.md#null-schema).
 		// It nests nothing, so the depth bound reports none at its pointer, as
 		// a tuple's absent rest would otherwise draw.
-		return ts.PrimRef(ir.PrimAny), nil
+		return ts.PrimRef(ir.PrimitiveAny), nil
 	}
 	depth++
 	if depth > maxSchemaDepth {
-		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+		return ts.PrimRef(ir.PrimitiveAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
 	}
 	switch js.Truth {
@@ -137,7 +137,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.
 		// unless it lies past typed.MaxMends
 		// (docs/parser-library.md#failure-beneath-itself), so it says nothing of
 		// the values there.
-		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+		return ts.PrimRef(ir.PrimitiveAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema read as false, as the parser fails to decode a keyword beneath it under its own name "+
 				"and the load phase decodes no more than %d such schemas one below another; lowered as any; "+
 				"moving the schemas below it into a component reads them",
@@ -146,7 +146,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.
 		id, diags := falseSchema(c, ts, pointer)
 		return ir.TypeRef{Target: id}, diags
 	case statement.Anything:
-		return ts.PrimRef(ir.PrimAny), nil
+		return ts.PrimRef(ir.PrimitiveAny), nil
 	default:
 		// Stated: a schema object, which a reference site writes too.
 	}

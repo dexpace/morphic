@@ -24,7 +24,7 @@ const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 // tables.
 func tables() ([]ir.SourceInfo, []ir.Service, map[string][]string) {
 	return []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml", Hash: emptySHA256}},
-		[]ir.Service{{ID: "s/x/S", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
+		[]ir.Service{{ID: "service/x/S", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
 		map[string][]string{ir.IDKindType: {"x"}, ir.IDKindService: {"x"}}
 }
 

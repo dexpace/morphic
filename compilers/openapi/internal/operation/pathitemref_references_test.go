@@ -126,7 +126,7 @@ func TestPathItemRefSiblings_EachSideReadsInItsOwnDocument(t *testing.T) {
 	referent := paramNamed(t, getA, "inl")
 	assert.Equal(t, paramNamed(t, postB, "inl").Type, referent.Type,
 		"the referent's parameter binds the same type on either side's operation")
-	assert.NotEqual(t, ir.TypeID("t/openapi/components/schemas/S"), referent.Type.Target,
+	assert.NotEqual(t, ir.TypeID("type/openapi/components/schemas/S"), referent.Type.Target,
 		"and never the source's S")
 	assert.Equal(t, jsontext.Pointer("/components/parameters/P"), paramNamed(t, postB, "mainP").Provenance.Pointer,
 		"the use site's parameter keeps its declaration's pointer on the referent's operation")
@@ -186,10 +186,10 @@ func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 		"the link is declared where its $ref ends")
 
 	cbPost := openapitest.FindOp(t, doc, "cbPost")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/get/callbacks/onEvent/{$request.body#~1url}/post"), cbPost.ID,
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1a/get/callbacks/onEvent/{$request.body#~1url}/post"), cbPost.ID,
 		"a $ref'd callback resolves, and its operation mounts under the operation beside the $ref")
 	require.Len(t, getA.Bindings.HTTP[0].Callbacks, 1)
-	assert.Equal(t, []ir.OpID{cbPost.ID}, getA.Bindings.HTTP[0].Callbacks[0].Operations)
+	assert.Equal(t, []ir.OperationID{cbPost.ID}, getA.Bindings.HTTP[0].Callbacks[0].Operations)
 }
 
 // responseByStatus returns the single success response an operation declares for
@@ -634,7 +634,7 @@ components:
     X: {$ref: '#/paths/~1a/get/requestBody/content/application~1json/schema'}
 `, "near", func(doc *ir.Document) string {
 			var base *ir.TypeRef // the use X owns: the Model over an object
-			if x, ok := doc.Types["t/openapi/components/schemas/X"].(*ir.Model); ok {
+			if x, ok := doc.Types["type/openapi/components/schemas/X"].(*ir.Model); ok {
 				base = x.Base
 			}
 			if base == nil {
@@ -726,7 +726,7 @@ components:
 
 	const at = "/paths/~1a/get/requestBody/content/application~1json/schema"
 	assert.Empty(t, errorsAt(diags))
-	y, ok := doc.Types[ir.TypeID("t/anon"+at+"/$defs/Y")].(*ir.Model)
+	y, ok := doc.Types[ir.TypeID("type/anonymous"+at+"/$defs/Y")].(*ir.Model)
 	require.True(t, ok, "/a's own definition is hoisted where /a writes it")
 	assert.Equal(t, "near", y.Properties[1].WireName)
 	assert.True(t, mapsTag(doc, "y"))

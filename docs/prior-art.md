@@ -78,7 +78,7 @@ and the differ/compat/verify subsystems added since the original survey).
 | Mutable module-global parser state (non-reentrant; concurrent parses race) | Compilers are pure `(source, options) → (IR, diagnostics)` |
 | Collision-cascade operation renaming: same-named ops renamed in place by appending path context — adding one endpoint can rename *existing* SDK methods | Names are presentation; identity is the ID; naming collisions are an emitter policy concern |
 | Name sanitization accretes hardcoded domain word-lists (acronym sets, `Json`-fork collapse passes doing registry surgery via string rewriting) | Acronym/cleanup policy is injectable per-compiler; the registry is never edited by string rewrite |
-| Catch-all `additionalProperties` smuggled as a magic-named synthetic field (collides with a real property of that name); `patternProperties` truncated to the first pattern | `AdditionalProps{Value, Key, Patterns}` is its own channel |
+| Catch-all `additionalProperties` smuggled as a magic-named synthetic field (collides with a real property of that name); `patternProperties` truncated to the first pattern | `AdditionalProperties{Value, Key, Patterns}` is its own channel |
 | `$ref`-site vs ref-target annotation merging patched ad-hoc for parameters only; model fields typed by `$ref` still lose target defaults | One documented precedence rule (use-site overrides target), applied uniformly in the compiler |
 
 ### The diff/compat/verify subsystems — identity re-derived by heuristic

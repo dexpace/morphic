@@ -83,14 +83,14 @@ func sampleReport(t *testing.T) report.Report {
 	rules := []triage.Rule{
 		{Code: "openapi/x", Severity: ir.SeverityWarning, Reason: "rated"},
 		{Code: "openapi/y", Pointer: "/a", Accept: true, Reason: "accepted"},
-		{Code: "openapi/z", Node: "s/x", Severity: ir.SeverityInfo, Reason: "unused"},
+		{Code: "openapi/z", Node: "service/x", Severity: ir.SeverityInfo, Reason: "unused"},
 	}
 	s, err := triage.NewRuleset(rules)
 	require.NoError(t, err)
 	findings, unused := s.Rate([]ir.Diagnostic{
 		{Severity: ir.SeverityError, Code: "openapi/x", Message: "esc \x1b[31m", Provenance: ir.Provenance{Pointer: "/b"}},
 		{Severity: ir.SeverityInfo, Code: "openapi/y", Message: "m", Provenance: ir.Provenance{Pointer: "/a"}},
-		{Severity: ir.SeverityInfo, Code: "pass/w", Message: "m", Provenance: ir.Provenance{Source: ir.NoSource, Node: "g/x"}},
+		{Severity: ir.SeverityInfo, Code: "pass/w", Message: "m", Provenance: ir.Provenance{Source: ir.NoSource, Node: "operation-group/x"}},
 	})
 	return report.Report{
 		Failed:      true,

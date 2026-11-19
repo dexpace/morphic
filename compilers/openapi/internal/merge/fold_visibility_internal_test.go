@@ -42,7 +42,7 @@ func TestFold_DisjointVisibilityIsARestrictionNotAConflict(t *testing.T) {
 
 	dst = foldTwo(g, dst, ir.Property{WireName: "id", Visibility: writeOnlyVisibility, Provenance: ptrAt("/other")}, unread(t))
 
-	assert.Equal(t, ir.Visibility{None: true}, dst.Visibility)
+	assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, dst.Visibility)
 	require.Len(t, *recorded, 1, "an emptied visibility set is reported, not passed over in silence")
 	assert.Equal(t, diag.DisjointVisibility, (*recorded)[0].Code,
 		"reported under its own code, not as a conflicting redeclaration")
@@ -62,8 +62,8 @@ func TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing.T) {
 		name     string
 		dst, src ir.Visibility
 	}{
-		{name: "first declaration was already invisible", dst: ir.Visibility{None: true}, src: readOnlyVisibility},
-		{name: "redeclaration is already invisible", dst: readOnlyVisibility, src: ir.Visibility{None: true}},
+		{name: "first declaration was already invisible", dst: ir.Visibility{InvisibleInEveryLifecycle: true}, src: readOnlyVisibility},
+		{name: "redeclaration is already invisible", dst: readOnlyVisibility, src: ir.Visibility{InvisibleInEveryLifecycle: true}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing.T) {
 
 			dst = foldTwo(g, dst, ir.Property{WireName: "id", Visibility: tc.src, Provenance: ptrAt("/other")}, unread(t))
 
-			assert.Equal(t, ir.Visibility{None: true}, dst.Visibility)
+			assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, dst.Visibility)
 			assert.Empty(t, *recorded, "None was already the answer; this merge announced nothing new")
 		})
 	}

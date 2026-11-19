@@ -353,7 +353,7 @@ actions:
 		member := "/components/schemas/" + schema + "/allOf/properties/o"
 		assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(member), WrittenBy: writer},
 			propertyProvenance(t, doc, schema, "o"), "%s's member", schema)
-		minted, ok := doc.Types[ir.TypeID("t/composed"+member)]
+		minted, ok := doc.Types[ir.TypeID("type/composed"+member)]
 		require.True(t, ok, "%s's member composes X and Y", schema)
 		assert.Equal(t, writer, minted.Common().Provenance.WrittenBy, "%s's minted model", schema)
 	}
@@ -496,11 +496,11 @@ actions:
 
 // primitiveProvenances returns the Provenance of every *ir.Primitive in
 // doc.Types, keyed by kind.
-func primitiveProvenances(doc *ir.Document) map[ir.PrimKind]ir.Provenance {
-	out := make(map[ir.PrimKind]ir.Provenance)
+func primitiveProvenances(doc *ir.Document) map[ir.PrimitiveKind]ir.Provenance {
+	out := make(map[ir.PrimitiveKind]ir.Provenance)
 	for _, def := range doc.Types {
 		if prim, ok := def.(*ir.Primitive); ok {
-			out[prim.Prim] = prim.Provenance
+			out[prim.PrimitiveKind] = prim.Provenance
 		}
 	}
 	return out
@@ -518,14 +518,14 @@ func TestCompile_PrimitivesNameNoSource(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
 		overlay *openapi.Overlay
-		kinds   []ir.PrimKind
+		kinds   []ir.PrimitiveKind
 	}{
 		"plain": {
-			kinds: []ir.PrimKind{ir.PrimBool, ir.PrimInteger, ir.PrimNumber, ir.PrimString},
+			kinds: []ir.PrimitiveKind{ir.PrimitiveBool, ir.PrimitiveInteger, ir.PrimitiveNumber, ir.PrimitiveString},
 		},
 		"overlaid": {
 			overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(addBirthProperty)},
-			kinds:   []ir.PrimKind{ir.PrimBool, ir.PrimDate, ir.PrimInteger, ir.PrimNumber, ir.PrimString},
+			kinds:   []ir.PrimitiveKind{ir.PrimitiveBool, ir.PrimitiveDate, ir.PrimitiveInteger, ir.PrimitiveNumber, ir.PrimitiveString},
 		},
 	}
 	for name, tc := range tests {
@@ -541,7 +541,7 @@ func TestCompile_PrimitivesNameNoSource(t *testing.T) {
 					"the one position reaching date is the overlay's")
 			}
 
-			want := make(map[ir.PrimKind]ir.Provenance, len(tc.kinds))
+			want := make(map[ir.PrimitiveKind]ir.Provenance, len(tc.kinds))
 			for _, k := range tc.kinds {
 				want[k] = ir.Provenance{Source: ir.NoSource}
 			}
@@ -736,10 +736,10 @@ actions:
 	// A, on the loop, lowers to the top type; B writes a type beside its $ref,
 	// one conjunct of it, so it lowers as the conjunction its read cut short
 	// does, whatever that is.
-	alias, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/A")].(*ir.Scalar)
+	alias, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/A")].(*ir.Scalar)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/any"), alias.Base.Target)
-	assert.Contains(t, doc.Types, ir.TypeID("t/openapi/components/schemas/B"))
+	assert.Equal(t, ir.TypeID("type/primitive/any"), alias.Base.Target)
+	assert.Contains(t, doc.Types, ir.TypeID("type/openapi/components/schemas/B"))
 }
 
 // provenanceSpec and provenancePatch exercise GitHub #522's fix on every

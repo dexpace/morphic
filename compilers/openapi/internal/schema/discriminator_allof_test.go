@@ -104,8 +104,8 @@ func TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	kennelDog := ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
-	kennelPet := ir.TypeID("t/anon/components/schemas/Kennel/properties/pet")
+	kennelDog := ir.TypeID("type/anonymous/components/schemas/Kennel/properties/Dog")
+	kennelPet := ir.TypeID("type/anonymous/components/schemas/Kennel/properties/pet")
 	want := map[ir.TypeID]string{
 		componentID("Dog"): "Dog",
 		kennelDog:          "",
@@ -149,8 +149,8 @@ func TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping(t *testing.T) {
 `, tc.host))+tc.section)
 			assert.Empty(t, diags)
 
-			cat := ir.TypeID("t/anon/" + tc.host + "/Cat")
-			dog := ir.TypeID("t/anon/" + tc.host + "/Dog")
+			cat := ir.TypeID("type/anonymous/" + tc.host + "/Cat")
+			dog := ir.TypeID("type/anonymous/" + tc.host + "/Dog")
 			assert.Empty(t, cmp.Diff(map[ir.TypeID]string{cat: "cat", dog: ""}, discriminatorValues(t, doc, cat, dog)),
 				"the mapping tags Cat, and no name is implicit for Dog (-want +got)")
 			pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
@@ -202,8 +202,8 @@ func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	kennelDog := ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
-	kennelPet := ir.TypeID("t/anon/components/schemas/Kennel/properties/pet")
+	kennelDog := ir.TypeID("type/anonymous/components/schemas/Kennel/properties/Dog")
+	kennelPet := ir.TypeID("type/anonymous/components/schemas/Kennel/properties/pet")
 	want := map[ir.TypeID]string{
 		componentID("Dog"): "Dog",
 		kennelDog:          "woofer",

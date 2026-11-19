@@ -56,8 +56,8 @@ components:
 
 // paramIDs returns the IDs of op's parameters, keyed by the location each one
 // binds.
-func paramIDs(op ir.Operation) map[ir.HTTPLocation]ir.ParamID {
-	out := map[ir.HTTPLocation]ir.ParamID{}
+func paramIDs(op ir.Operation) map[ir.HTTPLocation]ir.ParameterID {
+	out := map[ir.HTTPLocation]ir.ParameterID{}
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
 		out[pb.Location] = pb.Param
 	}
@@ -73,15 +73,15 @@ func TestParams_SameNameInTwoLocationsGetsDistinctIDs(t *testing.T) {
 	require.Len(t, op.Params, 2)
 	assert.NotEqual(t, op.Params[0].ID, op.Params[1].ID, "id in the path and id in the query are two parameters")
 	ids := paramIDs(op)
-	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items~1{id}/get/parameters/id/path"), ids[ir.HTTPLocationPath])
-	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items~1{id}/get/parameters/id/query"), ids[ir.HTTPLocationQuery])
-	assert.ElementsMatch(t, []ir.ParamID{op.Params[0].ID, op.Params[1].ID}, []ir.ParamID{ids[ir.HTTPLocationPath], ids[ir.HTTPLocationQuery]},
+	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1items~1{id}/get/parameters/id/path"), ids[ir.HTTPLocationPath])
+	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1items~1{id}/get/parameters/id/query"), ids[ir.HTTPLocationQuery])
+	assert.ElementsMatch(t, []ir.ParameterID{op.Params[0].ID, op.Params[1].ID}, []ir.ParameterID{ids[ir.HTTPLocationPath], ids[ir.HTTPLocationQuery]},
 		"each binding names the ID of its own parameter")
 }
 
 func TestParams_IDsFollowNameNotPosition(t *testing.T) {
 	t.Parallel()
-	byName := func(first, second string) map[string]ir.ParamID {
+	byName := func(first, second string) map[string]ir.ParameterID {
 		doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -94,7 +94,7 @@ paths:
       responses: {"200": {description: ok}}
 `)
 		openapitest.RequireNoErrorDiags(t, diags)
-		out := map[string]ir.ParamID{}
+		out := map[string]ir.ParameterID{}
 		for _, p := range openapitest.FindOp(t, doc, "getItem").Params {
 			out[p.Name.Source] = p.ID
 		}
@@ -102,7 +102,7 @@ paths:
 	}
 	ba, ab := byName("b", "a"), byName("a", "b")
 	assert.Equal(t, ab, ba, "reordering a parameter list renames nothing")
-	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items/get/parameters/a/query"), ba["a"])
+	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1items/get/parameters/a/query"), ba["a"])
 }
 
 func TestParams_PathItemParamIsScopedPerOperation(t *testing.T) {
@@ -112,11 +112,11 @@ func TestParams_PathItemParamIsScopedPerOperation(t *testing.T) {
 	get, post := openapitest.FindOp(t, doc, "getItem"), openapitest.FindOp(t, doc, "postItem")
 
 	require.Len(t, post.Params, 1)
-	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items~1{id}/post/parameters/id/path"), post.Params[0].ID)
-	assert.NotContains(t, []ir.ParamID{get.Params[0].ID, get.Params[1].ID}, post.Params[0].ID,
+	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1items~1{id}/post/parameters/id/path"), post.Params[0].ID)
+	assert.NotContains(t, []ir.ParameterID{get.Params[0].ID, get.Params[1].ID}, post.Params[0].ID,
 		"a path-item parameter copied into two operations is two parameters")
 
-	var shared []ir.ParamID
+	var shared []ir.ParameterID
 	for _, g := range doc.Services[0].Groups {
 		for _, o := range g.Operations {
 			if len(o.Params) == 1 && o.Params[0].Name.Source == "limit" {
@@ -124,9 +124,9 @@ func TestParams_PathItemParamIsScopedPerOperation(t *testing.T) {
 			}
 		}
 	}
-	assert.ElementsMatch(t, []ir.ParamID{
-		"param/openapi/paths/~1a/get/parameters/limit/query",
-		"param/openapi/paths/~1b/get/parameters/limit/query",
+	assert.ElementsMatch(t, []ir.ParameterID{
+		"parameter/openapi/paths/~1a/get/parameters/limit/query",
+		"parameter/openapi/paths/~1b/get/parameters/limit/query",
 	}, shared, "a path item mounted twice roots each mount's parameters at that mount")
 }
 
@@ -191,13 +191,13 @@ func TestParams_RepeatedNameAndLocationKeepsEveryParameter(t *testing.T) {
 			op := openapitest.FindOp(t, doc, "g")
 
 			require.Len(t, op.Params, 2, "neither occurrence is dropped")
-			assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/limit/query"), op.Params[0].ID,
+			assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1x/get/parameters/limit/query"), op.Params[0].ID,
 				"the first in list order holds the bare ID")
-			assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/limit/query/2"), op.Params[1].ID)
+			assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1x/get/parameters/limit/query/2"), op.Params[1].ID)
 			bindings := op.Bindings.HTTP[0].ParamBindings
 			require.Len(t, bindings, 2)
-			assert.Equal(t, []ir.ParamID{op.Params[0].ID, op.Params[1].ID},
-				[]ir.ParamID{bindings[0].Param, bindings[1].Param}, "each binding names its own parameter")
+			assert.Equal(t, []ir.ParameterID{op.Params[0].ID, op.Params[1].ID},
+				[]ir.ParameterID{bindings[0].Param, bindings[1].Param}, "each binding names its own parameter")
 
 			assert.Equal(t, []string{diag.DuplicateParameter + " at " + tc.repeat}, errorFindings(diags),
 				"the repeat is one error, whatever spells its entries")
@@ -218,33 +218,33 @@ func TestParams_AHeaderIsOneParameterInAnyCase(t *testing.T) {
 	const (
 		upper = "{name: X-Trace, in: header, schema: {type: string}}"
 		lower = "{name: x-trace, in: header, schema: {type: integer}}"
-		under = "param/openapi/paths/~1x/get/parameters/"
+		under = "parameter/openapi/paths/~1x/get/parameters/"
 	)
 	doc, diags := parseFull(t, repeatSpec([]string{upper}, []string{lower}))
 	op := openapitest.FindOp(t, doc, "g")
 	require.Len(t, op.Params, 1, "the operation's overrides the path item's")
-	assert.Equal(t, ir.ParamID(under+"x-trace/header"), op.Params[0].ID)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), op.Params[0].Type.Target)
+	assert.Equal(t, ir.ParameterID(under+"x-trace/header"), op.Params[0].ID)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), op.Params[0].Type.Target)
 	assert.Empty(t, errorFindings(diags))
 
 	for _, tc := range []struct {
 		name    string
 		params  []string
-		want    []ir.ParamID
+		want    []ir.ParameterID
 		repeats []string
 	}{
-		{"upper first", []string{upper, lower}, []ir.ParamID{under + "X-Trace/header", under + "x-trace/header"},
+		{"upper first", []string{upper, lower}, []ir.ParameterID{under + "X-Trace/header", under + "x-trace/header"},
 			[]string{diag.DuplicateParameter + " at /paths/~1x/get/parameters/1"}},
-		{"lower first", []string{lower, upper}, []ir.ParamID{under + "x-trace/header", under + "X-Trace/header"},
+		{"lower first", []string{lower, upper}, []ir.ParameterID{under + "x-trace/header", under + "X-Trace/header"},
 			[]string{diag.DuplicateParameter + " at /paths/~1x/get/parameters/1"}},
 		{"a spelling repeated", []string{upper, lower, upper},
-			[]ir.ParamID{under + "X-Trace/header", under + "x-trace/header", under + "X-Trace/header/2"},
+			[]ir.ParameterID{under + "X-Trace/header", under + "x-trace/header", under + "X-Trace/header/2"},
 			[]string{diag.DuplicateParameter + " at /paths/~1x/get/parameters/1",
 				diag.DuplicateParameter + " at /paths/~1x/get/parameters/2"}},
 	} {
 		doc, diags = parseFull(t, repeatSpec(nil, tc.params))
 		op = openapitest.FindOp(t, doc, "g")
-		got := make([]ir.ParamID, 0, len(op.Params))
+		got := make([]ir.ParameterID, 0, len(op.Params))
 		for _, p := range op.Params {
 			got = append(got, p.ID)
 		}
@@ -285,7 +285,7 @@ func TestParams_AHeaderRepeatedInAnotherDocumentInAnyCaseIsReported(t *testing.T
 	require.NoError(t, err)
 	op := openapitest.FindOp(t, doc, "q")
 	require.Len(t, op.Params, 2)
-	assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/x-q/header"), op.Params[1].ID)
+	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1x/get/parameters/x-q/header"), op.Params[1].ID)
 	var repeats []ir.Diagnostic
 	for _, d := range diags {
 		if d.Code == diag.DuplicateParameter {
@@ -309,12 +309,12 @@ func TestParams_RepeatsAreNumberedInListOrder(t *testing.T) {
 	}))
 	op := openapitest.FindOp(t, doc, "g")
 
-	const base = "param/openapi/paths/~1x/get/parameters/limit/query"
-	got := make([]ir.ParamID, 0, len(op.Params))
+	const base = "parameter/openapi/paths/~1x/get/parameters/limit/query"
+	got := make([]ir.ParameterID, 0, len(op.Params))
 	for _, p := range op.Params {
 		got = append(got, p.ID)
 	}
-	assert.Equal(t, []ir.ParamID{base, "param/openapi/paths/~1x/get/parameters/id/query", base + "/2", base + "/3"}, got)
+	assert.Equal(t, []ir.ParameterID{base, "parameter/openapi/paths/~1x/get/parameters/id/query", base + "/2", base + "/3"}, got)
 	for _, repeat := range []string{"/paths/~1x/get/parameters/2", "/paths/~1x/get/parameters/3"} {
 		msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateParameter, ir.SeverityError, repeat)
 		assert.Contains(t, msg, "/paths/~1x/get/parameters/0")
@@ -343,7 +343,7 @@ components:
       get:
         responses: {"200": {description: ok}}
 `)
-	var got []ir.ParamID
+	var got []ir.ParameterID
 	for _, g := range doc.Services[0].Groups {
 		for _, o := range g.Operations {
 			for _, p := range o.Params {
@@ -351,11 +351,11 @@ components:
 			}
 		}
 	}
-	assert.ElementsMatch(t, []ir.ParamID{
-		"param/openapi/paths/~1a/get/parameters/limit/query",
-		"param/openapi/paths/~1a/get/parameters/limit/query/2",
-		"param/openapi/paths/~1b/get/parameters/limit/query",
-		"param/openapi/paths/~1b/get/parameters/limit/query/2",
+	assert.ElementsMatch(t, []ir.ParameterID{
+		"parameter/openapi/paths/~1a/get/parameters/limit/query",
+		"parameter/openapi/paths/~1a/get/parameters/limit/query/2",
+		"parameter/openapi/paths/~1b/get/parameters/limit/query",
+		"parameter/openapi/paths/~1b/get/parameters/limit/query/2",
 	}, got)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateParameter, ir.SeverityError))
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateParameter, "/components/pathItems/Shared/parameters/1"))
@@ -455,7 +455,7 @@ func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
 	require.Len(t, getPet.Params, 1, "get inherits only the shared path-item parameter")
 	require.Len(t, deletePet.Params, 2, "delete gets its own force plus the shared path-item parameter")
 
-	wantID := ir.TypeID("t/anon/paths/~1pets~1{petId}/parameters/0/schema")
+	wantID := ir.TypeID("type/anonymous/paths/~1pets~1{petId}/parameters/0/schema")
 	assert.Equal(t, wantID, getPet.Params[0].Type.Target, "get resolves the shared path-item schema")
 
 	byName := openapitest.IndexBy(deletePet.Params, func(p ir.Parameter) string { return p.Name.Source })
@@ -465,8 +465,8 @@ func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
 	require.True(t, ok, "the shared schema is registered under the path item's own pointer")
 	assert.Equal(t, jsontext.Pointer("/paths/~1pets~1{petId}/parameters/0/schema"), typeDef.Common().Provenance.Pointer)
 
-	_, fabricatedGet := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/get/parameters/0/schema")]
-	_, fabricatedDelete := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/delete/parameters/1/schema")]
+	_, fabricatedGet := doc.Types[ir.TypeID("type/anonymous/paths/~1pets~1{petId}/get/parameters/0/schema")]
+	_, fabricatedDelete := doc.Types[ir.TypeID("type/anonymous/paths/~1pets~1{petId}/delete/parameters/1/schema")]
 	assert.False(t, fabricatedGet, "no fabricated per-operation ID for get")
 	assert.False(t, fabricatedDelete, "no fabricated per-operation ID for delete")
 }
@@ -537,7 +537,7 @@ webhooks:
 	op := openapitest.FindOp(t, doc, "onPetEvent")
 	require.Len(t, op.Params, 1)
 
-	wantID := ir.TypeID("t/anon/webhooks/petEvent/parameters/0/schema")
+	wantID := ir.TypeID("type/anonymous/webhooks/petEvent/parameters/0/schema")
 	assert.Equal(t, wantID, op.Params[0].Type.Target)
 	typeDef, ok := doc.Types[wantID]
 	require.True(t, ok)
@@ -571,7 +571,7 @@ func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {
 	require.Len(t, cbOp.Params, 1)
 
 	wantPointer := "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/parameters/0/schema"
-	wantID := ir.TypeID("t/anon" + wantPointer)
+	wantID := ir.TypeID("type/anonymous" + wantPointer)
 	assert.Equal(t, wantID, cbOp.Params[0].Type.Target)
 	typeDef, ok := doc.Types[wantID]
 	require.True(t, ok)
@@ -604,15 +604,15 @@ func TestParameters_ShadowedPathItemParamUsesOperationPointer(t *testing.T) {
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 1, "the operation parameter shadows the path-item one; no duplicate")
 
-	wantID := ir.TypeID("t/anon/paths/~1pets~1{petId}/get/parameters/0/schema")
+	wantID := ir.TypeID("type/anonymous/paths/~1pets~1{petId}/get/parameters/0/schema")
 	assert.Equal(t, wantID, op.Params[0].Type.Target, "the operation's own schema wins, at the operation's pointer")
 
 	enum, ok := doc.Types[wantID].(*ir.Enum)
 	require.True(t, ok)
 	require.Len(t, enum.Members, 2)
-	assert.Equal(t, "c", enum.Members[0].Value.Str, "the operation-level schema's own values are used")
+	assert.Equal(t, "c", enum.Members[0].Value.String, "the operation-level schema's own values are used")
 
-	_, atPathLevel := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/parameters/0/schema")]
+	_, atPathLevel := doc.Types[ir.TypeID("type/anonymous/paths/~1pets~1{petId}/parameters/0/schema")]
 	assert.False(t, atPathLevel, "the shadowed path-item schema is never lowered")
 }
 

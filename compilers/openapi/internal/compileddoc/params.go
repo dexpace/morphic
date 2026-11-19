@@ -18,12 +18,12 @@ import (
 // host's bindings, which no such name reaches, are left out. Indexed once, a
 // name or a parameter costs a map read however many an operation holds.
 type ParamIndex struct {
-	at map[paramKey][]ir.ParamID
+	at map[paramKey][]ir.ParameterID
 	// locations are those a binding names, in the order bindings first name
 	// them, which a lookup at no location reads each of.
 	locations []ir.HTTPLocation
 	// placed is where the bindings place each parameter, in binding order.
-	placed map[ir.ParamID][]Placement
+	placed map[ir.ParameterID][]Placement
 }
 
 // Placement is where a binding places a parameter: its location, and the name
@@ -54,11 +54,11 @@ func keyOf(location ir.HTTPLocation, name string) paramKey {
 // at one place is indexed there once. CompiledDocumentView.Params is its one caller, so an
 // operation's parameters are indexed once a run.
 func indexParams(op *ir.Operation) ParamIndex {
-	names := make(map[ir.ParamID]string, len(op.Params))
+	names := make(map[ir.ParameterID]string, len(op.Params))
 	for i := range op.Params {
 		names[op.Params[i].ID] = op.Params[i].Name.Source
 	}
-	ix := ParamIndex{at: map[paramKey][]ir.ParamID{}, placed: map[ir.ParamID][]Placement{}}
+	ix := ParamIndex{at: map[paramKey][]ir.ParameterID{}, placed: map[ir.ParameterID][]Placement{}}
 	for _, b := range op.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {
 			if pb.Location == ir.HTTPLocationHost {
@@ -83,18 +83,18 @@ func indexParams(op *ir.Operation) ParamIndex {
 // Placements returns where the operation's bindings place the parameter id,
 // in binding order, each place once; none for a parameter no binding places
 // but at the host.
-func (ix ParamIndex) Placements(id ir.ParamID) []Placement {
+func (ix ParamIndex) Placements(id ir.ParameterID) []Placement {
 	return ix.placed[id]
 }
 
 // Bound returns the parameters bound at location under name, or at any
 // location but the host for an empty one. A header's name matches in any
 // case, as HTTP compares header names.
-func (ix ParamIndex) Bound(location ir.HTTPLocation, name string) []ir.ParamID {
+func (ix ParamIndex) Bound(location ir.HTTPLocation, name string) []ir.ParameterID {
 	if location != "" {
 		return ix.at[keyOf(location, name)]
 	}
-	var found []ir.ParamID
+	var found []ir.ParameterID
 	for _, l := range ix.locations {
 		for _, id := range ix.at[keyOf(l, name)] {
 			if !slices.Contains(found, id) {
@@ -109,7 +109,7 @@ func (ix ParamIndex) Bound(location ir.HTTPLocation, name string) []ir.ParamID {
 // replacement name a parameter: `<in>.<name>`, or a name alone. It also
 // returns how many parameters key matched, so a caller can tell none from
 // several; the ID is only set when that is one.
-func (ix ParamIndex) Named(key string) (ir.ParamID, int) {
+func (ix ParamIndex) Named(key string) (ir.ParameterID, int) {
 	if location, name, ok := strings.Cut(key, "."); ok && paramLocation(location) {
 		if found := ix.Bound(ir.HTTPLocation(location), name); len(found) == 1 {
 			return found[0], 1

@@ -7,13 +7,13 @@ import (
 	irx "github.com/dexpace/morphic/ir"
 )
 
-const anyTypeID ir.TypeID = "t/graphql/any" // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
+const anyTypeID ir.TypeID = "type/graphql/any" // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
 
-const aliasedID irx.OpID = "o/aliased" // want "idderivations: spells an ir.OpID as a constant outside compilers/compile; derive the ID through the framework"
+const aliasedID irx.OperationID = "o/aliased" // want "idderivations: spells an ir.OperationID as a constant outside compilers/compile; derive the ID through the framework"
 
-const untyped = "t/graphql/untyped"
+const untyped = "type/graphql/untyped"
 
-const gluedConst ir.TypeID = "t/" + "graphql" // want "idderivations: glues an ir.TypeID together outside compilers/compile; derive the ID through the framework"
+const gluedConst ir.TypeID = "type/" + "graphql" // want "idderivations: glues an ir.TypeID together outside compilers/compile; derive the ID through the framework"
 
 const fixedSpace compile.Space = "graphql"
 
@@ -48,11 +48,11 @@ func extend[T ~string](t T) T {
 
 // spell spells a value of its type parameter as a constant.
 func spell[T ~string]() T {
-	return "t/graphql/generic" // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
+	return "type/graphql/generic" // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
 }
 
 // opID converts to a type parameter only an ID satisfies.
-func opID[T interface{ ir.OpID }](s string) T {
+func opID[T interface{ ir.OperationID }](s string) T {
 	return T(s) // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
 }
 
@@ -67,22 +67,22 @@ func blank[T ~string]() T    { return "" }
 func same[T ~string](t T) T  { return T(t) }
 func number[N ~int](i int) N { return N(i) }
 
-func plantIDs(doc *ir.Document, pointer string, existing ir.OpID, s compile.Space) ir.TypeID {
-	_ = ir.TypeID("t/graphql" + pointer)        // want "idderivations: converts a value to ir.TypeID outside compilers/compile; derive the ID through the framework"
-	_ = ir.PropID(pointer)                      // want "idderivations: converts a value to ir.PropID outside compilers/compile; derive the ID through the framework"
+func plantIDs(doc *ir.Document, pointer string, existing ir.OperationID, s compile.Space) ir.TypeID {
+	_ = ir.TypeID("type/graphql" + pointer)     // want "idderivations: converts a value to ir.TypeID outside compilers/compile; derive the ID through the framework"
+	_ = ir.PropertyID(pointer)                  // want "idderivations: converts a value to ir.PropertyID outside compilers/compile; derive the ID through the framework"
 	_ = irx.EnumMemberID(pointer)               // want "idderivations: converts a value to ir.EnumMemberID outside compilers/compile; derive the ID through the framework"
-	_ = ir.OpID(existing)                       // want "idderivations: converts a value to ir.OpID outside compilers/compile; derive the ID through the framework"
+	_ = ir.OperationID(existing)                // want "idderivations: converts a value to ir.OperationID outside compilers/compile; derive the ID through the framework"
 	_ = typeID(pointer)                         // want "idderivations: converts a value to ir.TypeID outside compilers/compile; derive the ID through the framework"
-	_ = ir.TypeRef{Target: "t/graphql/ref"}     // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
-	_ = doc.Types["t/graphql/key"]              // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
-	lookupType("t/graphql/arg")                 // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
+	_ = ir.TypeRef{Target: "type/graphql/ref"}  // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
+	_ = doc.Types["type/graphql/key"]           // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
+	lookupType("type/graphql/arg")              // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
 	var fromUntyped ir.TypeID = untyped         // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
 	var fromFramework ir.TypeID = frame.Untyped // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
-	var aliasedType typeID = "t/graphql/a"      // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
+	var aliasedType typeID = "type/graphql/a"   // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
 	parent := fromUntyped + "/items"            // want "idderivations: glues an ir.TypeID together outside compilers/compile; derive the ID through the framework"
 	parent += "/0"                              // want "idderivations: glues an ir.TypeID together outside compilers/compile; derive the ID through the framework"
 	switch parent {
-	case "t/graphql/case": // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
+	case "type/graphql/case": // want "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
 	}
 	_ = compile.Space(pointer)                             // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
 	_ = compile.Space('A')                                 // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"

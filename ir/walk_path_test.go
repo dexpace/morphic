@@ -21,10 +21,10 @@ import (
 func listOf(n int) *ir.Document {
 	list := make([]ir.Value, n)
 	for i := range list {
-		list[i] = ir.Value{Kind: ir.ValueString, Str: "s"}
+		list[i] = ir.Value{Kind: ir.ValueString, String: "s"}
 	}
-	return &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{
-		ID:       "t/m",
+	return &ir.Document{Types: ir.TypeRegistry{"type/m": &ir.Model{
+		ID:       "type/m",
 		Examples: []ir.Example{{Value: &ir.Value{Kind: ir.ValueList, List: list}}},
 	}}}
 }
@@ -42,12 +42,12 @@ func TestWalkPath_NothingIsRenderedForAVisitThatReadsNoPath(t *testing.T) {
 		reached++
 		return true
 	})
-	ir.WalkValues(long, "doc", visit)
+	ir.WalkValues(long, "document", visit)
 	require.Greater(t, reached, 1000, "the walk must reach every element, or the count compares nothing")
 
 	assert.Equal(t,
-		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(short, "doc", visit) }),
-		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(long, "doc", visit) }),
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(short, "document", visit) }),
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(long, "document", visit) }),
 		"990 more elements must cost no more allocations when no path is read")
 }
 
@@ -55,12 +55,12 @@ func TestWalkPath_NothingIsRenderedForAVisitThatReadsNoPath(t *testing.T) {
 // spelling at every value of a document, AppendTo after a prefix it keeps.
 func TestWalkPath_StringAndAppendToRenderAlike(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Name: "api", Types: ir.TypeRegistry{"t/x/M": &ir.Model{
-		ID:       "t/x/M",
+	doc := &ir.Document{Name: "api", Types: ir.TypeRegistry{"type/x/M": &ir.Model{
+		ID:       "type/x/M",
 		Examples: []ir.Example{{Value: &ir.Value{Kind: ir.ValueList, List: []ir.Value{{Kind: ir.ValueNull}}}}},
 	}}}
 	var visits int
-	ir.WalkValues(doc, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(doc, "document", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
 		visits++
 		assert.Equal(t, at.String(), string(at.AppendTo(nil)))
 		assert.Equal(t, "prefix:"+at.String(), string(at.AppendTo([]byte("prefix:"))))
@@ -101,7 +101,7 @@ type fieldAt struct {
 // walk reaches, the reports at one path in walk order.
 func fieldsOf(root any) map[string][]fieldAt {
 	got := map[string][]fieldAt{}
-	ir.WalkValues(root, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(root, "document", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
 		owner, name, ok := at.Field()
 		got[at.String()] = append(got[at.String()], fieldAt{owner, name, ok})
 		return true
@@ -119,37 +119,37 @@ func TestWalkPath_FieldIsTheFieldThePathEndsIn(t *testing.T) {
 	document, model := reflect.TypeFor[ir.Document](), reflect.TypeFor[ir.Model]()
 	primitive, naming := reflect.TypeFor[ir.Primitive](), reflect.TypeFor[ir.Naming]()
 	doc := fieldsOf(&ir.Document{Types: ir.TypeRegistry{
-		"t/p": &ir.Primitive{ID: "t/p"},
-		"t/m": &ir.Model{ID: "t/m", Deprecation: &ir.Deprecation{}, Properties: []ir.Property{{ID: "p/m/a"}}},
+		"type/p": &ir.Primitive{ID: "type/p"},
+		"type/m": &ir.Model{ID: "type/m", Deprecation: &ir.Deprecation{}, Properties: []ir.Property{{ID: "property/m/a"}}},
 	}})
 	none := fieldAt{}
 	for _, tc := range []struct {
 		path string
 		want []fieldAt
 	}{
-		{"doc", []fieldAt{none, none}},
-		{"doc.Types", []fieldAt{{document, "Types", true}}},
-		{"doc.Types[t/p].key", []fieldAt{none}},
-		{"doc.Types[t/p]", []fieldAt{none, none, none, none}}, // interface, pointer, Primitive, TypeCommon
-		{"doc.Types[t/p].Name", []fieldAt{{primitive, "Name", true}}},
-		{"doc.Types[t/p].Name.Source", []fieldAt{{naming, "Source", true}}},
-		{"doc.Types[t/p].Prim", []fieldAt{{primitive, "Prim", true}}},
-		{"doc.Types[t/m].Deprecation", []fieldAt{{model, "Deprecation", true}, {model, "Deprecation", true}}},
-		{"doc.Types[t/m].Properties", []fieldAt{{model, "Properties", true}}},
-		{"doc.Types[t/m].Properties[0]", []fieldAt{none}},
-		{"doc.Types[t/m].Properties[0].Name", []fieldAt{{reflect.TypeFor[ir.Property](), "Name", true}}},
+		{"document", []fieldAt{none, none}},
+		{"document.Types", []fieldAt{{document, "Types", true}}},
+		{"document.Types[type/p].key", []fieldAt{none}},
+		{"document.Types[type/p]", []fieldAt{none, none, none, none}}, // interface, pointer, Primitive, TypeCommon
+		{"document.Types[type/p].Name", []fieldAt{{primitive, "Name", true}}},
+		{"document.Types[type/p].Name.Source", []fieldAt{{naming, "Source", true}}},
+		{"document.Types[type/p].PrimitiveKind", []fieldAt{{primitive, "PrimitiveKind", true}}},
+		{"document.Types[type/m].Deprecation", []fieldAt{{model, "Deprecation", true}, {model, "Deprecation", true}}},
+		{"document.Types[type/m].Properties", []fieldAt{{model, "Properties", true}}},
+		{"document.Types[type/m].Properties[0]", []fieldAt{none}},
+		{"document.Types[type/m].Properties[0].Name", []fieldAt{{reflect.TypeFor[ir.Property](), "Name", true}}},
 	} {
 		assert.Equal(t, tc.want, doc[tc.path], tc.path)
 	}
 
 	outer := reflect.TypeFor[Outer]()
-	assert.Equal(t, []fieldAt{none, none, none, none}, fieldsOf(Outer{})["doc"],
+	assert.Equal(t, []fieldAt{none, none, none, none}, fieldsOf(Outer{})["document"],
 		"Outer and the three structs it embeds, each spelled as the root")
-	assert.Equal(t, []fieldAt{{outer, "Name", true}}, fieldsOf(Outer{})["doc.Name"],
+	assert.Equal(t, []fieldAt{{outer, "Name", true}}, fieldsOf(Outer{})["document.Name"],
 		"a field promoted through three embedded structs is spelled on the outermost")
 
 	shadowed := reflect.TypeFor[Shadowed]()
-	assert.Equal(t, []fieldAt{{shadowed, "Name", true}, {shadowed, "Name", true}}, fieldsOf(Shadowed{})["doc.Name"],
+	assert.Equal(t, []fieldAt{{shadowed, "Name", true}, {shadowed, "Name", true}}, fieldsOf(Shadowed{})["document.Name"],
 		"the promoted Name and the one beside it are both spelled on Shadowed")
 }
 
@@ -168,8 +168,8 @@ func TestWalkPath_FieldOfTheZeroPathIsNone(t *testing.T) {
 // AllocsPerRun measures the process.
 func TestWalkPath_FieldAllocatesNothing(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/p": &ir.Primitive{ID: "t/p"},
-		"t/m": &ir.Model{ID: "t/m", Properties: []ir.Property{{ID: "p/m/a"}}},
+		"type/p": &ir.Primitive{ID: "type/p"},
+		"type/m": &ir.Model{ID: "type/m", Properties: []ir.Property{{ID: "property/m/a"}}},
 	}}
 	var fields int
 	asking := ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
@@ -178,7 +178,7 @@ func TestWalkPath_FieldAllocatesNothing(t *testing.T) {
 		}
 		return true
 	})
-	ir.WalkValues(doc, "doc", asking)
+	ir.WalkValues(doc, "document", asking)
 	require.Positive(t, fields, "some path must end in a field, or nothing is measured")
 
 	assert.Empty(t, irtest.AllocatingVisits(doc, asking))
@@ -190,13 +190,13 @@ func TestWalkPath_LongPathsRenderWhole(t *testing.T) {
 	t.Parallel()
 	long := strings.Repeat("k", 600)
 	var got string
-	ir.WalkValues(map[string]int{long: 1}, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(map[string]int{long: 1}, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		if v.Kind() == reflect.Int {
 			got = at.String()
 		}
 		return true
 	}))
-	assert.Equal(t, "doc["+long+"]", got)
+	assert.Equal(t, "document["+long+"]", got)
 }
 
 // Map key types fmt spells each its own way under %v.
@@ -227,25 +227,25 @@ func TestWalkPath_MapKeysAreSpelledAsFmtSpellsThem(t *testing.T) {
 		root any
 		want string
 	}{
-		{"a string", map[string]int{"a": 1}, "doc[a]"},
-		{"a named string", map[ir.TypeID]int{"t/x/A": 1}, "doc[t/x/A]"},
-		{"a named string with methods, none of them fmt's", map[plainKey]int{"p": 1}, "doc[p]"},
-		{"a negative int", map[int]int{-7: 1}, "doc[-7]"},
-		{"an int8", map[int8]int{-8: 1}, "doc[-8]"},
-		{"a uint", map[uint]int{9: 1}, "doc[9]"},
-		{"a uint8", map[uint8]int{255: 1}, "doc[255]"},
-		{"a uintptr", map[uintptr]int{3: 1}, "doc[3]"},
-		{"a bool", map[bool]int{true: 1}, "doc[true]"},
-		{"a float", map[float64]int{1.5: 1}, "doc[1.5]"},
-		{"a Stringer", map[stringerKey]int{"s": 1}, "doc[<s>]"},
-		{"an error", map[keyError]int{"e": 1}, "doc[error e]"},
-		{"a Formatter", map[formatterKey]int{4: 1}, "doc[#4]"},
-		{"a Stringer behind an unexported field", struct{ m map[stringerKey]int }{map[stringerKey]int{"u": 1}}, "doc.m[u]"},
+		{"a string", map[string]int{"a": 1}, "document[a]"},
+		{"a named string", map[ir.TypeID]int{"type/x/A": 1}, "document[type/x/A]"},
+		{"a named string with methods, none of them fmt's", map[plainKey]int{"p": 1}, "document[p]"},
+		{"a negative int", map[int]int{-7: 1}, "document[-7]"},
+		{"an int8", map[int8]int{-8: 1}, "document[-8]"},
+		{"a uint", map[uint]int{9: 1}, "document[9]"},
+		{"a uint8", map[uint8]int{255: 1}, "document[255]"},
+		{"a uintptr", map[uintptr]int{3: 1}, "document[3]"},
+		{"a bool", map[bool]int{true: 1}, "document[true]"},
+		{"a float", map[float64]int{1.5: 1}, "document[1.5]"},
+		{"a Stringer", map[stringerKey]int{"s": 1}, "document[<s>]"},
+		{"an error", map[keyError]int{"e": 1}, "document[error e]"},
+		{"a Formatter", map[formatterKey]int{4: 1}, "document[#4]"},
+		{"a Stringer behind an unexported field", struct{ m map[stringerKey]int }{map[stringerKey]int{"u": 1}}, "document.m[u]"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var got []string
-			ir.WalkValues(tt.root, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+			ir.WalkValues(tt.root, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 				if v.Kind() == reflect.Int && v.Int() == 1 {
 					got = append(got, at.String())
 				}
@@ -268,13 +268,13 @@ func (k countdownKey) String() string { return fmt.Sprint(100 - int(k)) }
 func TestWalkPath_EntriesAreOrderedByTheirSpelling(t *testing.T) {
 	t.Parallel()
 	var got []string
-	ir.WalkValues(map[countdownKey]int{1: 1, 2: 1}, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(map[countdownKey]int{1: 1, 2: 1}, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		if v.Kind() == reflect.Int && v.Type() != reflect.TypeFor[countdownKey]() {
 			got = append(got, at.String())
 		}
 		return true
 	}))
-	assert.Equal(t, []string{"doc[98]", "doc[99]"}, got)
+	assert.Equal(t, []string{"document[98]", "document[99]"}, got)
 }
 
 // TestWalkPath_IsMapKeyIsTheKeyAlone holds IsMapKey to the step String spells
@@ -282,20 +282,20 @@ func TestWalkPath_EntriesAreOrderedByTheirSpelling(t *testing.T) {
 // the root or the zero path.
 func TestWalkPath_IsMapKeyIsTheKeyAlone(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Services: []ir.Service{{Renames: map[ir.TypeID]ir.Naming{"t/x/M": {Source: "m"}}}}}
+	doc := &ir.Document{Services: []ir.Service{{Renames: map[ir.TypeID]ir.Naming{"type/x/M": {Source: "m"}}}}}
 	got := map[string]bool{}
-	ir.WalkValues(doc, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(doc, "document", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
 		got[at.String()] = at.IsMapKey()
 		return true
 	}))
 	for path, want := range map[string]bool{
-		"doc":                                   false,
-		"doc.Services":                          false,
-		"doc.Services[0]":                       false,
-		"doc.Services[0].Renames":               false,
-		"doc.Services[0].Renames[t/x/M].key":    true,
-		"doc.Services[0].Renames[t/x/M]":        false,
-		"doc.Services[0].Renames[t/x/M].Source": false,
+		"document":                                      false,
+		"document.Services":                             false,
+		"document.Services[0]":                          false,
+		"document.Services[0].Renames":                  false,
+		"document.Services[0].Renames[type/x/M].key":    true,
+		"document.Services[0].Renames[type/x/M]":        false,
+		"document.Services[0].Renames[type/x/M].Source": false,
 	} {
 		require.Contains(t, got, path)
 		assert.Equal(t, want, got[path], path)

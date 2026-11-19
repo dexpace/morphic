@@ -72,7 +72,7 @@ func TestUseOf_FallsBackToEachHopOfTheChain(t *testing.T) {
 			for wire, want := range chainWant {
 				p := propertyOf(t, doc, "Holder", wire)
 				require.NotNil(t, p.Default, wire)
-				assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: want.def}, *p.Default, "%s: the nearest default", wire)
+				assert.Equal(t, ir.Value{Kind: ir.ValueString, String: want.def}, *p.Default, "%s: the nearest default", wire)
 				assert.Equal(t, want.desc, p.Docs.Description, "%s: the nearest description", wire)
 			}
 			assert.Equal(t, []string{
@@ -114,7 +114,7 @@ components:
 	for wire, want := range chainWant {
 		p := propertyOf(t, doc, "Holder", wire)
 		require.NotNil(t, p.Default, wire)
-		assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: want.def}, *p.Default, "%s: the nearest default", wire)
+		assert.Equal(t, ir.Value{Kind: ir.ValueString, String: want.def}, *p.Default, "%s: the nearest default", wire)
 		assert.Equal(t, want.desc, p.Docs.Description, "%s: the nearest description", wire)
 	}
 }
@@ -149,14 +149,14 @@ func TestUseOf_AnAliasHopIsNoReadThrough(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			p := propertyOf(t, bare, "Holder", "p")
 			require.NotNil(t, p.Default)
-			assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "deep"}, *p.Default, "the end's default")
+			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *p.Default, "the end's default")
 			assert.Equal(t, "from-end", p.Docs.Description, "the end's description")
 
 			written, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", aliasChain(n, n/2)))
 			openapitest.RequireNoErrorDiags(t, diags)
 			p = propertyOf(t, written, "Holder", "p")
 			require.NotNil(t, p.Default)
-			assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "deep"}, *p.Default, "no alias writes a default")
+			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *p.Default, "no alias writes a default")
 			assert.Equal(t, "from-alias", p.Docs.Description, "the nearest hop that writes a description")
 		})
 	}
@@ -195,7 +195,7 @@ func TestUseOf_AnAliasHopIsNoReadThroughAcrossTwoDocuments(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			p := propertyOf(t, doc, "Holder", "p")
 			require.NotNil(t, p.Default)
-			assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "deep"}, *p.Default)
+			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *p.Default)
 			assert.Equal(t, "from-alias", p.Docs.Description)
 		})
 	}
@@ -417,7 +417,7 @@ func TestUseOf_AReferenceTheTableDidNotReadFallsBackToNothing(t *testing.T) {
 	assert.Equal(t, "a", p.Docs.Description, "the first hop's words")
 	assert.Nil(t, p.Deprecation, "nothing past the unread $ref is lent")
 	q := propertyOf(t, doc, "Holder", "q")
-	assert.Equal(t, ir.TypeID("t/prim/any"), q.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), q.Type.Target)
 	assert.Empty(t, q.Docs.Description, "its words lie past the merge bound, which are not read")
 	assert.Nil(t, q.Deprecation)
 	assert.Len(t, withCode(diags, diag.UnresolvedRef), 2, "B's and q's")

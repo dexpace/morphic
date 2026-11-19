@@ -327,7 +327,7 @@ paths:
 			require.True(t, ok)
 			var files []bool
 			for _, pe := range requestContent(t, upload).Encoding {
-				files = append(files, pe.Filename)
+				files = append(files, pe.HasFilename)
 			}
 			if ext == "3.1.0" {
 				assert.Equal(t, []bool{true}, files, "the 3.1 document's untyped part is a file")

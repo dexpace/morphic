@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "DiscriminatorDefaultMapping",
         "canonical": "discriminator_default_mapping"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Cat": {
+    "type/openapi/components/schemas/Cat": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Cat",
+      "id": "type/openapi/components/schemas/Cat",
       "name": {
         "source": "Cat",
         "canonical": "cat"
@@ -75,21 +75,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Cat/properties/meow",
+          "id": "property/openapi/components/schemas/Cat/properties/meow",
           "name": {
             "source": "meow",
             "canonical": "meow"
           },
           "wireName": "meow",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -103,7 +103,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
@@ -111,9 +111,9 @@
       "discriminatorValue": "cat",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Dog": {
+    "type/openapi/components/schemas/Dog": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Dog",
+      "id": "type/openapi/components/schemas/Dog",
       "name": {
         "source": "Dog",
         "canonical": "dog"
@@ -127,21 +127,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Dog/properties/bark",
+          "id": "property/openapi/components/schemas/Dog/properties/bark",
           "name": {
             "source": "bark",
             "canonical": "bark"
           },
           "wireName": "bark",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -155,7 +155,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
@@ -163,9 +163,9 @@
       "discriminatorValue": "Dog",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Pet": {
+    "type/openapi/components/schemas/Pet": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Pet",
+      "id": "type/openapi/components/schemas/Pet",
       "name": {
         "source": "Pet",
         "canonical": "pet"
@@ -179,21 +179,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Pet/properties/petType",
+          "id": "property/openapi/components/schemas/Pet/properties/petType",
           "name": {
             "source": "petType",
             "canonical": "pet_type"
           },
           "wireName": "petType",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -209,18 +209,18 @@
       "abstract": false,
       "positional": false,
       "discriminator": {
-        "property": "p/openapi/components/schemas/Pet/properties/petType",
+        "property": "property/openapi/components/schemas/Pet/properties/petType",
         "mapping": {
-          "cat": "t/openapi/components/schemas/Cat"
+          "cat": "type/openapi/components/schemas/Cat"
         },
-        "default": "t/openapi/components/schemas/Dog",
+        "default": "type/openapi/components/schemas/Dog",
         "inferred": false
       },
       "inputOnly": false
     },
-    "t/prim/bool": {
+    "type/primitive/bool": {
       "kind": "primitive",
-      "id": "t/prim/bool",
+      "id": "type/primitive/bool",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -228,11 +228,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bool"
+      "primitiveKind": "bool"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -240,7 +240,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

@@ -17,15 +17,15 @@ import (
 func TestValidate_DuplicateEnumMemberIDIsAnError(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/e"] = &ir.Enum{ID: "t/e", ValueType: ir.PrimString, Closed: true, Members: []ir.EnumMember{
-		{ID: "e/x/e/s:a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
-		{ID: "e/x/e/s:b", Value: ir.Value{Kind: ir.ValueString, Str: "b"}},
-		{ID: "e/x/e/s:a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
-		{Value: ir.Value{Kind: ir.ValueString, Str: "c"}},
-		{Value: ir.Value{Kind: ir.ValueString, Str: "d"}},
+	doc.Types["type/e"] = &ir.Enum{ID: "type/e", ValueType: ir.PrimitiveString, Closed: true, Members: []ir.EnumMember{
+		{ID: "enum-member/x/e/string:a", Value: ir.Value{Kind: ir.ValueString, String: "a"}},
+		{ID: "enum-member/x/e/string:b", Value: ir.Value{Kind: ir.ValueString, String: "b"}},
+		{ID: "enum-member/x/e/string:a", Value: ir.Value{Kind: ir.ValueString, String: "a"}},
+		{Value: ir.Value{Kind: ir.ValueString, String: "c"}},
+		{Value: ir.Value{Kind: ir.ValueString, String: "d"}},
 	}}
-	doc.Types["t/f"] = &ir.Enum{ID: "t/f", ValueType: ir.PrimString, Closed: true, Members: []ir.EnumMember{
-		{ID: "e/x/e/s:a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+	doc.Types["type/f"] = &ir.Enum{ID: "type/f", ValueType: ir.PrimitiveString, Closed: true, Members: []ir.EnumMember{
+		{ID: "enum-member/x/e/string:a", Value: ir.Value{Kind: ir.ValueString, String: "a"}},
 	}}
 
 	var at []string
@@ -35,18 +35,18 @@ func TestValidate_DuplicateEnumMemberIDIsAnError(t *testing.T) {
 			at = append(at, d.Provenance.Node)
 		}
 	}
-	assert.Equal(t, []string{"t/e/members/2"}, at)
+	assert.Equal(t, []string{"type/e/members/2"}, at)
 }
 
 func TestValidate_DuplicateEnumValuesAreLegal(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/e"] = &ir.Enum{
-		ID:        "t/e",
-		ValueType: ir.PrimString,
+	doc.Types["type/e"] = &ir.Enum{
+		ID:        "type/e",
+		ValueType: ir.PrimitiveString,
 		Members: []ir.EnumMember{
-			{Name: ir.Naming{Source: "a"}, Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
-			{Name: ir.Naming{Source: "b"}, Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
+			{Name: ir.Naming{Source: "a"}, Value: ir.Value{Kind: ir.ValueString, String: "x"}},
+			{Name: ir.Naming{Source: "b"}, Value: ir.Value{Kind: ir.ValueString, String: "x"}},
 		},
 	}
 	assert.Empty(t, validated(t, doc))

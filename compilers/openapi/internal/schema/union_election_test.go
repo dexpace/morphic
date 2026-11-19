@@ -116,7 +116,7 @@ func TestUnion_TwoUnionsAloneLowerAsOneSchemaWritingBoth(t *testing.T) {
 		require.Contains(t, union.Unmodeled, "openapi:anyOf", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, union.Unmodeled["openapi:anyOf"].Reason, name)
 		for _, v := range union.Variants {
-			assert.Contains(t, string(v.Type.Target), "t/anon/", "%s's variant is its branch", name)
+			assert.Contains(t, string(v.Type.Target), "type/anonymous/", "%s's variant is its branch", name)
 		}
 	}
 	shapeless, ok := typeByName(doc, "Shapeless").(*ir.Union)
@@ -129,7 +129,7 @@ func TestUnion_TwoUnionsAloneLowerAsOneSchemaWritingBoth(t *testing.T) {
 	required, ok := typeByName(doc, "Required").(*ir.Union)
 	require.True(t, ok, "the oneOf distributes over the body")
 	for _, v := range required.Variants {
-		assert.Contains(t, string(v.Type.Target), "t/composed/", "the variant composes the body")
+		assert.Contains(t, string(v.Type.Target), "type/composed/", "the variant composes the body")
 	}
 }
 

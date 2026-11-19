@@ -29,7 +29,7 @@ const nameField = "Name"
 // nameOptional are the nodes that carry no name of their own, so an empty
 // Naming on one is expected rather than the missing-name defect below.
 //
-// ir.Primitive is the only one, exempt by design: its PrimKind identifies it,
+// ir.Primitive is the only one, exempt by design: its PrimitiveKind identifies it,
 // so there is no source name to record. An entry added for a gap a compiler has
 // yet to fill hides every genuinely nameless node of that type while it stands,
 // so it belongs on a tracked issue too.

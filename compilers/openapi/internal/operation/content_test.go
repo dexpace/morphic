@@ -81,7 +81,7 @@ func TestContent_MixedCaseFormContentKeepsEncoding(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := openapitest.FirstOp(t, svc).Request.Contents[0]
 			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
-			metaProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", tc.mt, "schema", "properties", "meta"))
+			metaProp := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", tc.mt, "schema", "properties", "meta"))
 			enc, ok := content.Encoding[metaProp]
 			require.True(t, ok, "encoding keyed by the part property's PropID; got keys %v", content.Encoding)
 			assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
@@ -122,10 +122,10 @@ func TestContent_MixedCaseURLEncodedKeepsPartEncoding(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := openapitest.FirstOp(t, svc).Request.Contents[0]
 			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
-			tagsProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/submit", "post", "requestBody", "content", tc.mt, "schema", "properties", "tags"))
+			tagsProp := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/submit", "post", "requestBody", "content", tc.mt, "schema", "properties", "tags"))
 			enc, ok := content.Encoding[tagsProp]
 			require.True(t, ok, "a repeated part carries a PartEncoding keyed by its PropID; got keys %v", content.Encoding)
-			assert.True(t, enc.Multi, "the structural flag is read off the part")
+			assert.True(t, enc.RepeatsPerArrayItem, "the structural flag is read off the part")
 		})
 	}
 }
@@ -150,7 +150,7 @@ func TestContent_BinaryOctetStreamBody(t *testing.T) {
 	content := op.Request.Contents[0]
 	require.NotNil(t, content.File, "binary body lowers to a FileInfo")
 	assert.False(t, content.File.IsText)
-	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/bytes"), content.Type.Target)
 }
 
 // TestContent_AFileBodyKeepsTheSchemaItWrites holds a file body's Type to what
@@ -165,32 +165,32 @@ func TestContent_AFileBodyKeepsTheSchemaItWrites(t *testing.T) {
 		want     ir.TypeRef // an empty Target names the position's own node
 		wantDesc string
 	}{
-		{"no schema", "", ir.TypeRef{Target: "t/prim/bytes"}, ""},
-		{"a true schema", "schema: true", ir.TypeRef{Target: "t/prim/bytes"}, ""},
-		{"a bare binary string", "schema: {type: string, format: binary}", ir.TypeRef{Target: "t/prim/bytes"}, ""},
+		{"no schema", "", ir.TypeRef{Target: "type/primitive/bytes"}, ""},
+		{"a true schema", "schema: true", ir.TypeRef{Target: "type/primitive/bytes"}, ""},
+		{"a bare binary string", "schema: {type: string, format: binary}", ir.TypeRef{Target: "type/primitive/bytes"}, ""},
 		{"a binary string that says more", "schema: {type: string, format: binary, description: raw}", ir.TypeRef{}, "raw"},
 		{
 			"a $ref", `schema: {$ref: "#/components/schemas/Blob"}`,
-			ir.TypeRef{Target: "t/openapi/components/schemas/Blob"}, "Raw bytes",
+			ir.TypeRef{Target: "type/openapi/components/schemas/Blob"}, "Raw bytes",
 		},
 		{
 			"a $ref through a $ref", `schema: {$ref: "#/components/schemas/Chain"}`,
-			ir.TypeRef{Target: "t/openapi/components/schemas/Chain"}, "",
+			ir.TypeRef{Target: "type/openapi/components/schemas/Chain"}, "",
 		},
 		{
 			"a nullable binary string", `schema: {type: [string, "null"], format: binary}`,
-			ir.TypeRef{Target: "t/prim/bytes", Nullable: true}, "",
+			ir.TypeRef{Target: "type/primitive/bytes", Nullable: true}, "",
 		},
-		{"an empty schema", "schema: {}", ir.TypeRef{Target: "t/prim/bytes"}, ""},
+		{"an empty schema", "schema: {}", ir.TypeRef{Target: "type/primitive/bytes"}, ""},
 		{"annotations alone", "schema: {description: raw}", ir.TypeRef{}, "raw"},
-		{"a plain string", "schema: {type: string}", ir.TypeRef{Target: "t/prim/string"}, ""},
+		{"a plain string", "schema: {type: string}", ir.TypeRef{Target: "type/primitive/string"}, ""},
 		{
 			"a $ref to an empty schema", `schema: {$ref: "#/components/schemas/Opaque"}`,
-			ir.TypeRef{Target: "t/openapi/components/schemas/Opaque"}, "Says nothing",
+			ir.TypeRef{Target: "type/openapi/components/schemas/Opaque"}, "Says nothing",
 		},
 		{
 			"a nullable empty schema", "schema: {nullable: true}",
-			ir.TypeRef{Target: "t/prim/bytes", Nullable: true, Inferred: "nullable-inference"}, "",
+			ir.TypeRef{Target: "type/primitive/bytes", Nullable: true, Inferred: "nullable-inference"}, "",
 		},
 		{"a type array", "schema: {type: [string, object], format: binary}", ir.TypeRef{}, ""},
 	}
@@ -222,7 +222,7 @@ components:
 			} {
 				want := tc.want
 				if want.Target == "" {
-					want.Target = ir.TypeID("t/anon/paths/~1raw/post/" + side + "/content/application~1octet-stream/schema")
+					want.Target = ir.TypeID("type/anonymous/paths/~1raw/post/" + side + "/content/application~1octet-stream/schema")
 				}
 				assert.Equal(t, want, content.Type, side)
 				require.NotNil(t, content.File, side)
@@ -266,7 +266,7 @@ func TestContent_MixedCaseOctetStreamBodyIsFile(t *testing.T) {
 			require.NotNil(t, content.File, "an octet-stream body with no schema is a file body")
 			assert.False(t, content.File.IsText)
 			assert.Equal(t, []string{tc.mt}, content.File.ContentTypes, "the declared spelling is what the IR records")
-			assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
+			assert.Equal(t, ir.TypeID("type/primitive/bytes"), content.Type.Target)
 		})
 	}
 }
@@ -293,7 +293,7 @@ components:
 	content := openapitest.FirstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.File, "binary body behind a $ref lowers to a FileInfo")
 	assert.False(t, content.File.IsText)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Blob"), content.Type.Target)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Blob"), content.Type.Target)
 }
 
 // TestContent_ARefinedBinaryBodyIsAFile pins that wrapping a binary body in an
@@ -303,7 +303,7 @@ components:
 // position, and one over no binary schema is a plain body.
 func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 	t.Parallel()
-	const alias ir.TypeID = "t/anon/paths/~1raw/post/requestBody/content/application~1octet-stream/schema"
+	const alias ir.TypeID = "type/anonymous/paths/~1raw/post/requestBody/content/application~1octet-stream/schema"
 	for name, tc := range map[string]struct {
 		schema string
 		// want is what the body keeps as its Type, the position's own alias where
@@ -312,8 +312,8 @@ func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 	}{
 		"beside":     {"{allOf: [{$ref: '#/components/schemas/Blob'}], description: the upload}", alias},
 		"a branch":   {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", alias},
-		"bare":       {"{allOf: [{$ref: '#/components/schemas/Blob'}]}", "t/openapi/components/schemas/Blob"},
-		"a chain":    {"{$ref: '#/components/schemas/Wrapped'}", "t/openapi/components/schemas/Wrapped"},
+		"bare":       {"{allOf: [{$ref: '#/components/schemas/Blob'}]}", "type/openapi/components/schemas/Blob"},
+		"a chain":    {"{$ref: '#/components/schemas/Wrapped'}", "type/openapi/components/schemas/Wrapped"},
 		"inline":     {"{allOf: [{type: string, format: binary}, {description: the upload}]}", alias},
 		"not binary": {"{allOf: [{$ref: '#/components/schemas/Text'}, {description: the upload}]}", ""},
 		"two refs":   {"{allOf: [{$ref: '#/components/schemas/Blob'}, {$ref: '#/components/schemas/Text'}]}", alias},
@@ -433,16 +433,16 @@ func TestContent_FullPipeline(t *testing.T) {
 	require.NotEmpty(t, hb.RequestContentTypes)
 	var filePart, tagsPart ir.PartEncoding
 	for _, pe := range multipartEncoding(t, upload) {
-		if pe.Filename {
+		if pe.HasFilename {
 			filePart = pe
 		}
-		if pe.Multi {
+		if pe.RepeatsPerArrayItem {
 			tagsPart = pe
 		}
 	}
 	assert.Equal(t, []string{"image/png", "image/jpeg"}, filePart.ContentTypes)
 	assert.NotEmpty(t, filePart.Headers)
-	assert.True(t, tagsPart.Multi)
+	assert.True(t, tagsPart.RepeatsPerArrayItem)
 
 	// Response: multiple media types kept, example + examples, headers, a link.
 	resp := upload.Responses[0]
@@ -485,7 +485,7 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 	require.NotNil(t, c.Item, "itemSchema becomes the element type")
 	require.NotNil(t, c.ItemEncoding, "itemEncoding lowered structurally")
 	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
-	assert.True(t, c.ItemEncoding.Multi, "itemEncoding governs a repeated tail")
+	assert.True(t, c.ItemEncoding.RepeatsPerArrayItem, "itemEncoding governs a repeated tail")
 
 	// Empty request-body content lowers to a body naming no media type.
 	empty := openapitest.FindOp(t, doc, "emptyBody")
@@ -494,7 +494,7 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 }
 
 // multipartEncoding returns the part-encoding map of an operation's request.
-func multipartEncoding(t *testing.T, op ir.Operation) map[ir.PropID]ir.PartEncoding {
+func multipartEncoding(t *testing.T, op ir.Operation) map[ir.PropertyID]ir.PartEncoding {
 	t.Helper()
 	require.NotNil(t, op.Request)
 	for _, c := range op.Request.Contents {
@@ -574,7 +574,7 @@ func TestContent_SharedComponentSchemaTakesItsDeclarationHint(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, componentBodyRefSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	bodyID := ir.TypeID("t/anon/components/requestBodies/Body/content/application~1json/schema")
+	bodyID := ir.TypeID("type/anonymous/components/requestBodies/Body/content/application~1json/schema")
 	body, ok := doc.Types[bodyID]
 	require.True(t, ok)
 	assert.True(t, body.Common().Anonymous, "a requestBody component is not a named type")
@@ -583,7 +583,7 @@ func TestContent_SharedComponentSchemaTakesItsDeclarationHint(t *testing.T) {
 
 	hdrDoc, hdrDiags := parseFull(t, headerIdentitySpec)
 	openapitest.RequireNoErrorDiags(t, hdrDiags)
-	hdr, ok := hdrDoc.Types[ir.TypeID("t/anon/components/headers/Rate/schema")]
+	hdr, ok := hdrDoc.Types[ir.TypeID("type/anonymous/components/headers/Rate/schema")]
 	require.True(t, ok)
 	assert.Equal(t, "rate", hdr.Common().Name.Hint,
 		"the shared header schema is hinted from its component, not from X-Rate or X-Limit")
@@ -606,7 +606,7 @@ func TestContent_InlineSchemaKeepsItsUseSiteHint(t *testing.T) {
 `)
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	td, ok := doc.Types[ir.TypeID("t/anon/paths/~1a/post/requestBody/content/application~1json/schema")]
+	td, ok := doc.Types[ir.TypeID("type/anonymous/paths/~1a/post/requestBody/content/application~1json/schema")]
 	require.True(t, ok)
 	assert.Equal(t, "post_a_request", td.Common().Name.Hint)
 }
@@ -652,7 +652,7 @@ func TestContent_MediaTypeRefIsFollowed(t *testing.T) {
 	t.Parallel()
 	const at = "/paths/~1a/get/responses/200/content/application~1json/$ref"
 	const paramAt = "/paths/~1a/get/parameters/0/content/application~1json/$ref"
-	const declared = ir.TypeID("t/anon/components/mediaTypes/Json/schema")
+	const declared = ir.TypeID("type/anonymous/components/mediaTypes/Json/schema")
 	for _, version := range []string{"3.2.0", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
@@ -776,14 +776,14 @@ x-headers:
 	}{
 		"another document's": {"", "/a", "other.yaml#/paths/~1x/post/requestBody",
 			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{
-				"t/anon@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
-				"t/anon@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
+				"type/anonymous@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
+				"type/anonymous@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
 		"another document's, at the source's own pointer": {"", "/x", "other.yaml#/paths/~1x/post/requestBody",
 			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{
-				"t/anon@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
-				"t/anon@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
+				"type/anonymous@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
+				"type/anonymous@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
 		"the source's, under no operation": {local, "/a", "#/x-bodies/b", "#/x-headers/h", []string{
-			"t/anon/x-bodies/b/content/application~1json/schema request", "t/anon/x-headers/h/schema h"}},
+			"type/anonymous/x-bodies/b/content/application~1json/schema request", "type/anonymous/x-headers/h/schema h"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

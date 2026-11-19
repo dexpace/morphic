@@ -36,7 +36,7 @@ func TestElection_AUnionAndTheWordsItTiesWithAreTheUnionHoldingTheBound(t *testi
 			assert.Zero(t, degradedInfosAt(diags, "C"))
 
 			p := requireModelOf(t, doc, "N").Properties[0]
-			assert.Equal(t, ir.TypeID("t/anon/components/schemas/N/properties/p"), p.Type.Target, "the union stands at the property")
+			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/N/properties/p"), p.Type.Target, "the union stands at the property")
 			for _, id := range []ir.TypeID{p.Type.Target, componentID("C")} {
 				union, ok := kindNode(t, doc, id).(*ir.Union)
 				require.True(t, ok, "%s is the union, not the string beside it", id)

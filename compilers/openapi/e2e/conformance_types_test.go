@@ -110,7 +110,7 @@ func assertEmptyNames(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		assert.Equal(t, "empty", scheme.Name.Hint, "security scheme keyed \"\"")
 	}
 
-	blank, ok := doc.Types[ir.TypeID("t/anon/components/schemas/")]
+	blank, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/")]
 	require.True(t, ok, "a component schema keyed \"\" is hoisted at its own pointer")
 	assert.Equal(t, "empty", blank.Common().Name.Hint, "component schema keyed \"\"")
 
@@ -136,7 +136,7 @@ func assertEmptyEnumMember(t *testing.T, doc *ir.Document) {
 
 	assert.Equal(t, "empty", rollout.Members[0].Name.Hint, "enum member whose value is \"\"")
 	assert.Empty(t, rollout.Members[0].Name.Source, "nothing is fabricated into the source channel")
-	assert.Empty(t, rollout.Members[0].Value.Str, "the value itself is kept as the empty string")
+	assert.Empty(t, rollout.Members[0].Value.String, "the value itself is kept as the empty string")
 
 	declared := rollout.Members[1]
 	assert.Equal(t, "empty", declared.Name.Source, "a member whose value really is \"empty\"")
@@ -160,7 +160,7 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 
 	inline, ok := doc.Types[prop.Type.Target]
 	require.True(t, ok, "the property's inline object is hoisted")
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Widget/properties/"), prop.Type.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Widget/properties/"), prop.Type.Target)
 	assert.Equal(t, "empty", inline.Common().Name.Hint,
 		"a hint derived from an empty position is minted, not passed through empty")
 }
@@ -177,22 +177,22 @@ var composedHints = []struct {
 	id   ir.TypeID
 	hint string
 }{
-	{"t/anon/components/schemas/List/properties//items", "empty_item"},
-	{"t/anon/components/schemas/Maps/properties//additionalProperties", "empty_value"},
-	{"t/anon/components/schemas/Patterns/properties//patternProperties/^x", "empty_pattern"},
-	{"t/anon/components/schemas/Tuple/properties//prefixItems/0", "empty_0"},
-	{"t/anon/components/schemas/Tuple/properties//items", "empty_item"},
-	{"t/anon/components/schemas/Old/properties//items/0", "empty_0"},
-	{"t/anon/components/schemas/Old/properties//additionalItems", "empty_item"},
-	{"t/anon/components/schemas/Mixed/properties//enum/0", "empty_0"},
-	{"t/anon/components/schemas/Mixed/properties//enum/1", "empty_1"},
-	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},
-	{"t/anon/components/schemas/Blob/properties//contentSchema", "empty_content"},
-	{"t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema", "empty_item"},
-	{"t/anon/components/parameters/UnnamedList/schema/items", "empty_item"},
-	{"t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items", "empty_item"},
-	{"t/anon/components/mediaTypes//schema/items", "empty_item"},
-	{"t/anon/components/mediaTypes//itemSchema", "empty_item"},
+	{"type/anonymous/components/schemas/List/properties//items", "empty_item"},
+	{"type/anonymous/components/schemas/Maps/properties//additionalProperties", "empty_value"},
+	{"type/anonymous/components/schemas/Patterns/properties//patternProperties/^x", "empty_pattern"},
+	{"type/anonymous/components/schemas/Tuple/properties//prefixItems/0", "empty_0"},
+	{"type/anonymous/components/schemas/Tuple/properties//items", "empty_item"},
+	{"type/anonymous/components/schemas/Old/properties//items/0", "empty_0"},
+	{"type/anonymous/components/schemas/Old/properties//additionalItems", "empty_item"},
+	{"type/anonymous/components/schemas/Mixed/properties//enum/0", "empty_0"},
+	{"type/anonymous/components/schemas/Mixed/properties//enum/1", "empty_1"},
+	{"type/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},
+	{"type/anonymous/components/schemas/Blob/properties//contentSchema", "empty_content"},
+	{"type/anonymous/components/parameters/Unnamed/content/application~1jsonl/itemSchema", "empty_item"},
+	{"type/anonymous/components/parameters/UnnamedList/schema/items", "empty_item"},
+	{"type/anonymous/components/parameters/UnnamedContent/content/application~1json/schema/items", "empty_item"},
+	{"type/anonymous/components/mediaTypes//schema/items", "empty_item"},
+	{"type/anonymous/components/mediaTypes//itemSchema", "empty_item"},
 }
 
 // assertEmptyDerivedHints covers hints a child composes from an enclosing
@@ -238,7 +238,7 @@ func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, order.Properties, 1)
 	shipping := order.Properties[0]
 	// hoisted exactly once, under its pointer-derived anonymous ID.
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Order/properties/shipping"),
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Order/properties/shipping"),
 		shipping.Type.Target)
 	inline, ok := doc.Types[shipping.Type.Target].(*ir.Model)
 	require.True(t, ok, "the inline object was hoisted as its own type")
@@ -282,13 +282,13 @@ func assertInlineHoistPositions(t *testing.T, doc *ir.Document, _ []ir.Diagnosti
 // spelled out so a node that moves to another pointer is a diff rather than a
 // silently different document.
 func inlineHoistPositionIDs() map[string]ir.TypeID {
-	const order = "t/anon/paths/~1orders/post"
+	const order = "type/anonymous/paths/~1orders/post"
 	return map[string]ir.TypeID{
 		"parameter schema":       order + "/parameters/0/schema",
 		"response-header schema": order + "/responses/200/headers/X-Order-Trace/schema",
 		"request-body property":  order + "/requestBody/content/application~1json/schema/properties/shipping",
 		"response-body property": order + "/responses/200/content/application~1json/schema/properties/receipt",
-		"webhook body":           "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema",
+		"webhook body":           "type/anonymous/webhooks/onShipped/post/requestBody/content/application~1json/schema",
 		"callback body": order + "/callbacks/onProgress/{$request.body#~1callbackUrl}" +
 			"/post/requestBody/content/application~1json/schema",
 	}
@@ -386,18 +386,18 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 			"type %s hoists at a component declaration, not a use site", id)
 	}
 
-	sortID := ir.TypeID("t/anon/components/parameters/Sort/schema")
+	sortID := ir.TypeID("type/anonymous/components/parameters/Sort/schema")
 	require.Len(t, widgets.Params, 1)
 	require.Len(t, gadgets.Params, 1)
 	assert.Equal(t, sortID, widgets.Params[0].Type.Target)
 	assert.Equal(t, sortID, gadgets.Params[0].Type.Target, "the shared parameter interns once")
 
-	listedID := ir.TypeID("t/anon/components/responses/Listed/content/application~1json/schema")
+	listedID := ir.TypeID("type/anonymous/components/responses/Listed/content/application~1json/schema")
 	assert.Equal(t, listedID, openapitest.BodyTarget(t, widgets.Responses[0].Payload))
 	assert.Equal(t, listedID, openapitest.BodyTarget(t, order.Responses[0].Payload),
 		"a response reused across unrelated operations interns once")
 
-	bodyID := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
+	bodyID := ir.TypeID("type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema")
 	require.NotNil(t, order.Request)
 	assert.Equal(t, bodyID, openapitest.BodyTarget(t, order.Request))
 	assert.Equal(t, "order_body", doc.Types[bodyID].Common().Name.Hint,
@@ -405,7 +405,7 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 	require.Len(t, widgets.Responses[0].Headers, 1)
 	header := widgets.Responses[0].Headers[0]
-	assert.Equal(t, ir.TypeID("t/anon/components/headers/RateUnit/schema"), header.Type.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/headers/RateUnit/schema"), header.Type.Target)
 	assert.Equal(t, jsontext.Pointer("/components/responses/Listed/headers/X-Rate-Unit"), header.Provenance.Pointer,
 		"the header's identity is the map entry that binds its name")
 
@@ -451,7 +451,7 @@ func assertBothFlagsAreVisibleNowhere(t *testing.T, m *ir.Model, diags []ir.Diag
 	for _, wire := range []string{"both", "bothViaRef"} {
 		p, ok := propByWire(m, wire)
 		require.True(t, ok)
-		assert.Equal(t, ir.Visibility{None: true}, p.Visibility,
+		assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, p.Visibility,
 			"readOnly and writeOnly both in force admit no lifecycle: %s", wire)
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 			diagsAt(diags, diag.DisjointVisibility, "/components/schemas/S/properties/"+wire),
@@ -470,16 +470,16 @@ func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // assertMaps pins docs/ir/containers.md's line between the two map shapes: an
 // object whose one member fact is its catch-all is a MapT, carrying its value
 // type and entry bounds, and a catch-all beside anything else is a Model's
-// AdditionalProps. An explicit `true` types the catch-all as the top type in
+// AdditionalProperties. An explicit `true` types the catch-all as the top type in
 // either. `unevaluatedProperties: false` closes the object once composition is
 // resolved only where no additionalProperties leaves it inert, and beside
 // patterns alone nothing types a key they miss.
 func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	i64 := func(v int64) *int64 { return &v }
 	for name, want := range map[string]*ir.MapT{
-		"OpenMap":    {Value: ir.TypeRef{Target: "t/prim/integer"}},
-		"AnyMap":     {Value: ir.TypeRef{Target: "t/prim/any"}},
-		"BoundedMap": {Value: ir.TypeRef{Target: "t/prim/string"}, Constraints: &ir.Constraints{MinProps: i64(1), MaxProps: i64(10)}},
+		"OpenMap":    {Value: ir.TypeRef{Target: "type/primitive/integer"}},
+		"AnyMap":     {Value: ir.TypeRef{Target: "type/primitive/any"}},
+		"BoundedMap": {Value: ir.TypeRef{Target: "type/primitive/string"}, Constraints: &ir.Constraints{MinProperties: i64(1), MaxProperties: i64(10)}},
 	} {
 		mt, ok := doc.Types[componentID(name)].(*ir.MapT)
 		require.True(t, ok, "%s is a map and nothing else; got %T", name, doc.Types[componentID(name)])
@@ -489,21 +489,21 @@ func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	}
 	pm, ok := doc.Types[componentID("PatternMap")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, pm.AdditionalProps)
-	require.Len(t, pm.AdditionalProps.Patterns, 1)
-	assert.Equal(t, "^x-", pm.AdditionalProps.Patterns[0].Pattern)
-	assert.Equal(t, &ir.TypeRef{Target: "t/prim/any"}, pm.AdditionalProps.Value,
+	require.NotNil(t, pm.AdditionalProperties)
+	require.Len(t, pm.AdditionalProperties.Patterns, 1)
+	assert.Equal(t, "^x-", pm.AdditionalProperties.Patterns[0].Pattern)
+	assert.Equal(t, &ir.TypeRef{Target: "type/primitive/any"}, pm.AdditionalProperties.Value,
 		"a key no pattern matches is unconstrained, so the top type")
 	cpm, ok := doc.Types[componentID("ClosedPatternMap")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, cpm.AdditionalProps)
-	assert.Nil(t, cpm.AdditionalProps.Value, "a closure beside patterns admits no other key, so nothing types one")
-	assert.Len(t, cpm.AdditionalProps.Patterns, 1)
+	require.NotNil(t, cpm.AdditionalProperties)
+	assert.Nil(t, cpm.AdditionalProperties.Value, "a closure beside patterns admits no other key, so nothing types one")
+	assert.Len(t, cpm.AdditionalProperties.Patterns, 1)
 	assert.Equal(t, ir.AdditionalClosed, cpm.Additional)
 	rec, ok := doc.Types[componentID("OpenRecord")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, rec.AdditionalProps, "an explicit true is a catch-all, not an unwritten keyword")
-	assert.Equal(t, &ir.TypeRef{Target: "t/prim/any"}, rec.AdditionalProps.Value)
+	require.NotNil(t, rec.AdditionalProperties, "an explicit true is a catch-all, not an unwritten keyword")
+	assert.Equal(t, &ir.TypeRef{Target: "type/primitive/any"}, rec.AdditionalProperties.Value)
 	cr, ok := doc.Types[componentID("ClosedRecord")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosed, cr.Additional)
@@ -514,9 +514,9 @@ func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	cp, ok := doc.Types[componentID("ClosedAfterPatterns")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, cp.Additional)
-	require.NotNil(t, cp.AdditionalProps)
-	assert.Nil(t, cp.AdditionalProps.Value, "the source types no key the patterns miss")
-	assert.Len(t, cp.AdditionalProps.Patterns, 1)
+	require.NotNil(t, cp.AdditionalProperties)
+	assert.Nil(t, cp.AdditionalProperties.Value, "the source types no key the patterns miss")
+	assert.Len(t, cp.AdditionalProperties.Patterns, 1)
 	assertInertClosures(t, doc)
 }
 
@@ -537,12 +537,12 @@ func assertInertClosures(t *testing.T, doc *ir.Document) {
 	}
 	mt, ok := typeByName(doc, "InertBesideAMap").(*ir.MapT)
 	require.True(t, ok, "an inert closure leaves a map a map; got %T", typeByName(doc, "InertBesideAMap"))
-	assert.Equal(t, ir.TypeRef{Target: "t/prim/integer"}, mt.Value)
+	assert.Equal(t, ir.TypeRef{Target: "type/primitive/integer"}, mt.Value)
 	rec, ok := typeByName(doc, "InertBesideARecord").(*ir.Model)
 	require.True(t, ok)
 	assert.Empty(t, rec.Additional, "open: its catch-all evaluates every other key")
-	require.NotNil(t, rec.AdditionalProps)
-	assert.Equal(t, &ir.TypeRef{Target: "t/prim/any"}, rec.AdditionalProps.Value)
+	require.NotNil(t, rec.AdditionalProperties)
+	assert.Equal(t, &ir.TypeRef{Target: "type/primitive/any"}, rec.AdditionalProperties.Value)
 	twice, ok := typeByName(doc, "ClosedTwice").(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosed, twice.Additional, "the stronger closure stands")
@@ -556,8 +556,8 @@ func assertInertClosures(t *testing.T, doc *ir.Document) {
 // them is kept, with the items that leaves it inert.
 func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	i64 := func(v int64) *int64 { return &v }
-	pair := []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/integer"}}
-	restID := ir.TypeID("t/anon/components/schemas/PairWithRest/items")
+	pair := []ir.TypeRef{{Target: "type/primitive/string"}, {Target: "type/primitive/integer"}}
+	restID := ir.TypeID("type/anonymous/components/schemas/PairWithRest/items")
 	for _, tc := range []struct {
 		name   string
 		elems  []ir.TypeRef
@@ -565,14 +565,14 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		bounds *ir.Constraints
 	}{
 		{"ClosedPair", pair, "", nil},
-		{"Pair", pair, "t/prim/any", nil},
+		{"Pair", pair, "type/primitive/any", nil},
 		{"PairWithRest", pair[:1], restID, nil},
 		{"ExactPair", pair, "", &ir.Constraints{MinItems: i64(2)}},
 		{"BoundedClosedPair", pair, "", &ir.Constraints{MinItems: i64(1), MaxItems: i64(2), UniqueItems: true}},
 	} {
 		tup, ok := doc.Types[componentID(tc.name)].(*ir.Tuple)
 		require.True(t, ok, "%s: prefixItems hoists a Tuple; got %T", tc.name, doc.Types[componentID(tc.name)])
-		assert.Equal(t, tc.elems, tup.Elems, tc.name)
+		assert.Equal(t, tc.elems, tup.ElementTypes, tc.name)
 		if tc.rest == "" {
 			assert.Nil(t, tup.Rest, "%s: no element may follow the head", tc.name)
 		} else if assert.NotNil(t, tup.Rest, tc.name) {
@@ -605,7 +605,7 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		tup, ok := typeByName(doc, name).(*ir.Tuple)
 		require.True(t, ok, name)
 		if assert.NotNil(t, tup.Rest, name) {
-			assert.Equal(t, ir.TypeID("t/prim/any"), tup.Rest.Target, "%s: the entry, not Rest, says what may follow", name)
+			assert.Equal(t, ir.TypeID("type/primitive/any"), tup.Rest.Target, "%s: the entry, not Rest, says what may follow", name)
 		}
 	}
 }
@@ -614,7 +614,7 @@ func assertLiteralConst(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	l, ok := doc.Types[componentID("Version")].(*ir.Literal)
 	require.True(t, ok, "const hoists a Literal")
 	assert.Equal(t, ir.ValueString, l.Value.Kind)
-	assert.Equal(t, "v1", l.Value.Str)
+	assert.Equal(t, "v1", l.Value.String)
 
 	// An unrepresentable const still hoists a node, and a node that admits any
 	// value is the only honest one: a Literal here would have to invent a value.
@@ -678,20 +678,20 @@ func assertTitleHints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "Not The Name", holder.Docs.Summary, "the title stays the summary")
 
 	for id, hint := range map[ir.TypeID]string{
-		"t/anon/components/schemas/Lookup/oneOf/0":                                   "by_name",
-		"t/anon/components/schemas/Lookup/oneOf/0/properties/tags/items":             "tags_item",
-		"t/anon/components/schemas/Lookup/oneOf/2":                                   "variant_2",
-		"t/anon/components/schemas/Holder/properties/address":                        "postal_address",
-		"t/anon/components/schemas/Holder/properties/address/properties/lines/items": "lines_item",
-		"t/anon/components/schemas/Holder/properties/points":                         "point_list",
-		"t/anon/components/schemas/Holder/properties/points/items":                   "point_list_item",
-		"t/anon/components/schemas/Holder/$defs/Local":                               "local",
-		"t/anon/paths/~1lookups/post/requestBody/content/application~1json/schema":   "new_lookup",
+		"type/anonymous/components/schemas/Lookup/oneOf/0":                                   "by_name",
+		"type/anonymous/components/schemas/Lookup/oneOf/0/properties/tags/items":             "tags_item",
+		"type/anonymous/components/schemas/Lookup/oneOf/2":                                   "variant_2",
+		"type/anonymous/components/schemas/Holder/properties/address":                        "postal_address",
+		"type/anonymous/components/schemas/Holder/properties/address/properties/lines/items": "lines_item",
+		"type/anonymous/components/schemas/Holder/properties/points":                         "point_list",
+		"type/anonymous/components/schemas/Holder/properties/points/items":                   "point_list_item",
+		"type/anonymous/components/schemas/Holder/$defs/Local":                               "local",
+		"type/anonymous/paths/~1lookups/post/requestBody/content/application~1json/schema":   "new_lookup",
 	} {
 		node, found := doc.Types[id]
 		require.True(t, found, "no node at %s", id)
 		assert.Equal(t, hint, node.Common().Name.Hint, "%s", id)
 	}
-	address := doc.Types["t/anon/components/schemas/Holder/properties/address"]
+	address := doc.Types["type/anonymous/components/schemas/Holder/properties/address"]
 	assert.Equal(t, "Postal Address", address.Common().Docs.Summary, "the title stays the summary")
 }

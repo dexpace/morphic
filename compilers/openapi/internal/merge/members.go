@@ -217,12 +217,12 @@ func writtenAt(node ir.TypeDef, places [][]ir.Provenance) (ir.Provenance, bool) 
 func heldTypes(td ir.TypeDef) []ir.TypeID {
 	switch t := td.(type) {
 	case *ir.List:
-		return []ir.TypeID{t.Elem.Target}
+		return []ir.TypeID{t.ElementType.Target}
 	case *ir.MapT:
 		return []ir.TypeID{t.Value.Target}
 	case *ir.Tuple:
-		held := make([]ir.TypeID, 0, len(t.Elems)+1)
-		for _, e := range t.Elems {
+		held := make([]ir.TypeID, 0, len(t.ElementTypes)+1)
+		for _, e := range t.ElementTypes {
 			held = append(held, e.Target)
 		}
 		if t.Rest != nil {
@@ -301,7 +301,7 @@ func (idx *ModelPropertyDeclarations) place(pos int, p ir.Property) {
 // naming returns diags, each naming id, the property the fold decided, as the
 // node it locates (ir.Provenance.Node): a report about an entry's declaration
 // sits where the model writes the entry, which is not where the property is.
-func naming(diags []ir.Diagnostic, id ir.PropID) []ir.Diagnostic {
+func naming(diags []ir.Diagnostic, id ir.PropertyID) []ir.Diagnostic {
 	for i := range diags {
 		diags[i].Provenance.Node = string(id)
 	}
@@ -313,7 +313,7 @@ func naming(diags []ir.Diagnostic, id ir.PropID) []ir.Diagnostic {
 // every model composing the two draws the report, and the run says it once
 // for all of them (ReportOnce), where one node named beside its place could
 // not say which.
-func deciding(diags []ir.Diagnostic, id ir.PropID) []ir.Diagnostic {
+func deciding(diags []ir.Diagnostic, id ir.PropertyID) []ir.Diagnostic {
 	for i := range diags {
 		if diags[i].Code != diag.ConflictingRedecl {
 			continue
@@ -455,7 +455,7 @@ func reachedOthers(reached, owners map[ir.TypeID]bool, owner ir.TypeID) []ir.Typ
 func (o ownership) left(cs []candidate) []candidate {
 	type key struct {
 		owner ir.TypeID
-		id    ir.PropID
+		id    ir.PropertyID
 	}
 	owners, brought := map[ir.TypeID]bool{}, map[key]bool{}
 	for _, cd := range cs {

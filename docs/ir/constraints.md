@@ -22,7 +22,7 @@ type Constraints struct {
     // collections
     MinItems, MaxItems *int64
     UniqueItems        bool
-    MinProps, MaxProps *int64
+    MinProperties, MaxProperties *int64
 }
 ```
 
@@ -39,7 +39,7 @@ written beside `format: http-date`, or a numeric bound beside `format: unixtime`
 instant, and one written beside a reference to a number carried as text as a bound of the number
 (#1851).
 
-A count field, `MinLength`, `MaxLength`, `MinItems`, `MaxItems`, `MinProps` or `MaxProps`, holds a
+A count field, `MinLength`, `MaxLength`, `MinItems`, `MaxItems`, `MinProperties` or `MaxProperties`, holds a
 count from 0 to 2^63−1. A source may write a larger one, as JSON Schema's counts have no upper limit:
 it reaches no field and is kept verbatim under `Unmodeled` with `ReasonDegradedLowering`
 ([degraded constructs](./boundaries.md#degraded-constructs)), so an absent count beside such an
@@ -48,7 +48,7 @@ entry bounds nothing less than the entry does.
 Each bound applies to values of one kind and admits every value of another, as JSON Schema's do:
 `Min`, `Max`, `ExclusiveMin`, `ExclusiveMax`, `MultipleOf`, `Precision` and `Scale` to numbers,
 `MinLength`, `MaxLength` and `Pattern` to strings and bytes, `MinItems`, `MaxItems` and
-`UniqueItems` to lists and tuples, and `MinProps` and `MaxProps` to objects. A compiler writes one
+`UniqueItems` to lists and tuples, and `MinProperties` and `MaxProperties` to objects. A compiler writes one
 only where a type the source admits at that use applies to it: the type the use declares, narrowed
 by what every schema it names admits, a reference's target, each part of a composition, a union,
 which admits what any of its branches does, and a set of values, which admits its members' kinds,
@@ -61,7 +61,7 @@ bytes or an instant, and a numeric bound beside a number written as an instant.
 
 A bound has one home, the node a use owns, else its carrier
 ([annotations](./annotations.md#one-structural-home-per-declaration)), and stands only on a node
-whose kind takes it: a `Model` or a `MapT` holds `MinProps` and `MaxProps` alone, whatever the
+whose kind takes it: a `Model` or a `MapT` holds `MinProperties` and `MaxProperties` alone, whatever the
 source admits at that use, as its instances are objects, and a `List` or a `Tuple` `MinItems`,
 `MaxItems` and `UniqueItems` alone. A compiler keeps any other written there verbatim, as above.
 `irverify` reports a structural node holding a bound of another kind (`ir/bound-of-another-kind`).

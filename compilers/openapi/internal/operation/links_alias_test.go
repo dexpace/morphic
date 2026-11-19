@@ -68,7 +68,7 @@ func TestLinks_ReadAMemberThroughAnAlias(t *testing.T) {
 			link := op.Responses[0].Links[0]
 			require.Len(t, link.Params, 1)
 			assert.Equal(t, ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
-				Segments: []ir.PropID{"p/openapi/components/schemas/Page/properties/next_cursor"},
+				Segments: []ir.PropertyID{"property/openapi/components/schemas/Page/properties/next_cursor"},
 			}}, link.Params[0].Value)
 			for key := range op.Responses[0].Unmodeled {
 				assert.False(t, strings.HasPrefix(key, "openapi:links"), "the link is kept verbatim: %s", key)

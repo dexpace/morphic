@@ -146,7 +146,7 @@ func TestAllOfBranchFolding_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	const n = "\n    N: {$id: 'https://ex.test/a/n.json', type: string}" // what `n.json` names under https://ex.test/a/
-	met := &ir.Constraints{MaxProps: new(int64(3))}
+	met := &ir.Constraints{MaxProperties: new(int64(3))}
 	for name, tc := range map[string]struct {
 		branches string
 		kept     []string
@@ -310,7 +310,7 @@ func TestAllOfBranchFolding_BoundsMeetInEveryOrder(t *testing.T) {
 		version, base, a, b string
 		want                *ir.Constraints
 	}{
-		"a count": {"3.1.0", untyped, "{maxProperties: 9}", "{maxProperties: 4}", &ir.Constraints{MaxProps: new(int64(4))}},
+		"a count": {"3.1.0", untyped, "{maxProperties: 9}", "{maxProperties: 4}", &ir.Constraints{MaxProperties: new(int64(4))}},
 		"a step":  {"3.1.0", number, "{multipleOf: 4}", "{multipleOf: 6}", &ir.Constraints{MultipleOf: new(ir.BigVal("12"))}},
 		"a bound and its exclusive form": {"3.1.0", number, "{minimum: 1}", "{exclusiveMinimum: 2}",
 			&ir.Constraints{Min: new(ir.BigVal("1")), ExclusiveMin: new(ir.BigVal("2"))}},
@@ -333,7 +333,7 @@ func TestAllOfBranchFolding_BoundsMeetInEveryOrder(t *testing.T) {
 	doc, _ := parseFull(t, foldedBranchesDoc("{maxProperties: 3, allOf: ["+ref+", {maxProperties: 5}]}"))
 	m, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, &ir.Constraints{MaxProps: new(int64(3))}, m.Constraints, "a bound beside the allOf meets one on a branch")
+	assert.Equal(t, &ir.Constraints{MaxProperties: new(int64(3))}, m.Constraints, "a bound beside the allOf meets one on a branch")
 	assert.Empty(t, m.Unmodeled)
 
 	for i, order := range []string{"{exclusiveMinimum: true}, {exclusiveMinimum: false}", "{exclusiveMinimum: false}, {exclusiveMinimum: true}"} {
@@ -366,7 +366,7 @@ func TestAllOfBranchFolding_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *te
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, &ir.Constraints{MaxProps: new(int64(3))}, m.Constraints, "%v", order)
+		assert.Equal(t, &ir.Constraints{MaxProperties: new(int64(3))}, m.Constraints, "%v", order)
 		assert.ElementsMatch(t, []string{"openapi:multipleOf", "openapi:maximum", "openapi:minLength"},
 			slices.Collect(maps.Keys(m.Unmodeled)), "%v", order)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
@@ -495,7 +495,7 @@ func TestAllOfBranchFolding_AnExampleRenderingNothingStillAgrees(t *testing.T) {
 	for _, at := range []string{"/components/schemas/S/allOf/1", "/components/schemas/S/allOf/2"} {
 		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), at)
 	}
-	m, ok := doc.Types["t/openapi/components/schemas/S"].(*ir.Model)
+	m, ok := doc.Types["type/openapi/components/schemas/S"].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, "d", m.Docs.Description)
 	assert.Empty(t, m.Unmodeled)
@@ -677,7 +677,7 @@ func TestAllOfBranchFolding_AnEntrysKeywordsBesideItsRefAreAFoldedBranch(t *test
 			assert.Equal(t, componentID("Base"), m.Base.Target, "the $ref is the Base itself")
 			assert.Equal(t, tc.description, m.Docs.Description)
 			assert.Equal(t, tc.kept, slices.Sorted(maps.Keys(m.Unmodeled)))
-			assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/S/allOf/0"), "no node at the entry")
+			assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/S/allOf/0"), "no node at the entry")
 		})
 	}
 }

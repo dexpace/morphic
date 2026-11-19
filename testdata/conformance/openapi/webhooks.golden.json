@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Webhooks",
         "canonical": "webhooks"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/webhooks",
+          "id": "operation-group/webhooks",
           "name": {
             "hint": "webhooks"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/webhooks/newPet/post",
+              "id": "operation/openapi/webhooks/newPet/post",
               "name": {
                 "source": "onNewPet",
                 "canonical": "on_new_pet"
@@ -70,7 +70,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/webhooks/newPet/post/requestBody/content/application~1json/schema",
+                      "target": "type/anonymous/webhooks/newPet/post/requestBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -120,7 +120,7 @@
               }
             },
             {
-              "id": "op/openapi/webhooks/{tenant}.created/post",
+              "id": "operation/openapi/webhooks/{tenant}.created/post",
               "name": {
                 "hint": "post_tenant_created"
               },
@@ -162,7 +162,7 @@
               }
             },
             {
-              "id": "op/openapi/webhooks//post",
+              "id": "operation/openapi/webhooks//post",
               "name": {
                 "hint": "post"
               },
@@ -214,9 +214,9 @@
     }
   ],
   "types": {
-    "t/anon/webhooks/newPet/post/requestBody/content/application~1json/schema": {
+    "type/anonymous/webhooks/newPet/post/requestBody/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/webhooks/newPet/post/requestBody/content/application~1json/schema",
+      "id": "type/anonymous/webhooks/newPet/post/requestBody/content/application~1json/schema",
       "name": {
         "hint": "on_new_pet_request"
       },

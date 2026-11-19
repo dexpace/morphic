@@ -51,9 +51,9 @@ func writtenFormat(s *statement.Schema) string {
 // the encoding name and wire type a Scalar over that primitive holds, and
 // whether the primitive alone says all of it, so the shared one stands for it.
 type scalarShape struct {
-	base   ir.PrimKind
+	base   ir.PrimitiveKind
 	format string
-	wire   *ir.PrimKind
+	wire   *ir.PrimitiveKind
 	shared bool
 	// read is the format the shape was selected by, none where it names none.
 	read keySet
@@ -79,7 +79,7 @@ func scalarShapeOf(s *statement.Schema, st statement.JSONSchemaTypeName, format 
 	prim, known := typeformat.Lookup(key)
 	if !known {
 		if num, carried := numberAsText(s, st, format); carried {
-			return scalarShape{base: num, format: numberTextEncoding, wire: new(ir.PrimString), read: read}
+			return scalarShape{base: num, format: numberTextEncoding, wire: new(ir.PrimitiveString), read: read}
 		}
 		return scalarShape{base: baseForType(st), format: format, read: read}
 	}
@@ -88,7 +88,7 @@ func scalarShapeOf(s *statement.Schema, st statement.JSONSchemaTypeName, format 
 
 // wireOf returns the primitive row's value travels as, the WireType of the
 // Scalar scalarShapeOf gives it: nil where the primitive's own spelling says it.
-func wireOf(row typeformat.Encoded) *ir.PrimKind {
+func wireOf(row typeformat.Encoded) *ir.PrimitiveKind {
 	if row.Wire == "" {
 		return nil
 	}
@@ -105,7 +105,7 @@ const numberTextEncoding = "string"
 // number's readers hold may travel. A contentEncoding naming another encoding
 // says the string is that encoding's text instead, so the format, which
 // encodingName then keeps verbatim, selects nothing.
-func numberAsText(s *statement.Schema, st statement.JSONSchemaTypeName, format string) (ir.PrimKind, bool) {
+func numberAsText(s *statement.Schema, st statement.JSONSchemaTypeName, format string) (ir.PrimitiveKind, bool) {
 	if st != statement.KindString || format == "" || contentOverridesFormat(s, numberTextEncoding) {
 		return "", false
 	}
@@ -114,7 +114,7 @@ func numberAsText(s *statement.Schema, st statement.JSONSchemaTypeName, format s
 
 // formatPrimitive returns the primitive that s's one declared type and its
 // format select, when the table has that pairing.
-func formatPrimitive(s *statement.Schema) (ir.PrimKind, bool) {
+func formatPrimitive(s *statement.Schema) (ir.PrimitiveKind, bool) {
 	types := effectiveTypes(s)
 	if len(types) != 1 {
 		return "", false
@@ -123,16 +123,16 @@ func formatPrimitive(s *statement.Schema) (ir.PrimKind, bool) {
 }
 
 // baseForType returns the base primitive for an unknown-format scalar of type st.
-func baseForType(st statement.JSONSchemaTypeName) ir.PrimKind {
+func baseForType(st statement.JSONSchemaTypeName) ir.PrimitiveKind {
 	switch st {
 	case statement.KindInteger:
-		return ir.PrimInteger
+		return ir.PrimitiveInteger
 	case statement.KindNumber:
-		return ir.PrimNumber
+		return ir.PrimitiveNumber
 	case statement.KindBoolean:
-		return ir.PrimBool
+		return ir.PrimitiveBool
 	default:
-		return ir.PrimString
+		return ir.PrimitiveString
 	}
 }
 

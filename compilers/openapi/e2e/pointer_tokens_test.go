@@ -39,7 +39,7 @@ components:
 `
 	}
 	property := func(owner, key string) ir.TypeID {
-		return ir.TypeID("t/anon/components/schemas/" + owner + "/properties/" + key)
+		return ir.TypeID("type/anonymous/components/schemas/" + owner + "/properties/" + key)
 	}
 
 	for _, key := range []string{"é", "😀"} {

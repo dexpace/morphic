@@ -13,7 +13,7 @@ import (
 // linkSite is one link an operation's responses carry, with the field of the
 // operation it sits at, which spells where it is reported.
 type linkSite struct {
-	from  ir.OpID
+	from  ir.OperationID
 	link  *ir.OperationLink
 	field string
 }
@@ -35,7 +35,7 @@ func appendLinkSites(dst []linkSite, op *ir.Operation) []linkSite {
 
 // appendLinks appends to dst each of links, which a response of from at at
 // carries.
-func appendLinks(dst []linkSite, from ir.OpID, links []ir.OperationLink, at string) []linkSite {
+func appendLinks(dst []linkSite, from ir.OperationID, links []ir.OperationLink, at string) []linkSite {
 	for j := range links {
 		dst = append(dst, linkSite{from: from, link: &links[j], field: at + "/links/" + strconv.Itoa(j)})
 	}
@@ -77,7 +77,7 @@ func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	if len(sites) == 0 {
 		return nil
 	}
-	targets := map[ir.OpID]map[ir.ParamID]bool{}
+	targets := map[ir.OperationID]map[ir.ParameterID]bool{}
 	for _, site := range sites {
 		targets[site.link.Operation] = nil
 	}
@@ -85,7 +85,7 @@ func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 		if _, named := targets[op.ID]; !named {
 			return
 		}
-		own := make(map[ir.ParamID]bool, len(op.Params))
+		own := make(map[ir.ParameterID]bool, len(op.Params))
 		for _, p := range op.Params {
 			own[p.ID] = true
 		}
@@ -103,9 +103,9 @@ func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 // linkParamDiags reports each parameter site's link gives that own, its
 // target's parameters, does not hold, and each it gives a second value. An
 // empty parameter is checkEmptyRefs' to report, however often it is given.
-func linkParamDiags(site linkSite, own map[ir.ParamID]bool, refs *ir.IDReferences) []ir.Diagnostic {
+func linkParamDiags(site linkSite, own map[ir.ParameterID]bool, refs *ir.IDReferences) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	given := make(map[ir.ParamID]bool, len(site.link.Params))
+	given := make(map[ir.ParameterID]bool, len(site.link.Params))
 	for k, lp := range site.link.Params {
 		if lp.Param == "" {
 			continue

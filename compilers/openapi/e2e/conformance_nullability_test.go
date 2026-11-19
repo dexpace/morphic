@@ -66,7 +66,7 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // (internal/harness).
 func assertCollapsedBranchHint(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	const branchID = ir.TypeID("t/anon/components/schemas/Collapsed/oneOf/0")
+	const branchID = ir.TypeID("type/anonymous/components/schemas/Collapsed/oneOf/0")
 
 	collapsed, ok := doc.Types[componentID("Collapsed")].(*ir.Scalar)
 	require.True(t, ok, "a {X, null} set resolves to its one branch rather than to a union node")
@@ -102,7 +102,7 @@ func assertEnumNullMember(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	narrowed, ok := doc.Types[componentID("Narrowed")].(*ir.Enum)
 	require.True(t, ok)
 	require.Len(t, narrowed.Members, 1)
-	assert.Equal(t, "a", narrowed.Members[0].Value.Str)
+	assert.Equal(t, "a", narrowed.Members[0].Value.String)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Narrowed/enum/1"),
 		"the null its type excludes is reported at it")
@@ -154,7 +154,7 @@ func assertNullAlone(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		require.True(t, isEnum, "%s is an Enum, got %T", wire, doc.Types[p.Type.Target])
 		assert.Empty(t, e.Members, "%s admits null and nothing else", wire)
 		assert.True(t, e.Closed, wire)
-		assert.Equal(t, ir.PrimAny, e.ValueType, wire)
+		assert.Equal(t, ir.PrimitiveAny, e.ValueType, wire)
 	}
 	nested, found := propByWire(holder, "nil")
 	require.True(t, found)
@@ -162,7 +162,7 @@ func assertNullAlone(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 
 	anything, found := propByWire(holder, "anything")
 	require.True(t, found)
-	assert.Equal(t, ir.TypeRef{Target: "t/prim/any", Nullable: true}, anything.Type,
+	assert.Equal(t, ir.TypeRef{Target: "type/primitive/any", Nullable: true}, anything.Type,
 		"every value and null is the top type, told apart from null alone")
 
 	withProps, found := propByWire(holder, "withProps")
@@ -221,10 +221,10 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	e, ok := doc.Types[componentID("Color")].(*ir.Enum)
 	require.True(t, ok, "the null member does not cost the declaration its enum-ness")
 	assert.True(t, e.Closed)
-	assert.Equal(t, ir.PrimString, e.ValueType, "null contributes no value type of its own")
+	assert.Equal(t, ir.PrimitiveString, e.ValueType, "null contributes no value type of its own")
 	require.Len(t, e.Members, 2, "the null member is normalized away, the scalar members are not")
-	assert.Equal(t, "red", e.Members[0].Value.Str)
-	assert.Equal(t, "green", e.Members[1].Value.Str)
+	assert.Equal(t, "red", e.Members[0].Value.String)
+	assert.Equal(t, "green", e.Members[1].Value.String)
 	for _, d := range diags {
 		assert.NotEqual(t, "openapi/degraded-construct", d.Code, "normalizing is not degrading: %+v", d)
 	}
@@ -240,7 +240,7 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	require.True(t, ok)
 	list, ok := doc.Types[many.Type.Target].(*ir.List)
 	require.True(t, ok, "the array property hoists a List")
-	assert.Equal(t, ir.TypeRef{Target: componentID("Color"), Nullable: true}, list.Elem,
+	assert.Equal(t, ir.TypeRef{Target: componentID("Color"), Nullable: true}, list.ElementType,
 		"and so does a list element, which holds its own reference")
 	assert.False(t, many.Type.Nullable, "the list itself was never declared nullable")
 
@@ -257,7 +257,7 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	bare, ok := doc.Types[componentID("BareColor")].(*ir.Enum)
 	require.True(t, ok, "a bare enum listing null is still an enum of its scalar members")
 	require.Len(t, bare.Members, 2, "the null member is normalized away here too")
-	assert.Equal(t, ir.PrimString, bare.ValueType, "the kept members supply the value type")
+	assert.Equal(t, ir.PrimitiveString, bare.ValueType, "the kept members supply the value type")
 
 	narrowed, ok := doc.Types[componentID("NarrowedColor")].(*ir.Enum)
 	require.True(t, ok)

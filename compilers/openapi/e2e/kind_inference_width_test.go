@@ -125,7 +125,7 @@ func assertWidthOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, a
 	scalar, ok := td.(*ir.Scalar)
 	require.True(t, ok, "%s: the top type, got %s", where, td.Kind())
 	require.NotNil(t, scalar.Base, where)
-	assert.Equal(t, prim(ir.PrimAny), scalar.Base.Target, where)
+	assert.Equal(t, prim(ir.PrimitiveAny), scalar.Base.Target, where)
 	assert.False(t, markedKindInference(td), where)
 	assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:" + keyword: ir.ReasonDegradedLowering}, keptOn(td), where)
 	assert.Equal(t, []jsontext.Pointer{at}, degradedUnder(diags, at), where)
@@ -169,7 +169,7 @@ func TestKindInference_AKeywordTypingNothingStillSpeaksOfItsKind(t *testing.T) {
 						variant, isScalar := kindNode(t, doc, v.Type.Target).(*ir.Scalar)
 						require.True(t, isScalar, "variant %d", i)
 						require.NotNil(t, variant.Base)
-						assert.Equal(t, prim(ir.PrimAny), variant.Base.Target, "variant %d", i)
+						assert.Equal(t, prim(ir.PrimitiveAny), variant.Base.Target, "variant %d", i)
 						assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:required": ir.ReasonDegradedLowering},
 							keptOn(variant), "variant %d", i)
 					}

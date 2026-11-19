@@ -209,7 +209,7 @@ func TestInlinePrincipal_TheNodeHoldsTheBoundsOfTheConjunction(t *testing.T) {
 				"Items: {type: array, items: {allOf: "+entries+"}}")
 			doc, diags := compileUnrefused(t, spec)
 			requireErrorsAndWarnings(t, diags, nil)
-			for _, id := range []ir.TypeID{componentID("Comp"), "t/anon/components/schemas/Prop/properties/p", "t/anon/components/schemas/Items/items"} {
+			for _, id := range []ir.TypeID{componentID("Comp"), "type/anonymous/components/schemas/Prop/properties/p", "type/anonymous/components/schemas/Items/items"} {
 				node := kindNode(t, doc, id)
 				b.check(t, doc, node)
 				assert.Empty(t, keptOn(node), "%s, %s: nothing kept", b.name, id)
@@ -219,7 +219,7 @@ func TestInlinePrincipal_TheNodeHoldsTheBoundsOfTheConjunction(t *testing.T) {
 			assert.Empty(t, prop.Unmodeled, "%s: nor keeps one", b.name)
 			list, ok := kindNode(t, doc, componentID("Items")).(*ir.List)
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/anon/components/schemas/Items/items"), list.Elem.Target, "%s: the element is the node", b.name)
+			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Items/items"), list.ElementType.Target, "%s: the element is the node", b.name)
 		}
 	}
 }
@@ -248,7 +248,7 @@ func TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone(t *testing.T) {
 		assert.EqualValues(t, 9, *whole.Constraints.MaxItems)
 		assert.Equal(t, "d", whole.Docs.Description, "the position's description")
 
-		entry, ok := kindNode(t, doc, "t/anon/components/schemas/ArrE/allOf/1").(*ir.List)
+		entry, ok := kindNode(t, doc, "type/anonymous/components/schemas/ArrE/allOf/1").(*ir.List)
 		require.True(t, ok, "the entry a $ref names is a list of its own")
 		require.NotNil(t, entry.Constraints)
 		assert.Nil(t, entry.Constraints.MinItems, "the entry alone writes no minItems")
@@ -256,7 +256,7 @@ func TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone(t *testing.T) {
 		assert.EqualValues(t, 9, *entry.Constraints.MaxItems)
 		assert.Empty(t, entry.Docs.Description, "nor the description beside it")
 		assert.Contains(t, keptOn(entry), "openapi:readOnly", "a use-bound keyword it writes is kept on it")
-		assert.Equal(t, entry.Elem.Target, whole.Elem.Target, "one element, at the entry's items")
+		assert.Equal(t, entry.ElementType.Target, whole.ElementType.Target, "one element, at the entry's items")
 		docs[t.Name()] = withoutVersion(t, doc)
 	})
 	declared, reversed := docs[t.Name()+"/declared"], docs[t.Name()+"/reversed"]
@@ -276,10 +276,10 @@ func TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt(t *testing.T) {
 		"Tl: {allOf: [{description: d}, {type: [object, string], properties: {a: {}}}]}",
 		"U: {allOf: [{description: d}, {oneOf: [{type: object, properties: {a: {}}}, {type: integer}]}]}")
 	doc, _ := compileUnrefused(t, spec)
-	const at = "t/anon/components/schemas/"
+	const at = "type/anonymous/components/schemas/"
 	list, ok := kindNode(t, doc, componentID("L")).(*ir.List)
 	require.True(t, ok, "L is the list")
-	assert.Equal(t, ir.TypeID(at+"L/allOf/0/items"), list.Elem.Target, "the element where it is written")
+	assert.Equal(t, ir.TypeID(at+"L/allOf/0/items"), list.ElementType.Target, "the element where it is written")
 	assert.Contains(t, keptOn(list), "openapi:items", "the position's own items is kept")
 	_, own := doc.Types[at+"L/items"]
 	assert.False(t, own, "and builds no node")
@@ -306,7 +306,7 @@ func TestInlinePrincipal_AWrapperHoldsEachBoundOnce(t *testing.T) {
 		doc, diags := compileUnrefused(t, admissionSpec("3.1.0", "",
 			"Use: "+schema, "H: {type: object, properties: {p: "+schema+"}}"))
 		requireErrorsAndWarnings(t, diags, nil)
-		for _, id := range []ir.TypeID{componentID("Use"), "t/anon/components/schemas/H/properties/p"} {
+		for _, id := range []ir.TypeID{componentID("Use"), "type/anonymous/components/schemas/H/properties/p"} {
 			list, ok := kindNode(t, doc, id).(*ir.List)
 			require.True(t, ok, "%s: %s is the list", schema, id)
 			require.NotNil(t, list.Constraints)

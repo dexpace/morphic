@@ -205,8 +205,8 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			pe := filePart(t, tc.version, tc.mediaType, tc.part, tc.encoding, tc.opts)
-			assert.Equal(t, tc.file, pe.Filename, "filename")
-			assert.Equal(t, tc.multi, pe.Multi, "multi")
+			assert.Equal(t, tc.file, pe.HasFilename, "filename")
+			assert.Equal(t, tc.multi, pe.RepeatsPerArrayItem, "multi")
 			assert.Equal(t, tc.inferred, pe.Inferred, "marker")
 		})
 	}
@@ -250,8 +250,8 @@ components:
 			entries := openapitest.FindOp(t, doc, "upload").Request.Contents[0].Encoding
 			require.Len(t, entries, 1, "a part that repeats has an entry")
 			for _, pe := range entries {
-				assert.Equal(t, tc.file, pe.Filename, "filename")
-				assert.Equal(t, tc.multi, pe.Multi, "multi")
+				assert.Equal(t, tc.file, pe.HasFilename, "filename")
+				assert.Equal(t, tc.multi, pe.RepeatsPerArrayItem, "multi")
 			}
 		})
 	}
@@ -289,7 +289,7 @@ func TestReadPartFile_AMarkerNamesOnlyAGuess(t *testing.T) {
 			entries := openapitest.FindOp(t, doc, "upload").Request.Contents[0].Encoding
 			require.Len(t, entries, 1)
 			for _, pe := range entries {
-				assert.True(t, pe.Filename)
+				assert.True(t, pe.HasFilename)
 				assert.Equal(t, tc.inferred, pe.Inferred)
 			}
 		})

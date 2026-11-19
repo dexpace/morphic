@@ -569,12 +569,12 @@ document-wide override and overrides keyed by operation, merged by the same `Mer
 ```go
 type Layer struct {
     Document DeepPartial                // what the layer sets for every operation
-    Ops      map[ir.OpID]DeepPartial    // what it sets for one operation, over its Document
+    Ops      map[ir.OperationID]DeepPartial    // what it sets for one operation, over its Document
 }
 
 type Resolved struct {
     Document Policy                     // what an operation no layer names is given
-    Ops      map[ir.OpID]Policy         // each operation some layer names or Resolve sets apart
+    Ops      map[ir.OperationID]Policy         // each operation some layer names or Resolve sets apart
                                         // (a header the document writes), resolved whole
 }
 

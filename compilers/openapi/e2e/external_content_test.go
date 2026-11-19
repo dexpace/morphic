@@ -269,7 +269,7 @@ func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	require.True(t, ok, "the response's schema is lowered as a model, where ext.yaml declares it")
 	require.NotNil(t, model.Discriminator)
 	theirs := ext.NamedType("/components/schemas/Thing")
-	assert.Equal(t, map[string]ir.TypeID{"byName": "t/openapi/components/schemas/Thing", "byRef": theirs},
+	assert.Equal(t, map[string]ir.TypeID{"byName": "type/openapi/components/schemas/Thing", "byRef": theirs},
 		model.Discriminator.Mapping)
 	assert.Equal(t, theirs, model.Discriminator.Default)
 }
@@ -330,14 +330,14 @@ func TestExternalContent_ASourcePositionItNamesIsTheSources(t *testing.T) {
 		require.NoError(t, err)
 		openapitest.RequireNoErrorDiags(t, diags)
 
-		const thing = ir.TypeID("t/openapi/components/schemas/Thing")
+		const thing = ir.TypeID("type/openapi/components/schemas/Thing")
 		mapping := ids.In("ext.yaml").AnonType("/paths/~1x/get/responses/200/content/application~1json/schema")
 		base, ok := doc.Types[mapping].(*ir.Model)
 		require.True(t, ok, "%v: the mapping's schema is lowered as a model, where ext.yaml declares it", order)
 		require.NotNil(t, base.Discriminator)
-		assert.Equal(t, map[string]ir.TypeID{"obj": ir.TypeID("t/anon" + obj), "ref": thing},
+		assert.Equal(t, map[string]ir.TypeID{"obj": ir.TypeID("type/anonymous" + obj), "ref": thing},
 			base.Discriminator.Mapping, order)
-		object, ok := doc.Types[ir.TypeID("t/anon"+obj)].(*ir.Model)
+		object, ok := doc.Types[ir.TypeID("type/anonymous"+obj)].(*ir.Model)
 		require.True(t, ok, "%v: the object is lowered as a model", order)
 		require.Len(t, object.Properties, 1)
 		assert.Equal(t, thing, object.Properties[0].Type.Target, order)
@@ -407,7 +407,7 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 		t.Helper()
 		model, ok := doc.Types[ext.AnonType(object)].(*ir.Model)
 		require.True(t, ok, "the object is lowered as a model, where ext.yaml declares it")
-		for name, target := range map[string]ir.TypeID{"pet": ext.NamedType("/components/schemas/Pet"), "toy": "t/prim/any"} {
+		for name, target := range map[string]ir.TypeID{"pet": ext.NamedType("/components/schemas/Pet"), "toy": "type/primitive/any"} {
 			p, ok := propByWire(model, name)
 			require.True(t, ok, name)
 			assert.Equal(t, target, p.Type.Target, name)
@@ -424,7 +424,7 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 			"{schema: {type: object, properties: {k: {type: string}}, discriminator: {propertyName: k, " +
 			"mapping: {x: '#" + alias + "'}}}}}}}}}\n", func(t *testing.T, doc *ir.Document) {
 			t.Helper()
-			model, ok := doc.Types[ir.TypeID("t/anon/paths/~1d/get/responses/200/content/application~1json/schema")].(*ir.Model)
+			model, ok := doc.Types[ir.TypeID("type/anonymous/paths/~1d/get/responses/200/content/application~1json/schema")].(*ir.Model)
 			require.True(t, ok, "the mapping's schema is lowered as a model")
 			require.NotNil(t, model.Discriminator)
 			assert.Equal(t, map[string]ir.TypeID{"x": ext.NamedType("/components/schemas/Pet")}, model.Discriminator.Mapping,
@@ -499,7 +499,7 @@ components:
 		Provenance: ir.Provenance{Source: 1, Pointer: named + "/properties/pet"}}}, diags))
 	require.NotNil(t, doc)
 	theirs := ids.In("ext.yaml").AnonType(named)
-	usesR, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/UsesR")].(*ir.Model)
+	usesR, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/UsesR")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, usesR.Properties, 1)
 	assert.Equal(t, theirs, usesR.Properties[0].Type.Target)
@@ -510,7 +510,7 @@ components:
 	body, ok := doc.Types[theirs].(*ir.Model)
 	require.True(t, ok, "the position is hoisted as a model")
 	require.Len(t, body.Properties, 1)
-	assert.Equal(t, ir.TypeID("t/prim/any"), body.Properties[0].Type.Target, "not the source's Pet")
+	assert.Equal(t, ir.TypeID("type/primitive/any"), body.Properties[0].Type.Target, "not the source's Pet")
 }
 
 // TestExternalContent_ASourcePathThroughASchemeLikeDirectoryIsAFile pins a
@@ -547,7 +547,7 @@ func TestExternalContent_ASourcePathThroughASchemeLikeDirectoryIsAFile(t *testin
 	require.Len(t, ops, 2)
 	for _, op := range ops {
 		require.Len(t, op.Responses, 1)
-		assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload),
+		assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload),
 			"%s names the source's own Thing", op.ID)
 	}
 }
@@ -600,7 +600,7 @@ func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
 			op, ok := opByName(doc, "op")
 			require.True(t, ok)
 			require.Len(t, op.Responses, 1)
-			assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload))
+			assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload))
 		})
 	}
 }
@@ -651,7 +651,7 @@ func TestExternalContent_ARefInTheSourceNamingItNamesIt(t *testing.T) {
 				op, ok := opByName(doc, "op")
 				require.True(t, ok)
 				require.Len(t, op.Responses, 1)
-				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload))
+				assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload))
 			})
 		}
 	}
@@ -726,7 +726,7 @@ func TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder(t *te
 			model, ok := doc.Types[ids.In("ext.yaml").AnonType("/paths/~1b"+schema)].(*ir.Model)
 			require.True(t, ok, "the mapping's schema is lowered as a model, where ext.yaml declares it")
 			require.NotNil(t, model.Discriminator)
-			assert.Equal(t, map[string]ir.TypeID{"cat": "t/anon/x-lib/Cat"}, model.Discriminator.Mapping)
+			assert.Equal(t, map[string]ir.TypeID{"cat": "type/anonymous/x-lib/Cat"}, model.Discriminator.Mapping)
 		}},
 		{"a schema $ref naming a response schema", `openapi: 3.1.0
 info: {title: E, version: "1"}
@@ -743,7 +743,7 @@ paths:
 				"          content: {application/json: {schema: {type: object, properties: {t: {$ref: '#/components/schemas/Thing'}}}}}\n",
 		}, func(t *testing.T, doc *ir.Document) {
 			got := operationAt(t, doc, "GET", "/a").Responses[0].Payload.Contents[0].Type.Target
-			assert.Equal(t, ir.TypeID("t/anon/paths/~1b"+schema), got, "/a responds with /b's schema")
+			assert.Equal(t, ir.TypeID("type/anonymous/paths/~1b"+schema), got, "/a responds with /b's schema")
 		}},
 	}
 	for _, tc := range tests {
@@ -853,9 +853,9 @@ components:
 		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	ops := map[ir.OpID]ir.Operation{}
+	ops := map[ir.OperationID]ir.Operation{}
 	require.False(t, ir.ForEachOperation(doc, func(op ir.Operation) { ops[op.ID] = op }))
-	op := func(path string) ir.Operation { return ops[ir.OpID("op/openapi/paths/~1"+path+"/post")] }
+	op := func(path string) ir.Operation { return ops[ir.OperationID("operation/openapi/paths/~1"+path+"/post")] }
 
 	params := map[string]ir.Parameter{}
 	for _, p := range op("form").Params {
@@ -863,7 +863,7 @@ components:
 	}
 	for _, name := range []string{"lent", "own", "home"} {
 		require.NotNil(t, params[name].Default, "%s: a parameter's default", name)
-		assert.Equal(t, "json", params[name].Default.Str, name)
+		assert.Equal(t, "json", params[name].Default.String, name)
 		assert.Equal(t, "fmt", params[name].Docs.Description, "%s: a parameter's description", name)
 	}
 	require.Len(t, op("form").Responses, 1)
@@ -873,21 +873,21 @@ components:
 	}
 	for _, name := range []string{"X-Lent", "X-Home"} {
 		require.NotNil(t, headers[name].Default, "%s: a header's default", name)
-		assert.Equal(t, "json", headers[name].Default.Str, name)
+		assert.Equal(t, "json", headers[name].Default.String, name)
 		assert.Equal(t, "fmt", headers[name].Docs.Description, "%s: a header's description", name)
 	}
 
 	lib := ids.In("lib.yaml")
-	for path, keys := range map[string][]ir.PropID{
+	for path, keys := range map[string][]ir.PropertyID{
 		"form": {lib.Prop("/Form/properties/file")},
 		"own":  {lib.Prop("/Form/properties/file")},
-		"home": {"p/openapi/components/schemas/Form/properties/file"},
+		"home": {"property/openapi/components/schemas/Form/properties/file"},
 	} {
 		require.NotNil(t, op(path).Request, path)
 		require.Len(t, op(path).Request.Contents, 1, path)
 		assert.Equal(t, keys, slices.Sorted(maps.Keys(op(path).Request.Contents[0].Encoding)), "%s: a form body's parts", path)
 	}
-	for path, schema := range map[string]ir.TypeID{"file": lib.AnonType("/Bin"), "file-home": "t/openapi/components/schemas/Bin"} {
+	for path, schema := range map[string]ir.TypeID{"file": lib.AnonType("/Bin"), "file-home": "type/openapi/components/schemas/Bin"} {
 		require.NotNil(t, op(path).Request, path)
 		require.Len(t, op(path).Request.Contents, 1, path)
 		body := op(path).Request.Contents[0]
@@ -895,7 +895,7 @@ components:
 		assert.NotNil(t, body.File, path)
 	}
 	for name, base := range map[string]ir.TypeID{"Local": lib.AnonType("/Kid"), "Mine": lib.AnonType("/Pet")} {
-		model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)].(*ir.Model)
+		model, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/"+name)].(*ir.Model)
 		require.True(t, ok, name)
 		require.NotNil(t, model.Base, name)
 		assert.Equal(t, base, model.Base.Target, name)
@@ -938,8 +938,8 @@ Z: {type: object, properties: {bin: {type: string, format: binary}}}
 	enc := op.Request.Contents[0].Encoding
 	part, ok := enc[ids.In("lib.yaml").Prop("/Form/allOf/0/properties/file")]
 	require.True(t, ok, "the part is keyed on the property the fold kept: %v", enc)
-	assert.True(t, part.Filename, "a file part, as the settled type says")
-	assert.False(t, part.Multi)
+	assert.True(t, part.HasFilename, "a file part, as the settled type says")
+	assert.False(t, part.RepeatsPerArrayItem)
 }
 
 // TestExternalContent_ANodeAnotherDocumentHoistsIsNoCopyOfAnInlineOne pins
@@ -975,7 +975,7 @@ components:
 
 		require.NoError(t, err)
 		assert.Empty(t, diags, "first branch %s", branches[0])
-		m, ok := doc.Types["t/openapi/components/schemas/T"].(*ir.Model)
+		m, ok := doc.Types["type/openapi/components/schemas/T"].(*ir.Model)
 		require.True(t, ok)
 		require.Len(t, m.Properties, 1)
 		assert.Equal(t, want, m.Properties[0].Type.Target, "the referenced enum wins: first branch %s", branches[0])
@@ -1007,7 +1007,7 @@ func TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart(t *testing.
 
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types["t/openapi/components/schemas/H"].(*ir.Model)
+	m, ok := doc.Types["type/openapi/components/schemas/H"].(*ir.Model)
 	require.True(t, ok)
 	props := openapitest.PropsByWire(m.Properties)
 	assert.Contains(t, props["there"].Unmodeled, "openapi:items", "the copy in another document is kept")
@@ -1037,10 +1037,10 @@ func TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart(t *testing.T
 
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types["t/openapi/components/schemas/S"].(*ir.Model)
+	m, ok := doc.Types["type/openapi/components/schemas/S"].(*ir.Model)
 	require.True(t, ok)
 	got := openapitest.PropsByWire(m.Properties)["x"]
-	assert.Equal(t, ir.TypeID("t/openapi@other.yaml/components/schemas/E"), got.Type.Target)
+	assert.Equal(t, ir.TypeID("type/openapi@other.yaml/components/schemas/E"), got.Type.Target)
 	assert.Contains(t, got.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x")
 }
 
@@ -1111,10 +1111,10 @@ components:
 	require.NoError(t, err)
 	assert.Empty(t, diags)
 	for _, name := range []string{"F2", "F3"} {
-		m, ok := doc.Types[ir.TypeID("t/openapi@other.yaml/components/schemas/"+name)].(*ir.Model)
+		m, ok := doc.Types[ir.TypeID("type/openapi@other.yaml/components/schemas/"+name)].(*ir.Model)
 		require.True(t, ok, name)
 		require.Len(t, m.Properties, 1, name)
-		assert.Equal(t, ir.TypeID("t/openapi@other.yaml/components/schemas/E"), m.Properties[0].Type.Target, name)
+		assert.Equal(t, ir.TypeID("type/openapi@other.yaml/components/schemas/E"), m.Properties[0].Type.Target, name)
 		assert.Empty(t, m.Properties[0].Unmodeled, name)
 	}
 }
@@ -1155,11 +1155,11 @@ components:
 	require.NoError(t, err)
 	assert.Empty(t, diags)
 	for _, tc := range []struct{ model, composed, mixin ir.TypeID }{
-		{"t/openapi/components/schemas/F", "t/composed/components/schemas/F/allOf/1/properties/p", "t/openapi/components/schemas/A"},
+		{"type/openapi/components/schemas/F", "type/composed/components/schemas/F/allOf/1/properties/p", "type/openapi/components/schemas/A"},
 		{
-			"t/openapi@other.yaml/components/schemas/F",
-			"t/composed@other.yaml/components/schemas/F/allOf/1/properties/p",
-			"t/openapi@other.yaml/components/schemas/A",
+			"type/openapi@other.yaml/components/schemas/F",
+			"type/composed@other.yaml/components/schemas/F/allOf/1/properties/p",
+			"type/openapi@other.yaml/components/schemas/A",
 		},
 	} {
 		m, ok := doc.Types[tc.model].(*ir.Model)
@@ -1213,10 +1213,10 @@ components:
 	assert.Empty(t, diags)
 	for _, tc := range []struct {
 		model ir.TypeID
-		want  ir.PropID
+		want  ir.PropertyID
 	}{
-		{"t/openapi/components/schemas/F", "p/openapi/components/schemas/F/allOf/0/properties/p"},
-		{"t/openapi@other.yaml/components/schemas/F", "p/composed@other.yaml/components/schemas/F/allOf/1/properties/p"},
+		{"type/openapi/components/schemas/F", "property/openapi/components/schemas/F/allOf/0/properties/p"},
+		{"type/openapi@other.yaml/components/schemas/F", "property/composed@other.yaml/components/schemas/F/allOf/1/properties/p"},
 	} {
 		m, ok := doc.Types[tc.model].(*ir.Model)
 		require.True(t, ok, tc.model)

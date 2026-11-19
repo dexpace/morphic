@@ -6,7 +6,7 @@ reaches a protocol in [bindings](./bindings.md).
 
 ```go
 type Operation struct {
-    ID         OpID
+    ID         OperationID
     Name       Naming
     Docs       Docs
     Deprecation *Deprecation
@@ -51,7 +51,7 @@ type Operation struct {
     ParameterVisibility  []Lifecycle // visibility filter override for the request view
                                      // (TypeSpec @parameterVisibility); nil = protocol default
     ReturnTypeVisibility []Lifecycle // filter override for the response view; nil = protocol default
-    OverloadOf *OpID              // TypeSpec @overload grouping
+    OverloadOf *OperationID              // TypeSpec @overload grouping
 
     Bindings   OpBindings         // docs/ir/bindings.md — how the core maps onto concrete protocols
     Examples   []Example
@@ -60,7 +60,7 @@ type Operation struct {
 }
 
 type Parameter struct {
-    ID         ParamID             // param/<space>/<operation's path>/parameters/<name>/<in>, and
+    ID         ParameterID             // param/<space>/<operation's path>/parameters/<name>/<in>, and
                                    // /<n> after it on the n-th holder of one name and location;
                                    // the bindings, pagination inputs, stream conditions and
                                    // idempotency token name a parameter by it, not by Name, which
@@ -116,7 +116,7 @@ type ParamChoice struct {
 
 type ParamVariant struct {
     Name   Naming
-    Params []ParamID          // parameters of the operation, one or more, each once
+    Params []ParameterID          // parameters of the operation, one or more, each once
 }
 ```
 
@@ -127,7 +127,7 @@ parameter may sit in several variants of one choice, and in several choices; eac
 Choices and variants are in source order (invariant 7), and a source naming them as the members of
 an object, whose order JSON does not keep, gives them the order of their source names, sorted, so
 the document is the same however the object is written. `Operation.Params`, every
-`HTTPParamBinding`, every `Parameter.Required` and every reference to a `ParamID` are what they
+`HTTPParamBinding`, every `Parameter.Required` and every reference to a `ParameterID` are what they
 would be without the choices, so a consumer ignoring the field reads the document it read before.
 A compiler writes a `ParamChoice` only over parameters its source declares separately, never for a
 sum its source declares, which is a `Union`: that is the rule that keeps the two from being two

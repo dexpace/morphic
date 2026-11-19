@@ -246,10 +246,10 @@ func TestUnplacedDiscriminator_IsKeptAtEveryUnionSite(t *testing.T) {
 	}
 	assert.True(t, namesDiscriminatorAt(diags, "/components/schemas/Holder/properties/n"))
 	// The null-only property hoists a node of its own.
-	assertKeptDiscriminator(t, doc.Types["t/anon/components/schemas/Holder/properties/n"].Common().Unmodeled, "n")
+	assertKeptDiscriminator(t, doc.Types["type/anonymous/components/schemas/Holder/properties/n"].Common().Unmodeled, "n")
 	// Beside a $ref to an object a union distributes as beside an allOf of it,
 	// its variants routed by the discriminator (#2010).
-	for _, id := range []ir.TypeID{componentID("RefSite"), "t/anon/components/schemas/Holder/properties/r"} {
+	for _, id := range []ir.TypeID{componentID("RefSite"), "type/anonymous/components/schemas/Holder/properties/r"} {
 		u, ok := doc.Types[id].(*ir.Union)
 		require.True(t, ok, "%s distributes", id)
 		require.NotNil(t, u.Discriminator, id)
@@ -277,7 +277,7 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 		owners["/components/schemas/"+name] = typeByName(doc, name).Common().Unmodeled
 	}
 	for _, at := range []string{"Items/items", "Holder/properties/q"} {
-		owners["/components/schemas/"+at] = doc.Types[ir.TypeID("t/anon/components/schemas/"+at)].Common().Unmodeled
+		owners["/components/schemas/"+at] = doc.Types[ir.TypeID("type/anonymous/components/schemas/"+at)].Common().Unmodeled
 	}
 	for pointer, unmodeled := range owners {
 		assertKeptDiscriminator(t, unmodeled, pointer)
@@ -393,7 +393,7 @@ func TestKeptDiscriminator_ResolvesItsValuesAtEverySite(t *testing.T) {
 						site = "/components/schemas/" + site
 					}
 					want = append(want, site+"/discriminator/mapping/g")
-					_, ok := doc.Types[ir.TypeID("t/anon"+site+"/$defs/Sub")]
+					_, ok := doc.Types[ir.TypeID("type/anonymous"+site+"/$defs/Sub")]
 					assert.True(t, ok, "%s's $defs member, which only its discriminator reaches, is lowered", site)
 				}
 				slices.Sort(want)

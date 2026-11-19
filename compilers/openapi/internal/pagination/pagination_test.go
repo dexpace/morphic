@@ -430,14 +430,14 @@ func TestInferWalks_KeepsAPaginationTheOperationHolds(t *testing.T) {
 	t.Parallel()
 	declared := &ir.Pagination{Strategy: ir.PageStrategyNextLink}
 	doc := &ir.Document{
-		Types: ir.TypeRegistry{"t/list": &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/prim/string"}},
-			"t/prim/integer": &ir.Primitive{ID: "t/prim/integer", Prim: ir.PrimInteger}},
+		Types: ir.TypeRegistry{"type/list": &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/primitive/string"}},
+			"type/primitive/integer": &ir.Primitive{ID: "type/primitive/integer", PrimitiveKind: ir.PrimitiveInteger}},
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
-			ID:     "op/list",
-			Params: []ir.Parameter{{ID: "param/page", Name: ir.Naming{Source: "page", Canonical: "page"}, Type: ir.TypeRef{Target: "t/prim/integer"}}},
+			ID:     "operation/list",
+			Params: []ir.Parameter{{ID: "parameter/page", Name: ir.Naming{Source: "page", Canonical: "page"}, Type: ir.TypeRef{Target: "type/primitive/integer"}}},
 			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "GET", ParamBindings: []ir.HTTPParamBinding{
-				{Param: "param/page", Location: ir.HTTPLocationQuery}}}}},
-			Responses:  []ir.Response{{Payload: &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "t/list"}}}}}},
+				{Param: "parameter/page", Location: ir.HTTPLocationQuery}}}}},
+			Responses:  []ir.Response{{Payload: &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "type/list"}}}}}},
 			Pagination: declared,
 		}}}}}},
 	}
@@ -448,11 +448,11 @@ func TestInferWalks_KeepsAPaginationTheOperationHolds(t *testing.T) {
 	assert.Empty(t, op.Provenance.Inferred)
 
 	doc.Services[0].Groups[0].Operations[0].Pagination = nil
-	assert.Empty(t, pagination.InferWalks(pagination.Inference{}, compileddoc.New(doc), map[ir.OpID]bool{"op/list": true}))
+	assert.Empty(t, pagination.InferWalks(pagination.Inference{}, compileddoc.New(doc), map[ir.OperationID]bool{"operation/list": true}))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Pagination, "an operation its extensions speak of")
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Provenance.Inferred)
 
-	assert.Empty(t, pagination.InferWalks(pagination.Inference{}, compileddoc.New(doc), map[ir.OpID]bool{"op/other": true}))
+	assert.Empty(t, pagination.InferWalks(pagination.Inference{}, compileddoc.New(doc), map[ir.OperationID]bool{"operation/other": true}))
 	inferred := doc.Services[0].Groups[0].Operations[0].Pagination
 	require.NotNil(t, inferred, "the same operation holding none is inferred")
 	assert.Equal(t, ir.PageStrategyPage, inferred.Strategy)
@@ -754,8 +754,8 @@ components:
 		require.NotNil(t, op.Pagination.TotalCount)
 	}
 	items, count := ops[1].Pagination.Items.Segments[0], ops[1].Pagination.TotalCount.Segments[0]
-	ops[0].Pagination.Items.Segments[0] = "p/elsewhere"
-	ops[0].Pagination.TotalCount.Segments[0] = "p/elsewhere"
+	ops[0].Pagination.Items.Segments[0] = "property/elsewhere"
+	ops[0].Pagination.TotalCount.Segments[0] = "property/elsewhere"
 	assert.Equal(t, items, ops[1].Pagination.Items.Segments[0], "each operation holds its own items path")
 	assert.Equal(t, count, ops[1].Pagination.TotalCount.Segments[0], "and its own total's")
 

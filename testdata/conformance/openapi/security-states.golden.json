@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "SecurityStates",
         "canonical": "security_states"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1absent/get",
+              "id": "operation/openapi/paths/~1absent/get",
               "name": {
                 "source": "absent",
                 "canonical": "absent"
@@ -101,7 +101,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1public/get",
+              "id": "operation/openapi/paths/~1public/get",
               "name": {
                 "source": "public",
                 "canonical": "public"
@@ -144,7 +144,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1optional/get",
+              "id": "operation/openapi/paths/~1optional/get",
               "name": {
                 "source": "optional",
                 "canonical": "optional"
@@ -189,7 +189,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1optionalOrKey/get",
+              "id": "operation/openapi/paths/~1optionalOrKey/get",
               "name": {
                 "source": "optionalOrKey",
                 "canonical": "optional_or_key"
@@ -241,7 +241,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1required/get",
+              "id": "operation/openapi/paths/~1required/get",
               "name": {
                 "source": "required",
                 "canonical": "required"
@@ -292,7 +292,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1mounted/get",
+              "id": "operation/openapi/paths/~1mounted/get",
               "name": {
                 "source": "mountedAbsent",
                 "canonical": "mounted_absent"
@@ -334,7 +334,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1mounted/put",
+              "id": "operation/openapi/paths/~1mounted/put",
               "name": {
                 "source": "mountedPublic",
                 "canonical": "mounted_public"
@@ -377,7 +377,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1mounted/post",
+              "id": "operation/openapi/paths/~1mounted/post",
               "name": {
                 "source": "mountedOptional",
                 "canonical": "mounted_optional"
@@ -422,7 +422,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1mounted/delete",
+              "id": "operation/openapi/paths/~1mounted/delete",
               "name": {
                 "source": "mountedRequired",
                 "canonical": "mounted_required"
@@ -473,7 +473,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1mounted/patch",
+              "id": "operation/openapi/paths/~1mounted/patch",
               "name": {
                 "source": "mountedOptionalOrKey",
                 "canonical": "mounted_optional_or_key"
@@ -527,14 +527,14 @@
           ]
         },
         {
-          "id": "g/webhooks",
+          "id": "operation-group/webhooks",
           "name": {
             "hint": "webhooks"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/webhooks/hookAbsent/post",
+              "id": "operation/openapi/webhooks/hookAbsent/post",
               "name": {
                 "source": "hookAbsent",
                 "canonical": "hook_absent"
@@ -577,7 +577,7 @@
               }
             },
             {
-              "id": "op/openapi/webhooks/hookRequired/post",
+              "id": "operation/openapi/webhooks/hookRequired/post",
               "name": {
                 "source": "hookRequired",
                 "canonical": "hook_required"

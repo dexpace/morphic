@@ -64,8 +64,8 @@ func entryTypesUnder(t *testing.T, doc *ir.Document, name string) map[ir.TypeID]
 	t.Helper()
 	prefixes := []string{
 		string(componentID(name)),
-		"t/anon/components/schemas/" + name,
-		"t/composed/components/schemas/" + name,
+		"type/anonymous/components/schemas/" + name,
+		"type/composed/components/schemas/" + name,
 	}
 	out := map[ir.TypeID]string{}
 	for id, td := range doc.Types {

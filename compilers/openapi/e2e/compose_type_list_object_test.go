@@ -15,7 +15,7 @@ import (
 
 // petVariant is the object variant of Pet's type list, which the compiler
 // mints at the list's position.
-const petVariant ir.TypeID = "t/anon/components/schemas/Pet/type/0"
+const petVariant ir.TypeID = "type/anonymous/components/schemas/Pet/type/0"
 
 // flattenedNames is the wire names of the members model exposes across its
 // composition.

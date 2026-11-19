@@ -20,19 +20,19 @@ import (
 func TestVerify_DeepInBoundsDefaultIsNotTruncated(t *testing.T) {
 	def := irtest.NestedListValue(200)
 	m := &ir.Model{
-		ID:   "t/x/M",
+		ID:   "type/x/M",
 		Name: ir.Naming{Source: "M", Canonical: "m"},
 		Properties: []ir.Property{{
-			ID:       "p/x/M/f",
+			ID:       "property/x/M/f",
 			Name:     ir.Naming{Source: "f", Canonical: "f"},
 			WireName: "f",
-			Type:     ir.TypeRef{Target: "t/prim/integer"},
+			Type:     ir.TypeRef{Target: "type/primitive/integer"},
 			Default:  &def,
 		}},
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		m.ID:             m,
-		"t/prim/integer": &ir.Primitive{ID: "t/prim/integer", Prim: ir.PrimInteger},
+		m.ID:                     m,
+		"type/primitive/integer": &ir.Primitive{ID: "type/primitive/integer", PrimitiveKind: ir.PrimitiveInteger},
 	}}
 
 	for _, v := range verifyDeclared(doc) {

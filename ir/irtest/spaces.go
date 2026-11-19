@@ -29,7 +29,7 @@ func SpacesUsed(doc *ir.Document) (map[string][]string, bool) {
 			continue
 		}
 		space, wellFormed := ir.IDSpace(kind, d.ID)
-		if !wellFormed || (kind == ir.IDKindType && space == ir.IDSpacePrim) {
+		if !wellFormed || (kind == ir.IDKindType && space == ir.IDSpacePrimitive) {
 			continue
 		}
 		if out == nil {

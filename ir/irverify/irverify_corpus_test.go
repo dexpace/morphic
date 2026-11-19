@@ -97,7 +97,7 @@ func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
 // TestVerify_ACleanComponentCostsNothing holds all Verify does to costing
 // nothing for a value it finds clean, including what irtest.AllocatingVisits
 // never measures: a check's first meeting with a value, and its report once
-// the walk is over. A check keeping a path per PropID it meets, or spelling
+// the walk is over. A check keeping a path per PropertyID it meets, or spelling
 // every declaration's path to report a few, passes the test above. Twice the
 // components must cost less than one allocation more per component added, the
 // walk's growth aside; a map or a log a check keeps grows in steps. It is not

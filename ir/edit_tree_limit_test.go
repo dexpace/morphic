@@ -21,7 +21,7 @@ import (
 // it.
 func TestEditor_RefusesAGroupItsReadDidNotReach(t *testing.T) {
 	t.Parallel()
-	const past = ir.GroupID("g/x/b9")
+	const past = ir.GroupID("operation-group/x/b9")
 	doc := forkedGroups(10)
 	calls, cut := groupsVisited(1000, doc)
 	require.True(t, cut)
@@ -51,15 +51,15 @@ func TestEditor_HoldsTheOperationsForEachOperationReachesWithinItsSteps(t *testi
 	t.Parallel()
 	ops := make([]ir.Operation, 10)
 	for i := range ops {
-		ops[i] = ir.Operation{ID: ir.OpID(fmt.Sprintf("op/x/o%d", i))}
+		ops[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("operation/x/o%d", i))}
 	}
-	doc := &ir.Document{Services: []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{ID: "g/x/a", Operations: ops}}}}}
+	doc := &ir.Document{Services: []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x/a", Operations: ops}}}}}
 	const limit = 6
-	var walked []ir.OpID
+	var walked []ir.OperationID
 	require.True(t, ir.ForEachOperationWithin(limit, doc, func(op ir.Operation) { walked = append(walked, op.ID) }))
 
 	e := ir.NewEditorWithin(limit, doc)
-	var held []ir.OpID
+	var held []ir.OperationID
 	for _, op := range ops {
 		if _, ok := e.Operation(op.ID); ok {
 			held = append(held, op.ID)

@@ -79,16 +79,16 @@ func TestValidate_AStoppedWalkIsReportedOnce(t *testing.T) {
 // response body path, which the walk reaches in Services before the model
 // declaring it in Types, or one naming nothing when ghost is set.
 func propPathDocument(ghost bool) *ir.Document {
-	segment := ir.PropID("p/m/a")
+	segment := ir.PropertyID("property/m/a")
 	if ghost {
-		segment = "p/m/ghost"
+		segment = "property/m/ghost"
 	}
-	return docWithOperation(propPathOperation([]ir.PropID{segment}))
+	return docWithOperation(propPathOperation([]ir.PropertyID{segment}))
 }
 
 // TestValidate_AStoppedWalkClaimsNoReferenceDangling holds Validate to leaving
 // a property reference unjudged when the walk that read the declarations
-// stopped: a PropID resolves against the properties the walk read, so a walk
+// stopped: a PropertyID resolves against the properties the walk read, so a walk
 // cut between the reference and its declaration would otherwise call it
 // dangling. Every cut point is tried, and the control's dangling reference
 // shows the claim is made where the walk read everything.
@@ -96,7 +96,7 @@ func TestValidate_AStoppedWalkClaimsNoReferenceDangling(t *testing.T) {
 	t.Parallel()
 	ghost, err := pass.ValidateWith(t.Context(), propPathDocument(true), ir.WalkValuesContext)
 	require.NoError(t, err)
-	require.Equal(t, 1, countCode(t, ghost, "ir/dangling-prop-ref"), "the control: a whole walk finds the reference")
+	require.Equal(t, 1, countCode(t, ghost, "ir/dangling-property-ref"), "the control: a whole walk finds the reference")
 
 	doc := propPathDocument(false)
 	whole := shownWhole(doc)
@@ -104,7 +104,7 @@ func TestValidate_AStoppedWalkClaimsNoReferenceDangling(t *testing.T) {
 		cut, err := pass.ValidateWith(t.Context(), doc, cutWalk(n))
 
 		require.NoError(t, err)
-		assert.Zero(t, countCode(t, cut, "ir/dangling-prop-ref"), "cut at %d of %d values", n, whole)
+		assert.Zero(t, countCode(t, cut, "ir/dangling-property-ref"), "cut at %d of %d values", n, whole)
 		assert.Equal(t, 1, countCode(t, cut, "ir/walk-truncated"), "cut at %d of %d values: %s", n, whole,
 			fmt.Sprint(irtest.DiagCodes(cut)))
 	}

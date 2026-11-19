@@ -19,13 +19,13 @@ import (
 func mapModel() *ir.Model {
 	minProps := int64(1)
 	return &ir.Model{
-		ID:   "t/openapi/components/schemas/Labels",
+		ID:   "type/openapi/components/schemas/Labels",
 		Docs: ir.Docs{Description: "labels"},
-		AdditionalProps: &ir.AdditionalProps{
-			Key:   &ir.TypeRef{Target: "t/prim/int64"},
-			Value: &ir.TypeRef{Target: "t/prim/string", Nullable: true},
+		AdditionalProperties: &ir.AdditionalProperties{
+			Key:   &ir.TypeRef{Target: "type/primitive/int64"},
+			Value: &ir.TypeRef{Target: "type/primitive/string", Nullable: true},
 		},
-		Constraints: &ir.Constraints{MinProps: &minProps},
+		Constraints: &ir.Constraints{MinProperties: &minProps},
 	}
 }
 
@@ -41,8 +41,8 @@ func TestAsMap_CarriesWhatAMapHolds(t *testing.T) {
 	require.True(t, ok)
 	want := &ir.MapT{
 		TypeCommon:  m.TypeCommon,
-		Key:         m.AdditionalProps.Key,
-		Value:       *m.AdditionalProps.Value,
+		Key:         m.AdditionalProperties.Key,
+		Value:       *m.AdditionalProperties.Value,
 		Constraints: m.Constraints,
 	}
 	assert.Empty(t, cmp.Diff(want, mt))
@@ -55,11 +55,11 @@ func TestAsMap_CarriesWhatAMapHolds(t *testing.T) {
 func TestAsMap_RefusesWhatIsNoMap(t *testing.T) {
 	t.Parallel()
 	patterned := mapModel()
-	patterned.AdditionalProps.Patterns = []ir.PatternProps{{Pattern: "^x-", Value: ir.TypeRef{Target: "t/prim/string"}}}
+	patterned.AdditionalProperties.Patterns = []ir.PatternProperties{{Pattern: "^x-", Value: ir.TypeRef{Target: "type/primitive/string"}}}
 	noCatchAll := mapModel()
-	noCatchAll.AdditionalProps = nil
+	noCatchAll.AdditionalProperties = nil
 	noValue := mapModel()
-	noValue.AdditionalProps.Value = nil
+	noValue.AdditionalProperties.Value = nil
 	for name, m := range map[string]*ir.Model{
 		"nil": nil, "no catch-all": noCatchAll, "patterned": patterned, "no value": noValue,
 	} {
@@ -84,10 +84,10 @@ func TestAsMap_EveryUncarriedFieldIsMoreThanAMap(t *testing.T) {
 		carried map[string]bool
 		of      func(*ir.Model) reflect.Value
 	}{
-		{reflect.TypeFor[ir.Model](), map[string]bool{"TypeCommon": true, "AdditionalProps": true, "Constraints": true},
+		{reflect.TypeFor[ir.Model](), map[string]bool{"TypeCommon": true, "AdditionalProperties": true, "Constraints": true},
 			func(m *ir.Model) reflect.Value { return reflect.ValueOf(m).Elem() }},
-		{reflect.TypeFor[ir.AdditionalProps](), map[string]bool{"Key": true, "Value": true},
-			func(m *ir.Model) reflect.Value { return reflect.ValueOf(m.AdditionalProps).Elem() }},
+		{reflect.TypeFor[ir.AdditionalProperties](), map[string]bool{"Key": true, "Value": true},
+			func(m *ir.Model) reflect.Value { return reflect.ValueOf(m.AdditionalProperties).Elem() }},
 	} {
 		for field := range s.typ.Fields() {
 			name := s.typ.Name() + "." + field.Name

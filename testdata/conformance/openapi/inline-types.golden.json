@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "InlineTypes",
         "canonical": "inline_types"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Order/properties/shipping": {
+    "type/anonymous/components/schemas/Order/properties/shipping": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Order/properties/shipping",
+      "id": "type/anonymous/components/schemas/Order/properties/shipping",
       "name": {
         "hint": "shipping"
       },
@@ -74,21 +74,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Order/properties/shipping/properties/street",
+          "id": "property/openapi/components/schemas/Order/properties/shipping/properties/street",
           "name": {
             "source": "street",
             "canonical": "street"
           },
           "wireName": "street",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -105,9 +105,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Order": {
+    "type/openapi/components/schemas/Order": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Order",
+      "id": "type/openapi/components/schemas/Order",
       "name": {
         "source": "Order",
         "canonical": "order"
@@ -121,21 +121,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Order/properties/shipping",
+          "id": "property/openapi/components/schemas/Order/properties/shipping",
           "name": {
             "source": "shipping",
             "canonical": "shipping"
           },
           "wireName": "shipping",
           "type": {
-            "target": "t/anon/components/schemas/Order/properties/shipping",
+            "target": "type/anonymous/components/schemas/Order/properties/shipping",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -152,9 +152,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -162,7 +162,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

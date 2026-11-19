@@ -54,7 +54,7 @@ func TestAllOfRefine_ADynamicRefBesideTheAllOfMasksNoKind(t *testing.T) {
 		requireModelsNameModels(t, doc)
 		wrap := requireScalarOver(t, doc, "Wrap", componentID("T"))
 		assert.Equal(t, degradedKept("openapi:$dynamicRef"), keptOn(wrap))
-		str := requireScalarOver(t, doc, "WrapStr", ir.TypeID("t/prim/string"))
+		str := requireScalarOver(t, doc, "WrapStr", ir.TypeID("type/primitive/string"))
 		assert.Equal(t, degradedKept("openapi:$dynamicRef"), keptOn(str))
 	})
 }

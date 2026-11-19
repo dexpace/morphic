@@ -26,12 +26,12 @@ func TestUnionTags_ReportsWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
 	for name, reg := range map[string]ir.TypeRegistry{
 		"missing":  {},
-		"nil":      {"t/u": (*ir.Union)(nil)},
-		"no union": {"t/u": &ir.Model{ID: "t/u"}},
+		"nil":      {"type/u": (*ir.Union)(nil)},
+		"no union": {"type/u": &ir.Model{ID: "type/u"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			tags := unionTags{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx, id: "t/u", pointer: "/components/schemas/U"}
+			tags := unionTags{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx, id: "type/u", pointer: "/components/schemas/U"}
 			diags := tags.Settle(t.Context(), reg)
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.InternalInvariant, diags[0].Code)
@@ -49,33 +49,33 @@ func TestUnionTags_ReadsOnlyWhatItWasDeferredFor(t *testing.T) {
 	t.Parallel()
 	pinned := func(id ir.TypeID, tag string) ir.TypeDef {
 		return &ir.Model{ID: id, Properties: []ir.Property{{
-			ID: ir.PropID("p/" + tag), Name: ir.Naming{Source: "kind"}, Required: true,
-			Type: ir.TypeRef{Target: ir.TypeID("t/lit/" + tag)},
+			ID: ir.PropertyID("property/" + tag), Name: ir.Naming{Source: "kind"}, Required: true,
+			Type: ir.TypeRef{Target: ir.TypeID("type/lit/" + tag)},
 		}}}
 	}
-	variants := []ir.Variant{{Type: ir.TypeRef{Target: "t/a"}}, {Type: ir.TypeRef{Target: "t/b"}}}
+	variants := []ir.Variant{{Type: ir.TypeRef{Target: "type/a"}}, {Type: ir.TypeRef{Target: "type/b"}}}
 	for name, tc := range map[string]struct {
 		union    *ir.Union
 		at       jsontext.Pointer
 		implicit []implicitRoute
 		bug      bool
 	}{
-		"declared, none held": {&ir.Union{ID: "t/u", Variants: variants, Closed: true}, "/d", []implicitRoute{{name: "A", named: true}, {name: "B", named: true}}, true},
-		"declared, miscounted": {&ir.Union{ID: "t/u", Variants: variants, Closed: true,
+		"declared, none held": {&ir.Union{ID: "type/u", Variants: variants, Closed: true}, "/d", []implicitRoute{{name: "A", named: true}, {name: "B", named: true}}, true},
+		"declared, miscounted": {&ir.Union{ID: "type/u", Variants: variants, Closed: true,
 			Discriminator: &ir.Discriminator{PropertyName: "kind"}}, "/d", []implicitRoute{{name: "A", named: true}}, true},
-		"undeclared, tagged": {&ir.Union{ID: "t/u", Variants: variants, Closed: true, WireTagged: true,
+		"undeclared, tagged": {&ir.Union{ID: "type/u", Variants: variants, Closed: true, WireTagged: true,
 			Discriminator: &ir.Discriminator{PropertyName: "other"}}, "", nil, true},
-		"undeclared, open": {&ir.Union{ID: "t/u", Variants: variants}, "", nil, false},
+		"undeclared, open": {&ir.Union{ID: "type/u", Variants: variants}, "", nil, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			before := *tc.union
 			reg := ir.TypeRegistry{
-				"t/u": tc.union, "t/a": pinned("t/a", "a"), "t/b": pinned("t/b", "b"),
-				"t/lit/a": &ir.Literal{ID: "t/lit/a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
-				"t/lit/b": &ir.Literal{ID: "t/lit/b", Value: ir.Value{Kind: ir.ValueString, Str: "b"}},
+				"type/u": tc.union, "type/a": pinned("type/a", "a"), "type/b": pinned("type/b", "b"),
+				"type/lit/a": &ir.Literal{ID: "type/lit/a", Value: ir.Value{Kind: ir.ValueString, String: "a"}},
+				"type/lit/b": &ir.Literal{ID: "type/lit/b", Value: ir.Value{Kind: ir.ValueString, String: "b"}},
 			}
-			tags := unionTags{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx, id: "t/u",
+			tags := unionTags{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx, id: "type/u",
 				pointer: "/components/schemas/U", at: tc.at, implicit: tc.implicit}
 			diags := tags.Settle(t.Context(), reg)
 			if tc.bug {
@@ -101,7 +101,7 @@ func TestSpellImplicitRoutes_ReportsAVariantNoBranchStandsFor(t *testing.T) {
 		"    U: {oneOf: [{$ref: '#/components/schemas/A'}], discriminator: {propertyName: k}}\n    A: {type: object}\n"))
 	js, ok := l.Doc.Components.Schemas.Get("U")
 	require.True(t, ok)
-	u := &ir.Union{Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/a"}}, {Type: ir.TypeRef{Target: "t/b"}}},
+	u := &ir.Union{Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/a"}}, {Type: ir.TypeRef{Target: "type/b"}}},
 		Discriminator: &ir.Discriminator{PropertyName: "k"}}
 
 	diags := spellImplicitRoutes(l.Ctx, besideUnion(l.Ctx.Statements().Of(js).Schema, ""), u, "/components/schemas/U")
@@ -140,25 +140,25 @@ func TestUnionTags_FlattensTheOtherVariantsOnce(t *testing.T) {
 func settleAllocs(t *testing.T, width, pinned int) float64 {
 	t.Helper()
 
-	reg := ir.TypeRegistry{"t/lit/x": &ir.Literal{ID: "t/lit/x", Value: ir.Value{Kind: ir.ValueString, Str: "x"}}}
+	reg := ir.TypeRegistry{"type/lit/x": &ir.Literal{ID: "type/lit/x", Value: ir.Value{Kind: ir.ValueString, String: "x"}}}
 	variants := make([]ir.Variant, width)
 	for i := range variants {
-		id := ir.TypeID(fmt.Sprintf("t/v%d", i))
+		id := ir.TypeID(fmt.Sprintf("type/v%d", i))
 		props := make([]ir.Property, 4)
 		for j := range props {
-			target := ir.TypeID("t/prim/string")
+			target := ir.TypeID("type/primitive/string")
 			if j < pinned {
-				target = "t/lit/x"
+				target = "type/lit/x"
 			}
-			props[j] = ir.Property{ID: ir.PropID(fmt.Sprintf("p/v%d/k%d", i, j)), Name: ir.Naming{Source: fmt.Sprintf("k%d", j)},
+			props[j] = ir.Property{ID: ir.PropertyID(fmt.Sprintf("property/v%d/k%d", i, j)), Name: ir.Naming{Source: fmt.Sprintf("k%d", j)},
 				Required: true, Type: ir.TypeRef{Target: target}}
 		}
 		reg[id] = &ir.Model{ID: id, Properties: props}
 		variants[i] = ir.Variant{Type: ir.TypeRef{Target: id}}
 	}
-	reg["t/u"] = &ir.Union{ID: "t/u", Variants: variants, Closed: true}
+	reg["type/u"] = &ir.Union{ID: "type/u", Variants: variants, Closed: true}
 
-	tags := unionTags{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx, id: "t/u",
+	tags := unionTags{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx, id: "type/u",
 		pointer: "/components/schemas/U"}
 	fewest := math.Inf(1)
 	for range 20 {

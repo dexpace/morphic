@@ -47,24 +47,24 @@ func TestRelocation_ErasesEachAllOfIndexAfterTheUse(t *testing.T) {
 	use := "/components/schemas/C"
 	relocate := relocation(use)
 	for in, want := range map[string]string{
-		"t/openapi/components/schemas/C/allOf/1/properties/x": "t/openapi/components/schemas/C/properties/x",
-		use + "/allOf/0/allOf/1/minLength":                    use + "/minLength",
-		use + "/allOf/1":                                      use,
-		"/components/schemas/CX/allOf/1":                      "/components/schemas/CX/allOf/1",
-		"/components/schemas/CX/allOf/1 " + use + "/allOf/2":  "/components/schemas/CX/allOf/1 " + use,
-		use + "/allOf/x/allOf":                                use + "/allOf/x/allOf",
-		"openapi:allOf/1":                                     "openapi:",
-		"openapi:schema/allOf/1":                              "openapi:schema",
-		"openapi:contentMediaType":                            "openapi:contentMediaType",
-		"^a3":                                                 "^a3",
-		"/components/schemas/CX":                              "/components/schemas/CX",
+		"type/openapi/components/schemas/C/allOf/1/properties/x": "type/openapi/components/schemas/C/properties/x",
+		use + "/allOf/0/allOf/1/minLength":                       use + "/minLength",
+		use + "/allOf/1":                                         use,
+		"/components/schemas/CX/allOf/1":                         "/components/schemas/CX/allOf/1",
+		"/components/schemas/CX/allOf/1 " + use + "/allOf/2":     "/components/schemas/CX/allOf/1 " + use,
+		use + "/allOf/x/allOf":                                   use + "/allOf/x/allOf",
+		"openapi:allOf/1":                                        "openapi:",
+		"openapi:schema/allOf/1":                                 "openapi:schema",
+		"openapi:contentMediaType":                               "openapi:contentMediaType",
+		"^a3":                                                    "^a3",
+		"/components/schemas/CX":                                 "/components/schemas/CX",
 	} {
 		assert.Equal(t, want, relocate(in), in)
 	}
 	assert.PanicsWithValue(t, "openapicases: a relocation of no use", func() { relocation("") })
 
 	beneath := relocation("/components/schemas/C/properties/")
-	assert.Equal(t, "p/openapi/components/schemas/C/properties/t1", beneath("p/openapi/components/schemas/C/properties/t1/allOf/0"))
+	assert.Equal(t, "property/openapi/components/schemas/C/properties/t1", beneath("property/openapi/components/schemas/C/properties/t1/allOf/0"))
 }
 
 // caseAt returns the coordinates of the case naming each axis's value by name.

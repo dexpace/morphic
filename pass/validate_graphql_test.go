@@ -21,9 +21,9 @@ import (
 func TestValidate_ArgsOutsideGraphQL(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	m := doc.Types["t/m"].(*ir.Model)
+	m := doc.Types["type/m"].(*ir.Model)
 	m.Properties[0].Args = []ir.Parameter{
-		{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "t/prim/string"}},
+		{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "type/primitive/string"}},
 	}
 	diags := validated(t, doc)
 	require.NotEmpty(t, diags)
@@ -37,21 +37,21 @@ func TestValidate_ArgsOutsideGraphQL(t *testing.T) {
 func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/gql"] = &ir.Model{
-		ID: "t/gql",
+	doc.Types["type/gql"] = &ir.Model{
+		ID: "type/gql",
 		Properties: []ir.Property{
 			// Self-reference: forces the traversal to re-enqueue an already-seen id.
-			{ID: "p/self", Name: ir.Naming{Source: "child"}, WireName: "child",
-				Type: ir.TypeRef{Target: "t/gql"}},
+			{ID: "property/self", Name: ir.Naming{Source: "child"}, WireName: "child",
+				Type: ir.TypeRef{Target: "type/gql"}},
 			// Field arguments are legal here because the type is GraphQL-reachable.
-			{ID: "p/args", Name: ir.Naming{Source: "field"}, WireName: "field",
-				Type: ir.TypeRef{Target: "t/prim/string"},
-				Args: []ir.Parameter{{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "t/prim/string"}}}},
+			{ID: "property/args", Name: ir.Naming{Source: "field"}, WireName: "field",
+				Type: ir.TypeRef{Target: "type/primitive/string"},
+				Args: []ir.Parameter{{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "type/primitive/string"}}}},
 		},
 	}
 	op := ir.Operation{
 		ID:       "q",
-		Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/gql"}}},
+		Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/gql"}}},
 		Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"q"}}},
 	}
 	doc.Services = []ir.Service{{
@@ -67,7 +67,7 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 // whether the operation root's docs name it or a reachable type's do.
 func TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable(t *testing.T) {
 	t.Parallel()
-	mention := ir.Docs{Description: "see Mentioned", Refs: []ir.DocRef{{StartByte: 4, EndByte: 13, Type: "t/mentioned"}}}
+	mention := ir.Docs{Description: "see Mentioned", Refs: []ir.DocRef{{StartByte: 4, EndByte: 13, Type: "type/mentioned"}}}
 	for _, tc := range []struct {
 		name     string
 		op, root ir.Docs
@@ -78,16 +78,16 @@ func TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
-			doc.Types["t/mentioned"] = &ir.Model{ID: "t/mentioned", Properties: []ir.Property{{
-				ID: "p/args", Name: ir.Naming{Source: "field"}, WireName: "field",
-				Type: ir.TypeRef{Target: "t/prim/string"},
-				Args: []ir.Parameter{{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+			doc.Types["type/mentioned"] = &ir.Model{ID: "type/mentioned", Properties: []ir.Property{{
+				ID: "property/args", Name: ir.Naming{Source: "field"}, WireName: "field",
+				Type: ir.TypeRef{Target: "type/primitive/string"},
+				Args: []ir.Parameter{{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "type/primitive/string"}}},
 			}}}
-			doc.Types["t/root"] = &ir.Model{ID: "t/root", Docs: tc.root}
+			doc.Types["type/root"] = &ir.Model{ID: "type/root", Docs: tc.root}
 			op := ir.Operation{
 				ID:       "q",
 				Docs:     tc.op,
-				Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/root"}}},
+				Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/root"}}},
 				Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"q"}}},
 			}
 			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
@@ -102,9 +102,9 @@ func argModel(id ir.TypeID) *ir.Model {
 	return &ir.Model{
 		ID: id,
 		Properties: []ir.Property{{
-			ID: ir.PropID("p/" + id), Name: ir.Naming{Source: "field"}, WireName: "field",
-			Type: ir.TypeRef{Target: "t/prim/string"},
-			Args: []ir.Parameter{{Name: ir.Naming{Source: "since"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+			ID: ir.PropertyID("property/" + id), Name: ir.Naming{Source: "field"}, WireName: "field",
+			Type: ir.TypeRef{Target: "type/primitive/string"},
+			Args: []ir.Parameter{{Name: ir.Naming{Source: "since"}, Type: ir.TypeRef{Target: "type/primitive/string"}}},
 		}},
 	}
 }
@@ -125,39 +125,39 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 		bind func(doc *ir.Document, op *ir.Operation)
 	}{
 		{"subscription response stream", func(doc *ir.Document, op *ir.Operation) {
-			doc.Types["t/ev"] = argModel("t/ev")
+			doc.Types["type/ev"] = argModel("type/ev")
 			op.Streaming = ir.StreamingServer
-			op.ResponseStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: "t/ev"}}
+			op.ResponseStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: "type/ev"}}
 		}},
 		{"nested field-argument type", func(doc *ir.Document, op *ir.Operation) {
-			doc.Types["t/inner"] = argModel("t/inner")
-			doc.Types["t/outer"] = &ir.Model{
-				ID: "t/outer",
+			doc.Types["type/inner"] = argModel("type/inner")
+			doc.Types["type/outer"] = &ir.Model{
+				ID: "type/outer",
 				Properties: []ir.Property{{
-					ID: "p/outer", Name: ir.Naming{Source: "list"}, WireName: "list",
-					Type: ir.TypeRef{Target: "t/prim/string"},
-					Args: []ir.Parameter{{Name: ir.Naming{Source: "filter"}, Type: ir.TypeRef{Target: "t/inner"}}},
+					ID: "property/outer", Name: ir.Naming{Source: "list"}, WireName: "list",
+					Type: ir.TypeRef{Target: "type/primitive/string"},
+					Args: []ir.Parameter{{Name: ir.Naming{Source: "filter"}, Type: ir.TypeRef{Target: "type/inner"}}},
 				}},
 			}
-			op.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/outer"}}}
+			op.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/outer"}}}
 		}},
 		{"template instantiation argument", func(doc *ir.Document, op *ir.Operation) {
-			doc.Types["t/arg"] = argModel("t/arg")
-			doc.Types["t/page"] = &ir.Model{
-				ID: "t/page",
+			doc.Types["type/arg"] = argModel("type/arg")
+			doc.Types["type/page"] = &ir.Model{
+				ID: "type/page",
 				Instantiation: &ir.TemplateInstantiation{
 					Template: "Page",
-					Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "t/arg"}}},
+					Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "type/arg"}}},
 				},
 			}
-			op.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/page"}}}
+			op.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/page"}}}
 		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
-			op := ir.Operation{ID: "op/gql", Bindings: ir.OpBindings{
+			op := ir.Operation{ID: "operation/gql", Bindings: ir.OpBindings{
 				GraphQL: &ir.GraphQLBinding{Kind: "subscription", FieldPath: []string{"f"}},
 			}}
 			tc.bind(doc, &op)
@@ -184,14 +184,14 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 		return ir.Operation{
 			ID:       "gql",
 			Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{}},
-			Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/m"}}},
+			Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/m"}}},
 		}
 	}
 	withArgs := func(doc *ir.Document) *ir.Document {
-		m, ok := doc.Types["t/m"].(*ir.Model)
+		m, ok := doc.Types["type/m"].(*ir.Model)
 		require.True(t, ok)
 		m.Properties[0].Args = []ir.Parameter{
-			{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "t/prim/string"}},
+			{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "type/primitive/string"}},
 		}
 		return doc
 	}
@@ -217,7 +217,7 @@ func TestCheckDanglingRefs_DeepValueTreeIsTruncated(t *testing.T) {
 	for range ir.MaxWalkDepth {
 		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
 	}
-	m := &ir.Model{ID: "t/m", Examples: []ir.Example{{Value: &v}}}
+	m := &ir.Model{ID: "type/m", Examples: []ir.Example{{Value: &v}}}
 	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 
 	diags := danglingRefs(t, doc)
@@ -233,7 +233,7 @@ func TestAppendTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Unmodeled: ir.Unmodeled{"openapi:x-thing": {
 		Reason: ir.ReasonVendorExtension,
-		Value:  ir.RawValue(`"t/ghost/in-bytes"`),
+		Value:  ir.RawValue(`"type/ghost/in-bytes"`),
 	}}}
 	assert.Empty(t, pass.AppendTypeIDs(nil, doc))
 }

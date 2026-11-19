@@ -53,7 +53,7 @@ func TestTypeDef_EveryDeclaredKindIsRegistered(t *testing.T) {
 // document round-trips) breaks with the rest of the gate green.
 func TestTypeDef_EveryDeclaredKindTagsItsJSON(t *testing.T) {
 	t.Parallel()
-	const id ir.TypeID = "t/x"
+	const id ir.TypeID = "type/x"
 	for _, kc := range declaredTypeKinds(t) {
 		t.Run(string(kc.kind), func(t *testing.T) {
 			t.Parallel()

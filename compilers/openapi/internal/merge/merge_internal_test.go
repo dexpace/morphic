@@ -129,11 +129,11 @@ func (w *stubWalk) Admits(at ir.Provenance, _ JSONInstanceKind) (admits, exact b
 
 // composedAt is the ID stubMerger mints a composition under, for the field the
 // declaration at pointer names.
-func composedAt(pointer jsontext.Pointer) ir.TypeID { return "t/composed" + ir.TypeID(pointer) }
+func composedAt(pointer jsontext.Pointer) ir.TypeID { return "type/composed" + ir.TypeID(pointer) }
 
 // mintedProp is the ID a field the declaration at pointer names takes where
 // another model carries its first declaration (identify).
-func mintedProp(pointer jsontext.Pointer) ir.PropID {
+func mintedProp(pointer jsontext.Pointer) ir.PropertyID {
 	return ids.DocumentIDNamespace{}.ComposedProp(pointer)
 }
 
@@ -164,21 +164,21 @@ func indexOver(m *ir.Model, g *stubbed) (idx *ModelPropertyDeclarations, settle 
 // the walk had not built when it met the declarations.
 func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	t.Parallel()
-	reg := ir.TypeRegistry{"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString}}
-	m := &ir.Model{ID: "t/m"}
+	reg := ir.TypeRegistry{"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString}}
+	m := &ir.Model{ID: "type/m"}
 	idx := NewModelPropertyDeclarations(m)
 
 	w := func(at string) ir.Property {
-		return ir.Property{WireName: "w", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/w"))}
+		return ir.Property{WireName: "w", Type: ir.TypeRef{Target: "type/str"}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/w"))}
 	}
 	firsts := make([]bool, 0, 5)
 	for _, d := range []struct {
 		prop   ir.Property
 		source DeclarationConstructRenderer
 	}{
-		{redeclared("t/str", "0"), written(`{"type":"string"}`)}, {w("0"), unread(t)},
-		{redeclared("t/uri", "1"), unread(t)}, {w("1"), unread(t)},
-		{redeclared("t/bool", "2"), written(`{"type":"boolean"}`)},
+		{redeclared("type/str", "0"), written(`{"type":"string"}`)}, {w("0"), unread(t)},
+		{redeclared("type/uri", "1"), unread(t)}, {w("1"), unread(t)},
+		{redeclared("type/bool", "2"), written(`{"type":"boolean"}`)},
 	} {
 		firsts = append(firsts, idx.MergeProperty(d.prop, d.source, ""))
 	}
@@ -186,22 +186,22 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	assert.Equal(t, []bool{false, false, true, false, false}, firsts,
 		"one settlement per model, at its first redeclaration, however many fields are redeclared")
 	require.Len(t, m.Properties, 2, "a redeclaration adds no property")
-	assert.Equal(t, ir.TypeID("t/str"), m.Properties[0].Type.Target, "nothing is folded before the settlement runs")
+	assert.Equal(t, ir.TypeID("type/str"), m.Properties[0].Type.Target, "nothing is folded before the settlement runs")
 	assert.Empty(t, m.Properties[0].Unmodeled)
 
-	reg["t/uri"] = &ir.Primitive{ID: "t/uri", Prim: ir.PrimURL}
-	reg["t/bool"] = &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool}
+	reg["type/uri"] = &ir.Primitive{ID: "type/uri", PrimitiveKind: ir.PrimitiveURL}
+	reg["type/bool"] = &ir.Primitive{ID: "type/bool", PrimitiveKind: ir.PrimitiveBool}
 	g, _ := stubMerger(reg)
 	settled := settleFlat(g, idx, reg)
 
-	assert.Equal(t, ir.TypeID("t/uri"), m.Properties[0].Type.Target,
+	assert.Equal(t, ir.TypeID("type/uri"), m.Properties[0].Type.Target,
 		"the narrower type wins, judged against a node the walk had not built")
 	require.Len(t, settled, 1)
 	assert.Equal(t, diag.ConflictingRedecl, settled[0].Code)
 	assert.Equal(t, ptrAt("/allOf/2/properties/v").Pointer, settled[0].Provenance.Pointer)
 	assert.Equal(t, []string{losingDeclarationKey + "/allOf/2/properties/v"}, slices.Sorted(maps.Keys(m.Properties[0].Unmodeled)),
 		"the losing declaration is kept, and only it")
-	assert.Equal(t, ir.TypeID("t/str"), m.Properties[1].Type.Target, "a field declared once is left as declared")
+	assert.Equal(t, ir.TypeID("type/str"), m.Properties[1].Type.Target, "a field declared once is left as declared")
 }
 
 // TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing pins the common path:
@@ -209,7 +209,7 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 // hands no settlement over.
 func TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{ID: "t/m"}
+	m := &ir.Model{ID: "type/m"}
 	idx := NewModelPropertyDeclarations(m)
 
 	assert.False(t, idx.MergeProperty(ir.Property{WireName: "a", Provenance: ptrAt("/properties/a")}, unread(t), ""))

@@ -41,13 +41,13 @@ func assertGroupIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		}
 	}
 	assert.Equal(t, map[ir.GroupID][]string{
-		"g/tags/default":  {"declared"},
-		"g/default":       {"untagged"},
-		"g/tags/webhooks": {"namedLikeWebhooks"},
-		"g/tags/ghost":    {"undeclared"},
-		"g/tags/a~1b":     {"slash"},
-		"g/tags/a~01b":    {"tilde"},
-		"g/webhooks":      {"onEvent"},
+		"operation-group/tags/default":  {"declared"},
+		"operation-group/default":       {"untagged"},
+		"operation-group/tags/webhooks": {"namedLikeWebhooks"},
+		"operation-group/tags/ghost":    {"undeclared"},
+		"operation-group/tags/a~1b":     {"slash"},
+		"operation-group/tags/a~01b":    {"tilde"},
+		"operation-group/webhooks":      {"onEvent"},
 	}, got)
 }
 
@@ -60,7 +60,7 @@ func assertGroupIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // every binding must name its own parameter's ID.
 func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, doc.Services, 1)
-	got := map[ir.OpID][]ir.ParamID{}
+	got := map[ir.OperationID][]ir.ParameterID{}
 	svc := doc.Services[0]
 	for _, g := range svc.Groups {
 		for _, op := range g.Operations {
@@ -68,24 +68,24 @@ func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 				got[op.ID] = append(got[op.ID], p.ID)
 			}
 			require.Len(t, op.Bindings.HTTP, 1)
-			var bound []ir.ParamID
+			var bound []ir.ParameterID
 			for _, pb := range op.Bindings.HTTP[0].ParamBindings {
 				bound = append(bound, pb.Param)
 			}
 			assert.ElementsMatch(t, got[op.ID], bound, "%s: each binding names its own parameter", op.ID)
 		}
 	}
-	assert.Equal(t, map[ir.OpID][]ir.ParamID{
-		"op/openapi/paths/~1items~1{id}/get": {
-			"param/openapi/paths/~1items~1{id}/get/parameters/id/query",
-			"param/openapi/paths/~1items~1{id}/get/parameters/a~1b/query",
-			"param/openapi/paths/~1items~1{id}/get/parameters/id/path",
+	assert.Equal(t, map[ir.OperationID][]ir.ParameterID{
+		"operation/openapi/paths/~1items~1{id}/get": {
+			"parameter/openapi/paths/~1items~1{id}/get/parameters/id/query",
+			"parameter/openapi/paths/~1items~1{id}/get/parameters/a~1b/query",
+			"parameter/openapi/paths/~1items~1{id}/get/parameters/id/path",
 		},
-		"op/openapi/paths/~1items~1{id}/post": {
-			"param/openapi/paths/~1items~1{id}/post/parameters/id/path",
+		"operation/openapi/paths/~1items~1{id}/post": {
+			"parameter/openapi/paths/~1items~1{id}/post/parameters/id/path",
 		},
-		"op/openapi/paths/~1a/get": {"param/openapi/paths/~1a/get/parameters/limit/query"},
-		"op/openapi/paths/~1b/get": {"param/openapi/paths/~1b/get/parameters/limit/query"},
+		"operation/openapi/paths/~1a/get": {"parameter/openapi/paths/~1a/get/parameters/limit/query"},
+		"operation/openapi/paths/~1b/get": {"parameter/openapi/paths/~1b/get/parameters/limit/query"},
 	}, got)
 }
 
@@ -108,22 +108,22 @@ func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		return got
 	}
 	assert.Equal(t, []ir.EnumMemberID{
-		"e/openapi/components/schemas/E/s:a-b",
-		"e/openapi/components/schemas/E/s:a_b",
-		"e/openapi/components/schemas/E/s:A B",
-		"e/openapi/components/schemas/E/s:a~0b",
-		"e/openapi/components/schemas/E/s:a-b/2",
-		"e/openapi/components/schemas/E/s:a-b~12",
-	}, memberIDs("t/openapi/components/schemas/E"))
+		"enum-member/openapi/components/schemas/E/string:a-b",
+		"enum-member/openapi/components/schemas/E/string:a_b",
+		"enum-member/openapi/components/schemas/E/string:A B",
+		"enum-member/openapi/components/schemas/E/string:a~0b",
+		"enum-member/openapi/components/schemas/E/string:a-b/2",
+		"enum-member/openapi/components/schemas/E/string:a-b~12",
+	}, memberIDs("type/openapi/components/schemas/E"))
 	assert.Equal(t, []ir.EnumMemberID{
-		"e/openapi/components/schemas/N/n:-1e0",
-		"e/openapi/components/schemas/N/n:1e0",
-		"e/openapi/components/schemas/N/n:0",
-	}, memberIDs("t/openapi/components/schemas/N"))
+		"enum-member/openapi/components/schemas/N/number:-1e0",
+		"enum-member/openapi/components/schemas/N/number:1e0",
+		"enum-member/openapi/components/schemas/N/number:0",
+	}, memberIDs("type/openapi/components/schemas/N"))
 	assert.Equal(t, []ir.EnumMemberID{
-		"e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:open",
-		"e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:closed",
-	}, memberIDs("t/anon/paths/~1status/get/responses/200/content/application~1json/schema"))
+		"enum-member/anonymous/paths/~1status/get/responses/200/content/application~1json/schema/string:open",
+		"enum-member/anonymous/paths/~1status/get/responses/200/content/application~1json/schema/string:closed",
+	}, memberIDs("type/anonymous/paths/~1status/get/responses/200/content/application~1json/schema"))
 
 	var repeats []string
 	for _, d := range diags {
@@ -234,18 +234,18 @@ func assertRepeatedTagsAndScopes(t *testing.T, doc *ir.Document, diags []ir.Diag
 // totals a page states, every one marked inferred; and the operation naming
 // two continuations left with none and reported.
 func assertPaginationInferred(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	paths := func(segments ...ir.PropID) *ir.PropPath { return &ir.PropPath{Segments: segments} }
+	paths := func(segments ...ir.PropertyID) *ir.PropPath { return &ir.PropPath{Segments: segments} }
 	input := func(op ir.Operation, name string) *ir.InputPath {
 		id := linkParam(t, op, name)
 		return &ir.InputPath{Param: &id}
 	}
 	zones, logs, keys, jobs := linkOp(t, doc, "listZones"), linkOp(t, doc, "listLogs"), linkOp(t, doc, "listKeys"),
 		linkOp(t, doc, "listJobs")
-	keysBody := ir.PropID("p/openapi/paths/~1keys/get/responses/200/content/application~1json/schema/properties/")
+	keysBody := ir.PropertyID("property/openapi/paths/~1keys/get/responses/200/content/application~1json/schema/properties/")
 	for op, want := range map[*ir.Operation]*ir.Pagination{
 		&zones: {Strategy: ir.PageStrategyPage, Inferred: true, InputCursor: input(zones, "page"),
 			InputLimit: input(zones, "per_page"),
-			Items:      paths("p/openapi/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result"),
+			Items:      paths("property/openapi/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result"),
 			TotalCount: paths(componentProp("Collection/properties/result_info"), componentProp("ResultInfo/properties/total_count")),
 			TotalPages: paths(componentProp("Collection/properties/result_info"), componentProp("ResultInfo/properties/total_pages"))},
 		&logs: {Strategy: ir.PageStrategyOffset, Inferred: true, InputCursor: input(logs, "offset"),
@@ -291,10 +291,10 @@ func assertIdempotencyInference(t *testing.T, doc *ir.Document, diags []ir.Diagn
 			"/paths/~1payments~1{id}/delete"))
 	for _, tc := range []struct {
 		op    string
-		token ir.ParamID
+		token ir.ParameterID
 	}{
-		{"createPayment", "param/openapi/paths/~1payments/post/parameters/Idempotency-Key/header"},
-		{"replacePayment", "param/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header"},
+		{"createPayment", "parameter/openapi/paths/~1payments/post/parameters/Idempotency-Key/header"},
+		{"replacePayment", "parameter/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header"},
 		{"listPayments", ""},
 		{"patchPayment", ""},
 		{"deletePayment", ""},

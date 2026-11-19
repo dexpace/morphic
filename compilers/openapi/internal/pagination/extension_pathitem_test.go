@@ -35,9 +35,9 @@ func TestPromote_TrueReadsThePathItemFirst(t *testing.T) {
 	got, err := json.Marshal(list.Pagination, json.Deterministic(true))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"strategy":"cursor","inferred":true,`+
-		`"inputCursor":{"param":"param/openapi/paths/~1dogs/get/parameters/cursor/query"},`+
-		`"items":{"segments":["p/openapi/components/schemas/Page/properties/rows"]},`+
-		`"nextCursor":{"segments":["p/openapi/components/schemas/Page/properties/nxt"]}}`, string(got))
+		`"inputCursor":{"param":"parameter/openapi/paths/~1dogs/get/parameters/cursor/query"},`+
+		`"items":{"segments":["property/openapi/components/schemas/Page/properties/rows"]},`+
+		`"nextCursor":{"segments":["property/openapi/components/schemas/Page/properties/nxt"]}}`, string(got))
 	assert.Equal(t, "extension-promotion", string(list.Provenance.Inferred))
 	assert.Empty(t, openapitest.PointersOf(diags, diag.UnpromotedExtension),
 		"a statement read from the path item draws no finding")

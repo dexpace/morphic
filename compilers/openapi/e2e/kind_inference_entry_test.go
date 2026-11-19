@@ -72,7 +72,7 @@ func TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal(t *testing.
 
 				off, offDiags := compileKindInference(t, "entry", conjunctionSpec(version, spelling), true)
 				for _, at := range conjunctionPositions {
-					assert.Equal(t, prim(ir.PrimAny), usedAt(t, off, at), "no kind read at %s", at)
+					assert.Equal(t, prim(ir.PrimitiveAny), usedAt(t, off, at), "no kind read at %s", at)
 					key := at + "/allOf/0/" + jsontext.Pointer(strings.SplitN(tc.keyword, ":", 2)[0])
 					assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{key: ir.ReasonDegradedLowering},
 						keptUnder(off, at), at)
@@ -142,12 +142,12 @@ func TestKindInference_AnEntryClaimNamesNoKindItDoesNotHoldAlone(t *testing.T) {
 		{"a declared string", "{allOf: [{type: string}, {items: {type: string}}]}",
 			func(t *testing.T, doc *ir.Document, at jsontext.Pointer) {
 				t.Helper()
-				assert.Equal(t, prim(ir.PrimString), usedAt(t, doc, at), at)
+				assert.Equal(t, prim(ir.PrimitiveString), usedAt(t, doc, at), at)
 			}},
 		{"an object claimed beside it", "{allOf: [{items: {type: string}}, {properties: {a: {type: string}}}]}",
 			func(t *testing.T, doc *ir.Document, at jsontext.Pointer) {
 				t.Helper()
-				assert.Equal(t, prim(ir.PrimAny), usedAt(t, doc, at), at)
+				assert.Equal(t, prim(ir.PrimitiveAny), usedAt(t, doc, at), at)
 				assert.Len(t, keptUnder(doc, at), 2, "each entry is kept at %s", at)
 			}},
 		{"the keywords beside it", "{items: {type: string}, allOf: [{items: {minLength: 1}}]}",

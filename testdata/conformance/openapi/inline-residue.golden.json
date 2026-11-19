@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "InlineResidue",
         "canonical": "inline_residue"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1thing/get",
+              "id": "operation/openapi/paths/~1thing/get",
               "name": {
                 "source": "getThing",
                 "canonical": "get_thing"
@@ -83,7 +83,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1thing/get/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1thing/get/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -123,9 +123,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Batch/items": {
+    "type/anonymous/components/schemas/Batch/items": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Batch/items",
+      "id": "type/anonymous/components/schemas/Batch/items",
       "name": {
         "hint": "batch_item"
       },
@@ -155,13 +155,13 @@
         "pointer": "/components/schemas/Batch/items"
       },
       "base": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Carried/properties/p": {
+    "type/anonymous/components/schemas/Carried/properties/p": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Carried/properties/p",
+      "id": "type/anonymous/components/schemas/Carried/properties/p",
       "name": {
         "hint": "p"
       },
@@ -172,14 +172,14 @@
         "source": 0,
         "pointer": "/components/schemas/Carried/properties/p"
       },
-      "elem": {
-        "target": "t/prim/integer",
+      "elementType": {
+        "target": "type/primitive/integer",
         "nullable": false
       }
     },
-    "t/anon/paths/~1thing/get/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1thing/get/responses/200/content/application~1json/schema": {
       "kind": "scalar",
-      "id": "t/anon/paths/~1thing/get/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1thing/get/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -209,13 +209,13 @@
         "pointer": "/paths/~1thing/get/responses/200/content/application~1json/schema"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Batch": {
+    "type/openapi/components/schemas/Batch": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/Batch",
+      "id": "type/openapi/components/schemas/Batch",
       "name": {
         "source": "Batch",
         "canonical": "batch"
@@ -227,14 +227,14 @@
         "source": 0,
         "pointer": "/components/schemas/Batch"
       },
-      "elem": {
-        "target": "t/anon/components/schemas/Batch/items",
+      "elementType": {
+        "target": "type/anonymous/components/schemas/Batch/items",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Carried": {
+    "type/openapi/components/schemas/Carried": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Carried",
+      "id": "type/openapi/components/schemas/Carried",
       "name": {
         "source": "Carried",
         "canonical": "carried"
@@ -248,14 +248,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Carried/properties/p",
+          "id": "property/openapi/components/schemas/Carried/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
           },
           "wireName": "p",
           "type": {
-            "target": "t/anon/components/schemas/Carried/properties/p",
+            "target": "type/anonymous/components/schemas/Carried/properties/p",
             "nullable": false
           },
           "required": false,
@@ -267,14 +267,14 @@
               "delete",
               "query"
             ],
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "default": {
             "kind": "list",
             "list": [
               {
                 "kind": "number",
-                "num": "3"
+                "number": "3"
               }
             ]
           },
@@ -293,9 +293,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -303,11 +303,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -315,7 +315,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

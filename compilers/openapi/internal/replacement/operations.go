@@ -15,7 +15,7 @@ import (
 // declare.
 func (r *resolver) service() []ir.Diagnostic {
 	ops := r.w.Ops
-	byName := map[string][]ir.OpID{}
+	byName := map[string][]ir.OperationID{}
 	for _, op := range ops {
 		if name := op.Name.Source; name != "" {
 			byName[name] = append(byName[name], op.ID)

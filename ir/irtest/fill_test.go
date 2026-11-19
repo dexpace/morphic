@@ -20,7 +20,7 @@ func TestFill_GivesEveryTypeIDOneOfItsOwn(t *testing.T) {
 	irtest.Fill(t, doc)
 
 	seen := map[string]string{}
-	ir.WalkValues(doc, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(doc, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		path := at.String()
 		if v.Kind() == reflect.String && v.Type() == reflect.TypeFor[ir.TypeID]() {
 			require.NotEmpty(t, v.String(), "%s was left empty", path)

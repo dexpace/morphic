@@ -39,7 +39,7 @@ webhooks:
 	require.True(t, found, "webhook operations land in the webhooks group")
 	require.Len(t, group.Operations, 1)
 	op := group.Operations[0]
-	assert.Equal(t, ir.OpID("op/openapi/webhooks/newPet/post"), op.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/webhooks/newPet/post"), op.ID)
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound)
 	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
@@ -55,16 +55,16 @@ func TestWebhooks_KeyIsTheEventName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, key, operationID string
-		wantID                 ir.OpID
+		wantID                 ir.OperationID
 		wantName               ir.Naming
 	}{
 		{"braces, with an operationId", "{tenant}.created", "tenantCreated",
-			"op/openapi/webhooks/{tenant}.created/post", ir.Naming{Source: "tenantCreated", Canonical: "tenant_created"}},
+			"operation/openapi/webhooks/{tenant}.created/post", ir.Naming{Source: "tenantCreated", Canonical: "tenant_created"}},
 		{"braces, named by the key", "{tenant}.created", "",
-			"op/openapi/webhooks/{tenant}.created/post", ir.Naming{Hint: "post_tenant_created"}},
+			"operation/openapi/webhooks/{tenant}.created/post", ir.Naming{Hint: "post_tenant_created"}},
 		{"pointer escapes, named by the key", "a/b~c", "",
-			"op/openapi/webhooks/a~1b~0c/post", ir.Naming{Hint: "post_a_b_c"}},
-		{"the empty key", "", "", "op/openapi/webhooks//post", ir.Naming{Hint: "post"}},
+			"operation/openapi/webhooks/a~1b~0c/post", ir.Naming{Hint: "post_a_b_c"}},
+		{"the empty key", "", "", "operation/openapi/webhooks//post", ir.Naming{Hint: "post"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -134,7 +134,7 @@ webhooks:
 	require.True(t, ok, "the callback operation joins the webhook in its group")
 	require.Len(t, hook.Bindings.HTTP, 1)
 	require.Len(t, hook.Bindings.HTTP[0].Callbacks, 1)
-	assert.Equal(t, []ir.OpID{ack.ID}, hook.Bindings.HTTP[0].Callbacks[0].Operations)
+	assert.Equal(t, []ir.OperationID{ack.ID}, hook.Bindings.HTTP[0].Callbacks[0].Operations)
 	require.Len(t, ack.Bindings.HTTP, 1)
 	assert.Equal(t, ir.HTTPInboundCallback, ack.Bindings.HTTP[0].Inbound, "a callback is not a webhook, though a webhook declares it")
 	assert.Empty(t, ack.Bindings.HTTP[0].WebhookName, "the webhook's name stays on the webhook")

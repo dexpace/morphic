@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "FileItems32",
         "canonical": "file_items_32"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1photos/get",
+              "id": "operation/openapi/paths/~1photos/get",
               "name": {
                 "source": "listPhotos",
                 "canonical": "list_photos"
@@ -83,12 +83,12 @@
                       {
                         "mediaType": "multipart/mixed",
                         "type": {
-                          "target": "t/prim/any",
+                          "target": "type/primitive/any",
                           "nullable": false
                         },
                         "stream": {},
                         "item": {
-                          "target": "t/prim/bytes",
+                          "target": "type/primitive/bytes",
                           "nullable": false
                         },
                         "itemEncoding": {
@@ -96,8 +96,8 @@
                             "image/png",
                             "image/jpeg"
                           ],
-                          "multi": true,
-                          "filename": true,
+                          "repeatsPerArrayItem": true,
+                          "hasFilename": true,
                           "allowReserved": false
                         }
                       }
@@ -112,7 +112,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/prim/bytes",
+                  "target": "type/primitive/bytes",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -134,7 +134,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1attachments/get",
+              "id": "operation/openapi/paths/~1attachments/get",
               "name": {
                 "source": "listAttachments",
                 "canonical": "list_attachments"
@@ -158,20 +158,20 @@
                       {
                         "mediaType": "multipart/mixed",
                         "type": {
-                          "target": "t/prim/any",
+                          "target": "type/primitive/any",
                           "nullable": false
                         },
                         "stream": {},
                         "item": {
-                          "target": "t/anon/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
+                          "target": "type/anonymous/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
                           "nullable": false
                         },
                         "itemEncoding": {
                           "contentTypes": [
                             "application/octet-stream"
                           ],
-                          "multi": true,
-                          "filename": true,
+                          "repeatsPerArrayItem": true,
+                          "hasFilename": true,
                           "allowReserved": false
                         }
                       }
@@ -186,7 +186,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/anon/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
+                  "target": "type/anonymous/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -208,7 +208,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1thumbnails/get",
+              "id": "operation/openapi/paths/~1thumbnails/get",
               "name": {
                 "source": "listThumbnails",
                 "canonical": "list_thumbnails"
@@ -232,12 +232,12 @@
                       {
                         "mediaType": "multipart/mixed",
                         "type": {
-                          "target": "t/prim/any",
+                          "target": "type/primitive/any",
                           "nullable": false
                         },
                         "stream": {},
                         "item": {
-                          "target": "t/prim/string",
+                          "target": "type/primitive/string",
                           "nullable": false
                         },
                         "itemEncoding": {
@@ -245,8 +245,8 @@
                           "contentTypes": [
                             "image/webp"
                           ],
-                          "multi": true,
-                          "filename": true,
+                          "repeatsPerArrayItem": true,
+                          "hasFilename": true,
                           "allowReserved": false
                         }
                       }
@@ -261,7 +261,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/prim/string",
+                  "target": "type/primitive/string",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -294,9 +294,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema": {
+    "type/anonymous/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema": {
       "kind": "scalar",
-      "id": "t/anon/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
+      "id": "type/anonymous/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
       "name": {
         "hint": "response_item"
       },
@@ -310,13 +310,13 @@
         "pointer": "/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema"
       },
       "base": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -324,11 +324,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/bytes": {
+    "type/primitive/bytes": {
       "kind": "primitive",
-      "id": "t/prim/bytes",
+      "id": "type/primitive/bytes",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -336,11 +336,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bytes"
+      "primitiveKind": "bytes"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -348,7 +348,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

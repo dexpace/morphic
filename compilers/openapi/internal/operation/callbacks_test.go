@@ -104,7 +104,7 @@ func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	for _, cb := range callbacks {
 		names = append(names, cb.Name)
 		cbOp := openapitest.FindOp(t, doc, map[string]string{"a": "cbA", "a/x-b": "cbB"}[cb.Name])
-		assert.Equal(t, []ir.OpID{cbOp.ID}, cb.Operations, "callback %q lists its own operation", cb.Name)
+		assert.Equal(t, []ir.OperationID{cbOp.ID}, cb.Operations, "callback %q lists its own operation", cb.Name)
 		assert.Equal(t, ir.HTTPInboundCallback, cbOp.Bindings.HTTP[0].Inbound, "%s is marked a callback", cbOp.ID)
 	}
 	assert.ElementsMatch(t, []string{"a", "a/x-b"}, names, "each callback keeps the name it is mapped by, verbatim")
@@ -129,12 +129,12 @@ func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 	cbIDC := parentC.Bindings.HTTP[0].Callbacks[0].Operations[0]
 	cbIDD := parentD.Bindings.HTTP[0].Callbacks[0].Operations[0]
 	assert.NotEqual(t, cbIDC, cbIDD, "callback operations keep distinct identity per parent")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1c/post/callbacks/onEvent/{$request.body#~1url}/post"), cbIDC)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1d/post/callbacks/onEvent/{$request.body#~1url}/post"), cbIDD)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1c/post/callbacks/onEvent/{$request.body#~1url}/post"), cbIDC)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1d/post/callbacks/onEvent/{$request.body#~1url}/post"), cbIDD)
 
 	cbOps := opsByID(t, doc, cbIDC, cbIDD)
 	wantReqID := ir.TypeID(
-		"t/anon/components/callbacks/Shared/{$request.body#~1url}/post/requestBody/content/application~1json/schema")
+		"type/anonymous/components/callbacks/Shared/{$request.body#~1url}/post/requestBody/content/application~1json/schema")
 	require.NotNil(t, cbOps[cbIDC].Request)
 	require.NotNil(t, cbOps[cbIDD].Request)
 	assert.Equal(t, wantReqID, cbOps[cbIDC].Request.Contents[0].Type.Target)
@@ -145,15 +145,15 @@ func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 // opsByID collects the operations matching any of ids into a lookup. It
 // exists because openapitest.FindOp disambiguates by Name.Source, which two mounts of one
 // $ref'd path item or callback share (they are the same declared operationId
-// mounted twice); OpID is the only thing that still tells them apart.
-func opsByID(t *testing.T, doc *ir.Document, opIDs ...ir.OpID) map[ir.OpID]ir.Operation {
+// mounted twice); OperationID is the only thing that still tells them apart.
+func opsByID(t *testing.T, doc *ir.Document, opIDs ...ir.OperationID) map[ir.OperationID]ir.Operation {
 	t.Helper()
 	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
-	want := make(map[ir.OpID]bool, len(opIDs))
+	want := make(map[ir.OperationID]bool, len(opIDs))
 	for _, id := range opIDs {
 		want[id] = true
 	}
-	out := make(map[ir.OpID]ir.Operation, len(opIDs))
+	out := make(map[ir.OperationID]ir.Operation, len(opIDs))
 	for _, g := range doc.Services[0].Groups {
 		for _, op := range g.Operations {
 			if want[op.ID] {
@@ -194,8 +194,8 @@ func TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOpIDs(t *testing.T) 
 	doc, diags := parseFull(t, refdWebhookPathItemSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	idA := ir.OpID("op/openapi/webhooks/onA/post")
-	idB := ir.OpID("op/openapi/webhooks/onB/post")
+	idA := ir.OperationID("operation/openapi/webhooks/onA/post")
+	idB := ir.OperationID("operation/openapi/webhooks/onB/post")
 	ops := opsByID(t, doc, idA, idB)
 	require.Contains(t, ops, idA, "each webhook keeps its own mount identity")
 	require.Contains(t, ops, idB, "each webhook keeps its own mount identity")
@@ -208,14 +208,14 @@ func TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOpIDs(t *testing.T) 
 
 	require.Len(t, ops[idA].Params, 1)
 	require.Len(t, ops[idB].Params, 1)
-	wantParamID := ir.TypeID("t/anon/components/pathItems/Hook/parameters/0/schema")
+	wantParamID := ir.TypeID("type/anonymous/components/pathItems/Hook/parameters/0/schema")
 	assert.Equal(t, wantParamID, ops[idA].Params[0].Type.Target)
 	assert.Equal(t, wantParamID, ops[idB].Params[0].Type.Target,
 		"the shared webhook path-item parameter interns once")
 
 	require.NotNil(t, ops[idA].Request)
 	require.NotNil(t, ops[idB].Request)
-	wantReqID := ir.TypeID("t/anon/components/pathItems/Hook/post/requestBody/content/application~1json/schema")
+	wantReqID := ir.TypeID("type/anonymous/components/pathItems/Hook/post/requestBody/content/application~1json/schema")
 	assert.Equal(t, wantReqID, ops[idA].Request.Contents[0].Type.Target)
 	assert.Equal(t, wantReqID, ops[idB].Request.Contents[0].Type.Target,
 		"the shared webhook request schema interns once")
@@ -269,7 +269,7 @@ func TestCallbacks_RefdPathItemInternsAtDeclaration(t *testing.T) {
 	assert.NotEqual(t, cbIDC, cbIDD, "callback operations keep distinct identity per parent")
 
 	cbOps := opsByID(t, doc, cbIDC, cbIDD)
-	wantReqID := ir.TypeID("t/anon/components/pathItems/CB/post/requestBody/content/application~1json/schema")
+	wantReqID := ir.TypeID("type/anonymous/components/pathItems/CB/post/requestBody/content/application~1json/schema")
 	require.NotNil(t, cbOps[cbIDC].Request)
 	require.NotNil(t, cbOps[cbIDD].Request)
 	assert.Equal(t, wantReqID, cbOps[cbIDC].Request.Contents[0].Type.Target)
@@ -323,7 +323,7 @@ func TestCallbacks_DeclaredOnACallbackLower(t *testing.T) {
 				assert.Nil(t, op.Auth, "a callback inherits no security")
 				parent := ops[level-1].Bindings.HTTP[0].Callbacks
 				require.Len(t, parent, 1, "cb%d lists the callback it declares", level-1)
-				assert.Equal(t, []ir.OpID{op.ID}, parent[0].Operations)
+				assert.Equal(t, []ir.OperationID{op.ID}, parent[0].Operations)
 			}
 			deepest := ops[operation.MaxCallbackNesting]
 			assert.Empty(t, deepest.Bindings.HTTP[0].Callbacks)

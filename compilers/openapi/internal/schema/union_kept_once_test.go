@@ -44,7 +44,7 @@ func TestOneOf_AKeptBranchIsHeldOnceAndReportedOnce(t *testing.T) {
 		require.True(t, ok, "variant %d", i)
 		assert.Contains(t, v.Unmodeled, fmt.Sprintf("openapi:oneOf/%d", i), "variant %d keeps its branch", i)
 		at := fmt.Sprintf("/components/schemas/S/oneOf/%d", i)
-		assert.NotContains(t, doc.Types, ir.TypeID("t/anon"+at), "no node nothing names holds branch %d again", i)
+		assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous"+at), "no node nothing names holds branch %d again", i)
 		assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, at), 1, "one info at %s", at)
 	}
 }

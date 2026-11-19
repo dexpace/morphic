@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "EmptyEnum",
         "canonical": "empty_enum"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Holder/properties/colour": {
+    "type/anonymous/components/schemas/Holder/properties/colour": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Holder/properties/colour",
+      "id": "type/anonymous/components/schemas/Holder/properties/colour",
       "name": {
         "hint": "colour"
       },
@@ -75,26 +75,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Holder/properties/colour/s:red",
+          "id": "enum-member/anonymous/components/schemas/Holder/properties/colour/string:red",
           "name": {
             "source": "red",
             "canonical": "red"
           },
           "value": {
             "kind": "string",
-            "str": "red"
+            "string": "red"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Holder/properties/colour/s:green",
+          "id": "enum-member/anonymous/components/schemas/Holder/properties/colour/string:green",
           "name": {
             "source": "green",
             "canonical": "green"
           },
           "value": {
             "kind": "string",
-            "str": "green"
+            "string": "green"
           },
           "docs": {}
         }
@@ -102,9 +102,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Bare": {
+    "type/openapi/components/schemas/Bare": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Bare",
+      "id": "type/openapi/components/schemas/Bare",
       "name": {
         "source": "Bare",
         "canonical": "bare"
@@ -120,9 +120,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Base": {
+    "type/openapi/components/schemas/Base": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Base",
+      "id": "type/openapi/components/schemas/Base",
       "name": {
         "source": "Base",
         "canonical": "base"
@@ -136,21 +136,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Base/properties/y",
+          "id": "property/openapi/components/schemas/Base/properties/y",
           "name": {
             "source": "y",
             "canonical": "y"
           },
           "wireName": "y",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -167,9 +167,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BesideAllOf": {
+    "type/openapi/components/schemas/BesideAllOf": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/BesideAllOf",
+      "id": "type/openapi/components/schemas/BesideAllOf",
       "name": {
         "source": "BesideAllOf",
         "canonical": "beside_all_of"
@@ -195,9 +195,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/BesideProperties": {
+    "type/openapi/components/schemas/BesideProperties": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/BesideProperties",
+      "id": "type/openapi/components/schemas/BesideProperties",
       "name": {
         "source": "BesideProperties",
         "canonical": "beside_properties"
@@ -227,9 +227,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -243,21 +243,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/nothing",
+          "id": "property/openapi/components/schemas/Holder/properties/nothing",
           "name": {
             "source": "nothing",
             "canonical": "nothing"
           },
           "wireName": "nothing",
           "type": {
-            "target": "t/openapi/components/schemas/Nothing",
+            "target": "type/openapi/components/schemas/Nothing",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -270,21 +270,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/bare",
+          "id": "property/openapi/components/schemas/Holder/properties/bare",
           "name": {
             "source": "bare",
             "canonical": "bare"
           },
           "wireName": "bare",
           "type": {
-            "target": "t/openapi/components/schemas/Bare",
+            "target": "type/openapi/components/schemas/Bare",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -297,21 +297,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/colour",
+          "id": "property/openapi/components/schemas/Holder/properties/colour",
           "name": {
             "source": "colour",
             "canonical": "colour"
           },
           "wireName": "colour",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/colour",
+            "target": "type/anonymous/components/schemas/Holder/properties/colour",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -328,9 +328,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Nothing": {
+    "type/openapi/components/schemas/Nothing": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/Nothing",
+      "id": "type/openapi/components/schemas/Nothing",
       "name": {
         "source": "Nothing",
         "canonical": "nothing"
@@ -346,9 +346,9 @@
       "closed": true,
       "flags": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -356,7 +356,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

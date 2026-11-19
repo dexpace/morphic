@@ -85,8 +85,8 @@ func modelSkeleton(m *ir.Model) (skeleton, bool) {
 	}
 	sk.model.Implements = takeAll(m.Implements, take)
 	sk.model.Mixins = takeAll(m.Mixins, take)
-	if m.AdditionalProps != nil {
-		sk.model.AdditionalProps = additionalSkeleton(*m.AdditionalProps, take)
+	if m.AdditionalProperties != nil {
+		sk.model.AdditionalProperties = additionalSkeleton(*m.AdditionalProperties, take)
 	}
 	if d := m.Discriminator; d != nil && d.Property != "" {
 		sk.tag = slices.IndexFunc(m.Properties, func(p ir.Property) bool { return p.ID == d.Property })
@@ -114,7 +114,7 @@ func takeAll(refs []ir.TypeRef, take func(ir.TypeRef) ir.TypeRef) []ir.TypeRef {
 
 // additionalSkeleton is modelSkeleton's reading of a catch-all: each type it
 // names, value, key and each pattern's value in that order, taken by take.
-func additionalSkeleton(ap ir.AdditionalProps, take func(ir.TypeRef) ir.TypeRef) *ir.AdditionalProps {
+func additionalSkeleton(ap ir.AdditionalProperties, take func(ir.TypeRef) ir.TypeRef) *ir.AdditionalProperties {
 	if ap.Value != nil {
 		ap.Value = new(take(*ap.Value))
 	}

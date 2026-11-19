@@ -19,7 +19,7 @@ import (
 // type and format beside each other select where the table has a row for them.
 type scalarForm struct {
 	spelled string
-	prim    ir.PrimKind
+	prim    ir.PrimitiveKind
 	listed  bool
 }
 

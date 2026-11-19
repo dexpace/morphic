@@ -28,9 +28,9 @@ func indexViolations(doc *ir.Document) []Violation {
 // HTTP binding carrying the given SuccessStatus map.
 func docWithSuccessStatus(status map[int]int) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
-		ID: "s/x",
+		ID: "service/x",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
-			ID:        "op/x",
+			ID:        "operation/x",
 			Responses: []ir.Response{{}},
 			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 				Method: "GET", SuccessStatus: status,
@@ -47,7 +47,7 @@ func TestCheckIndices_ResponseIndexOutOfRange(t *testing.T) {
 
 	got = indexViolations(docWithSuccessStatus(map[int]int{1: 202}))
 	require.Len(t, got, 1)
-	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].SuccessStatus[1]", got[0].Path)
+	assert.Equal(t, "document.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].SuccessStatus[1]", got[0].Path)
 }
 
 // TestCheckIndices_ResponseIndexIsPlacedOnItsBinding holds the path to the
@@ -59,7 +59,7 @@ func TestCheckIndices_ResponseIndexIsPlacedOnItsBinding(t *testing.T) {
 
 	got := indexViolations(doc)
 	require.Len(t, got, 1)
-	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[1].SuccessStatus[3]", got[0].Path)
+	assert.Equal(t, "document.Services[0].Groups[0].Operations[0].Bindings.HTTP[1].SuccessStatus[3]", got[0].Path)
 }
 
 func TestCheckIndices_ResponseIndexInRangeIsClean(t *testing.T) {
@@ -140,7 +140,7 @@ var integerFields = map[string]string{
 	// discriminator's own node: variants that are not tuples have no element list
 	// at all. Bounding it needs a rule for that case which docs/ir does not
 	// state, so it is left out rather than guessed at.
-	"Discriminator.Index": "tuple element position; addresses no one slice, see comment",
+	"Discriminator.TupleElementIndex": "tuple element position; addresses no one slice, see comment",
 
 	// The ir package's own traversal machinery, which is not IR data at all: the
 	// scan reaches every integer field the package declares, and classifying one
@@ -198,25 +198,25 @@ var integerFields = map[string]string{
 	"refField.rule":       "what an empty ID means at a field, an enumeration rather than a position",
 	"keyedRegistry.index": "the Document field that keys a registry map, read off Document's type",
 
-	"DocRef.StartByte":      "byte offset into Docs.Description; bounds-checked by checkDocRefs",
-	"DocRef.EndByte":        "byte offset into Docs.Description; bounds-checked by checkDocRefs",
-	"Property.WireID":       "protobuf field number / thrift id, not a position",
-	"Variant.WireID":        "protobuf oneof field number or ordinal, not a position",
-	"StatusRange.From":      "HTTP status code",
-	"StatusRange.To":        "HTTP status code",
-	"WireIDRange.From":      "wire ID bound, not a position",
-	"WireIDRange.To":        "wire ID bound, not a position",
-	"Constraints.Precision": "digit count",
-	"Constraints.Scale":     "digit count",
-	"Constraints.MinLength": "length bound",
-	"Constraints.MaxLength": "length bound",
-	"Constraints.MinItems":  "length bound",
-	"Constraints.MaxItems":  "length bound",
-	"Constraints.MinProps":  "property-count bound",
-	"Constraints.MaxProps":  "property-count bound",
-	"Position.Line":         "line inside a source file, not a position in any IR slice",
-	"Position.Column":       "column inside a source file, not a position in any IR slice",
-	"Decimal.exp":           "power of ten the leading significant digit carries, not a position",
+	"DocRef.StartByte":          "byte offset into Docs.Description; bounds-checked by checkDocRefs",
+	"DocRef.EndByte":            "byte offset into Docs.Description; bounds-checked by checkDocRefs",
+	"Property.WireID":           "protobuf field number / thrift id, not a position",
+	"Variant.WireID":            "protobuf oneof field number or ordinal, not a position",
+	"StatusRange.From":          "HTTP status code",
+	"StatusRange.To":            "HTTP status code",
+	"WireIDRange.From":          "wire ID bound, not a position",
+	"WireIDRange.To":            "wire ID bound, not a position",
+	"Constraints.Precision":     "digit count",
+	"Constraints.Scale":         "digit count",
+	"Constraints.MinLength":     "length bound",
+	"Constraints.MaxLength":     "length bound",
+	"Constraints.MinItems":      "length bound",
+	"Constraints.MaxItems":      "length bound",
+	"Constraints.MinProperties": "property-count bound",
+	"Constraints.MaxProperties": "property-count bound",
+	"Position.Line":             "line inside a source file, not a position in any IR slice",
+	"Position.Column":           "column inside a source file, not a position in any IR slice",
+	"Decimal.exp":               "power of ten the leading significant digit carries, not a position",
 }
 
 // TestIntegerFields_AreAllClassified fails when ir declares an integer-typed
@@ -298,9 +298,9 @@ func isByte(typ types.Type) bool {
 // AllocsPerRun measures the process.
 func TestCheckIndices_VisitingCostsNoAllocation(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{
-		ID: "s/x",
+		ID: "service/x",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
-			ID:        "op/x",
+			ID:        "operation/x",
 			Responses: []ir.Response{{}, {}, {}},
 			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{
 				{Method: "GET", SuccessStatus: map[int]int{0: 200, 1: 201, 2: 202}},

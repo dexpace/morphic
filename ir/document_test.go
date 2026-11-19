@@ -14,7 +14,7 @@ import (
 
 func TestDocument_ConstructRepresentative(t *testing.T) {
 	t.Parallel()
-	userID := ir.TypeID("t/openapi/components/schemas/User")
+	userID := ir.TypeID("type/openapi/components/schemas/User")
 	doc := ir.Document{
 		IRVersion: ir.IRVersion,
 		Name:      "Petstore",
@@ -24,21 +24,21 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 				ID:   userID,
 				Name: ir.Naming{Source: "User", Canonical: "user"},
 				Properties: []ir.Property{{
-					ID:       ir.PropID("p/openapi/components/schemas/User/properties/id"),
+					ID:       ir.PropertyID("property/openapi/components/schemas/User/properties/id"),
 					Name:     ir.Naming{Source: "id", Canonical: "id"},
 					WireName: "id",
-					Type:     ir.TypeRef{Target: ir.TypeID("t/openapi/prim/string")},
+					Type:     ir.TypeRef{Target: ir.TypeID("type/openapi/prim/string")},
 					Required: true,
 				}},
 			},
 		},
 		Services: []ir.Service{{
-			ID:   ir.ServiceID("s/openapi/petstore"),
+			ID:   ir.ServiceID("service/openapi/petstore"),
 			Name: ir.Naming{Source: "Petstore", Canonical: "petstore"},
 			Groups: []ir.OperationGroup{{
 				Name: ir.Naming{Source: "users", Canonical: "users"},
 				Operations: []ir.Operation{{
-					ID:   ir.OpID("op/openapi/paths/~1users/get"),
+					ID:   ir.OperationID("operation/openapi/paths/~1users/get"),
 					Name: ir.Naming{Source: "listUsers", Canonical: "list_users"},
 					Responses: []ir.Response{{
 						Conditions: ir.ResponseConditions{

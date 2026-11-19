@@ -83,15 +83,15 @@ func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) 
 	assert.Equal(t, compile.NamingHint("Fish-Tank").Hint, choice.Variants[1].Name.Hint,
 		"and one naming a $ref with a percent escape takes its decoded name")
 
-	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Mixed/allOf/0"),
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Mixed/allOf/0"),
 		"what an entry writes beside its $ref is the position's, so the entry hoists no node")
 
-	def, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Host/$defs/a~1b")]
+	def, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/Host/$defs/a~1b")]
 	require.True(t, ok, "a $ref into $defs hoists the definition it names")
 	assert.Equal(t, compile.NamingHint("a/b").Hint, def.Common().Name.Hint,
 		"a node a $ref names inside another schema takes its decoded key")
 
-	inner, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Host/$defs/inner")]
+	inner, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/Host/$defs/inner")]
 	require.True(t, ok, "a $ref to a $ref carrying a sibling hoists a node of its own")
 	assert.Equal(t, compile.NamingHint("inner").Hint, inner.Common().Name.Hint,
 		"and one that is itself a $ref is named for its position, as a property holding a $ref is (GitHub #519)")
@@ -115,7 +115,7 @@ func TestComposition_BranchAliasIsOrderIndependent(t *testing.T) {
 			last, diags := parseFull(t, branchAliasSpec(kind, false))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			branch := ir.TypeID("t/anon/components/schemas/Host/" + kind + "/0")
+			branch := ir.TypeID("type/anonymous/components/schemas/Host/" + kind + "/0")
 			require.Contains(t, first.Types, branch, "the branch position owns a node")
 			assert.Empty(t, cmp.Diff(first.Types, last.Types),
 				"declaring the composition before or after the outside $ref must not change the registry")
@@ -137,7 +137,7 @@ func TestLower_InlineSchemaHoistedOnce(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	itemsID := ir.TypeID("t/anon/components/schemas/S/properties/tags/items")
+	itemsID := ir.TypeID("type/anonymous/components/schemas/S/properties/tags/items")
 	item, ok := doc.Types[itemsID].(*ir.Model)
 	require.True(t, ok, "items object should be hoisted as a model")
 	assert.True(t, item.Anonymous)
@@ -177,44 +177,44 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 		refAt ir.TypeID
 	}{
 		{"items", "    A: {type: array, items: " + untitledProbe + "}\n",
-			"t/anon/components/schemas/A/items", "a_item", ""},
+			"type/anonymous/components/schemas/A/items", "a_item", ""},
 		{"additionalProperties", "    A: {type: object, additionalProperties: " + untitledProbe + "}\n",
-			"t/anon/components/schemas/A/additionalProperties", "a_value", ""},
+			"type/anonymous/components/schemas/A/additionalProperties", "a_value", ""},
 		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + untitledProbe + "}}\n",
-			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern", ""},
+			"type/anonymous/components/schemas/A/patternProperties/^x", "a_pattern", ""},
 		{"prefixItems", "    A: {type: array, prefixItems: [" + untitledProbe + "]}\n",
-			"t/anon/components/schemas/A/prefixItems/0", "a_0", ""},
+			"type/anonymous/components/schemas/A/prefixItems/0", "a_0", ""},
 		{"tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: " + untitledProbe + "}\n",
-			"t/anon/components/schemas/A/items", "a_item", ""},
+			"type/anonymous/components/schemas/A/items", "a_item", ""},
 		// Nested, because the name is composed along the whole chain rather than
 		// one step: the outside $ref used to name this "items", losing both levels.
 		{"items under items", "    A: {type: array, items: {type: array, items: " + untitledProbe + "}}\n",
-			"t/anon/components/schemas/A/items/items", "a_item_item", ""},
+			"type/anonymous/components/schemas/A/items/items", "a_item_item", ""},
 		// Rooted at a property rather than at the component, so the enclosing hint
 		// the walk rebuilds from is the property's key.
 		{"items under a property", "    A: {type: object, properties: {p: {type: array, items: " +
 			untitledProbe + "}}}\n",
-			"t/anon/components/schemas/A/properties/p/items", "p_item", ""},
+			"type/anonymous/components/schemas/A/properties/p/items", "p_item", ""},
 		{"contentSchema", "    A: {type: string, contentMediaType: application/json, contentSchema: " +
 			untitledProbe + "}\n",
-			"t/anon/components/schemas/A/contentSchema", "a_content", ""},
+			"type/anonymous/components/schemas/A/contentSchema", "a_content", ""},
 		// The reference is aimed at contentSchema and the assertion at what is
 		// under it.
 		{"items under contentSchema", "    A: {type: string, contentMediaType: application/json, " +
 			"contentSchema: {type: array, items: " + untitledProbe + "}}\n",
-			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
-			"t/anon/components/schemas/A/contentSchema"},
+			"type/anonymous/components/schemas/A/contentSchema/items", "a_content_item",
+			"type/anonymous/components/schemas/A/contentSchema"},
 		// Aimed at a tuple's rest: a rest named by a role of its own would part
 		// from the name its /items pointer gives it.
 		{"items under a tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: {type: array, items: " +
 			untitledProbe + "}}\n",
-			"t/anon/components/schemas/A/items/items", "a_item_item",
-			"t/anon/components/schemas/A/items"},
+			"type/anonymous/components/schemas/A/items/items", "a_item_item",
+			"type/anonymous/components/schemas/A/items"},
 		// Aimed at additionalProperties.
 		{"items under additionalProperties", "    A: {type: object, additionalProperties: {type: array, items: " +
 			untitledProbe + "}}\n",
-			"t/anon/components/schemas/A/additionalProperties/items", "a_value_item",
-			"t/anon/components/schemas/A/additionalProperties"},
+			"type/anonymous/components/schemas/A/additionalProperties/items", "a_value_item",
+			"type/anonymous/components/schemas/A/additionalProperties"},
 		// The remaining rows put a key spelled like a keyword, or a branch's
 		// ordinal, on the way from the component to refAt (GitHub #518), and
 		// assert a node beneath refAt: a reading that takes the key for the
@@ -223,30 +223,30 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 		{"a property named items is not the items keyword",
 			"    A: {type: object, properties: {items: {type: array, items: " +
 				untitledProbe + "}}}\n",
-			"t/anon/components/schemas/A/properties/items/items", "items_item",
-			"t/anon/components/schemas/A/properties/items"},
+			"type/anonymous/components/schemas/A/properties/items/items", "items_item",
+			"type/anonymous/components/schemas/A/properties/items"},
 		{"a property named additionalProperties is not the additionalProperties keyword",
 			"    A: {type: object, properties: {additionalProperties: {type: object, additionalProperties: " +
 				untitledProbe + "}}}\n",
-			"t/anon/components/schemas/A/properties/additionalProperties/additionalProperties",
-			"additional_properties_value", "t/anon/components/schemas/A/properties/additionalProperties"},
+			"type/anonymous/components/schemas/A/properties/additionalProperties/additionalProperties",
+			"additional_properties_value", "type/anonymous/components/schemas/A/properties/additionalProperties"},
 		{"a property named contentSchema is not the contentSchema keyword",
 			"    A: {type: object, properties: {contentSchema: {type: array, items: " +
 				untitledProbe + "}}}\n",
-			"t/anon/components/schemas/A/properties/contentSchema/items", "content_schema_item",
-			"t/anon/components/schemas/A/properties/contentSchema"},
+			"type/anonymous/components/schemas/A/properties/contentSchema/items", "content_schema_item",
+			"type/anonymous/components/schemas/A/properties/contentSchema"},
 		{"a patternProperties entry keyed items is not the items keyword",
 			"    A: {type: object, patternProperties: {items: {type: array, items: " +
 				untitledProbe + "}}}\n",
-			"t/anon/components/schemas/A/patternProperties/items/items", "a_pattern_item",
-			"t/anon/components/schemas/A/patternProperties/items"},
+			"type/anonymous/components/schemas/A/patternProperties/items/items", "a_pattern_item",
+			"type/anonymous/components/schemas/A/patternProperties/items"},
 		{"a title names the position it is written at", "    A: {type: array, items: " +
-			openapitest.InlineProbeBody + "}\n", "t/anon/components/schemas/A/items", "sum", ""},
+			openapitest.InlineProbeBody + "}\n", "type/anonymous/components/schemas/A/items", "sum", ""},
 		{"items beneath a oneOf branch is named off the branch, not the ordinal",
 			"    A: {oneOf: [{type: array, items: {type: array, items: " +
 				untitledProbe + "}}, {type: integer}]}\n",
-			"t/anon/components/schemas/A/oneOf/0/items/items", "variant_0_item_item",
-			"t/anon/components/schemas/A/oneOf/0/items"},
+			"type/anonymous/components/schemas/A/oneOf/0/items/items", "variant_0_item_item",
+			"type/anonymous/components/schemas/A/oneOf/0/items"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -279,7 +279,7 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 // points at it, and in either declaration order.
 func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
-	const id = ir.TypeID("t/anon/paths/~1x/get/responses/200/content/application~1json/schema/items")
+	const id = ir.TypeID("type/anonymous/paths/~1x/get/responses/200/content/application~1json/schema/items")
 	op := `paths:
   /x:
     get:
@@ -337,20 +337,20 @@ func TestPureRefPosition_IsNamedByItsDeclarationInBothOrders(t *testing.T) {
 		hint  string
 	}{
 		{"items", "    A: {type: array, items: {$ref: '#/components/schemas/T'}}\n" + tDecl,
-			"t/anon/components/schemas/A/items", "a_item"},
+			"type/anonymous/components/schemas/A/items", "a_item"},
 		{"additionalProperties", "    A: {type: object, additionalProperties: {$ref: '#/components/schemas/T'}}\n" + tDecl,
-			"t/anon/components/schemas/A/additionalProperties", "a_value"},
+			"type/anonymous/components/schemas/A/additionalProperties", "a_value"},
 		{"a property", "    A: {type: object, properties: {p: {$ref: '#/components/schemas/T'}}}\n" + tDecl,
-			"t/anon/components/schemas/A/properties/p", "p"},
+			"type/anonymous/components/schemas/A/properties/p", "p"},
 		{"prefixItems", "    A: {type: array, prefixItems: [{$ref: '#/components/schemas/T'}]}\n" + tDecl,
-			"t/anon/components/schemas/A/prefixItems/0", "a_0"},
+			"type/anonymous/components/schemas/A/prefixItems/0", "a_0"},
 		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": {$ref: '#/components/schemas/T'}}}\n" + tDecl,
-			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern"},
+			"type/anonymous/components/schemas/A/patternProperties/^x", "a_pattern"},
 		// A $ref branch is the one position named after its target rather
 		// than its own location (GitHub #521), in either order, so this row's
 		// expectation does not flip between the two orders below.
 		{"a union branch", "    A: {oneOf: [{$ref: '#/components/schemas/T'}, {type: integer}]}\n" + tDecl,
-			"t/anon/components/schemas/A/oneOf/0", "t"},
+			"type/anonymous/components/schemas/A/oneOf/0", "t"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -378,7 +378,7 @@ func TestPureRefPosition_IsNamedByItsDeclarationInBothOrders(t *testing.T) {
 // (lowering.NameAt), whichever of /b or /a lowers first.
 func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
-	const id = ir.TypeID("t/anon/paths/~1b/get/responses/200/content/application~1json/schema/items")
+	const id = ir.TypeID("type/anonymous/paths/~1b/get/responses/200/content/application~1json/schema/items")
 	const bBlock = `  /b:
     get:
       operationId: getB

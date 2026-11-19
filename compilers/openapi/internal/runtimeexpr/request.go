@@ -69,7 +69,7 @@ func bodyInput(w *compileddoc.CompiledDocumentView, op *ir.Operation, tokens []s
 
 // paramInput is the member of op's parameter id that names walk to, the
 // parameter whole for none, and its type.
-func paramInput(w *compileddoc.CompiledDocumentView, op *ir.Operation, id ir.ParamID, names []string) (*ir.InputPath, ir.TypeID, string) {
+func paramInput(w *compileddoc.CompiledDocumentView, op *ir.Operation, id ir.ParameterID, names []string) (*ir.InputPath, ir.TypeID, string) {
 	i := slices.IndexFunc(op.Params, func(p ir.Parameter) bool { return p.ID == id })
 	if i < 0 {
 		// A binding names only a parameter its operation holds.

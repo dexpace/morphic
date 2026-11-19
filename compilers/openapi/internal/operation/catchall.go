@@ -55,10 +55,10 @@ func (r catchAllReading) parts(holder ir.TypeDef) (parts ir.CatchAllParts, says 
 	case *ir.MapT:
 		parts.Value = r.value(h.Value)
 	case *ir.Model:
-		if h.AdditionalProps.Value != nil {
-			parts.Value = r.value(*h.AdditionalProps.Value)
+		if h.AdditionalProperties.Value != nil {
+			parts.Value = r.value(*h.AdditionalProperties.Value)
 		}
-		for _, p := range h.AdditionalProps.Patterns {
+		for _, p := range h.AdditionalProperties.Patterns {
 			if pe := r.part(p.Value); !partEncodingEmpty(pe) {
 				if parts.Patterns == nil {
 					parts.Patterns = map[string]ir.PartEncoding{}
@@ -88,6 +88,6 @@ func (r catchAllReading) value(ref ir.TypeRef) *ir.PartEncoding {
 // Headers are the entry's to state, and a catch-all's part has none.
 func (r catchAllReading) part(ref ir.TypeRef) ir.PartEncoding {
 	var pe ir.PartEncoding
-	pe.Multi, pe.Filename, _ = partTypeFlags(r.unions, r.node, ref, r.multipart)
+	pe.RepeatsPerArrayItem, pe.HasFilename, _ = partTypeFlags(r.unions, r.node, ref, r.multipart)
 	return withDefaultContentType(r.unions, r.node, r.rules, &ir.Property{Type: ref}, r.encodedBy, pe)
 }

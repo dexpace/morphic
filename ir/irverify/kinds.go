@@ -15,10 +15,10 @@ import (
 //
 // checkPrimIDs cannot reach this: it asks the ID to agree with the kind, and an
 // invented kind agrees with itself (GitHub #240). An emitter switches on
-// PrimKind to pick a target type, so an undeclared kind is one it can neither
+// PrimitiveKind to pick a target type, so an undeclared kind is one it can neither
 // lower nor report usefully.
 //
-// Nothing rejects it earlier: PrimKind is a plain string type with no
+// Nothing rejects it earlier: PrimitiveKind is a plain string type with no
 // UnmarshalJSONFrom, so a decoded or foreign document carries an invented kind
 // in unchallenged. checkPrimIDs also reports an empty kind at the wrong ID.
 func checkPrimKinds(doc *ir.Document) []Violation {
@@ -29,7 +29,7 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 		}
 		switch n := td.(type) {
 		case *ir.Primitive:
-			vs = append(vs, undeclaredKind(n.Prim, "primitive carries", id, "")...)
+			vs = append(vs, undeclaredKind(n.PrimitiveKind, "primitive carries", id, "")...)
 		case *ir.Enum:
 			vs = append(vs, undeclaredKind(n.ValueType, "enum's value type is", id, ".ValueType")...)
 		case *ir.Literal:
@@ -37,7 +37,7 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 				vs = append(vs, undeclaredKind(n.ValueType, "literal's value type is", id, ".ValueType")...)
 			}
 		default:
-			// No other node names a PrimKind.
+			// No other node names a PrimitiveKind.
 		}
 	}
 	return vs
@@ -46,7 +46,7 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 // undeclaredKind reports kind, said of by what, at field of the type id names,
 // unless ir declares it. It builds nothing for a declared kind, so a clean node
 // costs no allocation.
-func undeclaredKind(kind ir.PrimKind, what string, id ir.TypeID, field string) []Violation {
+func undeclaredKind(kind ir.PrimitiveKind, what string, id ir.TypeID, field string) []Violation {
 	if kind.Valid() {
 		return nil
 	}

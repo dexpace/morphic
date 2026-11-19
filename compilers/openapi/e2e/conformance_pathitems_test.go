@@ -31,11 +31,11 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	// operationId, so the hint is built from the method and the key.
 	ops := allOperations(doc)
 	for _, hook := range []struct {
-		id        ir.OpID
+		id        ir.OperationID
 		key, hint string
 	}{
-		{"op/openapi/webhooks/{tenant}.created/post", "{tenant}.created", "post_tenant_created"},
-		{"op/openapi/webhooks//post", "", "post"},
+		{"operation/openapi/webhooks/{tenant}.created/post", "{tenant}.created", "post_tenant_created"},
+		{"operation/openapi/webhooks//post", "", "post"},
 	} {
 		i := slices.IndexFunc(ops, func(op ir.Operation) bool { return op.ID == hook.id })
 		require.GreaterOrEqual(t, i, 0, "the webhook keyed %q is mounted", hook.key)
@@ -115,7 +115,7 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "a callback declared on a callback's operation lowers too")
 	require.Len(t, cb.Bindings.HTTP[0].Callbacks, 1)
 	nested := cb.Bindings.HTTP[0].Callbacks[0]
-	assert.Equal(t, ir.Callback{Name: "onReply", Expression: "{$response.body#/replyUrl}", Operations: []ir.OpID{reply.ID}}, nested)
+	assert.Equal(t, ir.Callback{Name: "onReply", Expression: "{$response.body#/replyUrl}", Operations: []ir.OperationID{reply.ID}}, nested)
 	assert.Equal(t, ir.HTTPInboundCallback, reply.Bindings.HTTP[0].Inbound)
 	assert.Empty(t, reply.Servers, "the servers of the item declaring it are not its own")
 }
@@ -156,7 +156,7 @@ func assertPathItemAnchoredKey(t *testing.T, doc *ir.Document, diags []ir.Diagno
 func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	sibling, ok := opByName(doc, "putA")
 	require.True(t, ok, "the operation written beside the $ref reaches the IR")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/put"), sibling.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1a/put"), sibling.ID)
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/put"), sibling.Provenance.Pointer,
 		"a sibling operation is declared where it is mounted, not at the item it references")
 	assert.Equal(t, []string{"PUT"}, methodsOf(sibling))
@@ -185,11 +185,11 @@ func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 	// The referenced item's own operation keeps mounting at both paths, and the
 	// constructs written beside the reference reach it too.
-	atA := opByID(t, doc, "op/openapi/paths/~1a/get")
+	atA := opByID(t, doc, "operation/openapi/paths/~1a/get")
 	assert.Equal(t, "getB", atA.Name.Source)
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atA.Provenance.Pointer)
 	assert.Equal(t, "written beside the ref", atA.Bindings.HTTP[0].PathDocs.Summary)
-	atB := opByID(t, doc, "op/openapi/paths/~1b/get")
+	atB := opByID(t, doc, "operation/openapi/paths/~1b/get")
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atB.Provenance.Pointer)
 	assert.Empty(t, atB.Bindings.HTTP[0].PathDocs.Summary,
 		"the referent's own path keeps only what it declares")
@@ -304,7 +304,7 @@ func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 	require.Len(t, subscribe.Bindings.HTTP[0].Callbacks, 1)
 	purgeCallback, ok := opByName(doc, "purgeCallback")
 	require.True(t, ok)
-	assert.Equal(t, []ir.OpID{purgeCallback.ID}, subscribe.Bindings.HTTP[0].Callbacks[0].Operations,
+	assert.Equal(t, []ir.OperationID{purgeCallback.ID}, subscribe.Bindings.HTTP[0].Callbacks[0].Operations,
 		"an expression declaring only additionalOperations still binds to its parent")
 
 	queryIndex, ok := opByName(doc, "queryIndex")

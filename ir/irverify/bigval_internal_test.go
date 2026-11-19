@@ -23,10 +23,10 @@ func TestCheckBigVals_VisitingCostsNoAllocation(t *testing.T) {
 	nums := []ir.BigVal{"0", "-0", "42", "-1.5", "2.5E-3", "1e+10", "12345678901234567890.12345678901234567890"}
 	values := make([]ir.Value, 0, len(nums))
 	for _, num := range nums {
-		values = append(values, ir.Value{Kind: ir.ValueNumber, Num: num})
+		values = append(values, ir.Value{Kind: ir.ValueNumber, Number: num})
 	}
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-		ID:          "t/x/S",
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/x/S": &ir.Scalar{
+		ID:          "type/x/S",
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueList, List: values}}},
 		Constraints: &ir.Constraints{Min: bound("-0.5"), Max: bound("1e400"), MultipleOf: bound("0.25")},
 	}}}

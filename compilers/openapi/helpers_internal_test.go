@@ -15,7 +15,7 @@ import "github.com/dexpace/morphic/ir"
 // makes these lookups an oracle rather than a tautology, so deriving it through
 // compile to satisfy the sweep would be the wrong way out.
 func componentID(name string) ir.TypeID {
-	return ir.TypeID("t/openapi/components/schemas/" + name)
+	return ir.TypeID("type/openapi/components/schemas/" + name)
 }
 
 // typeByName returns the named component schema's lowered TypeDef.

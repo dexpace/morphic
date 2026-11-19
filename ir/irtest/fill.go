@@ -50,7 +50,7 @@ type filler struct {
 // id returns the next distinct type ID.
 func (f *filler) id() string {
 	f.next++
-	return fmt.Sprintf("t/filled-%d", f.next)
+	return fmt.Sprintf("type/filled-%d", f.next)
 }
 
 // fill populates v by its kind.

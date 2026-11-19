@@ -13,7 +13,7 @@ import (
 // for it, since a $ref carrying siblings composes the branch's own alias node,
 // not the schema it points at (docs/ir/models.md#composition-entries). Mixins
 // are absent on purpose: a mixin contributes members without making the model a
-// member of anything, so it belongs to [ExposedProps], not to subtype identity.
+// member of anything, so it belongs to [ExposedProperties], not to subtype identity.
 // An id naming no live model yields nil, and an unset reference is skipped.
 func Supertypes(doc *Document, id TypeID) []TypeID {
 	left := math.MaxInt
@@ -154,7 +154,7 @@ func isSubtype(doc *Document, target, base TypeID, left *int) (sub, ok bool) {
 	return false, true
 }
 
-// ExposedProps returns the property IDs the type root names exposes: its own
+// ExposedProperties returns the property IDs the type root names exposes: its own
 // plus those it composes in through Base, Implements and Mixins
 // (docs/ir/models.md), the flat set an emitter renders. A root naming an alias
 // scalar exposes the parts of the model the alias stands for, and one naming
@@ -163,24 +163,24 @@ func isSubtype(doc *Document, target, base TypeID, left *int) (sub, ok bool) {
 //
 // It is the relation's definition, walked afresh for one root. A caller asking
 // many of one document asks irfacts.DocumentFacts, which is held to it.
-func ExposedProps(doc *Document, root TypeID) map[PropID]bool {
-	props := map[PropID]bool{}
+func ExposedProperties(doc *Document, root TypeID) map[PropertyID]bool {
+	props := map[PropertyID]bool{}
 	left := math.MaxInt
-	exposedWalk(doc, root, &left, func(p PropID) bool {
+	exposedWalk(doc, root, &left, func(p PropertyID) bool {
 		props[p] = true
 		return false
 	})
 	return props
 }
 
-// ExposesWithin answers whether [ExposedProps] holds prop by the same walk,
+// ExposesWithin answers whether [ExposedProperties] holds prop by the same walk,
 // which stops at the first type declaring prop, in at most limit steps: one
 // for root and for each part source it follows, and one for each property it
 // reads. spent is the steps it took, and ok is false when the walk needed more
 // than limit and stopped without an answer.
-func ExposesWithin(doc *Document, root TypeID, prop PropID, limit int) (exposed bool, spent int, ok bool) {
+func ExposesWithin(doc *Document, root TypeID, prop PropertyID, limit int) (exposed bool, spent int, ok bool) {
 	left := limit
-	ok = exposedWalk(doc, root, &left, func(p PropID) bool {
+	ok = exposedWalk(doc, root, &left, func(p PropertyID) bool {
 		exposed = p == prop
 		return exposed
 	})
@@ -190,7 +190,7 @@ func ExposesWithin(doc *Document, root TypeID, prop PropID, limit int) (exposed 
 // exposedWalk hands visit each property the types root leads to declare, taking
 // steps from *left, and stops when visit returns true. It reports false when
 // *left ran out first.
-func exposedWalk(doc *Document, root TypeID, left *int, visit func(PropID) bool) bool {
+func exposedWalk(doc *Document, root TypeID, left *int, visit func(PropertyID) bool) bool {
 	if doc == nil {
 		return true
 	}
@@ -225,7 +225,7 @@ func exposedWalk(doc *Document, root TypeID, left *int, visit func(PropID) bool)
 // parents, an alias scalar's base. No other kind carries parts or says where
 // to find them. stop reports that visit returned true, and ok false that *left
 // ran out first.
-func partSources(dst []TypeID, td TypeDef, left *int, visit func(PropID) bool) (sources []TypeID, stop, ok bool) {
+func partSources(dst []TypeID, td TypeDef, left *int, visit func(PropertyID) bool) (sources []TypeID, stop, ok bool) {
 	switch t := td.(type) {
 	case *Model:
 		for _, p := range t.Properties {

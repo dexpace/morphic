@@ -136,12 +136,12 @@ type RequestCompression struct {
 // (docs/ir/http-binding.md).
 type HTTPParamBinding struct {
 	// Param is the ID of the Operation.Params entry it binds.
-	Param ParamID `json:"param,omitempty"`
+	Param ParameterID `json:"param,omitempty"`
 	// ParamPath is the nested source field within the logical param, when the
 	// binding targets a sub-field of a message-typed param (gRPC transcoding
 	// {book.name}, dotted query params); empty = the whole param. No entry is
 	// empty.
-	ParamPath []PropID `json:"paramPath,omitempty"`
+	ParamPath []PropertyID `json:"paramPath,omitempty"`
 	// Location is where the parameter binds on the wire. host = the param fills a
 	// HostPrefix label (Smithy @hostLabel); querystring = the whole query string
 	// serialized from one schema (OpenAPI 3.2 in: querystring, with ContentType).
@@ -186,7 +186,7 @@ type HTTPParamBinding struct {
 	ContentType string `json:"contentType,omitempty"`
 	// BodyPath is, for body_property, where in the body model it lands
 	// (TypeSpec HttpProperty); no entry is empty.
-	BodyPath []PropID `json:"bodyPath,omitempty"`
+	BodyPath []PropertyID `json:"bodyPath,omitempty"`
 }
 
 // HTTPInbound is the kind of an HTTP request the API sends rather than
@@ -228,7 +228,7 @@ type Callback struct {
 	Expression string `json:"expression,omitempty"`
 	// Operations are the callback operations keyed by that expression; no entry
 	// is empty.
-	Operations []OpID `json:"operations,omitempty"`
+	Operations []OperationID `json:"operations,omitempty"`
 }
 
 // RPCBinding maps an Operation onto an RPC method (docs/ir/rpc-binding.md).
@@ -250,23 +250,23 @@ type RPCBinding struct {
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
-// MsgDirection is the application-perspective direction of a MessageBinding
+// MessageDirection is the application-perspective direction of a MessageBinding
 // (docs/ir/messaging.md, AsyncAPI 3 semantics).
-type MsgDirection string
+type MessageDirection string
 
 // Message directions.
 const (
-	// MsgDirectionSend means the application sends the message.
-	MsgDirectionSend MsgDirection = "send"
-	// MsgDirectionReceive means the application receives the message.
-	MsgDirectionReceive MsgDirection = "receive"
+	// MessageDirectionSend means the application sends the message.
+	MessageDirectionSend MessageDirection = "send"
+	// MessageDirectionReceive means the application receives the message.
+	MessageDirectionReceive MessageDirection = "receive"
 )
 
 // Valid reports whether d is one of the directions declared above. The empty
 // string is not one: a message binding always names its direction.
 // irverify calls this so that an invented or missing direction is reported.
-func (d MsgDirection) Valid() bool {
-	return d == MsgDirectionSend || d == MsgDirectionReceive
+func (d MessageDirection) Valid() bool {
+	return d == MessageDirectionSend || d == MessageDirectionReceive
 }
 
 // MessageBinding maps an Operation onto a messaging channel
@@ -275,7 +275,7 @@ type MessageBinding struct {
 	// Channel is the channel the operation acts on; never empty.
 	Channel ChannelID `json:"channel,omitempty"`
 	// Direction is send | receive (application perspective).
-	Direction MsgDirection `json:"direction,omitempty"`
+	Direction MessageDirection `json:"direction,omitempty"`
 	// Messages are which of the channel's messages this operation uses; it must be
 	// a subset of the channel's own Messages, which pass.Validate checks. No entry
 	// is empty.

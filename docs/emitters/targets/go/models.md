@@ -50,7 +50,7 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   that option for itself ([the shared rule](../../refine/models.md#unknown-members)), `false` unless
   closed: a v2 option reaches every value below the call that sets it, so a closed model would
   otherwise make an open model nested in it strict, and a strict caller would reach a model the spec
-  leaves open. A catch-all (`AdditionalProps`) is the struct's one embedded fallback, a
+  leaves open. A catch-all (`AdditionalProperties`) is the struct's one embedded fallback, a
   `map[string]T` tagged `json:",embed"`, which receives the undeclared members whatever the options
   say. One whose `Key` is set is a `map[K]T`, `K` the key's Go type, tagged `json:"-"`, since
   json/v2 embeds only a map with string keys (`embedded Go struct field Extra of type

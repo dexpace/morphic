@@ -62,22 +62,22 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		want    string
 		carrier string
 	}{
-		{"openapi root", "openapi:basePath", `"ROOT"`, "doc.Unmodeled"},
-		{"info", "openapi:info/contactEmail", `"INFO"`, "doc.Unmodeled"},
-		{"contact", "openapi:info/contact/slack", `"CONTACT"`, "doc.Unmodeled"},
-		{"license", "openapi:info/license/spdx", `"LICENSE"`, "doc.Unmodeled"},
-		{"externalDocs", "openapi:externalDocs/title", `"EXTERNALDOCS"`, "doc.Unmodeled"},
-		{"server", "openapi:host", `"SERVER"`, "doc.Servers[server/openapi/servers/0].Unmodeled"},
-		{"server variable", "openapi:example", `"SERVERVARIABLE"`, "doc.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
+		{"openapi root", "openapi:basePath", `"ROOT"`, "document.Unmodeled"},
+		{"info", "openapi:info/contactEmail", `"INFO"`, "document.Unmodeled"},
+		{"contact", "openapi:info/contact/slack", `"CONTACT"`, "document.Unmodeled"},
+		{"license", "openapi:info/license/spdx", `"LICENSE"`, "document.Unmodeled"},
+		{"externalDocs", "openapi:externalDocs/title", `"EXTERNALDOCS"`, "document.Unmodeled"},
+		{"server", "openapi:host", `"SERVER"`, "document.Servers[server/openapi/servers/0].Unmodeled"},
+		{"server variable", "openapi:example", `"SERVERVARIABLE"`, "document.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
 		// A path item's and an operation's servers are Server Objects lowered as
 		// the document's are, each into the registry at its own pointer.
 		{"path item server", "openapi:host", `"PATHITEMSERVER"`,
-			"doc.Servers[server/openapi/paths/~1widgets/servers/0].Unmodeled"},
+			"document.Servers[server/openapi/paths/~1widgets/servers/0].Unmodeled"},
 		{"operation server", "openapi:host", `"OPERATIONSERVER"`,
-			"doc.Servers[server/openapi/paths/~1widgets/get/servers/0].Unmodeled"},
-		{"tag", "openapi:color", `"TAG"`, "doc.TagDefs[0].Unmodeled"},
-		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
-		{"tag externalDocs", "openapi:externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.TagDefs[0].Unmodeled"},
+			"document.Servers[server/openapi/paths/~1widgets/get/servers/0].Unmodeled"},
+		{"tag", "openapi:color", `"TAG"`, "document.TagDefs[0].Unmodeled"},
+		{"components", "openapi:components/definitions", `"COMPONENTS"`, "document.Unmodeled"},
+		{"tag externalDocs", "openapi:externalDocs/title", `"TAGEXTERNALDOCS"`, "document.TagDefs[0].Unmodeled"},
 		{"operation", "openapi:operationid", `"OPERATION"`, ".Unmodeled"},
 		// On each operation of the item, like its servers and its x-*: the path
 		// item lowers to no node of its own, so the scope is what tells its keys
@@ -100,20 +100,20 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		{"response", "openapi:status", `"RESPONSE"`, ".Responses[0].Unmodeled"},
 		{"error response", "openapi:status", `"ERRORRESPONSE"`, ".Errors[0].Unmodeled"},
 		{"header", "openapi:in", `"HEADER"`, ".Headers[0].Unmodeled"},
-		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
+		{"components", "openapi:components/definitions", `"COMPONENTS"`, "document.Unmodeled"},
 		{"security scheme", "openapi:tokenUrl", `"SECURITYSCHEME"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
 		{"oauth flows", "openapi:flows/application", `"OAUTHFLOWS"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
 		{"oauth flow", "openapi:scope", `"OAUTHFLOW"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
 		{"schema", "openapi:additionalItems", `"SCHEMA"`,
-			"doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+			"document.Types[type/openapi/components/schemas/S].Unmodeled"},
 		// The property's schema reduced to a shared primitive, so it owns no node
 		// and its keywords stay on the declaring property — the carrier rule
 		// fillPropertyAnnotations already applies to every other annotation.
 		{"property schema", "openapi:divisibleBy", `"PROPERTYSCHEMA"`,
-			"doc.Types[t/openapi/components/schemas/S].Properties[0].Unmodeled"},
+			"document.Types[type/openapi/components/schemas/S].Properties[0].Unmodeled"},
 	} {
 		site, found := findUnmodeled(sites, tc.key, tc.want)
 		if !assert.True(t, found, "%s drops %s = %s: it is nowhere in the document",
@@ -138,7 +138,7 @@ func TestUnknownKeys_SchemaAndObjectAreGradedApart(t *testing.T) {
 	doc, diags := compileAnnotationSpec(t, "unknown-keys", unknownKeysSpec(t))
 	requireNoErrorDiagnostics(t, diags)
 
-	schema, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")]
+	schema, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")]
 	require.True(t, ok)
 	keyword := unmodeledEntry(t, schema.Common().Unmodeled, "openapi:additionalItems")
 	assert.Equal(t, ir.ReasonOutOfScope, keyword.Reason,
@@ -270,7 +270,7 @@ components:
       externalDocs: {url: 'https://d.example', title: SCHEMAEXTERNALDOCS}
       properties: {k: {type: string}}
 `)
-	schema, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")]
+	schema, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")]
 	require.True(t, ok)
 
 	// assert rather than require on the lookup, so a keyword missing from the map
@@ -382,7 +382,7 @@ components:
 		{"U", "openapi:allOf/0/discriminator/x-b", "5"},
 		{"V", "openapi:discriminator/x-v", "6"},
 	} {
-		node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+tc.schema)]
+		node, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/"+tc.schema)]
 		require.True(t, ok, tc.schema)
 		entry, found := node.Common().Unmodeled[tc.key]
 		if assert.True(t, found, "%s keeps %s", tc.schema, tc.key) {

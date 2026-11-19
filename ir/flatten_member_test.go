@@ -20,7 +20,7 @@ import (
 // of a root and the property it must name.
 type memberRow struct {
 	types ir.TypeRegistry
-	taken map[[2]string]ir.PropID
+	taken map[[2]string]ir.PropertyID
 }
 
 // memberRows are the registries the flattening's own tests build, and the
@@ -36,7 +36,7 @@ func memberRows() map[string]memberRow {
 				owning("m", based("b"), wired("m.a", "a")),
 				owning("b", nil, wired("b.a", "a"), wired("b.b", "b")),
 			).Types,
-			taken: map[[2]string]ir.PropID{{"root", "a"}: "m.a", {"root", "b"}: "b.b", {"alias", "a"}: "m.a"},
+			taken: map[[2]string]ir.PropertyID{{"root", "a"}: "m.a", {"root", "b"}: "b.b", {"alias", "a"}: "m.a"},
 		},
 		"a root that names no model": {
 			types: irtest.DocOf(
@@ -46,7 +46,7 @@ func memberRows() map[string]memberRow {
 		},
 		"a model declaring one wire name twice": {
 			types: irtest.DocOf(owning("m", nil, wired("m.first", "n"), wired("m.later", "n"), wired("m.o", "o"))).Types,
-			taken: map[[2]string]ir.PropID{{"m", "n"}: "m.later"},
+			taken: map[[2]string]ir.PropertyID{{"m", "n"}: "m.later"},
 		},
 		"a diamond": {
 			types: irtest.DocOf(
@@ -55,7 +55,7 @@ func memberRows() map[string]memberRow {
 				owning("y", mixing("z")),
 				owning("z", nil, wired("z.n", "n")),
 			).Types,
-			taken: map[[2]string]ir.PropID{{"m", "n"}: "x.n"},
+			taken: map[[2]string]ir.PropertyID{{"m", "n"}: "x.n"},
 		},
 		"a cycle the root composes": {
 			types: irtest.DocOf(
@@ -63,7 +63,7 @@ func memberRows() map[string]memberRow {
 				owning("a", mixing("r"), wired("a.n", "n")),
 				owning("z", nil, wired("z.n", "n")),
 			).Types,
-			taken: map[[2]string]ir.PropID{{"r", "n"}: "a.n"},
+			taken: map[[2]string]ir.PropertyID{{"r", "n"}: "a.n"},
 		},
 		"a cycle through a base and an alias": {
 			types: irtest.DocOf(
@@ -90,7 +90,7 @@ func memberRows() map[string]memberRow {
 				owning("b", based("a"), wired("b.k", "k")),
 				owning("c", nil, wired("c.k", "k")),
 			).Types,
-			taken: map[[2]string]ir.PropID{{"r", "k"}: "c.k"},
+			taken: map[[2]string]ir.PropertyID{{"r", "k"}: "c.k"},
 		},
 		"entries that name no model": {
 			types: irtest.DocOf(
@@ -99,7 +99,7 @@ func memberRows() map[string]memberRow {
 					m.Implements = []ir.TypeRef{{}, {Target: "u"}}
 					m.Mixins = irtest.RefsTo("x", "enum", "ghost", "cycle1", "holey", "uuid")
 				}, wired("m.a", "a")),
-				irtest.ScalarOf("uuid", "string"), &ir.Primitive{ID: "string", Prim: ir.PrimString},
+				irtest.ScalarOf("uuid", "string"), &ir.Primitive{ID: "string", PrimitiveKind: ir.PrimitiveString},
 				&ir.Union{ID: "u"}, owning("x", mixing("deep"), wired("x.a", "a")), &ir.MapT{ID: "deep"},
 				&ir.Enum{ID: "enum"}, irtest.ScalarOf("cycle1", "cycle2"), irtest.ScalarOf("cycle2", "cycle1"),
 				&ir.Scalar{ID: "holey", Base: &ir.TypeRef{}},
@@ -203,7 +203,7 @@ func TestMemberReader_CostsTheCompositionNotTheWidth(t *testing.T) {
 	for _, width := range []int{100, 200, 400} {
 		props := []ir.Property{wired("wide.a", "a")}
 		for i := range width {
-			props = append(props, wired(ir.PropID(fmt.Sprintf("wide.p%d", i)), fmt.Sprintf("p%d", i)))
+			props = append(props, wired(ir.PropertyID(fmt.Sprintf("wide.p%d", i)), fmt.Sprintf("p%d", i)))
 		}
 		types := irtest.DocOf(
 			owning("wide", nil, props...),
@@ -217,7 +217,7 @@ func TestMemberReader_CostsTheCompositionNotTheWidth(t *testing.T) {
 		before := r.Steps()
 		got, ok := r.Member("bi", "a")
 		require.True(t, ok)
-		assert.Equal(t, ir.PropID("wide.a"), got.Property.ID)
+		assert.Equal(t, ir.PropertyID("wide.a"), got.Property.ID)
 		cost = append(cost, r.Steps()-before)
 	}
 	assert.Positive(t, cost[0], "a read takes steps")

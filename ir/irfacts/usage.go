@@ -143,8 +143,8 @@ func (r usageRoots) document(doc *ir.Document) {
 
 // callbackOperations returns the operations an HTTP binding names among its
 // callbacks: requests the API sends the client, not the other way round.
-func callbackOperations(doc *ir.Document) map[ir.OpID]bool {
-	callbacks := map[ir.OpID]bool{}
+func callbackOperations(doc *ir.Document) map[ir.OperationID]bool {
+	callbacks := map[ir.OperationID]bool{}
 	ir.ForEachOperation(doc, func(op ir.Operation) {
 		for _, b := range op.Bindings.HTTP {
 			for _, cb := range b.Callbacks {
@@ -208,9 +208,9 @@ func (r usageRoots) messages(doc *ir.Document, b *ir.MessageBinding) {
 	}
 	own, reply := UsageInput|UsageOutput, UsageInput|UsageOutput
 	switch b.Direction {
-	case ir.MsgDirectionSend:
+	case ir.MessageDirectionSend:
 		own, reply = UsageInput, UsageOutput
-	case ir.MsgDirectionReceive:
+	case ir.MessageDirectionReceive:
 		own, reply = UsageOutput, UsageInput
 	default:
 		// An unknown direction leaves both sides marked.

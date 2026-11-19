@@ -32,7 +32,7 @@ func TestDiags_DedupesByFullIdentity(t *testing.T) {
 		"inferredBy":      func(d *ir.Diagnostic) { d.Provenance.Inferred = "guess" },
 		"position line":   func(d *ir.Diagnostic) { d.Provenance.Position.Line = 5 },
 		"position column": func(d *ir.Diagnostic) { d.Provenance.Position.Column = 5 },
-		"node":            func(d *ir.Diagnostic) { d.Provenance.Node = "op/x" },
+		"node":            func(d *ir.Diagnostic) { d.Provenance.Node = "operation/x" },
 	}
 	for name, mutate := range differs {
 		t.Run(name, func(t *testing.T) {

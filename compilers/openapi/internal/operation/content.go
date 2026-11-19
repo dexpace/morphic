@@ -179,10 +179,10 @@ func keepBodyEncodings(c service.Ctx, media *soa.MediaType, mediaPtr jsontext.Po
 // the top type, so a consumer dropping the guess finds what the schema said.
 // The bytes keep what the reference says of null.
 func fileBodyType(ts *compile.Types, file *ir.FileInfo, declared ir.TypeRef) ir.TypeRef {
-	if declared.Target != ir.PrimTypeID(ir.PrimAny) || file.Inferred != "" {
+	if declared.Target != ir.PrimitiveTypeID(ir.PrimitiveAny) || file.Inferred != "" {
 		return declared
 	}
-	declared.Target = ts.PrimID(ir.PrimBytes)
+	declared.Target = ts.PrimID(ir.PrimitiveBytes)
 	return declared
 }
 

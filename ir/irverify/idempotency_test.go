@@ -17,8 +17,8 @@ import (
 // and either half without the other is a violation at the Idempotency itself.
 func TestVerify_IdempotencyTokenIsPairedWithItsKind(t *testing.T) {
 	t.Parallel()
-	const token = ir.ParamID("param/x/S/op/key")
-	const at = "doc.Services[0].Groups[0].Operations[0].Idempotency"
+	const token = ir.ParameterID("parameter/x/S/op/key")
+	const at = "document.Services[0].Groups[0].Operations[0].Idempotency"
 	for _, tc := range []struct {
 		name string
 		idem ir.Idempotency
@@ -33,7 +33,7 @@ func TestVerify_IdempotencyTokenIsPairedWithItsKind(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "op/x/S/op", Params: []ir.Parameter{{ID: token}}, Idempotency: tc.idem}
+			op := ir.Operation{ID: "operation/x/S/op", Params: []ir.Parameter{{ID: token}}, Idempotency: tc.idem}
 			var got []string
 			for _, v := range irverify.Verify(opDoc(op)) {
 				if v.Code == "ir/idempotency-token" {

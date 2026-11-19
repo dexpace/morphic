@@ -92,7 +92,7 @@ func TestGolden_EncodingNestedReferences(t *testing.T) {
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	const encoding = "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding"
+	const encoding = "type/anonymous/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding"
 	const header = encoding + "/doc/encoding/inner/headers/X-Inner/schema"
 	for _, ref := range []struct{ name, items, key string }{
 		{"Into", header + "/items", "X-Inner"},
@@ -111,7 +111,7 @@ func TestGolden_EncodingNestedReferences(t *testing.T) {
 		entry := unmodeledEntry(t, requestContent(t, op).Unmodeled, "openapi:encoding/"+nested)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, nested)
 	}
-	assert.Contains(t, doc.Types, ir.TypeID("t/anon/x-defs/Kept"), "a schema a nested header references")
+	assert.Contains(t, doc.Types, ir.TypeID("type/anonymous/x-defs/Kept"), "a schema a nested header references")
 	// Last: under -update the compare refuses a test whose assertions failed.
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/encoding_nested_references.golden.json", doc)
 }

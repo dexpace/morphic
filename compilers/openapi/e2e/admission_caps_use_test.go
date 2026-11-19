@@ -188,7 +188,7 @@ func TestCompile_AUseOfATargetAdmittingNoKindLowersAlikePastTheCaps(t *testing.T
 func requireNoModelOverStrings(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	for id, td := range doc.Types {
-		if strings.HasPrefix(string(id), "t/openapi/components/schemas/U_") {
+		if strings.HasPrefix(string(id), "type/openapi/components/schemas/U_") {
 			_, model := td.(*ir.Model)
 			require.False(t, model, "%s lowers to a Model", id)
 		}

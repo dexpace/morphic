@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "StreamingMedia30",
         "canonical": "streaming_media_30"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1events/get",
+              "id": "operation/openapi/paths/~1events/get",
               "name": {
                 "source": "streamEvents",
                 "canonical": "stream_events"
@@ -83,7 +83,7 @@
                       {
                         "mediaType": "text/event-stream",
                         "type": {
-                          "target": "t/anon/paths/~1events/get/responses/200/content/text~1event-stream/schema",
+                          "target": "type/anonymous/paths/~1events/get/responses/200/content/text~1event-stream/schema",
                           "nullable": false
                         },
                         "stream": {
@@ -101,7 +101,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/anon/paths/~1events/get/responses/200/content/text~1event-stream/schema",
+                  "target": "type/anonymous/paths/~1events/get/responses/200/content/text~1event-stream/schema",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -135,9 +135,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1events/get/responses/200/content/text~1event-stream/schema": {
+    "type/anonymous/paths/~1events/get/responses/200/content/text~1event-stream/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1events/get/responses/200/content/text~1event-stream/schema",
+      "id": "type/anonymous/paths/~1events/get/responses/200/content/text~1event-stream/schema",
       "name": {
         "hint": "response"
       },
@@ -150,21 +150,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1events/get/responses/200/content/text~1event-stream/schema/properties/message",
+          "id": "property/openapi/paths/~1events/get/responses/200/content/text~1event-stream/schema/properties/message",
           "name": {
             "source": "message",
             "canonical": "message"
           },
           "wireName": "message",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -181,9 +181,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -191,7 +191,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

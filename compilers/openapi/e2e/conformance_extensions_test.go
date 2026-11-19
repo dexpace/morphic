@@ -38,18 +38,18 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	sites := unmodeledSites(doc)
 	for _, tc := range []struct{ object, key, want, carrier string }{
-		{"openapi root", "openapi:x-audience", `"public"`, "doc.Unmodeled"},
-		{"info", "openapi:info/x-mark", `"XINFO"`, "doc.Unmodeled"},
-		{"contact", "openapi:info/contact/x-mark", `"XCONTACT"`, "doc.Unmodeled"},
-		{"license", "openapi:info/license/x-mark", `"XLICENSE"`, "doc.Unmodeled"},
-		{"externalDocs", "openapi:externalDocs/x-mark", `"XEXTERNALDOCS"`, "doc.Unmodeled"},
-		{"components", "openapi:components/x-mark", `"XCOMPONENTS"`, "doc.Unmodeled"},
-		{"tag", "openapi:x-mark", `"XTAG"`, "doc.TagDefs[0].Unmodeled"},
-		{"tag externalDocs", "openapi:externalDocs/x-mark", `"XTAGEXTERNALDOCS"`, "doc.TagDefs[0].Unmodeled"},
-		{"the group a tag forms", "openapi:x-mark", `"XTAG"`, "doc.Services[0].Groups[0].Unmodeled"},
-		{"server", "openapi:x-mark", `"XSERVER"`, "doc.Servers[server/openapi/servers/0].Unmodeled"},
-		{"server variable", "openapi:x-mark", `"XSERVERVARIABLE"`, "doc.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
-		{"paths", "openapi:paths/x-mark", `"XPATHS"`, "doc.Services[0].Unmodeled"},
+		{"openapi root", "openapi:x-audience", `"public"`, "document.Unmodeled"},
+		{"info", "openapi:info/x-mark", `"XINFO"`, "document.Unmodeled"},
+		{"contact", "openapi:info/contact/x-mark", `"XCONTACT"`, "document.Unmodeled"},
+		{"license", "openapi:info/license/x-mark", `"XLICENSE"`, "document.Unmodeled"},
+		{"externalDocs", "openapi:externalDocs/x-mark", `"XEXTERNALDOCS"`, "document.Unmodeled"},
+		{"components", "openapi:components/x-mark", `"XCOMPONENTS"`, "document.Unmodeled"},
+		{"tag", "openapi:x-mark", `"XTAG"`, "document.TagDefs[0].Unmodeled"},
+		{"tag externalDocs", "openapi:externalDocs/x-mark", `"XTAGEXTERNALDOCS"`, "document.TagDefs[0].Unmodeled"},
+		{"the group a tag forms", "openapi:x-mark", `"XTAG"`, "document.Services[0].Groups[0].Unmodeled"},
+		{"server", "openapi:x-mark", `"XSERVER"`, "document.Servers[server/openapi/servers/0].Unmodeled"},
+		{"server variable", "openapi:x-mark", `"XSERVERVARIABLE"`, "document.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
+		{"paths", "openapi:paths/x-mark", `"XPATHS"`, "document.Services[0].Unmodeled"},
 		{"path item", "openapi:pathItem/x-mark", `"XPATHITEM"`, ".Operations[0].Unmodeled"},
 		{"operation", "openapi:x-internal", `true`, ".Operations[0].Unmodeled"},
 		{"operation externalDocs", "openapi:externalDocs/x-mark", `"XOPERATIONEXTERNALDOCS"`,
@@ -64,17 +64,17 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 		{"error response", "openapi:x-mark", `"XERRORRESPONSE"`, ".Errors[0].Unmodeled"},
 		{"header", "openapi:x-mark", `"XHEADER"`, ".Headers[0].Unmodeled"},
 		{"callback", "openapi:callbacks/onEvent/x-mark", `"XCALLBACK"`, ".Bindings.HTTP[0].Unmodeled"},
-		{"schema xml", "openapi:xml/x-mark", `"XXML"`, "doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+		{"schema xml", "openapi:xml/x-mark", `"XXML"`, "document.Types[type/openapi/components/schemas/S].Unmodeled"},
 		{"schema externalDocs", "openapi:externalDocs/x-mark", `"XSCHEMAEXTERNALDOCS"`,
-			"doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+			"document.Types[type/openapi/components/schemas/S].Unmodeled"},
 		{"discriminator", "openapi:discriminator/x-mark", `"XDISCRIMINATOR"`,
-			"doc.Types[t/openapi/components/schemas/D].Unmodeled"},
+			"document.Types[type/openapi/components/schemas/D].Unmodeled"},
 		{"security scheme", "openapi:x-mark", `"XSECURITYSCHEME"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
 		{"oauth flows", "openapi:flows/x-mark", `"XOAUTHFLOWS"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
 		{"oauth flow", "openapi:x-mark", `"XOAUTHFLOW"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
 	} {
 		site, found := findUnmodeled(sitesOn(sites, tc.carrier), tc.key, tc.want)
 		if !found {
@@ -150,18 +150,18 @@ func assertRawPreservedBinary(t *testing.T, m *ir.Model) {
 // and x-* on a node of its own, while a position declaring nothing still
 // resolves straight to the shared primitive.
 func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	elem := assertAnnotatedScalar(t, doc, "t/anon/components/schemas/Codes/items", 3)
+	elem := assertAnnotatedScalar(t, doc, "type/anonymous/components/schemas/Codes/items", 3)
 	require.NotNil(t, elem.XML)
 	assert.Equal(t, "Code", elem.XML.Name)
 	assert.Contains(t, elem.Unmodeled, "openapi:x-facet")
 
-	assertAnnotatedScalar(t, doc, "t/anon/components/schemas/CodeIndex/additionalProperties", 64)
+	assertAnnotatedScalar(t, doc, "type/anonymous/components/schemas/CodeIndex/additionalProperties", 64)
 	assertAnnotatedScalar(t, doc,
-		"t/anon/paths/~1codes/get/responses/200/content/application~1json/schema", 8192)
+		"type/anonymous/paths/~1codes/get/responses/200/content/application~1json/schema", 8192)
 
 	bare, ok := doc.Types[componentID("Bare")].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/string"), bare.Elem.Target,
+	assert.Equal(t, ir.TypeID("type/primitive/string"), bare.ElementType.Target,
 		"an element declaring nothing must not grow a node of its own")
 
 	op, ok := opByName(doc, "listCodes")

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Discriminator aliased branch",
         "canonical": "discriminator_aliased_branch"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Implied/oneOf/0": {
+    "type/anonymous/components/schemas/Implied/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Implied/oneOf/0",
+      "id": "type/anonymous/components/schemas/Implied/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -75,16 +75,16 @@
         "pointer": "/components/schemas/Implied/oneOf/0"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Cat",
+        "target": "type/openapi/components/schemas/Cat",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Pet/oneOf/0": {
+    "type/anonymous/components/schemas/Pet/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Pet/oneOf/0",
+      "id": "type/anonymous/components/schemas/Pet/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -98,16 +98,16 @@
         "pointer": "/components/schemas/Pet/oneOf/0"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Cat",
+        "target": "type/openapi/components/schemas/Cat",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Twins/oneOf/0": {
+    "type/anonymous/components/schemas/Twins/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Twins/oneOf/0",
+      "id": "type/anonymous/components/schemas/Twins/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -121,16 +121,16 @@
         "pointer": "/components/schemas/Twins/oneOf/0"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Cat",
+        "target": "type/openapi/components/schemas/Cat",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Twins/oneOf/1": {
+    "type/anonymous/components/schemas/Twins/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Twins/oneOf/1",
+      "id": "type/anonymous/components/schemas/Twins/oneOf/1",
       "name": {
         "hint": "tabby"
       },
@@ -144,16 +144,16 @@
         "pointer": "/components/schemas/Twins/oneOf/1"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Cat",
+        "target": "type/openapi/components/schemas/Cat",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Unknown/oneOf/0": {
+    "type/anonymous/components/schemas/Unknown/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Unknown/oneOf/0",
+      "id": "type/anonymous/components/schemas/Unknown/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -175,16 +175,16 @@
         "pointer": "/components/schemas/Unknown/oneOf/0"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Cat",
+        "target": "type/openapi/components/schemas/Cat",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Cat": {
+    "type/openapi/components/schemas/Cat": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Cat",
+      "id": "type/openapi/components/schemas/Cat",
       "name": {
         "source": "Cat",
         "canonical": "cat"
@@ -198,21 +198,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Cat/properties/kind",
+          "id": "property/openapi/components/schemas/Cat/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -229,9 +229,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Dog": {
+    "type/openapi/components/schemas/Dog": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Dog",
+      "id": "type/openapi/components/schemas/Dog",
       "name": {
         "source": "Dog",
         "canonical": "dog"
@@ -245,21 +245,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Dog/properties/kind",
+          "id": "property/openapi/components/schemas/Dog/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -276,9 +276,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Implied": {
+    "type/openapi/components/schemas/Implied": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Implied",
+      "id": "type/openapi/components/schemas/Implied",
       "name": {
         "source": "Implied",
         "canonical": "implied"
@@ -296,7 +296,7 @@
             "hint": "cat"
           },
           "type": {
-            "target": "t/anon/components/schemas/Implied/oneOf/0",
+            "target": "type/anonymous/components/schemas/Implied/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -306,7 +306,7 @@
             "hint": "dog"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Dog",
+            "target": "type/openapi/components/schemas/Dog",
             "nullable": false
           },
           "docs": {}
@@ -317,17 +317,17 @@
       "discriminator": {
         "propertyName": "kind",
         "mapping": {
-          "Cat": "t/anon/components/schemas/Implied/oneOf/0",
-          "Dog": "t/openapi/components/schemas/Dog"
+          "Cat": "type/anonymous/components/schemas/Implied/oneOf/0",
+          "Dog": "type/openapi/components/schemas/Dog"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Pet": {
+    "type/openapi/components/schemas/Pet": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Pet",
+      "id": "type/openapi/components/schemas/Pet",
       "name": {
         "source": "Pet",
         "canonical": "pet"
@@ -345,7 +345,7 @@
             "hint": "cat"
           },
           "type": {
-            "target": "t/anon/components/schemas/Pet/oneOf/0",
+            "target": "type/anonymous/components/schemas/Pet/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -355,7 +355,7 @@
             "hint": "dog"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Dog",
+            "target": "type/openapi/components/schemas/Dog",
             "nullable": false
           },
           "docs": {}
@@ -366,17 +366,17 @@
       "discriminator": {
         "propertyName": "kind",
         "mapping": {
-          "cat": "t/anon/components/schemas/Pet/oneOf/0",
-          "dog": "t/openapi/components/schemas/Dog"
+          "cat": "type/anonymous/components/schemas/Pet/oneOf/0",
+          "dog": "type/openapi/components/schemas/Dog"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Twins": {
+    "type/openapi/components/schemas/Twins": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Twins",
+      "id": "type/openapi/components/schemas/Twins",
       "name": {
         "source": "Twins",
         "canonical": "twins"
@@ -394,7 +394,7 @@
             "hint": "cat"
           },
           "type": {
-            "target": "t/anon/components/schemas/Twins/oneOf/0",
+            "target": "type/anonymous/components/schemas/Twins/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -404,7 +404,7 @@
             "hint": "tabby"
           },
           "type": {
-            "target": "t/anon/components/schemas/Twins/oneOf/1",
+            "target": "type/anonymous/components/schemas/Twins/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -414,7 +414,7 @@
             "hint": "dog"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Dog",
+            "target": "type/openapi/components/schemas/Dog",
             "nullable": false
           },
           "docs": {}
@@ -425,18 +425,18 @@
       "discriminator": {
         "propertyName": "kind",
         "mapping": {
-          "cat": "t/anon/components/schemas/Twins/oneOf/0",
-          "dog": "t/openapi/components/schemas/Dog",
-          "tom": "t/anon/components/schemas/Twins/oneOf/0"
+          "cat": "type/anonymous/components/schemas/Twins/oneOf/0",
+          "dog": "type/openapi/components/schemas/Dog",
+          "tom": "type/anonymous/components/schemas/Twins/oneOf/0"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Unknown": {
+    "type/openapi/components/schemas/Unknown": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Unknown",
+      "id": "type/openapi/components/schemas/Unknown",
       "name": {
         "source": "Unknown",
         "canonical": "unknown"
@@ -454,7 +454,7 @@
             "hint": "cat"
           },
           "type": {
-            "target": "t/anon/components/schemas/Unknown/oneOf/0",
+            "target": "type/anonymous/components/schemas/Unknown/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -464,7 +464,7 @@
             "hint": "dog"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Dog",
+            "target": "type/openapi/components/schemas/Dog",
             "nullable": false
           },
           "docs": {}
@@ -475,17 +475,17 @@
       "discriminator": {
         "propertyName": "kind",
         "mapping": {
-          "Dog": "t/openapi/components/schemas/Dog",
-          "cat": "t/anon/components/schemas/Unknown/oneOf/0"
+          "Dog": "type/openapi/components/schemas/Dog",
+          "cat": "type/anonymous/components/schemas/Unknown/oneOf/0"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -493,7 +493,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

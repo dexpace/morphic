@@ -32,7 +32,7 @@ func assertRefChainAnnotations(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		p, found := propByWire(holder, wire)
 		require.True(t, found, wire)
 		require.NotNil(t, p.Default, wire)
-		assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: w.def}, *p.Default, "%s: the nearest default", wire)
+		assert.Equal(t, ir.Value{Kind: ir.ValueString, String: w.def}, *p.Default, "%s: the nearest default", wire)
 		assert.Equal(t, w.desc, p.Docs.Description, "%s: the nearest description", wire)
 	}
 
@@ -47,16 +47,16 @@ func assertRefChainAnnotations(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // is still kept whole.
 func assertKeptRefLandings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	sub, ok := doc.Types["t/anon/components/schemas/Kept/$defs/Sub"].(*ir.Model)
+	sub, ok := doc.Types["type/anonymous/components/schemas/Kept/$defs/Sub"].(*ir.Model)
 	require.True(t, ok, "the landing of a kept not is lowered")
 	require.Len(t, sub.Properties, 1)
 	assert.Equal(t, "kept", sub.Properties[0].WireName)
 
-	mid := doc.Types["t/anon/components/schemas/Through/$defs/Mid"]
+	mid := doc.Types["type/anonymous/components/schemas/Through/$defs/Mid"]
 	require.NotNil(t, mid, "a hop the chain only passes is lowered")
 	assert.Equal(t, "mid", mid.Common().Docs.Description, "with what it writes beside its $ref")
-	assert.NotNil(t, doc.Types["t/anon/components/schemas/Through/$defs/End"], "and so is the end")
-	assert.NotNil(t, doc.Types["t/anon/components/schemas/Typed/$defs/Sub"], "as is a landing a lowered keyword names")
+	assert.NotNil(t, doc.Types["type/anonymous/components/schemas/Through/$defs/End"], "and so is the end")
+	assert.NotNil(t, doc.Types["type/anonymous/components/schemas/Typed/$defs/Sub"], "as is a landing a lowered keyword names")
 
 	kept, ok := typeByName(doc, "Kept").(*ir.Model)
 	require.True(t, ok)
@@ -81,7 +81,7 @@ func TestConformance_APropertyNamingAnAliasReadsItsDescription(t *testing.T) {
 	for _, td := range doc.Types {
 		if m, ok := td.(*ir.Model); ok {
 			for _, p := range m.Properties {
-				if p.Type.Target == "t/openapi/components/schemas/MeetingAlias" {
+				if p.Type.Target == "type/openapi/components/schemas/MeetingAlias" {
 					naming = append(naming, p)
 				}
 			}

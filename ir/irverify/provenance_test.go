@@ -23,7 +23,7 @@ func TestVerify_InRangeProvenanceSourceIsClean(t *testing.T) {
 	doc.Sources = oneSource()
 	// The pointer matches the ID's own path, as a derived ID's always does: an ID
 	// disagreeing with the coordinate it records is its own violation.
-	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: 0, Pointer: "/Model"}
+	doc.Types["type/x/Model"].Common().Provenance = ir.Provenance{Source: 0, Pointer: "/Model"}
 	assert.Empty(t, verifyDeclared(doc))
 }
 
@@ -33,12 +33,12 @@ func TestVerify_InRangeProvenanceSourceIsClean(t *testing.T) {
 func TestVerify_OutOfRangeProvenanceSourceIsAViolation(t *testing.T) {
 	doc := validDoc()
 	doc.Sources = oneSource()
-	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: 3}
+	doc.Types["type/x/Model"].Common().Provenance = ir.Provenance{Source: 3}
 
 	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/provenance-source-out-of-range", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/Model].Provenance", got[0].Path)
+	assert.Equal(t, "document.Types[type/x/Model].Provenance", got[0].Path)
 }
 
 // TestVerify_NoSourceSentinelIsClean pins the declared out-of-table value: a
@@ -47,7 +47,7 @@ func TestVerify_OutOfRangeProvenanceSourceIsAViolation(t *testing.T) {
 func TestVerify_NoSourceSentinelIsClean(t *testing.T) {
 	doc := validDoc()
 	doc.Sources = oneSource()
-	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: ir.NoSource}
+	doc.Types["type/x/Model"].Common().Provenance = ir.Provenance{Source: ir.NoSource}
 	assert.Empty(t, verifyDeclared(doc))
 }
 
@@ -59,7 +59,7 @@ func TestVerify_BelowSentinelProvenanceSourceIsAViolation(t *testing.T) {
 	for _, src := range []int{ir.NoSource - 1, ir.NoSource - 2, math.MinInt} {
 		doc := validDoc()
 		doc.Sources = oneSource()
-		doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: src}
+		doc.Types["type/x/Model"].Common().Provenance = ir.Provenance{Source: src}
 		assert.Contains(t, codesOf(verifyDeclared(doc)), "ir/provenance-source-out-of-range",
 			"source %d addresses no declared source and is not the declared sentinel", src)
 	}
@@ -70,7 +70,7 @@ func TestVerify_BelowSentinelProvenanceSourceIsAViolation(t *testing.T) {
 func sourcelessDoc(source int) *ir.Document {
 	doc := tabledDoc()
 	doc.Sources = nil
-	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: source}
+	doc.Types["type/x/Model"].Common().Provenance = ir.Provenance{Source: source}
 	return doc
 }
 
@@ -103,7 +103,7 @@ func TestVerify_ProvenanceIsCheckedEverywhere(t *testing.T) {
 	doc.Diagnostics = []ir.Diagnostic{
 		ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{Source: 9}),
 	}
-	doc.Types["t/x/Model"].Common().Unmodeled = ir.Unmodeled{
+	doc.Types["type/x/Model"].Common().Unmodeled = ir.Unmodeled{
 		"openapi:x-ext": {
 			Reason:     ir.ReasonVendorExtension,
 			Value:      ir.RawValue(`1`),
@@ -202,7 +202,7 @@ func TestVerify_ProvenanceLocatorRules(t *testing.T) {
 		},
 		{
 			name: "a node on NoSource is exactly what a pass finding looks like",
-			prov: ir.Provenance{Source: ir.NoSource, Node: "op/x"},
+			prov: ir.Provenance{Source: ir.NoSource, Node: "operation/x"},
 			want: nil,
 		},
 		{
@@ -211,7 +211,7 @@ func TestVerify_ProvenanceLocatorRules(t *testing.T) {
 				Source:   0,
 				Pointer:  "/x",
 				Position: ir.Position{Line: 5, Column: 1},
-				Node:     "op/x",
+				Node:     "operation/x",
 			},
 			want: nil,
 		},
@@ -256,16 +256,16 @@ func TestVerify_AWriterIsAnOverlayWritingIntoTheSource(t *testing.T) {
 	}{
 		{"none", 0, 0, nil},
 		{"the overlay", 0, 1, nil},
-		{"past the table", 0, 3, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
-		{"negative", 0, -1, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
-		{"no source to write into", ir.NoSource, 1, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
-		{"the source itself", 1, 1, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
-		{"a source that is no overlay", 0, 2, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
+		{"past the table", 0, 3, []string{"document.Types[type/x/M].Provenance.WrittenBy"}},
+		{"negative", 0, -1, []string{"document.Types[type/x/M].Provenance.WrittenBy"}},
+		{"no source to write into", ir.NoSource, 1, []string{"document.Types[type/x/M].Provenance.WrittenBy"}},
+		{"the source itself", 1, 1, []string{"document.Types[type/x/M].Provenance.WrittenBy"}},
+		{"a source that is no overlay", 0, 2, []string{"document.Types[type/x/M].Provenance.WrittenBy"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := &ir.Document{Sources: sources, Types: ir.TypeRegistry{"t/x/M": &ir.Model{
-				ID: "t/x/M", Provenance: ir.Provenance{Source: tc.source, Pointer: "/m", WrittenBy: tc.writer},
+			doc := &ir.Document{Sources: sources, Types: ir.TypeRegistry{"type/x/M": &ir.Model{
+				ID: "type/x/M", Provenance: ir.Provenance{Source: tc.source, Pointer: "/m", WrittenBy: tc.writer},
 			}}}
 			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), "ir/provenance-writer"))
 		})
@@ -288,8 +288,8 @@ func TestVerify_ARelatedEntryIsHeldAsAProvenanceIs(t *testing.T) {
 	doc.Diagnostics = []ir.Diagnostic{d}
 
 	got := verifyDeclared(doc)
-	assert.Equal(t, []string{"doc.Diagnostics[0].Related[0].Provenance"}, violationPaths(got, "ir/provenance-source-out-of-range"))
-	assert.Equal(t, []string{"doc.Diagnostics[0].Related[1].Provenance"}, violationPaths(got, "ir/provenance-pointer-malformed"))
+	assert.Equal(t, []string{"document.Diagnostics[0].Related[0].Provenance"}, violationPaths(got, "ir/provenance-source-out-of-range"))
+	assert.Equal(t, []string{"document.Diagnostics[0].Related[1].Provenance"}, violationPaths(got, "ir/provenance-pointer-malformed"))
 }
 
 // TestVerify_ARelatedEntryNamesSomething holds every related entry to naming a
@@ -308,16 +308,16 @@ func TestVerify_ARelatedEntryNamesSomething(t *testing.T) {
 		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource}},
 		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Pointer: "/a"}},
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{}},
-		{Role: ir.RelatedKept, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/a"}},
-		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/a"}},
+		{Role: ir.RelatedKept, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/a"}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/a"}},
 	}
 	doc.Diagnostics = []ir.Diagnostic{d}
 
 	got := verifyDeclared(doc)
 
-	assert.Equal(t, []string{"doc.Diagnostics[0].Related[0].Provenance", "doc.Diagnostics[0].Related[1].Provenance"},
+	assert.Equal(t, []string{"document.Diagnostics[0].Related[0].Provenance", "document.Diagnostics[0].Related[1].Provenance"},
 		violationPaths(got, "ir/empty-related"))
-	assert.Equal(t, []string{"doc.Diagnostics[0].Related[1].Provenance", "doc.Diagnostics[0].Related[2].Provenance"},
+	assert.Equal(t, []string{"document.Diagnostics[0].Related[1].Provenance", "document.Diagnostics[0].Related[2].Provenance"},
 		violationPaths(got, "ir/related-names-no-node"))
 	for _, v := range got {
 		if v.Code == "ir/empty-related" {
@@ -335,14 +335,14 @@ func TestVerify_ADecidedEntryNamesItsNode(t *testing.T) {
 	doc.Sources = oneSource()
 	d := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
 	d.Related = []ir.Related{
-		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/a"}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/a"}},
 		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource}},
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/a"}},
 	}
 	doc.Diagnostics = []ir.Diagnostic{d}
 
 	got := verifyDeclared(doc)
-	assert.Equal(t, []string{"doc.Diagnostics[0].Related[1].Provenance"}, violationPaths(got, "ir/related-names-no-node"))
+	assert.Equal(t, []string{"document.Diagnostics[0].Related[1].Provenance"}, violationPaths(got, "ir/related-names-no-node"))
 	for _, v := range got {
 		if v.Code == "ir/related-names-no-node" {
 			assert.Equal(t, "diagnostic's related entry says the finding decided a node and names none", v.Message)

@@ -86,7 +86,7 @@ func compileUnrefused(t *testing.T, spec string) (*ir.Document, []ir.Diagnostic)
 // pointer: the anonymous nodes a position hoisted.
 func anonymousNodesAt(doc *ir.Document, pointer string) []ir.TypeID {
 	var ids []ir.TypeID
-	prefix := "t/anon" + pointer
+	prefix := "type/anonymous" + pointer
 	for id := range doc.Types {
 		if s := string(id); s == prefix || strings.HasPrefix(s, prefix+"/") {
 			ids = append(ids, id)

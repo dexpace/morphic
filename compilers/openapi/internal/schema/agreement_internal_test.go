@@ -25,7 +25,7 @@ func TestBoundOf_FillsAFieldForEveryValueBound(t *testing.T) {
 	full := &ir.Constraints{
 		Min: new(ir.BigVal("1")), ExclusiveMin: new(ir.BigVal("1")), Max: new(ir.BigVal("9")),
 		ExclusiveMax: new(ir.BigVal("9")), MultipleOf: new(ir.BigVal("2")), MinLength: new(int64(1)),
-		MaxLength: new(int64(9)), MinProps: new(int64(1)), MaxProps: new(int64(9)), Pattern: "^a$",
+		MaxLength: new(int64(9)), MinProperties: new(int64(1)), MaxProperties: new(int64(9)), Pattern: "^a$",
 	}
 	for _, keyword := range valueConstraintKeywords {
 		assert.NotEqual(t, ir.Constraints{}, boundOf(keyword, full), keyword)

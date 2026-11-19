@@ -21,7 +21,7 @@ import (
 // an alias as Base, Implements and Mixins; alias scalars in chains and cycles;
 // scalars with no Base; and a typed nil. It returns the document, the type IDs
 // and the property IDs worth asking about.
-func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropID) {
+func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropertyID) {
 	n := 1 + rng.IntN(20)
 	types := make([]ir.TypeID, 0, n+3)
 	for i := range n {
@@ -30,7 +30,7 @@ func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropID) {
 	declared := types[:n:n]
 	types = append(types, "ghost", "nilm", "")
 	pick := func() ir.TypeID { return types[rng.IntN(len(types))] }
-	props := []ir.PropID{"p/ghost"}
+	props := []ir.PropertyID{"property/ghost"}
 	doc := irtest.DocOf()
 	for _, id := range declared {
 		if rng.IntN(4) == 0 {
@@ -39,7 +39,7 @@ func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropID) {
 		}
 		doc.Types[id] = irtest.ModelOf(id, func(m *ir.Model) {
 			for range rng.IntN(3) {
-				p := ir.PropID(fmt.Sprintf("p%d", rng.IntN(8)))
+				p := ir.PropertyID(fmt.Sprintf("p%d", rng.IntN(8)))
 				m.Properties = append(m.Properties, prop(p))
 				props = append(props, p)
 			}
@@ -95,7 +95,7 @@ func TestWithin_AnswersAsTheUnlimitedWalk(t *testing.T) {
 				requireWithinAgrees(t, func(limit int) (bool, int, bool) { return ir.IsSubtypeWithin(doc, a, b, limit) },
 					ir.IsSubtype(doc, a, b), fmt.Sprintf("seed %d: IsSubtypeWithin(%q, %q)", seed, a, b))
 			}
-			exposed := ir.ExposedProps(doc, a)
+			exposed := ir.ExposedProperties(doc, a)
 			for _, p := range props {
 				requireWithinAgrees(t, func(limit int) (bool, int, bool) { return ir.ExposesWithin(doc, a, p, limit) },
 					exposed[p], fmt.Sprintf("seed %d: ExposesWithin(%q, %q)", seed, a, p))
@@ -141,14 +141,14 @@ func TestExposesWithin_CountsEachSourceAndProperty(t *testing.T) {
 		irtest.ModelOf("n", func(m *ir.Model) { m.Properties = []ir.Property{prop("n.p"), prop("n.q")} }),
 	)
 	for _, tc := range []struct {
-		prop    ir.PropID
+		prop    ir.PropertyID
 		exposed bool
 		steps   int
 	}{
-		{"m.a", true, 2},     // m, its first property
-		{"n.p", true, 8},     // m and its three properties, ghost, viaAlias, n, n.p
-		{"p/none", false, 9}, // every type and property: m, three, ghost, viaAlias, n, two
-		{"n.q", true, 9},     // the last property read
+		{"m.a", true, 2},            // m, its first property
+		{"n.p", true, 8},            // m and its three properties, ghost, viaAlias, n, n.p
+		{"property/none", false, 9}, // every type and property: m, three, ghost, viaAlias, n, two
+		{"n.q", true, 9},            // the last property read
 	} {
 		exposed, spent, ok := ir.ExposesWithin(doc, "m", tc.prop, math.MaxInt)
 		assert.Equal(t, []any{tc.exposed, tc.steps, true}, []any{exposed, spent, ok}, "m exposes %s", tc.prop)

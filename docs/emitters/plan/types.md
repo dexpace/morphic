@@ -2,16 +2,16 @@
 
 ```go
 type TypePlan struct {
-    Flattened  []ir.PropID          // ir.FlattenedProperties over Base+Implements+Mixins+own: the
+    Flattened  []ir.PropertyID          // ir.FlattenedProperties over Base+Implements+Mixins+own: the
                                     // declaration each member takes, in layout order — COMPUTED
-    Required   []ir.PropID          // the flattened properties an instance must carry: each one
+    Required   []ir.PropertyID          // the flattened properties an instance must carry: each one
                                     // a declaration marks Required or a Requires names
     Undeclared []string             // the names Requires lists that no flattened property declares,
                                     // in order: members only the catch-all governs
-    Redacted   []ir.PropID          // the flattened members a value is redacted at: each whose
+    Redacted   []ir.PropertyID          // the flattened members a value is redacted at: each whose
                                     // ir.FlatProperty.Secret is set, as one of its declarations is
                                     // Secret or of a sensitive type (../refine/redaction.md)
-    Deprecated map[ir.PropID]*ir.Deprecation // the flattened members a declaration deprecates,
+    Deprecated map[ir.PropertyID]*ir.Deprecation // the flattened members a declaration deprecates,
                                     // each by the declaration it takes, to its
                                     // ir.FlatProperty.Deprecation: an overridden declaration's
                                     // where the taken one states none (../refine/deprecation.md)
@@ -47,11 +47,11 @@ type TypePlan struct {
 // with a variant in the union's place, and in that of each union it narrows in turn (below).
 type ComposedVariant struct {
     Over        []ir.TypeID         // the variant taken in each union's place, outermost first
-    Flattened   []ir.PropID         // these six as TypePlan's own, read over the composition
-    Required    []ir.PropID         // with Over's variants in their unions' places
+    Flattened   []ir.PropertyID         // these six as TypePlan's own, read over the composition
+    Required    []ir.PropertyID         // with Over's variants in their unions' places
     Undeclared  []string
-    Redacted    []ir.PropID
-    Deprecated  map[ir.PropID]*ir.Deprecation
+    Redacted    []ir.PropertyID
+    Deprecated  map[ir.PropertyID]*ir.Deprecation
     Unflattened []ir.TypeID
     Shapes      []ModelShape        // one for each of the model's, holding what Flattened shows
                                     // there
@@ -71,7 +71,7 @@ type ScalarChain struct {           // a Scalar's Base chain walked to its root 
 type DiscrimFacts struct {          // Mapping/Default resolved to TypeIDs, never names (INV3)
     Locator  DiscrimLocator         // property | property_name | index
     WireKey  string                 // wire name of the tag property ("" when Locator == index)
-    Index    *int                   // positional tag element (Erlang tagged tuples); nil otherwise
+    TupleElementIndex    *int                   // positional tag element (Erlang tagged tuples); nil otherwise
     Mapping  map[string]ir.TypeID   // wire tag value → variant ID: every route, those a union's nil
                                     // Mapping leaves to its variants' type names written out
                                     // (../refine/unions.md#the-tag-a-variants-value-carries)
@@ -97,7 +97,7 @@ any of its declarations says so, an overridden one included, or where this model
 lists its wire name in `Requires`, as `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id`
 required on the composed model. A name `Requires` lists that no flattened property declares is
 `Undeclared`: a member only the catch-all governs, whose value the catch-all types —
-`AdditionalProps.Value`, or the top type where the model has no catch-all or scopes values by
+`AdditionalProperties.Value`, or the top type where the model has no catch-all or scopes values by
 `Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
 to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when
 `Tags` is a list, is in `Unflattened` as the entry names it: the declaration over `Flattened` does
@@ -243,7 +243,7 @@ admitting no value in common, by these rules, and a pair none of them separates 
   `Flatten` property's members at its model's own level, and a position's kinds read from the
   property's own `Encoding` before its type's. One requires a member the other cannot hold: one it
   does not declare while it is closed and no model in its flattening has a catch-all
-  (`AdditionalProps`), or one it declares at a position disjoint from the first's by these rules.
+  (`AdditionalProperties`), or one it declares at a position disjoint from the first's by these rules.
   Both are read in the shape the union is decided in
   ([ModelShape](#modelshape--visibility-projection)): a member that shape leaves out is undeclared
   there, and one separates only where the shape holds and requires it, as `Required` and
@@ -319,7 +319,7 @@ type ModelShape struct {
                              // type's own name, the read shape's (below)
     Alias     bool           // its projection coincides with the read one: declared as an alias
                              // of the type's own declaration (below)
-    Props     []ir.PropID    // a model's properties visible in this shape
+    Props     []ir.PropertyID    // a model's properties visible in this shape
     Inclusive bool           // a union's: two variants can admit one value in this shape (above)
     Inferred  map[string]ir.Provenance
 }
@@ -429,7 +429,7 @@ coincide, every model it reaches holding and requiring the same members in both,
 declaration where they share a name, and one coinciding with the read projection is an alias of that
 one's ([below](#the-declaration-a-shape-takes)), so they take one answer, inclusive where either is.
 A type no shape reaches is declared once, unprojected: it holds every member but those
-`Visibility.None` hides, requires only the required members no filter can leave out, and
+`Visibility.InvisibleInEveryLifecycle` hides, requires only the required members no filter can leave out, and
 `TypePlan.Inclusive` decides it. A shape reaching a model reaches each union it narrows, too, every
 value of the model being a value of one of that union's variants
 ([inheritance](../refine/models.md#inheritance)).

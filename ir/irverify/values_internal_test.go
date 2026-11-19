@@ -13,9 +13,9 @@ import (
 )
 
 // TestValuePayloads_CoverTheDeclaredKinds ties valuePayloads to the ir
-// sources' own ValueKind const block, the way TestPrimKind_TiesToConstBlock and
+// sources' own ValueKind const block, the way TestPrimitiveKind_TiesToConstBlock and
 // TestAuthKind_TiesToConstBlock (ir/types_test.go, ir/auth_test.go) tie Valid to
-// PrimKind's and AuthKind's declarations. valuePayloads has no Valid method
+// PrimitiveKind's and AuthKind's declarations. valuePayloads has no Valid method
 // beside it for those tests' pattern to reuse, so nothing else catches a kind
 // added to the enum without saying what it selects, or a stale entry left
 // behind for a kind that no longer exists — both directions are asserted in one
@@ -74,14 +74,14 @@ func TestValuePayloads_NameValueFields(t *testing.T) {
 
 // valueCarriers derives, from the ir package, every struct field that holds an
 // ir.Value — a Value, a pointer to one, or a slice, array or map of either —
-// named "Type.Field", sorted. Value, Field and CtorValue are left out: they are
+// named "Type.Field", sorted. Value, Field and ConstructorValue are left out: they are
 // a value's own payload, reached only below a value the walk has already
 // found, which TestVerify_NestedStrayPayloadIsReportedAtItsPath covers.
 func valueCarriers(t *testing.T) []string {
 	t.Helper()
 	value, err := irDecls(t).Named("Value")
 	require.NoError(t, err)
-	payloadTypes := map[string]bool{"Value": true, "Field": true, "CtorValue": true}
+	payloadTypes := map[string]bool{"Value": true, "Field": true, "ConstructorValue": true}
 
 	var out []string
 	for _, f := range declaredFields(t) {

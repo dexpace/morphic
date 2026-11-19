@@ -46,10 +46,10 @@ func utf8Carriers() []utf8Carrier {
 		{
 			name: "type registry key and its node ID",
 			plant: func(s string) (*ir.Document, []string) {
-				id := ir.TypeID("t/x/" + s)
+				id := ir.TypeID("type/x/" + s)
 				m := &ir.Model{ID: id, Name: ir.Naming{Source: "Model", Canonical: "model"}}
 				doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: m}}
-				path := "doc.Types[" + string(id) + "]"
+				path := "document.Types[" + string(id) + "]"
 				return doc, []string{path + ".key", path + ".ID"}
 			},
 			repair: "M",
@@ -59,7 +59,7 @@ func utf8Carriers() []utf8Carrier {
 			plant: func(s string) (*ir.Document, []string) {
 				doc := validDoc()
 				doc.Docs.Description = s
-				return doc, []string{"doc.Docs.Description"}
+				return doc, []string{"document.Docs.Description"}
 			},
 			repair: "fine",
 		},
@@ -67,12 +67,12 @@ func utf8Carriers() []utf8Carrier {
 			name: "a string Value.Str",
 			plant: func(s string) (*ir.Document, []string) {
 				doc := validDoc()
-				doc.Types["t/x/L"] = &ir.Literal{
-					ID:    "t/x/L",
+				doc.Types["type/x/L"] = &ir.Literal{
+					ID:    "type/x/L",
 					Name:  ir.Naming{Source: "l", Canonical: "l"},
-					Value: ir.Value{Kind: ir.ValueString, Str: s},
+					Value: ir.Value{Kind: ir.ValueString, String: s},
 				}
-				return doc, []string{"doc.Types[t/x/L].Value.Str"}
+				return doc, []string{"document.Types[type/x/L].Value.String"}
 			},
 			repair: "fine",
 		},
@@ -81,7 +81,7 @@ func utf8Carriers() []utf8Carrier {
 			plant: func(s string) (*ir.Document, []string) {
 				doc := validDoc()
 				doc.Name = s
-				return doc, []string{"doc.Name"}
+				return doc, []string{"document.Name"}
 			},
 			repair: "Fine API",
 		},
@@ -96,7 +96,7 @@ func utf8Carriers() []utf8Carrier {
 					ir.NewDiagnostic(ir.SeverityWarning, "openapi/validation", "clean", ir.Provenance{}),
 					{Severity: ir.SeverityError, Code: "openapi/validation", Message: s},
 				}
-				return doc, []string{"doc.Diagnostics[1].Message"}
+				return doc, []string{"document.Diagnostics[1].Message"}
 			},
 			repair: "also clean",
 		},
@@ -108,7 +108,7 @@ func utf8Carriers() []utf8Carrier {
 				doc.Diagnostics = []ir.Diagnostic{
 					ir.NewDiagnostic(ir.SeverityError, "openapi/validation", "message", ir.Provenance{Pointer: pointer}),
 				}
-				return doc, []string{"doc.Diagnostics[0].Provenance.Pointer"}
+				return doc, []string{"document.Diagnostics[0].Provenance.Pointer"}
 			},
 			// NewDiagnostic sanitizes Message, not Provenance: a validator-derived
 			// pointer reaches the document exactly as handed to it (GitHub #520).
@@ -124,11 +124,11 @@ func utf8Carriers() []utf8Carrier {
 					ir.NewDiagnostic(ir.SeverityError, "ir/dangling-type-ref", "message",
 						ir.Provenance{Source: ir.NoSource, Node: s}),
 				}
-				return doc, []string{"doc.Diagnostics[0].Provenance.Node"}
+				return doc, []string{"document.Diagnostics[0].Provenance.Node"}
 			},
 			// A pass spells its node from the walk, map keys included, and nothing
 			// sanitizes it on the way in.
-			repair: "t/x/Model",
+			repair: "type/x/Model",
 		},
 		{
 			name: "an Unmodeled map key",
@@ -136,7 +136,7 @@ func utf8Carriers() []utf8Carrier {
 				doc := docWithUnmodeled(ir.Unmodeled{
 					"openapi:" + s: {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`)},
 				})
-				return doc, []string{"doc.Types[t/x/Model].Unmodeled[openapi:" + s + "].key"}
+				return doc, []string{"document.Types[type/x/Model].Unmodeled[openapi:" + s + "].key"}
 			},
 			repair: "x-rate-limit",
 		},
@@ -144,14 +144,14 @@ func utf8Carriers() []utf8Carrier {
 			name: "Naming.Source",
 			plant: func(s string) (*ir.Document, []string) {
 				doc := modelNamed(ir.Naming{Source: s, Canonical: ir.CanonicalWords(s)})
-				return doc, []string{"doc.Types[t/x/M].Name.Source"}
+				return doc, []string{"document.Types[type/x/M].Name.Source"}
 			},
 			repair: "good",
 		},
 		{
 			name: "Naming.Canonical",
 			plant: func(s string) (*ir.Document, []string) {
-				return canonicalOnly(s), []string{"doc.Types[t/x/M].Name.Canonical"}
+				return canonicalOnly(s), []string{"document.Types[type/x/M].Name.Canonical"}
 			},
 			repair: "good",
 			others: []string{"ir/naming-cased", "ir/naming-not-words"},
@@ -159,7 +159,7 @@ func utf8Carriers() []utf8Carrier {
 		{
 			name: "Naming.Hint",
 			plant: func(s string) (*ir.Document, []string) {
-				return hintOnly(s), []string{"doc.Types[t/x/M].Name.Hint"}
+				return hintOnly(s), []string{"document.Types[type/x/M].Name.Hint"}
 			},
 			repair: "good",
 			others: []string{"ir/naming-cased", "ir/naming-not-words"},
@@ -168,7 +168,7 @@ func utf8Carriers() []utf8Carrier {
 			name: "a Naming alias",
 			plant: func(s string) (*ir.Document, []string) {
 				doc := modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: []string{"ok", s}})
-				return doc, []string{"doc.Types[t/x/M].Name.Aliases[1]"}
+				return doc, []string{"document.Types[type/x/M].Name.Aliases[1]"}
 			},
 			repair: "good",
 		},

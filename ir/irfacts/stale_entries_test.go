@@ -94,9 +94,9 @@ func TestStaleEntries_ARealEntryIsStillNeeded(t *testing.T) {
 	t.Run("partRoles", func(t *testing.T) {
 		t.Parallel()
 		without := maps.Clone(partRoles)
-		delete(without, "List.Elem")
+		delete(without, "List.ElementType")
 		_, walks := walkEveryKind(t, without, notPartFields)
-		assert.Contains(t, undecidedOf(walks), "List.Elem")
+		assert.Contains(t, undecidedOf(walks), "List.ElementType")
 	})
 	t.Run("notPartFields", func(t *testing.T) {
 		t.Parallel()

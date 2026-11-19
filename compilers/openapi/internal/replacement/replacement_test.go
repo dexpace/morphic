@@ -47,47 +47,47 @@ func deprecated() *ir.Deprecation { return &ir.Deprecation{} }
 func replacementDoc(value string) *ir.Document {
 	v2 := ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")
 	old := ids.DocumentIDNamespace{}.NamedType("/components/schemas/old")
-	header := func(id ir.PropID, name string, unmodeled ir.Unmodeled, dep *ir.Deprecation) ir.Header {
+	header := func(id ir.PropertyID, name string, unmodeled ir.Unmodeled, dep *ir.Deprecation) ir.Header {
 		return ir.Header{ID: id, WireName: name, Unmodeled: unmodeled, Deprecation: dep}
 	}
 	pair := func(at string) []ir.Header {
-		return []ir.Header{header(ir.PropID(at+"/old"), "X-Old", names(value), deprecated()), header(ir.PropID(at+"/v2"), "v2", nil, nil)}
+		return []ir.Header{header(ir.PropertyID(at+"/old"), "X-Old", names(value), deprecated()), header(ir.PropertyID(at+"/v2"), "v2", nil, nil)}
 	}
 	return &ir.Document{
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{
-			{ID: "op/old", Name: ir.Naming{Source: "getOld"}, Unmodeled: names(value), Deprecation: deprecated(),
+			{ID: "operation/old", Name: ir.Naming{Source: "getOld"}, Unmodeled: names(value), Deprecation: deprecated(),
 				Params: []ir.Parameter{
-					{ID: "param/old", Name: ir.Naming{Source: "old"}, Unmodeled: names(value), Deprecation: deprecated()},
-					{ID: "param/v2", Name: ir.Naming{Source: "v2"}},
+					{ID: "parameter/old", Name: ir.Naming{Source: "old"}, Unmodeled: names(value), Deprecation: deprecated()},
+					{ID: "parameter/v2", Name: ir.Naming{Source: "v2"}},
 				},
 				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
-					{Param: "param/old", Location: ir.HTTPLocationQuery}, {Param: "param/v2", Location: ir.HTTPLocationQuery},
+					{Param: "parameter/old", Location: ir.HTTPLocationQuery}, {Param: "parameter/v2", Location: ir.HTTPLocationQuery},
 				}}}},
 				Request: &ir.Payload{Contents: []ir.Content{{
-					ItemEncoding: &ir.PartEncoding{Headers: pair("p/item")},
-					Encoding:     map[ir.PropID]ir.PartEncoding{"p/part": {Headers: pair("p/part")}},
+					ItemEncoding: &ir.PartEncoding{Headers: pair("property/item")},
+					Encoding:     map[ir.PropertyID]ir.PartEncoding{"property/part": {Headers: pair("property/part")}},
 				}}},
 				Responses: []ir.Response{{Headers: []ir.Header{
-					header("p/h/old", "X-Old", names(value), deprecated()), header("p/h/v2", "V2", nil, nil),
+					header("property/h/old", "X-Old", names(value), deprecated()), header("property/h/v2", "V2", nil, nil),
 				}, Payload: &ir.Payload{Contents: []ir.Content{{
-					Encoding: map[ir.PropID]ir.PartEncoding{"p/part": {Headers: pair("p/response-part")}},
+					Encoding: map[ir.PropertyID]ir.PartEncoding{"property/part": {Headers: pair("property/response-part")}},
 				}}}}},
 				Errors: []ir.ErrorCase{{Headers: []ir.Header{
-					header("p/e/old", "X-Old", names(value), deprecated()), header("p/e/v2", "v2", nil, nil),
+					header("property/e/old", "X-Old", names(value), deprecated()), header("property/e/v2", "v2", nil, nil),
 				}}},
 				Default: &ir.Response{Headers: []ir.Header{
-					header("p/d/old", "X-Old", names(value), deprecated()), header("p/d/v2", "v2", nil, nil),
+					header("property/d/old", "X-Old", names(value), deprecated()), header("property/d/v2", "v2", nil, nil),
 				}},
 			},
-			{ID: "op/v2", Name: ir.Naming{Source: "v2"}},
+			{ID: "operation/v2", Name: ir.Naming{Source: "v2"}},
 		}}}}},
 		Types: ir.TypeRegistry{
 			old: &ir.Model{ID: old, Unmodeled: names(value), Deprecation: deprecated(), Properties: []ir.Property{
-				{ID: "p/old", WireName: "old", Unmodeled: names(value), Deprecation: deprecated()},
-				{ID: "p/v2", WireName: "v2"},
+				{ID: "property/old", WireName: "old", Unmodeled: names(value), Deprecation: deprecated()},
+				{ID: "property/v2", WireName: "v2"},
 			}},
-			v2:         &ir.Model{ID: v2},
-			"t/scalar": &ir.Scalar{ID: "t/scalar"},
+			v2:            &ir.Model{ID: v2},
+			"type/scalar": &ir.Scalar{ID: "type/scalar"},
 		},
 		Auth: map[ir.AuthID]ir.AuthScheme{
 			"auth/old": {ID: "auth/old", Name: ir.Naming{Source: "old"}, Unmodeled: names(value), Deprecation: deprecated()},
@@ -116,24 +116,24 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 		prov ir.Provenance
 		want ir.EntityRef
 	}{
-		{"an operation", op.Deprecation, op.Provenance, ir.EntityRef{Operation: "op/v2"}},
-		{"a parameter", op.Params[0].Deprecation, op.Params[0].Provenance, ir.EntityRef{Param: "param/v2"}},
+		{"an operation", op.Deprecation, op.Provenance, ir.EntityRef{Operation: "operation/v2"}},
+		{"a parameter", op.Params[0].Deprecation, op.Params[0].Provenance, ir.EntityRef{Param: "parameter/v2"}},
 		{"a response header, in any case", op.Responses[0].Headers[0].Deprecation, op.Responses[0].Headers[0].Provenance,
-			ir.EntityRef{Property: "p/h/v2"}},
+			ir.EntityRef{Property: "property/h/v2"}},
 		{"an error case's header", op.Errors[0].Headers[0].Deprecation, op.Errors[0].Headers[0].Provenance,
-			ir.EntityRef{Property: "p/e/v2"}},
+			ir.EntityRef{Property: "property/e/v2"}},
 		{"a default's header", op.Default.Headers[0].Deprecation, op.Default.Headers[0].Provenance,
-			ir.EntityRef{Property: "p/d/v2"}},
-		{"a request part's header", op.Request.Contents[0].Encoding["p/part"].Headers[0].Deprecation,
-			op.Request.Contents[0].Encoding["p/part"].Headers[0].Provenance, ir.EntityRef{Property: "p/part/v2"}},
+			ir.EntityRef{Property: "property/d/v2"}},
+		{"a request part's header", op.Request.Contents[0].Encoding["property/part"].Headers[0].Deprecation,
+			op.Request.Contents[0].Encoding["property/part"].Headers[0].Provenance, ir.EntityRef{Property: "property/part/v2"}},
 		{"a stream item's header", op.Request.Contents[0].ItemEncoding.Headers[0].Deprecation,
-			op.Request.Contents[0].ItemEncoding.Headers[0].Provenance, ir.EntityRef{Property: "p/item/v2"}},
-		{"a response part's header", op.Responses[0].Payload.Contents[0].Encoding["p/part"].Headers[0].Deprecation,
-			op.Responses[0].Payload.Contents[0].Encoding["p/part"].Headers[0].Provenance,
-			ir.EntityRef{Property: "p/response-part/v2"}},
+			op.Request.Contents[0].ItemEncoding.Headers[0].Provenance, ir.EntityRef{Property: "property/item/v2"}},
+		{"a response part's header", op.Responses[0].Payload.Contents[0].Encoding["property/part"].Headers[0].Deprecation,
+			op.Responses[0].Payload.Contents[0].Encoding["property/part"].Headers[0].Provenance,
+			ir.EntityRef{Property: "property/response-part/v2"}},
 		{"a schema", doc.Types[old].Common().Deprecation, doc.Types[old].Common().Provenance, ir.EntityRef{Type: v2}},
 		{"a property", doc.Types[old].(*ir.Model).Properties[0].Deprecation,
-			doc.Types[old].(*ir.Model).Properties[0].Provenance, ir.EntityRef{Property: "p/v2"}},
+			doc.Types[old].(*ir.Model).Properties[0].Provenance, ir.EntityRef{Property: "property/v2"}},
 		{"a security scheme", doc.Auth["auth/old"].Deprecation, doc.Auth["auth/old"].Provenance, ir.EntityRef{Auth: "auth/v2"}},
 	} {
 		require.NotNil(t, tc.dep, tc.name)
@@ -168,7 +168,7 @@ func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 // only in case in each response, and a security scheme. first places each
 // second entity before the first.
 func severalV2(doc *ir.Document, first bool) {
-	add := func(hs []ir.Header, id ir.PropID, name string) []ir.Header {
+	add := func(hs []ir.Header, id ir.PropertyID, name string) []ir.Header {
 		h := ir.Header{ID: id, WireName: name}
 		if first {
 			return append([]ir.Header{h}, hs...)
@@ -176,14 +176,14 @@ func severalV2(doc *ir.Document, first bool) {
 		return append(hs, h)
 	}
 	group := &doc.Services[0].Groups[0]
-	group.Operations = append(group.Operations, ir.Operation{ID: "op/v2-again", Name: ir.Naming{Source: "v2"}})
+	group.Operations = append(group.Operations, ir.Operation{ID: "operation/v2-again", Name: ir.Naming{Source: "v2"}})
 	op := &group.Operations[0]
-	op.Params = append(op.Params, ir.Parameter{ID: "param/v2-header", Name: ir.Naming{Source: "v2"}})
+	op.Params = append(op.Params, ir.Parameter{ID: "parameter/v2-header", Name: ir.Naming{Source: "v2"}})
 	bindings := &op.Bindings.HTTP[0].ParamBindings
-	*bindings = append(*bindings, ir.HTTPParamBinding{Param: "param/v2-header", Location: ir.HTTPLocationHeader})
-	op.Responses[0].Headers = add(op.Responses[0].Headers, "p/h/v2-lower", "v2")
-	op.Errors[0].Headers = add(op.Errors[0].Headers, "p/e/v2-upper", "V2")
-	op.Default.Headers = add(op.Default.Headers, "p/d/v2-upper", "V2")
+	*bindings = append(*bindings, ir.HTTPParamBinding{Param: "parameter/v2-header", Location: ir.HTTPLocationHeader})
+	op.Responses[0].Headers = add(op.Responses[0].Headers, "property/h/v2-lower", "v2")
+	op.Errors[0].Headers = add(op.Errors[0].Headers, "property/e/v2-upper", "V2")
+	op.Default.Headers = add(op.Default.Headers, "property/d/v2-upper", "V2")
 	doc.Auth["auth/v2-again"] = ir.AuthScheme{ID: "auth/v2-again", Name: ir.Naming{Source: "v2"}}
 }
 
@@ -211,15 +211,15 @@ func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
 		assert.Len(t, diags, 6, "first %t: the schema and the property each name one", first)
 
 		op := doc.Services[0].Groups[0].Operations[0]
-		at := func(hs []ir.Header, id ir.PropID) *ir.Deprecation {
+		at := func(hs []ir.Header, id ir.PropertyID) *ir.Deprecation {
 			i := slices.IndexFunc(hs, func(h ir.Header) bool { return h.ID == id })
 			require.GreaterOrEqual(t, i, 0, id)
 			return hs[i].Deprecation
 		}
 		for name, dep := range map[string]*ir.Deprecation{
 			"operation": op.Deprecation, "parameter": op.Params[0].Deprecation,
-			"response header": at(op.Responses[0].Headers, "p/h/old"), "error header": at(op.Errors[0].Headers, "p/e/old"),
-			"default header": at(op.Default.Headers, "p/d/old"), "security scheme": doc.Auth["auth/old"].Deprecation,
+			"response header": at(op.Responses[0].Headers, "property/h/old"), "error header": at(op.Errors[0].Headers, "property/e/old"),
+			"default header": at(op.Default.Headers, "property/d/old"), "security scheme": doc.Auth["auth/old"].Deprecation,
 		} {
 			assert.Empty(t, dep.ReplacedBy, "first %t: %s", first, name)
 		}
@@ -250,7 +250,7 @@ func TestResolve_StopsAtTheGroupDepthBound(t *testing.T) {
 	t.Parallel()
 	p := mapped()
 	deep := ir.OperationGroup{Operations: []ir.Operation{
-		{ID: "op/deep", Unmodeled: names(`"v2"`), Deprecation: deprecated()}, {ID: "op/v2", Name: ir.Naming{Source: "v2"}},
+		{ID: "operation/deep", Unmodeled: names(`"v2"`), Deprecation: deprecated()}, {ID: "operation/v2", Name: ir.Naming{Source: "v2"}},
 	}}
 	for range ir.MaxGroupDepth + 1 {
 		deep = ir.OperationGroup{Groups: []ir.OperationGroup{deep}}

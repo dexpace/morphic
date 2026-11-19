@@ -51,16 +51,16 @@ func TestRuleset_RateMatchesTheMostPlacedRule(t *testing.T) {
 	s, err := triage.NewRuleset([]triage.Rule{
 		{Code: "c", Severity: ir.SeverityInfo, Reason: "wide"},
 		{Code: "c", Pointer: "/a", Severity: ir.SeverityWarning, Reason: "at /a"},
-		{Code: "c", Node: "s/x", Accept: true, Reason: "on s/x"},
+		{Code: "c", Node: "service/x", Accept: true, Reason: "on s/x"},
 	})
 	require.NoError(t, err)
 
 	got, unused := rated(t, s, []ir.Diagnostic{
 		finding(ir.SeverityError, "c", ir.Provenance{Pointer: "/a"}),
 		finding(ir.SeverityError, "c", ir.Provenance{Pointer: "/b"}),
-		finding(ir.SeverityError, "c", ir.Provenance{Source: ir.NoSource, Node: "s/x"}),
-		finding(ir.SeverityError, "c", ir.Provenance{Pointer: "/a", Node: "s/x"}),
-		finding(ir.SeverityError, "c", ir.Provenance{Pointer: "/b", Node: "s/x"}),
+		finding(ir.SeverityError, "c", ir.Provenance{Source: ir.NoSource, Node: "service/x"}),
+		finding(ir.SeverityError, "c", ir.Provenance{Pointer: "/a", Node: "service/x"}),
+		finding(ir.SeverityError, "c", ir.Provenance{Pointer: "/b", Node: "service/x"}),
 		finding(ir.SeverityError, "d", ir.Provenance{Pointer: "/a"}),
 	})
 	assert.Equal(t, []ruled{

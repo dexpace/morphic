@@ -6,7 +6,7 @@
 create/read/update/patch declarations the target needs — Speakeasy's "public type vs wire
 (de)serialize shape" split made explicit — for every type a shape reaches, so a union or a container
 holding a projected model is projected with it, as a model holding one is
-([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)). `None` properties are excluded from
+([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)). `InvisibleInEveryLifecycle` properties are excluded from
 every projection; a patch shape makes properties optional, and a `PATCH` body's is one only where
 its binding or its media type says so ([TypePlan](../plan/types.md#what-a-patch-relaxes)). A model
 used as both input and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for

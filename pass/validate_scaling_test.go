@@ -21,13 +21,13 @@ import (
 // chain. Validate asks, for every base, whether that model is its subtype, and
 // the answer is no.
 func chainedDiscriminators(n int) *ir.Document {
-	chain := func(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("t/c%05d", i)) }
+	chain := func(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("type/c%05d", i)) }
 	types := ir.TypeRegistry{chain(0): &ir.Model{ID: chain(0)}}
 	for i := 1; i <= n; i++ {
 		types[chain(i)] = &ir.Model{ID: chain(i), Base: &ir.TypeRef{Target: chain(i - 1)}}
 	}
 	for k := range n {
-		id := ir.TypeID(fmt.Sprintf("t/m%05d", k))
+		id := ir.TypeID(fmt.Sprintf("type/m%05d", k))
 		types[id] = &ir.Model{ID: id, Discriminator: &ir.Discriminator{
 			Mapping: map[string]ir.TypeID{"x": chain(n)},
 		}}
@@ -88,14 +88,14 @@ func TestValidate_DiscriminatorRoutesCostLinearWork(t *testing.T) {
 }
 
 // chainedProperties is n+1 models chained by Base, the top declaring property
-// "p/kind", shaped further by mutate.
+// "property/kind", shaped further by mutate.
 func chainedProperties(n int, mutate func(m *ir.Model)) (ir.TypeRegistry, ir.TypeID) {
-	chain := func(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("t/c%05d", i)) }
-	types := ir.TypeRegistry{"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString}}
+	chain := func(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("type/c%05d", i)) }
+	types := ir.TypeRegistry{"type/string": &ir.Primitive{ID: "type/string", PrimitiveKind: ir.PrimitiveString}}
 	for i := 0; i <= n; i++ {
 		m := &ir.Model{ID: chain(i)}
 		if i == 0 {
-			m.Properties = []ir.Property{{ID: "p/kind", Type: ir.TypeRef{Target: "t/string"}}}
+			m.Properties = []ir.Property{{ID: "property/kind", Type: ir.TypeRef{Target: "type/string"}}}
 		} else {
 			m.Base = &ir.TypeRef{Target: chain(i - 1)}
 		}
@@ -114,16 +114,16 @@ func chainedProperties(n int, mutate func(m *ir.Model)) (ir.TypeRegistry, ir.Typ
 func exposureShapes() map[string]func(n int) *ir.Document {
 	return map[string]func(n int) *ir.Document{
 		"a chain of discriminators tagging the top's property": func(n int) *ir.Document {
-			types, _ := chainedProperties(n, func(m *ir.Model) { m.Discriminator = &ir.Discriminator{Property: "p/kind"} })
+			types, _ := chainedProperties(n, func(m *ir.Model) { m.Discriminator = &ir.Discriminator{Property: "property/kind"} })
 			return &ir.Document{IRVersion: ir.IRVersion, Name: "t", Version: "1", Types: types}
 		},
 		"multipart parts naming the top's property of the bottom": func(n int) *ir.Document {
 			types, bottom := chainedProperties(n, nil)
 			ops := make([]ir.Operation, n)
 			for i := range ops {
-				ops[i] = ir.Operation{ID: ir.OpID(fmt.Sprintf("op%05d", i)), Request: &ir.Payload{Contents: []ir.Content{{
+				ops[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("op%05d", i)), Request: &ir.Payload{Contents: []ir.Content{{
 					MediaType: "multipart/form-data", Type: ir.TypeRef{Target: bottom},
-					Encoding: map[ir.PropID]ir.PartEncoding{"p/kind": {}},
+					Encoding: map[ir.PropertyID]ir.PartEncoding{"property/kind": {}},
 				}}}}
 			}
 			doc := &ir.Document{IRVersion: ir.IRVersion, Name: "t", Version: "1", Types: types}

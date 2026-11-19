@@ -195,7 +195,7 @@ func requireDeadBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, 
 func requireNothingAt(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, at string) {
 	t.Helper()
 	for id := range doc.Types {
-		own := strings.TrimPrefix(string(id), "t/anon")
+		own := strings.TrimPrefix(string(id), "type/anonymous")
 		assert.False(t, own == at || strings.HasPrefix(own, at+"/"), "%s lowers %s", id, at)
 	}
 	for _, d := range diags {

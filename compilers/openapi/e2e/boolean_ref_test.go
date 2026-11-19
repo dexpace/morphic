@@ -31,13 +31,13 @@ func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 		// base is what O aliases, or empty where O is no alias.
 		base ir.TypeID
 	}{
-		{"items false", "{$ref: " + items + "}", "{type: array, items: false}", "t/anon/components/schemas/L/items"},
+		{"items false", "{$ref: " + items + "}", "{type: array, items: false}", "type/anonymous/components/schemas/L/items"},
 		{"a closed tuple's items", "{$ref: " + items + "}", "{type: array, prefixItems: [{type: string}], items: false}",
-			"t/anon/components/schemas/L/items"},
+			"type/anonymous/components/schemas/L/items"},
 		{"a true property", "{$ref: " + prop + "}", "{type: object, properties: {p: true}}",
-			"t/anon/components/schemas/L/properties/p"},
+			"type/anonymous/components/schemas/L/properties/p"},
 		{"a property the parser reads as false", "{$ref: " + prop + "}", "{type: object, properties: {p: just text}}",
-			"t/anon/components/schemas/L/properties/p"},
+			"type/anonymous/components/schemas/L/properties/p"},
 		{"a union branch and a mapping value", "{type: object, properties: {k: {type: string}}, " +
 			"discriminator: {propertyName: k, mapping: {f: " + items + "}}, oneOf: [{$ref: " + items + "}]}",
 			"{type: array, items: false}", ""},
@@ -59,7 +59,7 @@ func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 		if tc.base == "" {
 			continue
 		}
-		o, ok := types[0]["t/openapi/components/schemas/O"].(*ir.Scalar)
+		o, ok := types[0]["type/openapi/components/schemas/O"].(*ir.Scalar)
 		require.True(t, ok, tc.name)
 		require.NotNil(t, o.Base, tc.name)
 		assert.Equal(t, tc.base, o.Base.Target, tc.name)

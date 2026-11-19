@@ -33,21 +33,21 @@ const maxAliasHops = 64
 
 // primShape is the shape of a primitive of kind k. Every kind has one:
 // TestPrimShapes_EveryPrimKindHasARow holds the cases to the kinds ir declares.
-func primShape(k ir.PrimKind) shape {
+func primShape(k ir.PrimitiveKind) shape {
 	switch k {
-	case ir.PrimFloat32, ir.PrimFloat64, ir.PrimFloat, ir.PrimNumber, ir.PrimDecimal, ir.PrimDecimal128:
+	case ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveNumber, ir.PrimitiveDecimal, ir.PrimitiveDecimal128:
 		return shapeNumber
-	case ir.PrimInt8, ir.PrimInt16, ir.PrimInt32, ir.PrimInt64,
-		ir.PrimUint8, ir.PrimUint16, ir.PrimUint32, ir.PrimUint64, ir.PrimInteger:
+	case ir.PrimitiveInt8, ir.PrimitiveInt16, ir.PrimitiveInt32, ir.PrimitiveInt64,
+		ir.PrimitiveUint8, ir.PrimitiveUint16, ir.PrimitiveUint32, ir.PrimitiveUint64, ir.PrimitiveInteger:
 		return shapeInteger
-	case ir.PrimString, ir.PrimDate, ir.PrimTime, ir.PrimDatetime, ir.PrimDatetimeOffset,
-		ir.PrimDuration, ir.PrimURL, ir.PrimUUID:
+	case ir.PrimitiveString, ir.PrimitiveDate, ir.PrimitiveTime, ir.PrimitiveDatetime, ir.PrimitiveDatetimeOffset,
+		ir.PrimitiveDuration, ir.PrimitiveURL, ir.PrimitiveUUID:
 		return shapeText
-	case ir.PrimBytes:
+	case ir.PrimitiveBytes:
 		return shapeBytes
-	case ir.PrimBool:
+	case ir.PrimitiveBool:
 		return shapeBoolean
-	case ir.PrimAny:
+	case ir.PrimitiveAny:
 		return shapeAnything
 	default:
 		return shapeNotChecked
@@ -80,7 +80,7 @@ func (b *bounds) and(c *ir.Constraints) {
 	b.lower(c.ExclusiveMax, true)
 	b.minLen, b.maxLen = greater(b.minLen, c.MinLength), lesser(b.maxLen, c.MaxLength)
 	b.minItems, b.maxItems = greater(b.minItems, c.MinItems), lesser(b.maxItems, c.MaxItems)
-	b.minProps, b.maxProps = greater(b.minProps, c.MinProps), lesser(b.maxProps, c.MaxProps)
+	b.minProps, b.maxProps = greater(b.minProps, c.MinProperties), lesser(b.maxProps, c.MaxProperties)
 }
 
 // raise takes v as the lower end where it is greater than the one held, or
@@ -150,7 +150,7 @@ func settle(doc *ir.Document, target ir.TypeID, b *bounds) (shape, ir.TypeDef, b
 			}
 			target = t.Base.Target
 		case *ir.Primitive:
-			return primShape(t.Prim), td, encoded
+			return primShape(t.PrimitiveKind), td, encoded
 		case *ir.List:
 			b.and(t.Constraints)
 			return shapeList, td, encoded || t.Encoding != nil
@@ -262,7 +262,7 @@ func checkBounds(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 				string(id), td.Common().Provenance))
 		}
 	}
-	var keys []ir.PropID
+	var keys []ir.PropertyID
 	eachPosition(doc, live, &keys, func(p *position) {
 		if why := unsatisfiable(doc, p.own, p.typ.Target, shapeNotChecked); why != "" {
 			diags = append(diags, diagAt("pass/bounds-admit-no-value", why, p.node, p.from))

@@ -18,7 +18,7 @@ import (
 // square of its size.
 type unionValues struct {
 	union *ir.Union
-	prim  ir.PrimKind
+	prim  ir.PrimitiveKind
 	parts []valuePart
 	// n is how many values it holds, and keys the key of each, which the one
 	// union taking these values takes over (distinct).
@@ -71,7 +71,7 @@ func plainUnion(u ir.Union) bool {
 // (branchValues, commonFacts). One value takes what v and its type say of it.
 // Several are a set of their own, which branchValues gives only where v is
 // their type's one reference, taken where neither says anything of them all.
-func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePart, ir.PrimKind, bool) {
+func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePart, ir.PrimitiveKind, bool) {
 	said, plain := variantFacts(v)
 	if !plain {
 		return parts, "", false
@@ -107,7 +107,7 @@ func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePar
 // are copies of its own; a union of one value gives its one member, and one of
 // several the values it holds. A type of several values gives them only to
 // the variant that is its one reference (typeRefs.sole).
-func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimKind, ir.TypeCommon, bool) {
+func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimitiveKind, ir.TypeCommon, bool) {
 	switch t := r.types[id].(type) {
 	case *ir.Literal:
 		if t == nil || t.Value.Kind != ir.ValueString || t.ValueType == "" {
@@ -115,7 +115,7 @@ func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimKind, ir.
 		}
 		rest := *t
 		rest.TypeCommon, rest.Value, rest.ValueType = ir.TypeCommon{}, ir.Value{}, ""
-		one := ir.EnumMember{Name: ir.NamingFor(t.Value.Str), Value: t.Value}
+		one := ir.EnumMember{Name: ir.NamingFor(t.Value.String), Value: t.Value}
 		return []valuePart{{key: valueKey(t.Value), member: one}}, t.ValueType, t.TypeCommon, reflect.ValueOf(rest).IsZero()
 	case *ir.Enum:
 		if t == nil || !t.Closed || len(t.Members) == 0 || t.ValueType == "" ||

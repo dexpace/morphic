@@ -37,20 +37,20 @@ type boundedNode struct {
 // array, each beside a bound of its kind and one of another.
 var boundedShapes = []boundedShape{
 	{"P", "{properties: {a: {type: string}}, minProperties: 1, minLength: 2}",
-		boundedNode{kind: ir.KindModel, bounds: map[string]any{"minProps": 1.0}, kept: []string{"minLength"}},
-		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProps": 1.0, "minLength": 2.0}, kept: []string{"properties"}}},
+		boundedNode{kind: ir.KindModel, bounds: map[string]any{"minProperties": 1.0}, kept: []string{"minLength"}},
+		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProperties": 1.0, "minLength": 2.0}, kept: []string{"properties"}}},
 	{"I", "{items: {type: string}, minItems: 1, minProperties: 1}",
 		boundedNode{kind: ir.KindList, bounds: map[string]any{"minItems": 1.0}, kept: []string{"minProperties"}},
-		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProps": 1.0}, kept: []string{"items", "minItems"}}},
+		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProperties": 1.0}, kept: []string{"items", "minItems"}}},
 	{"A", "{additionalProperties: {type: string}, maxProperties: 3, maximum: 5}",
-		boundedNode{kind: ir.KindMap, bounds: map[string]any{"maxProps": 3.0}, kept: []string{"maximum"}},
-		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"maxProps": 3.0, "max": "5"}, kept: []string{"additionalProperties"}}},
+		boundedNode{kind: ir.KindMap, bounds: map[string]any{"maxProperties": 3.0}, kept: []string{"maximum"}},
+		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"maxProperties": 3.0, "max": "5"}, kept: []string{"additionalProperties"}}},
 	{"U", "{properties: {a: {type: string}}, items: {type: string}, minItems: 1, minProperties: 1, minLength: 1}",
 		boundedNode{kind: ir.KindUnion, bounds: map[string]any{}, kept: []string{"minLength"}, variants: []boundedNode{
-			{kind: ir.KindModel, bounds: map[string]any{"minProps": 1.0}},
+			{kind: ir.KindModel, bounds: map[string]any{"minProperties": 1.0}},
 			{kind: ir.KindList, bounds: map[string]any{"minItems": 1.0}},
 		}},
-		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProps": 1.0, "minLength": 1.0},
+		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProperties": 1.0, "minLength": 1.0},
 			kept: []string{"items", "minItems", "properties"}}},
 }
 
@@ -133,10 +133,10 @@ func TestKindInference_ABoundLandsOnTheInferredNodeOfItsKind(t *testing.T) {
 						}
 						for pointer, id := range map[string]ir.TypeID{
 							"/components/schemas/" + sh.key:                       componentID(sh.key),
-							"/components/schemas/Holder/properties/p" + sh.key:    ir.TypeID("t/anon/components/schemas/Holder/properties/p" + sh.key),
-							fmt.Sprintf("/paths/~1x/get/parameters/%d/schema", i): ir.TypeID(fmt.Sprintf("t/anon/paths/~1x/get/parameters/%d/schema", i)),
+							"/components/schemas/Holder/properties/p" + sh.key:    ir.TypeID("type/anonymous/components/schemas/Holder/properties/p" + sh.key),
+							fmt.Sprintf("/paths/~1x/get/parameters/%d/schema", i): ir.TypeID(fmt.Sprintf("type/anonymous/paths/~1x/get/parameters/%d/schema", i)),
 							"/paths/~1x/get/responses/200/headers/H" + sh.key + "/schema": ir.TypeID(
-								"t/anon/paths/~1x/get/responses/200/headers/H" + sh.key + "/schema"),
+								"type/anonymous/paths/~1x/get/responses/200/headers/H" + sh.key + "/schema"),
 						} {
 							assertBoundedNode(t, doc, id, want)
 							assert.Equal(t, 1, countOf(infos, jsontext.Pointer(pointer)), "one info at %s", pointer)

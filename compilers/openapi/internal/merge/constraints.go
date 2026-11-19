@@ -70,8 +70,8 @@ var constraintKeywords = []constraintKeyword{
 	intKeyword("maxLength", func(c *ir.Constraints) **int64 { return &c.MaxLength }, smallerCount),
 	intKeyword("minItems", func(c *ir.Constraints) **int64 { return &c.MinItems }, largerCount),
 	intKeyword("maxItems", func(c *ir.Constraints) **int64 { return &c.MaxItems }, smallerCount),
-	intKeyword("minProps", func(c *ir.Constraints) **int64 { return &c.MinProps }, largerCount),
-	intKeyword("maxProps", func(c *ir.Constraints) **int64 { return &c.MaxProps }, smallerCount),
+	intKeyword("minProperties", func(c *ir.Constraints) **int64 { return &c.MinProperties }, largerCount),
+	intKeyword("maxProperties", func(c *ir.Constraints) **int64 { return &c.MaxProperties }, smallerCount),
 	strKeyword("pattern", func(c *ir.Constraints) *string { return &c.Pattern }),
 	strKeyword("patternMessage", func(c *ir.Constraints) *string { return &c.PatternMessage }),
 }

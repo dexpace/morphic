@@ -39,7 +39,7 @@ func TestPopulatedFixtures_LeaveNoFieldZero(t *testing.T) {
 		{"Encoding", populatedEncoding(), nil},
 		{"XMLHints", populatedXMLHints(), nil},
 		{"TypeRef", populatedTypeRef(), nil},
-		{"TypeCommon", populatedTypeCommon("t/openapi/components/schemas/User"), nil},
+		{"TypeCommon", populatedTypeCommon("type/openapi/components/schemas/User"), nil},
 		{"Header", populatedHeader(), nil},
 		{"Property", populatedProperty(), []zeroField{eventPayloadLeftZero()}},
 	} {

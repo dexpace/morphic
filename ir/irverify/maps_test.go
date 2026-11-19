@@ -18,25 +18,25 @@ import (
 // are not.
 func TestCheckMaps_ReportsAModelThatIsAMap(t *testing.T) {
 	t.Parallel()
-	str := ir.TypeRef{Target: "t/prim/string"}
+	str := ir.TypeRef{Target: "type/primitive/string"}
 	for _, tc := range []struct {
 		name string
 		td   ir.TypeDef
 		want []string
 	}{
-		{"a model that is a map", &ir.Model{AdditionalProps: &ir.AdditionalProps{Value: &str}},
-			[]string{"types[t/x]"}},
+		{"a model that is a map", &ir.Model{AdditionalProperties: &ir.AdditionalProperties{Value: &str}},
+			[]string{"types[type/x]"}},
 		{"the map it should be", &ir.MapT{Value: str}, nil},
 		{"a model with a property beside its catch-all", &ir.Model{
-			Properties:      []ir.Property{{ID: "p/x/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: str}},
-			AdditionalProps: &ir.AdditionalProps{Value: &str},
+			Properties:           []ir.Property{{ID: "property/x/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: str}},
+			AdditionalProperties: &ir.AdditionalProperties{Value: &str},
 		}, nil},
 		{"a model with no catch-all", &ir.Model{}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tc.td.Common().ID = "t/x"
-			doc := &ir.Document{Types: ir.TypeRegistry{"t/x": tc.td}}
+			tc.td.Common().ID = "type/x"
+			doc := &ir.Document{Types: ir.TypeRegistry{"type/x": tc.td}}
 
 			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), "ir/map-as-model"))
 		})
@@ -49,19 +49,19 @@ func TestCheckMaps_ReportsAModelThatIsAMap(t *testing.T) {
 // and a nullable string key are not, and neither is a nil registry entry.
 func TestCheckMapKeys_ReportsAStringKeySpelledOut(t *testing.T) {
 	t.Parallel()
-	str := ir.TypeRef{Target: "t/prim/string"}
+	str := ir.TypeRef{Target: "type/primitive/string"}
 	for _, tc := range []struct {
 		name string
 		td   ir.TypeDef
 		want []string
 	}{
-		{"a map spelling its string key", &ir.MapT{Key: &str, Value: str}, []string{"types[t/x].Key"}},
+		{"a map spelling its string key", &ir.MapT{Key: &str, Value: str}, []string{"types[type/x].Key"}},
 		{"a catch-all spelling its string key", &ir.Model{
-			Properties:      []ir.Property{{ID: "p/x/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: str}},
-			AdditionalProps: &ir.AdditionalProps{Key: &str, Value: &str},
-		}, []string{"types[t/x].AdditionalProps.Key"}},
+			Properties:           []ir.Property{{ID: "property/x/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: str}},
+			AdditionalProperties: &ir.AdditionalProperties{Key: &str, Value: &str},
+		}, []string{"types[type/x].AdditionalProperties.Key"}},
 		{"a map with a nil key", &ir.MapT{Value: str}, nil},
-		{"a map keyed by another type", &ir.MapT{Key: &ir.TypeRef{Target: "t/prim/int64"}, Value: str}, nil},
+		{"a map keyed by another type", &ir.MapT{Key: &ir.TypeRef{Target: "type/primitive/int64"}, Value: str}, nil},
 		{"a map keyed by a nullable string", &ir.MapT{Key: &ir.TypeRef{Target: str.Target, Nullable: true}, Value: str}, nil},
 		{"a model with no catch-all", &ir.Model{}, nil},
 		{"a nil map", (*ir.MapT)(nil), nil},
@@ -70,9 +70,9 @@ func TestCheckMapKeys_ReportsAStringKeySpelledOut(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			if !ir.IsNilTypeDef(tc.td) {
-				tc.td.Common().ID = "t/x"
+				tc.td.Common().ID = "type/x"
 			}
-			doc := &ir.Document{Types: ir.TypeRegistry{"t/x": tc.td}}
+			doc := &ir.Document{Types: ir.TypeRegistry{"type/x": tc.td}}
 
 			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), "ir/map-key-string"))
 		})
@@ -85,24 +85,24 @@ func TestCheckMapKeys_ReportsAStringKeySpelledOut(t *testing.T) {
 // while every shape docs/ir/models.md#catch-alls allows is not.
 func TestCheckCatchAlls_ReportsACatchAllSayingTwoThings(t *testing.T) {
 	t.Parallel()
-	str := ir.TypeRef{Target: "t/prim/string"}
-	patterns := []ir.PatternProps{{Pattern: "^x-", Value: str}}
+	str := ir.TypeRef{Target: "type/primitive/string"}
+	patterns := []ir.PatternProperties{{Pattern: "^x-", Value: str}}
 	var typedNil *ir.Model
 	for _, tc := range []struct {
 		name         string
 		td           ir.TypeDef
 		empty, close []string
 	}{
-		{"neither a value nor a pattern", &ir.Model{AdditionalProps: &ir.AdditionalProps{}},
-			[]string{"types[t/x].AdditionalProps"}, nil},
-		{"a closed model's value", &ir.Model{Additional: ir.AdditionalClosed, AdditionalProps: &ir.AdditionalProps{
+		{"neither a value nor a pattern", &ir.Model{AdditionalProperties: &ir.AdditionalProperties{}},
+			[]string{"types[type/x].AdditionalProperties"}, nil},
+		{"a closed model's value", &ir.Model{Additional: ir.AdditionalClosed, AdditionalProperties: &ir.AdditionalProperties{
 			Value: &str, Patterns: patterns,
-		}}, nil, []string{"types[t/x].AdditionalProps.Value"}},
+		}}, nil, []string{"types[type/x].AdditionalProperties.Value"}},
 		{"patterns and no value beside a closure", &ir.Model{Additional: ir.AdditionalClosed,
-			AdditionalProps: &ir.AdditionalProps{Patterns: patterns}}, nil, nil},
-		{"patterns and a value", &ir.Model{AdditionalProps: &ir.AdditionalProps{Value: &str, Patterns: patterns}}, nil, nil},
+			AdditionalProperties: &ir.AdditionalProperties{Patterns: patterns}}, nil, nil},
+		{"patterns and a value", &ir.Model{AdditionalProperties: &ir.AdditionalProperties{Value: &str, Patterns: patterns}}, nil, nil},
 		{"a value closed only after composition", &ir.Model{Additional: ir.AdditionalClosedAfterComposition,
-			AdditionalProps: &ir.AdditionalProps{Value: &str, Patterns: patterns}}, nil, nil},
+			AdditionalProperties: &ir.AdditionalProperties{Value: &str, Patterns: patterns}}, nil, nil},
 		{"no catch-all", &ir.Model{Additional: ir.AdditionalClosed}, nil, nil},
 		{"a nil model", typedNil, nil, nil},
 		{"a map", &ir.MapT{Value: str}, nil, nil},
@@ -110,9 +110,9 @@ func TestCheckCatchAlls_ReportsACatchAllSayingTwoThings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			if !ir.IsNilTypeDef(tc.td) {
-				tc.td.Common().ID = "t/x"
+				tc.td.Common().ID = "type/x"
 			}
-			doc := &ir.Document{Types: ir.TypeRegistry{"t/x": tc.td}}
+			doc := &ir.Document{Types: ir.TypeRegistry{"type/x": tc.td}}
 			vs := irverify.Verify(doc)
 			assert.Equal(t, tc.empty, violationPaths(vs, "ir/catch-all-empty"))
 			assert.Equal(t, tc.close, violationPaths(vs, "ir/catch-all-closed"))

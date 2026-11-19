@@ -12,7 +12,7 @@ type OperationLink struct {
 	// from.
 	Name Naming `json:"name"`
 	// Operation is the operation the link leads to.
-	Operation OpID `json:"operation"`
+	Operation OperationID `json:"operation"`
 	// Params are the values the link gives Operation's parameters, in source
 	// order, each parameter once. One it gives nothing is the caller's to pass.
 	Params []LinkParam `json:"params,omitempty"`
@@ -34,7 +34,7 @@ type OperationLink struct {
 // to.
 type LinkParam struct {
 	// Param is a parameter of the link's Operation.
-	Param ParamID `json:"param"`
+	Param ParameterID `json:"param"`
 	// Value is what the parameter is given.
 	Value LinkValue `json:"value"`
 }

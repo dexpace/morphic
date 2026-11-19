@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "ComponentMediaTypes32",
         "canonical": "component_media_types_32"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1events/get",
+              "id": "operation/openapi/paths/~1events/get",
               "name": {
                 "source": "listEvents",
                 "canonical": "list_events"
@@ -83,7 +83,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Event",
+                          "target": "type/openapi/components/schemas/Event",
                           "nullable": false
                         },
                         "examples": [
@@ -96,7 +96,7 @@
                                   "name": "id",
                                   "value": {
                                     "kind": "string",
-                                    "str": "e1"
+                                    "string": "e1"
                                   }
                                 }
                               ]
@@ -143,7 +143,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1events~1{id}/get",
+              "id": "operation/openapi/paths/~1events~1{id}/get",
               "name": {
                 "source": "getEvent",
                 "canonical": "get_event"
@@ -151,13 +151,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1events~1{id}/get/parameters/id/path",
+                  "id": "parameter/openapi/paths/~1events~1{id}/get/parameters/id/path",
                   "name": {
                     "source": "id",
                     "canonical": "id"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -186,7 +186,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Event",
+                          "target": "type/openapi/components/schemas/Event",
                           "nullable": false
                         },
                         "examples": [
@@ -199,7 +199,7 @@
                                   "name": "id",
                                   "value": {
                                     "kind": "string",
-                                    "str": "e1"
+                                    "string": "e1"
                                   }
                                 }
                               ]
@@ -236,7 +236,7 @@
                     "uriTemplate": "/events/{id}",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1events~1{id}/get/parameters/id/path",
+                        "param": "parameter/openapi/paths/~1events~1{id}/get/parameters/id/path",
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
@@ -266,9 +266,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Event": {
+    "type/openapi/components/schemas/Event": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Event",
+      "id": "type/openapi/components/schemas/Event",
       "name": {
         "source": "Event",
         "canonical": "event"
@@ -282,21 +282,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Event/properties/id",
+          "id": "property/openapi/components/schemas/Event/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -313,9 +313,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -323,7 +323,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

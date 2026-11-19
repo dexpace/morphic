@@ -19,7 +19,7 @@ import (
 // apart: each other content is asked for that member alone
 // (compileddoc.CompiledDocumentView.Member). It returns why, and false, where p holds no body or
 // the tokens name no such members.
-func BodyPath(w *compileddoc.CompiledDocumentView, p *ir.Payload, tokens []string, side string) (segments []ir.PropID, why string, ok bool) {
+func BodyPath(w *compileddoc.CompiledDocumentView, p *ir.Payload, tokens []string, side string) (segments []ir.PropertyID, why string, ok bool) {
 	if p == nil || len(p.Contents) == 0 {
 		return nil, fmt.Sprintf("reads a %s body the document does not describe", side), false
 	}

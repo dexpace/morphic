@@ -22,8 +22,8 @@ const (
 )
 
 // choiceParamID is the ID of the query parameter of listResources called name.
-func choiceParamID(name string) ir.ParamID {
-	return ir.ParamID("param/openapi/paths/~1resources/get/parameters/" + name + "/query")
+func choiceParamID(name string) ir.ParameterID {
+	return ir.ParameterID("parameter/openapi/paths/~1resources/get/parameters/" + name + "/query")
 }
 
 // choiceNaming is the naming of a choice or variant written name, a
@@ -38,18 +38,18 @@ func paramChoicesFilled() []ir.ParamChoice {
 		{
 			Name: choiceNaming("cursor"),
 			Variants: []ir.ParamVariant{
-				{Name: choiceNaming("backward"), Params: []ir.ParamID{choiceParamID("before")}},
-				{Name: choiceNaming("forward"), Params: []ir.ParamID{choiceParamID("after")}},
+				{Name: choiceNaming("backward"), Params: []ir.ParameterID{choiceParamID("before")}},
+				{Name: choiceNaming("forward"), Params: []ir.ParameterID{choiceParamID("after")}},
 			},
 		},
 		{
 			Name:     choiceNaming("parent"),
 			Required: true,
 			Variants: []ir.ParamVariant{
-				{Name: choiceNaming("by_external_id"), Params: []ir.ParamID{
+				{Name: choiceNaming("by_external_id"), Params: []ir.ParameterID{
 					choiceParamID("parent_slug"), choiceParamID("parent_external_id"),
 				}},
-				{Name: choiceNaming("by_id"), Params: []ir.ParamID{choiceParamID("parent_id")}},
+				{Name: choiceNaming("by_id"), Params: []ir.ParameterID{choiceParamID("parent_id")}},
 			},
 		},
 	}
@@ -63,16 +63,16 @@ func listResources(t *testing.T, doc *ir.Document) ir.Operation {
 
 // declaredChoiceParams is the five parameters of listResources in the order
 // the fixture declares them.
-func declaredChoiceParams() []ir.ParamID {
-	return []ir.ParamID{
+func declaredChoiceParams() []ir.ParameterID {
+	return []ir.ParameterID{
 		choiceParamID("parent_id"), choiceParamID("parent_slug"), choiceParamID("parent_external_id"),
 		choiceParamID("before"), choiceParamID("after"),
 	}
 }
 
 // opParamIDs lists the IDs of op's parameters in order.
-func opParamIDs(op ir.Operation) []ir.ParamID {
-	ids := make([]ir.ParamID, 0, len(op.Params))
+func opParamIDs(op ir.Operation) []ir.ParameterID {
+	ids := make([]ir.ParameterID, 0, len(op.Params))
 	for _, p := range op.Params {
 		ids = append(ids, p.ID)
 	}

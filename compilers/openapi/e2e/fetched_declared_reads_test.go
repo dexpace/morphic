@@ -87,7 +87,7 @@ func TestCompile_AURLADocumentDeclaresIsNotRequestedBesideTheDocumentDeclaringIt
 			sc, ok := doc.Types[componentID("U"+k)].(*ir.Scalar)
 			require.True(t, ok, name)
 			require.NotNil(t, sc.Base, name)
-			assert.Equal(t, ir.TypeID("t/anon@lib~1bundle.yaml/s"+k), sc.Base.Target, "%s: U%s", name, k)
+			assert.Equal(t, ir.TypeID("type/anonymous@lib~1bundle.yaml/s"+k), sc.Base.Target, "%s: U%s", name, k)
 		}
 	}
 }
@@ -111,7 +111,7 @@ func TestCompile_AFilesDeclarationAnswersTheURLItNamesBeforeAnyRequest(t *testin
 		doc, diags := compileFilesAt(t, dir, allow, 0)
 		assert.Empty(t, rootErrors(diags), "%s: %v", name, lines(diags))
 		assert.Zero(t, hits.Load(), "%s: no request", name)
-		for ref, want := range map[string]ir.TypeID{"A": "t/anon@local.yaml/Z", "B": "t/anon@local.yaml/Z", "C": "t/anon@local.yaml/Y"} {
+		for ref, want := range map[string]ir.TypeID{"A": "type/anonymous@local.yaml/Z", "B": "type/anonymous@local.yaml/Z", "C": "type/anonymous@local.yaml/Y"} {
 			assert.Equal(t, want, useTarget(t, doc, ref), "%s: %s", name, ref)
 		}
 	}

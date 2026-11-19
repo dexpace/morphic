@@ -5,12 +5,12 @@ Part of the [IR design](./README.md). What `ir/irfacts` derives from a document 
 What a document implies and does not state is derived by one per-document index,
 `irfacts.DocumentFacts` (`irfacts.New(doc)`), and never stored: nothing orders the derivations, and none
 goes stale after a transform. Each of its indexes is built whole the first time one of its facts
-needs it and never written again, so an `Index` is safe for concurrent use; a caller that changes
+needs it and never written again, so a `DocumentFacts` is safe for concurrent use; a caller that changes
 the document builds a new one. The package imports only `ir`, which keeps the definitions it
-indexes: `Supertypes`, `IsSubtype`, `ExposedProps` and `AliasBase`.
+indexes: `Supertypes`, `IsSubtype`, `ExposedProperties` and `AliasBase`.
 
 The two relations `ir` walks, subtypes and exposed properties, are walked rather than indexed while
-that is cheaper. An `Index` answers a relation's first questions by `ir`'s own walk, limited in
+that is cheaper. A `DocumentFacts` answers a relation's first questions by `ir`'s own walk, limited in
 steps (`ir.IsSubtypeWithin`, `ir.ExposesWithin`), until its walks have taken as many steps as the
 registry holds types, and indexes the relation then, or once another fact has. A caller asking a
 few cheap questions, as `pass.Validate` does of the golden spec, pays only for the walks, and one
@@ -30,8 +30,8 @@ comparisons.
 
 ## Exposed properties
 
-`Exposes(t, p)` answers exactly what `ir.ExposedProps(t)` answers about `p`
-([models](./models.md)). The relation `ExposedProps` walks, a model leading to its `Base`,
+`Exposes(t, p)` answers exactly what `ir.ExposedProperties(t)` answers about `p`
+([models](./models.md)). The relation `ExposedProperties` walks, a model leading to its `Base`,
 `Implements` and `Mixins` and an alias scalar to its `Base`, is numbered the way the subtype
 relation is, and a property declared by one model is exposed by that model and every type that
 reaches it. A pair the numbering leaves open, and a property several models declare, are confirmed
@@ -164,7 +164,7 @@ entities without one lie beneath a union variant nothing in the document names, 
 discriminator maps no tag to; the two are anonymous models one model composes in place. Against the
 spec's revision b7e65ddd, 44 entities whose IDs moved are matched by their keys, and one ID stays
 while naming another entity:
-`t/anon/paths/~1organizations~1{organization_id}~1accounts/get/parameters/10/schema` is the
+`type/anonymous/paths/~1organizations~1{organization_id}~1accounts/get/parameters/10/schema` is the
 `direction` parameter's schema at b7e65ddd and the `status` parameter's at 319dc756, and their keys
 tell them apart. Against c92b9b0f, each of the nineteen operations that kept its route and ID under
 a renamed `operationId` is matched to itself. Deriving every key of the golden spec takes about

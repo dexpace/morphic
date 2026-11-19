@@ -10,7 +10,7 @@ import (
 )
 
 // EnumMemberKey returns the key an enum member holding v is identified by
-// (docs/ir/enums.md#member-identity): a one-letter tag for the kind of value
+// (docs/ir/enums.md#member-identity): the name of the kind of value
 // and the value itself, so the string "1" and the number 1 are two members. A
 // number is keyed by its canonical decimal, so 10 and 1e1 are one value.
 //
@@ -20,18 +20,18 @@ func EnumMemberKey(v Value) (key string, ok bool) {
 	var tag, payload string
 	switch v.Kind {
 	case ValueString:
-		tag, payload = "s", v.Str
+		tag, payload = "string", v.String
 	case ValueSymbol:
-		tag, payload = "y", v.Str
+		tag, payload = "symbol", v.String
 	case ValueNumber:
-		tag, payload = "n", numberKey(v.Num)
+		tag, payload = "number", numberKey(v.Number)
 	case ValueBool:
-		tag, payload = "b", strconv.FormatBool(v.Bool)
+		tag, payload = "bool", strconv.FormatBool(v.Bool)
 	case ValueBytes:
-		tag, payload = "x", base64.RawURLEncoding.EncodeToString(v.Bytes)
+		tag, payload = "bytes", base64.RawURLEncoding.EncodeToString(v.Bytes)
 	case ValueNull:
-		tag = "z"
-	case ValueList, ValueObject, ValueRefKind, ValueCtor, ValueInf, ValueNegInf, ValueNaN:
+		tag = "null"
+	case ValueList, ValueObject, ValueRefKind, ValueConstructor, ValueInfinity, ValueNegativeInfinity, ValueNaN:
 		return "", false
 	default:
 		return "", false

@@ -372,7 +372,7 @@ func mappingOf(want map[string]string) map[string]ir.TypeID {
 	out := make(map[string]ir.TypeID, len(want))
 	for tag, target := range want {
 		if strings.HasPrefix(target, "U/") {
-			out[tag] = ir.TypeID("t/anon/components/schemas/" + target)
+			out[tag] = ir.TypeID("type/anonymous/components/schemas/" + target)
 			continue
 		}
 		out[tag] = componentID(target)

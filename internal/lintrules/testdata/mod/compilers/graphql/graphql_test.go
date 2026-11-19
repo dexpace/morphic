@@ -12,7 +12,7 @@ import (
 // draws nothing in a test file.
 func TestFixtures(t *testing.T) {
 	reg := ir.TypeRegistry{}
-	reg["t/graphql/fixture"] = nil
+	reg["type/graphql/fixture"] = nil
 	n := ir.Naming{Canonical: "fixture"}
 	n.Hint = "fixture"
 	_, err := url.QueryUnescape("a+b")

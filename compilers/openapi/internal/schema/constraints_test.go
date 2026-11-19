@@ -441,15 +441,15 @@ func TestCollectionBound_BesideAReferenceReachesTheAlias(t *testing.T) {
 		{"component", boundedRef, componentID("S"), "/components/schemas/S"},
 		{"nullable component", boundedNullable, componentID("S"), "/components/schemas/S"},
 		{"items", "{type: array, items: " + boundedRef + "}",
-			"t/anon/components/schemas/S/items", "/components/schemas/S/items"},
+			"type/anonymous/components/schemas/S/items", "/components/schemas/S/items"},
 		{"nullable items", "{type: array, items: " + boundedNullable + "}",
-			"t/anon/components/schemas/S/items", "/components/schemas/S/items"},
+			"type/anonymous/components/schemas/S/items", "/components/schemas/S/items"},
 		{"prefixItems", "{type: array, prefixItems: [" + boundedRef + "]}",
-			"t/anon/components/schemas/S/prefixItems/0", "/components/schemas/S/prefixItems/0"},
+			"type/anonymous/components/schemas/S/prefixItems/0", "/components/schemas/S/prefixItems/0"},
 		{"additionalProperties", "{type: object, additionalProperties: " + boundedRef + "}",
-			"t/anon/components/schemas/S/additionalProperties", "/components/schemas/S/additionalProperties"},
+			"type/anonymous/components/schemas/S/additionalProperties", "/components/schemas/S/additionalProperties"},
 		{"union branch", "{oneOf: [" + boundedRef + ", {type: string}]}",
-			"t/anon/components/schemas/S/oneOf/0", "/components/schemas/S/oneOf/0"},
+			"type/anonymous/components/schemas/S/oneOf/0", "/components/schemas/S/oneOf/0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -658,7 +658,7 @@ func TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns(t 
 	assert.Nil(t, unread.Constraints)
 	assert.Equal(t, []string{"openapi:maxItems", "openapi:uniqueItems"}, unmodeledKeys(unread.Unmodeled))
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Holder/properties/unread"))
-	alias, ok := doc.Types["t/anon/components/schemas/Element/items"].(*ir.Scalar)
+	alias, ok := doc.Types["type/anonymous/components/schemas/Element/items"].(*ir.Scalar)
 	require.True(t, ok)
 	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(4))}, alias.Constraints)
 	assert.Empty(t, alias.Unmodeled, "a bound the alias holds is not also kept")
@@ -723,9 +723,9 @@ func TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds(t *testin
 		name, a, b string
 		kept       ir.TypeID
 	}{
-		{"the narrower second", list("maxItems: 5"), list("maxItems: 3"), "t/anon/components/schemas/T/allOf/1/properties/v"},
-		{"the narrower first", list("maxItems: 3"), list("maxItems: 5"), "t/anon/components/schemas/T/allOf/0/properties/v"},
-		{"meeting", list("minItems: 1"), list("maxItems: 3"), "t/composed/components/schemas/T/allOf/1/properties/v"},
+		{"the narrower second", list("maxItems: 5"), list("maxItems: 3"), "type/anonymous/components/schemas/T/allOf/1/properties/v"},
+		{"the narrower first", list("maxItems: 3"), list("maxItems: 5"), "type/anonymous/components/schemas/T/allOf/0/properties/v"},
+		{"meeting", list("minItems: 1"), list("maxItems: 3"), "type/composed/components/schemas/T/allOf/1/properties/v"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -739,9 +739,9 @@ func TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds(t *testin
 		})
 	}
 	doc, _ := settledSpec(t, tagsSchema, list("minItems: 1"), list("maxItems: 3"))
-	l, ok := doc.Types["t/composed/components/schemas/T/allOf/1/properties/v"].(*ir.List)
+	l, ok := doc.Types["type/composed/components/schemas/T/allOf/1/properties/v"].(*ir.List)
 	require.True(t, ok, "two lists whose elements meet stand on a list built of both")
-	elem, ok := doc.Types[l.Elem.Target].(*ir.Scalar)
+	elem, ok := doc.Types[l.ElementType.Target].(*ir.Scalar)
 	require.True(t, ok, "whose element is built of both elements")
 	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(3))}, elem.Constraints)
 }
@@ -879,7 +879,7 @@ func TestCollectionBound_DecidesWhetherAnAliasDecorates(t *testing.T) {
 				"    S: {type: array, items: {$ref: '#/components/schemas/Tags', "+tc.keyword+"}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			alias := doc.Types["t/anon/components/schemas/S/items"]
+			alias := doc.Types["type/anonymous/components/schemas/S/items"]
 			require.NotNil(t, alias)
 			_, decorates := ir.Decorated(alias)
 			assert.Equal(t, tc.decorates, decorates)
@@ -898,12 +898,12 @@ func TestCollectionBound_ACarrierLeavesItToTheNodeItsPositionOwns(t *testing.T) 
 			"        tuple: {type: array, prefixItems: [{type: string}], maxItems: 3}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	list, ok := doc.Types["t/anon/components/schemas/Holder/properties/list"].(*ir.List)
+	list, ok := doc.Types["type/anonymous/components/schemas/Holder/properties/list"].(*ir.List)
 	require.True(t, ok)
 	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, list.Constraints)
 	assert.Nil(t, propertyOf(t, doc, "Holder", "list").Constraints)
 
-	tuple, ok := doc.Types["t/anon/components/schemas/Holder/properties/tuple"].(*ir.Tuple)
+	tuple, ok := doc.Types["type/anonymous/components/schemas/Holder/properties/tuple"].(*ir.Tuple)
 	require.True(t, ok)
 	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, tuple.Constraints)
 	assert.Nil(t, propertyOf(t, doc, "Holder", "tuple").Constraints)
@@ -949,7 +949,7 @@ func TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim(t *testing.T) {
 				"    S: "+tc.schema+"\n    Holder:\n      type: object\n      properties:\n        f: "+tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			for _, td := range []ir.TypeDef{typeByName(doc, "S"), doc.Types["t/anon/components/schemas/Holder/properties/f"]} {
+			for _, td := range []ir.TypeDef{typeByName(doc, "S"), doc.Types["type/anonymous/components/schemas/Holder/properties/f"]} {
 				require.NotNil(t, td)
 				assert.Equal(t, tc.kind, td.Kind())
 				assert.Contains(t, td.Common().Unmodeled, "openapi:minItems")
@@ -974,7 +974,7 @@ func TestCollectionBound_ARefNamingThePositionIsOrderInvariant(t *testing.T) {
 		openapitest.RequireNoErrorDiags(t, diags)
 
 		assert.Equal(t, allBounds(), propertyOf(t, doc, "Holder", "beside").Constraints)
-		alias, ok := doc.Types["t/anon/components/schemas/Holder/properties/beside"].(*ir.Scalar)
+		alias, ok := doc.Types["type/anonymous/components/schemas/Holder/properties/beside"].(*ir.Scalar)
 		require.True(t, ok, "the $ref hoists an alias at the property's pointer")
 		assert.Equal(t, allBounds(), alias.Constraints)
 		docs = append(docs, doc)
@@ -1116,7 +1116,7 @@ func TestConstraints_ACountAVariantKeepsIsKeptOnce(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	for name, at := range map[string]string{"Obj": "type/1", "Bare": "type/0"} {
 		assert.Empty(t, typeByName(doc, name).Common().Unmodeled, "the union keeps nothing a variant kept")
-		variant := doc.Types[ir.TypeID("t/anon/components/schemas/"+name+"/"+at)]
+		variant := doc.Types[ir.TypeID("type/anonymous/components/schemas/"+name+"/"+at)]
 		require.NotNil(t, variant, name)
 		assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(variant.Common().Unmodeled), name)
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/"+at), name)

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "AllOfEntryInfersArray",
         "canonical": "all_of_entry_infers_array"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1tags/get",
+              "id": "operation/openapi/paths/~1tags/get",
               "name": {
                 "source": "listTags",
                 "canonical": "list_tags"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1tags/get/parameters/names/query",
+                  "id": "parameter/openapi/paths/~1tags/get/parameters/names/query",
                   "name": {
                     "source": "names",
                     "canonical": "names"
                   },
                   "type": {
-                    "target": "t/anon/paths/~1tags/get/parameters/0/schema",
+                    "target": "type/anonymous/paths/~1tags/get/parameters/0/schema",
                     "nullable": false
                   },
                   "required": false,
@@ -111,7 +111,7 @@
                     "uriTemplate": "/tags",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1tags/get/parameters/names/query",
+                        "param": "parameter/openapi/paths/~1tags/get/parameters/names/query",
                         "location": "query",
                         "wireName": "names",
                         "style": "form",
@@ -141,9 +141,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Tagged/properties/entry": {
+    "type/anonymous/components/schemas/Tagged/properties/entry": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Tagged/properties/entry",
+      "id": "type/anonymous/components/schemas/Tagged/properties/entry",
       "name": {
         "hint": "entry"
       },
@@ -155,14 +155,14 @@
         "pointer": "/components/schemas/Tagged/properties/entry",
         "inferred": "kind-inference"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Tagged/properties/flat": {
+    "type/anonymous/components/schemas/Tagged/properties/flat": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Tagged/properties/flat",
+      "id": "type/anonymous/components/schemas/Tagged/properties/flat",
       "name": {
         "hint": "flat"
       },
@@ -174,14 +174,14 @@
         "pointer": "/components/schemas/Tagged/properties/flat",
         "inferred": "kind-inference"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/paths/~1tags/get/parameters/0/schema": {
+    "type/anonymous/paths/~1tags/get/parameters/0/schema": {
       "kind": "list",
-      "id": "t/anon/paths/~1tags/get/parameters/0/schema",
+      "id": "type/anonymous/paths/~1tags/get/parameters/0/schema",
       "name": {
         "hint": "names"
       },
@@ -193,14 +193,14 @@
         "pointer": "/paths/~1tags/get/parameters/0/schema",
         "inferred": "kind-inference"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Names": {
+    "type/openapi/components/schemas/Names": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/Names",
+      "id": "type/openapi/components/schemas/Names",
       "name": {
         "source": "Names",
         "canonical": "names"
@@ -213,14 +213,14 @@
         "pointer": "/components/schemas/Names",
         "inferred": "kind-inference"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/NamesBounded": {
+    "type/openapi/components/schemas/NamesBounded": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/NamesBounded",
+      "id": "type/openapi/components/schemas/NamesBounded",
       "name": {
         "source": "NamesBounded",
         "canonical": "names_bounded"
@@ -233,8 +233,8 @@
         "pointer": "/components/schemas/NamesBounded",
         "inferred": "kind-inference"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -242,9 +242,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/NamesEntry": {
+    "type/openapi/components/schemas/NamesEntry": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/NamesEntry",
+      "id": "type/openapi/components/schemas/NamesEntry",
       "name": {
         "source": "NamesEntry",
         "canonical": "names_entry"
@@ -257,14 +257,14 @@
         "pointer": "/components/schemas/NamesEntry",
         "inferred": "kind-inference"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Pair": {
+    "type/openapi/components/schemas/Pair": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/Pair",
+      "id": "type/openapi/components/schemas/Pair",
       "name": {
         "source": "Pair",
         "canonical": "pair"
@@ -277,24 +277,24 @@
         "pointer": "/components/schemas/Pair",
         "inferred": "kind-inference"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         },
         {
-          "target": "t/prim/integer",
+          "target": "type/primitive/integer",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/PairEntry": {
+    "type/openapi/components/schemas/PairEntry": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/PairEntry",
+      "id": "type/openapi/components/schemas/PairEntry",
       "name": {
         "source": "PairEntry",
         "canonical": "pair_entry"
@@ -307,24 +307,24 @@
         "pointer": "/components/schemas/PairEntry",
         "inferred": "kind-inference"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         },
         {
-          "target": "t/prim/integer",
+          "target": "type/primitive/integer",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Tagged": {
+    "type/openapi/components/schemas/Tagged": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Tagged",
+      "id": "type/openapi/components/schemas/Tagged",
       "name": {
         "source": "Tagged",
         "canonical": "tagged"
@@ -338,21 +338,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Tagged/properties/flat",
+          "id": "property/openapi/components/schemas/Tagged/properties/flat",
           "name": {
             "source": "flat",
             "canonical": "flat"
           },
           "wireName": "flat",
           "type": {
-            "target": "t/anon/components/schemas/Tagged/properties/flat",
+            "target": "type/anonymous/components/schemas/Tagged/properties/flat",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -365,21 +365,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Tagged/properties/entry",
+          "id": "property/openapi/components/schemas/Tagged/properties/entry",
           "name": {
             "source": "entry",
             "canonical": "entry"
           },
           "wireName": "entry",
           "type": {
-            "target": "t/anon/components/schemas/Tagged/properties/entry",
+            "target": "type/anonymous/components/schemas/Tagged/properties/entry",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -392,21 +392,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Tagged/properties/bounded",
+          "id": "property/openapi/components/schemas/Tagged/properties/bounded",
           "name": {
             "source": "bounded",
             "canonical": "bounded"
           },
           "wireName": "bounded",
           "type": {
-            "target": "t/openapi/components/schemas/NamesBounded",
+            "target": "type/openapi/components/schemas/NamesBounded",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "constraints": {
             "maxItems": 3,
@@ -427,9 +427,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -437,11 +437,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -449,11 +449,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -461,7 +461,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

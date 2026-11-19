@@ -85,13 +85,13 @@ func (w *edgeWalk) def(td TypeDef) {
 	case *Enum:
 		w.enum(t)
 	case *List:
-		w.ref(&t.Elem)
+		w.ref(&t.ElementType)
 		w.encoding(t.Encoding)
 	case *MapT:
 		w.ref(t.Key)
 		w.ref(&t.Value)
 	case *Tuple:
-		w.refs(t.Elems)
+		w.refs(t.ElementTypes)
 		w.ref(t.Rest)
 	case *Literal:
 		w.value(&t.Value, 0)
@@ -122,7 +122,7 @@ func (w *edgeWalk) value(v *Value, depth int) {
 	if v.Ref != nil {
 		w.id(v.Ref.Type)
 	}
-	if c := v.Ctor; c != nil && w.path.enter(c, 0) {
+	if c := v.Constructor; c != nil && w.path.enter(c, 0) {
 		w.id(c.Scalar)
 		w.values(c.Args, depth+1)
 		w.path.leave()
@@ -220,7 +220,7 @@ func (w *edgeWalk) model(m *Model) {
 	w.ref(m.Base)
 	w.refs(m.Implements)
 	w.refs(m.Mixins)
-	w.additional(m.AdditionalProps)
+	w.additional(m.AdditionalProperties)
 	w.discriminator(m.Discriminator)
 }
 
@@ -251,7 +251,7 @@ func (w *edgeWalk) parameter(p *Parameter) {
 
 // additional yields the catch-all value and key types and each pattern's value
 // type.
-func (w *edgeWalk) additional(a *AdditionalProps) {
+func (w *edgeWalk) additional(a *AdditionalProperties) {
 	if a == nil {
 		return
 	}

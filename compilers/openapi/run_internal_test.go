@@ -116,8 +116,8 @@ func responseHeaders(op *ir.Operation) map[compileddoc.ResponseKey][]ir.Header {
 }
 
 // propIDs returns the IDs of props, in order.
-func propIDs(props []*ir.Property) []ir.PropID {
-	ids := make([]ir.PropID, len(props))
+func propIDs(props []*ir.Property) []ir.PropertyID {
+	ids := make([]ir.PropertyID, len(props))
 	for i, p := range props {
 		ids[i] = p.ID
 	}

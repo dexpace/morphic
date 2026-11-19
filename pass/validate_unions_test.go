@@ -29,39 +29,39 @@ func TestValidate_ReportsAVariantNamingAnEarlierVariantsType(t *testing.T) {
 		return vs
 	}
 	const (
-		exclusive = "warning pass/exclusive-union-repeated-variant t/u/variants/"
-		inclusive = "info pass/inclusive-union-redundant-variant t/u/variants/"
+		exclusive = "warning pass/exclusive-union-repeated-variant type/u/variants/"
+		inclusive = "info pass/inclusive-union-redundant-variant type/u/variants/"
 	)
 	tests := []struct {
 		name  string
 		union ir.Union
 		want  []string
 	}{
-		{"exclusive", ir.Union{Exclusive: true, Variants: variants("t/m", "t/m")},
+		{"exclusive", ir.Union{Exclusive: true, Variants: variants("type/m", "type/m")},
 			[]string{exclusive + "1: variants 0 and 1"}},
-		{"inclusive", ir.Union{Variants: variants("t/m", "t/m")},
+		{"inclusive", ir.Union{Variants: variants("type/m", "type/m")},
 			[]string{inclusive + "1: variants 0 and 1"}},
 		{"a nullable repeat", ir.Union{Exclusive: true, Variants: []ir.Variant{
-			{Type: ir.TypeRef{Target: "t/prim/string"}}, {Type: ir.TypeRef{Target: "t/prim/string", Nullable: true}},
+			{Type: ir.TypeRef{Target: "type/primitive/string"}}, {Type: ir.TypeRef{Target: "type/primitive/string", Nullable: true}},
 		}}, []string{exclusive + "1: variants 0 and 1"}},
-		{"three times", ir.Union{Exclusive: true, Variants: variants("t/m", "t/prim/string", "t/m", "t/m")},
+		{"three times", ir.Union{Exclusive: true, Variants: variants("type/m", "type/primitive/string", "type/m", "type/m")},
 			[]string{exclusive + "2: variants 0 and 2", exclusive + "3: variants 0 and 3"}},
-		{"three times, inclusive", ir.Union{Variants: variants("t/m", "t/prim/string", "t/m", "t/m")},
+		{"three times, inclusive", ir.Union{Variants: variants("type/m", "type/primitive/string", "type/m", "type/m")},
 			[]string{inclusive + "2: variants 0 and 2", inclusive + "3: variants 0 and 3"}},
-		{"after another type", ir.Union{Exclusive: true, Variants: variants("t/prim/string", "t/m", "t/m")},
+		{"after another type", ir.Union{Exclusive: true, Variants: variants("type/primitive/string", "type/m", "type/m")},
 			[]string{exclusive + "2: variants 1 and 2"}},
 		{"tagged in the payload", ir.Union{Exclusive: true, WireTagged: true,
-			Discriminator: &ir.Discriminator{PropertyName: "kind"}, Variants: variants("t/m", "t/m")},
+			Discriminator: &ir.Discriminator{PropertyName: "kind"}, Variants: variants("type/m", "type/m")},
 			[]string{exclusive + "1: variants 0 and 1"}},
-		{"tagged by key", ir.Union{Exclusive: true, WireTagged: true, Variants: variants("t/m", "t/m")}, []string{}},
-		{"distinct types", ir.Union{Exclusive: true, Variants: variants("t/m", "t/prim/string")}, []string{}},
+		{"tagged by key", ir.Union{Exclusive: true, WireTagged: true, Variants: variants("type/m", "type/m")}, []string{}},
+		{"distinct types", ir.Union{Exclusive: true, Variants: variants("type/m", "type/primitive/string")}, []string{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
 			u := tt.union
-			u.ID = "t/u"
+			u.ID = "type/u"
 			doc.Types[u.ID] = &u
 			diags := validated(t, doc)
 			got := make([]string, 0, len(diags))
@@ -82,14 +82,14 @@ func TestValidate_SaysWhatARepeatedVariantCosts(t *testing.T) {
 	t.Parallel()
 	for exclusive, want := range map[bool]struct{ code, message string }{
 		true: {"pass/exclusive-union-repeated-variant",
-			"variants 0 and 1 of union t/u both name t/m, so a value of it matches both, and the union, " +
+			"variants 0 and 1 of union type/u both name type/m, so a value of it matches both, and the union, " +
 				"which admits a value only one variant matches, refuses it"},
 		false: {"pass/inclusive-union-redundant-variant",
-			"variants 0 and 1 of union t/u both name t/m, so neither admits a value the other does not, null aside"},
+			"variants 0 and 1 of union type/u both name type/m, so neither admits a value the other does not, null aside"},
 	} {
 		doc := validDoc()
-		doc.Types["t/u"] = &ir.Union{ID: "t/u", Exclusive: exclusive,
-			Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}, {Type: ir.TypeRef{Target: "t/m"}}}}
+		doc.Types["type/u"] = &ir.Union{ID: "type/u", Exclusive: exclusive,
+			Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/m"}}, {Type: ir.TypeRef{Target: "type/m"}}}}
 
 		assert.Equal(t, want.message, messageForCode(t, validated(t, doc), want.code))
 	}

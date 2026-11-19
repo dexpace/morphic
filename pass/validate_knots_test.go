@@ -52,17 +52,17 @@ func TestValidate_ACompositionCycleIsReportedAtEachTypeOfIt(t *testing.T) {
 	t.Parallel()
 	cyclic := func(id string) *ir.TypeRef { r := ref(id); return &r }
 	doc := noFiniteValueDoc(
-		composed("t/a", cyclic("t/b")), composed("t/b", cyclic("t/a")), composed("t/c", cyclic("t/c")), composed("t/d", cyclic("t/a")),
+		composed("type/a", cyclic("type/b")), composed("type/b", cyclic("type/a")), composed("type/c", cyclic("type/c")), composed("type/d", cyclic("type/a")),
 	)
 
 	assert.Equal(t, []finding{
-		{"t/a", "composition never ends: base t/b leads back into a cycle of bases and mixins"},
-		{"t/b", "composition never ends: base t/a leads back into a cycle of bases and mixins"},
-		{"t/c", "composition never ends: base t/c leads back into a cycle of bases and mixins"},
+		{"type/a", "composition never ends: base type/b leads back into a cycle of bases and mixins"},
+		{"type/b", "composition never ends: base type/a leads back into a cycle of bases and mixins"},
+		{"type/c", "composition never ends: base type/c leads back into a cycle of bases and mixins"},
 	}, found(t, doc, cycleCode))
 	assert.Empty(t, found(t, doc, finiteCode), "a cycle of bases is told once, as a cycle")
 
-	chain := noFiniteValueDoc(composed("t/a", cyclic("t/b")), composed("t/b", nil), composed("t/d", cyclic("t/a")))
+	chain := noFiniteValueDoc(composed("type/a", cyclic("type/b")), composed("type/b", nil), composed("type/d", cyclic("type/a")))
 	assert.Empty(t, found(t, chain, cycleCode), "a chain of bases that ends")
 }
 
@@ -70,16 +70,16 @@ func TestValidate_ACompositionCycleIsReportedAtEachTypeOfIt(t *testing.T) {
 // to the first of the base and the mixins whose target is in the cycle.
 func TestValidate_ACycleThroughAMixinNamesTheMixin(t *testing.T) {
 	t.Parallel()
-	a := composed("t/a", nil)
-	a.Mixins = []ir.TypeRef{ref("t/ok"), ref("t/b")}
-	b := composed("t/b", nil)
-	b.Mixins = []ir.TypeRef{ref("t/a")}
+	a := composed("type/a", nil)
+	a.Mixins = []ir.TypeRef{ref("type/ok"), ref("type/b")}
+	b := composed("type/b", nil)
+	b.Mixins = []ir.TypeRef{ref("type/a")}
 
-	got := found(t, noFiniteValueDoc(a, b, composed("t/ok", nil)), cycleCode)
+	got := found(t, noFiniteValueDoc(a, b, composed("type/ok", nil)), cycleCode)
 
 	assert.Equal(t, []finding{
-		{"t/a", "composition never ends: mixin 1 t/b leads back into a cycle of bases and mixins"},
-		{"t/b", "composition never ends: mixin 0 t/a leads back into a cycle of bases and mixins"},
+		{"type/a", "composition never ends: mixin 1 type/b leads back into a cycle of bases and mixins"},
+		{"type/b", "composition never ends: mixin 0 type/a leads back into a cycle of bases and mixins"},
 	}, got)
 }
 
@@ -95,10 +95,10 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *te
 	t.Parallel()
 	const none = ", which has none either"
 	list := func(id, elem string, minItems *int64) *ir.List {
-		return &ir.List{ID: ir.TypeID(id), Elem: ref(elem), Constraints: &ir.Constraints{MinItems: minItems}, Provenance: provAt(id)}
+		return &ir.List{ID: ir.TypeID(id), ElementType: ref(elem), Constraints: &ir.Constraints{MinItems: minItems}, Provenance: provAt(id)}
 	}
 	tuple := func(id string, minItems *int64, rest *ir.TypeRef, elems ...ir.TypeRef) *ir.Tuple {
-		tp := &ir.Tuple{ID: ir.TypeID(id), Elems: elems, Rest: rest, Provenance: provAt(id)}
+		tp := &ir.Tuple{ID: ir.TypeID(id), ElementTypes: elems, Rest: rest, Provenance: provAt(id)}
 		if minItems != nil {
 			tp.Constraints = &ir.Constraints{MinItems: minItems}
 		}
@@ -110,80 +110,80 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *te
 		want []finding
 	}{
 		{"a required property of its own type, a mutual pair, and a type needing one", noFiniteValueDoc(
-			composed("t/n", nil, needs("p/n/0", ref("t/n"))),
-			composed("t/x", nil, needs("p/x/0", ref("t/y"))), composed("t/y", nil, needs("p/y/0", ref("t/x"))),
-			composed("t/h", nil, needs("p/h/0", ref("t/n"))),
+			composed("type/n", nil, needs("property/n/0", ref("type/n"))),
+			composed("type/x", nil, needs("property/x/0", ref("type/y"))), composed("type/y", nil, needs("property/y/0", ref("type/x"))),
+			composed("type/h", nil, needs("property/h/0", ref("type/n"))),
 		), []finding{
-			{"t/n", "no finite value: each needs its required property 0, t/n" + none},
-			{"t/x", "no finite value: each needs its required property 0, t/y" + none},
-			{"t/y", "no finite value: each needs its required property 0, t/x" + none},
+			{"type/n", "no finite value: each needs its required property 0, type/n" + none},
+			{"type/x", "no finite value: each needs its required property 0, type/y" + none},
+			{"type/y", "no finite value: each needs its required property 0, type/x" + none},
 		}},
 		{"the same properties, not required", noFiniteValueDoc(
-			composed("t/n", nil, prop("p/n/0", ref("t/n"), nil)),
-			composed("t/x", nil, prop("p/x/0", ref("t/y"), nil)), composed("t/y", nil, needs("p/y/0", ref("t/x"))),
+			composed("type/n", nil, prop("property/n/0", ref("type/n"), nil)),
+			composed("type/x", nil, prop("property/x/0", ref("type/y"), nil)), composed("type/y", nil, needs("property/y/0", ref("type/x"))),
 		), nil},
 		{"the same properties, one admitting null", noFiniteValueDoc(
-			composed("t/x", nil, needs("p/x/0", ref("t/y"))), composed("t/y", nil, needs("p/y/0", maybe("t/x"))),
+			composed("type/x", nil, needs("property/x/0", ref("type/y"))), composed("type/y", nil, needs("property/y/0", maybe("type/x"))),
 		), nil},
 		{"a list that must hold an element that needs the list", noFiniteValueDoc(
-			list("t/k", "t/t", new(int64(1))), composed("t/t", nil, needs("p/t/0", ref("t/k"))),
+			list("type/k", "type/t", new(int64(1))), composed("type/t", nil, needs("property/t/0", ref("type/k"))),
 		), []finding{
-			{"t/k", "no finite value: each needs its element, t/t" + none},
-			{"t/t", "no finite value: each needs its required property 0, t/k" + none},
+			{"type/k", "no finite value: each needs its element, type/t" + none},
+			{"type/t", "no finite value: each needs its required property 0, type/k" + none},
 		}},
 		{"the same list, which may be empty", noFiniteValueDoc(
-			list("t/k", "t/t", nil), composed("t/t", nil, needs("p/t/0", ref("t/k"))),
+			list("type/k", "type/t", nil), composed("type/t", nil, needs("property/t/0", ref("type/k"))),
 		), nil},
 		{"the same list, with a minimum of none", noFiniteValueDoc(
-			list("t/k", "t/t", new(int64(0))), composed("t/t", nil, needs("p/t/0", ref("t/k"))),
+			list("type/k", "type/t", new(int64(0))), composed("type/t", nil, needs("property/t/0", ref("type/k"))),
 		), nil},
 		{"a map that must hold a value of its own type", noFiniteValueDoc(
-			&ir.MapT{ID: "t/mp", Key: new(strT), Value: ref("t/mp"), Constraints: &ir.Constraints{MinProps: new(int64(1))}, Provenance: provAt("t/mp")},
-		), []finding{{"t/mp", "no finite value: each needs its value, t/mp" + none}}},
+			&ir.MapT{ID: "type/mp", Key: new(strT), Value: ref("type/mp"), Constraints: &ir.Constraints{MinProperties: new(int64(1))}, Provenance: provAt("type/mp")},
+		), []finding{{"type/mp", "no finite value: each needs its value, type/mp" + none}}},
 		{"a tuple that must hold itself", noFiniteValueDoc(
-			tuple("t/p", new(int64(2)), nil, ref("t/prim/string"), ref("t/p")),
-		), []finding{{"t/p", "no finite value: each needs its element 1, t/p" + none}}},
+			tuple("type/p", new(int64(2)), nil, ref("type/primitive/string"), ref("type/p")),
+		), []finding{{"type/p", "no finite value: each needs its element 1, type/p" + none}}},
 		{"a tuple that must hold itself past its leading positions", noFiniteValueDoc(
-			tuple("t/p", new(int64(2)), new(ref("t/p")), ref("t/prim/string")),
-		), []finding{{"t/p", "no finite value: each needs its element 1, t/p" + none}}},
+			tuple("type/p", new(int64(2)), new(ref("type/p")), ref("type/primitive/string")),
+		), []finding{{"type/p", "no finite value: each needs its element 1, type/p" + none}}},
 		{"the same tuple, which need not hold that position", noFiniteValueDoc(
-			tuple("t/p", new(int64(1)), new(ref("t/p")), ref("t/prim/string"), ref("t/p")),
+			tuple("type/p", new(int64(1)), new(ref("type/p")), ref("type/primitive/string"), ref("type/p")),
 		), nil},
 		{"the same tuple, with no minimum", noFiniteValueDoc(
-			tuple("t/p", nil, nil, ref("t/prim/string"), ref("t/p")),
+			tuple("type/p", nil, nil, ref("type/primitive/string"), ref("type/p")),
 		), nil},
 		{"a tuple whose element admits null", noFiniteValueDoc(
-			tuple("t/p", new(int64(1)), nil, maybe("t/p")),
+			tuple("type/p", new(int64(1)), nil, maybe("type/p")),
 		), nil},
 		{"a union whose one variant is the union", noFiniteValueDoc(
-			&ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: ref("t/u")}}, Provenance: provAt("t/u")},
-		), []finding{{"t/u", "no finite value: each needs its variant 0, t/u" + none}}},
+			&ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: ref("type/u")}}, Provenance: provAt("type/u")},
+		), []finding{{"type/u", "no finite value: each needs its variant 0, type/u" + none}}},
 		{"a union with a second variant that is a string", noFiniteValueDoc(
-			&ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: ref("t/u")}, {Type: strT}}, Provenance: provAt("t/u")},
+			&ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: ref("type/u")}, {Type: strT}}, Provenance: provAt("type/u")},
 		), nil},
 		{"a union whose variant admits null", noFiniteValueDoc(
-			&ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: maybe("t/u")}}, Provenance: provAt("t/u")},
+			&ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: maybe("type/u")}}, Provenance: provAt("type/u")},
 		), nil},
 		{"a base that needs the type", noFiniteValueDoc(
-			composed("t/a", new(ref("t/b"))), composed("t/b", nil, needs("p/b/0", ref("t/a"))),
+			composed("type/a", new(ref("type/b"))), composed("type/b", nil, needs("property/b/0", ref("type/a"))),
 		), []finding{
-			{"t/a", "no finite value: each needs its base, t/b" + none},
-			{"t/b", "no finite value: each needs its required property 0, t/a" + none},
+			{"type/a", "no finite value: each needs its base, type/b" + none},
+			{"type/b", "no finite value: each needs its required property 0, type/a" + none},
 		}},
 		{"a cycle of bases whose types each require the other", noFiniteValueDoc(
-			composed("t/a", new(ref("t/b")), needs("p/a/0", ref("t/b"))), composed("t/b", new(ref("t/a")), needs("p/b/0", ref("t/a"))),
+			composed("type/a", new(ref("type/b")), needs("property/a/0", ref("type/b"))), composed("type/b", new(ref("type/a")), needs("property/b/0", ref("type/a"))),
 		), []finding{
-			{"t/a", "no finite value: each needs its required property 0, t/b" + none},
-			{"t/b", "no finite value: each needs its required property 0, t/a" + none},
+			{"type/a", "no finite value: each needs its required property 0, type/b" + none},
+			{"type/b", "no finite value: each needs its required property 0, type/a" + none},
 		}},
 		{"a scalar alias of itself", noFiniteValueDoc(
-			&ir.Scalar{ID: "t/s", Base: new(ref("t/s")), Provenance: provAt("t/s")},
-		), []finding{{"t/s", "no finite value: each needs its base, t/s" + none}}},
+			&ir.Scalar{ID: "type/s", Base: new(ref("type/s")), Provenance: provAt("type/s")},
+		), []finding{{"type/s", "no finite value: each needs its base, type/s" + none}}},
 		{"a scalar alias admitting null of itself", noFiniteValueDoc(
-			&ir.Scalar{ID: "t/s", Base: new(maybe("t/s")), Provenance: provAt("t/s")},
+			&ir.Scalar{ID: "type/s", Base: new(maybe("type/s")), Provenance: provAt("type/s")},
 		), nil},
 		{"a type holding itself in a property that is not required", noFiniteValueDoc(
-			composed("t/node", nil, prop("p/node/next", ref("t/node"), nil)),
+			composed("type/node", nil, prop("property/node/next", ref("type/node"), nil)),
 		), nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *te
 // type of the one reads a base whatever the other needs.
 func TestValidate_ABaseThatNeedsItsDerivedTypeIsToldAsNoFiniteValueAlone(t *testing.T) {
 	t.Parallel()
-	doc := noFiniteValueDoc(composed("t/a", new(ref("t/b"))), composed("t/b", nil, needs("p/b/0", ref("t/a"))))
+	doc := noFiniteValueDoc(composed("type/a", new(ref("type/b"))), composed("type/b", nil, needs("property/b/0", ref("type/a"))))
 
 	assert.Empty(t, found(t, doc, cycleCode))
 	assert.Len(t, found(t, doc, finiteCode), 2)
@@ -211,13 +211,13 @@ func TestValidate_ABaseThatNeedsItsDerivedTypeIsToldAsNoFiniteValueAlone(t *test
 func TestValidate_TheTypeCyclesAreReportedInIDOrderCompositionFirst(t *testing.T) {
 	t.Parallel()
 	doc := noFiniteValueDoc(
-		composed("t/z", nil, needs("p/z/0", ref("t/z"))), composed("t/y", new(ref("t/y"))),
-		composed("t/b", nil, needs("p/b/0", ref("t/b"))), composed("t/a", new(ref("t/a"))),
+		composed("type/z", nil, needs("property/z/0", ref("type/z"))), composed("type/y", new(ref("type/y"))),
+		composed("type/b", nil, needs("property/b/0", ref("type/b"))), composed("type/a", new(ref("type/a"))),
 	)
 
 	got := onlyNoFiniteValueFindings(validated(t, doc))
 
-	assert.Equal(t, []string{"t/a", "t/y", "t/b", "t/z"}, pointers(got))
+	assert.Equal(t, []string{"type/a", "type/y", "type/b", "type/z"}, pointers(got))
 	assert.Equal(t, []string{cycleCode, cycleCode, finiteCode, finiteCode}, irtest.DiagCodes(got))
 }
 

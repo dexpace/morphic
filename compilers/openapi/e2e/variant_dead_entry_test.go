@@ -47,7 +47,7 @@ func TestCompile_AnEntryUnionNoBranchOfWhichLivesIsKeptOnTheEntry(t *testing.T) 
 					require.True(t, ok, "the union is kept on the entry")
 					assert.Equal(t, "/components/schemas/P/allOf/1/"+keyword, string(kept.Provenance.Pointer))
 					for id := range doc.Types {
-						assert.False(t, strings.HasPrefix(string(id), "t/composed/components/schemas/P/"),
+						assert.False(t, strings.HasPrefix(string(id), "type/composed/components/schemas/P/"),
 							"no variant is composed: %s", id)
 					}
 				})

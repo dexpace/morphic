@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "SecurityUnresolved",
         "canonical": "security_unresolved"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1both/get",
+              "id": "operation/openapi/paths/~1both/get",
               "name": {
                 "source": "bothOp",
                 "canonical": "both_op"
@@ -117,7 +117,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1sole/post",
+              "id": "operation/openapi/paths/~1sole/post",
               "name": {
                 "source": "soleOp",
                 "canonical": "sole_op"
@@ -162,7 +162,7 @@
                         "name": "onEvent",
                         "expression": "{$request.body#/url}",
                         "operations": [
-                          "op/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post"
+                          "operation/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post"
                         ]
                       }
                     ],
@@ -177,7 +177,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post",
+              "id": "operation/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post",
               "name": {
                 "source": "eventOp",
                 "canonical": "event_op"
@@ -229,7 +229,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1sole-again/get",
+              "id": "operation/openapi/paths/~1sole-again/get",
               "name": {
                 "source": "soleAgainOp",
                 "canonical": "sole_again_op"
@@ -280,7 +280,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1inherits/get",
+              "id": "operation/openapi/paths/~1inherits/get",
               "name": {
                 "source": "inheritsOp",
                 "canonical": "inherits_op"
@@ -322,7 +322,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1public/get",
+              "id": "operation/openapi/paths/~1public/get",
               "name": {
                 "source": "publicOp",
                 "canonical": "public_op"
@@ -365,7 +365,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1no-mechanism/get",
+              "id": "operation/openapi/paths/~1no-mechanism/get",
               "name": {
                 "source": "noMechanismOp",
                 "canonical": "no_mechanism_op"
@@ -416,7 +416,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1broken-ref/get",
+              "id": "operation/openapi/paths/~1broken-ref/get",
               "name": {
                 "source": "brokenRefOp",
                 "canonical": "broken_ref_op"
@@ -467,7 +467,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1no-scopes/get",
+              "id": "operation/openapi/paths/~1no-scopes/get",
               "name": {
                 "source": "noScopesOp",
                 "canonical": "no_scopes_op"
@@ -523,14 +523,14 @@
           ]
         },
         {
-          "id": "g/webhooks",
+          "id": "operation-group/webhooks",
           "name": {
             "hint": "webhooks"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/webhooks/created/post",
+              "id": "operation/openapi/webhooks/created/post",
               "name": {
                 "source": "createdOp",
                 "canonical": "created_op"

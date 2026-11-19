@@ -1011,7 +1011,7 @@ reference brings in, with the schemas inline in it. A reference object written i
 document brings in is resolved against that document, as the source's are against the source, and
 what it names lowers where it is declared, in whichever document, the source included. What a
 document declares names its entry in its `Provenance`, and has IDs in that document's namespaces,
-the source's qualified by its location (`t/openapi@common.yaml/components/schemas/Pet`,
+the source's qualified by its location (`type/openapi@common.yaml/components/schemas/Pet`,
 [identity](../ir/identity.md)), so one pointer in two documents is two nodes. An operation and a
 parameter keep the IDs of the mount that lowers them.
 
@@ -1603,7 +1603,7 @@ word character (`***`, `>=`, or only variation selectors) keeps its `Source` and
 spelled as the empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an
 `operationId` of `""` is read as absent instead, [`operation-ids`](#operation-ids)), and a
 property's wire name stays `""`. A component schema keyed `""` earns no named `TypeID`: it hoists
-anonymously at its own pointer (`t/anon/components/schemas/`) with that hint. An entity the document
+anonymously at its own pointer (`type/anonymous/components/schemas/`) with that hint. An entity the document
 gives no name — an inline schema, a union variant, a response
 ([`response-conditions`](#response-conditions)), a server with no `name` (its URL's words, else
 `server`), the synthesized `default` and `webhooks` groups — carries a `Hint` alone, in the same
@@ -1687,7 +1687,7 @@ parser reads them, `<<` merge keys merged in its order
 ([`merge-keys`](../parser-library.md#merge-keys)), each keyed by its text and a key that is no
 scalar by the empty string, an alias followed), a `!!binary` to `bytes`, decoded, and a YAML
 timestamp to `string` in the spelling written (`2021-1-1` stays `2021-1-1`, never RFC 3339). A
-number is the literal's exact decimal text in `Num`, never a `float64`: a magnitude past float64 or
+number is the literal's exact decimal text in `Number`, never a `float64`: a magnitude past float64 or
 int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `5`, `9`), `_`
 separators drop, a YAML integer base resolves (`0644` is `420`, `0x1f` is `31`, `0b1010` is `10`),
 and digits, exponent and trailing zeros otherwise stand as written (`10.0`, `1.10e+3`). A plain
@@ -1725,7 +1725,7 @@ what the document got wrong. The number reader is the numeric bounds' as well
 
 Each entry of `components/schemas` lowers to a node of its own in the type registry, whether or not
 anything references it, under a `TypeID` derived from its pointer
-(`t/openapi/components/schemas/<name>`, [identity](../ir/identity.md)) and named by its key
+(`type/openapi/components/schemas/<name>`, [identity](../ir/identity.md)) and named by its key
 ([`naming`](#naming)). One whose type is a primitive (`{type: string}`) lowers to a `Scalar` over
 that primitive, and one that is only a `$ref` lowers to a `Scalar` alias whose `Base` is its target
 ([scalars](../ir/scalars.md)). A reference to the entry names that ID.
@@ -1737,7 +1737,7 @@ that primitive, and one that is only a `$ref` lowers to a `Scalar` alias whose `
 
 An inline schema whose lowering is a node — a model, an enum, a union, a list, a map, a tuple, or a
 scalar a format names ([`string-formats`](#string-formats)) — is hoisted into the registry under an
-anonymous `TypeID` derived from its own pointer (`t/anon/<pointer>`), with a `Hint` composed from
+anonymous `TypeID` derived from its own pointer (`type/anonymous/<pointer>`), with a `Hint` composed from
 its position or read from its title ([`naming`](#naming)), and the position holds a `TypeRef` to
 it. One whose lowering is a primitive, `{type: string}` with or without bounds beside it, hoists
 nothing: the position names the shared primitive, and what it declares beside the type lands on the
@@ -2031,7 +2031,7 @@ lowers as declared, to `Visibility{None: true}`
 header, or for `allOf` at the redeclaration that empties the set (a branch repeating a field already
 invisible reports nothing more). It is not a conflicting redeclaration
 ([`allof-redeclared-property`](#allof-redeclared-property)), which keeps one declaration over
-another, nor a degraded construct: `None` states the intersection exactly, and the warning says only
+another, nor a degraded construct: `InvisibleInEveryLifecycle` states the intersection exactly, and the warning says only
 that no request or response can carry the field. A flag set `false` states nothing. A pair written
 where no `Visibility` can land — an `items` schema, a parameter's schema — is kept verbatim and not
 reported ([`parameter-schema-keywords`](#parameter-schema-keywords)); a component's is reported at
@@ -2265,7 +2265,7 @@ a *refinement*: one use of the conjunct that decides it, its *principal*, with w
 conjuncts say read as said of that use. So `{allOf: [{$ref: T}, {type: string}]}` refines a `T`
 that may be a string or an object, as the two together admit no object, `{allOf: [{$ref: AnyT}],
 minLength: 3}` is a use of `AnyT` holding the bound, as `{$ref: AnyT, minLength: 3}` is, and
-`{allOf: [{$ref: Str}], properties: …}` is a use of `Str`, the `properties` only a `Model` holds kept
+`{allOf: [{$ref: Str}], properties: …}` is a use of `String`, the `properties` only a `Model` holds kept
 as below. Entries whose keywords speak of an object and an array, with no kind declared, admit both:
 `{allOf: [{properties: …}, {items: …}]}` is the top type keeping each entry.
 
@@ -2527,7 +2527,7 @@ principal's build keeps alike, which its union does not lower, is that one writi
 entry with the build's reason and report (above). So
 `{allOf: [{type: string, maxLength: 10}], anyOf: [{type: string}, {type: number}]}` lowers as the
 same union on a branch does, and `{allOf: [{$ref: Str}], oneOf: [{minLength: 1}, {maxLength: 2}]}`
-is a use of `Str` keeping its `oneOf` as validation logic. Where the keywords beside the `allOf`
+is a use of `String` keeping its `oneOf` as validation logic. Where the keywords beside the `allOf`
 are the principal, the position lowers by them as if no `allOf` were written, a union among them
 lowering as [`union`](#union) or [`union-beside-structure`](#union-beside-structure) lowers it there:
 `{allOf: [{type: [string, number]}], anyOf: [{type: string, format: uuid}, {type: integer}]}` is the
@@ -3206,13 +3206,13 @@ do.
 A `$ref` to an `allOf` branch or wrapper makes a model carrying the declarations under it and not
 the others, so one declaration can stand on two models whose fields differ. Where a node stands at a
 schema inside the one holding every declaration that holds the first, the field is a different
-property from that node's: it takes a `PropID` in the `composed` namespace, derived from the
+property from that node's: it takes a `PropertyID` in the `composed` namespace, derived from the
 declaration naming it, and its provenance points at that declaration, and the model's discriminator
 follows it.
 Every other fold keeps the first declaration's identity, which the walk has already handed out.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
-silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin`
+silently, holds in every reading. Its value-domain half is `PrimitiveKind.StrictlyWithin`
 ([primitives](../ir/primitives.md)) and its spelling half is the string rows of `formatTable`
 (`string-formats`): a format refines `string`. Only exact containments are edges. OpenAPI floats
 round, so `format: float` admits every finite number in its range; a bounded integer width sits
@@ -4126,7 +4126,7 @@ union, an entry's own `type` and value set kept, admits anything but objects, nu
 report reads its conjuncts, or its read is cut short, as by a `$ref` naming no schema: the union is
 then a conjunct like any other, a contradiction with the rest is that report's to state, and a rest
 whose kinds are not known draws neither, so a schema draws one of the two warnings at most.
-`{allOf: [{$ref: Str}, {oneOf: [{type: boolean}, {$ref: Obj}]}]}` over a string `Str` draws the
+`{allOf: [{$ref: Str}, {oneOf: [{type: boolean}, {$ref: Obj}]}]}` over a string `String` draws the
 warning that its conjuncts share no value and none naming a dead branch. Where no branch
 lives, the union is shape 5 below. A route the discriminator standing with the union takes to a
 dead branch routes to no variant, and the union keeps none: a `mapping` entry whose value's chain a
@@ -4595,7 +4595,7 @@ and so does one standing with a union on a branch of a schema's `allOf`, written
 beside the `allOf`, which the `Union` the union lowers to holds
 ([`union-beside-structure`](#union-beside-structure)).
 On a `Model` whose own properties include the one `propertyName` names, the tag is that property's
-`PropID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
+`PropertyID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
 in `Discriminator.PropertyName`. A `propertyName` that is the empty string, a legal member name, has
 no spelling there, since an empty `PropertyName` means none, so where no own property of a model
 carries it the node holds no `Discriminator`, and the census keeps the whole object verbatim and
@@ -4951,7 +4951,7 @@ lowered first.
 ### `additional-properties`
 
 `additionalProperties: false` lowers to `Model.Additional` closed, and `additionalProperties: true`
-or a schema to `Model.AdditionalProps`, whose `Value` types every key no property names. An object
+or a schema to `Model.AdditionalProperties`, whose `Value` types every key no property names. An object
 whose one member fact is that catch-all lowers to a `MapT` instead
 ([containers](../ir/containers.md)). `unevaluatedProperties: false` lowers to `Additional`
 closed after composition where no `additionalProperties` is written beside it. An
@@ -4970,7 +4970,7 @@ holding the closure or the catch-all, as beside `type: object`.
 
 `true` writes a catch-all; an absent keyword does not. In JSON Schema, `additionalProperties: true`
 is the empty schema, so it types the catch-all as the top type exactly as `{}` does: alone it is a
-`MapT` of the top type, and beside properties an `AdditionalProps` of the top type. An absent
+`MapT` of the top type, and beside properties an `AdditionalProperties` of the top type. An absent
 `additionalProperties` states nothing, so `{type: object}` stays a `Model` with no properties and
 `Additional` unspecified; whether such an object is a free-form map is a target's policy, not a fact
 the source declared. Beside `patternProperties` the catch-all's `Value` types a key no pattern
@@ -5071,7 +5071,7 @@ stays one when a discriminator moves off it. A `required` beside a `$ref` lands 
 
 ### `pattern-properties`
 
-Each `patternProperties` entry lowers to one `AdditionalProps.Patterns` entry, in source order: its
+Each `patternProperties` entry lowers to one `AdditionalProperties.Patterns` entry, in source order: its
 pattern as written, and its schema lowered as a property's would be. The object stays a `Model`,
 whose catch-all beside the patterns is [`additional-properties`](#additional-properties)'.
 
@@ -5104,7 +5104,7 @@ one under `not`; the branch a refinement lowers from is reported as the position
 
 ### `tuples`
 
-`prefixItems` lowers to a `Tuple`'s `Elems`, one per position, and `minItems`, `maxItems` and
+`prefixItems` lowers to a `Tuple`'s `ElementTypes`, one per position, and `minItems`, `maxItems` and
 `uniqueItems` beside it to the `Tuple`'s `Constraints`. Its `Rest` is read from the `items` beside
 `prefixItems`, which 2020-12 applies to every element past them: `items: false` leaves no `Rest`, an
 absent `items` reads as `true`, the top type, and either of those or a schema lowers exactly as a
@@ -5113,12 +5113,12 @@ them stays the verbatim entry [`validation-only`](#validation-only) keeps, as it
 `List`, reported as an info `openapi/validation-only-keyword`: beside an `items` it is inert and
 kept with that `items`, and beside `prefixItems` alone it is live, so `Rest`, the top type an
 absent `items` reads as, admits elements the entry refuses unless composition evaluates them, and
-the entry is what closes the tuple. The same holds of a `List`'s `Elem`.
+the entry is what closes the tuple. The same holds of a `List`'s `ElementType`.
 
 JSON Schema drafts 4, 6 and 7 and 2019-09 write a tuple as `items` holding a list, its rest as the
 `additionalItems` beside it. In a schema read in one of them where it is written
 ([`dialect-keywords`](#dialect-keywords)), as a type list's array variant is though its node stands
-at a pointer of its own ([`type-arrays`](#type-arrays)), the list lowers to a `Tuple`'s `Elems`, one per entry,
+at a pointer of its own ([`type-arrays`](#type-arrays)), the list lowers to a `Tuple`'s `ElementTypes`, one per entry,
 each a schema whose `$ref` is bound, and `additionalItems` to its `Rest` as 2020-12's `items` does
 beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. A written
 `additionalItems` leaves an `unevaluatedItems` beside the list inert, as that `items` does, and an
@@ -5157,7 +5157,7 @@ saying what a document of its version writes instead, and the lowering reads `it
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
   `reftable.TestTuples_AListOfItemsHoldsSchemas`, `load.TestLandingTargets`,
   `specrules.TestCheck_AnItemsListFollowsTheSchemasRows`, `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
-- Status: open: whether a `Rest` or an `Elem` beside a live `unevaluatedItems: false` is typed
+- Status: open: whether a `Rest` or an `ElementType` beside a live `unevaluatedItems: false` is typed
   rather than left to the entry (#1883).
 
 ### `shape-applicator`
@@ -5500,7 +5500,7 @@ was, but a diagnostic is not part of the document.
 
 The approximation is preferred to an exactly empty shape, and the reason is worth stating because
 the IR does have one. A closed `Enum` with no members is an exactly empty value space
-([enums](../ir/enums.md)), but `Enum.ValueType` is a `PrimKind` and a `false` schema declares
+([enums](../ir/enums.md)), but `Enum.ValueType` is a `PrimitiveKind` and a `false` schema declares
 no type, so lowering to one means inventing a value type the source never wrote — an exact-looking
 node resting on a fabricated field, which is not more faithful than an approximate one with the
 source beside it. It would also split the rule: the composition case
@@ -6218,7 +6218,7 @@ unusable, but dropping the entry would lose every operation it declares.
 ### `operation-ids`
 
 An `operationId` lowers to `Operation.Name`, as its `Source` and neutral `Canonical`
-([`naming`](#naming)), while the `OpID` is derived from the operation's mount pointer
+([`naming`](#naming)), while the `OperationID` is derived from the operation's mount pointer
 ([identity](../ir/identity.md)) and never from the `operationId`, so a repeated or renamed id
 moves no ID. An operation with none, or with `""`, claims no id and is named by a hint of its method
 and the route's key in neutral words — the path template, a webhook's name, a callback's expression,
@@ -6403,8 +6403,8 @@ and any query ([`path-keys`](#path-keys)), so `/users`, `/users/{id}` and `/user
 [`path-keys`](#path-keys) finds it, so a `?` inside a template expression begins none, and
 `/{a?b}/users` files under `{a?b}`; `URITemplate` keeps the query. A segment that is a
 template expression names its group as written, `/{tenant}/users` filing under `{tenant}`, and the
-root path, whose segments are all empty, under the empty one. The group's ID is `g/path-prefix/`
-and the segment as one RFC 6901 token, the empty segment's `g/path-prefix`
+root path, whose segments are all empty, under the empty one. The group's ID is `operation-group/path-prefix/`
+and the segment as one RFC 6901 token, the empty segment's `operation-group/path-prefix`
 ([identity](../ir/identity.md#operation-groups)); it is named by the segment, by a hint where the
 segment is empty, and has no docs, and group order is first-seen from the operations. A path names
 no resource, so the reading is policy (invariant 6), never the default: an operation it files lists
@@ -6463,7 +6463,7 @@ warning `emitters/unmatched-key` that mounts nothing ([a key that matches
 nothing](../emitters/write-integrate.md#a-key-that-matches-nothing)), and a group made for a key no
 mapping reads is named by no mount.
 
-A group's ID is `g/extension/` and the path's segments, each an RFC 6901 token
+A group's ID is `operation-group/extension/` and the path's segments, each an RFC 6901 token
 ([identity](../ir/identity.md#operation-groups)). It follows from the path alone and never from the
 key, so a configuration can name a group, and a group nests in the one its prefix names whichever
 operation is met first. A group is named by its segment, and has no docs, as no Tag Object describes
@@ -6895,7 +6895,7 @@ one being escaped, so an undeclared `name` it writes keeps `openapi:name` beside
 
 3.2's `itemSchema` lowers to `Content.Item`, the type of each item of a sequential body, with
 `Content.Stream` set and no `Inferred`, since it declares the stream, and `itemEncoding` to
-`Content.ItemEncoding`, with `Multi` set. In a multipart body its `Filename`, and
+`Content.ItemEncoding`, with `RepeatsPerArrayItem` set. In a multipart body its `HasFilename`, and
 the `Inferred` beside it, are read off `itemSchema` and the `itemEncoding`'s `contentType` as a
 multipart part's declaration is read ([`multipart-encoding`](#multipart-encoding)), an item being
 one value where an array part is many, so an array item is no file; an item no `itemSchema`
@@ -6935,7 +6935,7 @@ declaring an `itemSchema` sets it with no marker ([`item-schema`](#item-schema))
 Content leaves it unset, so a response offering `application/json` beside `text/event-stream` marks
 the event stream alone. A request body or success response with a Content that streams lowers to
 `Operation.RequestStream` and `ResponseStream` for the directions that have one, each with `Events`
-what one frame holds: the `Elem` of a `Type` whose root, read through aliases, is a list, since a
+what one frame holds: the `ElementType` of a `Type` whose root, read through aliases, is a list, since a
 schema applies to the whole body and OpenAPI 3.2 §4.14.3.1 maps a sequential body to an array of its
 values, else the `Type` itself, a schema with no array to read being the frame, or `bytes` on a file
 body ([`file-bodies`](#file-bodies)), whose schema describes the file. `Content.Type` keeps the
@@ -6994,7 +6994,7 @@ offers a Content that does not stream beside one that does. Any other key is rep
 ### `multipart-encoding`
 
 An Encoding Object of a `multipart/*` or `application/x-www-form-urlencoded` Content lowers to a
-`PartEncoding` in `Content.Encoding`, keyed by the `PropID` of the body property its key names,
+`PartEncoding` in `Content.Encoding`, keyed by the `PropertyID` of the body property its key names,
 wherever the body declares that property: on the schema, in an `allOf` branch with the first
 declaration of a name winning, on a model it composes, or on a `oneOf` or `anyOf` branch, written on
 the schema or on an `allOf` branch, which the schema lowering distributes
@@ -7005,7 +7005,7 @@ model's over one it composes, else the later conjunct's, so `allOf: [{$ref: A}, 
 in its variants, the entry written applied to each and the structural flags and default content type
 read off that variant's declaration alone, so a part a file in one variant and text in another is
 both, each where it is declared. A schema declaring the part is read for one variant's declaration
-but where it declares another variant's, matched by the `PropID` its place gives it, so a
+but where it declares another variant's, matched by the `PropertyID` its place gives it, so a
 declaration the `allOf` merge folds into a variant's is read with it. A body, or a variant, that is
 a model narrowing a union, as one composing a union beside a member of its own is, keys a part so
 under each shape it takes ([models](../ir/models.md#the-shapes-of-a-model-narrowing-a-union)), the
@@ -7060,7 +7060,7 @@ A key naming a catch-all's member has no typed home, `*` included, by decision. 
 encoding key a property name, so `*` names the one member called `*`, and gives an entry naming no
 declared property no effect; reading `*` as every member a catch-all admits is a convention no
 version states, which a typed field would take as a guess, and a field keyed by the key as written,
-beside the `PropID`s, would type a misspelt key alike.
+beside the `PropertyID`s, would type a misspelt key alike.
 
 What OpenAPI does say of the parts a catch-all admits, their structural flags and default content
 type, lowers to `Content.CatchAllEncoding` ([payloads](../ir/payloads.md#a-catch-alls-parts)), keyed
@@ -7068,8 +7068,8 @@ by the type holding the catch-all: the body's type where it is a map, and otherw
 flattening of the body's type reads that holds a catch-all, a union body's variants each read so, as
 `ir.CatchAllHolders` lists them and `pass.Validate` holds them. `Value` is the encoding of a part no
 pattern matches, `additionalProperties`' or `unevaluatedProperties`', and `Patterns` one per
-`patternProperties` entry, each read as a declared part with no encoding entry is: `Multi` and
-`Filename` off the value's type, and its default content type below, `contentEncoding` read off
+`patternProperties` entry, each read as a declared part with no encoding entry is: `RepeatsPerArrayItem` and
+`HasFilename` off the value's type, and its default content type below, `contentEncoding` read off
 every catch-all value schema the part walk meets. An encoding that says nothing is not written, and
 a holder whose parts say nothing gets no key. A body that is a map declares no part, so every form
 body stating a schema is settled, though the walk finds no part.
@@ -7101,8 +7101,8 @@ default OpenAPI gives it in `ContentTypes`, unless its entry arranges its value.
 empty `contentType`, which load reports, takes none. A response's part takes its default too, at
 every minor, though before 3.2 OpenAPI applies `encoding` to request bodies alone: the default is
 what OpenAPI gives a part by its schema, which needs no Encoding Object to apply. The default is
-read at the document's minor off the types the part's declarations settled on, the ones `Multi` and
-`Filename` are read off: each value an Encoding Object applies to, which is each item of an array
+read at the document's minor off the types the part's declarations settled on, the ones `RepeatsPerArrayItem` and
+`HasFilename` are read off: each value an Encoding Object applies to, which is each item of an array
 part, the element of a list or tuple and a union's members in its place, takes the row its kind
 names, and the part takes the one every value takes, a null value passing over:
 
@@ -7130,19 +7130,19 @@ item of a multipart body's `itemSchema` is a part too, and an `itemEncoding` nam
 or none written, takes its item's default, a list item being an array inside the array; such a body
 gets an `ItemEncoding` where it writes none ([`item-schema`](#item-schema)).
 
-`Multi` and `Filename` come from the part, read once every type has lowered, and `Filename` also
+`RepeatsPerArrayItem` and `HasFilename` come from the part, read once every type has lowered, and `HasFilename` also
 from the media types its encoding entry names; no part of a url-encoded body is a file, since the
 body has no parts to carry a file name. Where the body's type has the property and its type is a
 list, a tuple, a primitive, or a scalar whose bases end in one of those or in no base, they are read
-off that type, the one the `allOf` merge settled on: `Multi` where it ends in a list or tuple,
-`Filename` where it ends, in a multipart body, in `bytes` no encoding such as `format: byte`
+off that type, the one the `allOf` merge settled on: `RepeatsPerArrayItem` where it ends in a list or tuple,
+`HasFilename` where it ends, in a multipart body, in `bytes` no encoding such as `format: byte`
 re-encodes, or in a list or tuple every element of which does, a tuple's rest included where
 elements may follow its prefix. A union is read off its variants, through the unions nested in them,
-each as such a type is and one of another kind as neither: `Multi` where any is, since a part that
-may repeat travels as repeated parts, and, in a multipart body, `Filename` where every one is
+each as such a type is and one of another kind as neither: `RepeatsPerArrayItem` where any is, since a part that
+may repeat travels as repeated parts, and, in a multipart body, `HasFilename` where every one is
 `bytes` no encoding re-encodes or a list or tuple of them. A property of any other kind, such as an
 enum, literal, model or map, or a union reaching more nested unions than a bound of its own, reads
-off its type as no file, as such a member of a union does, and its `Multi` is read from every schema
+off its type as no file, as such a member of a union does, and its `RepeatsPerArrayItem` is read from every schema
 declaring it: where any is an array, or writes no `type` and a union with an array among its
 branches. In a multipart body a part is a file too where every schema declaring it reads so as a
 body's schema does ([`file-bodies`](#file-bodies)), an array through each of its elements, its
@@ -7472,7 +7472,7 @@ document's ([servers](../ir/servers.md#inbound-operations)).
 
 An operation's `callbacks` lower to its HTTP binding's `Callbacks`: for each runtime expression of
 each named callback, a `Callback` holding the callback's name and the expression as written and the
-`OpID`s of the operations its path item declares. Each of those lowers to an `Operation` of its own,
+`OperationID`s of the operations its path item declares. Each of those lowers to an `Operation` of its own,
 mounted at its own pointer below the declaring operation's
 (`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), filed in the declaring
 operation's group whatever its own tags or grouping extension state ([`tag-groups`](#tag-groups)),

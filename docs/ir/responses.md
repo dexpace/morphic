@@ -51,7 +51,7 @@ type ErrorCase struct {          // a response too: Name/Conditions/Payload/Head
 
 type OperationLink struct {      // how a response leads to another request
     Name       Naming
-    Operation  OpID               // the operation it leads to
+    Operation  OperationID               // the operation it leads to
     Params     []LinkParam        // values for Operation's parameters, each once, in source order
     Body       *LinkValue         // the value of Operation's request body; nil = none
     Server     *ServerID          // the server Operation is called on; nil = its own
@@ -60,7 +60,7 @@ type OperationLink struct {      // how a response leads to another request
     Unmodeled  Unmodeled
 }
 
-type LinkParam struct { Param ParamID; Value LinkValue } // Param is one of Operation's
+type LinkParam struct { Param ParameterID; Value LinkValue } // Param is one of Operation's
 
 type LinkValue struct {          // Kind says which one field is set
     Kind     LinkValueKind        // constant | request | response | url | method | status

@@ -93,7 +93,7 @@ func assertStreamTerminator(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	cond := mop.ResponseStream.Condition
 	require.NotNil(t, cond)
 	assert.Nil(t, cond.Input.Param, "the input is a member of the request body")
-	assert.Equal(t, []ir.PropID{"p/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream"},
+	assert.Equal(t, []ir.PropertyID{"property/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream"},
 		cond.Input.Segments)
 	assert.Equal(t, ir.ValueBool, cond.Value.Kind)
 	assert.True(t, cond.Value.Bool)
@@ -130,17 +130,17 @@ func assertPathPrefixQuery(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) 
 	groups := doc.Services[0].Groups
 	require.Len(t, groups, 2)
 
-	assert.Equal(t, ir.GroupID("g/path-prefix/users"), groups[0].ID)
+	assert.Equal(t, ir.GroupID("operation-group/path-prefix/users"), groups[0].ID)
 	require.Len(t, groups[0].Operations, 2)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1users/get"), groups[0].Operations[0].ID)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1users?role=admin/get"), groups[0].Operations[1].ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1users/get"), groups[0].Operations[0].ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1users?role=admin/get"), groups[0].Operations[1].ID)
 	assert.Equal(t, "/users?role=admin", groups[0].Operations[1].Bindings.HTTP[0].URITemplate,
 		"the query stays in the template")
 
-	assert.Equal(t, ir.GroupID("g/path-prefix"), groups[1].ID)
+	assert.Equal(t, ir.GroupID("operation-group/path-prefix"), groups[1].ID)
 	assert.Equal(t, ir.Naming{Hint: "empty"}, groups[1].Name)
 	require.Len(t, groups[1].Operations, 1)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1?probe=1/get"), groups[1].Operations[0].ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1?probe=1/get"), groups[1].Operations[0].ID)
 }
 
 // sortedPointers returns the pointers of the diagnostics of code, as strings

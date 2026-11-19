@@ -38,7 +38,7 @@ type Ctx struct {
                                  // (naming.md); nil on a first run
     Snapshot string              // read-only: the version label of the snapshot Doc is;
                                  // "" = unsliced
-    Samples map[emitter.TargetKey]map[ir.OpID][]emitter.Sample // read-only, a docs target's: the
+    Samples map[emitter.TargetKey]map[ir.OperationID][]emitter.Sample // read-only, a docs target's: the
                                  // samples of the targets its options name (../docs-and-mock.md)
     Routes  map[string]emitter.RouteTable // read-only, a cross-version target's: every
                                  // snapshot's routes (../docs-and-mock.md#routes-and-links)

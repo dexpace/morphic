@@ -17,7 +17,7 @@ import (
 // bodyProps is the ID prefix of the members of the JSON body the success
 // response of the operation method at path declares.
 func bodyProps(path, method string) string {
-	return "p/openapi/paths/~1" + strings.ReplaceAll(path, "/", "~1") + "/" + method + "/responses/200/content/application~1json/schema/properties"
+	return "property/openapi/paths/~1" + strings.ReplaceAll(path, "/", "~1") + "/" + method + "/responses/200/content/application~1json/schema/properties"
 }
 
 // propPath is a path of the members whose IDs are ids, in a response body.
@@ -30,7 +30,7 @@ func propPath(ids ...string) *ir.PropPath {
 func inputPath(param string, ids ...string) *ir.InputPath {
 	in := &ir.InputPath{Segments: memberIDs(ids)}
 	if param != "" {
-		id := ir.ParamID(param)
+		id := ir.ParameterID(param)
 		in.Param = &id
 	}
 	return in
@@ -38,20 +38,20 @@ func inputPath(param string, ids ...string) *ir.InputPath {
 
 // memberIDs converts ids, nil for none: a path walking nothing holds no
 // segments, which is not the same value as an empty list of them.
-func memberIDs(ids []string) []ir.PropID {
+func memberIDs(ids []string) []ir.PropertyID {
 	if len(ids) == 0 {
 		return nil
 	}
-	out := make([]ir.PropID, 0, len(ids))
+	out := make([]ir.PropertyID, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, ir.PropID(id))
+		out = append(out, ir.PropertyID(id))
 	}
 	return out
 }
 
 // queryParam is the ID of the query parameter name of the GET at path.
 func queryParam(path, name string) string {
-	return "param/openapi/paths/~1" + path + "/get/parameters/" + name + "/query"
+	return "parameter/openapi/paths/~1" + path + "/get/parameters/" + name + "/query"
 }
 
 // inEitherOrder returns src and src with every mapping's entries reversed:

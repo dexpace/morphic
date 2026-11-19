@@ -77,8 +77,8 @@ func jsonKindOf(v ir.Value) jsontext.Kind {
 		return '0'
 	case ir.ValueString:
 		return '"'
-	case ir.ValueBytes, ir.ValueList, ir.ValueObject, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+	case ir.ValueBytes, ir.ValueList, ir.ValueObject, ir.ValueSymbol, ir.ValueRefKind, ir.ValueConstructor,
+		ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		return 0
 	}
 	return 0

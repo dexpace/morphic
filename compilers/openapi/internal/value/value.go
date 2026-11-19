@@ -79,9 +79,9 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 	case ScalarBool:
 		return ir.Value{Kind: ir.ValueBool, Bool: s.Bool}, nil
 	case ScalarNumber:
-		return ir.Value{Kind: ir.ValueNumber, Num: s.Num}, nil
+		return ir.Value{Kind: ir.ValueNumber, Number: s.Num}, nil
 	case ScalarString, ScalarTimestamp:
-		return ir.Value{Kind: ir.ValueString, Str: s.Text}, nil
+		return ir.Value{Kind: ir.ValueString, String: s.Text}, nil
 	case ScalarBinary:
 		return ir.Value{Kind: ir.ValueBytes, Bytes: s.Bytes}, nil
 	default:

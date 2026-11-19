@@ -218,7 +218,7 @@ func populatedDocs() ir.Docs {
 	return ir.Docs{
 		Summary:     "short summary",
 		Description: "long CommonMark description naming Pet",
-		Refs:        []ir.DocRef{{StartByte: 34, EndByte: 37, Type: "t/x"}},
+		Refs:        []ir.DocRef{{StartByte: 34, EndByte: 37, Type: "type/x"}},
 		ExternalDocs: []ir.Link{
 			{URL: "https://example.com/a", Description: "doc a"},
 			{URL: "https://example.com/b", Description: "doc b"},
@@ -233,7 +233,7 @@ func populatedProvenance() ir.Provenance {
 		WrittenBy: 4,
 		Pointer:   "/paths/~1users/get",
 		Position:  ir.Position{Line: 12, Column: 7},
-		Node:      "op/openapi/paths/~1users/get",
+		Node:      "operation/openapi/paths/~1users/get",
 		Inferred:  "pagination-name-match",
 	}
 }
@@ -265,7 +265,7 @@ func populatedDeprecation() *ir.Deprecation {
 		Since:          "1.2.0",
 		RemovalVersion: "2.0.0",
 		RemovalDate:    "2026-08-01",
-		ReplacedBy:     []ir.EntityRef{{Operation: "op/v2"}, {Type: "t/v2"}},
+		ReplacedBy:     []ir.EntityRef{{Operation: "operation/v2"}, {Type: "type/v2"}},
 	}
 }
 
@@ -280,7 +280,7 @@ func populatedAvailability() *ir.Availability {
 			{Version: "v2", Name: "olderName"},
 		},
 		TypeChangedFrom: []ir.VersionedType{
-			{Version: "v1", Type: ir.TypeRef{Target: "t/old", Nullable: true}},
+			{Version: "v1", Type: ir.TypeRef{Target: "type/old", Nullable: true}},
 		},
 		RequiredChanged: []ir.VersionedBool{
 			{Version: "v1", WasRequired: false},
@@ -326,8 +326,8 @@ func populatedConstraints() *ir.Constraints {
 		MinItems:       new(int64(1)),
 		MaxItems:       new(int64(10)),
 		UniqueItems:    true,
-		MinProps:       new(int64(1)),
-		MaxProps:       new(int64(20)),
+		MinProperties:  new(int64(1)),
+		MaxProperties:  new(int64(20)),
 	}
 }
 
@@ -335,9 +335,9 @@ func populatedConstraints() *ir.Constraints {
 func populatedEncoding() *ir.Encoding {
 	return &ir.Encoding{
 		Name:      "rfc3339",
-		WireType:  &ir.TypeRef{Target: "t/prim/string", Nullable: true},
+		WireType:  &ir.TypeRef{Target: "type/primitive/string", Nullable: true},
 		MediaType: "text/plain",
-		Schema:    &ir.TypeRef{Target: "t/openapi/components/schemas/Decoded"},
+		Schema:    &ir.TypeRef{Target: "type/openapi/components/schemas/Decoded"},
 	}
 }
 
@@ -355,7 +355,7 @@ func populatedXMLHints() *ir.XMLHints {
 
 // populatedTypeRef returns a TypeRef with every field set.
 func populatedTypeRef() ir.TypeRef {
-	return ir.TypeRef{Target: "t/openapi/components/schemas/User", Nullable: true, Inferred: "nullable-inference"}
+	return ir.TypeRef{Target: "type/openapi/components/schemas/User", Nullable: true, Inferred: "nullable-inference"}
 }
 
 // errorPayload returns the one-media-type body an ir.ErrorCase fixture carries,
@@ -374,19 +374,19 @@ func populatedValue() ir.Value {
 		List: []ir.Value{
 			{Kind: ir.ValueNull},
 			{Kind: ir.ValueBool, Bool: true},
-			{Kind: ir.ValueString, Str: "hello"},
-			{Kind: ir.ValueSymbol, Str: "ok"},
-			{Kind: ir.ValueNumber, Num: ir.BigVal("3.14")},
+			{Kind: ir.ValueString, String: "hello"},
+			{Kind: ir.ValueSymbol, String: "ok"},
+			{Kind: ir.ValueNumber, Number: ir.BigVal("3.14")},
 			{Kind: ir.ValueBytes, Bytes: []byte{0x01, 0x02}},
 			{Kind: ir.ValueObject, Object: []ir.Field{
 				{Name: "b", Value: ir.Value{Kind: ir.ValueBool, Bool: false}},
-				{Name: "a", Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
+				{Name: "a", Value: ir.Value{Kind: ir.ValueString, String: "x"}},
 			}},
-			{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/x", Member: "M"}},
-			{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{
-				Scalar: "t/s",
+			{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "type/x", Member: "M"}},
+			{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{
+				Scalar: "type/s",
 				Name:   "fromISO",
-				Args:   []ir.Value{{Kind: ir.ValueString, Str: "2024-05-06"}},
+				Args:   []ir.Value{{Kind: ir.ValueString, String: "2024-05-06"}},
 			}},
 		},
 	}
@@ -410,11 +410,11 @@ func populatedTypeCommon(id ir.TypeID) ir.TypeCommon {
 		MediaTypeHint:    "application/json",
 		XML:              populatedXMLHints(),
 		Examples: []ir.Example{
-			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
+			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, String: "v1"}},
 		},
 		Instantiation: &ir.TemplateInstantiation{
 			Template: "Page",
-			Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "t/item"}}},
+			Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "type/item"}}},
 		},
 		Unmodeled:  populatedUnmodeled(),
 		Provenance: populatedProvenance(),
@@ -509,16 +509,16 @@ func populatedHeader() ir.Header {
 func populatedOperationLink() ir.OperationLink {
 	return ir.OperationLink{
 		Name:      populatedNaming(),
-		Operation: "op/next",
+		Operation: "operation/next",
 		Params: []ir.LinkParam{
-			{Param: "param/next/id", Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: new(populatedValue())}},
-			{Param: "param/next/etag", Value: ir.LinkValue{
-				Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: []ir.PropID{"p/etag"}},
+			{Param: "parameter/next/id", Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: new(populatedValue())}},
+			{Param: "parameter/next/etag", Value: ir.LinkValue{
+				Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: []ir.PropertyID{"property/etag"}},
 			}},
-			{Param: "param/next/from", Value: ir.LinkValue{Kind: ir.LinkURL}},
+			{Param: "parameter/next/from", Value: ir.LinkValue{Kind: ir.LinkURL}},
 		},
 		Body: &ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{
-			Param: new(ir.ParamID("param/op/filter")), Segments: []ir.PropID{"p/filter/id"},
+			Param: new(ir.ParameterID("parameter/op/filter")), Segments: []ir.PropertyID{"property/filter/id"},
 		}},
 		Server:     new(ir.ServerID("server/next")),
 		Docs:       populatedDocs(),
@@ -538,7 +538,7 @@ func eventPayloadLeftZero() zeroField {
 // and the zero-value list in the test specification.
 func populatedProperty() ir.Property {
 	return ir.Property{
-		ID:               "p/openapi/components/schemas/User/properties/id",
+		ID:               "property/openapi/components/schemas/User/properties/id",
 		Name:             populatedNaming(),
 		WireName:         "id",
 		WireNameByFormat: map[string]string{"xml": "Id", "json": "id"},
@@ -549,8 +549,8 @@ func populatedProperty() ir.Property {
 		Presence:         ir.PresenceExplicit,
 		ClientOptional:   true,
 		DefaultAdded:     true,
-		Visibility:       ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead}, None: false},
-		Default:          &ir.Value{Kind: ir.ValueString, Str: "default"},
+		Visibility:       ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead}, InvisibleInEveryLifecycle: false},
+		Default:          &ir.Value{Kind: ir.ValueString, String: "default"},
 		Constraints:      populatedConstraints(),
 		Encoding:         populatedEncoding(),
 		Args: []ir.Parameter{
@@ -563,8 +563,8 @@ func populatedProperty() ir.Property {
 		Secret:       true,
 		XML:          populatedXMLHints(),
 		Examples: []ir.Example{
-			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
-			{Name: "ex2", Value: &ir.Value{Kind: ir.ValueString, Str: "v2"}},
+			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, String: "v1"}},
+			{Name: "ex2", Value: &ir.Value{Kind: ir.ValueString, String: "v2"}},
 		},
 		Docs:         populatedDocs(),
 		Deprecation:  populatedDeprecation(),

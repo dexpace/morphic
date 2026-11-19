@@ -34,7 +34,7 @@ func TestElection_AUnionTyingWithTheWordsIsThePrincipal(t *testing.T) {
 			p := requireModelOf(t, doc, "N").Properties[0]
 			u, ok := kindNode(t, doc, p.Type.Target).(*ir.Union)
 			require.True(t, ok, "the property names the union")
-			assert.Equal(t, ir.TypeID("t/anon/components/schemas/N/properties/p"), p.Type.Target, "standing at the property")
+			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/N/properties/p"), p.Type.Target, "standing at the property")
 			require.NotNil(t, u.Constraints)
 			require.NotNil(t, u.Constraints.MinLength)
 			assert.EqualValues(t, 1, *u.Constraints.MinLength)
@@ -118,7 +118,7 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 		kept       map[string]ir.UnmodeledReason
 		// prim is the primitive a position electing neither is, where elected
 		// is a primitive.
-		prim ir.PrimKind
+		prim ir.PrimitiveKind
 	}{
 		{"Content", "{type: string}", "{type: string, contentEncoding: base64}", ir.KindScalar, nil, ""},
 		{"Tuple", "{type: array}", "{type: array, prefixItems: [{type: string}]}", ir.KindTuple, nil, ""},
@@ -129,13 +129,13 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 			"{type: string, contentMediaType: application/json}", ir.KindPrimitive, map[string]ir.UnmodeledReason{
 				"openapi:contentEncoding": ir.ReasonNoIRHome, "openapi:contentMediaType": ir.ReasonNoIRHome,
 				"openapi:type": ir.ReasonDegradedLowering,
-			}, ir.PrimString},
+			}, ir.PrimitiveString},
 		{"DisagreeingContent", "{type: string, contentMediaType: application/json}",
 			"{type: string, contentMediaType: text/plain}", ir.KindPrimitive, degradedKept(entryKey(0), entryKey(1)),
-			ir.PrimString},
+			ir.PrimitiveString},
 		{"DisagreeingTuple", "{type: array, prefixItems: [{type: string}]}",
 			"{type: array, prefixItems: [{type: integer}]}", ir.KindPrimitive, degradedKept(entryKey(0), entryKey(1)),
-			ir.PrimAny},
+			ir.PrimitiveAny},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestElection_ValueSetsAlikeGoByTheirText(t *testing.T) {
 			enum, ok := kindNode(t, doc, componentID("Sets")).(*ir.Enum)
 			require.True(t, ok, "the value set stands at the position")
 			require.Len(t, enum.Members, 2)
-			assert.Equal(t, "b", enum.Members[0].Value.Str, "the entry writing the description is the least text")
+			assert.Equal(t, "b", enum.Members[0].Value.String, "the entry writing the description is the least text")
 			assert.Zero(t, degradedInfosAt(diags, "Sets"))
 		})
 	}

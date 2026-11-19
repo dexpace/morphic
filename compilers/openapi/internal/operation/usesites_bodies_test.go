@@ -58,21 +58,21 @@ func TestPartKeys_KeysACatchAll(t *testing.T) {
 		m, _ := at(c, "catchAllEncoding").(map[string]any)
 		return m
 	}
-	assert.JSONEq(t, `{"t/anon/paths/~1snippet/put`+formDataSchema+`":{"value":{`+octetStream+
-		`,"multi":true,"filename":true,"allowReserved":false}}}`, toJSON(t, catchAll(put)))
+	assert.JSONEq(t, `{"type/anonymous/paths/~1snippet/put`+formDataSchema+`":{"value":{`+octetStream+
+		`,"repeatsPerArrayItem":true,"hasFilename":true,"allowReserved":false}}}`, toJSON(t, catchAll(put)))
 	encoding, _ := at(put, "encoding").(map[string]any)
 	assert.Len(t, encoding, 1, "the declared part keeps its encoding beside the catch-all's")
-	assert.Contains(t, encoding, "p/openapi/paths/~1snippet/put/requestBody/content/multipart~1form-data/schema/properties/metadata")
+	assert.Contains(t, encoding, "property/openapi/paths/~1snippet/put/requestBody/content/multipart~1form-data/schema/properties/metadata")
 
 	assets := requestContent(t, doc, "uploadAssets")
-	assert.JSONEq(t, `{"t/anon/paths/~1assets/post`+formDataSchema+`":{"value":{`+octetStream+
-		`,"multi":false,"filename":true,"allowReserved":false}}}`, toJSON(t, catchAll(assets)),
+	assert.JSONEq(t, `{"type/anonymous/paths/~1assets/post`+formDataSchema+`":{"value":{`+octetStream+
+		`,"repeatsPerArrayItem":false,"hasFilename":true,"allowReserved":false}}}`, toJSON(t, catchAll(assets)),
 		"a body that is a map declares no part, and its values are still parts")
 
 	mixed := requestContent(t, doc, "mixed")
 	assert.JSONEq(t, `{`+
-		`"t/openapi/components/schemas/Files":{"patterns":{"^f_":{`+octetStream+`,"multi":false,"filename":true,"allowReserved":false}}},`+
-		`"t/openapi/components/schemas/Notes":{"value":{"contentTypes":["text/plain"],"multi":false,"filename":false,"allowReserved":false}}}`,
+		`"type/openapi/components/schemas/Files":{"patterns":{"^f_":{`+octetStream+`,"repeatsPerArrayItem":false,"hasFilename":true,"allowReserved":false}}},`+
+		`"type/openapi/components/schemas/Notes":{"value":{"contentTypes":["text/plain"],"repeatsPerArrayItem":false,"hasFilename":false,"allowReserved":false}}}`,
 		toJSON(t, catchAll(mixed)), "each variant of the union is keyed, not the union")
 }
 
@@ -154,13 +154,13 @@ func TestExamples_EmptyKeyIsKept(t *testing.T) {
 	named, diags := parseFull(t, specFrom(t, specsDir, "example_key_empty"))
 	assert.Equal(t, []string{"openapi/degraded-construct info " + entry}, findings(diags))
 	got := at(tree(t, named.Services[0].Groups[0].Operations[0]), "responses", "0", "payload", "contents", "0", "examples")
-	assert.JSONEq(t, `[{"value":{"kind":"number","num":"1"},"unmodeled":{"openapi:examples/key":{"reason":"degraded_lowering",`+
+	assert.JSONEq(t, `[{"value":{"kind":"number","number":"1"},"unmodeled":{"openapi:examples/key":{"reason":"degraded_lowering",`+
 		`"value":"","provenance":{"source":0,"pointer":"`+entry+`"}}}}]`, toJSON(t, got))
 
 	single, diags := parseFull(t, specFrom(t, specsDir, "example_key_single"))
 	assert.Empty(t, diags)
 	one := at(tree(t, single.Services[0].Groups[0].Operations[0]), "responses", "0", "payload", "contents", "0", "examples")
-	assert.JSONEq(t, `[{"value":{"kind":"number","num":"1"}}]`, toJSON(t, one))
+	assert.JSONEq(t, `[{"value":{"kind":"number","number":"1"}}]`, toJSON(t, one))
 	assert.NotEqual(t, withoutSources(t, named), withoutSources(t, single))
 }
 

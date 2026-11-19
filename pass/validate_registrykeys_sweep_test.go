@@ -91,7 +91,7 @@ func keysOtherThan(doc *ir.Document, id string) []string {
 	space, path, _ := strings.Cut(rest, ir.IDSeparator)
 	join := func(parts ...string) string { return strings.Join(parts, ir.IDSeparator) }
 	keys := []string{join(kind, space, path+"Refiled"), join(kind, "undeclared", path), "garbage", join(kind, "", path), ""}
-	for _, other := range append(slices.Clone(doc.IDSpaces[kind]), ir.IDSpacePrim, ir.IDSpaceUnresolved) {
+	for _, other := range append(slices.Clone(doc.IDSpaces[kind]), ir.IDSpacePrimitive, ir.IDSpaceUnresolved) {
 		if other != space {
 			keys = append(keys, join(kind, other, path))
 		}
@@ -115,22 +115,22 @@ func keyedDocument(t *testing.T) *ir.Document {
 	require.NoError(t, err)
 	at := func(path string) ir.Provenance { return ir.Provenance{Pointer: jsontext.Pointer("/" + path)} }
 	pid := &ir.External{Identity: "erlang:pid"}
-	pid.ID, pid.Name, pid.Provenance = "t/x/Pid", named("pid"), at("Pid")
+	pid.ID, pid.Name, pid.Provenance = "type/x/Pid", named("pid"), at("Pid")
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion,
 		Sources: []ir.SourceInfo{{
 			Format: "openapi@3.1", Path: "api.yaml", Hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 		}},
-		Services: []ir.Service{{ID: "s/x/S", Name: named("svc")}},
+		Services: []ir.Service{{ID: "service/x/S", Name: named("svc")}},
 		Types: ir.TypeRegistry{
-			"t/prim/int32": &ir.Primitive{ID: "t/prim/int32", Prim: ir.PrimInt32, Provenance: ir.Provenance{Source: ir.NoSource}},
-			"t/x/Color": &ir.Enum{ID: "t/x/Color", Name: named("color"), Provenance: at("Color"), ValueType: ir.PrimString,
-				Members: []ir.EnumMember{{ID: "e/x/Color/red", Name: named("red"), Value: ir.Value{Kind: ir.ValueString, Str: "red"}}}},
-			"t/x/Pid": pid,
+			"type/primitive/int32": &ir.Primitive{ID: "type/primitive/int32", PrimitiveKind: ir.PrimitiveInt32, Provenance: ir.Provenance{Source: ir.NoSource}},
+			"type/x/Color": &ir.Enum{ID: "type/x/Color", Name: named("color"), Provenance: at("Color"), ValueType: ir.PrimitiveString,
+				Members: []ir.EnumMember{{ID: "enum-member/x/Color/red", Name: named("red"), Value: ir.Value{Kind: ir.ValueString, String: "red"}}}},
+			"type/x/Pid": pid,
 		},
 		Auth:     map[ir.AuthID]ir.AuthScheme{},
-		Channels: map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: named("c")}},
-		Messages: map[ir.MessageID]ir.Message{"msg/x/m": {ID: "msg/x/m", Name: named("m")}},
+		Channels: map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: named("c")}},
+		Messages: map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m", Name: named("m")}},
 		Servers:  map[ir.ServerID]ir.Server{"server/x/s": {ID: "server/x/s", Name: named("s"), URLTemplate: "https://s.example", Provenance: at("s")}},
 	}
 	for _, k := range kinds {
@@ -260,31 +260,31 @@ func holdsTheMismatchAlone(t *testing.T, name string, field reflect.StructField,
 // whatever a registry files under the empty key.
 func TestValidate_AnEmptyReferenceResolvesToNoNodeUnderTheEmptyKey(t *testing.T) {
 	t.Parallel()
-	str := ir.Value{Kind: ir.ValueString, Str: "v"}
+	str := ir.Value{Kind: ir.ValueString, String: "v"}
 	empties := func() *ir.Document {
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
-			"t/prim/int32": &ir.Primitive{ID: "t/prim/int32", Prim: ir.PrimInt32},
-			"t/x/U": &ir.Model{ID: "t/x/U", Name: named("u"), Base: &ir.TypeRef{}, Properties: []ir.Property{
-				{ID: "p/x/U/a", Name: named("a"), WireName: "a", Required: true, Type: ir.TypeRef{}, Default: &str},
+			"type/primitive/int32": &ir.Primitive{ID: "type/primitive/int32", PrimitiveKind: ir.PrimitiveInt32},
+			"type/x/U": &ir.Model{ID: "type/x/U", Name: named("u"), Base: &ir.TypeRef{}, Properties: []ir.Property{
+				{ID: "property/x/U/a", Name: named("a"), WireName: "a", Required: true, Type: ir.TypeRef{}, Default: &str},
 			}},
-			"t/x/V": &ir.Union{ID: "t/x/V", Name: named("v"), Variants: []ir.Variant{{Type: ir.TypeRef{}}}},
-			"t/x/L": &ir.List{ID: "t/x/L", Elem: ir.TypeRef{}},
-		}, Services: []ir.Service{{ID: "s/x/S", Groups: []ir.OperationGroup{{ID: "g/x/G", Operations: []ir.Operation{{
-			ID: "op/x/o", Params: []ir.Parameter{{ID: "param/x/o/q", Name: named("q")}},
-			Examples: []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{Params: map[ir.ParamID]ir.Value{"param/x/o/q": str}}}},
+			"type/x/V": &ir.Union{ID: "type/x/V", Name: named("v"), Variants: []ir.Variant{{Type: ir.TypeRef{}}}},
+			"type/x/L": &ir.List{ID: "type/x/L", ElementType: ir.TypeRef{}},
+		}, Services: []ir.Service{{ID: "service/x/S", Groups: []ir.OperationGroup{{ID: "operation-group/x/G", Operations: []ir.Operation{{
+			ID: "operation/x/o", Params: []ir.Parameter{{ID: "parameter/x/o/q", Name: named("q")}},
+			Examples: []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": str}}}},
 		}}}}}}}
 	}
 	want := validatedOnce(t, empties())
 	for _, node := range []ir.TypeDef{
-		&ir.Model{ID: "t/x/M", Name: named("m"), Properties: []ir.Property{
-			{ID: "p/x/M/a", Name: named("a"), WireName: "a", Required: true, Type: ir.TypeRef{Target: "t/x/U"}},
+		&ir.Model{ID: "type/x/M", Name: named("m"), Properties: []ir.Property{
+			{ID: "property/x/M/a", Name: named("a"), WireName: "a", Required: true, Type: ir.TypeRef{Target: "type/x/U"}},
 		}},
-		&ir.Union{ID: "t/x/M", Name: named("m"), Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/x/U"}}}},
-		&ir.Enum{ID: "t/x/M", Name: named("m"), ValueType: ir.PrimInt32, Members: []ir.EnumMember{
-			{ID: "e/x/M/one", Name: named("one"), Value: ir.Value{Kind: ir.ValueNumber, Num: "1"}},
+		&ir.Union{ID: "type/x/M", Name: named("m"), Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/x/U"}}}},
+		&ir.Enum{ID: "type/x/M", Name: named("m"), ValueType: ir.PrimitiveInt32, Members: []ir.EnumMember{
+			{ID: "enum-member/x/M/one", Name: named("one"), Value: ir.Value{Kind: ir.ValueNumber, Number: "1"}},
 		}},
-		&ir.List{ID: "t/x/M", Elem: ir.TypeRef{Target: "t/x/U"}, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
-		&ir.Scalar{ID: "t/x/M", Name: named("m"), Base: &ir.TypeRef{Target: "t/prim/int32"}},
+		&ir.List{ID: "type/x/M", ElementType: ir.TypeRef{Target: "type/x/U"}, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
+		&ir.Scalar{ID: "type/x/M", Name: named("m"), Base: &ir.TypeRef{Target: "type/primitive/int32"}},
 	} {
 		t.Run(string(node.Kind()), func(t *testing.T) {
 			t.Parallel()

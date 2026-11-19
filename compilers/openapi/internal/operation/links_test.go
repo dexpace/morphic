@@ -179,7 +179,7 @@ func TestLinks_ResolvedFormsLower(t *testing.T) {
 	require.Len(t, bare.Links[0].Params, 2)
 	assert.Equal(t, target.Params[2].ID, bare.Links[0].Params[0].Param, "header.X-Up names the header")
 	assert.Equal(t, target.Params[1].ID, bare.Links[0].Params[1].Param, "query.id names the query parameter alone")
-	assert.Equal(t, &ir.Value{Kind: ir.ValueNumber, Num: "2"}, bare.Links[0].Params[1].Value.Constant)
+	assert.Equal(t, &ir.Value{Kind: ir.ValueNumber, Number: "2"}, bare.Links[0].Params[1].Value.Constant)
 }
 
 // TestLinks_EveryValueKindLowers pins each kind of value a link passes at what
@@ -204,10 +204,10 @@ func TestLinks_EveryValueKindLowers(t *testing.T) {
 	assert.Equal(t, &ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{}}, link[0].Body, "the request body whole")
 	assert.Equal(t, []ir.LinkParam{
 		{Param: target.Params[0].ID, Value: ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
-			Segments: []ir.PropID{"p/openapi/components/schemas/M/properties/id"},
+			Segments: []ir.PropertyID{"property/openapi/components/schemas/M/properties/id"},
 		}}},
 		{Param: target.Params[2].ID, Value: ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
-			In: "header", Segments: []ir.PropID{src.Responses[0].Headers[0].ID},
+			In: "header", Segments: []ir.PropertyID{src.Responses[0].Headers[0].ID},
 		}}},
 		{Param: target.Params[1].ID, Value: ir.LinkValue{Kind: ir.LinkURL}},
 	}, link[0].Params)
@@ -324,14 +324,14 @@ func TestLinks_AHeaderIsReadOffItsOwnResponse(t *testing.T) {
 	}
 	doc, diags := parseFull(t, openapitest.PathsSpec("  /a:\n"+operation("a")+"  /b:\n"+operation("b")))
 	openapitest.RequireNoErrorDiags(t, diags)
-	own := map[ir.PropID]string{}
+	own := map[ir.PropertyID]string{}
 	reads := func(label string, headers []ir.Header, links []ir.OperationLink) {
 		t.Helper()
 		require.Len(t, headers, 1, label)
 		require.Len(t, links, 1, label)
 		value := links[0].Params[0].Value.Response
 		require.NotNil(t, value, label)
-		assert.Equal(t, &ir.PropPath{In: "header", Segments: []ir.PropID{headers[0].ID}}, value, label)
+		assert.Equal(t, &ir.PropPath{In: "header", Segments: []ir.PropertyID{headers[0].ID}}, value, label)
 		own[headers[0].ID] = label
 	}
 	for _, name := range []string{"a", "b"} {
@@ -411,7 +411,7 @@ components:
 			if tc.says == "" {
 				require.Len(t, resp.Links, 1, "the contents walk alike")
 				assert.Equal(t, &ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
-					Segments: []ir.PropID{"p/openapi/components/schemas/M/properties/id"},
+					Segments: []ir.PropertyID{"property/openapi/components/schemas/M/properties/id"},
 				}}, resp.Links[0].Body)
 				return
 			}
@@ -456,9 +456,9 @@ func TestLinks_LowerAlikeInEitherDeclarationOrder(t *testing.T) {
   /twin1: {get: {operationId: twin, responses: {"200": {description: ok}}}}
   /twin2: {get: {operationId: twin, responses: {"200": {description: ok}}}}
 `
-	links := func(spec string) (map[ir.OpID][]ir.OperationLink, []string) {
+	links := func(spec string) (map[ir.OperationID][]ir.OperationLink, []string) {
 		doc, diags := parseFull(t, openapitest.PathsSpec(spec))
-		got := map[ir.OpID][]ir.OperationLink{}
+		got := map[ir.OperationID][]ir.OperationLink{}
 		ir.ForEachOperation(doc, func(op ir.Operation) {
 			for _, r := range op.Responses {
 				got[op.ID] = append(got[op.ID], r.Links...)
@@ -474,7 +474,7 @@ func TestLinks_LowerAlikeInEitherDeclarationOrder(t *testing.T) {
 	}
 	firstLinks, firstFindings := links(src + rest)
 	secondLinks, secondFindings := links(rest + src)
-	require.Len(t, firstLinks["op/openapi/paths/~1src~1{id}/get"], 1, "the link to target lowers")
+	require.Len(t, firstLinks["operation/openapi/paths/~1src~1{id}/get"], 1, "the link to target lowers")
 	assert.Empty(t, cmp.Diff(firstLinks, secondLinks), "links depend on declaration order")
 	assert.ElementsMatch(t, firstFindings, secondFindings, "findings depend on declaration order")
 	assert.Equal(t, []string{diag.InvalidLink + " /paths/~1src~1{id}/get/responses/200/links/Either"}, firstFindings)

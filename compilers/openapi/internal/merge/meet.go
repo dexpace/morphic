@@ -94,7 +94,7 @@ func (b *builder) build(all []member, nodes []ir.TypeDef, pointer jsontext.Point
 		return &out, narrowest && len(out.Members) > 0
 	case *ir.List:
 		out := *n
-		out.Elem = b.settle(membersOf(all, nodes, func(l *ir.List) ir.TypeRef { return l.Elem }), pointer+"/items", depth)
+		out.ElementType = b.settle(membersOf(all, nodes, func(l *ir.List) ir.TypeRef { return l.ElementType }), pointer+"/items", depth)
 		return &out, sameKind[*ir.List](nodes)
 	case *ir.MapT:
 		out := *n
@@ -115,10 +115,10 @@ func (b *builder) tuple(n *ir.Tuple, all []member, nodes []ir.TypeDef, pointer j
 		return nil, false
 	}
 	out := *n
-	out.Elems = make([]ir.TypeRef, len(n.Elems))
-	for i := range n.Elems {
+	out.ElementTypes = make([]ir.TypeRef, len(n.ElementTypes))
+	for i := range n.ElementTypes {
 		at := pointer + jsontext.Pointer(fmt.Sprintf("/prefixItems/%d", i))
-		out.Elems[i] = b.settle(membersOf(all, nodes, func(t *ir.Tuple) ir.TypeRef { return t.Elems[i] }), at, depth)
+		out.ElementTypes[i] = b.settle(membersOf(all, nodes, func(t *ir.Tuple) ir.TypeRef { return t.ElementTypes[i] }), at, depth)
 	}
 	if n.Rest != nil {
 		rest := b.settle(membersOf(all, nodes, func(t *ir.Tuple) ir.TypeRef { return *t.Rest }), pointer+"/items", depth)
@@ -132,7 +132,7 @@ func (b *builder) tuple(n *ir.Tuple, all []member, nodes []ir.TypeDef, pointer j
 func shapedAs(n *ir.Tuple, nodes []ir.TypeDef) bool {
 	for _, td := range nodes {
 		t, ok := td.(*ir.Tuple)
-		if !ok || len(t.Elems) != len(n.Elems) || (t.Rest == nil) != (n.Rest == nil) {
+		if !ok || len(t.ElementTypes) != len(n.ElementTypes) || (t.Rest == nil) != (n.Rest == nil) {
 			return false
 		}
 	}

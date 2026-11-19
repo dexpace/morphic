@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "ParamRefInheritance",
         "canonical": "param_ref_inheritance"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1items/get",
+              "id": "operation/openapi/paths/~1items/get",
               "name": {
                 "source": "listItems",
                 "canonical": "list_items"
@@ -67,19 +67,19 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1items/get/parameters/cursor/query",
+                  "id": "parameter/openapi/paths/~1items/get/parameters/cursor/query",
                   "name": {
                     "source": "cursor",
                     "canonical": "cursor"
                   },
                   "type": {
-                    "target": "t/openapi/components/schemas/Cursor",
+                    "target": "type/openapi/components/schemas/Cursor",
                     "nullable": false
                   },
                   "required": false,
                   "default": {
                     "kind": "string",
-                    "str": "0"
+                    "string": "0"
                   },
                   "docs": {
                     "summary": "Cursor",
@@ -92,19 +92,19 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1items/get/parameters/override/query",
+                  "id": "parameter/openapi/paths/~1items/get/parameters/override/query",
                   "name": {
                     "source": "override",
                     "canonical": "override"
                   },
                   "type": {
-                    "target": "t/openapi/components/schemas/Cursor",
+                    "target": "type/openapi/components/schemas/Cursor",
                     "nullable": false
                   },
                   "required": false,
                   "default": {
                     "kind": "string",
-                    "str": "9"
+                    "string": "9"
                   },
                   "constraints": {
                     "maxLength": 100,
@@ -148,7 +148,7 @@
                     "uriTemplate": "/items",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1items/get/parameters/cursor/query",
+                        "param": "parameter/openapi/paths/~1items/get/parameters/cursor/query",
                         "location": "query",
                         "wireName": "cursor",
                         "style": "form",
@@ -156,7 +156,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1items/get/parameters/override/query",
+                        "param": "parameter/openapi/paths/~1items/get/parameters/override/query",
                         "location": "query",
                         "wireName": "override",
                         "style": "form",
@@ -186,9 +186,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Cursor": {
+    "type/openapi/components/schemas/Cursor": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Cursor",
+      "id": "type/openapi/components/schemas/Cursor",
       "name": {
         "source": "Cursor",
         "canonical": "cursor"
@@ -215,7 +215,7 @@
         "pointer": "/components/schemas/Cursor"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -223,9 +223,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -239,25 +239,25 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/cursor",
+          "id": "property/openapi/components/schemas/Holder/properties/cursor",
           "name": {
             "source": "cursor",
             "canonical": "cursor"
           },
           "wireName": "cursor",
           "type": {
-            "target": "t/openapi/components/schemas/Cursor",
+            "target": "type/openapi/components/schemas/Cursor",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "default": {
             "kind": "string",
-            "str": "0"
+            "string": "0"
           },
           "flatten": false,
           "eventHeader": false,
@@ -274,25 +274,25 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/override",
+          "id": "property/openapi/components/schemas/Holder/properties/override",
           "name": {
             "source": "override",
             "canonical": "override"
           },
           "wireName": "override",
           "type": {
-            "target": "t/openapi/components/schemas/Cursor",
+            "target": "type/openapi/components/schemas/Cursor",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "default": {
             "kind": "string",
-            "str": "0"
+            "string": "0"
           },
           "constraints": {
             "maxLength": 100,
@@ -317,9 +317,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -327,7 +327,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

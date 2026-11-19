@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "AllOfRefBranchSiblings",
         "canonical": "all_of_ref_branch_siblings"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Annotated": {
+    "type/openapi/components/schemas/Annotated": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Annotated",
+      "id": "type/openapi/components/schemas/Annotated",
       "name": {
         "source": "Annotated",
         "canonical": "annotated"
@@ -87,21 +87,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Annotated/properties/c",
+          "id": "property/openapi/components/schemas/Annotated/properties/c",
           "name": {
             "source": "c",
             "canonical": "c"
           },
           "wireName": "c",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -115,20 +115,20 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "constraints": {
         "uniqueItems": false,
-        "minProps": 3
+        "minProperties": 3
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Bare": {
+    "type/openapi/components/schemas/Bare": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Bare",
+      "id": "type/openapi/components/schemas/Bare",
       "name": {
         "source": "Bare",
         "canonical": "bare"
@@ -141,16 +141,16 @@
         "pointer": "/components/schemas/Bare"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Base": {
+    "type/openapi/components/schemas/Base": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Base",
+      "id": "type/openapi/components/schemas/Base",
       "name": {
         "source": "Base",
         "canonical": "base"
@@ -164,21 +164,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Base/properties/a",
+          "id": "property/openapi/components/schemas/Base/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -195,9 +195,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Extra": {
+    "type/openapi/components/schemas/Extra": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Extra",
+      "id": "type/openapi/components/schemas/Extra",
       "name": {
         "source": "Extra",
         "canonical": "extra"
@@ -211,21 +211,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Extra/properties/b",
+          "id": "property/openapi/components/schemas/Extra/properties/b",
           "name": {
             "source": "b",
             "canonical": "b"
           },
           "wireName": "b",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -242,9 +242,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Mixed": {
+    "type/openapi/components/schemas/Mixed": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Mixed",
+      "id": "type/openapi/components/schemas/Mixed",
       "name": {
         "source": "Mixed",
         "canonical": "mixed"
@@ -260,11 +260,11 @@
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Base",
+          "target": "type/openapi/components/schemas/Base",
           "nullable": false
         },
         {
-          "target": "t/openapi/components/schemas/Extra",
+          "target": "type/openapi/components/schemas/Extra",
           "nullable": false
         }
       ],
@@ -272,9 +272,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/NestedAllOfBranch": {
+    "type/openapi/components/schemas/NestedAllOfBranch": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/NestedAllOfBranch",
+      "id": "type/openapi/components/schemas/NestedAllOfBranch",
       "name": {
         "source": "NestedAllOfBranch",
         "canonical": "nested_all_of_branch"
@@ -300,21 +300,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/NestedAllOfBranch/properties/e",
+          "id": "property/openapi/components/schemas/NestedAllOfBranch/properties/e",
           "name": {
             "source": "e",
             "canonical": "e"
           },
           "wireName": "e",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -328,16 +328,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/UnionBranch": {
+    "type/openapi/components/schemas/UnionBranch": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/UnionBranch",
+      "id": "type/openapi/components/schemas/UnionBranch",
       "name": {
         "source": "UnionBranch",
         "canonical": "union_branch"
@@ -368,21 +368,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/UnionBranch/properties/d",
+          "id": "property/openapi/components/schemas/UnionBranch/properties/d",
           "name": {
             "source": "d",
             "canonical": "d"
           },
           "wireName": "d",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -396,16 +396,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "type/openapi/components/schemas/Base",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -413,7 +413,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

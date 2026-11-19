@@ -53,7 +53,7 @@ func checkInferred(*ir.Document) walkCheck {
 // the part carries no Filename for it to qualify.
 func partMarkerViolations(part reflect.Value, at ir.WalkPath) []Violation {
 	inferred := part.FieldByName("Inferred").String()
-	if inferred == "" || part.FieldByName("Filename").Bool() {
+	if inferred == "" || part.FieldByName("HasFilename").Bool() {
 		return nil
 	}
 	return []Violation{{

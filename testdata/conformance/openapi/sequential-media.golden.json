@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "SequentialMedia",
         "canonical": "sequential_media"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1events/get",
+              "id": "operation/openapi/paths/~1events/get",
               "name": {
                 "source": "streamEvents",
                 "canonical": "stream_events"
@@ -83,20 +83,20 @@
                       {
                         "mediaType": "multipart/mixed",
                         "type": {
-                          "target": "t/prim/any",
+                          "target": "type/primitive/any",
                           "nullable": false
                         },
                         "stream": {},
                         "item": {
-                          "target": "t/anon/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
+                          "target": "type/anonymous/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
                           "nullable": false
                         },
                         "itemEncoding": {
                           "contentTypes": [
                             "application/json"
                           ],
-                          "multi": true,
-                          "filename": false,
+                          "repeatsPerArrayItem": true,
+                          "hasFilename": false,
                           "allowReserved": false
                         }
                       }
@@ -111,7 +111,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/anon/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
+                  "target": "type/anonymous/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -133,7 +133,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1parts/get",
+              "id": "operation/openapi/paths/~1parts/get",
               "name": {
                 "source": "streamParts",
                 "canonical": "stream_parts"
@@ -157,12 +157,12 @@
                       {
                         "mediaType": "multipart/mixed",
                         "type": {
-                          "target": "t/prim/any",
+                          "target": "type/primitive/any",
                           "nullable": false
                         },
                         "stream": {},
                         "item": {
-                          "target": "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
+                          "target": "type/anonymous/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
                           "nullable": false
                         },
                         "unmodeled": {
@@ -201,7 +201,7 @@
               "streaming": "server",
               "responseStream": {
                 "events": {
-                  "target": "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
+                  "target": "type/anonymous/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
                   "nullable": false
                 },
                 "requiresLength": false
@@ -234,9 +234,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema": {
+    "type/anonymous/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema": {
       "kind": "model",
-      "id": "t/anon/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
+      "id": "type/anonymous/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
       "name": {
         "hint": "response_item"
       },
@@ -249,21 +249,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema/properties/id",
+          "id": "property/openapi/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -280,9 +280,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema": {
+    "type/anonymous/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema": {
       "kind": "model",
-      "id": "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
+      "id": "type/anonymous/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
       "name": {
         "hint": "response_item"
       },
@@ -295,21 +295,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema/properties/body",
+          "id": "property/openapi/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema/properties/body",
           "name": {
             "source": "body",
             "canonical": "body"
           },
           "wireName": "body",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -326,9 +326,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -336,11 +336,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -348,7 +348,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

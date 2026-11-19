@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "T",
         "canonical": "t"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1pets/get",
+              "id": "operation/openapi/paths/~1pets/get",
               "name": {
                 "source": "listPets",
                 "canonical": "list_pets"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1pets/get/parameters/cursor/query",
+                  "id": "parameter/openapi/paths/~1pets/get/parameters/cursor/query",
                   "name": {
                     "source": "cursor",
                     "canonical": "cursor"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -102,7 +102,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Pets",
+                          "target": "type/openapi/components/schemas/Pets",
                           "nullable": false
                         }
                       }
@@ -114,15 +114,15 @@
                         "source": "next",
                         "canonical": "next"
                       },
-                      "operation": "op/openapi/paths/~1pets/get",
+                      "operation": "operation/openapi/paths/~1pets/get",
                       "params": [
                         {
-                          "param": "param/openapi/paths/~1pets/get/parameters/cursor/query",
+                          "param": "parameter/openapi/paths/~1pets/get/parameters/cursor/query",
                           "value": {
                             "kind": "response",
                             "response": {
                               "segments": [
-                                "p/openapi/components/schemas/Page/properties/next_cursor"
+                                "property/openapi/components/schemas/Page/properties/next_cursor"
                               ]
                             }
                           }
@@ -145,16 +145,16 @@
                 "strategy": "cursor",
                 "inferred": true,
                 "inputCursor": {
-                  "param": "param/openapi/paths/~1pets/get/parameters/cursor/query"
+                  "param": "parameter/openapi/paths/~1pets/get/parameters/cursor/query"
                 },
                 "items": {
                   "segments": [
-                    "p/openapi/components/schemas/Page/properties/result"
+                    "property/openapi/components/schemas/Page/properties/result"
                   ]
                 },
                 "nextCursor": {
                   "segments": [
-                    "p/openapi/components/schemas/Page/properties/next_cursor"
+                    "property/openapi/components/schemas/Page/properties/next_cursor"
                   ]
                 },
                 "stop": [
@@ -169,7 +169,7 @@
                     "uriTemplate": "/pets",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1pets/get/parameters/cursor/query",
+                        "param": "parameter/openapi/paths/~1pets/get/parameters/cursor/query",
                         "location": "query",
                         "wireName": "cursor",
                         "style": "form",
@@ -189,7 +189,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1dogs/get",
+              "id": "operation/openapi/paths/~1dogs/get",
               "name": {
                 "source": "listDogs",
                 "canonical": "list_dogs"
@@ -197,13 +197,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1dogs/get/parameters/cursor/query",
+                  "id": "parameter/openapi/paths/~1dogs/get/parameters/cursor/query",
                   "name": {
                     "source": "cursor",
                     "canonical": "cursor"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -232,7 +232,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Dogs",
+                          "target": "type/openapi/components/schemas/Dogs",
                           "nullable": false
                         }
                       }
@@ -248,16 +248,16 @@
                 "strategy": "cursor",
                 "inferred": true,
                 "inputCursor": {
-                  "param": "param/openapi/paths/~1dogs/get/parameters/cursor/query"
+                  "param": "parameter/openapi/paths/~1dogs/get/parameters/cursor/query"
                 },
                 "items": {
                   "segments": [
-                    "p/openapi/components/schemas/Page/properties/result"
+                    "property/openapi/components/schemas/Page/properties/result"
                   ]
                 },
                 "nextCursor": {
                   "segments": [
-                    "p/openapi/components/schemas/Page/properties/next_cursor"
+                    "property/openapi/components/schemas/Page/properties/next_cursor"
                   ]
                 }
               },
@@ -269,7 +269,7 @@
                     "uriTemplate": "/dogs",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1dogs/get/parameters/cursor/query",
+                        "param": "parameter/openapi/paths/~1dogs/get/parameters/cursor/query",
                         "location": "query",
                         "wireName": "cursor",
                         "style": "form",
@@ -314,9 +314,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Page/properties/result": {
+    "type/anonymous/components/schemas/Page/properties/result": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Page/properties/result",
+      "id": "type/anonymous/components/schemas/Page/properties/result",
       "name": {
         "hint": "result"
       },
@@ -327,14 +327,14 @@
         "source": 0,
         "pointer": "/components/schemas/Page/properties/result"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Dogs": {
+    "type/openapi/components/schemas/Dogs": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Dogs",
+      "id": "type/openapi/components/schemas/Dogs",
       "name": {
         "source": "Dogs",
         "canonical": "dogs"
@@ -347,16 +347,16 @@
         "pointer": "/components/schemas/Dogs"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Pets",
+        "target": "type/openapi/components/schemas/Pets",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Page": {
+    "type/openapi/components/schemas/Page": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Page",
+      "id": "type/openapi/components/schemas/Page",
       "name": {
         "source": "Page",
         "canonical": "page"
@@ -370,21 +370,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Page/properties/result",
+          "id": "property/openapi/components/schemas/Page/properties/result",
           "name": {
             "source": "result",
             "canonical": "result"
           },
           "wireName": "result",
           "type": {
-            "target": "t/anon/components/schemas/Page/properties/result",
+            "target": "type/anonymous/components/schemas/Page/properties/result",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -397,21 +397,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Page/properties/next_cursor",
+          "id": "property/openapi/components/schemas/Page/properties/next_cursor",
           "name": {
             "source": "next_cursor",
             "canonical": "next_cursor"
           },
           "wireName": "next_cursor",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -428,9 +428,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Pets": {
+    "type/openapi/components/schemas/Pets": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Pets",
+      "id": "type/openapi/components/schemas/Pets",
       "name": {
         "source": "Pets",
         "canonical": "pets"
@@ -443,16 +443,16 @@
         "pointer": "/components/schemas/Pets"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Page",
+        "target": "type/openapi/components/schemas/Page",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -460,7 +460,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

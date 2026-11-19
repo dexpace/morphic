@@ -55,21 +55,21 @@ func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/enum": &ir.Enum{ID: "t/enum", ValueType: ir.PrimString},
-		"t/alias": &ir.Scalar{
-			ID:   "t/alias",
-			Base: &ir.TypeRef{Target: "t/enum"},
+		"type/enum": &ir.Enum{ID: "type/enum", ValueType: ir.PrimitiveString},
+		"type/alias": &ir.Scalar{
+			ID:   "type/alias",
+			Base: &ir.TypeRef{Target: "type/enum"},
 		},
 	})
 
-	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "t/enum"})
+	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "type/enum"})
 	require.True(t, ok)
-	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Equal(t, ir.PrimitiveString, kind.prim)
 	assert.Empty(t, kind.format)
 
-	kind, ok = judge(g).kindOf(ir.TypeRef{Target: "t/alias"})
+	kind, ok = judge(g).kindOf(ir.TypeRef{Target: "type/alias"})
 	require.True(t, ok, "a scalar's Base chain is followed to the enum behind it")
-	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Equal(t, ir.PrimitiveString, kind.prim)
 	assert.Empty(t, kind.format)
 }
 
@@ -83,7 +83,7 @@ func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 // same event: a declaration the merge could not fold whole.
 func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 	t.Parallel()
-	one, two := &ir.Value{Kind: ir.ValueNumber, Num: "1"}, &ir.Value{Kind: ir.ValueNumber, Num: "2"}
+	one, two := &ir.Value{Kind: ir.ValueNumber, Number: "1"}, &ir.Value{Kind: ir.ValueNumber, Number: "2"}
 	cases := []struct {
 		name     string
 		dst, src ir.Property
@@ -99,11 +99,11 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-				"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
+				"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 			})
 			dst, src := tc.dst, tc.src
 			dst.WireName, src.WireName = "id", "id"
-			dst.Type, src.Type = ir.TypeRef{Target: "t/int"}, ir.TypeRef{Target: "t/int"}
+			dst.Type, src.Type = ir.TypeRef{Target: "type/int"}, ir.TypeRef{Target: "type/int"}
 			dst.Provenance = ir.Provenance{Source: 1, Pointer: "/allOf/0/properties/id"}
 			src.Provenance = ir.Provenance{Source: 1, Pointer: "/allOf/1/properties/id"}
 			want := tc.src
@@ -138,14 +138,14 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 func TestFold_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
+		"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 	})
 	detail := func() ir.Property {
 		return ir.Property{
 			WireName:    "id",
-			Type:        ir.TypeRef{Target: "t/int"},
-			Default:     &ir.Value{Kind: ir.ValueNumber, Num: "1"},
-			Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueNumber, Num: "1"}}},
+			Type:        ir.TypeRef{Target: "type/int"},
+			Default:     &ir.Value{Kind: ir.ValueNumber, Number: "1"},
+			Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueNumber, Number: "1"}}},
 			Deprecation: &ir.Deprecation{Since: "1"},
 			XML:         &ir.XMLHints{Name: "a", Wrapped: new(true)},
 			Provenance:  ptrAt("/allOf/1/properties/id"),
@@ -166,11 +166,11 @@ func TestFold_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 func TestFold_AnUnrenderableLoserIsAnError(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
-		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
+		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
+		"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 	})
-	loser := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}
-	winner := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}
+	loser := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/str"}, Provenance: ptrAt("/a")}
+	winner := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/int"}, Provenance: ptrAt("/b")}
 
 	dst := g.fold([]declaration{
 		{prop: loser, source: func() (ir.RawValue, error) { return nil, errors.New("no such node") }},
@@ -187,18 +187,20 @@ func TestFold_AnUnrenderableLoserIsAnError(t *testing.T) {
 // narrowingRegistry holds one bare primitive per kind the narrowing tests pair.
 func narrowingRegistry() map[ir.TypeID]ir.TypeDef {
 	reg := map[ir.TypeID]ir.TypeDef{}
-	for _, k := range []ir.PrimKind{
-		ir.PrimNumber, ir.PrimInteger, ir.PrimInt32, ir.PrimInt64, ir.PrimString, ir.PrimDatetimeOffset,
-		ir.PrimURL, ir.PrimFloat64, ir.PrimUUID, ir.PrimUint32, ir.PrimBytes,
-		ir.PrimUint8, ir.PrimInt16, ir.PrimAny, ir.PrimBool, ir.PrimFloat32, ir.PrimTime, ir.PrimDatetime,
+	for _, k := range []ir.PrimitiveKind{
+		ir.PrimitiveNumber, ir.PrimitiveInteger, ir.PrimitiveInt32, ir.PrimitiveInt64, ir.PrimitiveString, ir.PrimitiveDatetimeOffset,
+		ir.PrimitiveURL, ir.PrimitiveFloat64, ir.PrimitiveUUID, ir.PrimitiveUint32, ir.PrimitiveBytes,
+		ir.PrimitiveUint8, ir.PrimitiveInt16, ir.PrimitiveAny, ir.PrimitiveBool, ir.PrimitiveFloat32, ir.PrimitiveTime, ir.PrimitiveDatetime,
 	} {
-		id := ir.TypeID("t/prim/" + string(k))
-		reg[id] = &ir.Primitive{ID: id, Prim: k}
+		id := ir.TypeID("type/primitive/" + string(k))
+		reg[id] = &ir.Primitive{ID: id, PrimitiveKind: k}
 	}
 	return reg
 }
 
-func primRef(k ir.PrimKind) ir.TypeRef { return ir.TypeRef{Target: ir.TypeID("t/prim/" + string(k))} }
+func primRef(k ir.PrimitiveKind) ir.TypeRef {
+	return ir.TypeRef{Target: ir.TypeID("type/primitive/" + string(k))}
+}
 
 // TestFold_AnInadmissibleValueIsKeptNotAdopted pins that no
 // declaration of a fold lands a default or example the merged field does not
@@ -216,27 +218,27 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 	null := ir.Value{Kind: ir.ValueNull}
 	for _, tc := range []struct {
 		name          string
-		broad, narrow ir.PrimKind
+		broad, narrow ir.PrimitiveKind
 		decorate      func(*ir.Property)
 		keyword       string
 		raw           string
 	}{
-		{"fractional default", ir.PrimNumber, ir.PrimInteger,
+		{"fractional default", ir.PrimitiveNumber, ir.PrimitiveInteger,
 			func(p *ir.Property) { p.Default = &half; p.Examples = []ir.Example{{Value: &half}} }, "default",
 			`{"type":"number","default":1.5,"examples":[1.5]}`},
-		{"out of range default", ir.PrimInt64, ir.PrimInt32,
+		{"out of range default", ir.PrimitiveInt64, ir.PrimitiveInt32,
 			func(p *ir.Property) { p.Default = &big }, "default", `{"type":"integer","format":"int64","default":5000000000}`},
-		{"non uuid example", ir.PrimString, ir.PrimUUID,
+		{"non uuid example", ir.PrimitiveString, ir.PrimitiveUUID,
 			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &hello}} }, "examples", `{"type":"string","examples":["hello"]}`},
-		{"non url default", ir.PrimString, ir.PrimURL,
+		{"non url default", ir.PrimitiveString, ir.PrimitiveURL,
 			func(p *ir.Property) { p.Default = &badURL }, "default", `{"type":"string","default":"mailto:a b"}`},
-		{"comma fraction time example", ir.PrimString, ir.PrimTime,
+		{"comma fraction time example", ir.PrimitiveString, ir.PrimitiveTime,
 			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &commaTime}} }, "examples",
 			`{"type":"string","examples":["23:59:59,5"]}`},
-		{"offset hour 24 date time example", ir.PrimString, ir.PrimDatetimeOffset,
+		{"offset hour 24 date time example", ir.PrimitiveString, ir.PrimitiveDatetimeOffset,
 			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &offsetDate}} }, "examples",
 			`{"type":"string","examples":["2024-01-01T00:00:00+24:00"]}`},
-		{"null default", ir.PrimNumber, ir.PrimInteger,
+		{"null default", ir.PrimitiveNumber, ir.PrimitiveInteger,
 			func(p *ir.Property) { p.Default = &null; p.Type.Nullable = true }, "default", `{"type":["number","null"],"default":null}`},
 	} {
 		var merged [2]ir.Property
@@ -296,11 +298,11 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 func assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t *testing.T) {
 	t.Helper()
 	null := ir.Value{Kind: ir.ValueNull}
-	nullInt := decl{kind: ir.PrimInteger, nullable: true, def: &null, raw: `{"type":["integer","null"],"default":null}`}
-	nullNum := decl{kind: ir.PrimNumber, nullable: true, def: &null, raw: `{"type":["number","null"],"default":null}`}
-	plainInt := decl{kind: ir.PrimInteger, raw: `{"type":"integer"}`}
-	plainNum := decl{kind: ir.PrimNumber, raw: `{"type":"number"}`}
-	nullIntEx := decl{kind: ir.PrimInteger, nullable: true, examples: []ir.Value{null}, raw: `{"type":["integer","null"],"examples":[null]}`}
+	nullInt := decl{kind: ir.PrimitiveInteger, nullable: true, def: &null, raw: `{"type":["integer","null"],"default":null}`}
+	nullNum := decl{kind: ir.PrimitiveNumber, nullable: true, def: &null, raw: `{"type":["number","null"],"default":null}`}
+	plainInt := decl{kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}
+	plainNum := decl{kind: ir.PrimitiveNumber, raw: `{"type":"number"}`}
+	nullIntEx := decl{kind: ir.PrimitiveInteger, nullable: true, examples: []ir.Value{null}, raw: `{"type":["integer","null"],"examples":[null]}`}
 	for _, tc := range []struct {
 		name  string
 		decls []decl // the null writer is first
@@ -324,7 +326,7 @@ func assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t *testing.T) {
 			}
 			label := fmt.Sprintf("%s %v", tc.name, order)
 			got, diags := mergeDecls(t, placed...)
-			assert.Equal(t, primRef(ir.PrimInteger).Target, got.Type.Target, label)
+			assert.Equal(t, primRef(ir.PrimitiveInteger).Target, got.Type.Target, label)
 			assert.False(t, got.Type.Nullable, label)
 			assert.Nil(t, got.Default, label)
 			assert.Empty(t, got.Examples, label)
@@ -342,10 +344,10 @@ func assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t *testing.T) {
 func assertTheTopTypeKeepsANull(t *testing.T) {
 	t.Helper()
 	null := ir.Value{Kind: ir.ValueNull}
-	plain := decl{kind: ir.PrimAny, raw: `{"description":"x"}`}
+	plain := decl{kind: ir.PrimitiveAny, raw: `{"description":"x"}`}
 	for _, writer := range []decl{
-		{kind: ir.PrimAny, def: &null, raw: `{"default":null}`},
-		{kind: ir.PrimAny, examples: []ir.Value{null}, raw: `{"examples":[null]}`},
+		{kind: ir.PrimitiveAny, def: &null, raw: `{"default":null}`},
+		{kind: ir.PrimitiveAny, examples: []ir.Value{null}, raw: `{"examples":[null]}`},
 	} {
 		for _, order := range [][]decl{{writer, plain}, {plain, writer}} {
 			label := fmt.Sprintf("%s first", order[0].raw)
@@ -378,7 +380,7 @@ func permutations(n int) [][]int {
 // examples, and the JSON it was written as.
 type decl struct {
 	ptr      jsontext.Pointer
-	kind     ir.PrimKind
+	kind     ir.PrimitiveKind
 	nullable bool
 	def      *ir.Value
 	examples []ir.Value
@@ -420,16 +422,16 @@ func entry(d decl) ir.Unmodeled {
 func assertThreeDeclarationsKeepTheWritingOne(t *testing.T) {
 	t.Helper()
 	half, two := num("1.5"), num("2.5")
-	wide := decl{ptr: "/allOf/0", kind: ir.PrimNumber, raw: `{"type":"number"}`}
-	narrow := decl{ptr: "/allOf/2", kind: ir.PrimInteger, raw: `{"type":"integer"}`}
+	wide := decl{ptr: "/allOf/0", kind: ir.PrimitiveNumber, raw: `{"type":"number"}`}
+	narrow := decl{ptr: "/allOf/2", kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}
 	for _, tc := range []struct {
 		name    string
 		writer  decl
 		keyword string
 	}{
-		{"default", decl{ptr: "/allOf/1", kind: ir.PrimNumber, def: &half,
+		{"default", decl{ptr: "/allOf/1", kind: ir.PrimitiveNumber, def: &half,
 			raw: `{"type":"number","default":1.5}`}, "default"},
-		{"examples", decl{ptr: "/allOf/1", kind: ir.PrimNumber, examples: []ir.Value{two},
+		{"examples", decl{ptr: "/allOf/1", kind: ir.PrimitiveNumber, examples: []ir.Value{two},
 			raw: `{"type":"number","examples":[2.5]}`}, "examples"},
 	} {
 		for name, order := range map[string][]decl{
@@ -437,7 +439,7 @@ func assertThreeDeclarationsKeepTheWritingOne(t *testing.T) {
 		} {
 			got, diags := mergeDecls(t, order...)
 			label := tc.name + " " + name
-			assert.Equal(t, primRef(ir.PrimInteger).Target, got.Type.Target, label)
+			assert.Equal(t, primRef(ir.PrimitiveInteger).Target, got.Type.Target, label)
 			assert.Nil(t, got.Default, label)
 			assert.Empty(t, got.Examples, label)
 			assert.Equal(t, entry(tc.writer), got.Unmodeled, "%s: kept at the declaration that wrote it", label)
@@ -456,7 +458,7 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 	half, two := num("1.5"), num("2.5")
 	for _, kw := range []string{"default", "examples"} {
 		writer := func(name string) decl {
-			d := decl{kind: ir.PrimNumber, raw: `{"writer":"` + name + `"}`}
+			d := decl{kind: ir.PrimitiveNumber, raw: `{"writer":"` + name + `"}`}
 			if kw == "default" {
 				d.def = &half
 			} else {
@@ -464,7 +466,7 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 			}
 			return d
 		}
-		decls := map[string]decl{"a": writer("a"), "b": writer("b"), "c": {kind: ir.PrimInteger, raw: `{"type":"integer"}`}}
+		decls := map[string]decl{"a": writer("a"), "b": writer("b"), "c": {kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}}
 		for _, order := range []string{"abc", "acb", "bac", "bca", "cab", "cba"} {
 			placed := make([]decl, 0, len(order))
 			want := ir.Unmodeled{}
@@ -480,7 +482,7 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 			}
 			label := kw + " " + order
 			got, diags := mergeDecls(t, placed...)
-			assert.Equal(t, primRef(ir.PrimInteger).Target, got.Type.Target, label)
+			assert.Equal(t, primRef(ir.PrimitiveInteger).Target, got.Type.Target, label)
 			assert.Nil(t, got.Default, label)
 			assert.Empty(t, got.Examples, label)
 			assert.Equal(t, want, got.Unmodeled, "%s: both writers are kept, and only they", label)
@@ -501,10 +503,10 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 func assertRefusedValuesAreKeptAtTheirOwnDeclarations(t *testing.T) {
 	t.Helper()
 	half, two, big := num("1.5"), num("2.5"), num("5000000000")
-	defaulted := decl{ptr: "/allOf/0", kind: ir.PrimNumber, def: &half, raw: `{"default":1.5}`}
-	exampled := decl{ptr: "/allOf/1", kind: ir.PrimNumber, examples: []ir.Value{two}, raw: `{"examples":[2.5]}`}
-	both := decl{ptr: "/allOf/1", kind: ir.PrimNumber, def: &half, examples: []ir.Value{two}, raw: `{"both":1}`}
-	narrow := decl{ptr: "/allOf/2", kind: ir.PrimInteger, raw: `{"type":"integer"}`}
+	defaulted := decl{ptr: "/allOf/0", kind: ir.PrimitiveNumber, def: &half, raw: `{"default":1.5}`}
+	exampled := decl{ptr: "/allOf/1", kind: ir.PrimitiveNumber, examples: []ir.Value{two}, raw: `{"examples":[2.5]}`}
+	both := decl{ptr: "/allOf/1", kind: ir.PrimitiveNumber, def: &half, examples: []ir.Value{two}, raw: `{"both":1}`}
+	narrow := decl{ptr: "/allOf/2", kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}
 
 	got, diags := mergeDecls(t, defaulted, exampled, narrow)
 	assert.Equal(t, ir.Unmodeled{
@@ -518,14 +520,14 @@ func assertRefusedValuesAreKeptAtTheirOwnDeclarations(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/allOf/1"), diags[1].Provenance.Pointer)
 	assert.Contains(t, diags[1].Message, "examples")
 
-	wide := decl{ptr: "/allOf/0", kind: ir.PrimNumber, raw: `{"type":"number"}`}
+	wide := decl{ptr: "/allOf/0", kind: ir.PrimitiveNumber, raw: `{"type":"number"}`}
 	got, diags = mergeDecls(t, wide, both, narrow)
 	assert.Equal(t, entry(both), got.Unmodeled, "a default and examples from one declaration are one entry")
 	require.Len(t, diags, 1, "and one info naming both")
 	assert.Contains(t, diags[0].Message, "default and examples")
 
-	late := decl{ptr: "/allOf/1", kind: ir.PrimInteger, def: &big, raw: `{"late":5000000000}`}
-	last := decl{ptr: "/allOf/2", kind: ir.PrimInt32, raw: `{"last":1}`}
+	late := decl{ptr: "/allOf/1", kind: ir.PrimitiveInteger, def: &big, raw: `{"late":5000000000}`}
+	last := decl{ptr: "/allOf/2", kind: ir.PrimitiveInt32, raw: `{"last":1}`}
 	got, diags = mergeDecls(t, defaulted, late, last)
 	assert.Equal(t, ir.Unmodeled{
 		losingDeclarationKey + "/allOf/0": entry(defaulted)[losingDeclarationKey+"/allOf/0"],
@@ -543,8 +545,8 @@ func TestFold_ALowerCaseDateTimeIsAdopted(t *testing.T) {
 	t.Parallel()
 	lower := str("2024-01-01t00:00:00z")
 	got, diags := mergeDecls(t,
-		decl{ptr: "/a", kind: ir.PrimString, def: &lower, raw: `{}`},
-		decl{ptr: "/b", kind: ir.PrimDatetimeOffset, raw: `{}`})
+		decl{ptr: "/a", kind: ir.PrimitiveString, def: &lower, raw: `{}`},
+		decl{ptr: "/b", kind: ir.PrimitiveDatetimeOffset, raw: `{}`})
 	require.NotNil(t, got.Default)
 	assert.Equal(t, lower, *got.Default)
 	assert.Empty(t, diags)
@@ -560,8 +562,8 @@ func TestFold_ADeclarationWithNoSourceIsReportedUnkeepable(t *testing.T) {
 	half := num("1.5")
 
 	got := g.fold([]declaration{
-		{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimNumber), Default: &half, Provenance: ptrAt("/a")}},
-		{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/b")}, source: unread(t)},
+		{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveNumber), Default: &half, Provenance: ptrAt("/a")}},
+		{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveInteger), Provenance: ptrAt("/b")}, source: unread(t)},
 	})
 
 	require.Len(t, *recorded, 2)

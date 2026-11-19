@@ -74,9 +74,9 @@ func TestRefUseBound_ACarriedUseIsTheReference(t *testing.T) {
 					require.Len(t, op.Params, 1)
 					assert.Equal(t, componentID("Obj"), op.Params[0].Type.Target, "the parameter names the reference")
 					for _, at := range []string{"/components/schemas/Holder/properties/p", "/paths/~1x/get/parameters/0/schema"} {
-						assert.NotContains(t, doc.Types, ir.TypeID("t/anon"+at), "no node stands at %s", at)
+						assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous"+at), "no node stands at %s", at)
 					}
-					for _, id := range []ir.TypeID{componentID("Pos"), "t/anon/components/schemas/Els/items"} {
+					for _, id := range []ir.TypeID{componentID("Pos"), "type/anonymous/components/schemas/Els/items"} {
 						m, ok := kindNode(t, doc, id).(*ir.Model)
 						require.True(t, ok, "%s owns the Model over Obj", id)
 						require.NotNil(t, m.Base)
@@ -106,7 +106,7 @@ func TestRefUseBound_AnotherKeywordKeepsTheModel(t *testing.T) {
 			t.Parallel()
 			doc := compileClean(t, conjunctionSpec("3.1.0", tc.schema, "Obj: {type: object, properties: {a: {type: string}}}"),
 				openapi.Options{NullableInference: openapi.NullableInference{Disabled: tc.off}})
-			m, ok := kindNode(t, doc, ir.TypeID("t/anon"+at)).(*ir.Model)
+			m, ok := kindNode(t, doc, ir.TypeID("type/anonymous"+at)).(*ir.Model)
 			require.True(t, ok, "the position owns the Model over Obj")
 			require.NotNil(t, m.Base)
 			assert.Equal(t, componentID("Obj"), m.Base.Target)
@@ -137,7 +137,7 @@ func TestRefUseBound_AReferenceToACarriedPositionReadsItInEitherOrder(t *testing
 		assert.NotEmpty(t, r1.Visibility.Only)
 		x, ok := propByWire(requireEntryModelOf(t, doc, "X"), "x")
 		require.True(t, ok)
-		assert.Equal(t, ir.TypeID("t/anon"+at), x.Type.Target)
+		assert.Equal(t, ir.TypeID("type/anonymous"+at), x.Type.Target)
 		assert.NotEmpty(t, x.Visibility.Only, "the user reads the readOnly through its $ref")
 		node, ok := kindNode(t, doc, x.Type.Target).(*ir.Model)
 		require.True(t, ok, "no Scalar stands over a model")

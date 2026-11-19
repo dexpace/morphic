@@ -59,7 +59,7 @@ func fillSequential(c service.Ctx, w operationLoweringState, content *ir.Content
 	if enc == nil && !file.file && !parts {
 		return diags
 	}
-	pe.Multi = true
+	pe.RepeatsPerArrayItem = true
 	pe = file.apply(pe)
 	content.ItemEncoding = &pe
 	if parts && (enc == nil || takesDefault(service.EncodingRules(c), enc, mt)) {

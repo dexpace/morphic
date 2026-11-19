@@ -56,12 +56,12 @@ func TestExternalContent_AReferenceItWritesIsResolvedWhereItIsDeclared(t *testin
 		require.Len(t, op.Responses[0].Headers, 1, mount)
 		header := op.Responses[0].Headers[0]
 		assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/components/responses/R/headers/X-H"}, header.Provenance, mount)
-		assert.Equal(t, ir.PrimTypeID(ir.PrimInteger), header.Type.Target, mount)
+		assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveInteger), header.Type.Target, mount)
 		require.Len(t, op.Bindings.HTTP, 1, mount)
 		require.Len(t, op.Bindings.HTTP[0].Callbacks, 1, "%s: a.yaml's callback is read", mount)
 	}
 
-	assert.Equal(t, ir.TypeID("t/anon@a.yaml/components/parameters/Own/schema"), useTarget(t, doc, "Through"),
+	assert.Equal(t, ir.TypeID("type/anonymous@a.yaml/components/parameters/Own/schema"), useTarget(t, doc, "Through"),
 		"the pointer reads on through a.yaml's parameter reference")
 }
 
@@ -235,8 +235,8 @@ paths:
 	op := operationAt(t, doc, "GET", "/p")
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].Callbacks, 1)
-	const cb = "op/openapi/paths/~1p/get/callbacks/cb/{$request.query.u}/"
-	assert.Equal(t, []ir.OpID{cb + "get", cb + "post"}, op.Bindings.HTTP[0].Callbacks[0].Operations,
+	const cb = "operation/openapi/paths/~1p/get/callbacks/cb/{$request.query.u}/"
+	assert.Equal(t, []ir.OperationID{cb + "get", cb + "post"}, op.Bindings.HTTP[0].Callbacks[0].Operations,
 		"the $ref resolves, and the field beside it is lowered")
 	post := opWithID(t, doc, cb+"post")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1x/get/callbacks/cb/{$request.query.u}/post"},
@@ -275,13 +275,13 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, doc.Sources, 2)
 
-	use, ok := doc.Types["t/openapi@other.yaml/components/schemas/Use"].(*ir.Scalar)
-	require.True(t, ok, "%T", doc.Types["t/openapi@other.yaml/components/schemas/Use"])
+	use, ok := doc.Types["type/openapi@other.yaml/components/schemas/Use"].(*ir.Scalar)
+	require.True(t, ok, "%T", doc.Types["type/openapi@other.yaml/components/schemas/Use"])
 	assert.Nil(t, use.Constraints)
 	assert.Contains(t, use.Unmodeled, "openapi:minLength")
 
-	box, ok := doc.Types["t/openapi@other.yaml/components/schemas/Box"].(*ir.Model)
-	require.True(t, ok, "%T", doc.Types["t/openapi@other.yaml/components/schemas/Box"])
+	box, ok := doc.Types["type/openapi@other.yaml/components/schemas/Box"].(*ir.Model)
+	require.True(t, ok, "%T", doc.Types["type/openapi@other.yaml/components/schemas/Box"])
 	inner, ok := propByWire(box, "inner")
 	require.True(t, ok)
 	assert.Nil(t, inner.Constraints)

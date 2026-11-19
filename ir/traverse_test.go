@@ -16,7 +16,7 @@ import (
 // groupChain returns a service whose single operation sits level groups down,
 // the top-level group counting as level 0.
 func groupChain(level int) *ir.Document {
-	groups := []ir.OperationGroup{{Operations: []ir.Operation{{ID: ir.OpID(fmt.Sprintf("op%d", level))}}}}
+	groups := []ir.OperationGroup{{Operations: []ir.Operation{{ID: ir.OperationID(fmt.Sprintf("op%d", level))}}}}
 	for range level {
 		groups = []ir.OperationGroup{{Groups: groups}}
 	}
@@ -40,23 +40,23 @@ func TestForEachOperation_VisitsDeclarationOrder(t *testing.T) {
 		}},
 		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "d"}}}}},
 	}}
-	var got []ir.OpID
+	var got []ir.OperationID
 	truncated := ir.ForEachOperation(doc, func(op ir.Operation) { got = append(got, op.ID) })
 	assert.False(t, truncated)
-	assert.Equal(t, []ir.OpID{"a", "b", "c", "d"}, got)
+	assert.Equal(t, []ir.OperationID{"a", "b", "c", "d"}, got)
 }
 
 func TestForEachOperation_AtTheCap(t *testing.T) {
 	t.Parallel()
-	var got []ir.OpID
+	var got []ir.OperationID
 	truncated := ir.ForEachOperation(groupChain(ir.MaxGroupDepth), func(op ir.Operation) { got = append(got, op.ID) })
 	assert.False(t, truncated, "an operation at the cap is still reached")
-	assert.Equal(t, []ir.OpID{ir.OpID(fmt.Sprintf("op%d", ir.MaxGroupDepth))}, got)
+	assert.Equal(t, []ir.OperationID{ir.OperationID(fmt.Sprintf("op%d", ir.MaxGroupDepth))}, got)
 }
 
 func TestForEachOperation_OneBeyondTheCap(t *testing.T) {
 	t.Parallel()
-	var got []ir.OpID
+	var got []ir.OperationID
 	truncated := ir.ForEachOperation(groupChain(ir.MaxGroupDepth+1), func(op ir.Operation) { got = append(got, op.ID) })
 	require.True(t, truncated, "an operation past the cap goes unvisited, and the walk says so")
 	assert.Empty(t, got)
@@ -73,16 +73,16 @@ func TestForEachOperation_TruncationSkipsOnlyTheDeepGroups(t *testing.T) {
 		{Groups: append(deep, ir.OperationGroup{Operations: []ir.Operation{{ID: "sibling"}}})},
 		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "later"}}}}},
 	}}
-	var got []ir.OpID
+	var got []ir.OperationID
 	truncated := ir.ForEachOperation(doc, func(op ir.Operation) { got = append(got, op.ID) })
 	assert.True(t, truncated, "a clean group or service after the cut keeps the report")
-	assert.Equal(t, []ir.OpID{"sibling", "later"}, got, "the cut skips only the groups past the cap")
+	assert.Equal(t, []ir.OperationID{"sibling", "later"}, got, "the cut skips only the groups past the cap")
 }
 
 // opIDs collects the operations ForEachOperation visits, in order, and whether
 // it reported a cut.
-func opIDs(doc *ir.Document) ([]ir.OpID, bool) {
-	var got []ir.OpID
+func opIDs(doc *ir.Document) ([]ir.OperationID, bool) {
+	var got []ir.OperationID
 	truncated := ir.ForEachOperation(doc, func(op ir.Operation) { got = append(got, op.ID) })
 	return got, truncated
 }
@@ -104,10 +104,10 @@ func TestForEachOperation_ASelfContainingGroupSliceIsWalkedOnce(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		groups []ir.OperationGroup
-		want   []ir.OpID
+		want   []ir.OperationID
 	}{
-		{"a group that is its own subgroup", one, []ir.OpID{"a"}},
-		{"two slices that hold each other", outer, []ir.OpID{"x", "y"}},
+		{"a group that is its own subgroup", one, []ir.OperationID{"a"}},
+		{"two slices that hold each other", outer, []ir.OperationID{"x", "y"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -135,7 +135,7 @@ func TestForEachOperation_SharingWithoutACycleStillCostsTheUnfoldedSize(t *testi
 		{Groups: shared}, {Groups: shared}, {Groups: prefix},
 	}})
 	assert.False(t, truncated)
-	assert.Equal(t, []ir.OpID{"s", "s", "p", "q", "p"}, got)
+	assert.Equal(t, []ir.OperationID{"s", "s", "p", "q", "p"}, got)
 }
 
 // TestForEachOperation_AWalkCutAtTheCapLeavesWhatItEntered holds the walk to
@@ -151,7 +151,7 @@ func TestForEachOperation_AWalkCutAtTheCapLeavesWhatItEntered(t *testing.T) {
 
 	got, truncated := opIDs(&ir.Document{Services: []ir.Service{{Groups: chain}, {Groups: chain}}})
 	assert.True(t, truncated)
-	assert.Equal(t, []ir.OpID{"top", "top"}, got, "the second service walks the chain as the first did")
+	assert.Equal(t, []ir.OperationID{"top", "top"}, got, "the second service walks the chain as the first did")
 }
 
 func TestForEachGroup_NilDocument(t *testing.T) {

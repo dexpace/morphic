@@ -134,10 +134,10 @@ func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 		}
 	case *ir.List:
 		if set != compositionOnly && atLeastOne(t.Constraints, func(c *ir.Constraints) *int64 { return c.MinItems }) {
-			sink.emit(ix, &t.Elem, edgeElement, 0)
+			sink.emit(ix, &t.ElementType, edgeElement, 0)
 		}
 	case *ir.MapT:
-		if set != compositionOnly && atLeastOne(t.Constraints, func(c *ir.Constraints) *int64 { return c.MinProps }) {
+		if set != compositionOnly && atLeastOne(t.Constraints, func(c *ir.Constraints) *int64 { return c.MinProperties }) {
 			sink.emit(ix, &t.Value, edgeValue, 0)
 		}
 	case *ir.Tuple:
@@ -178,14 +178,14 @@ func (s *edgeSink) tuple(ix typeIndex, t *ir.Tuple) {
 		return
 	}
 	filled := *t.Constraints.MinItems
-	for j := range t.Elems {
+	for j := range t.ElementTypes {
 		if int64(j) >= filled {
 			return
 		}
-		s.emit(ix, &t.Elems[j], edgeElementOf, j)
+		s.emit(ix, &t.ElementTypes[j], edgeElementOf, j)
 	}
-	if t.Rest != nil && filled > int64(len(t.Elems)) {
-		s.emit(ix, t.Rest, edgeElementOf, len(t.Elems))
+	if t.Rest != nil && filled > int64(len(t.ElementTypes)) {
+		s.emit(ix, t.Rest, edgeElementOf, len(t.ElementTypes))
 	}
 }
 

@@ -262,7 +262,7 @@ func TestCensus_OfTheZeroUniverseCountsNoFact(t *testing.T) {
 func docOf(nodes ...ir.TypeDef) *ir.Document {
 	reg := ir.TypeRegistry{}
 	for i, n := range nodes {
-		id := ir.TypeID(fmt.Sprintf("t/%s%d", n.Kind(), i))
+		id := ir.TypeID(fmt.Sprintf("type/%s%d", n.Kind(), i))
 		n.Common().ID = id
 		reg[id] = n
 	}

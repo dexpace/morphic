@@ -46,7 +46,7 @@ func TestCompile_NamesAHeaderSchemaBeneathEveryEncodingByTheHeader(t *testing.T)
 	require.NotNil(t, doc)
 	assertNoErrorDiags(t, diags)
 	for key, ref := range headers {
-		id := ir.TypeID("t/anon/" + ref[len("#/"):])
+		id := ir.TypeID("type/anonymous/" + ref[len("#/"):])
 		def, ok := doc.Types[id]
 		require.True(t, ok, "a node at %s", ref)
 		assert.Equal(t, compile.SubHint(key, "item"), def.Common().Name.Hint, ref)

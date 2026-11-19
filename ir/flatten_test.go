@@ -16,10 +16,10 @@ import (
 )
 
 // wired is a property named id on the wire as wire.
-func wired(id ir.PropID, wire string) ir.Property { return ir.Property{ID: id, WireName: wire} }
+func wired(id ir.PropertyID, wire string) ir.Property { return ir.Property{ID: id, WireName: wire} }
 
 // mandatory is wired, Required.
-func mandatory(id ir.PropID, wire string) ir.Property {
+func mandatory(id ir.PropertyID, wire string) ir.Property {
 	p := wired(id, wire)
 	p.Required = true
 	return p
@@ -49,7 +49,7 @@ func mixing(targets ...ir.TypeID) func(*ir.Model) {
 // following each field of ir.Model that holds a TypeRef, read off its
 // declaration: those fields are Base, Implements and Mixins, and a model
 // naming one parent through each reads all three. A field added beside them is
-// an entry FlattenedProperties, ExposedProps, Supertypes and the irfacts
+// an entry FlattenedProperties, ExposedProperties, Supertypes and the irfacts
 // indexes must read too, or is none: the failure asks which.
 func TestFlattenedProperties_ReadsEveryCompositionField(t *testing.T) {
 	t.Parallel()
@@ -226,7 +226,7 @@ func TestFlattenedProperties_Override(t *testing.T) {
 
 func TestFlattenedProperties_APropertySeveralModelsDeclareIsOneDeclaration(t *testing.T) {
 	t.Parallel()
-	shared := wired("p/shared", "x")
+	shared := wired("property/shared", "x")
 	doc := irtest.DocOf(
 		owning("m", mixing("a", "b", "c")),
 		owning("a", nil, shared),
@@ -235,11 +235,11 @@ func TestFlattenedProperties_APropertySeveralModelsDeclareIsOneDeclaration(t *te
 		owning("n", mixing("a", "c"), shared),
 		owning("o", mixing("a", "c", "b")),
 	)
-	assert.Equal(t, []string{"p/shared@c < b.x@b"}, flatLines(ir.FlattenedProperties(doc.Types, "m")),
+	assert.Equal(t, []string{"property/shared@c < b.x@b"}, flatLines(ir.FlattenedProperties(doc.Types, "m")),
 		"the declaration read last takes the member, and one it shares an ID with is not overridden by it")
-	assert.Equal(t, []string{"p/shared@n"}, flatLines(ir.FlattenedProperties(doc.Types, "n")),
+	assert.Equal(t, []string{"property/shared@n"}, flatLines(ir.FlattenedProperties(doc.Types, "n")),
 		"three readings of one property are one declaration")
-	assert.Equal(t, []string{"b.x@b < p/shared@a"}, flatLines(ir.FlattenedProperties(doc.Types, "o")),
+	assert.Equal(t, []string{"b.x@b < property/shared@a"}, flatLines(ir.FlattenedProperties(doc.Types, "o")),
 		"an overridden declaration read twice is listed once, at its first reading")
 }
 
@@ -294,14 +294,14 @@ func TestFlattenedProperties_Required(t *testing.T) {
 }
 
 // typed is wired, of the type target.
-func typed(id ir.PropID, wire string, target ir.TypeID) ir.Property {
+func typed(id ir.PropertyID, wire string, target ir.TypeID) ir.Property {
 	p := wired(id, wire)
 	p.Type = ir.TypeRef{Target: target}
 	return p
 }
 
 // redacted is wired, Secret.
-func redacted(id ir.PropID, wire string) ir.Property {
+func redacted(id ir.PropertyID, wire string) ir.Property {
 	p := wired(id, wire)
 	p.Secret = true
 	return p
@@ -309,7 +309,7 @@ func redacted(id ir.PropID, wire string) ir.Property {
 
 // sensitiveScalar is a Sensitive string scalar.
 func sensitiveScalar(id ir.TypeID) *ir.Scalar {
-	s := irtest.ScalarOf(id, "t/prim/string")
+	s := irtest.ScalarOf(id, "type/primitive/string")
 	s.Sensitive = true
 	return s
 }
@@ -335,7 +335,7 @@ func TestFlattenedProperties_Secret(t *testing.T) {
 			doc: irtest.DocOf(
 				owning("m", mixing("a", "b")),
 				owning("a", nil, typed("a.tok", "tok", "pw")),
-				owning("b", nil, typed("b.tok", "tok", "t/prim/string")),
+				owning("b", nil, typed("b.tok", "tok", "type/primitive/string")),
 				sensitiveScalar("pw"),
 			),
 			want: []string{"b.tok@b < a.tok@a secret"},
@@ -355,7 +355,7 @@ func TestFlattenedProperties_Secret(t *testing.T) {
 				owning("m", nil, typed("m.c", "c", "c1"), typed("m.d", "d", "c2"), typed("m.l", "l", "list"),
 					typed("m.gone", "gone", "missing"), typed("m.nil", "nil", "nil")),
 				irtest.ScalarOf("c1", "c2"), irtest.ScalarOf("c2", "c1"),
-				&ir.List{ID: "list", Elem: ir.TypeRef{Target: "pw"}},
+				&ir.List{ID: "list", ElementType: ir.TypeRef{Target: "pw"}},
 				sensitiveScalar("pw"),
 			),
 			want: []string{"m.c@m", "m.d@m", "m.l@m", "m.gone@m", "m.nil@m"},
@@ -371,7 +371,7 @@ func TestFlattenedProperties_Secret(t *testing.T) {
 }
 
 // deprecatedBy is wired, deprecated with its own ID as the message.
-func deprecatedBy(id ir.PropID, wire string) ir.Property {
+func deprecatedBy(id ir.PropertyID, wire string) ir.Property {
 	p := wired(id, wire)
 	p.Deprecation = &ir.Deprecation{Message: string(id)}
 	return p
@@ -446,7 +446,7 @@ func TestFlattenedProperties_Unflattened(t *testing.T) {
 			m.Mixins = irtest.RefsTo("x", "enum", "ghost", "nil", "cycle1", "holey", "uuid", "e2")
 		}, wired("m.a", "a")),
 		irtest.ScalarOf("uuid", "string"),
-		&ir.Primitive{ID: "string", Prim: ir.PrimString},
+		&ir.Primitive{ID: "string", PrimitiveKind: ir.PrimitiveString},
 		&ir.Union{ID: "u"},
 		owning("x", mixing("deep"), wired("x.a", "a")),
 		&ir.MapT{ID: "deep"},
@@ -471,7 +471,7 @@ func TestFlattenedProperties_NoModelHasAnEmptyShape(t *testing.T) {
 		irtest.ScalarOf("toEnum", "enum"),
 		&ir.Enum{ID: "enum"},
 		irtest.ScalarOf("loop", "loop"),
-		&ir.Primitive{ID: "string", Prim: ir.PrimString},
+		&ir.Primitive{ID: "string", PrimitiveKind: ir.PrimitiveString},
 	)
 	doc.Types["nil"] = (*ir.Model)(nil)
 	for _, root := range []ir.TypeID{"missing", "", "opaque", "toEnum", "enum", "loop", "string", "nil"} {
@@ -586,7 +586,7 @@ func TestFlattenedProperties_WorkGrowsLinearly(t *testing.T) {
 			for i := range n {
 				for _, side := range []string{"a", "b"} {
 					doc.Types[level(i, side)] = owning(level(i, side), mixing(level(i+1, "a"), level(i+1, "b")),
-						wired(ir.PropID(level(i, side)), "x"))
+						wired(ir.PropertyID(level(i, side)), "x"))
 				}
 			}
 			doc.Types[level(n, "a")] = owning(level(n, "a"), nil)
@@ -638,7 +638,7 @@ func redactionChain(n int, end *ir.Scalar) (ir.TypeRegistry, ir.TypeID) {
 
 	props := make([]ir.Property, n)
 	for i := range props {
-		props[i] = typed(ir.PropID(fmt.Sprintf("p%04d", i)), fmt.Sprintf("w%04d", i), scalarAt(0))
+		props[i] = typed(ir.PropertyID(fmt.Sprintf("p%04d", i)), fmt.Sprintf("w%04d", i), scalarAt(0))
 	}
 	doc.Types["m"] = owning("m", nil, props...)
 
@@ -652,26 +652,26 @@ func redactionChain(n int, end *ir.Scalar) (ir.TypeRegistry, ir.TypeID) {
 // member declares is left to the catch-all.
 func ExampleFlattenedProperties() {
 	reg := ir.TypeRegistry{
-		"t/envelope": &ir.Model{ID: "t/envelope", Properties: []ir.Property{
-			{ID: "p/envelope/success", WireName: "success", Type: ir.TypeRef{Target: "t/true"}, Required: true},
-			{ID: "p/envelope/result", WireName: "result", Type: ir.TypeRef{Target: "t/page"}},
+		"type/envelope": &ir.Model{ID: "type/envelope", Properties: []ir.Property{
+			{ID: "property/envelope/success", WireName: "success", Type: ir.TypeRef{Target: "type/true"}, Required: true},
+			{ID: "property/envelope/result", WireName: "result", Type: ir.TypeRef{Target: "type/page"}},
 		}},
-		"t/failure": &ir.Model{ID: "t/failure", Requires: []string{"result", "code"}, Properties: []ir.Property{
-			{ID: "p/failure/success", WireName: "success", Type: ir.TypeRef{Target: "t/false"}},
-			{ID: "p/failure/errors", WireName: "errors", Type: ir.TypeRef{Target: "t/errors"}},
+		"type/failure": &ir.Model{ID: "type/failure", Requires: []string{"result", "code"}, Properties: []ir.Property{
+			{ID: "property/failure/success", WireName: "success", Type: ir.TypeRef{Target: "type/false"}},
+			{ID: "property/failure/errors", WireName: "errors", Type: ir.TypeRef{Target: "type/errors"}},
 		}},
-		"t/response": &ir.Model{ID: "t/response", Mixins: []ir.TypeRef{{Target: "t/envelope"}, {Target: "t/failure"}}},
+		"type/response": &ir.Model{ID: "type/response", Mixins: []ir.TypeRef{{Target: "type/envelope"}, {Target: "type/failure"}}},
 	}
 
-	f := ir.FlattenedProperties(reg, "t/response")
+	f := ir.FlattenedProperties(reg, "type/response")
 	for _, fp := range f.Properties {
 		fmt.Printf("%s: %s from %s, required %t, overriding %d\n",
 			fp.Property.EffectiveWireName(), fp.Property.Type.Target, fp.Owner, fp.Required, len(fp.Overridden))
 	}
 	fmt.Println("undeclared:", f.Undeclared)
 	// Output:
-	// success: t/false from t/failure, required true, overriding 1
-	// result: t/page from t/envelope, required true, overriding 0
-	// errors: t/errors from t/failure, required false, overriding 0
+	// success: type/false from type/failure, required true, overriding 1
+	// result: type/page from type/envelope, required true, overriding 0
+	// errors: type/errors from type/failure, required false, overriding 0
 	// undeclared: [code]
 }

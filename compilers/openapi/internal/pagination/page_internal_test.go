@@ -17,26 +17,26 @@ import (
 // members hold, or several bodies, is read once.
 func TestReader_ReadsEachBodyAndModelOnce(t *testing.T) {
 	t.Parallel()
-	info := &ir.Model{ID: "t/info", Properties: []ir.Property{
-		{ID: "p/info/total_count", Name: ir.Naming{Source: "total_count", Canonical: "total_count"},
-			Type: ir.TypeRef{Target: "t/prim/integer"}},
+	info := &ir.Model{ID: "type/info", Properties: []ir.Property{
+		{ID: "property/info/total_count", Name: ir.Naming{Source: "total_count", Canonical: "total_count"},
+			Type: ir.TypeRef{Target: "type/primitive/integer"}},
 	}}
 	body := func(id ir.TypeID) *ir.Model {
 		return &ir.Model{ID: id, Properties: []ir.Property{
-			{ID: ir.PropID(id + "/result"), Name: ir.Naming{Source: "result", Canonical: "result"},
-				Type: ir.TypeRef{Target: "t/list"}},
-			{ID: ir.PropID(id + "/a"), Name: ir.Naming{Source: "a", Canonical: "a"}, Type: ir.TypeRef{Target: "t/info"}},
-			{ID: ir.PropID(id + "/b"), Name: ir.Naming{Source: "b", Canonical: "b"}, Type: ir.TypeRef{Target: "t/info"}},
+			{ID: ir.PropertyID(id + "/result"), Name: ir.Naming{Source: "result", Canonical: "result"},
+				Type: ir.TypeRef{Target: "type/list"}},
+			{ID: ir.PropertyID(id + "/a"), Name: ir.Naming{Source: "a", Canonical: "a"}, Type: ir.TypeRef{Target: "type/info"}},
+			{ID: ir.PropertyID(id + "/b"), Name: ir.Naming{Source: "b", Canonical: "b"}, Type: ir.TypeRef{Target: "type/info"}},
 		}}
 	}
 	r := newReader(compileddoc.New(&ir.Document{Types: ir.TypeRegistry{
-		"t/list": &ir.List{ID: "t/list"}, "t/info": info, "t/one": body("t/one"), "t/two": body("t/two"),
-		"t/prim/integer": &ir.Primitive{ID: "t/prim/integer", Prim: ir.PrimInteger},
+		"type/list": &ir.List{ID: "type/list"}, "type/info": info, "type/one": body("type/one"), "type/two": body("type/two"),
+		"type/primitive/integer": &ir.Primitive{ID: "type/primitive/integer", PrimitiveKind: ir.PrimitiveInteger},
 	}}))
 	for range 3 {
-		for _, id := range []ir.TypeID{"t/one", "t/two"} {
+		for _, id := range []ir.TypeID{"type/one", "type/two"} {
 			pg := r.page(pageKey{body: id})
-			assert.Equal(t, []ir.PropID{ir.PropID(id + "/result")}, pg.items)
+			assert.Equal(t, []ir.PropertyID{ir.PropertyID(id + "/result")}, pg.items)
 			assert.Nil(t, pg.totalCount, "a total two members hold counts neither")
 		}
 	}

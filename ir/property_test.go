@@ -21,7 +21,7 @@ import (
 // lifecycle list" indistinguishable on the wire.
 func TestVisibility_ZeroValueShape(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.Visibility{}, `{"none":false}`)
+	assertZeroValueShape(t, ir.Visibility{}, `{"invisibleInEveryLifecycle":false}`)
 }
 
 // TestVisibility_PopulatedRoundTrip pins that a populated Visibility (a
@@ -30,8 +30,8 @@ func TestVisibility_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	tests := map[string]ir.Visibility{
 		"only":     {Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}},
-		"none":     {None: true},
-		"combined": {Only: []ir.Lifecycle{ir.LifecycleRead}, None: false},
+		"none":     {InvisibleInEveryLifecycle: true},
+		"combined": {Only: []ir.Lifecycle{ir.LifecycleRead}, InvisibleInEveryLifecycle: false},
 	}
 	for name, want := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestProperty_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Property{},
 		`{"id":"","name":{},"type":{"target":"","nullable":false},"required":false,`+
-			`"clientOptional":false,"defaultAdded":false,"visibility":{"none":false},`+
+			`"clientOptional":false,"defaultAdded":false,"visibility":{"invisibleInEveryLifecycle":false},`+
 			`"flatten":false,"eventHeader":false,"eventPayload":false,"secret":false,`+
 			`"docs":{},"provenance":{"source":0}}`,
 		populatedProperty(), eventPayloadLeftZero())
@@ -64,7 +64,7 @@ func TestProperty_JSONContract(t *testing.T) {
 func TestHeader_JSONContract(t *testing.T) {
 	t.Parallel()
 	const property = `{"id":"","name":{},"type":{"target":"","nullable":false},"required":false,` +
-		`"clientOptional":false,"defaultAdded":false,"visibility":{"none":false},` +
+		`"clientOptional":false,"defaultAdded":false,"visibility":{"invisibleInEveryLifecycle":false},` +
 		`"flatten":false,"eventHeader":false,"eventPayload":false,"secret":false,` +
 		`"docs":{},"provenance":{"source":0}`
 	assertJSONContract(t, ir.Header{}, property+`}`, populatedHeader())
@@ -84,7 +84,7 @@ func TestHeader_JSONContract(t *testing.T) {
 func TestProperty_WireNameByFormatDeterministic(t *testing.T) {
 	t.Parallel()
 	prop := ir.Property{
-		ID: "p/x",
+		ID: "property/x",
 		WireNameByFormat: map[string]string{
 			"z-format": "Z",
 			"m-format": "M",
@@ -124,9 +124,9 @@ func TestProperty_RequiredNullableFourStates(t *testing.T) {
 	encodings := make(map[string]bool, len(tests))
 	for _, tt := range tests {
 		prop := ir.Property{
-			ID:       "p/x",
+			ID:       "property/x",
 			Required: tt.required,
-			Type:     ir.TypeRef{Target: "t/x", Nullable: tt.nullable},
+			Type:     ir.TypeRef{Target: "type/x", Nullable: tt.nullable},
 		}
 		raw, err := json.Marshal(prop)
 		require.NoError(t, err)
@@ -138,9 +138,9 @@ func TestProperty_RequiredNullableFourStates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			prop := ir.Property{
-				ID:       "p/x",
+				ID:       "property/x",
 				Required: tt.required,
-				Type:     ir.TypeRef{Target: "t/x", Nullable: tt.nullable},
+				Type:     ir.TypeRef{Target: "type/x", Nullable: tt.nullable},
 			}
 
 			raw, err := json.Marshal(prop)

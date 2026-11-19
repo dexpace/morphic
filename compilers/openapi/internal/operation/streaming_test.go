@@ -109,7 +109,7 @@ func TestStreaming_RequestMediaTypeImpliesClientStream(t *testing.T) {
 		wantResponse bool
 	}{
 		{"client only", "application/json", ir.StreamingClient, false},
-		{"both directions", "text/event-stream", ir.StreamingBidi, true},
+		{"both directions", "text/event-stream", ir.StreamingBidirectional, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -201,7 +201,7 @@ func TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed(t *testing.T) 
 `)
 	doc, diags := streamingSpec(t, spec, openapi.Options{})
 	op := openapitest.FindOp(t, doc, "exchange")
-	assert.Equal(t, ir.StreamingBidi, op.Streaming)
+	assert.Equal(t, ir.StreamingBidirectional, op.Streaming)
 	require.NotNil(t, op.RequestStream)
 	require.NotNil(t, op.ResponseStream)
 	assert.Nil(t, op.RequestStream.Events, "two candidate element types, so none is elected")
@@ -227,9 +227,9 @@ func TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed(t *testing.T) 
 func TestStreaming_AListBodyStreamsItsElement(t *testing.T) {
 	t.Parallel()
 	const (
-		event = ir.TypeID("t/openapi/components/schemas/Event")
-		pairs = ir.TypeID("t/anon/paths/~1s/get/responses/200/content/application~1jsonl/schema")
-		named = ir.TypeID("t/openapi/components/schemas/Named")
+		event = ir.TypeID("type/openapi/components/schemas/Event")
+		pairs = ir.TypeID("type/anonymous/paths/~1s/get/responses/200/content/application~1jsonl/schema")
+		named = ir.TypeID("type/openapi/components/schemas/Named")
 	)
 	for _, tc := range []struct {
 		name, schema string
@@ -240,7 +240,7 @@ func TestStreaming_AListBodyStreamsItsElement(t *testing.T) {
 		{"a list behind an alias a $ref's sibling hoists", `{$ref: '#/components/schemas/Events', description: d}`, ir.TypeRef{Target: event}},
 		{"a list behind two aliases", `{$ref: '#/components/schemas/Again', description: d}`, ir.TypeRef{Target: event}},
 		{"a nullable list, whose frames are not null", `{type: [array, "null"], items: {$ref: '#/components/schemas/Event'}}`, ir.TypeRef{Target: event}},
-		{"a list of nullable items, whose frames are", `{type: array, items: {$ref: '#/components/schemas/Maybe'}}`, ir.TypeRef{Target: "t/openapi/components/schemas/Maybe", Nullable: true}},
+		{"a list of nullable items, whose frames are", `{type: array, items: {$ref: '#/components/schemas/Maybe'}}`, ir.TypeRef{Target: "type/openapi/components/schemas/Maybe", Nullable: true}},
 		{"a tuple, whose frames differ by position", `{type: array, prefixItems: [{type: string}, {type: integer}], items: false}`, ir.TypeRef{Target: pairs}},
 		{"a model, the frame itself", `{$ref: '#/components/schemas/Event'}`, ir.TypeRef{Target: event}},
 		{"a name for another name", `{$ref: '#/components/schemas/Named'}`, ir.TypeRef{Target: named}},
@@ -333,7 +333,7 @@ components:
 			require.NotNil(t, op.ResponseStream, "the direction streams either way")
 			if tc.wantElected {
 				require.NotNil(t, op.ResponseStream.Events)
-				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/A"), op.ResponseStream.Events.Target)
+				assert.Equal(t, ir.TypeID("type/openapi/components/schemas/A"), op.ResponseStream.Events.Target)
 				assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1s/get/responses"))
 				return
 			}
@@ -407,7 +407,7 @@ func TestStreaming_AFileBodyStreamsBytes(t *testing.T) {
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.RequestStream)
 	require.NotNil(t, op.RequestStream.Events, "both contents stream bytes, so the element is named")
-	assert.Equal(t, ir.TypeRef{Target: "t/prim/bytes"}, *op.RequestStream.Events)
+	assert.Equal(t, ir.TypeRef{Target: "type/primitive/bytes"}, *op.RequestStream.Events)
 	assert.NotEqual(t, op.Request.Contents[0].Type, op.Request.Contents[1].Type)
 }
 
@@ -563,9 +563,9 @@ func TestStreaming_EachContentSaysWhetherItStreams(t *testing.T) {
 		mode   ir.StreamingMode
 	}{
 		{"the default policy", openapi.Options{}, "text/event-stream",
-			map[string]string{"text/event-stream": guess, "application/json": ""}, ir.StreamingBidi},
+			map[string]string{"text/event-stream": guess, "application/json": ""}, ir.StreamingBidirectional},
 		{"a policy naming JSON", openapi.Options{StreamingInference: openapi.StreamingInference{MediaTypes: []string{"application/json"}}},
-			"text/event-stream", map[string]string{"text/event-stream": "", "application/json": guess}, ir.StreamingBidi},
+			"text/event-stream", map[string]string{"text/event-stream": "", "application/json": guess}, ir.StreamingBidirectional},
 		{"a disabled policy", openapi.Options{StreamingInference: openapi.StreamingInference{Disabled: true}}, "text/event-stream",
 			map[string]string{"text/event-stream": "", "application/json": ""}, ir.StreamingNone},
 	} {

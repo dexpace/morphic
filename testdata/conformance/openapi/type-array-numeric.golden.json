@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "TypeArrayNumeric",
         "canonical": "type_array_numeric"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Label": {
+    "type/openapi/components/schemas/Label": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Label",
+      "id": "type/openapi/components/schemas/Label",
       "name": {
         "source": "Label",
         "canonical": "label"
@@ -79,7 +79,7 @@
             "hint": "integer"
           },
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "docs": {}
@@ -89,7 +89,7 @@
             "hint": "string"
           },
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "docs": {}
@@ -100,9 +100,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Measure": {
+    "type/openapi/components/schemas/Measure": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Measure",
+      "id": "type/openapi/components/schemas/Measure",
       "name": {
         "source": "Measure",
         "canonical": "measure"
@@ -120,7 +120,7 @@
             "hint": "number"
           },
           "type": {
-            "target": "t/prim/number",
+            "target": "type/primitive/number",
             "nullable": false
           },
           "docs": {}
@@ -130,7 +130,7 @@
             "hint": "integer"
           },
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "docs": {}
@@ -141,9 +141,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Sized": {
+    "type/openapi/components/schemas/Sized": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Sized",
+      "id": "type/openapi/components/schemas/Sized",
       "name": {
         "source": "Sized",
         "canonical": "sized"
@@ -161,7 +161,7 @@
             "hint": "integer"
           },
           "type": {
-            "target": "t/prim/int32",
+            "target": "type/primitive/int32",
             "nullable": false
           },
           "docs": {}
@@ -171,7 +171,7 @@
             "hint": "number"
           },
           "type": {
-            "target": "t/prim/int32",
+            "target": "type/primitive/int32",
             "nullable": false
           },
           "docs": {}
@@ -182,9 +182,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/prim/int32": {
+    "type/primitive/int32": {
       "kind": "primitive",
-      "id": "t/prim/int32",
+      "id": "type/primitive/int32",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -192,11 +192,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "int32"
+      "primitiveKind": "int32"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -204,11 +204,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/number": {
+    "type/primitive/number": {
       "kind": "primitive",
-      "id": "t/prim/number",
+      "id": "type/primitive/number",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -216,11 +216,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "number"
+      "primitiveKind": "number"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -228,7 +228,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

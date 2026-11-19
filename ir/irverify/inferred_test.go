@@ -34,48 +34,48 @@ type markerCarrier struct {
 // misses a row.
 func markerCarriers() []markerCarrier {
 	property := func(ref ir.TypeRef) *ir.Document {
-		return closedDoc(&ir.Model{ID: "t/x/M", Name: named("m"), Properties: []ir.Property{{
-			ID: "p/x/M/f", Name: named("f"), Type: ref,
+		return closedDoc(&ir.Model{ID: "type/x/M", Name: named("m"), Properties: []ir.Property{{
+			ID: "property/x/M/f", Name: named("f"), Type: ref,
 		}}})
 	}
 	content := func(c ir.Content) *ir.Document {
-		c.MediaType, c.Type = "multipart/form-data", ir.TypeRef{Target: "t/x/M"}
-		doc := property(ir.TypeRef{Target: "t/x/Leaf"})
-		doc.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
-			ID: "g/x/S/g", Name: named("g"), Operations: []ir.Operation{{
-				ID: "op/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{c}},
+		c.MediaType, c.Type = "multipart/form-data", ir.TypeRef{Target: "type/x/M"}
+		doc := property(ir.TypeRef{Target: "type/x/Leaf"})
+		doc.Services = []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+			ID: "operation-group/x/S/g", Name: named("g"), Operations: []ir.Operation{{
+				ID: "operation/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{c}},
 			}},
 		}}}}
 		return doc
 	}
 	return []markerCarrier{
 		{"a model's provenance", func(list ir.Inferred) *ir.Document {
-			return closedDoc(&ir.Model{ID: "t/x/M", Name: named("m"), Provenance: ir.Provenance{Inferred: list}})
-		}, "doc.Types[t/x/M].Provenance.Inferred"},
+			return closedDoc(&ir.Model{ID: "type/x/M", Name: named("m"), Provenance: ir.Provenance{Inferred: list}})
+		}, "document.Types[type/x/M].Provenance.Inferred"},
 		{"a property's nullable reference", func(list ir.Inferred) *ir.Document {
-			return property(ir.TypeRef{Target: "t/x/Leaf", Nullable: true, Inferred: list})
-		}, "doc.Types[t/x/M].Properties[0].Type.Inferred"},
+			return property(ir.TypeRef{Target: "type/x/Leaf", Nullable: true, Inferred: list})
+		}, "document.Types[type/x/M].Properties[0].Type.Inferred"},
 		{"a parameter's nullable reference", func(list ir.Inferred) *ir.Document {
 			doc := closedDoc()
-			doc.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
-				ID: "g/x/S/g", Name: named("g"), Operations: []ir.Operation{{
-					ID: "op/x/S/op", Name: named("op"), Params: []ir.Parameter{{
-						ID: "param/x/S/op/q", Name: named("q"),
-						Type: ir.TypeRef{Target: "t/x/Leaf", Nullable: true, Inferred: list},
+			doc.Services = []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+				ID: "operation-group/x/S/g", Name: named("g"), Operations: []ir.Operation{{
+					ID: "operation/x/S/op", Name: named("op"), Params: []ir.Parameter{{
+						ID: "parameter/x/S/op/q", Name: named("q"),
+						Type: ir.TypeRef{Target: "type/x/Leaf", Nullable: true, Inferred: list},
 					}},
 				}},
 			}}}}
 			return doc
-		}, "doc.Services[0].Groups[0].Operations[0].Params[0].Type.Inferred"},
+		}, "document.Services[0].Groups[0].Operations[0].Params[0].Type.Inferred"},
 		{"an error case's own marker", func(list ir.Inferred) *ir.Document {
 			doc := closedDoc()
-			doc.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
-				ID: "g/x/S/g", Name: named("g"), Operations: []ir.Operation{{
-					ID: "op/x/S/op", Name: named("op"), Errors: []ir.ErrorCase{{Name: named("e"), Inferred: list}},
+			doc.Services = []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+				ID: "operation-group/x/S/g", Name: named("g"), Operations: []ir.Operation{{
+					ID: "operation/x/S/op", Name: named("op"), Errors: []ir.ErrorCase{{Name: named("e"), Inferred: list}},
 				}},
 			}}}}
 			return doc
-		}, "doc.Services[0].Groups[0].Operations[0].Errors[0].Inferred"},
+		}, "document.Services[0].Groups[0].Operations[0].Errors[0].Inferred"},
 		{"an OAuth flow's own marker", func(list ir.Inferred) *ir.Document {
 			doc := closedDoc()
 			doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/a": {
@@ -83,30 +83,30 @@ func markerCarriers() []markerCarrier {
 				Flows: []ir.OAuthFlow{{Kind: "client_credentials", Inferred: list}},
 			}}
 			return doc
-		}, "doc.Auth[auth/x/a].Flows[0].Inferred"},
+		}, "document.Auth[auth/x/a].Flows[0].Inferred"},
 		{"a content's own marker", func(list ir.Inferred) *ir.Document {
 			return content(ir.Content{Inferred: list})
-		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Inferred"},
+		}, "document.Services[0].Groups[0].Operations[0].Request.Contents[0].Inferred"},
 		{"a file body's own marker", func(list ir.Inferred) *ir.Document {
 			return content(ir.Content{File: &ir.FileInfo{Inferred: list}})
-		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].File.Inferred"},
+		}, "document.Services[0].Groups[0].Operations[0].Request.Contents[0].File.Inferred"},
 		{"a file part's own marker", func(list ir.Inferred) *ir.Document {
-			return content(ir.Content{Encoding: map[ir.PropID]ir.PartEncoding{
-				"p/x/M/f": {Filename: true, Inferred: list},
+			return content(ir.Content{Encoding: map[ir.PropertyID]ir.PartEncoding{
+				"property/x/M/f": {HasFilename: true, Inferred: list},
 			}})
-		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Encoding[p/x/M/f].Inferred"},
+		}, "document.Services[0].Groups[0].Operations[0].Request.Contents[0].Encoding[property/x/M/f].Inferred"},
 		{"a streaming content's own marker", func(list ir.Inferred) *ir.Document {
 			doc := content(ir.Content{Stream: &ir.ContentStream{Inferred: list}})
 			doc.Services[0].Groups[0].Operations[0].RequestStream = &ir.StreamDetail{}
 			return doc
-		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Stream.Inferred"},
+		}, "document.Services[0].Groups[0].Operations[0].Request.Contents[0].Stream.Inferred"},
 		{"a diagnostic's provenance", func(list ir.Inferred) *ir.Document {
 			doc := closedDoc()
 			doc.Diagnostics = []ir.Diagnostic{{
 				Severity: ir.SeverityWarning, Code: "x/finding", Message: "m", Provenance: ir.Provenance{Inferred: list},
 			}}
 			return doc
-		}, "doc.Diagnostics[0].Provenance.Inferred"},
+		}, "document.Diagnostics[0].Provenance.Inferred"},
 	}
 }
 
@@ -153,7 +153,7 @@ func TestVerify_AnInferredMarkerNotInTheJoinedFormIsAViolation(t *testing.T) {
 // null breaks that reference's rule beside its own.
 func TestVerify_AnInferredMarkerAnswersToEachRuleItBreaks(t *testing.T) {
 	t.Parallel()
-	const at = "doc.Types[t/x/M].Properties[0].Type.Inferred"
+	const at = "document.Types[type/x/M].Properties[0].Type.Inferred"
 	for _, tc := range []struct {
 		name  string
 		ref   ir.TypeRef
@@ -170,9 +170,9 @@ func TestVerify_AnInferredMarkerAnswersToEachRuleItBreaks(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tc.ref.Target = "t/x/Leaf"
-			got := verifyDeclared(stamped(closedDoc(&ir.Model{ID: "t/x/M", Name: named("m"), Properties: []ir.Property{{
-				ID: "p/x/M/f", Name: named("f"), Type: tc.ref,
+			tc.ref.Target = "type/x/Leaf"
+			got := verifyDeclared(stamped(closedDoc(&ir.Model{ID: "type/x/M", Name: named("m"), Properties: []ir.Property{{
+				ID: "property/x/M/f", Name: named("f"), Type: tc.ref,
 			}}})))
 			require.Equal(t, tc.codes, violationCodes(got))
 			for _, v := range got {
@@ -187,8 +187,8 @@ func TestVerify_AnInferredMarkerAnswersToEachRuleItBreaks(t *testing.T) {
 // summary, a tag and a wire name that would be broken lists draw nothing.
 func TestVerify_OnlyAnInferredMarkerIsHeldToTheListForm(t *testing.T) {
 	t.Parallel()
-	model := &ir.Model{ID: "t/x/M", Name: named("m"), Docs: ir.Docs{Summary: "a,,b"}, Properties: []ir.Property{{
-		ID: "p/x/M/f", Name: named("f"), WireName: "a,a", Type: ir.TypeRef{Target: "t/x/Leaf"},
+	model := &ir.Model{ID: "type/x/M", Name: named("m"), Docs: ir.Docs{Summary: "a,,b"}, Properties: []ir.Property{{
+		ID: "property/x/M/f", Name: named("f"), WireName: "a,a", Type: ir.TypeRef{Target: "type/x/Leaf"},
 	}}}
 	model.Tags = []string{",a"}
 	doc := stamped(closedDoc(model))
@@ -201,15 +201,15 @@ func TestVerify_OnlyAnInferredMarkerIsHeldToTheListForm(t *testing.T) {
 // marker, in a body's part map and as a sequential body's item encoding alike.
 func TestVerify_APartMarkerQualifiesItsFilename(t *testing.T) {
 	t.Parallel()
-	const op = "doc.Services[0].Groups[0].Operations[0].Request.Contents[0]"
+	const op = "document.Services[0].Groups[0].Operations[0].Request.Contents[0]"
 	doc := func(c ir.Content) *ir.Document {
-		c.MediaType, c.Type = "multipart/form-data", ir.TypeRef{Target: "t/x/M"}
-		d := closedDoc(&ir.Model{ID: "t/x/M", Name: named("m"), Properties: []ir.Property{{
-			ID: "p/x/M/f", Name: named("f"), Type: ir.TypeRef{Target: "t/x/Leaf"},
+		c.MediaType, c.Type = "multipart/form-data", ir.TypeRef{Target: "type/x/M"}
+		d := closedDoc(&ir.Model{ID: "type/x/M", Name: named("m"), Properties: []ir.Property{{
+			ID: "property/x/M/f", Name: named("f"), Type: ir.TypeRef{Target: "type/x/Leaf"},
 		}}})
-		d.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
-			ID: "g/x/S/g", Name: named("g"), Operations: []ir.Operation{{
-				ID: "op/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{c}},
+		d.Services = []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+			ID: "operation-group/x/S/g", Name: named("g"), Operations: []ir.Operation{{
+				ID: "operation/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{c}},
 			}},
 		}}}}
 		return stamped(d)
@@ -219,9 +219,9 @@ func TestVerify_APartMarkerQualifiesItsFilename(t *testing.T) {
 		content ir.Content
 		path    string
 	}{
-		{"a part in a body's map", ir.Content{Encoding: map[ir.PropID]ir.PartEncoding{
-			"p/x/M/f": {Multi: true, Inferred: "guess"},
-		}}, op + ".Encoding[p/x/M/f].Inferred"},
+		{"a part in a body's map", ir.Content{Encoding: map[ir.PropertyID]ir.PartEncoding{
+			"property/x/M/f": {RepeatsPerArrayItem: true, Inferred: "guess"},
+		}}, op + ".Encoding[property/x/M/f].Inferred"},
 		{"a sequential body's item", ir.Content{ItemEncoding: &ir.PartEncoding{
 			ContentTypes: []string{"image/png"}, Inferred: "guess",
 		}}, op + ".ItemEncoding.Inferred"},
@@ -238,7 +238,7 @@ func TestVerify_APartMarkerQualifiesItsFilename(t *testing.T) {
 	t.Run("a file part", func(t *testing.T) {
 		t.Parallel()
 		assert.Empty(t, verifyDeclared(doc(ir.Content{ItemEncoding: &ir.PartEncoding{
-			Filename: true, Inferred: "guess",
+			HasFilename: true, Inferred: "guess",
 		}})))
 	})
 }

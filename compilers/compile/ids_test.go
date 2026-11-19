@@ -22,15 +22,15 @@ func TestIDGrammar_KindPrefixes(t *testing.T) {
 	const space compile.Space = "openapi"
 	const pointer = "/components/schemas/User"
 
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/User"), compile.TypeID(space, pointer))
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1pets/get"), compile.OpID(space, "/paths/~1pets/get"))
-	assert.Equal(t, ir.PropID("p/openapi/components/schemas/User/properties/id"),
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/User"), compile.TypeID(space, pointer))
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1pets/get"), compile.OpID(space, "/paths/~1pets/get"))
+	assert.Equal(t, ir.PropertyID("property/openapi/components/schemas/User/properties/id"),
 		compile.PropID(space, "/components/schemas/User/properties/id"))
 	assert.Equal(t, ir.AuthID("auth/openapi/components/securitySchemes/apiKey"),
 		compile.AuthID(space, "/components/securitySchemes/apiKey"))
-	assert.Equal(t, ir.ServiceID("s/openapi/0"), compile.ServiceID(space, "0"))
-	assert.Equal(t, ir.GroupID("g/tags/pets"), compile.GroupID("tags", "/pets"))
-	assert.Equal(t, ir.ParamID("param/openapi/paths/~1pets/get/parameters/limit/query"),
+	assert.Equal(t, ir.ServiceID("service/openapi/0"), compile.ServiceID(space, "0"))
+	assert.Equal(t, ir.GroupID("operation-group/tags/pets"), compile.GroupID("tags", "/pets"))
+	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1pets/get/parameters/limit/query"),
 		compile.ParamID(space, "/paths/~1pets/get/parameters/limit/query"))
 }
 
@@ -38,9 +38,9 @@ func TestIDGrammar_KindPrefixes(t *testing.T) {
 // with, written out so it cannot agree with a change to the constant.
 func TestEnumMemberID_UsesTheEnumMemberKind(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, ir.EnumMemberID("e/openapi/components/schemas/Status/s:active"),
-		compile.EnumMemberID("openapi", "/components/schemas/Status/s:active"))
-	assert.Equal(t, "e", ir.IDKindEnumMember)
+	assert.Equal(t, ir.EnumMemberID("enum-member/openapi/components/schemas/Status/string:active"),
+		compile.EnumMemberID("openapi", "/components/schemas/Status/string:active"))
+	assert.Equal(t, "enum-member", ir.IDKindEnumMember)
 }
 
 // TestServerID_UsesTheServerKind pins the kind a server's ID opens with,
@@ -63,8 +63,8 @@ func TestIDGrammar_PathSeparatorIsSuppliedOnce(t *testing.T) {
 	const space compile.Space = "protobuf"
 
 	assert.Equal(t, compile.TypeID(space, "/example.v1.User"), compile.TypeID(space, "example.v1.User"))
-	assert.Equal(t, ir.TypeID("t/protobuf/example.v1.User"), compile.TypeID(space, "example.v1.User"))
-	assert.Equal(t, ir.TypeID("t/protobuf"), compile.TypeID(space, ""),
+	assert.Equal(t, ir.TypeID("type/protobuf/example.v1.User"), compile.TypeID(space, "example.v1.User"))
+	assert.Equal(t, ir.TypeID("type/protobuf"), compile.TypeID(space, ""),
 		"a space naming one node gets no trailing separator")
 }
 
@@ -109,12 +109,12 @@ func TestTypes_MintingIntoASourceSpaceIsRefused(t *testing.T) {
 		run  func(types *compile.Types)
 	}{
 		{"source coordinate first", func(types *compile.Types) {
-			types.Intern("/components/schemas/User", "t/openapi/components/schemas/User", model)
-			types.Register("t/openapi/components/schemas/User/oneOf/0", model())
+			types.Intern("/components/schemas/User", "type/openapi/components/schemas/User", model)
+			types.Register("type/openapi/components/schemas/User/oneOf/0", model())
 		}},
 		{"minted node first", func(types *compile.Types) {
-			types.Register("t/openapi/components/schemas/User/oneOf/0", model())
-			types.Intern("/components/schemas/User", "t/openapi/components/schemas/User", model)
+			types.Register("type/openapi/components/schemas/User/oneOf/0", model())
+			types.Intern("/components/schemas/User", "type/openapi/components/schemas/User", model)
 		}},
 	}
 	for _, tc := range tests {
@@ -136,10 +136,10 @@ func TestTypes_MintingIntoASourceSpaceIsRefused(t *testing.T) {
 func TestTypes_SeparateSpacesAreNotRefused(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Intern("/components/schemas/User", "t/openapi/components/schemas/User", model)
-	types.Intern("/components/schemas/User/properties/tags", "t/anon/components/schemas/User/properties/tags", model)
-	types.Register("t/composed/components/schemas/User/oneOf/0", model())
-	types.Register("t/composed/components/schemas/User/oneOf/1", model())
+	types.Intern("/components/schemas/User", "type/openapi/components/schemas/User", model)
+	types.Intern("/components/schemas/User/properties/tags", "type/anonymous/components/schemas/User/properties/tags", model)
+	types.Register("type/composed/components/schemas/User/oneOf/0", model())
+	types.Register("type/composed/components/schemas/User/oneOf/1", model())
 
 	assert.Empty(t, types.Violations())
 	assert.Equal(t, 4, types.Len())

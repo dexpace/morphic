@@ -215,7 +215,7 @@ func TestNullBranch_KeepsWhatTheBranchWrites(t *testing.T) {
 			`{"description":"nothing","type":"null"}`},
 		{"a component's alias", typeByName(doc, "Described").Common().Unmodeled, "openapi:oneOf/1",
 			"/components/schemas/Described/oneOf/1", `{"description":"nothing","type":"null"}`},
-		{"an element's alias", node(list.Elem), "openapi:anyOf/0", at + "list/items/anyOf/0", `{"const":null,"title":"t"}`},
+		{"an element's alias", node(list.ElementType), "openapi:anyOf/0", at + "list/items/anyOf/0", `{"const":null,"title":"t"}`},
 		{"the union", node(propertyOf(t, doc, "Holder", "many").Type), "openapi:oneOf/2", at + "many/oneOf/2",
 			`{"enum":[null],"x-why":"dry"}`},
 		{"the first of two", holder("twice"), "openapi:anyOf/0", at + "twice/anyOf/0", `{"description":"a","type":"null"}`},

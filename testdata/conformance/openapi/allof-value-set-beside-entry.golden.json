@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "ValueSetBesideEntry",
         "canonical": "value_set_beside_entry"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Beside/enum/0": {
+    "type/anonymous/components/schemas/Beside/enum/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Beside/enum/0",
+      "id": "type/anonymous/components/schemas/Beside/enum/0",
       "name": {
         "hint": "beside_0"
       },
@@ -79,15 +79,15 @@
             "name": "a",
             "value": {
               "kind": "number",
-              "num": "1"
+              "number": "1"
             }
           }
         ]
       }
     },
-    "t/anon/components/schemas/Beside/enum/1": {
+    "type/anonymous/components/schemas/Beside/enum/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Beside/enum/1",
+      "id": "type/anonymous/components/schemas/Beside/enum/1",
       "name": {
         "hint": "beside_1"
       },
@@ -105,15 +105,15 @@
             "name": "b",
             "value": {
               "kind": "number",
-              "num": "2"
+              "number": "2"
             }
           }
         ]
       }
     },
-    "t/anon/components/schemas/BesideRef/enum/0": {
+    "type/anonymous/components/schemas/BesideRef/enum/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/BesideRef/enum/0",
+      "id": "type/anonymous/components/schemas/BesideRef/enum/0",
       "name": {
         "hint": "beside_ref_0"
       },
@@ -131,15 +131,15 @@
             "name": "a",
             "value": {
               "kind": "number",
-              "num": "1"
+              "number": "1"
             }
           }
         ]
       }
     },
-    "t/anon/components/schemas/BesideRef/enum/1": {
+    "type/anonymous/components/schemas/BesideRef/enum/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/BesideRef/enum/1",
+      "id": "type/anonymous/components/schemas/BesideRef/enum/1",
       "name": {
         "hint": "beside_ref_1"
       },
@@ -157,15 +157,15 @@
             "name": "b",
             "value": {
               "kind": "number",
-              "num": "2"
+              "number": "2"
             }
           }
         ]
       }
     },
-    "t/anon/components/schemas/BesideTwo/enum/0": {
+    "type/anonymous/components/schemas/BesideTwo/enum/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/BesideTwo/enum/0",
+      "id": "type/anonymous/components/schemas/BesideTwo/enum/0",
       "name": {
         "hint": "beside_two_0"
       },
@@ -183,15 +183,15 @@
             "name": "a",
             "value": {
               "kind": "number",
-              "num": "1"
+              "number": "1"
             }
           }
         ]
       }
     },
-    "t/anon/components/schemas/BesideTwo/enum/1": {
+    "type/anonymous/components/schemas/BesideTwo/enum/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/BesideTwo/enum/1",
+      "id": "type/anonymous/components/schemas/BesideTwo/enum/1",
       "name": {
         "hint": "beside_two_1"
       },
@@ -209,15 +209,15 @@
             "name": "b",
             "value": {
               "kind": "number",
-              "num": "2"
+              "number": "2"
             }
           }
         ]
       }
     },
-    "t/anon/components/schemas/BesideTyped/enum/0": {
+    "type/anonymous/components/schemas/BesideTyped/enum/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/BesideTyped/enum/0",
+      "id": "type/anonymous/components/schemas/BesideTyped/enum/0",
       "name": {
         "hint": "beside_typed_0"
       },
@@ -235,15 +235,15 @@
             "name": "a",
             "value": {
               "kind": "number",
-              "num": "1"
+              "number": "1"
             }
           }
         ]
       }
     },
-    "t/anon/components/schemas/BesideTyped/enum/1": {
+    "type/anonymous/components/schemas/BesideTyped/enum/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/BesideTyped/enum/1",
+      "id": "type/anonymous/components/schemas/BesideTyped/enum/1",
       "name": {
         "hint": "beside_typed_1"
       },
@@ -261,15 +261,15 @@
             "name": "b",
             "value": {
               "kind": "number",
-              "num": "2"
+              "number": "2"
             }
           }
         ]
       }
     },
-    "t/openapi/components/schemas/Beside": {
+    "type/openapi/components/schemas/Beside": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Beside",
+      "id": "type/openapi/components/schemas/Beside",
       "name": {
         "source": "Beside",
         "canonical": "beside"
@@ -308,7 +308,7 @@
             "hint": "beside_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Beside/enum/0",
+            "target": "type/anonymous/components/schemas/Beside/enum/0",
             "nullable": false
           },
           "docs": {}
@@ -318,7 +318,7 @@
             "hint": "beside_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Beside/enum/1",
+            "target": "type/anonymous/components/schemas/Beside/enum/1",
             "nullable": false
           },
           "docs": {}
@@ -329,9 +329,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BesideRef": {
+    "type/openapi/components/schemas/BesideRef": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/BesideRef",
+      "id": "type/openapi/components/schemas/BesideRef",
       "name": {
         "source": "BesideRef",
         "canonical": "beside_ref"
@@ -378,7 +378,7 @@
             "hint": "beside_ref_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/BesideRef/enum/0",
+            "target": "type/anonymous/components/schemas/BesideRef/enum/0",
             "nullable": false
           },
           "docs": {}
@@ -388,7 +388,7 @@
             "hint": "beside_ref_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/BesideRef/enum/1",
+            "target": "type/anonymous/components/schemas/BesideRef/enum/1",
             "nullable": false
           },
           "docs": {}
@@ -399,9 +399,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BesideTwo": {
+    "type/openapi/components/schemas/BesideTwo": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/BesideTwo",
+      "id": "type/openapi/components/schemas/BesideTwo",
       "name": {
         "source": "BesideTwo",
         "canonical": "beside_two"
@@ -445,7 +445,7 @@
             "hint": "beside_two_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/BesideTwo/enum/0",
+            "target": "type/anonymous/components/schemas/BesideTwo/enum/0",
             "nullable": false
           },
           "docs": {}
@@ -455,7 +455,7 @@
             "hint": "beside_two_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/BesideTwo/enum/1",
+            "target": "type/anonymous/components/schemas/BesideTwo/enum/1",
             "nullable": false
           },
           "docs": {}
@@ -466,9 +466,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BesideTyped": {
+    "type/openapi/components/schemas/BesideTyped": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/BesideTyped",
+      "id": "type/openapi/components/schemas/BesideTyped",
       "name": {
         "source": "BesideTyped",
         "canonical": "beside_typed"
@@ -516,7 +516,7 @@
             "hint": "beside_typed_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/BesideTyped/enum/0",
+            "target": "type/anonymous/components/schemas/BesideTyped/enum/0",
             "nullable": false
           },
           "docs": {}
@@ -526,7 +526,7 @@
             "hint": "beside_typed_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/BesideTyped/enum/1",
+            "target": "type/anonymous/components/schemas/BesideTyped/enum/1",
             "nullable": false
           },
           "docs": {}
@@ -537,9 +537,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Target": {
+    "type/openapi/components/schemas/Target": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Target",
+      "id": "type/openapi/components/schemas/Target",
       "name": {
         "source": "Target",
         "canonical": "target"

@@ -20,32 +20,32 @@ import (
 // naming a node no registry entry declares.
 func defaultsRegistry() ir.TypeRegistry {
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
-	prim := func(k ir.PrimKind) ir.TypeRef { return ref(ir.PrimTypeID(k)) }
+	prim := func(k ir.PrimitiveKind) ir.TypeRef { return ref(ir.PrimitiveTypeID(k)) }
 	reg := ir.TypeRegistry{
-		"t/base64":    &ir.Scalar{ID: "t/base64", Base: new(prim(ir.PrimBytes)), Encoding: &ir.Encoding{Name: "base64"}},
-		"t/base64url": &ir.Scalar{ID: "t/base64url", Base: new(prim(ir.PrimBytes)), Encoding: &ir.Encoding{Name: "base64url"}},
-		"t/email":     &ir.Scalar{ID: "t/email", Base: new(prim(ir.PrimString)), Encoding: &ir.Encoding{Name: "email"}},
-		"t/opaque":    &ir.Scalar{ID: "t/opaque"},
-		"t/enum":      &ir.Enum{ID: "t/enum", ValueType: ir.PrimInt32},
-		"t/lit/str":   &ir.Literal{ID: "t/lit/str", ValueType: ir.PrimString},
-		"t/lit/null":  &ir.Literal{ID: "t/lit/null", Value: ir.Value{Kind: ir.ValueNull}},
-		"t/lit/obj":   &ir.Literal{ID: "t/lit/obj", Value: ir.Value{Kind: ir.ValueObject}},
-		"t/lit/list":  &ir.Literal{ID: "t/lit/list", Value: ir.Value{Kind: ir.ValueList}},
-		"t/model":     &ir.Model{ID: "t/model"},
-		"t/map":       &ir.MapT{ID: "t/map", Value: prim(ir.PrimString)},
-		"t/list":      &ir.List{ID: "t/list", Elem: prim(ir.PrimString)},
-		"t/matrix":    &ir.List{ID: "t/matrix", Elem: ref("t/list")},
-		"t/tuple":     &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{prim(ir.PrimInt64)}, Rest: new(prim(ir.PrimBool))},
-		"t/u/agree":   &ir.Union{ID: "t/u/agree", Variants: []ir.Variant{{Type: prim(ir.PrimString)}, {Type: ref("t/lit/null")}, {Type: prim(ir.PrimNumber)}}},
-		"t/u/differ":  &ir.Union{ID: "t/u/differ", Variants: []ir.Variant{{Type: prim(ir.PrimString)}, {Type: ref("t/model")}}},
-		"t/u/missing": &ir.Union{ID: "t/u/missing", Variants: []ir.Variant{{Type: ref("t/absent")}}},
-		"t/u/empty":   &ir.Union{ID: "t/u/empty"},
-		"t/ext":       &ir.External{ID: "t/ext"},
-		"t/loop/a":    &ir.Scalar{ID: "t/loop/a", Base: new(ref("t/loop/b"))},
-		"t/loop/b":    &ir.Scalar{ID: "t/loop/b", Base: new(ref("t/loop/a"))},
+		"type/base64":    &ir.Scalar{ID: "type/base64", Base: new(prim(ir.PrimitiveBytes)), Encoding: &ir.Encoding{Name: "base64"}},
+		"type/base64url": &ir.Scalar{ID: "type/base64url", Base: new(prim(ir.PrimitiveBytes)), Encoding: &ir.Encoding{Name: "base64url"}},
+		"type/email":     &ir.Scalar{ID: "type/email", Base: new(prim(ir.PrimitiveString)), Encoding: &ir.Encoding{Name: "email"}},
+		"type/opaque":    &ir.Scalar{ID: "type/opaque"},
+		"type/enum":      &ir.Enum{ID: "type/enum", ValueType: ir.PrimitiveInt32},
+		"type/lit/str":   &ir.Literal{ID: "type/lit/str", ValueType: ir.PrimitiveString},
+		"type/lit/null":  &ir.Literal{ID: "type/lit/null", Value: ir.Value{Kind: ir.ValueNull}},
+		"type/lit/obj":   &ir.Literal{ID: "type/lit/obj", Value: ir.Value{Kind: ir.ValueObject}},
+		"type/lit/list":  &ir.Literal{ID: "type/lit/list", Value: ir.Value{Kind: ir.ValueList}},
+		"type/model":     &ir.Model{ID: "type/model"},
+		"type/map":       &ir.MapT{ID: "type/map", Value: prim(ir.PrimitiveString)},
+		"type/list":      &ir.List{ID: "type/list", ElementType: prim(ir.PrimitiveString)},
+		"type/matrix":    &ir.List{ID: "type/matrix", ElementType: ref("type/list")},
+		"type/tuple":     &ir.Tuple{ID: "type/tuple", ElementTypes: []ir.TypeRef{prim(ir.PrimitiveInt64)}, Rest: new(prim(ir.PrimitiveBool))},
+		"type/u/agree":   &ir.Union{ID: "type/u/agree", Variants: []ir.Variant{{Type: prim(ir.PrimitiveString)}, {Type: ref("type/lit/null")}, {Type: prim(ir.PrimitiveNumber)}}},
+		"type/u/differ":  &ir.Union{ID: "type/u/differ", Variants: []ir.Variant{{Type: prim(ir.PrimitiveString)}, {Type: ref("type/model")}}},
+		"type/u/missing": &ir.Union{ID: "type/u/missing", Variants: []ir.Variant{{Type: ref("type/absent")}}},
+		"type/u/empty":   &ir.Union{ID: "type/u/empty"},
+		"type/ext":       &ir.External{ID: "type/ext"},
+		"type/loop/a":    &ir.Scalar{ID: "type/loop/a", Base: new(ref("type/loop/b"))},
+		"type/loop/b":    &ir.Scalar{ID: "type/loop/b", Base: new(ref("type/loop/a"))},
 	}
-	for _, k := range []ir.PrimKind{ir.PrimString, ir.PrimBytes, ir.PrimAny, ir.PrimInt64, ir.PrimBool, ir.PrimNumber, ir.PrimDate} {
-		reg[ir.PrimTypeID(k)] = &ir.Primitive{ID: ir.PrimTypeID(k), Prim: k}
+	for _, k := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveBytes, ir.PrimitiveAny, ir.PrimitiveInt64, ir.PrimitiveBool, ir.PrimitiveNumber, ir.PrimitiveDate} {
+		reg[ir.PrimitiveTypeID(k)] = &ir.Primitive{ID: ir.PrimitiveTypeID(k), PrimitiveKind: k}
 	}
 	return reg
 }
@@ -71,38 +71,38 @@ func TestDefaultContentType_ReadsEachValueByItsRow(t *testing.T) {
 		encodedBy     contentEncoding
 		v30, v31, v32 string
 	}{
-		{"a string", ir.PrimTypeID(ir.PrimString), unencoded, text, text, text},
-		{"a date", ir.PrimTypeID(ir.PrimDate), unencoded, text, text, text},
-		{"a number", ir.PrimTypeID(ir.PrimNumber), unencoded, text, text, text},
-		{"a boolean", ir.PrimTypeID(ir.PrimBool), unencoded, text, text, text},
-		{"raw bytes", ir.PrimTypeID(ir.PrimBytes), unencoded, octet, octet, octet},
-		{"an untyped value", ir.PrimTypeID(ir.PrimAny), unencoded, "", octet, octet},
-		{"format byte", "t/base64", unencoded, octet, text, text},
-		{"format byte writing contentEncoding", "t/base64", encoded, octet, octet, octet},
-		{"format byte, contentEncoding written by some declarations", "t/base64", partlyEncoded, "", "", ""},
-		{"format base64url", "t/base64url", unencoded, text, text, text},
-		{"format base64url writing contentEncoding", "t/base64url", encoded, text, octet, octet},
-		{"a string a format names", "t/email", unencoded, text, text, text},
-		{"a string writing contentEncoding", "t/email", encoded, text, octet, octet},
-		{"a string, contentEncoding written by some declarations", "t/email", partlyEncoded, "", "", ""},
-		{"an integer enum", "t/enum", unencoded, text, text, text},
-		{"a string literal", "t/lit/str", unencoded, text, text, text},
-		{"an object literal", "t/lit/obj", unencoded, json, json, json},
-		{"a list literal", "t/lit/list", unencoded, "", "", ""},
-		{"a null literal alone", "t/lit/null", unencoded, "", "", ""},
-		{"a model", "t/model", unencoded, json, json, json},
-		{"a map", "t/map", unencoded, json, json, json},
-		{"an array inside an array", "t/list", unencoded, text, text, json},
-		{"an array of arrays inside an array", "t/matrix", unencoded, text, text, json},
-		{"a tuple inside an array", "t/tuple", unencoded, text, text, json},
-		{"a union whose members agree, a null among them", "t/u/agree", unencoded, text, text, text},
-		{"a union whose members differ", "t/u/differ", unencoded, "", "", ""},
-		{"a union naming no node", "t/u/missing", unencoded, "", "", ""},
-		{"a union of nothing", "t/u/empty", unencoded, "", "", ""},
-		{"an opaque scalar", "t/opaque", unencoded, "", "", ""},
-		{"an external type", "t/ext", unencoded, "", "", ""},
-		{"an alias chain closing on itself", "t/loop/a", unencoded, "", "", ""},
-		{"no node", "t/absent", unencoded, "", "", ""},
+		{"a string", ir.PrimitiveTypeID(ir.PrimitiveString), unencoded, text, text, text},
+		{"a date", ir.PrimitiveTypeID(ir.PrimitiveDate), unencoded, text, text, text},
+		{"a number", ir.PrimitiveTypeID(ir.PrimitiveNumber), unencoded, text, text, text},
+		{"a boolean", ir.PrimitiveTypeID(ir.PrimitiveBool), unencoded, text, text, text},
+		{"raw bytes", ir.PrimitiveTypeID(ir.PrimitiveBytes), unencoded, octet, octet, octet},
+		{"an untyped value", ir.PrimitiveTypeID(ir.PrimitiveAny), unencoded, "", octet, octet},
+		{"format byte", "type/base64", unencoded, octet, text, text},
+		{"format byte writing contentEncoding", "type/base64", encoded, octet, octet, octet},
+		{"format byte, contentEncoding written by some declarations", "type/base64", partlyEncoded, "", "", ""},
+		{"format base64url", "type/base64url", unencoded, text, text, text},
+		{"format base64url writing contentEncoding", "type/base64url", encoded, text, octet, octet},
+		{"a string a format names", "type/email", unencoded, text, text, text},
+		{"a string writing contentEncoding", "type/email", encoded, text, octet, octet},
+		{"a string, contentEncoding written by some declarations", "type/email", partlyEncoded, "", "", ""},
+		{"an integer enum", "type/enum", unencoded, text, text, text},
+		{"a string literal", "type/lit/str", unencoded, text, text, text},
+		{"an object literal", "type/lit/obj", unencoded, json, json, json},
+		{"a list literal", "type/lit/list", unencoded, "", "", ""},
+		{"a null literal alone", "type/lit/null", unencoded, "", "", ""},
+		{"a model", "type/model", unencoded, json, json, json},
+		{"a map", "type/map", unencoded, json, json, json},
+		{"an array inside an array", "type/list", unencoded, text, text, json},
+		{"an array of arrays inside an array", "type/matrix", unencoded, text, text, json},
+		{"a tuple inside an array", "type/tuple", unencoded, text, text, json},
+		{"a union whose members agree, a null among them", "type/u/agree", unencoded, text, text, text},
+		{"a union whose members differ", "type/u/differ", unencoded, "", "", ""},
+		{"a union naming no node", "type/u/missing", unencoded, "", "", ""},
+		{"a union of nothing", "type/u/empty", unencoded, "", "", ""},
+		{"an opaque scalar", "type/opaque", unencoded, "", "", ""},
+		{"an external type", "type/ext", unencoded, "", "", ""},
+		{"an alias chain closing on itself", "type/loop/a", unencoded, "", "", ""},
+		{"no node", "type/absent", unencoded, "", "", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,10 +119,10 @@ func TestDefaultContentType_ReadsEachValueByItsRow(t *testing.T) {
 	}
 	rules := specrules.Table().EncodingRules("3.1.0")
 	assert.Equal(t, []string{"text/plain"}, defaultContentType(newPartUnions(), node, rules,
-		[]ir.TypeRef{{Target: ir.PrimTypeID(ir.PrimString)}, {Target: ir.PrimTypeID(ir.PrimBool)}}, unencoded),
+		[]ir.TypeRef{{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}, {Target: ir.PrimitiveTypeID(ir.PrimitiveBool)}}, unencoded),
 		"values of one row take it")
 	assert.Nil(t, defaultContentType(newPartUnions(), node, rules,
-		[]ir.TypeRef{{Target: ir.PrimTypeID(ir.PrimString)}, {Target: "t/model"}}, unencoded), "values of two rows take none")
+		[]ir.TypeRef{{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}, {Target: "type/model"}}, unencoded), "values of two rows take none")
 	assert.Nil(t, defaultContentType(newPartUnions(), node, rules, nil, unencoded), "no value takes none")
 }
 
@@ -132,17 +132,17 @@ func TestDefaultContentType_ReadsEachValueByItsRow(t *testing.T) {
 func TestDefaultContentType_ReadsUpToItsBound(t *testing.T) {
 	t.Parallel()
 	union := func(n int) ir.TypeRegistry {
-		u := &ir.Union{ID: "t/u"}
+		u := &ir.Union{ID: "type/u"}
 		for range n {
-			u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}})
+			u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}})
 		}
-		return ir.TypeRegistry{"t/u": u, ir.PrimTypeID(ir.PrimString): &ir.Primitive{ID: ir.PrimTypeID(ir.PrimString), Prim: ir.PrimString}}
+		return ir.TypeRegistry{"type/u": u, ir.PrimitiveTypeID(ir.PrimitiveString): &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString}}
 	}
 	rules := specrules.Table().EncodingRules("3.1.0")
 	for n, want := range map[int][]string{maxDefaultValues - 1: {"text/plain"}, maxDefaultValues: nil} {
 		reg := union(n)
 		node := func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok }
-		assert.Equal(t, want, defaultContentType(newPartUnions(), node, rules, []ir.TypeRef{{Target: "t/u"}}, unencoded),
+		assert.Equal(t, want, defaultContentType(newPartUnions(), node, rules, []ir.TypeRef{{Target: "type/u"}}, unencoded),
 			"%d strings beside the union read", n)
 	}
 }
@@ -154,18 +154,18 @@ func TestDefaultContentType_ReadsUpToItsBound(t *testing.T) {
 func TestPartValues_ReadsEachItemOfEachDeclaration(t *testing.T) {
 	t.Parallel()
 	reg := defaultsRegistry()
-	reg["t/u/lists"] = &ir.Union{ID: "t/u/lists", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/list"}}, {Type: ir.TypeRef{Target: "t/model"}}}}
+	reg["type/u/lists"] = &ir.Union{ID: "type/u/lists", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/list"}}, {Type: ir.TypeRef{Target: "type/model"}}}}
 	node := func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok }
 	decl := func(id ir.TypeID) *ir.Property { return &ir.Property{Type: ir.TypeRef{Target: id}} }
 
-	values, ok := partValues(newPartUnions(), node, []*ir.Property{decl("t/tuple"), decl("t/u/lists"), decl("t/model")})
+	values, ok := partValues(newPartUnions(), node, []*ir.Property{decl("type/tuple"), decl("type/u/lists"), decl("type/model")})
 	require.True(t, ok)
 	assert.Equal(t, []ir.TypeRef{
-		{Target: ir.PrimTypeID(ir.PrimInt64)}, {Target: ir.PrimTypeID(ir.PrimBool)},
-		{Target: ir.PrimTypeID(ir.PrimString)}, {Target: "t/model"}, {Target: "t/model"},
+		{Target: ir.PrimitiveTypeID(ir.PrimitiveInt64)}, {Target: ir.PrimitiveTypeID(ir.PrimitiveBool)},
+		{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}, {Target: "type/model"}, {Target: "type/model"},
 	}, values)
 
-	values, ok = partValues(newPartUnions(), node, []*ir.Property{decl("t/model"), decl("t/u/missing")})
+	values, ok = partValues(newPartUnions(), node, []*ir.Property{decl("type/model"), decl("type/u/missing")})
 	assert.False(t, ok, "a union whose members are not read")
 	assert.Nil(t, values)
 }
@@ -202,9 +202,9 @@ func TestReadContentEncoding_ReadsEveryDeclaration(t *testing.T) {
 func TestPrimitiveCase_KeysEachKind(t *testing.T) {
 	t.Parallel()
 	assert.Zero(t, primitiveCase("no-such-kind", "", unencoded))
-	assert.Equal(t, specrules.DefaultScalar, primitiveCase(ir.PrimInt64, "base64", partlyEncoded),
+	assert.Equal(t, specrules.DefaultScalar, primitiveCase(ir.PrimitiveInt64, "base64", partlyEncoded),
 		"a number takes its row whatever contentEncoding says")
-	assert.Equal(t, specrules.DefaultRawBinary, primitiveCase(ir.PrimBytes, "", partlyEncoded),
+	assert.Equal(t, specrules.DefaultRawBinary, primitiveCase(ir.PrimitiveBytes, "", partlyEncoded),
 		"raw bytes take theirs too")
-	assert.Equal(t, specrules.DefaultUntyped, primitiveCase(ir.PrimAny, "base64", encoded), "and an untyped value its")
+	assert.Equal(t, specrules.DefaultUntyped, primitiveCase(ir.PrimitiveAny, "base64", encoded), "and an untyped value its")
 }

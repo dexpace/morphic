@@ -51,14 +51,14 @@ func assertLaterVersionConstructs(t *testing.T, doc *ir.Document, diags []ir.Dia
 		"a Reference Object's summary folds over the target's docs, as in 3.1")
 	assert.Equal(t, ir.ReasonOutOfScope, doc.Unmodeled["openapi:jsonSchemaDialect"].Reason)
 
-	item, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Item")].(*ir.Model)
+	item, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/Item")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, item.XML)
 	assert.Equal(t, "element", item.XML.NodeType)
 	require.NotNil(t, item.Discriminator)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Novel"), item.Discriminator.Default)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Novel"), item.Discriminator.Default)
 
-	_, ok = doc.Types[ir.TypeID("t/anon/components/schemas/Edition/properties/number")].(*ir.Literal)
+	_, ok = doc.Types[ir.TypeID("type/anonymous/components/schemas/Edition/properties/number")].(*ir.Literal)
 	assert.True(t, ok, "a const a 3.0 schema writes lowers as in 3.1")
 	assert.Contains(t, openapitest.PointersOf(diags, diag.LaterVersionConstruct),
 		jsontext.Pointer("/components/schemas/Edition/properties/number/const"), "and is a later minor's construct")
@@ -137,7 +137,7 @@ func TestXML_NodeTypeIsReadAtEveryVersion(t *testing.T) {
 			doc, diags := parseFull(t, "openapi: "+version+
 				"\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+body)
 			openapitest.RequireNoErrorDiags(t, diags)
-			model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+			model, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")].(*ir.Model)
 			require.True(t, ok)
 			prop, ok := openapitest.PropsByWire(model.Properties)["n"]
 			require.True(t, ok)

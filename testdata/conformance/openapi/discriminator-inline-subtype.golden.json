@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "DiscriminatorInlineSubtype",
         "canonical": "discriminator_inline_subtype"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Either/oneOf/0": {
+    "type/anonymous/components/schemas/Either/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Either/oneOf/0",
+      "id": "type/anonymous/components/schemas/Either/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -74,21 +74,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Either/oneOf/0/properties/chirp",
+          "id": "property/openapi/components/schemas/Either/oneOf/0/properties/chirp",
           "name": {
             "source": "chirp",
             "canonical": "chirp"
           },
           "wireName": "chirp",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -102,16 +102,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Kennel/properties/Dog": {
+    "type/anonymous/components/schemas/Kennel/properties/Dog": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Kennel/properties/Dog",
+      "id": "type/anonymous/components/schemas/Kennel/properties/Dog",
       "name": {
         "hint": "dog"
       },
@@ -124,21 +124,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Kennel/properties/Dog/properties/woof",
+          "id": "property/openapi/components/schemas/Kennel/properties/Dog/properties/woof",
           "name": {
             "source": "woof",
             "canonical": "woof"
           },
           "wireName": "woof",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -152,16 +152,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Kennel/properties/pet": {
+    "type/anonymous/components/schemas/Kennel/properties/pet": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Kennel/properties/pet",
+      "id": "type/anonymous/components/schemas/Kennel/properties/pet",
       "name": {
         "hint": "pet"
       },
@@ -174,21 +174,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Kennel/properties/pet/properties/meow",
+          "id": "property/openapi/components/schemas/Kennel/properties/pet/properties/meow",
           "name": {
             "source": "meow",
             "canonical": "meow"
           },
           "wireName": "meow",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -202,16 +202,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Dog": {
+    "type/openapi/components/schemas/Dog": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Dog",
+      "id": "type/openapi/components/schemas/Dog",
       "name": {
         "source": "Dog",
         "canonical": "dog"
@@ -225,21 +225,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Dog/properties/bark",
+          "id": "property/openapi/components/schemas/Dog/properties/bark",
           "name": {
             "source": "bark",
             "canonical": "bark"
           },
           "wireName": "bark",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -253,7 +253,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
@@ -261,9 +261,9 @@
       "discriminatorValue": "Dog",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Either": {
+    "type/openapi/components/schemas/Either": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Either",
+      "id": "type/openapi/components/schemas/Either",
       "name": {
         "source": "Either",
         "canonical": "either"
@@ -281,7 +281,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Either/oneOf/0",
+            "target": "type/anonymous/components/schemas/Either/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -291,7 +291,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "docs": {}
@@ -302,9 +302,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Kennel": {
+    "type/openapi/components/schemas/Kennel": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Kennel",
+      "id": "type/openapi/components/schemas/Kennel",
       "name": {
         "source": "Kennel",
         "canonical": "kennel"
@@ -318,21 +318,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Kennel/properties/Dog",
+          "id": "property/openapi/components/schemas/Kennel/properties/Dog",
           "name": {
             "source": "Dog",
             "canonical": "dog"
           },
           "wireName": "Dog",
           "type": {
-            "target": "t/anon/components/schemas/Kennel/properties/Dog",
+            "target": "type/anonymous/components/schemas/Kennel/properties/Dog",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -345,21 +345,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Kennel/properties/pet",
+          "id": "property/openapi/components/schemas/Kennel/properties/pet",
           "name": {
             "source": "pet",
             "canonical": "pet"
           },
           "wireName": "pet",
           "type": {
-            "target": "t/anon/components/schemas/Kennel/properties/pet",
+            "target": "type/anonymous/components/schemas/Kennel/properties/pet",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -376,9 +376,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Pet": {
+    "type/openapi/components/schemas/Pet": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Pet",
+      "id": "type/openapi/components/schemas/Pet",
       "name": {
         "source": "Pet",
         "canonical": "pet"
@@ -392,21 +392,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Pet/properties/petType",
+          "id": "property/openapi/components/schemas/Pet/properties/petType",
           "name": {
             "source": "petType",
             "canonical": "pet_type"
           },
           "wireName": "petType",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -422,14 +422,14 @@
       "abstract": false,
       "positional": false,
       "discriminator": {
-        "property": "p/openapi/components/schemas/Pet/properties/petType",
+        "property": "property/openapi/components/schemas/Pet/properties/petType",
         "inferred": false
       },
       "inputOnly": false
     },
-    "t/prim/bool": {
+    "type/primitive/bool": {
       "kind": "primitive",
-      "id": "t/prim/bool",
+      "id": "type/primitive/bool",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -437,11 +437,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bool"
+      "primitiveKind": "bool"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -449,7 +449,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

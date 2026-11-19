@@ -142,7 +142,7 @@ func TestAllOfRefine_AKeywordOfAnotherKindIsKeptOnWhatTheTargetDeclares(t *testi
 					assert.Equal(t, degradedKept("openapi:items"), keptOn(items), "kept under its own key, as beside the allOf")
 					assert.Equal(t, 1, degradedInfosAt(diags, "StrItems"))
 
-					declared := requireScalarOver(t, doc, "DeclaredString", prim(ir.PrimString))
+					declared := requireScalarOver(t, doc, "DeclaredString", prim(ir.PrimitiveString))
 					assert.Equal(t, degradedKept("openapi:$ref"), keptOn(declared))
 					assert.Equal(t, entryPointer("DeclaredString", propsAt), declared.Unmodeled["openapi:$ref"].Provenance.Pointer)
 					assert.Equal(t, 1, degradedInfosAt(diags, "DeclaredString"))
@@ -265,8 +265,8 @@ var composeVersions = []string{"3.0.3", "3.1.0"}
 func keptPointersUnder(doc *ir.Document, name string) []string {
 	prefixes := []string{
 		string(componentID(name)),
-		"t/anon/components/schemas/" + name,
-		"t/composed/components/schemas/" + name,
+		"type/anonymous/components/schemas/" + name,
+		"type/composed/components/schemas/" + name,
 	}
 	var pointers []string
 	for id, td := range doc.Types {
@@ -434,8 +434,8 @@ func TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept(t *testing.T) {
 						"StrProps":    {componentID("Str"), "openapi:properties"},
 						"ArrProps":    {componentID("Arr"), "openapi:properties"},
 						"RefEntry":    {componentID("Str"), "openapi:properties"},
-						"StrEntry":    {prim(ir.PrimString), "openapi:properties"},
-						"StrRequired": {prim(ir.PrimString), "openapi:required"},
+						"StrEntry":    {prim(ir.PrimitiveString), "openapi:properties"},
+						"StrRequired": {prim(ir.PrimitiveString), "openapi:required"},
 					} {
 						node := requireScalarOver(t, doc, name, want.target)
 						assert.Equal(t, degradedKept(want.key), keptOn(node), name)
@@ -476,7 +476,7 @@ func TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel(t *testing.T) {
 					requireErrorsAndWarnings(t, diags, nil)
 					requireModelsNameModels(t, doc)
 
-					top := requireScalarOver(t, doc, "TwoKinds", prim(ir.PrimAny))
+					top := requireScalarOver(t, doc, "TwoKinds", prim(ir.PrimitiveAny))
 					assert.Equal(t, degradedKept("openapi:properties", "openapi:items"), keptOn(top))
 					assert.Equal(t, 2, degradedInfosAt(diags, "TwoKinds"), "one info for each entry keeping a keyword")
 					assert.False(t, markedKindInference(top), "no kind was read")
@@ -693,7 +693,7 @@ func TestAllOfUnion_ABoundBesideAnAllOfNamingNoKindIsHeldByTheUnion(t *testing.T
 					assert.Equal(t, "2", string(*two.Constraints.MultipleOf))
 					assert.Equal(t, "9", string(*two.Constraints.Max))
 
-					requireScalarOver(t, doc, "Alone", prim(ir.PrimAny))
+					requireScalarOver(t, doc, "Alone", prim(ir.PrimitiveAny))
 				})
 			})
 		}
@@ -781,7 +781,7 @@ func TestAllOfCompose_AFormBodyOfAStringBesideMembersIsAString(t *testing.T) {
 			body, ok := kindNode(t, doc, content.Type.Target).(*ir.Scalar)
 			require.True(t, ok, "the body is a string, not a model")
 			require.NotNil(t, body.Base)
-			assert.Equal(t, prim(ir.PrimString), body.Base.Target)
+			assert.Equal(t, prim(ir.PrimitiveString), body.Base.Target)
 		})
 	}
 }
@@ -1030,7 +1030,7 @@ func TestAllOfRefine_ATargetInferredNarrowerThanTheDeclaredKindsIsNoPrincipal(t 
 			union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
 			require.True(t, ok, "%s is the union its own keywords declare", name)
 			assert.True(t, slices.ContainsFunc(union.Variants, func(v ir.Variant) bool {
-				return v.Type.Target == ir.TypeID("t/prim/string")
+				return v.Type.Target == ir.TypeID("type/primitive/string")
 			}), "%s admits the string it declares", name)
 			assert.Equal(t, degradedKept("openapi:$ref"), keptOn(union), name)
 			assert.Equal(t, entryPointer(name, 0), union.Unmodeled["openapi:$ref"].Provenance.Pointer, name)
@@ -1056,7 +1056,7 @@ func TestAllOfUnion_ARefAdmittingEveryKindBesideAUnionIsKeptAsTheInlineSpellingI
 	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 		doc, diags := compileAnnotationSpec(t, "every", admissionSpec("3.1.0", "", schemas...))
 		requireErrorsAndWarnings(t, diags, nil)
-		want := &ir.Constraints{MinLength: new(int64(1)), MinProps: new(int64(2))}
+		want := &ir.Constraints{MinLength: new(int64(1)), MinProperties: new(int64(2))}
 		for _, name := range []string{"ERef", "EInline", "EFlat"} {
 			u, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
 			require.True(t, ok, "%s is the union its flat spelling is", name)

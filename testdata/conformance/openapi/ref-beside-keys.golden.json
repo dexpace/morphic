@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "T",
         "canonical": "t"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1a/post",
+              "id": "operation/openapi/paths/~1a/post",
               "name": {
                 "source": "a",
                 "canonical": "a"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1a/post/parameters/p/query",
+                  "id": "parameter/openapi/paths/~1a/post/parameters/p/query",
                   "name": {
                     "source": "p",
                     "canonical": "p"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -104,13 +104,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1a/post/parameters/q/query",
+                  "id": "parameter/openapi/paths/~1a/post/parameters/q/query",
                   "name": {
                     "source": "q",
                     "canonical": "q"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -138,7 +138,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/prim/string",
+                      "target": "type/primitive/string",
                       "nullable": false
                     }
                   }
@@ -232,7 +232,7 @@
                     "uriTemplate": "/a",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1a/post/parameters/p/query",
+                        "param": "parameter/openapi/paths/~1a/post/parameters/p/query",
                         "location": "query",
                         "wireName": "p",
                         "style": "form",
@@ -240,7 +240,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1a/post/parameters/q/query",
+                        "param": "parameter/openapi/paths/~1a/post/parameters/q/query",
                         "location": "query",
                         "wireName": "q",
                         "style": "form",
@@ -256,7 +256,7 @@
                         "name": "cb",
                         "expression": "{$request.body#/u}",
                         "operations": [
-                          "op/openapi/paths/~1a/post/callbacks/cb/{$request.body#~1u}/post"
+                          "operation/openapi/paths/~1a/post/callbacks/cb/{$request.body#~1u}/post"
                         ]
                       }
                     ],
@@ -271,7 +271,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1a/post/callbacks/cb/{$request.body#~1u}/post",
+              "id": "operation/openapi/paths/~1a/post/callbacks/cb/{$request.body#~1u}/post",
               "name": {
                 "hint": "post_request_body_u"
               },
@@ -313,7 +313,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1b/get",
+              "id": "operation/openapi/paths/~1b/get",
               "name": {
                 "source": "b",
                 "canonical": "b"
@@ -321,13 +321,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1b/get/parameters/q/query",
+                  "id": "parameter/openapi/paths/~1b/get/parameters/q/query",
                   "name": {
                     "source": "q",
                     "canonical": "q"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -385,7 +385,7 @@
                     "uriTemplate": "/b",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1b/get/parameters/q/query",
+                        "param": "parameter/openapi/paths/~1b/get/parameters/q/query",
                         "location": "query",
                         "wireName": "q",
                         "style": "form",
@@ -415,9 +415,9 @@
     }
   ],
   "types": {
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -425,7 +425,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

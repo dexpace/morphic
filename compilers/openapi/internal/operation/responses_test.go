@@ -81,7 +81,7 @@ func TestResponses_ALoneDefaultIsNeitherClass(t *testing.T) {
 	assert.Equal(t, []ir.StatusRange{{}}, op.Default.Conditions.StatusCodes)
 	require.NotNil(t, op.Default.Payload)
 	require.Len(t, op.Default.Payload.Contents, 1)
-	assert.Equal(t, ir.TypeID("t/anon/paths/~1w/get/responses/default/content/application~1json/schema"),
+	assert.Equal(t, ir.TypeID("type/anonymous/paths/~1w/get/responses/default/content/application~1json/schema"),
 		op.Default.Payload.Contents[0].Type.Target)
 	require.Len(t, op.Default.Headers, 1)
 	assert.Equal(t, "X-Rate", op.Default.Headers[0].WireName)
@@ -255,8 +255,8 @@ func TestResponses_HeadersLowered(t *testing.T) {
 	h := op.Responses[0].Headers[0]
 	assert.Equal(t, "X-Rate-Limit", h.WireName)
 	assert.True(t, h.Required)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), h.Type.Target)
-	assert.Equal(t, ir.PropID("p/openapi/paths/~1h/get/responses/200/headers/X-Rate-Limit"), h.ID)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), h.Type.Target)
+	assert.Equal(t, ir.PropertyID("property/openapi/paths/~1h/get/responses/200/headers/X-Rate-Limit"), h.ID)
 }
 
 // TestResponses_LinksLowerOntoTheResponse pins that a response's links lower
@@ -320,13 +320,13 @@ func TestResponses_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	require.Len(t, getA.Responses, 1)
 	require.Len(t, getB.Responses, 1)
 
-	wantID := ir.TypeID("t/anon/components/responses/OK/content/application~1json/schema")
+	wantID := ir.TypeID("type/anonymous/components/responses/OK/content/application~1json/schema")
 	assert.Equal(t, wantID, getA.Responses[0].Payload.Contents[0].Type.Target)
 	assert.Equal(t, wantID, getB.Responses[0].Payload.Contents[0].Type.Target,
 		"both operations resolve the same shared response schema")
 
-	_, fabricatedA := doc.Types[ir.TypeID("t/anon/paths/~1a/get/responses/200/content/application~1json/schema")]
-	_, fabricatedB := doc.Types[ir.TypeID("t/anon/paths/~1b/get/responses/200/content/application~1json/schema")]
+	_, fabricatedA := doc.Types[ir.TypeID("type/anonymous/paths/~1a/get/responses/200/content/application~1json/schema")]
+	_, fabricatedB := doc.Types[ir.TypeID("type/anonymous/paths/~1b/get/responses/200/content/application~1json/schema")]
 	assert.False(t, fabricatedA, "no fabricated per-operation ID for /a")
 	assert.False(t, fabricatedB, "no fabricated per-operation ID for /b")
 }
@@ -384,7 +384,7 @@ func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 		require.Len(t, ec.Payload.Contents, 1)
 		return ec.Payload.Contents[0].Type.Target
 	}
-	wantNotFound := ir.TypeID("t/anon/components/responses/NotFound/content/application~1json/schema")
+	wantNotFound := ir.TypeID("type/anonymous/components/responses/NotFound/content/application~1json/schema")
 	assert.Equal(t, wantNotFound, errType(aErrs["client"]))
 	assert.Equal(t, wantNotFound, errType(bErrs["client"]), "the shared 4XX error model interns once")
 
@@ -394,7 +394,7 @@ func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 		require.Len(t, op.Default.Payload.Contents, 1)
 		return op.Default.Payload.Contents[0].Type.Target
 	}
-	wantFallback := ir.TypeID("t/anon/components/responses/Fallback/content/application~1json/schema")
+	wantFallback := ir.TypeID("type/anonymous/components/responses/Fallback/content/application~1json/schema")
 	assert.Equal(t, wantFallback, defType(getA))
 	assert.Equal(t, wantFallback, defType(getB), "the shared default model interns once")
 
@@ -550,7 +550,7 @@ func TestResponses_ASharedBodyIsNamedAlikeFromEitherStatusClass(t *testing.T) {
 		t.Helper()
 		doc, _, diags := compileService(t, openapitest.PathsSpec(paths))
 		openapitest.RequireNoErrorDiags(t, diags)
-		td, ok := doc.Types["t/anon/paths/~1a/get/responses/200/content/application~1json/schema"]
+		td, ok := doc.Types["type/anonymous/paths/~1a/get/responses/200/content/application~1json/schema"]
 		require.True(t, ok, "the shared body is interned once at its declaration pointer; got %v", slices.Sorted(maps.Keys(doc.Types)))
 		return td.Common().Name.Hint
 	}

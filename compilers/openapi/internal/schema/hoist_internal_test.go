@@ -32,13 +32,13 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 	t.Parallel()
 	c := service.New(2, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
 
-	named := commonFor(c.Ctx, "t/x", "/components/schemas/User")
+	named := commonFor(c.Ctx, "type/x", "/components/schemas/User")
 	assert.False(t, named.Anonymous, "a component schema is a declaration")
 	assert.Equal(t, "User", named.Name.Source)
 	assert.Equal(t, "user", named.Name.Canonical, "the framework supplies the neutral words")
 	assert.Empty(t, named.Name.Hint, "a named node needs no hint")
 
-	anon := commonFor(c.Ctx, "t/y", "/components/schemas/User/properties/id")
+	anon := commonFor(c.Ctx, "type/y", "/components/schemas/User/properties/id")
 	assert.True(t, anon.Anonymous, "an inline position declares no name")
 	assert.Empty(t, anon.Name.Source)
 	assert.Equal(t, "id", anon.Name.Hint, "only the hint survives: the property's key")
@@ -50,9 +50,9 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 	t.Parallel()
 	c := service.New(5, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
-	got := commonFor(c.Ctx, "t/x", "/components/schemas/User")
+	got := commonFor(c.Ctx, "type/x", "/components/schemas/User")
 
-	assert.Equal(t, ir.TypeID("t/x"), got.ID)
+	assert.Equal(t, ir.TypeID("type/x"), got.ID)
 	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components/schemas/User"}, got.Provenance)
 }
 

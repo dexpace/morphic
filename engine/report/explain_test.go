@@ -63,17 +63,17 @@ func TestExplain_SelectsTheNodeAndWhatIsBelowIt(t *testing.T) {
 			// pointer is distinguishable from listing in ID order.
 			name: "a miss lists what interned below, in pointer order",
 			doc: &ir.Document{Types: registry(
-				model("t/aaa", "/components/schemas/Zed"),
-				model("t/zzz", "/components/schemas/Alpha"),
+				model("type/aaa", "/components/schemas/Zed"),
+				model("type/zzz", "/components/schemas/Alpha"),
 				// Shares the query's text but not its path boundary.
-				model("t/other", "/components/schemasOther/X"),
+				model("type/other", "/components/schemasOther/X"),
 			)},
 			pointer: "/components/schemas",
 			want: report.Explanation{
 				Pointer: "/components/schemas",
 				Below: []report.Interned{
-					interned("/components/schemas/Alpha", "t/zzz"),
-					interned("/components/schemas/Zed", "t/aaa"),
+					interned("/components/schemas/Alpha", "type/zzz"),
+					interned("/components/schemas/Zed", "type/aaa"),
 				},
 			},
 		},
@@ -85,56 +85,56 @@ func TestExplain_SelectsTheNodeAndWhatIsBelowIt(t *testing.T) {
 		},
 		{
 			name:    "a node at the coordinate and one beneath it",
-			doc:     &ir.Document{Types: registry(model("t/a", "/a"), model("t/b", "/a/b"), model("t/c", "/c"))},
+			doc:     &ir.Document{Types: registry(model("type/a", "/a"), model("type/b", "/a/b"), model("type/c", "/c"))},
 			pointer: "/a",
 			want: report.Explanation{
 				Pointer: "/a",
-				Node:    &report.Interned{Pointer: "/a", ID: "t/a", Kind: ir.KindModel},
-				Below:   []report.Interned{interned("/a/b", "t/b")},
+				Node:    &report.Interned{Pointer: "/a", ID: "type/a", Kind: ir.KindModel},
+				Below:   []report.Interned{interned("/a/b", "type/b")},
 			},
 		},
 		{
 			name: "a nil registry entry is skipped, and the real one is found",
 			doc: &ir.Document{Types: ir.TypeRegistry{
-				"t/nil": nil, "t/real": model("t/real", "/p"),
+				"type/nil": nil, "type/real": model("type/real", "/p"),
 			}},
 			pointer: "/p",
 			want: report.Explanation{
 				Pointer: "/p",
-				Node:    &report.Interned{Pointer: "/p", ID: "t/real", Kind: ir.KindModel},
+				Node:    &report.Interned{Pointer: "/p", ID: "type/real", Kind: ir.KindModel},
 			},
 		},
 		{
 			name: "a typed nil registry entry is skipped too",
 			doc: &ir.Document{Types: ir.TypeRegistry{
-				"t/nil": (*ir.Model)(nil), "t/real": model("t/real", "/p"),
+				"type/nil": (*ir.Model)(nil), "type/real": model("type/real", "/p"),
 			}},
 			pointer: "/p",
 			want: report.Explanation{
 				Pointer: "/p",
-				Node:    &report.Interned{Pointer: "/p", ID: "t/real", Kind: ir.KindModel},
+				Node:    &report.Interned{Pointer: "/p", ID: "type/real", Kind: ir.KindModel},
 			},
 		},
 		{
 			name: "a nil registry entry is skipped, and the real one is below the root",
 			doc: &ir.Document{Types: ir.TypeRegistry{
-				"t/nil": nil, "t/real": model("t/real", "/p"),
+				"type/nil": nil, "type/real": model("type/real", "/p"),
 			}},
 			pointer: "",
-			want:    report.Explanation{Below: []report.Interned{interned("/p", "t/real")}},
+			want:    report.Explanation{Below: []report.Interned{interned("/p", "type/real")}},
 		},
 		{
 			name: "a trailing slash is a token of its own",
 			doc: &ir.Document{Types: registry(
-				model("t/empty", "/components/schemas/"),
-				model("t/emptyprop", "/components/schemas//properties/x"),
-				model("t/otherprop", "/components/schemas/User/properties/y"),
+				model("type/empty", "/components/schemas/"),
+				model("type/emptyprop", "/components/schemas//properties/x"),
+				model("type/otherprop", "/components/schemas/User/properties/y"),
 			)},
 			pointer: "/components/schemas/",
 			want: report.Explanation{
 				Pointer: "/components/schemas/",
-				Node:    &report.Interned{Pointer: "/components/schemas/", ID: "t/empty", Kind: ir.KindModel},
-				Below:   []report.Interned{interned("/components/schemas//properties/x", "t/emptyprop")},
+				Node:    &report.Interned{Pointer: "/components/schemas/", ID: "type/empty", Kind: ir.KindModel},
+				Below:   []report.Interned{interned("/components/schemas//properties/x", "type/emptyprop")},
 			},
 		},
 		{
@@ -160,16 +160,16 @@ func TestExplain_SelectsTheNodeAndWhatIsBelowIt(t *testing.T) {
 func TestExplain_ReportsEachNodesKind(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: registry(
-		&ir.Scalar{ID: "t/s", Provenance: ir.Provenance{Pointer: "/k"}},
-		&ir.Enum{ID: "t/e", Provenance: ir.Provenance{Pointer: "/k/e"}},
+		&ir.Scalar{ID: "type/s", Provenance: ir.Provenance{Pointer: "/k"}},
+		&ir.Enum{ID: "type/e", Provenance: ir.Provenance{Pointer: "/k/e"}},
 	)}
 
 	got := report.Explain(doc, nil, "/k")
 
 	want := report.Explanation{
 		Pointer: "/k",
-		Node:    &report.Interned{Pointer: "/k", ID: "t/s", Kind: ir.KindScalar},
-		Below:   []report.Interned{{Pointer: "/k/e", ID: "t/e", Kind: ir.KindEnum}},
+		Node:    &report.Interned{Pointer: "/k", ID: "type/s", Kind: ir.KindScalar},
+		Below:   []report.Interned{{Pointer: "/k/e", ID: "type/e", Kind: ir.KindEnum}},
 	}
 	assert.Empty(t, sameExplanation(want, got))
 }
@@ -183,13 +183,13 @@ func TestExplain_ReportsEachNodesKind(t *testing.T) {
 // holds one.
 func TestExplain_AnEmptyPointerIsNotAlwaysTheRoot(t *testing.T) {
 	t.Parallel()
-	atRoot := &ir.Model{ID: "t/root", Provenance: ir.Provenance{Source: 0}}
+	atRoot := &ir.Model{ID: "type/root", Provenance: ir.Provenance{Source: 0}}
 	decoys := map[string]ir.TypeDef{
 		"shared primitive": &ir.Primitive{
-			ID: "t/prim/string", Prim: ir.PrimString, Provenance: ir.Provenance{Source: ir.NoSource},
+			ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource},
 		},
 		"node located by position": &ir.Model{
-			ID: "t/positioned", Provenance: ir.Provenance{Source: 0, Position: ir.Position{Line: 3, Column: 1}},
+			ID: "type/positioned", Provenance: ir.Provenance{Source: 0, Position: ir.Position{Line: 3, Column: 1}},
 		},
 	}
 	for name, decoy := range decoys {
@@ -199,7 +199,7 @@ func TestExplain_AnEmptyPointerIsNotAlwaysTheRoot(t *testing.T) {
 
 			got := report.Explain(doc, nil, "")
 
-			want := report.Explanation{Node: &report.Interned{ID: "t/root", Kind: ir.KindModel}}
+			want := report.Explanation{Node: &report.Interned{ID: "type/root", Kind: ir.KindModel}}
 			assert.Empty(t, sameExplanation(want, got), "the root names the node declared there, never the decoy")
 		})
 	}
@@ -221,14 +221,14 @@ func TestExplain_ASharedPointerNamesTheLeastID(t *testing.T) {
 	for round := range rounds {
 		types := make(ir.TypeRegistry, nodes)
 		for i := range nodes {
-			id := ir.TypeID(fmt.Sprintf("t/n/%02d", i))
+			id := ir.TypeID(fmt.Sprintf("type/n/%02d", i))
 			types[id] = model(id, sharedPointer)
 		}
 
 		got := report.Explain(&ir.Document{Types: types}, nil, sharedPointer)
 
 		require.NotNil(t, got.Node, "round %d: the coordinate holds %d nodes", round, nodes)
-		require.Equal(t, ir.TypeID("t/n/00"), got.Node.ID, "round %d", round)
+		require.Equal(t, ir.TypeID("type/n/00"), got.Node.ID, "round %d", round)
 		require.Empty(t, got.Below, "round %d: nodes sharing the coordinate are not beneath it", round)
 	}
 }
@@ -245,7 +245,7 @@ func TestExplain_TiedPointersListInIDOrder(t *testing.T) {
 	types := make(ir.TypeRegistry, pointers*perPointer)
 	for n := range perPointer {
 		for p := range pointers {
-			id := ir.TypeID(fmt.Sprintf("t/%d/%d", n, p))
+			id := ir.TypeID(fmt.Sprintf("type/%d/%d", n, p))
 			types[id] = model(id, jsontext.Pointer(fmt.Sprintf("/components/schemas/P%d", p)))
 		}
 	}
@@ -270,7 +270,7 @@ func TestExplain_SelectsOnlyTheCoordinatesDiagnostics(t *testing.T) {
 	diags := []ir.Diagnostic{
 		diag("a", ir.Provenance{Pointer: "/p"}),
 		diag("b", ir.Provenance{Pointer: "/q"}),
-		diag("pass", ir.Provenance{Source: ir.NoSource, Pointer: "/p", Node: "op/x"}),
+		diag("pass", ir.Provenance{Source: ir.NoSource, Pointer: "/p", Node: "operation/x"}),
 		diag("c", ir.Provenance{Pointer: "/p"}),
 	}
 
@@ -289,8 +289,8 @@ func TestExplain_SelectsOnlyTheCoordinatesDiagnostics(t *testing.T) {
 func TestExplain_RootExcludesPositionAndNodeLocatedFindings(t *testing.T) {
 	t.Parallel()
 	byPosition := diag("p", ir.Provenance{Source: 0, Position: ir.Position{Line: 5, Column: 1}})
-	byNode := diag("n", ir.Provenance{Source: ir.NoSource, Node: "op/x"})
-	besideSource := diag("s", ir.Provenance{Source: 0, Node: "op/x"})
+	byNode := diag("n", ir.Provenance{Source: ir.NoSource, Node: "operation/x"})
+	besideSource := diag("s", ir.Provenance{Source: 0, Node: "operation/x"})
 	atRoot := diag("r", ir.Provenance{Source: 0})
 
 	got := report.Explain(nil, []ir.Diagnostic{byPosition, byNode, besideSource, atRoot}, "")
@@ -304,30 +304,30 @@ func TestExplain_RootExcludesPositionAndNodeLocatedFindings(t *testing.T) {
 func fullExplanation() (report.Explanation, []string) {
 	e := report.Explanation{
 		Pointer: "/components/schemas/S",
-		Node:    &report.Interned{Pointer: "/components/schemas/S", ID: "t/s", Kind: ir.KindModel},
+		Node:    &report.Interned{Pointer: "/components/schemas/S", ID: "type/s", Kind: ir.KindModel},
 		Below: []report.Interned{
-			{Pointer: "/components/schemas/S/properties/a", ID: "t/a", Kind: ir.KindScalar},
-			{Pointer: "/components/schemas/S/properties/b", ID: "t/b", Kind: ir.KindModel},
+			{Pointer: "/components/schemas/S/properties/a", ID: "type/a", Kind: ir.KindScalar},
+			{Pointer: "/components/schemas/S/properties/b", ID: "type/b", Kind: ir.KindModel},
 		},
 		Diagnostics: []ir.Diagnostic{
 			{Severity: ir.SeverityWarning, Code: "openapi/w", Message: "careful"},
 			{Severity: ir.SeverityError, Code: "openapi/e", Message: "broken"},
 		},
 		Unmodeled: []report.Kept{
-			{Pointer: "/components/schemas/S/not", Key: "openapi:not", Reason: ir.ReasonValidationOnly, Holder: "doc.Types[t/s]"},
-			{Pointer: "/components/schemas/S/x-a", Key: "openapi:x-a", Reason: ir.ReasonVendorExtension, Holder: "doc.Types[t/s]"},
+			{Pointer: "/components/schemas/S/not", Key: "openapi:not", Reason: ir.ReasonValidationOnly, Holder: "document.Types[type/s]"},
+			{Pointer: "/components/schemas/S/x-a", Key: "openapi:x-a", Reason: ir.ReasonVendorExtension, Holder: "document.Types[type/s]"},
 		},
 		Truncated: true,
 	}
 	lines := []string{
 		"coordinate /components/schemas/S\n",
-		"  node t/s (model)\n",
+		"  node type/s (model)\n",
 		"  interned below it (2):\n",
-		"    /components/schemas/S/properties/a -> t/a (scalar)\n",
-		"    /components/schemas/S/properties/b -> t/b (model)\n",
+		"    /components/schemas/S/properties/a -> type/a (scalar)\n",
+		"    /components/schemas/S/properties/b -> type/b (model)\n",
 		"  kept unmodeled at or below it (2):\n",
-		"    /components/schemas/S/not -> openapi:not (validation_only) on doc.Types[t/s]\n",
-		"    /components/schemas/S/x-a -> openapi:x-a (vendor_extension) on doc.Types[t/s]\n",
+		"    /components/schemas/S/not -> openapi:not (validation_only) on document.Types[type/s]\n",
+		"    /components/schemas/S/x-a -> openapi:x-a (vendor_extension) on document.Types[type/s]\n",
 		"  the document nests deeper than the walk reads, so more may be kept below\n",
 		"  diagnostics (2):\n",
 		"    warning openapi/w: careful\n",
@@ -359,44 +359,44 @@ func TestWriteExplanation_RendersEachShape(t *testing.T) {
 		},
 		{
 			"the root with a node",
-			report.Explanation{Node: &report.Interned{ID: "t/root", Kind: ir.KindModel}},
+			report.Explanation{Node: &report.Interned{ID: "type/root", Kind: ir.KindModel}},
 			"coordinate \"\" (the whole document)\n" +
-				"  node t/root (model)\n" +
+				"  node type/root (model)\n" +
 				"  diagnostics (0):\n",
 		},
 		{
 			"a miss with something below it",
 			report.Explanation{
 				Pointer: "/c",
-				Below:   []report.Interned{{Pointer: "/c/x", ID: "t/x", Kind: ir.KindEnum}},
+				Below:   []report.Interned{{Pointer: "/c/x", ID: "type/x", Kind: ir.KindEnum}},
 			},
 			"coordinate /c\n" +
 				"  the document holds no type node at this coordinate\n" +
 				"  interned below it (1):\n" +
-				"    /c/x -> t/x (enum)\n" +
+				"    /c/x -> type/x (enum)\n" +
 				"  diagnostics (0):\n",
 		},
 		{
 			"a miss with only something kept below it",
 			report.Explanation{
 				Pointer:   "/paths/~1p",
-				Unmodeled: []report.Kept{{Pointer: "/paths/~1p/x-a", Key: "openapi:pathItem/x-a", Reason: ir.ReasonVendorExtension, Holder: "doc.Services[0].Groups[0].Operations[0]"}},
+				Unmodeled: []report.Kept{{Pointer: "/paths/~1p/x-a", Key: "openapi:pathItem/x-a", Reason: ir.ReasonVendorExtension, Holder: "document.Services[0].Groups[0].Operations[0]"}},
 			},
 			"coordinate /paths/~1p\n" +
 				"  the document holds no type node at this coordinate\n" +
 				"  kept unmodeled at or below it (1):\n" +
-				"    /paths/~1p/x-a -> openapi:pathItem/x-a (vendor_extension) on doc.Services[0].Groups[0].Operations[0]\n" +
+				"    /paths/~1p/x-a -> openapi:pathItem/x-a (vendor_extension) on document.Services[0].Groups[0].Operations[0]\n" +
 				"  diagnostics (0):\n",
 		},
 		{
 			"a node with nothing below it and a diagnostic",
 			report.Explanation{
 				Pointer:     "/c",
-				Node:        &report.Interned{Pointer: "/c", ID: "t/c", Kind: ir.KindPrimitive},
+				Node:        &report.Interned{Pointer: "/c", ID: "type/c", Kind: ir.KindPrimitive},
 				Diagnostics: []ir.Diagnostic{{Severity: ir.SeverityInfo, Code: "x/i", Message: "fyi"}},
 			},
 			"coordinate /c\n" +
-				"  node t/c (primitive)\n" +
+				"  node type/c (primitive)\n" +
 				"  diagnostics (1):\n" +
 				"    info x/i: fyi\n",
 		},
@@ -421,17 +421,17 @@ func TestWriteExplanation_EscapesWhatASpecWrites(t *testing.T) {
 	t.Parallel()
 	e := report.Explanation{
 		Pointer: "/S\x1b[31m",
-		Node:    &report.Interned{Pointer: "/S\x1b[31m", ID: "t/openapi/S\x1b[31m", Kind: "model\n"},
-		Below:   []report.Interned{{Pointer: "/S\x1b[31m/x\a", ID: "t/x\r", Kind: ir.KindEnum}},
+		Node:    &report.Interned{Pointer: "/S\x1b[31m", ID: "type/openapi/S\x1b[31m", Kind: "model\n"},
+		Below:   []report.Interned{{Pointer: "/S\x1b[31m/x\a", ID: "type/x\r", Kind: ir.KindEnum}},
 		Diagnostics: []ir.Diagnostic{{Severity: ir.SeverityInfo, Code: "x/\x00",
 			Message: "M\x1b[31mY\nerror openapi-forged spec.yaml: forged"}},
 	}
 	var w strings.Builder
 	require.NoError(t, report.WriteExplanation(&w, e))
 	assert.Empty(t, cmp.Diff(`coordinate /S\x1b[31m`+"\n"+
-		`  node t/openapi/S\x1b[31m (model\n)`+"\n"+
+		`  node type/openapi/S\x1b[31m (model\n)`+"\n"+
 		"  interned below it (1):\n"+
-		`    /S\x1b[31m/x\a -> t/x\r (enum)`+"\n"+
+		`    /S\x1b[31m/x\a -> type/x\r (enum)`+"\n"+
 		"  diagnostics (1):\n"+
 		`    info x/\x00: M\x1b[31mY\nerror openapi-forged spec.yaml: forged`+"\n", w.String()))
 }
@@ -468,12 +468,12 @@ func TestExplain_ReadsOnlyTheSourcesCoordinates(t *testing.T) {
 	sources := []ir.SourceInfo{{Format: "openapi@3.1"}, {Format: "overlay@1.0.0"}, {Format: "openapi@3.1"}}
 	at := func(id ir.TypeID, prov ir.Provenance) *ir.Model { return &ir.Model{ID: id, Provenance: prov} }
 	doc := &ir.Document{Sources: sources, Types: registry(
-		at("t/0-other", ir.Provenance{Source: 2, Pointer: pet}),
-		at("t/1-source", ir.Provenance{Source: 0, Pointer: pet}),
-		at("t/2-other", ir.Provenance{Source: 2, Pointer: pet + "/properties/owner"}),
-		at("t/3-written", ir.Provenance{Source: 0, Pointer: pet + "/properties/tag", WrittenBy: 1}),
-		at("t/4-unheld", ir.Provenance{Source: 7, Pointer: pet + "/properties/gone"}),
-		at("t/5-overlay-file", ir.Provenance{Source: 1, Pointer: pet + "/properties/x"}),
+		at("type/0-other", ir.Provenance{Source: 2, Pointer: pet}),
+		at("type/1-source", ir.Provenance{Source: 0, Pointer: pet}),
+		at("type/2-other", ir.Provenance{Source: 2, Pointer: pet + "/properties/owner"}),
+		at("type/3-written", ir.Provenance{Source: 0, Pointer: pet + "/properties/tag", WrittenBy: 1}),
+		at("type/4-unheld", ir.Provenance{Source: 7, Pointer: pet + "/properties/gone"}),
+		at("type/5-overlay-file", ir.Provenance{Source: 1, Pointer: pet + "/properties/x"}),
 	)}
 	written := diag("written", ir.Provenance{Source: 0, Pointer: pet, WrittenBy: 1})
 	diags := []ir.Diagnostic{
@@ -486,8 +486,8 @@ func TestExplain_ReadsOnlyTheSourcesCoordinates(t *testing.T) {
 
 	assert.Empty(t, sameExplanation(report.Explanation{
 		Pointer:     pet,
-		Node:        &report.Interned{Pointer: pet, ID: "t/1-source", Kind: ir.KindModel},
-		Below:       []report.Interned{interned(pet+"/properties/tag", "t/3-written")},
+		Node:        &report.Interned{Pointer: pet, ID: "type/1-source", Kind: ir.KindModel},
+		Below:       []report.Interned{interned(pet+"/properties/tag", "type/3-written")},
 		Diagnostics: []ir.Diagnostic{diags[0], written},
 	}, got))
 }
@@ -505,13 +505,13 @@ func TestExplanation_EncodesAsData(t *testing.T) {
 		want string
 	}{
 		{"every section", full, `{"pointer":"/components/schemas/S",` +
-			`"node":{"pointer":"/components/schemas/S","id":"t/s","kind":"model"},` +
-			`"below":[{"pointer":"/components/schemas/S/properties/a","id":"t/a","kind":"scalar"},` +
-			`{"pointer":"/components/schemas/S/properties/b","id":"t/b","kind":"model"}],` +
+			`"node":{"pointer":"/components/schemas/S","id":"type/s","kind":"model"},` +
+			`"below":[{"pointer":"/components/schemas/S/properties/a","id":"type/a","kind":"scalar"},` +
+			`{"pointer":"/components/schemas/S/properties/b","id":"type/b","kind":"model"}],` +
 			`"diagnostics":[{"severity":"warning","code":"openapi/w","message":"careful","provenance":{"source":0}},` +
 			`{"severity":"error","code":"openapi/e","message":"broken","provenance":{"source":0}}],` +
-			`"unmodeled":[{"pointer":"/components/schemas/S/not","key":"openapi:not","reason":"validation_only","holder":"doc.Types[t/s]"},` +
-			`{"pointer":"/components/schemas/S/x-a","key":"openapi:x-a","reason":"vendor_extension","holder":"doc.Types[t/s]"}],` +
+			`"unmodeled":[{"pointer":"/components/schemas/S/not","key":"openapi:not","reason":"validation_only","holder":"document.Types[type/s]"},` +
+			`{"pointer":"/components/schemas/S/x-a","key":"openapi:x-a","reason":"vendor_extension","holder":"document.Types[type/s]"}],` +
 			`"truncated":true}`},
 		{"a miss at the root", report.Explanation{}, `{"pointer":""}`},
 	}
@@ -546,7 +546,7 @@ func kept(key string, source int, pointer jsontext.Pointer) ir.Unmodeled {
 func TestExplain_ListsWhatIsKeptAtAndBelow(t *testing.T) {
 	t.Parallel()
 	const pet = jsontext.Pointer("/components/schemas/Pet")
-	m := model("t/pet", pet)
+	m := model("type/pet", pet)
 	m.Unmodeled = ir.Unmodeled{
 		"openapi:x-b": kept("", 0, pet+"/x-b")[""],
 		"openapi:x-a": kept("", 0, pet+"/x-a")[""],
@@ -558,14 +558,14 @@ func TestExplain_ListsWhatIsKeptAtAndBelow(t *testing.T) {
 		"openapi:x-x": kept("", 0, pet+"/x-y")[""],
 	}
 	m.Properties = []ir.Property{{Name: ir.Naming{Source: "p"}, Unmodeled: kept("openapi:x-p", 0, pet+"/properties/p/x-p")}}
-	other := model("t/other", "/components/schemas/PetOther")
+	other := model("type/other", "/components/schemas/PetOther")
 	other.Unmodeled = kept("openapi:x-o", 0, "/components/schemas/PetOther/x-o")
-	elsewhere := model("t/else", pet)
+	elsewhere := model("type/else", pet)
 	elsewhere.Unmodeled = kept("openapi:x-e", 2, pet+"/x-e")
 	shared := kept("openapi:pathItem/x-s", 0, pet+"/x-s")
 	operations := make([]ir.Operation, 11)
 	for i := range operations {
-		operations[i] = ir.Operation{ID: ir.OpID(fmt.Sprintf("op/%d", i))}
+		operations[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("operation/%d", i))}
 	}
 	operations[9].Unmodeled, operations[10].Unmodeled = shared, shared
 	doc := &ir.Document{
@@ -580,16 +580,16 @@ func TestExplain_ListsWhatIsKeptAtAndBelow(t *testing.T) {
 	got := report.Explain(doc, nil, pet)
 
 	assert.Empty(t, cmp.Diff([]report.Kept{
-		{Pointer: pet, Key: "openapi:not", Reason: ir.ReasonValidationOnly, Holder: "doc.Types[t/pet]"},
-		entry(pet+"/properties/p/x-p", "openapi:x-p", "doc.Types[t/pet].Properties[0]"),
-		entry(pet+"/x-a", "openapi:x-a", "doc.Types[t/pet]"),
-		entry(pet+"/x-b", "openapi:x-b", "doc.Types[t/pet]"),
-		entry(pet+"/x-d", "openapi:x-d", "doc"),
-		entry(pet+"/x-s", "openapi:pathItem/x-s", "doc.Services[0].Groups[0].Operations[9]"),
-		entry(pet+"/x-s", "openapi:pathItem/x-s", "doc.Services[0].Groups[0].Operations[10]"),
-		entry(pet+"/x-y", "openapi:x-x", "doc.Types[t/pet]"),
-		entry(pet+"/x-y", "openapi:x-y", "doc.Types[t/pet]"),
-		entry(pet+"/x-y", "openapi:x-z", "doc.Types[t/pet]"),
+		{Pointer: pet, Key: "openapi:not", Reason: ir.ReasonValidationOnly, Holder: "document.Types[type/pet]"},
+		entry(pet+"/properties/p/x-p", "openapi:x-p", "document.Types[type/pet].Properties[0]"),
+		entry(pet+"/x-a", "openapi:x-a", "document.Types[type/pet]"),
+		entry(pet+"/x-b", "openapi:x-b", "document.Types[type/pet]"),
+		entry(pet+"/x-d", "openapi:x-d", "document"),
+		entry(pet+"/x-s", "openapi:pathItem/x-s", "document.Services[0].Groups[0].Operations[9]"),
+		entry(pet+"/x-s", "openapi:pathItem/x-s", "document.Services[0].Groups[0].Operations[10]"),
+		entry(pet+"/x-y", "openapi:x-x", "document.Types[type/pet]"),
+		entry(pet+"/x-y", "openapi:x-y", "document.Types[type/pet]"),
+		entry(pet+"/x-y", "openapi:x-z", "document.Types[type/pet]"),
 	}, got.Unmodeled))
 	assert.False(t, got.Truncated)
 	assert.Empty(t, report.Explain(doc, nil, pet+"/properties/q").Unmodeled, "nothing is kept there")
@@ -608,11 +608,11 @@ func TestExplain_ListsAnEntryOnManyNodesInTheirOrder(t *testing.T) {
 	want := make([]string, 0, len(operations))
 	for i := range operations {
 		own := fmt.Sprintf("openapi:x-%02d", i)
-		operations[i] = ir.Operation{ID: ir.OpID(fmt.Sprintf("op/%d", i)), Unmodeled: ir.Unmodeled{
+		operations[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("operation/%d", i)), Unmodeled: ir.Unmodeled{
 			key: kept(key, 0, at+"/x-s")[key],
 			own: kept(own, 0, at+jsontext.Pointer(fmt.Sprintf("/x-%02d", i)))[own],
 		}}
-		want = append(want, fmt.Sprintf("doc.Services[0].Groups[0].Operations[%d]", i))
+		want = append(want, fmt.Sprintf("document.Services[0].Groups[0].Operations[%d]", i))
 	}
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: operations}}}}}
 
@@ -635,7 +635,7 @@ func TestExplain_SaysWhenTheWalkWasTruncated(t *testing.T) {
 	for range ir.MaxWalkDepth {
 		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
 	}
-	m := model("t/m", "/m")
+	m := model("type/m", "/m")
 	m.Examples = []ir.Example{{Value: &v}}
 	m.Unmodeled = kept("openapi:x-m", 0, "/m/x-m")
 
@@ -650,7 +650,7 @@ func TestExplain_SaysWhenTheWalkWasTruncated(t *testing.T) {
 func TestWriteExplanation_EscapesWhatItListsAsKept(t *testing.T) {
 	t.Parallel()
 	e := report.Explanation{Pointer: "/p", Unmodeled: []report.Kept{{
-		Pointer: "/p/x-\x1b[31m", Key: "openapi:x-\nerror forged", Reason: "vendor\a", Holder: "doc.Types[t/\xff\u202e]",
+		Pointer: "/p/x-\x1b[31m", Key: "openapi:x-\nerror forged", Reason: "vendor\a", Holder: "document.Types[t/\xff\u202e]",
 	}}}
 	var w strings.Builder
 
@@ -659,6 +659,6 @@ func TestWriteExplanation_EscapesWhatItListsAsKept(t *testing.T) {
 	assert.Equal(t, "coordinate /p\n"+
 		"  the document holds no type node at this coordinate\n"+
 		"  kept unmodeled at or below it (1):\n"+
-		`    /p/x-\x1b[31m -> openapi:x-\nerror forged (vendor\a) on doc.Types[t/\xff\u202e]`+"\n"+
+		`    /p/x-\x1b[31m -> openapi:x-\nerror forged (vendor\a) on document.Types[t/\xff\u202e]`+"\n"+
 		"  diagnostics (0):\n", w.String())
 }

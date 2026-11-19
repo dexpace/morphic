@@ -77,7 +77,7 @@ type EmitterInput struct {
     Snapshot string               // the label Document.Versions gives the snapshot Doc is; "" for
                                   // one no pass sliced by version, a document stating none among
                                   // them (../docs-and-mock.md#routes-and-links)
-    Samples map[TargetKey]map[ir.OpID][]Sample // the usage samples of each target a docs
+    Samples map[TargetKey]map[ir.OperationID][]Sample // the usage samples of each target a docs
                                   // target's options name
                                   // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
     Routes  map[string]RouteTable // every version snapshot's routes, keyed by the label
@@ -94,7 +94,7 @@ type EmitterOutput struct {
     Diagnostics []ir.Diagnostic     // typed, coded, provenance-bearing; engine decides fatality
     Manifest    *manifest.Manifest  // entity→symbol map keyed by IR stable IDs (../write-integrate.md)
     Surface     *verify.Surface     // neutral API-surface projection of the generated output (../surface-verification.md)
-    Samples     map[ir.OpID][]Sample // an SDK target's usage samples per operation, one for each
+    Samples     map[ir.OperationID][]Sample // an SDK target's usage samples per operation, one for each
                                      // language its callers write, for the docs
 }
 
@@ -108,7 +108,7 @@ type Sample struct {
 // snapshot's directory included, and its anchor, as a link to it is written.
 type RouteTable map[EntityID]string
 
-// EntityID is the string form of any IR stable ID (TypeID, OpID, PropID, ServiceID, …).
+// EntityID is the string form of any IR stable ID (TypeID, OperationID, PropertyID, ServiceID, …).
 // Every IR ID is a `type X string`, so one keyspace addresses them all.
 type EntityID = string
 

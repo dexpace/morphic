@@ -22,8 +22,8 @@ import (
 // Only, since allOf gives branch order no meaning (intersectLifecycles).
 func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 	switch {
-	case dst.None || src.None:
-		return ir.Visibility{None: true}
+	case dst.InvisibleInEveryLifecycle || src.InvisibleInEveryLifecycle:
+		return ir.Visibility{InvisibleInEveryLifecycle: true}
 	case len(dst.Only) == 0:
 		return src
 	case len(src.Only) == 0:
@@ -32,7 +32,7 @@ func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 		if only := intersectLifecycles(dst.Only, src.Only); len(only) > 0 {
 			return ir.Visibility{Only: only}
 		}
-		return ir.Visibility{None: true}
+		return ir.Visibility{InvisibleInEveryLifecycle: true}
 	}
 }
 

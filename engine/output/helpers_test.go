@@ -117,7 +117,7 @@ func orderedDoc() *ir.Document {
 	types := ir.TypeRegistry{}
 	for _, name := range []string{"Zeta", "Kappa", "Alpha", "Omega", "Mid", "Beta",
 		"Sigma", "Delta", "Pi", "Eta", "Rho", "Gamma"} {
-		id := ir.TypeID("t/" + name)
+		id := ir.TypeID("type/" + name)
 		types[id] = &ir.Model{ID: id}
 	}
 	return &ir.Document{
@@ -135,7 +135,7 @@ func orderedDoc() *ir.Document {
 func manyTypesDoc() *ir.Document {
 	types := ir.TypeRegistry{}
 	for i := range 2000 {
-		id := ir.TypeID(fmt.Sprintf("t/Type%04d", i))
+		id := ir.TypeID(fmt.Sprintf("type/Type%04d", i))
 		types[id] = &ir.Model{ID: id}
 	}
 	return &ir.Document{IRVersion: ir.IRVersion, Name: "Many", Version: "1", Types: types}

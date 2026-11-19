@@ -247,5 +247,5 @@ func AssertProbeExample(t TB, examples []ir.Example) {
 		return
 	}
 	require.NotNil(t, examples[0].Value)
-	assert.Equal(t, "abc", examples[0].Value.Str)
+	assert.Equal(t, "abc", examples[0].Value.String)
 }

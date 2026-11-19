@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "MissingArrayItems",
         "canonical": "missing_array_items"
@@ -52,27 +52,27 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1things/get",
+              "id": "operation/openapi/paths/~1things/get",
               "name": {
                 "hint": "get_things"
               },
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1things/get/parameters/ids/query",
+                  "id": "parameter/openapi/paths/~1things/get/parameters/ids/query",
                   "name": {
                     "source": "ids",
                     "canonical": "ids"
                   },
                   "type": {
-                    "target": "t/anon/paths/~1things/get/parameters/0/schema",
+                    "target": "type/anonymous/paths/~1things/get/parameters/0/schema",
                     "nullable": false
                   },
                   "required": false,
@@ -101,7 +101,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Bare",
+                          "target": "type/openapi/components/schemas/Bare",
                           "nullable": false
                         }
                       }
@@ -121,7 +121,7 @@
                     "uriTemplate": "/things",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1things/get/parameters/ids/query",
+                        "param": "parameter/openapi/paths/~1things/get/parameters/ids/query",
                         "location": "query",
                         "wireName": "ids",
                         "style": "form",
@@ -151,9 +151,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Choice/enum/0": {
+    "type/anonymous/components/schemas/Choice/enum/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Choice/enum/0",
+      "id": "type/anonymous/components/schemas/Choice/enum/0",
       "name": {
         "hint": "choice_0"
       },
@@ -169,18 +169,18 @@
         "list": [
           {
             "kind": "number",
-            "num": "1"
+            "number": "1"
           },
           {
             "kind": "number",
-            "num": "2"
+            "number": "2"
           }
         ]
       }
     },
-    "t/anon/components/schemas/Choice/enum/1": {
+    "type/anonymous/components/schemas/Choice/enum/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Choice/enum/1",
+      "id": "type/anonymous/components/schemas/Choice/enum/1",
       "name": {
         "hint": "choice_1"
       },
@@ -196,14 +196,14 @@
         "list": [
           {
             "kind": "number",
-            "num": "3"
+            "number": "3"
           }
         ]
       }
     },
-    "t/anon/components/schemas/Holder/properties/empty": {
+    "type/anonymous/components/schemas/Holder/properties/empty": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Holder/properties/empty",
+      "id": "type/anonymous/components/schemas/Holder/properties/empty",
       "name": {
         "hint": "empty"
       },
@@ -214,14 +214,14 @@
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/empty"
       },
-      "elem": {
-        "target": "t/prim/any",
+      "elementType": {
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Holder/properties/tags": {
+    "type/anonymous/components/schemas/Holder/properties/tags": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Holder/properties/tags",
+      "id": "type/anonymous/components/schemas/Holder/properties/tags",
       "name": {
         "hint": "tags"
       },
@@ -232,14 +232,14 @@
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/tags"
       },
-      "elem": {
-        "target": "t/prim/any",
+      "elementType": {
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Holder/properties/typed": {
+    "type/anonymous/components/schemas/Holder/properties/typed": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Holder/properties/typed",
+      "id": "type/anonymous/components/schemas/Holder/properties/typed",
       "name": {
         "hint": "typed"
       },
@@ -250,14 +250,14 @@
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/typed"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/paths/~1things/get/parameters/0/schema": {
+    "type/anonymous/paths/~1things/get/parameters/0/schema": {
       "kind": "list",
-      "id": "t/anon/paths/~1things/get/parameters/0/schema",
+      "id": "type/anonymous/paths/~1things/get/parameters/0/schema",
       "name": {
         "hint": "ids"
       },
@@ -268,14 +268,14 @@
         "source": 0,
         "pointer": "/paths/~1things/get/parameters/0/schema"
       },
-      "elem": {
-        "target": "t/prim/any",
+      "elementType": {
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Bare": {
+    "type/openapi/components/schemas/Bare": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/Bare",
+      "id": "type/openapi/components/schemas/Bare",
       "name": {
         "source": "Bare",
         "canonical": "bare"
@@ -287,14 +287,14 @@
         "source": 0,
         "pointer": "/components/schemas/Bare"
       },
-      "elem": {
-        "target": "t/prim/any",
+      "elementType": {
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Choice": {
+    "type/openapi/components/schemas/Choice": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Choice",
+      "id": "type/openapi/components/schemas/Choice",
       "name": {
         "source": "Choice",
         "canonical": "choice"
@@ -322,7 +322,7 @@
             "hint": "choice_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Choice/enum/0",
+            "target": "type/anonymous/components/schemas/Choice/enum/0",
             "nullable": false
           },
           "docs": {}
@@ -332,7 +332,7 @@
             "hint": "choice_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Choice/enum/1",
+            "target": "type/anonymous/components/schemas/Choice/enum/1",
             "nullable": false
           },
           "docs": {}
@@ -343,9 +343,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Copy": {
+    "type/openapi/components/schemas/Copy": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Copy",
+      "id": "type/openapi/components/schemas/Copy",
       "name": {
         "source": "Copy",
         "canonical": "copy"
@@ -359,21 +359,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Copy/properties/tags",
+          "id": "property/openapi/components/schemas/Copy/properties/tags",
           "name": {
             "source": "tags",
             "canonical": "tags"
           },
           "wireName": "tags",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/tags",
+            "target": "type/anonymous/components/schemas/Holder/properties/tags",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -390,9 +390,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -406,21 +406,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/tags",
+          "id": "property/openapi/components/schemas/Holder/properties/tags",
           "name": {
             "source": "tags",
             "canonical": "tags"
           },
           "wireName": "tags",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/tags",
+            "target": "type/anonymous/components/schemas/Holder/properties/tags",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -433,21 +433,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/typed",
+          "id": "property/openapi/components/schemas/Holder/properties/typed",
           "name": {
             "source": "typed",
             "canonical": "typed"
           },
           "wireName": "typed",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/typed",
+            "target": "type/anonymous/components/schemas/Holder/properties/typed",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -460,21 +460,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/empty",
+          "id": "property/openapi/components/schemas/Holder/properties/empty",
           "name": {
             "source": "empty",
             "canonical": "empty"
           },
           "wireName": "empty",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/empty",
+            "target": "type/anonymous/components/schemas/Holder/properties/empty",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -491,9 +491,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -501,11 +501,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -513,7 +513,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

@@ -51,7 +51,7 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.True(t, ok, "clearSearch inherits the same path-item-level parameter")
 	assert.Equal(t, searchReqID.Type.Target, clearReqID.Type.Target,
 		"both operations resolve the shared path-item parameter to the same interned schema")
-	assert.Equal(t, ir.TypeID("t/anon/paths/~1search/parameters/0/schema"), searchReqID.Type.Target,
+	assert.Equal(t, ir.TypeID("type/anonymous/paths/~1search/parameters/0/schema"), searchReqID.Type.Target,
 		"the shared schema is hoisted at the path item's own pointer, not a per-operation one")
 }
 
@@ -404,7 +404,7 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	assert.Equal(t, ir.Docs{Summary: "Cursor", Description: "Opaque pagination cursor."}, cursor.Docs)
 	assert.NotNil(t, cursor.Deprecation)
 	require.NotNil(t, cursor.Default)
-	assert.Equal(t, "0", cursor.Default.Str)
+	assert.Equal(t, "0", cursor.Default.String)
 	assert.Nil(t, cursor.Constraints, "the referent's bound stays on the referent")
 
 	override, ok := openapitest.ParamBySource(op, "override")
@@ -414,7 +414,7 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	assert.Equal(t, "Cursor", override.Docs.Summary,
 		"...and a keyword the use site is silent about still inherits")
 	require.NotNil(t, override.Default)
-	assert.Equal(t, "9", override.Default.Str)
+	assert.Equal(t, "9", override.Default.String)
 	require.NotNil(t, override.Constraints, "a bound beside the $ref lands on the carrier")
 	require.NotNil(t, override.Constraints.MaxLength)
 	assert.Equal(t, int64(100), *override.Constraints.MaxLength,
@@ -466,7 +466,7 @@ func assertHeaderContentSchema(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 	assert.Equal(t, bySchema.Type, byContent.Type,
 		"a content-style header resolves the same type as the schema spelling")
-	assert.NotEqual(t, ir.TypeID("t/prim/any"), byContent.Type.Target,
+	assert.NotEqual(t, ir.TypeID("type/primitive/any"), byContent.Type.Target,
 		"the type is resolved rather than degraded to the top type")
 	assert.Equal(t, bySchema.Constraints, byContent.Constraints,
 		"the constraints written under content are not dropped with the schema")
@@ -556,7 +556,7 @@ func assertHeaderNameCase(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	require.True(t, ok)
 	require.Len(t, list.Params, 1, "the path item's X-Trace is the operation's x-trace")
 	assert.Equal(t, "x-trace", list.Params[0].Name.Source)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), list.Params[0].Type.Target, "the operation's declaration wins")
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), list.Params[0].Type.Target, "the operation's declaration wins")
 
 	require.Len(t, list.Responses, 1)
 	keys := make([]string, 0, len(list.Responses[0].Headers))
@@ -596,13 +596,13 @@ func assertHeaderNameCase(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 func assertHeaderNameSyntax(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "getTrace")
 	require.True(t, ok)
-	ids := make([]ir.ParamID, 0, len(op.Params))
+	ids := make([]ir.ParameterID, 0, len(op.Params))
 	for _, p := range op.Params {
 		ids = append(ids, p.ID)
 	}
-	assert.Equal(t, []ir.ParamID{
-		"param/openapi/paths/~1traces/get/parameters/X-Trace/header",
-		"param/openapi/paths/~1traces/get/parameters/x-trace/header",
+	assert.Equal(t, []ir.ParameterID{
+		"parameter/openapi/paths/~1traces/get/parameters/X-Trace/header",
+		"parameter/openapi/paths/~1traces/get/parameters/x-trace/header",
 	}, ids)
 	assert.Equal(t, []ir.Severity{ir.SeverityError},
 		diagsAt(diags, diag.DuplicateParameter, "/paths/~1traces/get/parameters/1"))
@@ -622,10 +622,10 @@ func assertHeaderNameSyntax(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	}
 
 	for id, hint := range map[ir.TypeID]string{
-		"t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema":   "empty_item",
-		"t/anon/components/responses/Listed/headers//schema/items":                            "empty_item",
-		"t/anon/components/responses/Carried/headers//content/application~1json/schema/items": "empty_item",
-		"t/anon/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/" +
+		"type/anonymous/components/responses/Framed/headers//content/application~1jsonl/itemSchema":   "empty_item",
+		"type/anonymous/components/responses/Listed/headers//schema/items":                            "empty_item",
+		"type/anonymous/components/responses/Carried/headers//content/application~1json/schema/items": "empty_item",
+		"type/anonymous/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/" +
 			"inner/headers//schema/items": "empty_item",
 	} {
 		node, found := doc.Types[id]

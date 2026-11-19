@@ -229,7 +229,7 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"Narrowed", "PassedOver"} {
-		node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)]
+		node, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/"+name)]
 		require.True(t, ok, name)
 		assert.Equal(t, &ir.Deprecation{Message: "gone"}, node.Common().Deprecation, name)
 		assert.True(t, node.Common().Sensitive, name)

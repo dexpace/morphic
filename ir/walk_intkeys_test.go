@@ -29,7 +29,7 @@ func intKeys(first, n int) map[int]int {
 // that does nothing. Not for parallel tests: AllocsPerRun measures the process.
 func walkAllocs(root any) float64 {
 	nothing := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
-	return testing.AllocsPerRun(10, func() { ir.WalkValues(root, "doc", nothing) })
+	return testing.AllocsPerRun(10, func() { ir.WalkValues(root, "document", nothing) })
 }
 
 // TestWalkValues_IntegerKeysCostNothingFromAHundredUp holds a map keyed by
@@ -58,7 +58,7 @@ func TestWalkValues_IntegerKeysCostNothingFromAHundredUp(t *testing.T) {
 // keyOrder returns the paths a walk of m shows for its keys, in walk order.
 func keyOrder(m any) []string {
 	var keys []string
-	ir.WalkValues(m, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(m, "document", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
 		if path := at.String(); strings.HasSuffix(path, ir.MapKeySuffix) {
 			keys = append(keys, path)
 		}
@@ -79,13 +79,13 @@ func TestWalkValues_IntegerKeysAreVisitedInTheOrderOfTheirLabels(t *testing.T) {
 		want []string
 	}{
 		{"int", map[int]bool{-1: true, 9: true, 10: true, 100: true},
-			[]string{"doc[-1].key", "doc[10].key", "doc[100].key", "doc[9].key"}},
+			[]string{"document[-1].key", "document[10].key", "document[100].key", "document[9].key"}},
 		{"uint8", map[uint8]bool{9: true, 10: true},
-			[]string{"doc[10].key", "doc[9].key"}},
+			[]string{"document[10].key", "document[9].key"}},
 		{"int64 at its limits", map[int64]bool{math.MinInt64: true, 0: true, math.MaxInt64: true},
-			[]string{"doc[-9223372036854775808].key", "doc[0].key", "doc[9223372036854775807].key"}},
+			[]string{"document[-9223372036854775808].key", "document[0].key", "document[9223372036854775807].key"}},
 		{"uint64 at its limit", map[uint64]bool{9: true, 10: true, math.MaxUint64: true},
-			[]string{"doc[10].key", "doc[18446744073709551615].key", "doc[9].key"}},
+			[]string{"document[10].key", "document[18446744073709551615].key", "document[9].key"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -99,11 +99,11 @@ func TestWalkValues_IntegerKeysAreVisitedInTheOrderOfTheirLabels(t *testing.T) {
 func TestWalkValues_IntegerKeyValuesAreVisitedInKeyOrder(t *testing.T) {
 	t.Parallel()
 	var got []string
-	ir.WalkValues(map[int]bool{-1: true, 9: true, 10: true}, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(map[int]bool{-1: true, 9: true, 10: true}, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		if v.Kind() == reflect.Bool {
 			got = append(got, at.String())
 		}
 		return true
 	}))
-	assert.Equal(t, []string{"doc[-1]", "doc[10]", "doc[9]"}, got)
+	assert.Equal(t, []string{"document[-1]", "document[10]", "document[9]"}, got)
 }

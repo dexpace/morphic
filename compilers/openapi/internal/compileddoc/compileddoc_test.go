@@ -29,7 +29,7 @@ func wholeOf(op ir.Operation) (*compileddoc.CompiledDocumentView, *ir.Operation)
 
 // prop is a member of a model with the ID id, the wire name wire and the type
 // at target.
-func prop(id ir.PropID, wire string, target ir.TypeID) ir.Property {
+func prop(id ir.PropertyID, wire string, target ir.TypeID) ir.Property {
 	return ir.Property{ID: id, WireName: wire, Type: ir.TypeRef{Target: target}}
 }
 
@@ -50,42 +50,42 @@ func model(id ir.TypeID, mutate func(*ir.Model), props ...ir.Property) *ir.Model
 // group nested deeper. The order within a group's nested groups is left open.
 func TestDocument_ListsEveryOperationOnce(t *testing.T) {
 	t.Parallel()
-	op := func(id string) ir.Operation { return ir.Operation{ID: ir.OpID(id)} }
+	op := func(id string) ir.Operation { return ir.Operation{ID: ir.OperationID(id)} }
 	var chain []ir.OperationGroup
 	for level := ir.MaxGroupDepth + 1; level >= 1; level-- {
-		chain = []ir.OperationGroup{{Operations: []ir.Operation{op(fmt.Sprintf("op/%d", level))}, Groups: chain}}
+		chain = []ir.OperationGroup{{Operations: []ir.Operation{op(fmt.Sprintf("operation/%d", level))}, Groups: chain}}
 	}
 	doc := &ir.Document{Services: []ir.Service{
 		{Groups: []ir.OperationGroup{
-			{Operations: []ir.Operation{op("op/a"), op("op/b")}},
-			{Operations: []ir.Operation{op("op/c")}},
+			{Operations: []ir.Operation{op("operation/a"), op("operation/b")}},
+			{Operations: []ir.Operation{op("operation/c")}},
 			{Groups: []ir.OperationGroup{
-				{Operations: []ir.Operation{op("op/d")}},
-				{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op("op/e")}}}},
+				{Operations: []ir.Operation{op("operation/d")}},
+				{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op("operation/e")}}}},
 			}},
 		}},
-		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op("op/f")}}, {Groups: chain}}},
+		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op("operation/f")}}, {Groups: chain}}},
 	}}
 	w := compileddoc.New(doc)
 
-	got := make([]ir.OpID, 0, len(w.Ops))
-	seen := map[ir.OpID]bool{}
+	got := make([]ir.OperationID, 0, len(w.Ops))
+	seen := map[ir.OperationID]bool{}
 	for _, o := range w.Ops {
 		got = append(got, o.ID)
 		assert.False(t, seen[o.ID], "%s is listed once", o.ID)
 		seen[o.ID] = true
 	}
-	above := []ir.OpID{"op/a", "op/b", "op/c", "op/d", "op/e", "op/f"}
-	assert.Equal(t, []ir.OpID{"op/a", "op/b", "op/c"}, got[:3], "a group's operations, then those of the groups beside it")
+	above := []ir.OperationID{"operation/a", "operation/b", "operation/c", "operation/d", "operation/e", "operation/f"}
+	assert.Equal(t, []ir.OperationID{"operation/a", "operation/b", "operation/c"}, got[:3], "a group's operations, then those of the groups beside it")
 	for _, id := range above[:5] {
-		assert.Less(t, slices.Index(got, id), slices.Index(got, "op/f"), "%s, of the first service, before the second's", id)
+		assert.Less(t, slices.Index(got, id), slices.Index(got, "operation/f"), "%s, of the first service, before the second's", id)
 	}
 	for _, id := range above {
 		assert.True(t, seen[id], "%s is listed", id)
 	}
 	assert.Len(t, w.Ops, len(above)+ir.MaxGroupDepth, "those above, and one per level of the chain to the cap")
-	assert.True(t, seen[ir.OpID(fmt.Sprintf("op/%d", ir.MaxGroupDepth))], "the group at the cap is read")
-	assert.False(t, seen[ir.OpID(fmt.Sprintf("op/%d", ir.MaxGroupDepth+1))], "the group past it is not")
+	assert.True(t, seen[ir.OperationID(fmt.Sprintf("operation/%d", ir.MaxGroupDepth))], "the group at the cap is read")
+	assert.False(t, seen[ir.OperationID(fmt.Sprintf("operation/%d", ir.MaxGroupDepth+1))], "the group past it is not")
 
 	w.Ops[0].Pagination = &ir.Pagination{}
 	assert.NotNil(t, doc.Services[0].Groups[0].Operations[0].Pagination, "an operation is read in place")
@@ -97,20 +97,20 @@ func TestDocument_ListsEveryOperationOnce(t *testing.T) {
 func TestDocument_IndexesParametersOnce(t *testing.T) {
 	t.Parallel()
 	w, op := wholeOf(ir.Operation{
-		ID:     "op/x",
-		Params: []ir.Parameter{{ID: "param/q", Name: ir.Naming{Source: "q"}}},
+		ID:     "operation/x",
+		Params: []ir.Parameter{{ID: "parameter/q", Name: ir.Naming{Source: "q"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
-			ParamBindings: []ir.HTTPParamBinding{{Param: "param/q", Location: ir.HTTPLocationQuery}},
+			ParamBindings: []ir.HTTPParamBinding{{Param: "parameter/q", Location: ir.HTTPLocationQuery}},
 		}}},
 	})
 	first := w.Params(op)
-	require.Equal(t, []ir.ParamID{"param/q"}, first.Bound(ir.HTTPLocationQuery, "q"))
+	require.Equal(t, []ir.ParameterID{"parameter/q"}, first.Bound(ir.HTTPLocationQuery, "q"))
 
-	op.Params = append(op.Params, ir.Parameter{ID: "param/r", Name: ir.Naming{Source: "r"}})
+	op.Params = append(op.Params, ir.Parameter{ID: "parameter/r", Name: ir.Naming{Source: "r"}})
 	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
-		ir.HTTPParamBinding{Param: "param/r", Location: ir.HTTPLocationQuery})
+		ir.HTTPParamBinding{Param: "parameter/r", Location: ir.HTTPLocationQuery})
 	second := w.Params(op)
-	assert.Equal(t, []ir.ParamID{"param/q"}, second.Bound(ir.HTTPLocationQuery, "q"), "what it indexed first")
+	assert.Equal(t, []ir.ParameterID{"parameter/q"}, second.Bound(ir.HTTPLocationQuery, "q"), "what it indexed first")
 	assert.Empty(t, second.Bound(ir.HTTPLocationQuery, "r"), "and not what was added after")
 	assert.Empty(t, first.Bound(ir.HTTPLocationQuery, "r"))
 }
@@ -122,7 +122,7 @@ type bodyShape struct {
 	root  ir.TypeID
 	// taken is the declaration the root takes for a wire name where more than
 	// one model declares it.
-	taken map[string]ir.PropID
+	taken map[string]ir.PropertyID
 	// none is set where the root stands for no model: a union, which has no
 	// member of its own, or the head of more alias scalars than Stands reads.
 	none bool
@@ -145,7 +145,7 @@ func bodyShapes() map[string]bodyShape {
 	chained := func(length int) ir.TypeRegistry {
 		return irtest.DocOf(append(aliasChain("body", length, "m"), model("m", nil, prop("m.a", "a", "string")))...).Types
 	}
-	nullable := func(id ir.PropID, wire string, target ir.TypeID) ir.Property {
+	nullable := func(id ir.PropertyID, wire string, target ir.TypeID) ir.Property {
 		p := prop(id, wire, target)
 		p.Type.Nullable = true
 		return p
@@ -162,7 +162,7 @@ func bodyShapes() map[string]bodyShape {
 				model("m", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "base"} }, prop("m.n", "n", "string")),
 				model("base", nil, prop("base.n", "n", "string"), prop("base.k", "k", "string"))).Types,
 			root:  "m",
-			taken: map[string]ir.PropID{"n": "m.n"},
+			taken: map[string]ir.PropertyID{"n": "m.n"},
 		},
 		"members that are references": {
 			types: irtest.DocOf(model("m", nil, prop("m.c", "c", "child"), prop("m.d", "d", "child")), child).Types,
@@ -180,7 +180,7 @@ func bodyShapes() map[string]bodyShape {
 				model("y", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "z"} }),
 				model("z", nil, prop("z.n", "n", "string"), prop("z.k", "k", "string"))).Types,
 			root:  "m",
-			taken: map[string]ir.PropID{"n": "x.n"},
+			taken: map[string]ir.PropertyID{"n": "x.n"},
 		},
 		"a oneOf body": {
 			types: irtest.DocOf(&ir.Union{ID: "u", Exclusive: true, Variants: []ir.Variant{{Type: ir.TypeRef{Target: "m"}}}},
@@ -243,30 +243,30 @@ func TestDocument_MemberAgreesWithMembers(t *testing.T) {
 func TestDocument_WalkNamesEachMemberFromTheRoot(t *testing.T) {
 	t.Parallel()
 	types := irtest.DocOf(
-		model("t/page", nil, prop("p/info", "info", "t/info"), prop("p/items", "items", "t/text"),
-			prop("p/aliased", "aliased", "t/infoalias")),
-		model("t/info", nil, prop("p/next", "next", "t/text")),
-		irtest.ScalarOf("t/infoalias", "t/info"),
-		irtest.ScalarOf("t/pagealias", "t/page"),
-		&ir.Scalar{ID: "t/text"},
+		model("type/page", nil, prop("property/info", "info", "type/info"), prop("property/items", "items", "type/text"),
+			prop("property/aliased", "aliased", "type/infoalias")),
+		model("type/info", nil, prop("property/next", "next", "type/text")),
+		irtest.ScalarOf("type/infoalias", "type/info"),
+		irtest.ScalarOf("type/pagealias", "type/page"),
+		&ir.Scalar{ID: "type/text"},
 	).Types
 	for name, tc := range map[string]struct {
 		root   ir.TypeID
 		tokens []string
-		want   []ir.PropID
+		want   []ir.PropertyID
 		ok     bool
 	}{
-		"no token":                     {root: "t/page", want: []ir.PropID{}, ok: true},
-		"one member":                   {root: "t/page", tokens: []string{"items"}, want: []ir.PropID{"p/items"}, ok: true},
-		"a chain":                      {root: "t/page", tokens: []string{"info", "next"}, want: []ir.PropID{"p/info", "p/next"}, ok: true},
-		"a root that is an alias":      {root: "t/pagealias", tokens: []string{"info", "next"}, want: []ir.PropID{"p/info", "p/next"}, ok: true},
-		"a member typed at an alias":   {root: "t/page", tokens: []string{"aliased", "next"}, want: []ir.PropID{"p/aliased", "p/next"}, ok: true},
-		"a member the model lacks":     {root: "t/page", tokens: []string{"gone"}},
-		"a step through a scalar":      {root: "t/page", tokens: []string{"items", "next"}},
-		"a root that is no model":      {root: "t/text", tokens: []string{"next"}},
-		"a root the registry lacks":    {root: "t/gone", tokens: []string{"next"}},
-		"a member of the wrong model":  {root: "t/info", tokens: []string{"items"}},
-		"a member named by its own ID": {root: "t/page", tokens: []string{"p/items"}},
+		"no token":                     {root: "type/page", want: []ir.PropertyID{}, ok: true},
+		"one member":                   {root: "type/page", tokens: []string{"items"}, want: []ir.PropertyID{"property/items"}, ok: true},
+		"a chain":                      {root: "type/page", tokens: []string{"info", "next"}, want: []ir.PropertyID{"property/info", "property/next"}, ok: true},
+		"a root that is an alias":      {root: "type/pagealias", tokens: []string{"info", "next"}, want: []ir.PropertyID{"property/info", "property/next"}, ok: true},
+		"a member typed at an alias":   {root: "type/page", tokens: []string{"aliased", "next"}, want: []ir.PropertyID{"property/aliased", "property/next"}, ok: true},
+		"a member the model lacks":     {root: "type/page", tokens: []string{"gone"}},
+		"a step through a scalar":      {root: "type/page", tokens: []string{"items", "next"}},
+		"a root that is no model":      {root: "type/text", tokens: []string{"next"}},
+		"a root the registry lacks":    {root: "type/gone", tokens: []string{"next"}},
+		"a member of the wrong model":  {root: "type/info", tokens: []string{"items"}},
+		"a member named by its own ID": {root: "type/page", tokens: []string{"property/items"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -313,22 +313,22 @@ func TestDocument_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 func TestDocument_HeaderMatchesTheNameWithoutCase(t *testing.T) {
 	t.Parallel()
 	headers := []ir.Header{
-		{Property: prop("h/rate", "X-Rate", "t/text")},
-		{Property: prop("h/next", "Link", "t/text")},
-		{Property: prop("h/again", "x-rate", "t/text")},
+		{Property: prop("h/rate", "X-Rate", "type/text")},
+		{Property: prop("h/next", "Link", "type/text")},
+		{Property: prop("h/again", "x-rate", "type/text")},
 	}
 	w := compileddoc.New(&ir.Document{})
-	at := compileddoc.ResponseKey{Op: "op/x"}
-	assert.Equal(t, []ir.PropID{"h/rate", "h/again"}, w.Header(at, headers, "X-RATE"))
-	assert.Equal(t, []ir.PropID{"h/next"}, w.Header(at, headers, "link"))
+	at := compileddoc.ResponseKey{Op: "operation/x"}
+	assert.Equal(t, []ir.PropertyID{"h/rate", "h/again"}, w.Header(at, headers, "X-RATE"))
+	assert.Equal(t, []ir.PropertyID{"h/next"}, w.Header(at, headers, "link"))
 	assert.Empty(t, w.Header(at, headers, "ETag"))
 
-	other := []ir.Header{{Property: prop("h/other", "X-Rate", "t/text")}}
-	assert.Equal(t, []ir.PropID{"h/rate", "h/again"}, w.Header(at, other, "x-rate"), "a key's first read is kept")
+	other := []ir.Header{{Property: prop("h/other", "X-Rate", "type/text")}}
+	assert.Equal(t, []ir.PropertyID{"h/rate", "h/again"}, w.Header(at, other, "x-rate"), "a key's first read is kept")
 	for _, key := range []compileddoc.ResponseKey{
-		{Op: "op/x", List: compileddoc.ListErrors}, {Op: "op/x", Index: 1}, {Op: "op/y"},
+		{Op: "operation/x", List: compileddoc.ListErrors}, {Op: "operation/x", Index: 1}, {Op: "operation/y"},
 	} {
-		assert.Equal(t, []ir.PropID{"h/other"}, w.Header(key, other, "x-rate"), "%+v is a response of its own", key)
+		assert.Equal(t, []ir.PropertyID{"h/other"}, w.Header(key, other, "x-rate"), "%+v is a response of its own", key)
 	}
 }
 
@@ -339,16 +339,16 @@ func TestDocument_HeaderMatchesTheNameWithoutCase(t *testing.T) {
 // not run in parallel, since the count is process-wide.
 func TestDocument_ReadsOnceAndAllocatesNothingAfter(t *testing.T) {
 	w := compileddoc.New(&ir.Document{
-		Types:    irtest.DocOf(model("t/page", nil, prop("p/info", "info", "t/info"))).Types,
-		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "op/x"}}}}}},
+		Types:    irtest.DocOf(model("type/page", nil, prop("property/info", "info", "type/info"))).Types,
+		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "operation/x"}}}}}},
 	})
 	op := w.Ops[0]
-	headers := []ir.Header{{Property: prop("h/rate", "X-Rate", "t/text")}}
+	headers := []ir.Header{{Property: prop("h/rate", "X-Rate", "type/text")}}
 	reads := map[string]func(){
-		"a model's member":   func() { w.Member("t/page", "info") },
-		"a model's members":  func() { w.Members("t/page") },
+		"a model's member":   func() { w.Member("type/page", "info") },
+		"a model's members":  func() { w.Members("type/page") },
 		"a parameter index":  func() { w.Params(op) },
-		"a response headers": func() { w.Header(compileddoc.ResponseKey{Op: "op/x"}, headers, "x-rate") },
+		"a response headers": func() { w.Header(compileddoc.ResponseKey{Op: "operation/x"}, headers, "x-rate") },
 	}
 	for name, read := range reads {
 		read()
@@ -379,7 +379,7 @@ func TestDocument_ABodyReadFlattensNoModel(t *testing.T) {
 
 			got, why, ok := runtimeexpr.BodyPath(w, payload, []string{"a"}, "request")
 			require.True(t, ok, why)
-			assert.Equal(t, []ir.PropID{"a.a"}, got)
+			assert.Equal(t, []ir.PropertyID{"a.a"}, got)
 			assert.Zero(t, *flattenings, "no model of the %d contents is flattened", k)
 
 			w.Members("b00")
@@ -394,15 +394,15 @@ func TestDocument_ABodyReadFlattensNoModel(t *testing.T) {
 // the document flattens none.
 func TestDocument_APromotionNoMemberMarksFlattensNoModel(t *testing.T) {
 	t.Parallel()
-	page := model("t/page", nil, prop("p/items", "items", "t/list"), prop("p/next", "next", "t/text"))
+	page := model("type/page", nil, prop("property/items", "items", "type/list"), prop("property/next", "next", "type/text"))
 	op := ir.Operation{
-		ID: "op/list",
+		ID: "operation/list",
 		Responses: []ir.Response{{Payload: &ir.Payload{Contents: []ir.Content{
-			{MediaType: "application/json", Type: ir.TypeRef{Target: "t/page"}},
+			{MediaType: "application/json", Type: ir.TypeRef{Target: "type/page"}},
 		}}}},
 	}
 	w := compileddoc.New(&ir.Document{
-		Types:    irtest.DocOf(page, &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/text"}}, &ir.Scalar{ID: "t/text"}).Types,
+		Types:    irtest.DocOf(page, &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/text"}}, &ir.Scalar{ID: "type/text"}).Types,
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}},
 	})
 	p := promotion.New(promotion.ExtensionPromotions{

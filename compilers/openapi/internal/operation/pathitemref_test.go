@@ -45,7 +45,7 @@ func TestPathItemRefSiblings_IssueReproducer(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	putA := openapitest.FindOp(t, doc, "putA")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/put"), putA.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1a/put"), putA.ID)
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/put"), putA.Provenance.Pointer,
 		"the sibling operation is declared where it is mounted")
 	assert.Equal(t, "PUT", putA.Bindings.HTTP[0].Method)
@@ -58,8 +58,8 @@ func TestPathItemRefSiblings_IssueReproducer(t *testing.T) {
 	// adds fields beside the $ref does not stop referencing it.
 	atA := opByPath(t, doc, "GET", "/a")
 	atB := opByPath(t, doc, "GET", "/b")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/get"), atA.ID)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1b/get"), atB.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1a/get"), atA.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1b/get"), atB.ID)
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atA.Provenance.Pointer,
 		"the remounted operation is still declared at the component it names")
 	assert.Equal(t, "getB", atA.Name.Source)
@@ -108,12 +108,12 @@ func TestPathItemRefSiblings_WebhookRoute(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	sibling := openapitest.FindOp(t, doc, "siblingHook")
-	assert.Equal(t, ir.OpID("op/openapi/webhooks/hooked/post"), sibling.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/webhooks/hooked/post"), sibling.ID)
 	assert.Equal(t, jsontext.Pointer("/webhooks/hooked/post"), sibling.Provenance.Pointer)
 	assert.Equal(t, ir.HTTPInboundWebhook, sibling.Bindings.HTTP[0].Inbound, "a webhook operation keeps its binding")
 
 	referent := openapitest.FindOp(t, doc, "refHook")
-	assert.Equal(t, ir.OpID("op/openapi/webhooks/hooked/get"), referent.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/webhooks/hooked/get"), referent.ID)
 
 	for _, op := range []ir.Operation{sibling, referent} {
 		assertPathItemSiblingConstructs(t, doc, op, "/webhooks/hooked")
@@ -305,7 +305,7 @@ func TestPathItemRefSiblings_ASharedCallbackMountsPerParent(t *testing.T) {
 	assert.Empty(t, irverify.Verify(doc), "no operation ID is declared twice")
 
 	const expr = "/callbacks/cb/{$request.body#~1url}/put"
-	puts := map[ir.OpID]jsontext.Pointer{}
+	puts := map[ir.OperationID]jsontext.Pointer{}
 	for _, g := range doc.Services[0].Groups {
 		for _, op := range g.Operations {
 			if strings.HasSuffix(string(op.ID), expr) {
@@ -313,11 +313,11 @@ func TestPathItemRefSiblings_ASharedCallbackMountsPerParent(t *testing.T) {
 			}
 		}
 	}
-	assert.Equal(t, map[ir.OpID]jsontext.Pointer{
-		"op/openapi/paths/~1one/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
-		"op/openapi/paths/~1two/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
-		"op/openapi/paths/~1three/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
-		"op/openapi/webhooks/hook/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
+	assert.Equal(t, map[ir.OperationID]jsontext.Pointer{
+		"operation/openapi/paths/~1one/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
+		"operation/openapi/paths/~1two/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
+		"operation/openapi/paths/~1three/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
+		"operation/openapi/webhooks/hook/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
 	}, puts, "one operation per parent, each declared where the expression writes it")
 }
 

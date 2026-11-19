@@ -51,7 +51,7 @@ under `openapi:schema/x-a`, or its content entry's). The reader derives no spell
 being `openapi:x-a/b`, so stripping a scope would make the reader know the format (INV1), and
 stripping any would read an operation's `openapi:responses/x-…` key, its responses object's, as the
 operation's. A `policy` key on the document configures every operation, and one on an operation
-configures that operation, `Layer.Policy.Ops` keyed by its `OpID`
+configures that operation, `Layer.Policy.Ops` keyed by its `OperationID`
 ([layers](runtime-policy.md#layers-and-operations)). A `hint` key configures the node's own ID, so a
 key mapped to `rename` on a parameter renames that parameter, on an operation that method, and on a
 service that client. A `hint` key on the document configures its service where it has only one, as

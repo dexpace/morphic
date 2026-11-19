@@ -225,7 +225,7 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 // sub-schema beneath one ("Holder/properties/inner"). It stays a test-file
 // copy for the reason openapitest's doc comment gives.
 func componentID(name string) ir.TypeID {
-	return ir.TypeID("t/openapi/components/schemas/" + name)
+	return ir.TypeID("type/openapi/components/schemas/" + name)
 }
 
 // allOperations flattens every operation across a document's service groups.

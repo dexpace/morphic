@@ -48,7 +48,7 @@ func TestOneOf_WithDiscriminator(t *testing.T) {
 	require.Len(t, pet.Variants, 2, "both variants present")
 	require.NotNil(t, pet.Discriminator)
 	assert.Equal(t, "petType", pet.Discriminator.PropertyName)
-	assert.Equal(t, map[string]ir.TypeID{"cat": "t/openapi/components/schemas/Cat", "Dog": "t/openapi/components/schemas/Dog"},
+	assert.Equal(t, map[string]ir.TypeID{"cat": "type/openapi/components/schemas/Cat", "Dog": "type/openapi/components/schemas/Dog"},
 		pet.Discriminator.Mapping, "the mapping holds the route it implies to the variant it leaves out")
 }
 
@@ -83,7 +83,7 @@ func TestOneOf_NullVariantCollapses(t *testing.T) {
 	s, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, s.Properties, 1)
-	assert.Equal(t, ir.TypeRef{Target: "t/prim/string", Nullable: true}, s.Properties[0].Type)
+	assert.Equal(t, ir.TypeRef{Target: "type/primitive/string", Nullable: true}, s.Properties[0].Type)
 	for id, def := range doc.Types {
 		_, isUnion := def.(*ir.Union)
 		assert.False(t, isUnion, "null-variant oneOf must not produce a union node: %s", id)
@@ -115,7 +115,7 @@ func TestOneOf_ThreeVariantsWithNullStripsNullLiftsNullable(t *testing.T) {
 	require.True(t, ok, "the non-null branches form a Union")
 	require.Len(t, u.Variants, 2, "the null branch is stripped, not emitted as a variant")
 	for _, v := range u.Variants {
-		assert.NotEqual(t, ir.TypeID("t/prim/any"), v.Type.Target,
+		assert.NotEqual(t, ir.TypeID("type/primitive/any"), v.Type.Target,
 			"no variant degraded to any")
 	}
 }
@@ -317,7 +317,7 @@ func TestOneOf_InlineCoDeclaredDistributionHasNoImplicitDiscriminatorValue(t *te
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	u, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Kennel/properties/Combo")].(*ir.Union)
+	u, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/Kennel/properties/Combo")].(*ir.Union)
 	require.True(t, ok, "the co-declared oneOf hoists a union at the inline property")
 	require.Len(t, u.Variants, 2)
 	for i := range u.Variants {
@@ -348,8 +348,8 @@ func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
 	u := typeByName(doc, "Combo").(*ir.Union)
 	v, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, v.AdditionalProps)
-	assert.Equal(t, "combo_value", doc.Types[v.AdditionalProps.Value.Target].Common().Name.Hint)
+	require.NotNil(t, v.AdditionalProperties)
+	assert.Equal(t, "combo_value", doc.Types[v.AdditionalProperties.Value.Target].Common().Name.Hint)
 }
 
 // TestOneOf_CoDeclaredBranchNoObjectSatisfiesIsNoVariant pins a branch
@@ -393,8 +393,8 @@ func TestOneOf_CoDeclaredBranchNoObjectSatisfiesIsNoVariant(t *testing.T) {
 	assert.Equal(t, componentID("A"), object.Base.Target)
 	assert.Empty(t, object.Unmodeled)
 	require.NotNil(t, object.Constraints)
-	require.NotNil(t, object.Constraints.MinProps)
-	assert.Equal(t, int64(1), *object.Constraints.MinProps)
+	require.NotNil(t, object.Constraints.MinProperties)
+	assert.Equal(t, int64(1), *object.Constraints.MinProperties)
 	assert.IsType(t, &ir.Scalar{}, doc.Types[componentID("Scalar")])
 	assert.IsType(t, &ir.Enum{}, doc.Types[componentID("Choice")])
 }
@@ -418,7 +418,7 @@ func TestOneOf_CoDeclaredTypeListBranchComposesItsObject(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	for name, want := range map[string]ir.TypeID{"Bare": "t/anon/components/schemas/Mixed/type/0", "Beside": ""} {
+	for name, want := range map[string]ir.TypeID{"Bare": "type/anonymous/components/schemas/Mixed/type/0", "Beside": ""} {
 		u, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, name)
 		v, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
@@ -486,8 +486,8 @@ func TestOneOf_CoDeclaredBranchReadCutShortIsComposed(t *testing.T) {
 	assert.Equal(t, componentID("Loop1"), v.Base.Target)
 	assert.Empty(t, v.Unmodeled)
 	require.NotNil(t, v.Constraints)
-	require.NotNil(t, v.Constraints.MinProps)
-	assert.Equal(t, int64(1), *v.Constraints.MinProps)
+	require.NotNil(t, v.Constraints.MinProperties)
+	assert.Equal(t, int64(1), *v.Constraints.MinProperties)
 }
 
 // TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed covers the branches

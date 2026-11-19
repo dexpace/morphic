@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "ParamQuerystring",
         "canonical": "param_querystring"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1reports/get",
+              "id": "operation/openapi/paths/~1reports/get",
               "name": {
                 "source": "runReport",
                 "canonical": "run_report"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1reports/get/parameters/criteria/querystring",
+                  "id": "parameter/openapi/paths/~1reports/get/parameters/criteria/querystring",
                   "name": {
                     "source": "criteria",
                     "canonical": "criteria"
                   },
                   "type": {
-                    "target": "t/anon/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+                    "target": "type/anonymous/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
                     "nullable": false
                   },
                   "required": false,
@@ -111,7 +111,7 @@
                     "uriTemplate": "/reports",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1reports/get/parameters/criteria/querystring",
+                        "param": "parameter/openapi/paths/~1reports/get/parameters/criteria/querystring",
                         "location": "querystring",
                         "wireName": "criteria",
                         "allowReserved": false,
@@ -130,7 +130,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1reports~1summary/get",
+              "id": "operation/openapi/paths/~1reports~1summary/get",
               "name": {
                 "source": "summarize",
                 "canonical": "summarize"
@@ -138,13 +138,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1reports~1summary/get/parameters/status/query",
+                  "id": "parameter/openapi/paths/~1reports~1summary/get/parameters/status/query",
                   "name": {
                     "source": "status",
                     "canonical": "status"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -182,7 +182,7 @@
                     "uriTemplate": "/reports/summary",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1reports~1summary/get/parameters/status/query",
+                        "param": "parameter/openapi/paths/~1reports~1summary/get/parameters/status/query",
                         "location": "query",
                         "wireName": "status",
                         "style": "form",
@@ -201,7 +201,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1reports~1raw/get",
+              "id": "operation/openapi/paths/~1reports~1raw/get",
               "name": {
                 "source": "rawReport",
                 "canonical": "raw_report"
@@ -209,13 +209,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1reports~1raw/get/parameters/criteria/querystring",
+                  "id": "parameter/openapi/paths/~1reports~1raw/get/parameters/criteria/querystring",
                   "name": {
                     "source": "criteria",
                     "canonical": "criteria"
                   },
                   "type": {
-                    "target": "t/anon/paths/~1reports~1raw/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+                    "target": "type/anonymous/paths/~1reports~1raw/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
                     "nullable": false
                   },
                   "required": false,
@@ -253,7 +253,7 @@
                     "uriTemplate": "/reports/raw",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1reports~1raw/get/parameters/criteria/querystring",
+                        "param": "parameter/openapi/paths/~1reports~1raw/get/parameters/criteria/querystring",
                         "location": "querystring",
                         "wireName": "criteria",
                         "explode": false,
@@ -284,9 +284,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
+    "type/anonymous/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+      "id": "type/anonymous/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
       "name": {
         "hint": "criteria"
       },
@@ -299,21 +299,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/since",
+          "id": "property/openapi/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/since",
           "name": {
             "source": "since",
             "canonical": "since"
           },
           "wireName": "since",
           "type": {
-            "target": "t/prim/date",
+            "target": "type/primitive/date",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -326,21 +326,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/status",
+          "id": "property/openapi/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/status",
           "name": {
             "source": "status",
             "canonical": "status"
           },
           "wireName": "status",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -357,9 +357,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1reports~1raw/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
+    "type/anonymous/paths/~1reports~1raw/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1reports~1raw/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+      "id": "type/anonymous/paths/~1reports~1raw/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
       "name": {
         "hint": "criteria"
       },
@@ -374,9 +374,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/date": {
+    "type/primitive/date": {
       "kind": "primitive",
-      "id": "t/prim/date",
+      "id": "type/primitive/date",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -384,11 +384,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "date"
+      "primitiveKind": "date"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -396,7 +396,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

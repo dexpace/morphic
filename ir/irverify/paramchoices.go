@@ -24,7 +24,7 @@ func checkParamChoices(*ir.Document) walkCheck {
 	var vs []Violation
 	// Every variant and every operation is read through these, so neither
 	// costs a map of its own.
-	var seen scratchstate.Map[ir.ParamID, int]
+	var seen scratchstate.Map[ir.ParameterID, int]
 	var named scratchstate.Map[string, int]
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
@@ -48,7 +48,7 @@ func checkParamChoices(*ir.Document) walkCheck {
 }
 
 // appendChoiceViolations reports what choice, at where, fails of a choice.
-func appendChoiceViolations(vs []Violation, choice ir.ParamChoice, where string, seen *scratchstate.Map[ir.ParamID, int]) []Violation {
+func appendChoiceViolations(vs []Violation, choice ir.ParamChoice, where string, seen *scratchstate.Map[ir.ParameterID, int]) []Violation {
 	if len(choice.Variants) < 2 {
 		vs = append(vs, Violation{
 			Code:    "ir/param-choice-single",

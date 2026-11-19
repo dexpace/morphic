@@ -101,7 +101,7 @@ func TestInferWalks_ALinkHeldApartIsLeftUnset(t *testing.T) {
 		next *ir.PropPath
 	}{
 		"two contents": {true, nil},
-		"one content":  {false, propPath("p/openapi/components/schemas/JSONPage/properties/next")},
+		"one content":  {false, propPath("property/openapi/components/schemas/JSONPage/properties/next")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -112,7 +112,7 @@ func TestInferWalks_ALinkHeldApartIsLeftUnset(t *testing.T) {
 					Strategy:    ir.PageStrategyPage,
 					Inferred:    true,
 					InputCursor: inputPath(queryParam("things", "page")),
-					Items:       propPath("p/openapi/components/schemas/Base/properties/result"),
+					Items:       propPath("property/openapi/components/schemas/Base/properties/result"),
 					NextLink:    tc.next,
 				}, op.Pagination)
 			}
@@ -186,8 +186,8 @@ func TestInferWalks_ReadsAHeaderCursor(t *testing.T) {
 				Inferred:    true,
 				InputCursor: inputPath(queryParam("things", "cursor")),
 				Items:       propPath(),
-				NextCursor: &ir.PropPath{In: "header", Segments: []ir.PropID{
-					ir.PropID("p/openapi/paths/~1things/get/responses/200/headers/" + name)}},
+				NextCursor: &ir.PropPath{In: "header", Segments: []ir.PropertyID{
+					ir.PropertyID("property/openapi/paths/~1things/get/responses/200/headers/" + name)}},
 				Stop: []ir.PageStop{ir.PageStopNoNext},
 			}, op.Pagination)
 			assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)

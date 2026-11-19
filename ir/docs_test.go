@@ -24,7 +24,7 @@ func TestDocs_JSONContract(t *testing.T) {
 // assume.
 func TestDocRef_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.DocRef{}, `{"startByte":0,"endByte":0,"type":""}`, ir.DocRef{StartByte: 1, EndByte: 2, Type: "t/x"})
+	assertJSONContract(t, ir.DocRef{}, `{"startByte":0,"endByte":0,"type":""}`, ir.DocRef{StartByte: 1, EndByte: 2, Type: "type/x"})
 }
 
 // TestLink_JSONContract pins Link's omitempty contract (both fields are
@@ -66,14 +66,14 @@ func TestErrorExample_JSONContract(t *testing.T) {
 // serialization.
 func TestExample_JSONContract(t *testing.T) {
 	t.Parallel()
-	val := ir.Value{Kind: ir.ValueString, Str: "example value"}
+	val := ir.Value{Kind: ir.ValueString, String: "example value"}
 	assertJSONContract(t, ir.Example{}, `{}`, ir.Example{
 		Name:        "example-1",
 		Summary:     "an example",
 		Description: "a longer description",
 		Value:       &val,
 		Headers:     &val,
-		Input:       &ir.ScenarioInput{Params: map[ir.ParamID]ir.Value{"param/x/q": val}, Body: &val},
+		Input:       &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/q": val}, Body: &val},
 		Output:      &val,
 		Error: &ir.ErrorExample{
 			Type:    populatedTypeRef(),

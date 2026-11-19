@@ -44,7 +44,7 @@ func TestParamIndex_NamedReadsALocationQualifiedName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		key     string
-		want    ir.ParamID
+		want    ir.ParameterID
 		matched int
 	}{
 		{"path.id", "path-id", 1},
@@ -74,12 +74,12 @@ func TestParamIndex_NamedReadsALocationQualifiedName(t *testing.T) {
 func TestParamIndex_LeavesTheHostOut(t *testing.T) {
 	t.Parallel()
 	op := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
-		{Param: "param/x/host", Location: ir.HTTPLocationHost, WireName: "id"},
-		{Param: "param/x/id", Location: ir.HTTPLocationQuery, WireName: "id"},
+		{Param: "parameter/x/host", Location: ir.HTTPLocationHost, WireName: "id"},
+		{Param: "parameter/x/id", Location: ir.HTTPLocationQuery, WireName: "id"},
 	}}}}}
 	w, held := wholeOf(*op)
 	ix := w.Params(held)
-	assert.Equal(t, []ir.ParamID{"param/x/id"}, ix.Bound("", "id"))
+	assert.Equal(t, []ir.ParameterID{"parameter/x/id"}, ix.Bound("", "id"))
 	assert.Empty(t, ix.Bound(ir.HTTPLocationHost, "id"))
 }
 
@@ -92,7 +92,7 @@ func TestParamIndex_PlacementsReadsWhereEachParameterIsBound(t *testing.T) {
 	w, op := wholeOf(*paramsOp())
 	ix := w.Params(op)
 	for _, tc := range []struct {
-		id   ir.ParamID
+		id   ir.ParameterID
 		want []compileddoc.Placement
 	}{
 		{"query-id", []compileddoc.Placement{{Location: ir.HTTPLocationQuery, Name: "id"}}},

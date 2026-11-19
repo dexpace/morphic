@@ -225,7 +225,7 @@ func TestEncoding_ArrangingFieldsLowerWhereTheyTakeEffect(t *testing.T) {
 				"{type: object, properties: {v: {type: object, properties: {a: {type: string}}}}}", "{v: "+tc.entry+"}", ""))
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := formContent(t, svc, false)
-			assert.Equal(t, map[ir.PropID]ir.PartEncoding{partProp(requestMedia(tc.mt), "v"): tc.want}, content.Encoding)
+			assert.Equal(t, map[ir.PropertyID]ir.PartEncoding{partProp(requestMedia(tc.mt), "v"): tc.want}, content.Encoding)
 			assert.Equal(t, tc.kept, keptEncodingNames(content.Unmodeled))
 			var warned []string
 			for _, d := range diags {

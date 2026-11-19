@@ -193,8 +193,8 @@ any, dropped, unrepresentable — differs at every one of them.
 
 `t/prim/<kind>` is the one exception to "derivation left behind", and for the reason the rest of the
 row states: a compiler's path is its own, so the framework cannot compute one. A primitive has no
-path. It derives from no source position at all — its identity is its `PrimKind`, which is an `ir`
-type — so `ir.PrimTypeID` is the one ID `ir` *can* derive, and it derives it (#73's second
+path. It derives from no source position at all — its identity is its `PrimitiveKind`, which is an `ir`
+type — so `ir.PrimitiveTypeID` is the one ID `ir` *can* derive, and it derives it (#73's second
 acceptance bullet).
 
 Placement follows the same argument that took the naming grammar past `compilers/compile` in §3.1,
@@ -687,7 +687,7 @@ Two assertions, neither implying the other:
 - `ID → pointer` injectivity catches a grammar that **collapses** two distinct pointers.
 
 Primitives are excluded from both: `t/prim/<kind>` is shared and derives from no source position.
-What holds them instead is `ir/prim-id-not-derived`, which asks the ID to agree with the `PrimKind`
+What holds them instead is `ir/prim-id-not-derived`, which asks the ID to agree with the `PrimitiveKind`
 it keys rather than with a pointer there is none of — see §3.4.
 
 `irverify` cannot host this as things stand — it is Layer 0 and imports only `ir`, while the grammar
@@ -851,7 +851,7 @@ landing them first would only encode the current one.
 | Issue | Disposition |
 |---|---|
 | #57 archtest cannot enforce compiler isolation | **Closed.** Landed with #161/#143; it was a prerequisite for every package boundary here |
-| #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Closed, and its own proposal was right about both halves.** The naming grammar lives in `ir` with `irverify` validating against it. The ID grammar stayed in `compilers/compile` — a compiler's path is its own and nothing in `ir` can compute one — but `t/prim/<kind>` is the path there is none of, so `ir.PrimTypeID` went to `ir` with it, and `irverify` holds every producer to it: §3.4 |
+| #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Closed, and its own proposal was right about both halves.** The naming grammar lives in `ir` with `irverify` validating against it. The ID grammar stayed in `compilers/compile` — a compiler's path is its own and nothing in `ir` can compute one — but `t/prim/<kind>` is the path there is none of, so `ir.PrimitiveTypeID` went to `ir` with it, and `irverify` holds every producer to it: §3.4 |
 | #54 cased `Naming.Hint` passes the neutrality check | **Closed**, as its own entry said it would have to be: by changing how the compilers derive hints — `compile.NamingHint` and `compile.SubHint` run the grammar — and regenerating every golden, not by tightening the checker alone |
 | #83 enforce size and complexity caps in lint | **Closed by 4.2**, deliberately last |
 | #66 extract a shared JSON-Schema→IR lowering core before the next compilers land | **Superseded.** Its premise expired — the next compilers landed without it (#20, #21). §3 replaces it with evidence-based promotion. To be closed with that reasoning, not silently |

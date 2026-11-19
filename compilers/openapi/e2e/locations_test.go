@@ -142,7 +142,7 @@ func TestCompile_ALocationWithNoFinalSeparatorIsTheDirectoryItNames(t *testing.T
 				assert.Equal(t, filepath.Join(root, "x", "b.yaml"), filepath.Clean(loc), "never the parent's b.yaml")
 			}
 			assert.NotEmpty(t, rec.locations())
-			assert.Equal(t, ir.TypeID("t/prim/string"), typeTarget(t, doc, useTarget(t, doc, "p")))
+			assert.Equal(t, ir.TypeID("type/primitive/string"), typeTarget(t, doc, useTarget(t, doc, "p")))
 		})
 	}
 }

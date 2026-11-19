@@ -15,13 +15,13 @@ import (
 )
 
 // decoratorBase is the reference every decorator below decorates.
-var decoratorBase = ir.TypeRef{Target: "t/openapi/components/schemas/Status", Nullable: true}
+var decoratorBase = ir.TypeRef{Target: "type/openapi/components/schemas/Status", Nullable: true}
 
 // decoratorCommon returns a TypeCommon setting every field a decorator may
 // set, so a sweep that sets one more field changes only that.
 func decoratorCommon() ir.TypeCommon {
 	return ir.TypeCommon{
-		ID:           "t/anon/components/schemas/W/properties/state",
+		ID:           "type/anonymous/components/schemas/W/properties/state",
 		Name:         ir.Naming{Hint: "state"},
 		Namespace:    []string{"ns"},
 		Anonymous:    true,
@@ -80,7 +80,7 @@ func TestDecorated_RefusesWhatIsNoDecorator(t *testing.T) {
 		"nil":                nil,
 		"typed nil model":    (*ir.Model)(nil),
 		"typed nil scalar":   (*ir.Scalar)(nil),
-		"list":               &ir.List{TypeCommon: decoratorCommon(), Elem: base},
+		"list":               &ir.List{TypeCommon: decoratorCommon(), ElementType: base},
 		"model with no base": baseless,
 		"scalar no base":     baselessScalar,
 		"named model":        named,

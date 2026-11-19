@@ -35,7 +35,7 @@ func propertyBounds(t *testing.T, sets ...*ir.Constraints) []declaration {
 	t.Helper()
 	decls := make([]declaration, len(sets))
 	for i, c := range sets {
-		decls[i] = nthDecl(i, primRef(ir.PrimString).Target)
+		decls[i] = nthDecl(i, primRef(ir.PrimitiveString).Target)
 		decls[i].prop.Constraints = c
 		decls[i].source = unread(t)
 	}
@@ -65,8 +65,8 @@ func TestFold_ABoundTakesItsTightestValueInEveryOrder(t *testing.T) {
 		{"maxLength", [3]*ir.Constraints{{MaxLength: count(9)}, {MaxLength: count(2)}, {MaxLength: count(5)}}, &ir.Constraints{MaxLength: count(2)}},
 		{"minItems", [3]*ir.Constraints{{MinItems: count(1)}, {MinItems: count(5)}, {MinItems: count(3)}}, &ir.Constraints{MinItems: count(5)}},
 		{"maxItems", [3]*ir.Constraints{{MaxItems: count(9)}, {MaxItems: count(2)}, {MaxItems: count(5)}}, &ir.Constraints{MaxItems: count(2)}},
-		{"minProperties", [3]*ir.Constraints{{MinProps: count(1)}, {MinProps: count(5)}, {MinProps: count(3)}}, &ir.Constraints{MinProps: count(5)}},
-		{"maxProperties", [3]*ir.Constraints{{MaxProps: count(9)}, {MaxProps: count(2)}, {MaxProps: count(5)}}, &ir.Constraints{MaxProps: count(2)}},
+		{"minProperties", [3]*ir.Constraints{{MinProperties: count(1)}, {MinProperties: count(5)}, {MinProperties: count(3)}}, &ir.Constraints{MinProperties: count(5)}},
+		{"maxProperties", [3]*ir.Constraints{{MaxProperties: count(9)}, {MaxProperties: count(2)}, {MaxProperties: count(5)}}, &ir.Constraints{MaxProperties: count(2)}},
 		{"multipleOf, each a multiple of the last", [3]*ir.Constraints{{MultipleOf: big("2")}, {MultipleOf: big("12")}, {MultipleOf: big("4")}}, &ir.Constraints{MultipleOf: big("12")}},
 		{"multipleOf, no two dividing", [3]*ir.Constraints{{MultipleOf: big("4")}, {MultipleOf: big("6")}, {MultipleOf: big("10")}}, &ir.Constraints{MultipleOf: big("60")}},
 		{"uniqueItems", [3]*ir.Constraints{{}, {UniqueItems: true}, {}}, &ir.Constraints{UniqueItems: true}},
@@ -178,10 +178,10 @@ func TestBoundsBeyond_KeepsWhatTheOtherDoesNotStateAtThatValue(t *testing.T) {
 // boundedNodeKinds builds a hoisted node of each kind that holds bounds, written
 // at the nth declaration, holding c and a detail a mint must carry over.
 func boundedNodeKinds() map[string]func(n int, c *ir.Constraints) ir.TypeDef {
-	i32 := primRef(ir.PrimInt32)
+	i32 := primRef(ir.PrimitiveInt32)
 	site := func(n int) ir.TypeCommon {
 		return ir.TypeCommon{
-			ID: ir.TypeID(fmt.Sprintf("t/node/%d", n)), Anonymous: true, Provenance: ptrAt(declaredAt(n)),
+			ID: ir.TypeID(fmt.Sprintf("type/node/%d", n)), Anonymous: true, Provenance: ptrAt(declaredAt(n)),
 			Docs: ir.Docs{Description: "detail"},
 		}
 	}
@@ -190,13 +190,13 @@ func boundedNodeKinds() map[string]func(n int, c *ir.Constraints) ir.TypeDef {
 			return &ir.Scalar{TypeCommon: site(n), Base: &i32, Encoding: &ir.Encoding{Name: "x"}, Constraints: c}
 		},
 		"a list": func(n int, c *ir.Constraints) ir.TypeDef {
-			return &ir.List{TypeCommon: site(n), Elem: i32, Constraints: c}
+			return &ir.List{TypeCommon: site(n), ElementType: i32, Constraints: c}
 		},
 		"a map": func(n int, c *ir.Constraints) ir.TypeDef {
 			return &ir.MapT{TypeCommon: site(n), Value: i32, Constraints: c}
 		},
 		"a tuple": func(n int, c *ir.Constraints) ir.TypeDef {
-			return &ir.Tuple{TypeCommon: site(n), Elems: []ir.TypeRef{i32}, Constraints: c}
+			return &ir.Tuple{TypeCommon: site(n), ElementTypes: []ir.TypeRef{i32}, Constraints: c}
 		},
 	}
 }
@@ -240,8 +240,8 @@ func TestFold_NodesThatMeetStandOnAMintedNode(t *testing.T) {
 				assert.Equal(t, node(0, nil).Kind(), minted.Kind())
 				assert.Equal(t, want, boundsOf(minted))
 				assert.Equal(t, "detail", minted.Common().Docs.Description, "what the two share stays")
-				assert.Equal(t, lower, boundsOf(reg["t/node/0"]), "the declared node is as it was written")
-				assert.Equal(t, upper, boundsOf(reg["t/node/1"]), "and so is the other")
+				assert.Equal(t, lower, boundsOf(reg["type/node/0"]), "the declared node is as it was written")
+				assert.Equal(t, upper, boundsOf(reg["type/node/1"]), "and so is the other")
 				assert.Empty(t, *recorded)
 				assert.Empty(t, got.Unmodeled)
 			})
@@ -289,13 +289,13 @@ func TestFold_TheBoundsOfEveryDeclarationMeetInEveryOrder(t *testing.T) {
 func TestFold_ADroppedDeclarationsBoundsStayOffAMintedNode(t *testing.T) {
 	t.Parallel()
 	reg := narrowingRegistry()
-	i32 := primRef(ir.PrimInt32)
+	i32 := primRef(ir.PrimitiveInt32)
 	decls := nodeDecls(t, reg, func(n int, c *ir.Constraints) ir.TypeDef {
-		return &ir.List{ID: ir.TypeID(fmt.Sprintf("t/lists/%d", n)), Anonymous: true, Provenance: ptrAt(declaredAt(n)), Elem: i32, Constraints: c}
+		return &ir.List{ID: ir.TypeID(fmt.Sprintf("type/lists/%d", n)), Anonymous: true, Provenance: ptrAt(declaredAt(n)), ElementType: i32, Constraints: c}
 	}, &ir.Constraints{MinItems: new(int64(1))}, &ir.Constraints{MaxItems: new(int64(5))})
-	reg["t/strings"] = &ir.List{ID: "t/strings", Anonymous: true, Provenance: ptrAt(declaredAt(2)), Elem: primRef(ir.PrimString),
+	reg["type/strings"] = &ir.List{ID: "type/strings", Anonymous: true, Provenance: ptrAt(declaredAt(2)), ElementType: primRef(ir.PrimitiveString),
 		Constraints: &ir.Constraints{MaxItems: new(int64(2))}}
-	dropped := nthDecl(2, "t/strings")
+	dropped := nthDecl(2, "type/strings")
 	inOrders(t, append(decls, dropped), func(t *testing.T, ordered []declaration) {
 		t.Helper()
 		g, recorded := stubMerger(reg)
@@ -320,9 +320,9 @@ func TestFold_ANodeHoldingEveryBoundIsNotMinted(t *testing.T) {
 		sets []*ir.Constraints
 		want ir.TypeID
 	}{
-		{"a bound against a bare node", []*ir.Constraints{nil, {MaxItems: five}}, "t/node/1"},
-		{"a tighter bound", []*ir.Constraints{{MaxItems: nine}, {MaxItems: five}}, "t/node/1"},
-		{"a node holding what two others add", []*ir.Constraints{{MinItems: one}, {MaxItems: five}, {MinItems: one, MaxItems: five}}, "t/node/2"},
+		{"a bound against a bare node", []*ir.Constraints{nil, {MaxItems: five}}, "type/node/1"},
+		{"a tighter bound", []*ir.Constraints{{MaxItems: nine}, {MaxItems: five}}, "type/node/1"},
+		{"a node holding what two others add", []*ir.Constraints{{MinItems: one}, {MaxItems: five}, {MinItems: one, MaxItems: five}}, "type/node/2"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -380,7 +380,7 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 		t.Parallel()
 		reg := narrowingRegistry()
 		nodes := mirrored(t, reg, &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"})
-		bare := nthDecl(2, primRef(ir.PrimInt32).Target)
+		bare := nthDecl(2, primRef(ir.PrimitiveInt32).Target)
 		bare.prop.Constraints = &ir.Constraints{Pattern: "^b$"}
 		g, recorded := stubMerger(reg)
 
@@ -420,28 +420,28 @@ func TestFold_AValueIsHeldToTheBoundsOthersBring(t *testing.T) {
 	hello := str("hello")
 	for _, tc := range []struct {
 		name         string
-		kind         ir.PrimKind
+		kind         ir.PrimitiveKind
 		own, another *ir.Constraints
 		value        ir.Value
 		taken        bool
 	}{
-		{name: "a string past another's maxLength", kind: ir.PrimString, another: &ir.Constraints{MaxLength: count(3)}, value: hello},
-		{name: "a string within another's maxLength", kind: ir.PrimString, another: &ir.Constraints{MaxLength: count(5)}, value: hello, taken: true},
-		{name: "a string below another's minLength", kind: ir.PrimString, another: &ir.Constraints{MinLength: count(6)}, value: hello},
-		{name: "a string past a bound tighter than its own", kind: ir.PrimString, own: &ir.Constraints{MaxLength: count(9)}, another: &ir.Constraints{MaxLength: count(3)}, value: hello},
-		{name: "a string past its own bound alone", kind: ir.PrimString, own: &ir.Constraints{MaxLength: count(3)}, value: hello, taken: true},
-		{name: "a string past its own bound, which another restates", kind: ir.PrimString, own: &ir.Constraints{MaxLength: count(3)}, another: &ir.Constraints{MaxLength: count(3)}, value: hello, taken: true},
-		{name: "a string past its own bound, another's being looser", kind: ir.PrimString, own: &ir.Constraints{MaxLength: count(3)}, another: &ir.Constraints{MaxLength: count(9)}, value: hello, taken: true},
-		{name: "a string under another's pattern, which nothing evaluates", kind: ir.PrimString, another: &ir.Constraints{Pattern: "^h"}, value: hello},
-		{name: "a string under its own pattern", kind: ir.PrimString, own: &ir.Constraints{Pattern: "^x"}, value: hello, taken: true},
-		{name: "a number below another's minimum", kind: ir.PrimNumber, another: &ir.Constraints{Min: big("5")}, value: num("1")},
-		{name: "a number within another's minimum", kind: ir.PrimNumber, another: &ir.Constraints{Min: big("5")}, value: num("9"), taken: true},
-		{name: "a number at another's exclusive bound", kind: ir.PrimNumber, another: &ir.Constraints{ExclusiveMax: big("5")}, value: num("5")},
-		{name: "a number off the step the two make", kind: ir.PrimNumber, own: &ir.Constraints{MultipleOf: big("4")}, another: &ir.Constraints{MultipleOf: big("6")}, value: num("8")},
-		{name: "a number on the step the two make", kind: ir.PrimNumber, own: &ir.Constraints{MultipleOf: big("4")}, another: &ir.Constraints{MultipleOf: big("6")}, value: num("24"), taken: true},
-		{name: "a bound for another kind of value", kind: ir.PrimNumber, another: &ir.Constraints{MaxLength: count(1)}, value: num("123"), taken: true},
-		{name: "a list repeating under another's uniqueItems", kind: ir.PrimAny, another: &ir.Constraints{UniqueItems: true}, value: ir.Value{Kind: ir.ValueList, List: []ir.Value{hello, hello}}},
-		{name: "a list repeating under its own uniqueItems", kind: ir.PrimAny, own: &ir.Constraints{UniqueItems: true}, another: &ir.Constraints{UniqueItems: true}, value: ir.Value{Kind: ir.ValueList, List: []ir.Value{hello, hello}}, taken: true},
+		{name: "a string past another's maxLength", kind: ir.PrimitiveString, another: &ir.Constraints{MaxLength: count(3)}, value: hello},
+		{name: "a string within another's maxLength", kind: ir.PrimitiveString, another: &ir.Constraints{MaxLength: count(5)}, value: hello, taken: true},
+		{name: "a string below another's minLength", kind: ir.PrimitiveString, another: &ir.Constraints{MinLength: count(6)}, value: hello},
+		{name: "a string past a bound tighter than its own", kind: ir.PrimitiveString, own: &ir.Constraints{MaxLength: count(9)}, another: &ir.Constraints{MaxLength: count(3)}, value: hello},
+		{name: "a string past its own bound alone", kind: ir.PrimitiveString, own: &ir.Constraints{MaxLength: count(3)}, value: hello, taken: true},
+		{name: "a string past its own bound, which another restates", kind: ir.PrimitiveString, own: &ir.Constraints{MaxLength: count(3)}, another: &ir.Constraints{MaxLength: count(3)}, value: hello, taken: true},
+		{name: "a string past its own bound, another's being looser", kind: ir.PrimitiveString, own: &ir.Constraints{MaxLength: count(3)}, another: &ir.Constraints{MaxLength: count(9)}, value: hello, taken: true},
+		{name: "a string under another's pattern, which nothing evaluates", kind: ir.PrimitiveString, another: &ir.Constraints{Pattern: "^h"}, value: hello},
+		{name: "a string under its own pattern", kind: ir.PrimitiveString, own: &ir.Constraints{Pattern: "^x"}, value: hello, taken: true},
+		{name: "a number below another's minimum", kind: ir.PrimitiveNumber, another: &ir.Constraints{Min: big("5")}, value: num("1")},
+		{name: "a number within another's minimum", kind: ir.PrimitiveNumber, another: &ir.Constraints{Min: big("5")}, value: num("9"), taken: true},
+		{name: "a number at another's exclusive bound", kind: ir.PrimitiveNumber, another: &ir.Constraints{ExclusiveMax: big("5")}, value: num("5")},
+		{name: "a number off the step the two make", kind: ir.PrimitiveNumber, own: &ir.Constraints{MultipleOf: big("4")}, another: &ir.Constraints{MultipleOf: big("6")}, value: num("8")},
+		{name: "a number on the step the two make", kind: ir.PrimitiveNumber, own: &ir.Constraints{MultipleOf: big("4")}, another: &ir.Constraints{MultipleOf: big("6")}, value: num("24"), taken: true},
+		{name: "a bound for another kind of value", kind: ir.PrimitiveNumber, another: &ir.Constraints{MaxLength: count(1)}, value: num("123"), taken: true},
+		{name: "a list repeating under another's uniqueItems", kind: ir.PrimitiveAny, another: &ir.Constraints{UniqueItems: true}, value: ir.Value{Kind: ir.ValueList, List: []ir.Value{hello, hello}}},
+		{name: "a list repeating under its own uniqueItems", kind: ir.PrimitiveAny, own: &ir.Constraints{UniqueItems: true}, another: &ir.Constraints{UniqueItems: true}, value: ir.Value{Kind: ir.ValueList, List: []ir.Value{hello, hello}}, taken: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -476,7 +476,7 @@ func TestFold_AValueIsHeldToTheBoundsOthersBring(t *testing.T) {
 func TestFold_AnExampleIsHeldToTheBoundsOthersBringAsAWhole(t *testing.T) {
 	t.Parallel()
 	fits, past := str("abc"), str("hello")
-	withExamples, bound := nthDecl(0, primRef(ir.PrimString).Target), nthDecl(1, primRef(ir.PrimString).Target)
+	withExamples, bound := nthDecl(0, primRef(ir.PrimitiveString).Target), nthDecl(1, primRef(ir.PrimitiveString).Target)
 	withExamples.prop.Examples = []ir.Example{{Value: &fits}, {Value: &past}}
 	bound.prop.Constraints = &ir.Constraints{MaxLength: new(int64(3))}
 	g, recorded := stubMerger(narrowingRegistry())
@@ -540,13 +540,13 @@ func TestFold_ANodesBoundsJudgeAValueWrittenAgainstItsOwnKind(t *testing.T) {
 func TestFold_AValueOfABroaderMemberIsJudgedByTheField(t *testing.T) {
 	t.Parallel()
 	fraction := ir.Value{Kind: ir.ValueList, List: []ir.Value{num("1.5")}}
-	broad, narrow := nthDecl(0, "t/list-int"), nthDecl(1, "t/list-i32")
+	broad, narrow := nthDecl(0, "type/list-int"), nthDecl(1, "type/list-i32")
 	broad.prop.Default = &fraction
 	g, recorded := stubMerger(judgeRegistry())
 
 	got := g.fold([]declaration{broad, narrow})
 
-	assert.Equal(t, ir.TypeID("t/list-i32"), got.Type.Target)
+	assert.Equal(t, ir.TypeID("type/list-i32"), got.Type.Target)
 	assert.Nil(t, got.Default)
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
@@ -563,12 +563,12 @@ func TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth(t *testing.T
 	reg := map[ir.TypeID]ir.TypeDef{}
 	for _, side := range []string{"a", "b"} {
 		for level := range depth {
-			next := ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/%s/%d", side, level+1))}
-			id := ir.TypeID(fmt.Sprintf("t/%s/%d", side, level))
-			reg[id] = &ir.Tuple{ID: id, Anonymous: true, Provenance: ptrAt(jsontext.Pointer("/" + side)), Elems: slices.Repeat([]ir.TypeRef{next}, width)}
+			next := ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("type/%s/%d", side, level+1))}
+			id := ir.TypeID(fmt.Sprintf("type/%s/%d", side, level))
+			reg[id] = &ir.Tuple{ID: id, Anonymous: true, Provenance: ptrAt(jsontext.Pointer("/" + side)), ElementTypes: slices.Repeat([]ir.TypeRef{next}, width)}
 		}
-		leaf := ir.TypeID(fmt.Sprintf("t/%s/%d", side, depth))
-		reg[leaf] = &ir.Primitive{ID: leaf, Prim: ir.PrimString}
+		leaf := ir.TypeID(fmt.Sprintf("type/%s/%d", side, depth))
+		reg[leaf] = &ir.Primitive{ID: leaf, PrimitiveKind: ir.PrimitiveString}
 	}
 	reads := 0
 	j := typeJudge{
@@ -580,7 +580,7 @@ func TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth(t *testing.T
 		sites: declarationSites{written: [2][]ir.Provenance{sitesAt("/a"), sitesAt("/b")}, walk: &stubWalk{}},
 	}
 
-	rel := j.relate(ref("t/a/0"), ref("t/b/0"))
+	rel := j.relate(ref("type/a/0"), ref("type/b/0"))
 
 	assert.Equal(t, relUnrelated, rel, "a tuple holding tuples is compared by no position")
 	assert.LessOrEqual(t, reads, 2*width*depth, "the reads grow with the document, not with its width to the depth")
@@ -592,12 +592,12 @@ func TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth(t *testing.T
 func TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth(t *testing.T) {
 	t.Parallel()
 	reg := judgeRegistry()
-	reg["t/held-min"] = &ir.List{ID: "t/held-min", Elem: ref("t/tuple-min")}
-	reg["t/held-bare"] = &ir.List{ID: "t/held-bare", Elem: ref("t/tuple")}
+	reg["type/held-min"] = &ir.List{ID: "type/held-min", ElementType: ref("type/tuple-min")}
+	reg["type/held-bare"] = &ir.List{ID: "type/held-bare", ElementType: ref("type/tuple")}
 	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
 
-	assert.Equal(t, firstTypeIsNarrower, j.relate(ref("t/tuple-min"), ref("t/tuple")), "as a field's own type")
-	assert.Equal(t, relUnrelated, j.relate(ref("t/held-min"), ref("t/held-bare")), "as what a list holds")
+	assert.Equal(t, firstTypeIsNarrower, j.relate(ref("type/tuple-min"), ref("type/tuple")), "as a field's own type")
+	assert.Equal(t, relUnrelated, j.relate(ref("type/held-min"), ref("type/held-bare")), "as what a list holds")
 }
 
 // TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn pins whose copies a
@@ -611,14 +611,14 @@ func TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn(t *testing.T) {
 	element := func(id string, n int) *ir.Scalar {
 		p := at(n)
 		p.Pointer += "/items"
-		return &ir.Scalar{ID: ir.TypeID(id), Anonymous: true, Provenance: p, Base: new(primRef(ir.PrimString)), Encoding: &ir.Encoding{Name: "x"}}
+		return &ir.Scalar{ID: ir.TypeID(id), Anonymous: true, Provenance: p, Base: new(primRef(ir.PrimitiveString)), Encoding: &ir.Encoding{Name: "x"}}
 	}
 	reg := narrowingRegistry()
-	reg["t/e0"], reg["t/e1"] = element("t/e0", 0), element("t/e1", 1)
-	reg["t/l0"] = &ir.List{ID: "t/l0", Anonymous: true, Provenance: at(0), Elem: ref("t/e0")}
-	reg["t/l1"] = &ir.List{ID: "t/l1", Anonymous: true, Provenance: at(1), Elem: ref("t/e1"), Constraints: &ir.Constraints{MaxItems: new(int64(5))}}
+	reg["type/e0"], reg["type/e1"] = element("type/e0", 0), element("type/e1", 1)
+	reg["type/l0"] = &ir.List{ID: "type/l0", Anonymous: true, Provenance: at(0), ElementType: ref("type/e0")}
+	reg["type/l1"] = &ir.List{ID: "type/l1", Anonymous: true, Provenance: at(1), ElementType: ref("type/e1"), Constraints: &ir.Constraints{MaxItems: new(int64(5))}}
 	value := ir.Value{Kind: ir.ValueList, List: []ir.Value{str("a")}}
-	first, second := nthDecl(0, "t/l0"), nthDecl(1, "t/l1")
+	first, second := nthDecl(0, "type/l0"), nthDecl(1, "type/l1")
 	first.prop.Provenance, second.prop.Provenance = at(0), at(1)
 	first.prop.Default = &value
 	g, recorded := stubMerger(reg)
@@ -635,14 +635,14 @@ func TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn(t *testing.T) {
 func TestFold_ATypeTheRegistryDoesNotHoldHoldsNoBounds(t *testing.T) {
 	t.Parallel()
 	value := str("hello")
-	first, second := nthDecl(0, "t/absent"), nthDecl(1, "t/absent")
+	first, second := nthDecl(0, "type/absent"), nthDecl(1, "type/absent")
 	first.prop.Default = &value
 	g, recorded := stubMerger(narrowingRegistry())
 
 	got := g.fold([]declaration{first, second})
 
 	assert.Equal(t, &value, got.Default)
-	assert.Equal(t, ir.TypeID("t/absent"), got.Type.Target)
+	assert.Equal(t, ir.TypeID("type/absent"), got.Type.Target)
 	assert.Empty(t, *recorded)
 }
 
@@ -651,7 +651,7 @@ func TestFold_ATypeTheRegistryDoesNotHoldHoldsNoBounds(t *testing.T) {
 // reads no bounds off it and gets it back unchanged.
 func TestWithBounds_ReadsOnlyTheKindsThatHoldThem(t *testing.T) {
 	t.Parallel()
-	model := &ir.Model{ID: "t/m", Constraints: &ir.Constraints{MinProps: new(int64(1))}}
+	model := &ir.Model{ID: "type/m", Constraints: &ir.Constraints{MinProperties: new(int64(1))}}
 
 	assert.Nil(t, boundsOf(model))
 	assert.Same(t, model, withBounds(model, &ir.Constraints{}))

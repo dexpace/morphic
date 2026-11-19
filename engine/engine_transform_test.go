@@ -71,7 +71,7 @@ func (misusedEdit) Name() string { return "misused-edit" }
 
 func (misusedEdit) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	e := ir.NewEditor(doc)
-	e.RemoveType("t/absent")
+	e.RemoveType("type/absent")
 	return e.Finish()
 }
 

@@ -133,7 +133,7 @@ func TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf(t *testing.T) {
 	u, ok := typeByName(doc, "S").(*ir.Union)
 	require.True(t, ok, "the collapse is declined; got %v", typeByName(doc, "S"))
 	require.Len(t, u.Variants, 1, "the null branch still lifts off the variant list")
-	assert.Equal(t, ir.TypeID("t/prim/string"), u.Variants[0].Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), u.Variants[0].Type.Target)
 	assert.Contains(t, u.Unmodeled, "openapi:anyOf",
 		"and the node the position now owns carries the set passed over")
 }
@@ -185,7 +185,7 @@ func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
 		u, ok := typeByName(doc, "S").(*ir.Union)
 		require.True(t, ok, "the position is the Union that keeps the passed-over set")
 		require.Len(t, u.Variants, 1, "the null branch still lifts off the variant list")
-		require.Equal(t, ir.TypeID("t/anon/components/schemas/S/oneOf/0"), u.Variants[0].Type.Target,
+		require.Equal(t, ir.TypeID("type/anonymous/components/schemas/S/oneOf/0"), u.Variants[0].Type.Target,
 			"the union reaches the branch's own node, or the $ref is the only lowering that does")
 	}
 	assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
@@ -221,7 +221,7 @@ func TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition(t *testing.T) {
 	assert.Equal(t, ir.TypeRef{Target: cat, Nullable: true}, holder.Properties[0].Type, "the property's reference is unchanged")
 	assert.Contains(t, holder.Properties[0].Unmodeled, "openapi:discriminator", "the property carrier keeps it")
 
-	for _, id := range []ir.TypeID{"t/anon/components/schemas/L/items", "t/anon/components/schemas/M/additionalProperties"} {
+	for _, id := range []ir.TypeID{"type/anonymous/components/schemas/L/items", "type/anonymous/components/schemas/M/additionalProperties"} {
 		node, ok := doc.Types[id]
 		require.True(t, ok, id)
 		assert.Contains(t, node.Common().Unmodeled, "openapi:discriminator", "%s keeps it on the node it hoists", id)
@@ -280,7 +280,7 @@ func TestCollapsedUnion_WithoutACensusKeywordHoistsNothing(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo), "%+v", diags)
 	assert.NotContains(t, marshalForTest(t, doc), "openapi:discriminator")
-	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/L/items"), "a bare nullable reference needs no node")
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/L/items"), "a bare nullable reference needs no node")
 }
 
 // collapseSpec declares a nullable Cat at every position a schema can sit at

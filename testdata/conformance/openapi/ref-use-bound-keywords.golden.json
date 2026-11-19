@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "RefUseBoundKeywords",
         "canonical": "ref_use_bound_keywords"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1meetings/get",
+              "id": "operation/openapi/paths/~1meetings/get",
               "name": {
                 "source": "listMeetings",
                 "canonical": "list_meetings"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1meetings/get/parameters/filter/query",
+                  "id": "parameter/openapi/paths/~1meetings/get/parameters/filter/query",
                   "name": {
                     "source": "filter",
                     "canonical": "filter"
                   },
                   "type": {
-                    "target": "t/openapi/components/schemas/Filter",
+                    "target": "type/openapi/components/schemas/Filter",
                     "nullable": false
                   },
                   "required": false,
@@ -111,14 +111,14 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1meetings/get/responses/200/headers/X-Page",
+                      "id": "property/openapi/paths/~1meetings/get/responses/200/headers/X-Page",
                       "name": {
                         "source": "X-Page",
                         "canonical": "x_page"
                       },
                       "wireName": "X-Page",
                       "type": {
-                        "target": "t/openapi/components/schemas/Filter",
+                        "target": "type/openapi/components/schemas/Filter",
                         "nullable": true,
                         "inferred": "nullable-inference"
                       },
@@ -126,7 +126,7 @@
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -153,7 +153,7 @@
                     "uriTemplate": "/meetings",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1meetings/get/parameters/filter/query",
+                        "param": "parameter/openapi/paths/~1meetings/get/parameters/filter/query",
                         "location": "query",
                         "wireName": "filter",
                         "style": "form",
@@ -183,9 +183,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Filter": {
+    "type/openapi/components/schemas/Filter": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Filter",
+      "id": "type/openapi/components/schemas/Filter",
       "name": {
         "source": "Filter",
         "canonical": "filter"
@@ -199,21 +199,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Filter/properties/open",
+          "id": "property/openapi/components/schemas/Filter/properties/open",
           "name": {
             "source": "open",
             "canonical": "open"
           },
           "wireName": "open",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -230,9 +230,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Meeting": {
+    "type/openapi/components/schemas/Meeting": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Meeting",
+      "id": "type/openapi/components/schemas/Meeting",
       "name": {
         "source": "Meeting",
         "canonical": "meeting"
@@ -246,14 +246,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Meeting/properties/owner",
+          "id": "property/openapi/components/schemas/Meeting/properties/owner",
           "name": {
             "source": "owner",
             "canonical": "owner"
           },
           "wireName": "owner",
           "type": {
-            "target": "t/openapi/components/schemas/Filter",
+            "target": "type/openapi/components/schemas/Filter",
             "nullable": false
           },
           "required": false,
@@ -265,7 +265,7 @@
               "delete",
               "query"
             ],
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -278,21 +278,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Meeting/properties/draft",
+          "id": "property/openapi/components/schemas/Meeting/properties/draft",
           "name": {
             "source": "draft",
             "canonical": "draft"
           },
           "wireName": "draft",
           "type": {
-            "target": "t/openapi/components/schemas/Filter",
+            "target": "type/openapi/components/schemas/Filter",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "default": {
             "kind": "object",
@@ -316,14 +316,14 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Meeting/properties/parent",
+          "id": "property/openapi/components/schemas/Meeting/properties/parent",
           "name": {
             "source": "parent",
             "canonical": "parent"
           },
           "wireName": "parent",
           "type": {
-            "target": "t/openapi/components/schemas/Filter",
+            "target": "type/openapi/components/schemas/Filter",
             "nullable": true,
             "inferred": "nullable-inference"
           },
@@ -331,7 +331,7 @@
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -344,14 +344,14 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Meeting/properties/audit",
+          "id": "property/openapi/components/schemas/Meeting/properties/audit",
           "name": {
             "source": "audit",
             "canonical": "audit"
           },
           "wireName": "audit",
           "type": {
-            "target": "t/openapi/components/schemas/Filter",
+            "target": "type/openapi/components/schemas/Filter",
             "nullable": false
           },
           "required": false,
@@ -363,7 +363,7 @@
               "delete",
               "query"
             ],
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -380,9 +380,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ReadOnlyFilter": {
+    "type/openapi/components/schemas/ReadOnlyFilter": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ReadOnlyFilter",
+      "id": "type/openapi/components/schemas/ReadOnlyFilter",
       "name": {
         "source": "ReadOnlyFilter",
         "canonical": "read_only_filter"
@@ -405,16 +405,16 @@
         "pointer": "/components/schemas/ReadOnlyFilter"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Filter",
+        "target": "type/openapi/components/schemas/Filter",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/bool": {
+    "type/primitive/bool": {
       "kind": "primitive",
-      "id": "t/prim/bool",
+      "id": "type/primitive/bool",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -422,7 +422,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bool"
+      "primitiveKind": "bool"
     }
   },
   "servers": {

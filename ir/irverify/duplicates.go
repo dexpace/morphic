@@ -13,14 +13,14 @@ import (
 var (
 	// propIDType is the reflect.Type of the one ID class checkDuplicateIDs holds
 	// to a weaker claim than "declared once"; see there for why.
-	propIDType = reflect.TypeFor[ir.PropID]()
+	propIDType = reflect.TypeFor[ir.PropertyID]()
 	// propertyType is the node that class identifies, which is what has to be
 	// fingerprinted to make that weaker claim.
 	propertyType = reflect.TypeFor[ir.Property]()
 )
 
 // identity is one declared ID together with the class it belongs to, which is
-// the pair that has to be unique: an OpID and a TypeID spelling the same string
+// the pair that has to be unique: an OperationID and a TypeID spelling the same string
 // name two different nodes.
 type identity struct {
 	class reflect.Type
@@ -40,16 +40,16 @@ type fingerprint struct {
 // cannot enforce it for classes they lack, such as operations, services and
 // groups, so a shared ID resolves to whichever the reader reaches first.
 //
-// ir.PropID is held to a fingerprint instead: a response declared once in
+// ir.PropertyID is held to a fingerprint instead: a response declared once in
 // components is embedded by value at every use, each copy keeping the
-// declaration's PropID (GitHub #107). Different properties on one PropID are
+// declaration's PropertyID (GitHub #107). Different properties on one PropertyID are
 // the defect (#280). The fingerprint is source name, wire name and TypeRef
 // target; a wider one flags every reused component.
 func checkDuplicateIDs(*ir.Document) walkCheck {
-	// The first property met on each PropID, and the later ones whose
-	// fingerprint differs from it, each named by its PropID and how many met on
-	// that PropID before it. The walk meets properties in the order the
-	// declarations list them, so the first met is the PropID's first
+	// The first property met on each PropertyID, and the later ones whose
+	// fingerprint differs from it, each named by its PropertyID and how many met on
+	// that PropertyID before it. The walk meets properties in the order the
+	// declarations list them, so the first met is the PropertyID's first
 	// declaration, and the n-th met its n-th.
 	first := map[string]firstProperty{}
 	differs := map[occurrence]bool{}
@@ -77,8 +77,8 @@ func checkDuplicateIDs(*ir.Document) walkCheck {
 	}
 }
 
-// firstProperty is the first property the walk met on a PropID, by its
-// fingerprint, and how many it has met on that PropID so far.
+// firstProperty is the first property the walk met on a PropertyID, by its
+// fingerprint, and how many it has met on that PropertyID so far.
 type firstProperty struct {
 	fingerprint fingerprint
 	met         int

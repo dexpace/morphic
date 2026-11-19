@@ -150,7 +150,7 @@ func TestNarrowedShapes_ReadsTheUnionWhereverItStands(t *testing.T) {
 			name: "a variant naming no model listed as the union writes it, an unset one read in no shape",
 			doc: irtest.DocOf(
 				unionOf("u", "uuid", "", "v"), irtest.ScalarOf("uuid", "string"),
-				&ir.Primitive{ID: "string", Prim: ir.PrimString},
+				&ir.Primitive{ID: "string", PrimitiveKind: ir.PrimitiveString},
 				owning("v", mixing("u"), wired("v.a", "a")),
 				owning("m", mixing("u", "enum"), wired("m.c", "c")),
 				&ir.Enum{ID: "enum"},
@@ -291,7 +291,7 @@ func TestNarrowedShapes_Undistributed(t *testing.T) {
 		{
 			name: "a union tagged by a tuple element, met in turn",
 			doc: irtest.DocOf(unionOf("u", "w"), owning("w", based("x")),
-				tagged("x", &ir.Discriminator{Index: &index}), owning("v", nil), owning("m", based("u"))),
+				tagged("x", &ir.Discriminator{TupleElementIndex: &index}), owning("v", nil), owning("m", based("u"))),
 			union: "u",
 			want:  ir.UndistributedNotValues,
 		},
@@ -421,7 +421,7 @@ func TestNarrowedShapes_CountsWhatNestedUnionsMultiply(t *testing.T) {
 		doc := irtest.DocOf(owning("m", based(unionAt(0)), wired("m.a", "a")))
 		for i := range n {
 			leaf := ir.TypeID(fmt.Sprintf("leaf%04d", i))
-			doc.Types[leaf] = owning(leaf, nil, wired(ir.PropID(leaf), "b"))
+			doc.Types[leaf] = owning(leaf, nil, wired(ir.PropertyID(leaf), "b"))
 			if i == n-1 {
 				doc.Types[unionAt(i)] = unionOf(unionAt(i), leaf)
 				continue
@@ -449,7 +449,7 @@ func TestNarrowedShapes_CountsWhatNestedUnionsMultiply(t *testing.T) {
 		doc := irtest.DocOf(u, owning("m", based("u"), wired("m.a", "a")))
 		for i := range n {
 			v := ir.TypeID(fmt.Sprintf("v%04d", i))
-			doc.Types[v] = owning(v, nil, wired(ir.PropID(v), "b"))
+			doc.Types[v] = owning(v, nil, wired(ir.PropertyID(v), "b"))
 			u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: v}})
 		}
 		return doc.Types
@@ -460,7 +460,7 @@ func TestNarrowedShapes_CountsWhatNestedUnionsMultiply(t *testing.T) {
 		names := make([]ir.TypeID, n)
 		for i := range names {
 			names[i] = ir.TypeID(fmt.Sprintf("x%04d", i))
-			doc.Types[names[i]] = owning(names[i], based("u"), wired(ir.PropID(names[i]), "b"))
+			doc.Types[names[i]] = owning(names[i], based("u"), wired(ir.PropertyID(names[i]), "b"))
 		}
 		doc.Types["m"] = owning("m", mixing(names...))
 		return doc.Types
@@ -515,20 +515,20 @@ func unionAt(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("u%04d", i)) }
 // union of a block and a log, with the stored model's id beside each.
 func ExampleNarrowedShapes() {
 	reg := ir.TypeRegistry{
-		"t/rule": &ir.Union{ID: "t/rule", Variants: []ir.Variant{
-			{Type: ir.TypeRef{Target: "t/block"}}, {Type: ir.TypeRef{Target: "t/log"}},
+		"type/rule": &ir.Union{ID: "type/rule", Variants: []ir.Variant{
+			{Type: ir.TypeRef{Target: "type/block"}}, {Type: ir.TypeRef{Target: "type/log"}},
 		}},
-		"t/block": &ir.Model{ID: "t/block", Properties: []ir.Property{
-			{ID: "p/block/action", WireName: "action", Required: true},
-			{ID: "p/block/status", WireName: "status"},
+		"type/block": &ir.Model{ID: "type/block", Properties: []ir.Property{
+			{ID: "property/block/action", WireName: "action", Required: true},
+			{ID: "property/block/status", WireName: "status"},
 		}},
-		"t/log": &ir.Model{ID: "t/log", Properties: []ir.Property{{ID: "p/log/action", WireName: "action", Required: true}}},
-		"t/stored": &ir.Model{ID: "t/stored", Base: &ir.TypeRef{Target: "t/rule"}, Properties: []ir.Property{
-			{ID: "p/stored/id", WireName: "id", Required: true},
+		"type/log": &ir.Model{ID: "type/log", Properties: []ir.Property{{ID: "property/log/action", WireName: "action", Required: true}}},
+		"type/stored": &ir.Model{ID: "type/stored", Base: &ir.TypeRef{Target: "type/rule"}, Properties: []ir.Property{
+			{ID: "property/stored/id", WireName: "id", Required: true},
 		}},
 	}
 
-	n, _, _ := ir.NarrowedShapes(reg, "t/stored", 10_000)
+	n, _, _ := ir.NarrowedShapes(reg, "type/stored", 10_000)
 	fmt.Println("narrows", n.Union)
 	for _, s := range n.Shapes {
 		fmt.Print("over ", s.Over, ":")
@@ -538,7 +538,7 @@ func ExampleNarrowedShapes() {
 		fmt.Println()
 	}
 	// Output:
-	// narrows t/rule
-	// over [t/block]: action from t/block status from t/block id from t/stored
-	// over [t/log]: action from t/log id from t/stored
+	// narrows type/rule
+	// over [type/block]: action from type/block status from type/block id from type/stored
+	// over [type/log]: action from type/log id from type/stored
 }

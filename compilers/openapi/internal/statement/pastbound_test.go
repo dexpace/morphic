@@ -209,7 +209,7 @@ func TestRead_PastTheMergeBoundTheSchemasOwnKeysStay(t *testing.T) {
 	want := compileP(t, chained("3.1.0", 0, "{}", "type: string, maxLength: 3", ""))
 	assert.Equal(t, want.types, got.types)
 	assert.Contains(t, got.types, `"maxLength":3`)
-	assert.Contains(t, got.types, `"target":"t/prim/string"`)
+	assert.Contains(t, got.types, `"target":"type/primitive/string"`)
 }
 
 // TestRead_PastTheMergeBoundEachSchemaIsReportedOnce compiles one chain past

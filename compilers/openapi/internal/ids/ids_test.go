@@ -208,10 +208,10 @@ func TestForPointer_ChoosesTheNamespace(t *testing.T) {
 		pointer jsontext.Pointer
 		want    ir.TypeID
 	}{
-		{name: "a component schema is named", pointer: "/components/schemas/User", want: "t/openapi/components/schemas/User"},
-		{name: "an inline position is anonymous", pointer: "/components/schemas/User/properties/id", want: "t/anon/components/schemas/User/properties/id"},
-		{name: "a component of another kind is anonymous", pointer: "/components/headers/X-Rate", want: "t/anon/components/headers/X-Rate"},
-		{name: "a media-type schema is anonymous", pointer: "/paths/~1x/get/responses/200/content/application~1json/schema", want: "t/anon/paths/~1x/get/responses/200/content/application~1json/schema"},
+		{name: "a component schema is named", pointer: "/components/schemas/User", want: "type/openapi/components/schemas/User"},
+		{name: "an inline position is anonymous", pointer: "/components/schemas/User/properties/id", want: "type/anonymous/components/schemas/User/properties/id"},
+		{name: "a component of another kind is anonymous", pointer: "/components/headers/X-Rate", want: "type/anonymous/components/headers/X-Rate"},
+		{name: "a media-type schema is anonymous", pointer: "/paths/~1x/get/responses/200/content/application~1json/schema", want: "type/anonymous/paths/~1x/get/responses/200/content/application~1json/schema"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -235,22 +235,22 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 		"op":         string(ids.Op(pointer)),
 		"prop":       string(ids.DocumentIDNamespace{}.Prop(pointer)),
 		"minted":     string(ids.DocumentIDNamespace{}.ComposedProp(pointer)),
-		"member":     string(ids.DocumentIDNamespace{}.ComposedMember(pointer, "/s:a")),
+		"member":     string(ids.DocumentIDNamespace{}.ComposedMember(pointer, "/string:a")),
 		"auth":       string(ids.Auth("apiKey")),
 		"unresolved": string(ids.UnresolvedAuth("apiKey")),
 		"service":    string(ids.Service(0)),
 	}
 	want := map[string]string{
-		"named":      "t/openapi/components/schemas/User",
-		"anon":       "t/anon/components/schemas/User",
-		"composed":   "t/composed/components/schemas/User",
-		"op":         "op/openapi/components/schemas/User",
-		"prop":       "p/openapi/components/schemas/User",
-		"minted":     "p/composed/components/schemas/User",
-		"member":     "e/composed/components/schemas/User/s:a",
+		"named":      "type/openapi/components/schemas/User",
+		"anon":       "type/anonymous/components/schemas/User",
+		"composed":   "type/composed/components/schemas/User",
+		"op":         "operation/openapi/components/schemas/User",
+		"prop":       "property/openapi/components/schemas/User",
+		"minted":     "property/composed/components/schemas/User",
+		"member":     "enum-member/composed/components/schemas/User/string:a",
 		"auth":       "auth/openapi/components/securitySchemes/apiKey",
 		"unresolved": "auth/unresolved/components/securitySchemes/apiKey",
-		"service":    "s/openapi/0",
+		"service":    "service/openapi/0",
 	}
 	assert.Equal(t, want, got)
 
@@ -273,13 +273,13 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 	const pointer = "/components/schemas/User"
 	other := ids.In("dir/a~b.yaml")
 	assert.Equal(t, map[string]string{
-		"named":      "t/openapi@dir~1a~0b.yaml/components/schemas/User",
-		"anon":       "t/anon@dir~1a~0b.yaml/components/schemas/User",
-		"composed":   "t/composed@dir~1a~0b.yaml/components/schemas/User",
-		"for":        "t/anon@dir~1a~0b.yaml/X",
-		"prop":       "p/openapi@dir~1a~0b.yaml/components/schemas/User",
-		"minted":     "p/composed@dir~1a~0b.yaml/components/schemas/User",
-		"composite":  "e/composed@dir~1a~0b.yaml/components/schemas/User/s:a",
+		"named":      "type/openapi@dir~1a~0b.yaml/components/schemas/User",
+		"anon":       "type/anonymous@dir~1a~0b.yaml/components/schemas/User",
+		"composed":   "type/composed@dir~1a~0b.yaml/components/schemas/User",
+		"for":        "type/anonymous@dir~1a~0b.yaml/X",
+		"prop":       "property/openapi@dir~1a~0b.yaml/components/schemas/User",
+		"minted":     "property/composed@dir~1a~0b.yaml/components/schemas/User",
+		"composite":  "enum-member/composed@dir~1a~0b.yaml/components/schemas/User/string:a",
 		"coordinate": "@dir~1a~0b.yaml/components/schemas/User",
 	}, map[string]string{
 		"named":      string(other.NamedType(pointer)),
@@ -288,7 +288,7 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 		"for":        string(other.ForPointer("/X")),
 		"prop":       string(other.Prop(pointer)),
 		"minted":     string(other.ComposedProp(pointer)),
-		"composite":  string(other.ComposedMember(pointer, "/s:a")),
+		"composite":  string(other.ComposedMember(pointer, "/string:a")),
 		"coordinate": other.Coordinate(pointer),
 	})
 
@@ -334,7 +334,7 @@ func TestDeclarationHint_PrefersTheComponentName(t *testing.T) {
 // TestGroupIDs_SpellEachRule pins the spelling of every group ID, written out
 // rather than derived so a test cannot agree with a change to the derivation.
 // The empty key is the odd one: a space naming a single node takes no trailing
-// separator, so the tag "" is "g/tags" and not a malformed "g/tags/".
+// separator, so the tag "" is "operation-group/tags" and not a malformed "operation-group/tags/".
 func TestGroupIDs_SpellEachRule(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -342,24 +342,24 @@ func TestGroupIDs_SpellEachRule(t *testing.T) {
 		got  ir.GroupID
 		want ir.GroupID
 	}{
-		{name: "a tag", got: ids.TagGroup("pets"), want: "g/tags/pets"},
-		{name: "a tag with a slash", got: ids.TagGroup("a/b"), want: "g/tags/a~1b"},
-		{name: "a tag with a tilde", got: ids.TagGroup("a~b"), want: "g/tags/a~0b"},
-		{name: "the tag named by the empty string", got: ids.TagGroup(""), want: "g/tags"},
-		{name: "a path prefix", got: ids.PathPrefixGroup("users"), want: "g/path-prefix/users"},
-		{name: "a path prefix with a template", got: ids.PathPrefixGroup("{id}"), want: "g/path-prefix/{id}"},
-		{name: "a path prefix with a tilde", got: ids.PathPrefixGroup("a~b"), want: "g/path-prefix/a~0b"},
-		{name: "a path prefix with a slash", got: ids.PathPrefixGroup("a/b"), want: "g/path-prefix/a~1b"},
-		{name: "the root path's prefix", got: ids.PathPrefixGroup(""), want: "g/path-prefix"},
-		{name: "a group path of one segment", got: ids.ExtensionGroup([]string{"accounts"}), want: "g/extension/accounts"},
+		{name: "a tag", got: ids.TagGroup("pets"), want: "operation-group/tags/pets"},
+		{name: "a tag with a slash", got: ids.TagGroup("a/b"), want: "operation-group/tags/a~1b"},
+		{name: "a tag with a tilde", got: ids.TagGroup("a~b"), want: "operation-group/tags/a~0b"},
+		{name: "the tag named by the empty string", got: ids.TagGroup(""), want: "operation-group/tags"},
+		{name: "a path prefix", got: ids.PathPrefixGroup("users"), want: "operation-group/path-prefix/users"},
+		{name: "a path prefix with a template", got: ids.PathPrefixGroup("{id}"), want: "operation-group/path-prefix/{id}"},
+		{name: "a path prefix with a tilde", got: ids.PathPrefixGroup("a~b"), want: "operation-group/path-prefix/a~0b"},
+		{name: "a path prefix with a slash", got: ids.PathPrefixGroup("a/b"), want: "operation-group/path-prefix/a~1b"},
+		{name: "the root path's prefix", got: ids.PathPrefixGroup(""), want: "operation-group/path-prefix"},
+		{name: "a group path of one segment", got: ids.ExtensionGroup([]string{"accounts"}), want: "operation-group/extension/accounts"},
 		{
 			name: "a group path of two segments", got: ids.ExtensionGroup([]string{"zero-trust", "devices"}),
-			want: "g/extension/zero-trust/devices",
+			want: "operation-group/extension/zero-trust/devices",
 		},
-		{name: "a group path segment with a slash", got: ids.ExtensionGroup([]string{"a/b"}), want: "g/extension/a~1b"},
-		{name: "a group path segment with a tilde", got: ids.ExtensionGroup([]string{"a~b"}), want: "g/extension/a~0b"},
-		{name: "untagged operations", got: ids.DefaultGroup(), want: "g/default"},
-		{name: "webhook operations", got: ids.WebhookGroup(), want: "g/webhooks"},
+		{name: "a group path segment with a slash", got: ids.ExtensionGroup([]string{"a/b"}), want: "operation-group/extension/a~1b"},
+		{name: "a group path segment with a tilde", got: ids.ExtensionGroup([]string{"a~b"}), want: "operation-group/extension/a~0b"},
+		{name: "untagged operations", got: ids.DefaultGroup(), want: "operation-group/default"},
+		{name: "webhook operations", got: ids.WebhookGroup(), want: "operation-group/webhooks"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -431,14 +431,14 @@ func stringsOver(alphabet []string, maxLen int) []string {
 func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[string][]string{
-		ir.IDKindType:       {"anon", "composed", "openapi"},
-		ir.IDKindOp:         {"openapi"},
-		ir.IDKindProp:       {"composed", "openapi"},
+		ir.IDKindType:       {"anonymous", "composed", "openapi"},
+		ir.IDKindOperation:  {"openapi"},
+		ir.IDKindProperty:   {"composed", "openapi"},
 		ir.IDKindAuth:       {"openapi", "unresolved"},
 		ir.IDKindService:    {"openapi"},
 		ir.IDKindGroup:      {"default", "extension", "path-prefix", "tags", "webhooks"},
-		ir.IDKindParam:      {"openapi"},
-		ir.IDKindEnumMember: {"anon", "composed", "openapi"},
+		ir.IDKindParameter:  {"openapi"},
+		ir.IDKindEnumMember: {"anonymous", "composed", "openapi"},
 		ir.IDKindServer:     {"default", "openapi"},
 	}, ids.Namespaces().Declaration())
 }
@@ -452,15 +452,15 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[string][]string{
-		ir.IDKindType: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml",
+		ir.IDKindType: {"anonymous", "anonymous@a.yaml", "anonymous@b~1c.yaml", "composed", "composed@a.yaml",
 			"composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindOp:      {"openapi"},
-		ir.IDKindProp:    {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindAuth:    {"openapi", "openapi@a.yaml", "openapi@b~1c.yaml", "unresolved"},
-		ir.IDKindService: {"openapi"},
-		ir.IDKindGroup:   {"default", "extension", "path-prefix", "tags", "webhooks"},
-		ir.IDKindParam:   {"openapi"},
-		ir.IDKindEnumMember: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml", "composed@b~1c.yaml",
+		ir.IDKindOperation: {"openapi"},
+		ir.IDKindProperty:  {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindAuth:      {"openapi", "openapi@a.yaml", "openapi@b~1c.yaml", "unresolved"},
+		ir.IDKindService:   {"openapi"},
+		ir.IDKindGroup:     {"default", "extension", "path-prefix", "tags", "webhooks"},
+		ir.IDKindParameter: {"openapi"},
+		ir.IDKindEnumMember: {"anonymous", "anonymous@a.yaml", "anonymous@b~1c.yaml", "composed", "composed@a.yaml", "composed@b~1c.yaml",
 			"openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 		ir.IDKindServer: {"default", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 	}, ids.Namespaces(ids.In("a.yaml"), ids.In("b/c.yaml")).Declaration())
@@ -503,23 +503,23 @@ func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
 	const mount = jsontext.Pointer("/paths/~1items/get")
 	tests := []struct {
 		name string
-		got  ir.ParamID
-		want ir.ParamID
+		got  ir.ParameterID
+		want ir.ParameterID
 	}{
-		{name: "a query parameter", got: ids.Param(mount, "id", "query", 1), want: "param/openapi/paths/~1items/get/parameters/id/query"},
-		{name: "the same name in the path", got: ids.Param(mount, "id", "path", 1), want: "param/openapi/paths/~1items/get/parameters/id/path"},
-		{name: "another operation", got: ids.Param("/paths/~1items/post", "id", "query", 1), want: "param/openapi/paths/~1items/post/parameters/id/query"},
-		{name: "a slash in the name", got: ids.Param(mount, "a/b", "header", 1), want: "param/openapi/paths/~1items/get/parameters/a~1b/header"},
-		{name: "a tilde in the name", got: ids.Param(mount, "a~b", "header", 1), want: "param/openapi/paths/~1items/get/parameters/a~0b/header"},
-		{name: "a repeat", got: ids.Param(mount, "id", "cookie", 2), want: "param/openapi/paths/~1items/get/parameters/id/cookie/2"},
-		{name: "a third occurrence", got: ids.Param(mount, "id", "cookie", 3), want: "param/openapi/paths/~1items/get/parameters/id/cookie/3"},
+		{name: "a query parameter", got: ids.Param(mount, "id", "query", 1), want: "parameter/openapi/paths/~1items/get/parameters/id/query"},
+		{name: "the same name in the path", got: ids.Param(mount, "id", "path", 1), want: "parameter/openapi/paths/~1items/get/parameters/id/path"},
+		{name: "another operation", got: ids.Param("/paths/~1items/post", "id", "query", 1), want: "parameter/openapi/paths/~1items/post/parameters/id/query"},
+		{name: "a slash in the name", got: ids.Param(mount, "a/b", "header", 1), want: "parameter/openapi/paths/~1items/get/parameters/a~1b/header"},
+		{name: "a tilde in the name", got: ids.Param(mount, "a~b", "header", 1), want: "parameter/openapi/paths/~1items/get/parameters/a~0b/header"},
+		{name: "a repeat", got: ids.Param(mount, "id", "cookie", 2), want: "parameter/openapi/paths/~1items/get/parameters/id/cookie/2"},
+		{name: "a third occurrence", got: ids.Param(mount, "id", "cookie", 3), want: "parameter/openapi/paths/~1items/get/parameters/id/cookie/3"},
 	}
-	seen := map[ir.ParamID]string{}
+	seen := map[ir.ParameterID]string{}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.want, tc.got)
-			assert.True(t, ir.WellFormedID(ir.IDKindParam, string(tc.got)), "%q must be a well-formed param ID", tc.got)
+			assert.True(t, ir.WellFormedID(ir.IDKindParameter, string(tc.got)), "%q must be a well-formed param ID", tc.got)
 		})
 		require.NotContains(t, seen, tc.got, "%s and %s share an ID", tc.name, seen[tc.got])
 		seen[tc.got] = tc.name

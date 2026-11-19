@@ -131,7 +131,7 @@ type pendingShape struct {
 // element.
 func deeper(pending []pendingShape, over []substitution, met metUnion) ([]pendingShape, Undistributed) {
 	u := met.union
-	if d := u.Discriminator; u.WireTagged && (d == nil || d.Envelope != "" || d.Index != nil) {
+	if d := u.Discriminator; u.WireTagged && (d == nil || d.Envelope != "" || d.TupleElementIndex != nil) {
 		return pending, UndistributedNotValues
 	}
 	for _, v := range slices.Backward(u.Variants) {

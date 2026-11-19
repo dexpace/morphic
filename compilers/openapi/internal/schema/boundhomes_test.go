@@ -64,7 +64,7 @@ func TestRefinement_AnOwnedNodeHoldsTheBoundsItsLoweringFolds(t *testing.T) {
 		}
 		holder := componentID("X")
 		if tc.holder != "" {
-			holder = ir.TypeID("t/anon/components/schemas/X" + tc.holder)
+			holder = ir.TypeID("type/anonymous/components/schemas/X" + tc.holder)
 		}
 		cons := constraintsOf(t, doc.Types[holder])
 		require.NotNil(t, cons, name)

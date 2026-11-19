@@ -162,9 +162,9 @@ func boundOf(entry string, cons *ir.Constraints) ir.Constraints {
 	case "maxLength":
 		return ir.Constraints{MaxLength: cons.MaxLength}
 	case "minProperties":
-		return ir.Constraints{MinProps: cons.MinProps}
+		return ir.Constraints{MinProperties: cons.MinProperties}
 	case "maxProperties":
-		return ir.Constraints{MaxProps: cons.MaxProps}
+		return ir.Constraints{MaxProperties: cons.MaxProperties}
 	case "pattern":
 		return ir.Constraints{Pattern: cons.Pattern}
 	case "minItems":

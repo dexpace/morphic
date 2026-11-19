@@ -116,7 +116,7 @@ func TestAllOf_ANodesBoundsReachTheFieldInEitherOrder(t *testing.T) {
 		{name: "a list adding a bound", a: list(""), b: list(", maxItems: 5"), want: &ir.Constraints{MaxItems: hi}},
 		{name: "a list tightening a bound", a: list(", maxItems: 9"), b: list(", maxItems: 5"), want: &ir.Constraints{MaxItems: hi}},
 		{name: "two lists each adding a bound", a: list(", minItems: 1"), b: list(", maxItems: 5"), want: &ir.Constraints{MinItems: lo, MaxItems: hi}, minted: true},
-		{name: "two maps each adding a bound", a: mapOf(", minProperties: 1"), b: mapOf(", maxProperties: 5"), want: &ir.Constraints{MinProps: lo, MaxProps: hi}, minted: true},
+		{name: "two maps each adding a bound", a: mapOf(", minProperties: 1"), b: mapOf(", maxProperties: 5"), want: &ir.Constraints{MinProperties: lo, MaxProperties: hi}, minted: true},
 		{name: "two tuples each adding a bound", a: tuple(", minItems: 1"), b: tuple(", maxItems: 5"), want: &ir.Constraints{MinItems: lo, MaxItems: hi}, minted: true},
 		{name: "a scalar adding a bound", a: custom(""), b: custom(", maxLength: 5"), want: &ir.Constraints{MaxLength: hi}},
 		{name: "two scalars each adding a bound", a: custom(", minLength: 1"), b: custom(", maxLength: 5"), want: &ir.Constraints{MinLength: lo, MaxLength: hi}, minted: true},
@@ -129,7 +129,7 @@ func TestAllOf_ANodesBoundsReachTheFieldInEitherOrder(t *testing.T) {
 				td, ok := doc.Types[p.Type.Target]
 				require.True(t, ok, "the field's type is in the document")
 				assert.Equal(t, tc.want, openapitest.NodeConstraints(t, td))
-				assert.Contains(t, string(p.Type.Target), map[bool]string{true: "t/composed/", false: "t/anon/"}[tc.minted])
+				assert.Contains(t, string(p.Type.Target), map[bool]string{true: "type/composed/", false: "type/anonymous/"}[tc.minted])
 				assert.Empty(t, diags)
 				assert.Empty(t, p.Unmodeled)
 			}
@@ -164,7 +164,7 @@ func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 			for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				p, doc, diags := redeclared(t, order[0], order[1])
 
-				assert.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
+				assert.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
 				assert.Empty(t, p.Unmodeled)
 				assert.Empty(t, diags)
 				node := doc.Types[p.Type.Target]
@@ -177,7 +177,7 @@ func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 	}
 
 	p, _, diags := redeclared(t, list(", minItems: 1, description: one"), list(", maxItems: 5, description: other"))
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
 	assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
@@ -206,7 +206,7 @@ func TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder(t *testing.
 
 	p, _, diags := redeclared(t, "{type: string, maxLength: 3, default: hello}", "{type: string}")
 	require.NotNil(t, p.Default, "a default its own bound refuses stays as it was")
-	assert.Equal(t, "hello", p.Default.Str)
+	assert.Equal(t, "hello", p.Default.String)
 	assert.Empty(t, diags)
 }
 
@@ -359,7 +359,7 @@ func TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok, "got %T", typeByName(doc, "M"))
-	assert.Equal(t, &ir.Constraints{MinProps: new(int64(1))}, m.Constraints)
+	assert.Equal(t, &ir.Constraints{MinProperties: new(int64(1))}, m.Constraints)
 	assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(m.Unmodeled))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 		"/components/schemas/M/allOf/0"), "minLength")
@@ -380,7 +380,7 @@ func TestAllOf_ABoundBesideACompositionIsReadByItsType(t *testing.T) {
 			"    Dist: {type: object, properties: {k: {type: string}}, minLength: 1, minProperties: 1,\n"+
 			"      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	held := &ir.Constraints{MinProps: new(int64(1))}
+	held := &ir.Constraints{MinProperties: new(int64(1))}
 	comp, ok := typeByName(doc, "Comp").(*ir.Model)
 	require.True(t, ok, "got %T", typeByName(doc, "Comp"))
 	assert.Equal(t, held, comp.Constraints)

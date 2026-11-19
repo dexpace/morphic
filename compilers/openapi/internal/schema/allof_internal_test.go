@@ -44,11 +44,11 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 
 			doc, diags := LowerSpec(t, openapitest.ComponentSpec(b.String()))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/M")].(*ir.Model)
+			m, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/M")].(*ir.Model)
 			require.True(t, ok, "M should be a model")
 			if tc.flat {
 				require.NotNil(t, m.Base, "the ref at the bottom is classified")
-				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/A"), m.Base.Target)
+				assert.Equal(t, ir.TypeID("type/openapi/components/schemas/A"), m.Base.Target)
 				assert.Empty(t, m.Unmodeled)
 				return
 			}

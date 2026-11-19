@@ -26,7 +26,7 @@ import (
 // declares, nil for none: its tag, located by exactly one of Property,
 // PropertyName and Index (docs/ir/models.md#discriminator), and its routes,
 // each mapping value and the defaultMapping read by discriminatorMapping. m is
-// the model declaring it, whose property's PropID locates the tag, else
+// the model declaring it, whose property's PropertyID locates the tag, else
 // PropertyName; a nil m, for a union, names it by PropertyName alone. x is a
 // union's branches, nil for a model: a union routes to its variants
 // (branchIndex.route), a model to the type each value's chain ends on
@@ -49,7 +49,7 @@ func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, d *statement.Discrimi
 
 // tagLocated reports whether the IR can locate the tag d names, on m where a
 // model declares it: by any name but the empty one, which PropertyName empty
-// cannot spell, and by that one only as the PropID of a property m declares
+// cannot spell, and by that one only as the PropertyID of a property m declares
 // itself (docs/compilers/openapi.md#discriminator). One it cannot locate is no
 // node's, and the census keeps it verbatim.
 func tagLocated(d *statement.Discriminator, m *ir.Model) bool {
@@ -60,10 +60,10 @@ func tagLocated(d *statement.Discriminator, m *ir.Model) bool {
 	return ok
 }
 
-// propIDByName returns the PropID of the model property with the given source
+// propIDByName returns the PropertyID of the model property with the given source
 // name, if the model declares it. m is nil-safe: lowerDiscriminator's
 // oneOf/anyOf union case has no model to search, only a tag name.
-func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
+func propIDByName(m *ir.Model, name string) (ir.PropertyID, bool) {
 	if m == nil {
 		return "", false
 	}

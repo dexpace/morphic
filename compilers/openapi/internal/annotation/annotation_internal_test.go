@@ -483,7 +483,7 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	t.Parallel()
 	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
 	write := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
-	none := ir.Visibility{None: true}
+	none := ir.Visibility{InvisibleInEveryLifecycle: true}
 
 	tests := []struct {
 		name         string
@@ -639,7 +639,7 @@ func TestSchemaExamplesAt_ReadsBothKeywordsInOrder(t *testing.T) {
 	require.Len(t, got, 3)
 	for i, want := range []string{"one", "two", "three"} {
 		require.NotNil(t, got[i].Value)
-		assert.Equal(t, want, got[i].Value.Str, "example %d", i)
+		assert.Equal(t, want, got[i].Value.String, "example %d", i)
 	}
 }
 
@@ -670,7 +670,7 @@ func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 	assert.Empty(t, diags, "a convertible node is announced by nothing")
 	require.Len(t, out, 1)
 	require.NotNil(t, out[0].Value)
-	assert.Equal(t, "hello", out[0].Value.Str)
+	assert.Equal(t, "hello", out[0].Value.String)
 	got := out[0]
 	got.Value = nil
 	assert.Equal(t, proto, got, "the prototype's own fields survive unchanged")

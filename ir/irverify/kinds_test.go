@@ -16,23 +16,23 @@ import (
 // primDoc interns one primitive of kind at the ID that kind derives, so the
 // document is sound in every way except the kind itself — checkPrimIDs has
 // nothing to say about it and only the new claim can fire.
-func primDoc(kind ir.PrimKind) *ir.Document {
-	id := ir.PrimTypeID(kind)
+func primDoc(kind ir.PrimitiveKind) *ir.Document {
+	id := ir.PrimitiveTypeID(kind)
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: &ir.Primitive{
-		ID:         id,
-		Provenance: ir.Provenance{Source: ir.NoSource},
-		Prim:       kind,
+		ID:            id,
+		Provenance:    ir.Provenance{Source: ir.NoSource},
+		PrimitiveKind: kind,
 	}}}
 }
 
 // TestVerify_UndeclaredPrimKindIsAViolation is the case checkPrimIDs is blind
 // to: the ID is derived from the kind, so it agrees with it — consistently, and
-// wrongly. An emitter switching on PrimKind has no arm for any of these.
+// wrongly. An emitter switching on PrimitiveKind has no arm for any of these.
 func TestVerify_UndeclaredPrimKindIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		kind ir.PrimKind
+		kind ir.PrimitiveKind
 	}{
 		{name: "an invented kind", kind: "flt"},
 		{name: "a re-cased declared kind", kind: "Float64"},
@@ -45,7 +45,7 @@ func TestVerify_UndeclaredPrimKindIsAViolation(t *testing.T) {
 			got := verifyDeclared(primDoc(tc.kind))
 			require.Len(t, got, 1, "the ID derives from the kind, so nothing else can be wrong")
 			assert.Equal(t, "ir/unknown-prim-kind", got[0].Code)
-			assert.Equal(t, "types["+string(ir.PrimTypeID(tc.kind))+"]", got[0].Path)
+			assert.Equal(t, "types["+string(ir.PrimitiveTypeID(tc.kind))+"]", got[0].Path)
 			assert.Contains(t, got[0].Message, string(tc.kind))
 		})
 	}
@@ -71,7 +71,7 @@ func TestVerify_NilTypeBesideAPrimitiveDoesNotPanic(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := primDoc("flt")
-			doc.Types["t/x/Nil"] = tc.entry
+			doc.Types["type/x/Nil"] = tc.entry
 
 			var got []irverify.Violation
 			require.NotPanics(t, func() { got = verifyDeclared(doc) })
@@ -87,7 +87,7 @@ func TestVerify_NilTypeBesideAPrimitiveDoesNotPanic(t *testing.T) {
 // what the check reads.
 func TestVerify_DeclaredPrimKindIsClean(t *testing.T) {
 	t.Parallel()
-	for _, kind := range []ir.PrimKind{ir.PrimString, ir.PrimFloat64, ir.PrimDatetimeOffset, ir.PrimAny} {
+	for _, kind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveFloat64, ir.PrimitiveDatetimeOffset, ir.PrimitiveAny} {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
 			assert.Empty(t, verifyDeclared(primDoc(kind)))
@@ -136,12 +136,12 @@ func TestVerify_UndeclaredAuthKindIsAViolation(t *testing.T) {
 func streamingDoc(mode ir.StreamingMode) *ir.Document {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
-		ID:   "s/x/S",
+		ID:   "service/x/S",
 		Name: named("svc"),
 		Groups: []ir.OperationGroup{{
-			ID:         "g/x/S/g",
+			ID:         "operation-group/x/S/g",
 			Name:       named("g"),
-			Operations: []ir.Operation{{ID: "op/x/S/a", Name: named("a"), Streaming: mode}},
+			Operations: []ir.Operation{{ID: "operation/x/S/a", Name: named("a"), Streaming: mode}},
 		}},
 	}}
 	return doc
@@ -157,7 +157,7 @@ func TestVerify_UndeclaredStreamingModeIsAViolation(t *testing.T) {
 		got := verifyDeclared(streamingDoc(mode))
 		require.Len(t, got, 1, "%q", mode)
 		assert.Equal(t, "ir/unknown-streaming-mode", got[0].Code, "%q", mode)
-		assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Streaming", got[0].Path, "%q", mode)
+		assert.Equal(t, "document.Services[0].Groups[0].Operations[0].Streaming", got[0].Path, "%q", mode)
 	}
 }
 
@@ -165,7 +165,7 @@ func TestVerify_UndeclaredStreamingModeIsAViolation(t *testing.T) {
 // mode verifies, the empty one included, since most operations do not stream.
 func TestVerify_DeclaredStreamingModesAreClean(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []ir.StreamingMode{ir.StreamingNone, ir.StreamingClient, ir.StreamingServer, ir.StreamingBidi} {
+	for _, mode := range []ir.StreamingMode{ir.StreamingNone, ir.StreamingClient, ir.StreamingServer, ir.StreamingBidirectional} {
 		assert.Empty(t, verifyDeclared(streamingDoc(mode)), "%q", mode)
 	}
 }
@@ -189,16 +189,16 @@ func TestVerify_AnEnumsUndeclaredValueTypeIsAViolation(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name  string
-		vt    ir.PrimKind
+		vt    ir.PrimitiveKind
 		paths []string
 	}{
-		{"an invented kind", "flt", []string{"types[t/x/E].ValueType"}},
-		{"none", "", []string{"types[t/x/E].ValueType"}},
-		{"a declared kind", ir.PrimInt64, nil},
+		{"an invented kind", "flt", []string{"types[type/x/E].ValueType"}},
+		{"none", "", []string{"types[type/x/E].ValueType"}},
+		{"a declared kind", ir.PrimitiveInt64, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := &ir.Document{Types: ir.TypeRegistry{"t/x/E": &ir.Enum{ID: "t/x/E", ValueType: tc.vt}}}
+			doc := &ir.Document{Types: ir.TypeRegistry{"type/x/E": &ir.Enum{ID: "type/x/E", ValueType: tc.vt}}}
 
 			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-prim-kind"))
 		})
@@ -212,17 +212,17 @@ func TestVerify_ALiteralsUndeclaredValueTypeIsAViolation(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name  string
-		vt    ir.PrimKind
+		vt    ir.PrimitiveKind
 		paths []string
 	}{
-		{"an invented kind", "flt", []string{"types[t/x/L].ValueType"}},
-		{"a declared kind", ir.PrimDate, nil},
+		{"an invented kind", "flt", []string{"types[type/x/L].ValueType"}},
+		{"a declared kind", ir.PrimitiveDate, nil},
 		{"none", "", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := &ir.Document{Types: ir.TypeRegistry{"t/x/L": &ir.Literal{
-				ID: "t/x/L", Value: ir.Value{Kind: ir.ValueString, Str: "a"}, ValueType: tc.vt,
+			doc := &ir.Document{Types: ir.TypeRegistry{"type/x/L": &ir.Literal{
+				ID: "type/x/L", Value: ir.Value{Kind: ir.ValueString, String: "a"}, ValueType: tc.vt,
 			}}}
 			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-prim-kind"))
 		})
@@ -234,7 +234,7 @@ func TestVerify_ALiteralsUndeclaredValueTypeIsAViolation(t *testing.T) {
 // carrier the check named by hand would be the one a new struct escapes.
 func TestVerify_UndeclaredStabilityIsAViolation(t *testing.T) {
 	t.Parallel()
-	const op = "doc.Services[0].Groups[0].Operations[0].Stability"
+	const op = "document.Services[0].Groups[0].Operations[0].Stability"
 	tests := []struct {
 		name string
 		edit func(*ir.Document)
@@ -245,15 +245,15 @@ func TestVerify_UndeclaredStabilityIsAViolation(t *testing.T) {
 		}, op},
 		{"a group", func(d *ir.Document) {
 			d.Services[0].Groups[0].Stability = "GA"
-		}, "doc.Services[0].Groups[0].Stability"},
+		}, "document.Services[0].Groups[0].Stability"},
 		{"a nested group", func(d *ir.Document) {
-			d.Services[0].Groups[0].Groups = []ir.OperationGroup{{ID: "g/x/nested", Stability: "Beta"}}
-		}, "doc.Services[0].Groups[0].Groups[0].Stability"},
+			d.Services[0].Groups[0].Groups = []ir.OperationGroup{{ID: "operation-group/x/nested", Stability: "Beta"}}
+		}, "document.Services[0].Groups[0].Groups[0].Stability"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := opDoc(ir.Operation{ID: "op/x/S/op"})
+			doc := opDoc(ir.Operation{ID: "operation/x/S/op"})
 			tc.edit(doc)
 			var got []string
 			for _, v := range irverify.Verify(doc) {
@@ -274,7 +274,7 @@ func TestVerify_DeclaredStabilityIsClean(t *testing.T) {
 	for _, tier := range []ir.Stability{ir.StabilityUnstated, ir.StabilityAlpha, ir.StabilityBeta, ir.StabilityStable} {
 		t.Run(string(tier), func(t *testing.T) {
 			t.Parallel()
-			assert.NotContains(t, violationCodes(irverify.Verify(opDoc(ir.Operation{ID: "op/x/S/op", Stability: tier}))),
+			assert.NotContains(t, violationCodes(irverify.Verify(opDoc(ir.Operation{ID: "operation/x/S/op", Stability: tier}))),
 				"ir/unknown-stability")
 		})
 	}

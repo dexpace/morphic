@@ -12,13 +12,13 @@ type List struct    { TypeCommon; Elem TypeRef; Constraints *Constraints; Encodi
 type MapT struct    { TypeCommon; Key *TypeRef; Value TypeRef; Constraints *Constraints }
                     // a map and nothing else: TypeSpec Record, a protobuf, Smithy or Avro map, an
                     // object whose one statement about its members is additionalProperties.
-                    // Key: nil = string keys, the one spelling of them, as for AdditionalProps.Key.
+                    // Key: nil = string keys, the one spelling of them, as for AdditionalProperties.Key.
                     // Constraints: minProperties/maxProperties (Smithy @length), the entry count
 type Tuple struct   { TypeCommon; Elems []TypeRef; Rest *TypeRef; Constraints *Constraints }
                     // prefixItems + items, TypeSpec tuples, Erlang tuples
                     // Rest: the type of every element past Elems; nil = none may follow
                     // Constraints: minItems/maxItems/uniqueItems over the whole instance
-type Literal struct { TypeCommon; Value Value; ValueType PrimKind }
+type Literal struct { TypeCommon; Value Value; ValueType PrimitiveKind }
                     // const, a source's literal types, Erlang atoms;
                     // a one-member enum is an Enum (docs/ir/enums.md);
                     // ValueType as an Enum's, "" for a list or object;
@@ -50,11 +50,11 @@ second time, on a node, where every other spelling states it once.
 
 ## Maps
 
-**A map and nothing else is a `MapT`.** `Model.AdditionalProps` and `MapT` both type a value under
+**A map and nothing else is a `MapT`.** `Model.AdditionalProperties` and `MapT` both type a value under
 arbitrary keys, and what tells them apart is what else the source says about the members. A
 catch-all beside any other member fact — a declared property, a pattern-scoped value, composition
 (`Base`, `Implements`, `Mixins`), a closure (`Additional`), a discriminator or a subtype's tag, or
-any other field only a `Model` has — is that model's `AdditionalProps`. A catch-all with nothing
+any other field only a `Model` has — is that model's `AdditionalProperties`. A catch-all with nothing
 beside it is a `MapT`, never a `Model` with no properties. TypeSpec's `Record<T>`, a protobuf map
 and an OpenAPI object writing only `additionalProperties` are one construct, and a document that
 held some of them as models would leave every emitter to recognize the map itself, the work a
@@ -76,15 +76,15 @@ without being a key type.
 
 ## Tuples
 
-A `Tuple` states three independent things, one field each. `Elems` types the leading positions.
-`Rest` types every element past them, as `List.Elem` types every element of a list; nil means no
+A `Tuple` states three independent things, one field each. `ElementTypes` types the leading positions.
+`Rest` types every element past them, as `List.ElementType` types every element of a list; nil means no
 element may follow, so an open rest that constrains nothing targets the top type rather than being
-absent. `Constraints` bounds the whole instance, `Elems` and `Rest` together, under the same rules
+absent. `Constraints` bounds the whole instance, `ElementTypes` and `Rest` together, under the same rules
 as a `List`'s ([annotations](./annotations.md#what-a-reference-carries-down)).
 
-`Elems` does not require its positions. JSON Schema's `prefixItems` requires none of them, and an
+`ElementTypes` does not require its positions. JSON Schema's `prefixItems` requires none of them, and an
 array has no holes, so the required positions are always a prefix, and `Constraints.MinItems` is how
 long it is. A consumer reading a `Tuple` with no `MinItems` must therefore treat every position as
 optional, and a source whose tuples are exact — TypeSpec's and Erlang's — lowers each with
 `MinItems` equal to `len(Elems)` and no `Rest`. No field is derived from another: a compiler neither
-trims `Elems` to `MaxItems` nor restates a closed tuple as a `MaxItems`.
+trims `ElementTypes` to `MaxItems` nor restates a closed tuple as a `MaxItems`.

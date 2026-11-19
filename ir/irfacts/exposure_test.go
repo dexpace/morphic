@@ -24,7 +24,7 @@ import (
 // the relation is a forest; otherwise properties are drawn from a shared pool,
 // so some are declared twice. It returns the document, every type ID and every
 // property ID worth asking about.
-func exposureRandom(rng *rand.Rand, forest bool) (*ir.Document, []ir.TypeID, []ir.PropID) {
+func exposureRandom(rng *rand.Rand, forest bool) (*ir.Document, []ir.TypeID, []ir.PropertyID) {
 	n := 1 + rng.IntN(30)
 	types := make([]ir.TypeID, 0, n+4)
 	for i := range n {
@@ -33,16 +33,16 @@ func exposureRandom(rng *rand.Rand, forest bool) (*ir.Document, []ir.TypeID, []i
 	declared := types[:n:n]
 	types = append(types, "ghost", "nilm", "")
 	pick := func() ir.TypeID { return types[rng.IntN(len(types))] }
-	props := []ir.PropID{"p/ghost", ""}
+	props := []ir.PropertyID{"property/ghost", ""}
 	doc := irtest.DocOf()
 	for _, id := range declared {
 		switch r := rng.IntN(10); {
 		case r < 6:
 			m := irtest.ModelOf(id, nil)
 			for j := range rng.IntN(3) {
-				prop := ir.PropID(fmt.Sprintf("p/%s/%d", id, j))
+				prop := ir.PropertyID(fmt.Sprintf("property/%s/%d", id, j))
 				if !forest {
-					prop = ir.PropID(fmt.Sprintf("p/shared%d", rng.IntN(6)))
+					prop = ir.PropertyID(fmt.Sprintf("property/shared%d", rng.IntN(6)))
 				}
 				m.Properties = append(m.Properties, ir.Property{ID: prop})
 				props = append(props, prop)
@@ -59,8 +59,8 @@ func exposureRandom(rng *rand.Rand, forest bool) (*ir.Document, []ir.TypeID, []i
 	}
 	doc.Types["nilm"] = (*ir.Model)(nil)
 	if rng.IntN(4) == 0 {
-		doc.Types[""] = irtest.ModelOf("", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/empty"}} })
-		props = append(props, "p/empty")
+		doc.Types[""] = irtest.ModelOf("", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "property/empty"}} })
+		props = append(props, "property/empty")
 	}
 	return doc, types, props
 }
@@ -102,7 +102,7 @@ func TestIndex_ExposesAsTheReferenceWalkDoes(t *testing.T) {
 				doc, types, props := exposureRandom(rand.New(rand.NewPCG(seed, seed+7)), forest)
 				facts := irfacts.New(doc)
 				for _, id := range types {
-					want := ir.ExposedProps(doc, id)
+					want := ir.ExposedProperties(doc, id)
 					for _, prop := range props {
 						require.Equal(t, want[prop], facts.Exposes(id, prop), "seed %d: Exposes(%q, %q)", seed, id, prop)
 						exposed, ok := facts.ExposesIndexAnswer(id, prop)
@@ -136,28 +136,28 @@ func TestIndex_ExposesAsTheReferenceWalkDoes(t *testing.T) {
 func TestIndex_ExposesWhatCompositionAndAliasesLeadTo(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
-		irtest.ModelOf("top", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/top"}} }),
-		irtest.ModelOf("mixin", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/mixin"}} }),
+		irtest.ModelOf("top", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "property/top"}} }),
+		irtest.ModelOf("mixin", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "property/mixin"}} }),
 		irtest.ScalarOf("topAlias", "top"),
 		irtest.ModelOf("mid", func(m *ir.Model) {
 			m.Base = &ir.TypeRef{Target: "topAlias"}
 			m.Mixins = irtest.RefsTo("mixin")
-			m.Properties = []ir.Property{{ID: "p/mid"}}
+			m.Properties = []ir.Property{{ID: "property/mid"}}
 		}),
 		irtest.ModelOf("leaf", func(m *ir.Model) { m.Implements = irtest.RefsTo("mid") }),
 		irtest.ScalarOf("leafAlias", "leaf"),
-		irtest.ModelOf("other", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/other"}} }),
+		irtest.ModelOf("other", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "property/other"}} }),
 	)
 	facts := irfacts.New(doc)
 	for _, root := range []ir.TypeID{"leaf", "leafAlias"} {
-		for _, prop := range []ir.PropID{"p/top", "p/mixin", "p/mid"} {
+		for _, prop := range []ir.PropertyID{"property/top", "property/mixin", "property/mid"} {
 			assert.True(t, facts.Exposes(root, prop), "%s exposes %s", root, prop)
 		}
-		assert.False(t, facts.Exposes(root, "p/other"), "%s composes nothing of other", root)
+		assert.False(t, facts.Exposes(root, "property/other"), "%s composes nothing of other", root)
 	}
-	assert.False(t, facts.Exposes("top", "p/mid"), "a base exposes nothing of what composes it")
-	assert.False(t, facts.Exposes("ghost", "p/top"), "an undeclared type exposes nothing")
-	assert.False(t, facts.Exposes("leaf", "p/ghost"), "no type exposes a property nothing declares")
+	assert.False(t, facts.Exposes("top", "property/mid"), "a base exposes nothing of what composes it")
+	assert.False(t, facts.Exposes("ghost", "property/top"), "an undeclared type exposes nothing")
+	assert.False(t, facts.Exposes("leaf", "property/ghost"), "no type exposes a property nothing declares")
 }
 
 func TestIndex_ExposesAChainsPropertiesWithoutWalking(t *testing.T) {
@@ -179,4 +179,4 @@ func TestIndex_ExposesAChainsPropertiesWithoutWalking(t *testing.T) {
 	}
 }
 
-func factsPropID(i int) ir.PropID { return ir.PropID(fmt.Sprintf("p/c%06d", i)) }
+func factsPropID(i int) ir.PropertyID { return ir.PropertyID(fmt.Sprintf("property/c%06d", i)) }

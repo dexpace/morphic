@@ -43,7 +43,7 @@ func typeListUnion(names []string) string {
 // object. Both orders of the branches and of every mapping lower alike.
 func TestVariantBounds_AVariantOverATypeListComposesItsObject(t *testing.T) {
 	t.Parallel()
-	bases := map[string]ir.TypeID{"Mixed": "t/anon/components/schemas/Mixed/type/0", "Obj": componentID("Obj")}
+	bases := map[string]ir.TypeID{"Mixed": "type/anonymous/components/schemas/Mixed/type/0", "Obj": componentID("Obj")}
 	members := map[string][]string{"Mixed": {"a", "m"}, "Obj": {"a", "o"}}
 	for _, order := range [][]string{{"Mixed", "Obj"}, {"Obj", "Mixed"}} {
 		t.Run(strings.Join(order, "-"), func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestVariantBounds_AVariantOverATypeListComposesItsObject(t *testing.T) {
 							assert.Equal(t, bases[name], v.Base.Target, "the variant over %s at %s", name, at)
 							assert.Empty(t, v.Unmodeled, "the variant over %s at %s keeps nothing", name, at)
 							assert.Equal(t, members[name], flattenedNames(doc, v.ID), "%s at %s", name, at)
-							assert.Equal(t, map[string]any{"minProps": 1.0}, variantConstraints(t, doc, v.ID), "%s at %s", name, at)
+							assert.Equal(t, map[string]any{"minProperties": 1.0}, variantConstraints(t, doc, v.ID), "%s at %s", name, at)
 						}
 					}
 				})

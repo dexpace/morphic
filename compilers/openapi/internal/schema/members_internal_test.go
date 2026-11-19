@@ -64,16 +64,16 @@ func hierarchy(n int, wide, shared bool) string {
 // the member's own place, and the member's own place for any other.
 func TestMembers_ADeclarationASettledModelHoldsKeepsWhereItsTypeIsWritten(t *testing.T) {
 	t.Parallel()
-	settled := ir.Property{ID: "p/K/b", WireName: "b", Provenance: ir.Provenance{Pointer: "/K/allOf/0/properties/b"}}
-	other := ir.Property{ID: "p/L/b", WireName: "b", Provenance: ir.Provenance{Pointer: "/L/properties/b"}}
+	settled := ir.Property{ID: "property/K/b", WireName: "b", Provenance: ir.Provenance{Pointer: "/K/allOf/0/properties/b"}}
+	other := ir.Property{ID: "property/L/b", WireName: "b", Provenance: ir.Provenance{Pointer: "/L/properties/b"}}
 	typeAt := []ir.Provenance{{Pointer: "/K/allOf/1/properties/b"}}
-	held := ir.PropertyDecl{Owner: "t/K", Property: &settled}
-	rec := &members{tables: map[ir.TypeID]merge.RedeclaredWireNameTable{"t/K": {"b": {PropertyDecl: held, TypeAt: typeAt}}}}
+	held := ir.PropertyDecl{Owner: "type/K", Property: &settled}
+	rec := &members{tables: map[ir.TypeID]merge.RedeclaredWireNameTable{"type/K": {"b": {PropertyDecl: held, TypeAt: typeAt}}}}
 
 	assert.Equal(t, typeAt, rec.declared(held).TypeAt, "as its settlement left it")
 	for name, d := range map[string]ir.PropertyDecl{
-		"a model with no table":              {Owner: "t/L", Property: &other},
-		"another declaration under its name": {Owner: "t/K", Property: &other},
+		"a model with no table":              {Owner: "type/L", Property: &other},
+		"another declaration under its name": {Owner: "type/K", Property: &other},
 	} {
 		assert.Equal(t, []ir.Provenance{other.Provenance}, rec.declared(d).TypeAt, name)
 	}
@@ -90,9 +90,9 @@ func TestMembers_ReadsGrowWithAHierarchysSizeNotItsDepthSquared(t *testing.T) {
 		read := func(n int) int {
 			doc, diags, reads := settledUnder(t, hierarchy(n, wide, false), budget.Unbounded())
 			openapitest.RequireNoErrorDiags(t, diags)
-			last, ok := doc.Types[ir.TypeID(fmt.Sprintf("t/openapi/components/schemas/A%d", n-1))].(*ir.Model)
+			last, ok := doc.Types[ir.TypeID(fmt.Sprintf("type/openapi/components/schemas/A%d", n-1))].(*ir.Model)
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/prim/integer"), last.Properties[0].Type.Target, "wide %v: the base's integer", wide)
+			assert.Equal(t, ir.TypeID("type/primitive/integer"), last.Properties[0].Type.Target, "wide %v: the base's integer", wide)
 			return reads
 		}
 		a, b, c := read(100), read(200), read(400)
@@ -109,18 +109,18 @@ func TestMembers_ReadsPastTheBudgetFoldTheirOwnDeclarationsAlone(t *testing.T) {
 	doc, diags, _ := settledUnder(t, hierarchy(40, false, true), budget.AtMost(100))
 
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.BudgetExceeded, ir.SeverityError), "%+v", diags)
-	first, ok := doc.Types["t/openapi/components/schemas/A1"].(*ir.Model)
+	first, ok := doc.Types["type/openapi/components/schemas/A1"].(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), first.Properties[0].Type.Target, "settled before the bound")
-	last, ok := doc.Types["t/openapi/components/schemas/A39"].(*ir.Model)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), first.Properties[0].Type.Target, "settled before the bound")
+	last, ok := doc.Types["type/openapi/components/schemas/A39"].(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/number"), last.Properties[0].Type.Target, "past it, its own")
+	assert.Equal(t, ir.TypeID("type/primitive/number"), last.Properties[0].Type.Target, "past it, its own")
 
 	cut := 1
 	for ; cut < 40; cut++ {
-		m, isModel := doc.Types[ir.TypeID(fmt.Sprintf("t/openapi/components/schemas/A%d", cut))].(*ir.Model)
+		m, isModel := doc.Types[ir.TypeID(fmt.Sprintf("type/openapi/components/schemas/A%d", cut))].(*ir.Model)
 		require.True(t, isModel)
-		if m.Properties[0].Type.Target == "t/prim/number" {
+		if m.Properties[0].Type.Target == "type/primitive/number" {
 			break
 		}
 	}
@@ -139,27 +139,27 @@ func TestMembers_ReadsPastTheBudgetFoldTheirOwnDeclarationsAlone(t *testing.T) {
 func TestMembers_ReadsAPartThroughItsAliasesAndNothingElse(t *testing.T) {
 	t.Parallel()
 	prop := func(wire string) ir.Property {
-		return ir.Property{ID: ir.PropID("p/" + wire), WireName: wire, Type: ir.TypeRef{Target: "t/prim/string"}}
+		return ir.Property{ID: ir.PropertyID("property/" + wire), WireName: wire, Type: ir.TypeRef{Target: "type/primitive/string"}}
 	}
 	reg := ir.TypeRegistry{
-		"t/M":     &ir.Model{ID: "t/M", Properties: []ir.Property{prop("p"), prop("q")}},
-		"t/N":     &ir.Model{ID: "t/N", Properties: []ir.Property{prop("p")}},
-		"t/alias": &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/M"}},
-		"t/loop":  &ir.Scalar{ID: "t/loop", Base: &ir.TypeRef{Target: "t/loop"}},
-		"t/bare":  &ir.Scalar{ID: "t/bare"},
-		"t/u":     &ir.Union{ID: "t/u"},
+		"type/M":     &ir.Model{ID: "type/M", Properties: []ir.Property{prop("p"), prop("q")}},
+		"type/N":     &ir.Model{ID: "type/N", Properties: []ir.Property{prop("p")}},
+		"type/alias": &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/M"}},
+		"type/loop":  &ir.Scalar{ID: "type/loop", Base: &ir.TypeRef{Target: "type/loop"}},
+		"type/bare":  &ir.Scalar{ID: "type/bare"},
+		"type/u":     &ir.Union{ID: "type/u"},
 	}
-	rec := &members{byID: map[ir.TypeID]modelFields{"t/N": {}}, settled: map[ir.TypeID]bool{},
+	rec := &members{byID: map[ir.TypeID]modelFields{"type/N": {}}, settled: map[ir.TypeID]bool{},
 		tables: map[ir.TypeID]merge.RedeclaredWireNameTable{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}
 
-	got := rec.tableOf(reg, "t/alias", "t/X")
+	got := rec.tableOf(reg, "type/alias", "type/X")
 	require.Len(t, got, 1, "q is declared once")
-	assert.Equal(t, ir.TypeID("t/M"), got["p"].Owner)
-	assert.Contains(t, rec.tables, ir.TypeID("t/M"), "a model the walks did not note is read once")
-	assert.Len(t, rec.tableOf(reg, "t/N", "t/X"), 1)
-	assert.NotContains(t, rec.tables, ir.TypeID("t/N"), "a noted model is read as it stands until settled")
-	for _, target := range []ir.TypeID{"t/loop", "t/bare", "t/u", "t/missing"} {
-		assert.Nil(t, rec.tableOf(reg, target, "t/X"), target)
+	assert.Equal(t, ir.TypeID("type/M"), got["p"].Owner)
+	assert.Contains(t, rec.tables, ir.TypeID("type/M"), "a model the walks did not note is read once")
+	assert.Len(t, rec.tableOf(reg, "type/N", "type/X"), 1)
+	assert.NotContains(t, rec.tables, ir.TypeID("type/N"), "a noted model is read as it stands until settled")
+	for _, target := range []ir.TypeID{"type/loop", "type/bare", "type/u", "type/missing"} {
+		assert.Nil(t, rec.tableOf(reg, target, "type/X"), target)
 	}
 	assert.Empty(t, rec.cut, "no read was refused")
 }
@@ -173,19 +173,19 @@ func TestMembers_ReadsAPartThroughItsAliasesAndNothingElse(t *testing.T) {
 func TestMembers_ReadingAModelNotSettledChargesItsComposition(t *testing.T) {
 	t.Parallel()
 	prop := func(id string) ir.Property {
-		return ir.Property{ID: ir.PropID(id), WireName: "p", Type: ir.TypeRef{Target: "t/prim/string"}}
+		return ir.Property{ID: ir.PropertyID(id), WireName: "p", Type: ir.TypeRef{Target: "type/primitive/string"}}
 	}
 	reg := ir.TypeRegistry{
-		"t/N": &ir.Model{ID: "t/N", Base: &ir.TypeRef{Target: "t/alias"}, Mixins: []ir.TypeRef{{Target: "t/M2"}},
-			Properties: []ir.Property{prop("p/N")}},
-		"t/alias": &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/M"}},
-		"t/M":     &ir.Model{ID: "t/M", Properties: []ir.Property{prop("p/M")}},
-		"t/M2":    &ir.Model{ID: "t/M2", Properties: []ir.Property{prop("p/M2")}},
+		"type/N": &ir.Model{ID: "type/N", Base: &ir.TypeRef{Target: "type/alias"}, Mixins: []ir.TypeRef{{Target: "type/M2"}},
+			Properties: []ir.Property{prop("property/N")}},
+		"type/alias": &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/M"}},
+		"type/M":     &ir.Model{ID: "type/M", Properties: []ir.Property{prop("property/M")}},
+		"type/M2":    &ir.Model{ID: "type/M2", Properties: []ir.Property{prop("property/M2")}},
 	}
-	rec := &members{byID: map[ir.TypeID]modelFields{"t/N": {}}, settled: map[ir.TypeID]bool{},
+	rec := &members{byID: map[ir.TypeID]modelFields{"type/N": {}}, settled: map[ir.TypeID]bool{},
 		tables: map[ir.TypeID]merge.RedeclaredWireNameTable{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}
 
-	require.Len(t, rec.tableOf(reg, "t/N", "t/X"), 1)
+	require.Len(t, rec.tableOf(reg, "type/N", "type/X"), 1)
 	assert.Equal(t, 4+3+3+1, rec.reads.Spent(), "types, entries, declarations and the table's entry")
 }
 
@@ -215,10 +215,10 @@ func TestMembers_ABaseComposedBesideItsHierarchyBringsNothingAtAnyDepth(t *testi
 		doc, diags, _ := settledUnder(t, deepLeaf(depth), budget.Unbounded())
 
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := doc.Types["t/openapi/components/schemas/M"].(*ir.Model)
+		m, ok := doc.Types["type/openapi/components/schemas/M"].(*ir.Model)
 		require.True(t, ok)
 		assert.Empty(t, m.Properties, "at depth %d", depth)
-		flat := ir.FlattenedProperties(doc.Types, "t/openapi/components/schemas/M")
+		flat := ir.FlattenedProperties(doc.Types, "type/openapi/components/schemas/M")
 		require.Len(t, flat.Properties, 1, "at depth %d", depth)
 		assert.Equal(t, "leaf", flat.Properties[0].Property.Docs.Description, "at depth %d", depth)
 		for _, d := range diags {
@@ -268,7 +268,7 @@ func TestMembers_ACutTellingDeclarationsApartFallsAlikeInEveryRun(t *testing.T) 
 	_, _, all := settledUnder(t, twoDeepLeaves(100), budget.Unbounded())
 	declared := func() []string {
 		doc, _, _ := settledUnder(t, twoDeepLeaves(100), budget.AtMost(all-60))
-		m, ok := doc.Types["t/openapi/components/schemas/M"].(*ir.Model)
+		m, ok := doc.Types["type/openapi/components/schemas/M"].(*ir.Model)
 		require.True(t, ok)
 		wires := make([]string, 0, len(m.Properties))
 		for _, p := range m.Properties {

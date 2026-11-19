@@ -29,8 +29,8 @@ type ProtoBinding struct {
     OTP      *ir.OTPBinding     // the behaviour, call/cast/info, the process and the request tag
 }
 type ParamBind struct {
-    Param    ir.ParamID      // the bound Operation.Params entry; one name may be two params
-    ParamPath []ir.PropID    // HTTPParamBinding.ParamPath: the member of the param this binding
+    Param    ir.ParameterID      // the bound Operation.Params entry; one name may be two params
+    ParamPath []ir.PropertyID    // HTTPParamBinding.ParamPath: the member of the param this binding
                              // sends, as a transcoding's {book.name} does; empty = the whole param
     Where    ir.HTTPLocation // where it is sent, in HTTPParamBinding.Location's vocabulary
     WireName string          // never a rendered identifier (INV4)
@@ -43,7 +43,7 @@ type ParamBind struct {
                              // of strings in a query or a cookie
                              // (../refine/text.md#a-value-no-style-arranges)
     ContentType string       // a content-style param's media type; "" = serialized by Style
-    BodyPath []ir.PropID     // body_property: where in the body model the param lands
+    BodyPath []ir.PropertyID     // body_property: where in the body model the param lands
 }
 type Protocol string         // "http" | "rpc" | "message" | "graphql" | "otp"
 ```

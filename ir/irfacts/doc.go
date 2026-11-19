@@ -9,6 +9,6 @@
 // after a transform.
 //
 // The relations it indexes are defined in ir: [DocumentFacts.IsSubtype] and
-// [DocumentFacts.Exposes] answer what ir.IsSubtype and ir.ExposedProps answer, for many
+// [DocumentFacts.Exposes] answer what ir.IsSubtype and ir.ExposedProperties answer, for many
 // questions at once. It imports only ir.
 package irfacts

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -57,7 +57,7 @@
   },
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "DocsSummaryDesc",
         "canonical": "docs_summary_desc"
@@ -67,14 +67,14 @@
       },
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1ping/get",
+              "id": "operation/openapi/paths/~1ping/get",
               "name": {
                 "source": "ping",
                 "canonical": "ping"
@@ -136,9 +136,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/UserId": {
+    "type/openapi/components/schemas/UserId": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/UserId",
+      "id": "type/openapi/components/schemas/UserId",
       "name": {
         "source": "UserId",
         "canonical": "user_id"
@@ -154,13 +154,13 @@
         "pointer": "/components/schemas/UserId"
       },
       "base": {
-        "target": "t/prim/uuid",
+        "target": "type/primitive/uuid",
         "nullable": false
       }
     },
-    "t/prim/uuid": {
+    "type/primitive/uuid": {
       "kind": "primitive",
-      "id": "t/prim/uuid",
+      "id": "type/primitive/uuid",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -168,7 +168,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "uuid"
+      "primitiveKind": "uuid"
     }
   },
   "servers": {

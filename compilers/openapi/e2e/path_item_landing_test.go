@@ -51,7 +51,7 @@ func sharedItemSpec(itemFirst bool) string {
 
 // opWithID returns the operation of doc with the ID, failing the test where
 // there is none.
-func opWithID(t *testing.T, doc *ir.Document, id ir.OpID) ir.Operation {
+func opWithID(t *testing.T, doc *ir.Document, id ir.OperationID) ir.Operation {
 	t.Helper()
 	i := slices.IndexFunc(allOperations(doc), func(op ir.Operation) bool { return op.ID == id })
 	require.GreaterOrEqual(t, i, 0, "no operation %s", id)
@@ -61,9 +61,9 @@ func opWithID(t *testing.T, doc *ir.Document, id ir.OpID) ir.Operation {
 // operationIDs returns the ID of each operation of doc, which says what an
 // assertion on their number found where the operations themselves would fill a
 // failure with their fields.
-func operationIDs(doc *ir.Document) []ir.OpID {
+func operationIDs(doc *ir.Document) []ir.OperationID {
 	ops := allOperations(doc)
-	ids := make([]ir.OpID, 0, len(ops))
+	ids := make([]ir.OperationID, 0, len(ops))
 	for _, op := range ops {
 		ids = append(ids, op.ID)
 	}
@@ -94,11 +94,11 @@ func TestCompile_FieldsBesideAPathItemRefAtAnyLandingAreMounted(t *testing.T) {
 		doc, diags := parseVerified(t, sharedItemSpec(itemFirst))
 		docs[itemFirst], findings[itemFirst] = doc, findingsAt(diags)
 
-		put := opWithID(t, doc, "op/openapi/paths/~1a/put")
+		put := opWithID(t, doc, "operation/openapi/paths/~1a/put")
 		assert.Equal(t, "putShared", put.Name.Source)
 		assert.Equal(t, jsontext.Pointer("/x-shared/item/put"), put.Provenance.Pointer, "declared at the landing")
-		assert.Equal(t, "getB", opWithID(t, doc, "op/openapi/paths/~1a/get").Name.Source)
-		assert.Equal(t, "getB", opWithID(t, doc, "op/openapi/paths/~1b/get").Name.Source)
+		assert.Equal(t, "getB", opWithID(t, doc, "operation/openapi/paths/~1a/get").Name.Source)
+		assert.Equal(t, "getB", opWithID(t, doc, "operation/openapi/paths/~1b/get").Name.Source)
 		assert.Len(t, operationIDs(doc), 3, "itemFirst %t", itemFirst)
 		for _, d := range diags {
 			assert.NotContains(t, d.Message, "does not reach", "itemFirst %t", itemFirst)
@@ -138,11 +138,11 @@ func TestCompile_ALongChainOfLandingsMountsEachOnesFields(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Len(t, operationIDs(doc), n+2, "one for each landing, /a's get and /b's")
 			for i := range n {
-				op := opWithID(t, doc, ir.OpID(fmt.Sprintf("op/openapi/paths/~1a/%s", methods[i])))
+				op := opWithID(t, doc, ir.OperationID(fmt.Sprintf("operation/openapi/paths/~1a/%s", methods[i])))
 				assert.Equal(t, fmt.Sprintf("op%d", i), op.Name.Source)
 				assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/x-chain/i%d/%s", i, methods[i])), op.Provenance.Pointer)
 			}
-			assert.Equal(t, "getB", opWithID(t, doc, "op/openapi/paths/~1a/get").Name.Source)
+			assert.Equal(t, "getB", opWithID(t, doc, "operation/openapi/paths/~1a/get").Name.Source)
 		})
 	}
 }
@@ -182,13 +182,13 @@ func TestCompile_FieldsBesideAForeignPathItemRefAreMounted(t *testing.T) {
 		openapitest.RequireNoErrorDiags(t, diags)
 		docs = append(docs, doc)
 
-		put := opWithID(t, doc, "op/openapi/paths/~1a/put")
+		put := opWithID(t, doc, "operation/openapi/paths/~1a/put")
 		assert.Equal(t, "putOther", put.Name.Source, "second %t", second)
 		assert.Equal(t, jsontext.Pointer("/items/I/put"), put.Provenance.Pointer)
 		require.Less(t, put.Provenance.Source, len(doc.Sources))
 		assert.Equal(t, "other.yaml", filepath.Base(doc.Sources[put.Provenance.Source].Path),
 			"declared in the document that writes it")
-		get := opWithID(t, doc, "op/openapi/paths/~1a/get")
+		get := opWithID(t, doc, "operation/openapi/paths/~1a/get")
 		assert.Equal(t, "getJ", get.Name.Source)
 		assert.Equal(t, jsontext.Pointer("/items/J/get"), get.Provenance.Pointer)
 		assert.Len(t, operationIDs(doc), 2)

@@ -58,7 +58,7 @@ func (vs valueSetSite) pointer() jsontext.Pointer {
 // narrowed by every conjunct where its position refines (conjunctPrim), fits
 // saying which primitives the values are of. The position is the stand's, else
 // the set's own; a member has none.
-func (vs valueSetSite) valueType(c lowering.Ctx, own ir.PrimKind, fits func(ir.PrimKind) bool) ir.PrimKind {
+func (vs valueSetSite) valueType(c lowering.Ctx, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
 	if vs.member {
 		return own
 	}
@@ -156,7 +156,7 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 // setType is the ValueType of the Enum or Literal a refinement's value set
 // lowers to, ok false where it lowers to no such node (refinedValueType).
 type setType struct {
-	prim ir.PrimKind
+	prim ir.PrimitiveKind
 	ok   bool
 }
 
@@ -180,7 +180,7 @@ func refinedValueType(c lowering.Ctx, r refinement, s *statement.Schema, pointer
 	case "const":
 		return constSetType(c, site)
 	default:
-		return setType{prim: site.enumType(c, admitsEvery, ir.PrimAny), ok: nullAlone(site.set)}
+		return setType{prim: site.enumType(c, admitsEvery, ir.PrimitiveAny), ok: nullAlone(site.set)}
 	}
 }
 
@@ -196,7 +196,7 @@ func enumSetType(c lowering.Ctx, site valueSetSite) setType {
 	if !ok {
 		return setType{prim: site.enumType(c, admitsEvery, prim)}
 	}
-	return setType{prim: site.enumType(c, func(p ir.PrimKind) bool { return entriesAre(kept, p) }, prim), ok: true}
+	return setType{prim: site.enumType(c, func(p ir.PrimitiveKind) bool { return entriesAre(kept, p) }, prim), ok: true}
 }
 
 // constSetType is refinedValueType for a const: the Literal's ValueType, or
@@ -205,7 +205,7 @@ func enumSetType(c lowering.Ctx, site valueSetSite) setType {
 func constSetType(c lowering.Ctx, site valueSetSite) setType {
 	val, err := value.FromNode(site.set.Const())
 	if err == nil && val.Kind == ir.ValueNull {
-		return setType{prim: site.enumType(c, admitsEvery, ir.PrimAny), ok: true}
+		return setType{prim: site.enumType(c, admitsEvery, ir.PrimitiveAny), ok: true}
 	}
 	return setType{prim: site.literalType(c, val), ok: err == nil}
 }
@@ -213,23 +213,23 @@ func constSetType(c lowering.Ctx, site valueSetSite) setType {
 // enumType is the ValueType an Enum of members classified as memberPrim takes
 // at vs (enumValueType), admits saying whether every member is a value of a
 // primitive, narrowed where its position refines.
-func (vs valueSetSite) enumType(c lowering.Ctx, admits func(ir.PrimKind) bool, memberPrim ir.PrimKind) ir.PrimKind {
+func (vs valueSetSite) enumType(c lowering.Ctx, admits func(ir.PrimitiveKind) bool, memberPrim ir.PrimitiveKind) ir.PrimitiveKind {
 	return vs.valueType(c, enumValueType(vs.set, admits, memberPrim), admits)
 }
 
 // admitsEvery is what enumType asks of an Enum with no member: every value of
 // any primitive is one of its members, as there is none.
-func admitsEvery(ir.PrimKind) bool { return true }
+func admitsEvery(ir.PrimitiveKind) bool { return true }
 
 // literalType is the ValueType a Literal of val takes at vs
 // (literalValueType), narrowed where its position refines.
-func (vs valueSetSite) literalType(c lowering.Ctx, val ir.Value) ir.PrimKind {
-	return vs.valueType(c, literalValueType(vs.set, val), func(p ir.PrimKind) bool { return merge.Admits(p, val) })
+func (vs valueSetSite) literalType(c lowering.Ctx, val ir.Value) ir.PrimitiveKind {
+	return vs.valueType(c, literalValueType(vs.set, val), func(p ir.PrimitiveKind) bool { return merge.Admits(p, val) })
 }
 
 // valueTypeHoldsFormat reports whether a value set typed prim holds the format
 // s pairs with its type: prim is that format's primitive or a narrower one.
-func valueTypeHoldsFormat(prim ir.PrimKind, s *statement.Schema) bool {
+func valueTypeHoldsFormat(prim ir.PrimitiveKind, s *statement.Schema) bool {
 	paired, ok := formatPrimitive(s)
 	return ok && narrowsOrIs(prim, paired)
 }
@@ -240,15 +240,15 @@ func valueTypeHoldsFormat(prim ir.PrimKind, s *statement.Schema) bool {
 // are s, each inline branch, and what decides what a $ref branch lands on
 // (conjunctSchemas). own is "" for a value no primitive types, which none fits,
 // so it stands.
-func conjunctPrim(c lowering.Ctx, r refinement, s *statement.Schema, own ir.PrimKind, fits func(ir.PrimKind) bool) ir.PrimKind {
-	prims := []ir.PrimKind{own}
+func conjunctPrim(c lowering.Ctx, r refinement, s *statement.Schema, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
+	prims := []ir.PrimitiveKind{own}
 	for _, cs := range conjunctSchemas(c, r, s) {
 		if prim, ok := declaredPrim(cs, fits); ok {
 			prims = append(prims, prim)
 		}
 	}
 	for _, p := range prims {
-		if !slices.ContainsFunc(prims, func(o ir.PrimKind) bool { return !narrowsOrIs(p, o) }) {
+		if !slices.ContainsFunc(prims, func(o ir.PrimitiveKind) bool { return !narrowsOrIs(p, o) }) {
 			return p
 		}
 	}
@@ -273,7 +273,7 @@ func conjunctSchemas(c lowering.Ctx, r refinement, s *statement.Schema) []*state
 }
 
 // narrowsOrIs reports whether p is o or narrower.
-func narrowsOrIs(p, o ir.PrimKind) bool {
+func narrowsOrIs(p, o ir.PrimitiveKind) bool {
 	rel := typeformat.Relate(p, o)
 	return rel == typeformat.Same || rel == typeformat.ANarrower
 }
@@ -281,7 +281,7 @@ func narrowsOrIs(p, o ir.PrimKind) bool {
 // declaredPrim returns the primitive s's type and format select, else its type
 // alone, where fits says its values are of it, as a value set's own schema types
 // it (literalValueType), and false where s selects none they fit.
-func declaredPrim(s *statement.Schema, fits func(ir.PrimKind) bool) (ir.PrimKind, bool) {
+func declaredPrim(s *statement.Schema, fits func(ir.PrimitiveKind) bool) (ir.PrimitiveKind, bool) {
 	if prim, paired := formatPrimitive(s); paired && fits(prim) {
 		return prim, true
 	}

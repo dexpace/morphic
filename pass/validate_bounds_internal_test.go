@@ -20,12 +20,12 @@ func TestPrimShapes_EveryPrimKindHasARow(t *testing.T) {
 	t.Parallel()
 	p, err := decls.Load("github.com/dexpace/morphic/ir")
 	require.NoError(t, err)
-	kinds, err := p.StringConsts("PrimKind")
+	kinds, err := p.StringConsts("PrimitiveKind")
 	require.NoError(t, err)
 	require.NotEmpty(t, kinds)
 
 	for _, k := range kinds {
-		assert.NotEqual(t, shapeNotChecked, primShape(ir.PrimKind(k.Value)), "%s has no shape", k.Value)
+		assert.NotEqual(t, shapeNotChecked, primShape(ir.PrimitiveKind(k.Value)), "%s has no shape", k.Value)
 	}
 	assert.Equal(t, shapeNotChecked, primShape("no-such-kind"))
 }
@@ -45,5 +45,5 @@ func TestKindWords_NamesEveryKind(t *testing.T) {
 		assert.NotEmpty(t, kindWords(ir.ValueKind(k.Value)), k.Value)
 	}
 	assert.Equal(t, "a null", kindWords(ir.ValueNull))
-	assert.Equal(t, "an infinity", kindWords(ir.ValueNegInf))
+	assert.Equal(t, "an infinity", kindWords(ir.ValueNegativeInfinity))
 }

@@ -130,14 +130,14 @@ func TestEngine_AnnotatedSubtypeValidatesClean(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res.Document)
 
-	cat, ok := res.Document.Types["t/openapi/components/schemas/Cat"].(*ir.Model)
+	cat, ok := res.Document.Types["type/openapi/components/schemas/Cat"].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, cat.Base)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Pet"), cat.Base.Target,
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Pet"), cat.Base.Target,
 		"the subtype composes the base its annotated entry names")
 	assert.Equal(t, "the base as this subtype narrows it", cat.Docs.Description,
 		"the description beside the $ref is the subtype's")
-	assert.NotContains(t, res.Document.Types, ir.TypeID("t/anon/components/schemas/Cat/allOf/0"),
+	assert.NotContains(t, res.Document.Types, ir.TypeID("type/anonymous/components/schemas/Cat/allOf/0"),
 		"the entry owns no node")
 	for _, d := range res.Diagnostics {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "diag: %+v", d)
@@ -501,12 +501,12 @@ func (danglingCompiler) Compile(_ context.Context, sources []compilers.Source, _
 		Types:     ir.TypeRegistry{},
 		Sources:   sourcesOf("openapi@3.1", sources),
 		Services: []ir.Service{{
-			ID: "s/x",
+			ID: "service/x",
 			Groups: []ir.OperationGroup{{
 				Operations: []ir.Operation{{
-					ID: "op/x",
+					ID: "operation/x",
 					Errors: []ir.ErrorCase{{
-						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}}},
+						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "type/missing"}}}},
 					}},
 				}},
 			}},
@@ -889,7 +889,7 @@ func (c throwawayCompiler) Compile(_ context.Context, sources []compilers.Source
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion,
 		Name:      "Throwaway",
-		Services:  []ir.Service{{ID: "s/x/0", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
+		Services:  []ir.Service{{ID: "service/x/0", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
 		Sources:   sourcesOf("openapi@3.1", sources),
 	}
 	c.shape(doc)

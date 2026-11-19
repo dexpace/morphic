@@ -100,10 +100,10 @@ func TestKindInference_AnInferredCollectionKeepsItsMemberTypes(t *testing.T) {
 				doc, _ := compileKindInference(t, "members", admissionSpec(version, "", schemas...), false)
 				list, ok := kindNode(t, doc, componentID("Elements")).(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, prim(ir.PrimString), list.Elem.Target)
+				assert.Equal(t, prim(ir.PrimitiveString), list.ElementType.Target)
 				mapped, ok := kindNode(t, doc, componentID("AddlOnly")).(*ir.MapT)
 				require.True(t, ok)
-				assert.Equal(t, prim(ir.PrimString), mapped.Value.Target)
+				assert.Equal(t, prim(ir.PrimitiveString), mapped.Value.Target)
 			})
 		})
 	}
@@ -117,8 +117,8 @@ func TestKindInference_AnInlineCollectionIsMarkedAtItsPosition(t *testing.T) {
 	holder := "Holder: {type: object, properties: {it: {items: {type: string}}, " +
 		"ad: {additionalProperties: {type: string}}}}"
 	want := map[ir.TypeID]ir.TypeKind{
-		"t/anon/components/schemas/Holder/properties/it": ir.KindList,
-		"t/anon/components/schemas/Holder/properties/ad": ir.KindMap,
+		"type/anonymous/components/schemas/Holder/properties/it": ir.KindList,
+		"type/anonymous/components/schemas/Holder/properties/ad": ir.KindMap,
 	}
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
@@ -385,7 +385,7 @@ func TestKindInference_AKindReadThroughAnInferredBranchIsMarked(t *testing.T) {
 			scalar, ok := kindNode(t, off, componentID(name)).(*ir.Scalar)
 			require.True(t, ok, name)
 			require.NotNil(t, scalar.Base, name)
-			assert.Equal(t, prim(ir.PrimAny), scalar.Base.Target, name)
+			assert.Equal(t, prim(ir.PrimitiveAny), scalar.Base.Target, name)
 		}
 	})
 }

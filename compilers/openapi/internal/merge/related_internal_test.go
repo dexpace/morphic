@@ -55,8 +55,8 @@ func TestReportOnce_AConflictListsWhatItKeptAndThenWhatItDecided(t *testing.T) {
 	t.Parallel()
 	registry := func() ir.TypeRegistry {
 		reg := membersRegistry()
-		reg["t/E"] = &ir.Model{ID: "t/E", Properties: []ir.Property{declared("p", "t/prim/bool", "/E/p")}}
-		reg["t/prim/bool"] = &ir.Primitive{ID: "t/prim/bool", Prim: ir.PrimBool}
+		reg["type/E"] = &ir.Model{ID: "type/E", Properties: []ir.Property{declared("p", "type/primitive/bool", "/E/p")}}
+		reg["type/primitive/bool"] = &ir.Primitive{ID: "type/primitive/bool", PrimitiveKind: ir.PrimitiveBool}
 		return reg
 	}
 	for name, tc := range map[string]struct {
@@ -66,25 +66,25 @@ func TestReportOnce_AConflictListsWhatItKeptAndThenWhatItDecided(t *testing.T) {
 	}{
 		"two declarations": {
 			settle: func(reg ir.TypeRegistry) []ir.Diagnostic {
-				return settledModel(t, reg, "t/M", "/M", partAt("t/A", "0"), partAt("t/B", "1"))
+				return settledModel(t, reg, "type/M", "/M", partAt("type/A", "0"), partAt("type/B", "1"))
 			},
 			reports: 1, decided: []int{1},
 		},
 		"three declarations": {
 			settle: func(reg ir.TypeRegistry) []ir.Diagnostic {
-				return settledModel(t, reg, "t/M", "/M", partAt("t/A", "0"), partAt("t/B", "1"), partAt("t/E", "2"))
+				return settledModel(t, reg, "type/M", "/M", partAt("type/A", "0"), partAt("type/B", "1"), partAt("type/E", "2"))
 			},
 			reports: 2, decided: []int{1, 1},
 		},
 		"a $ref chain": {
 			settle: func(reg ir.TypeRegistry) []ir.Diagnostic {
-				return settledModel(t, reg, "t/M", "/M", partAt(chainTo(reg, "t/B", 3), "0"), partAt("t/A", "1"))
+				return settledModel(t, reg, "type/M", "/M", partAt(chainTo(reg, "type/B", 3), "0"), partAt("type/A", "1"))
 			},
 			reports: 1, decided: []int{1},
 		},
 		"a model's own declaration against an entry's": {
 			settle: func(reg ir.TypeRegistry) []ir.Diagnostic {
-				return settledModel(t, reg, "t/M", "/M", ownAt("p", "t/prim/string", "0"), partAt("t/B", "1"))
+				return settledModel(t, reg, "type/M", "/M", ownAt("p", "type/primitive/string", "0"), partAt("type/B", "1"))
 			},
 			reports: 1, decided: []int{1},
 		},
@@ -92,7 +92,7 @@ func TestReportOnce_AConflictListsWhatItKeptAndThenWhatItDecided(t *testing.T) {
 			settle: func(reg ir.TypeRegistry) []ir.Diagnostic {
 				var diags []ir.Diagnostic
 				for _, m := range []string{"M3", "M1", "M5", "M2", "M4"} {
-					diags = append(diags, settledModel(t, reg, ir.TypeID("t/"+m), "/"+m, partAt("t/A", "0"), partAt("t/B", "1"))...)
+					diags = append(diags, settledModel(t, reg, ir.TypeID("type/"+m), "/"+m, partAt("type/A", "0"), partAt("type/B", "1"))...)
 				}
 				return diags
 			},
@@ -100,14 +100,14 @@ func TestReportOnce_AConflictListsWhatItKeptAndThenWhatItDecided(t *testing.T) {
 		},
 		"two members of one pair": {
 			settle: func(reg ir.TypeRegistry) []ir.Diagnostic {
-				return settledModel(t, reg, "t/M", "/M", partAt("t/C", "0"), partAt("t/D", "1"))
+				return settledModel(t, reg, "type/M", "/M", partAt("type/C", "0"), partAt("type/D", "1"))
 			},
 			reports: 2, decided: []int{1, 1},
 		},
 		"a model composing one that settled the pair": {
 			settle: func(reg ir.TypeRegistry) []ir.Diagnostic {
-				diags := settledModel(t, reg, "t/N", "/N", partAt("t/A", "0"), partAt("t/B", "1"))
-				return append(diags, settledModel(t, reg, "t/M", "/M", partAt("t/N", "0"), partAt("t/E", "1"))...)
+				diags := settledModel(t, reg, "type/N", "/N", partAt("type/A", "0"), partAt("type/B", "1"))
+				return append(diags, settledModel(t, reg, "type/M", "/M", partAt("type/N", "0"), partAt("type/E", "1"))...)
 			},
 			reports: 2, decided: []int{1, 1},
 		},

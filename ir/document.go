@@ -12,7 +12,7 @@ package ir
 // docs/ir/ir-version.md holds that policy, docs/ir/version-history.md what each
 // bump changed, and TestIRVersion_PinsTheEncodedShape and
 // TestIRVersion_PinsTheNames hold it to the shape and the names.
-const IRVersion = "0.71.0"
+const IRVersion = "0.72.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build: exact equality with IRVersion, per docs/ir/ir-version.md. A
@@ -43,7 +43,7 @@ type Document struct {
 	// document's IDs of that kind live in. A producer states it as it stamps
 	// IRVersion, from the namespace constants it already names; irverify reports
 	// an ID whose namespace is not declared, which sees a path glued onto its
-	// namespace in every class. A type needs no entry for IDSpacePrim, which is
+	// namespace in every class. A type needs no entry for IDSpacePrimitive, which is
 	// ir's own. A kind with no namespace is left out. Each list is sorted by the
 	// byte order of its UTF-8 spelling, without repeats, and names no empty or
 	// separator-bearing namespace.

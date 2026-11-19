@@ -51,7 +51,7 @@ func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, c.Common().Examples, 1)
 	require.NotNil(t, c.Common().Examples[0].Value)
-	assert.Equal(t, "component-level", c.Common().Examples[0].Value.Str)
+	assert.Equal(t, "component-level", c.Common().Examples[0].Value.String)
 
 	// A parameter carries its own examples, keyed by their map key like a media
 	// type's.
@@ -62,7 +62,7 @@ func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, q.Examples, 1)
 	assert.Equal(t, "one", q.Examples[0].Name)
 	require.NotNil(t, q.Examples[0].Value)
-	assert.Equal(t, "first", q.Examples[0].Value.Str)
+	assert.Equal(t, "first", q.Examples[0].Value.String)
 
 	assertResponseExamples(t, doc)
 }
@@ -80,10 +80,10 @@ func assertResponseExamples(t *testing.T, doc *ir.Document) {
 	// An inline entry and one written as a $ref, which must resolve to the
 	// referenced component's value. Both are named by their map key.
 	require.NotNil(t, ex[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "hello"}, *ex[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "hello"}, *ex[0].Value)
 	assert.Equal(t, "inline", ex[0].Name)
 	require.NotNil(t, ex[1].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "world"}, *ex[1].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "world"}, *ex[1].Value)
 	assert.Equal(t, "shared", ex[1].Name)
 
 	// The annotations that surround a value travel with it.
@@ -99,7 +99,7 @@ func assertResponseExamples(t *testing.T, doc *ir.Document) {
 	require.Len(t, headers, 1)
 	require.Len(t, headers[0].Examples, 1)
 	require.NotNil(t, headers[0].Examples[0].Value)
-	assert.Equal(t, ir.BigVal("5"), headers[0].Examples[0].Value.Num)
+	assert.Equal(t, ir.BigVal("5"), headers[0].Examples[0].Value.Number)
 }
 
 // assertSelfURI pins that a declared `$self` reaches the source's entry rather
@@ -159,7 +159,7 @@ func assertRequestBodyDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "A shared order body.", replaced.Request.Docs.Description,
 		"the second mount reads the same declaration's docs")
 
-	shared := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
+	shared := ir.TypeID("type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema")
 	assert.Equal(t, shared, openapitest.BodyTarget(t, created.Request),
 		"a shared body interns at its component pointer (issue #107)")
 	assert.Equal(t, shared, openapitest.BodyTarget(t, replaced.Request),
@@ -277,7 +277,7 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, limit.Examples, 1)
 	require.NotNil(t, limit.Examples[0].Value, "a parameter's dataValue reaches Example.Value")
-	assert.Equal(t, ir.BigVal("5"), limit.Examples[0].Value.Num)
+	assert.Equal(t, ir.BigVal("5"), limit.Examples[0].Value.Number)
 
 	// headers
 	require.Len(t, op.Responses, 1)
@@ -295,13 +295,13 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		byName[e.Name] = e
 	}
 	require.NotNil(t, byName["five"].Value)
-	assert.Equal(t, ir.BigVal("5"), byName["five"].Value.Num)
+	assert.Equal(t, ir.BigVal("5"), byName["five"].Value.Number)
 	require.NotNil(t, byName["one"].Value, "a $ref'd components/examples entry lowers its dataValue")
-	assert.Equal(t, ir.BigVal("1"), byName["one"].Value.Num)
+	assert.Equal(t, ir.BigVal("1"), byName["one"].Value.Number)
 	assert.Equal(t, ir.ReasonNoIRHome, byName["serial"].Unmodeled["openapi:serializedValue"].Reason)
 	assert.Nil(t, byName["serial"].Value)
 	require.NotNil(t, byName["both"].Value, "a dataValue beside a serializedValue still lowers")
-	assert.Equal(t, ir.BigVal("2"), byName["both"].Value.Num)
+	assert.Equal(t, ir.BigVal("2"), byName["both"].Value.Number)
 	assert.JSONEq(t, `"\"2\""`, string(byName["both"].Unmodeled["openapi:serializedValue"].Value),
 		"...and the serialized form beside it is kept too")
 
@@ -321,12 +321,12 @@ func assertReplacementInference(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	v1, ok := opByName(doc, "listZonesV1")
 	require.True(t, ok)
 	require.NotNil(t, v1.Deprecation)
-	assert.Equal(t, []ir.EntityRef{{Operation: "op/openapi/paths/~1v2~1zones/get"}}, v1.Deprecation.ReplacedBy)
+	assert.Equal(t, []ir.EntityRef{{Operation: "operation/openapi/paths/~1v2~1zones/get"}}, v1.Deprecation.ReplacedBy)
 	assert.Equal(t, marked, v1.Provenance.Inferred)
 	from, ok := openapitest.ParamBySource(v1, "from_date")
 	require.True(t, ok)
 	require.NotNil(t, from.Deprecation)
-	assert.Equal(t, []ir.EntityRef{{Param: "param/openapi/paths/~1v1~1zones/get/parameters/start/query"}},
+	assert.Equal(t, []ir.EntityRef{{Param: "parameter/openapi/paths/~1v1~1zones/get/parameters/start/query"}},
 		from.Deprecation.ReplacedBy)
 	assert.Equal(t, marked, from.Provenance.Inferred)
 
@@ -340,7 +340,7 @@ func assertReplacementInference(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	modified, ok := propByWire(zone, "modified")
 	require.True(t, ok)
 	require.NotNil(t, modified.Deprecation)
-	assert.Equal(t, []ir.EntityRef{{Property: "p/openapi/components/schemas/Zone/properties/modified_at"}},
+	assert.Equal(t, []ir.EntityRef{{Property: "property/openapi/components/schemas/Zone/properties/modified_at"}},
 		modified.Deprecation.ReplacedBy)
 	assert.Equal(t, marked, modified.Provenance.Inferred)
 	legacy, ok := propByWire(zone, "legacy")

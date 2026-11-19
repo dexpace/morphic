@@ -110,11 +110,11 @@ func lowerCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operation,
 // An expression whose item mounts no operation keeps what the item wrote on the
 // returned map, which goes where the Callback Object's own extensions go, the
 // parent's HTTP binding.
-func lowerCallbackOps(w operationLoweringState, layers []layer, at mountSite, route opContext) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbackOps(w operationLoweringState, layers []layer, at mountSite, route opContext) ([]ir.OperationID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var orphan ir.Unmodeled
 	at.residue = &orphan
 	mounted, diags := mountPathItem(w, layers, at, route)
-	opIDs := make([]ir.OpID, 0, len(mounted))
+	opIDs := make([]ir.OperationID, 0, len(mounted))
 	ops := make([]ir.Operation, 0, len(mounted))
 	for _, m := range mounted {
 		opIDs = append(opIDs, m.op.ID)

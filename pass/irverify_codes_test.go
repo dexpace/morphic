@@ -19,30 +19,30 @@ import (
 // bound once, which the cases below plant a value irverify refuses on.
 func verifyOnlyBase() *ir.Document {
 	name := func(s string) ir.Naming { return ir.Naming{Source: s, Canonical: s} }
-	prim := &ir.Primitive{ID: "t/prim/string", Name: name("string"), Prim: ir.PrimString}
+	prim := &ir.Primitive{ID: "type/primitive/string", Name: name("string"), PrimitiveKind: ir.PrimitiveString}
 	prim.Provenance = ir.Provenance{Source: ir.NoSource}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
 		IDSpaces: map[string][]string{
-			"t": {"x"}, "op": {"x"}, "s": {"x"}, "g": {"x"}, "p": {"x"}, "param": {"x"}, "e": {"x"},
+			"type": {"x"}, "operation": {"x"}, "service": {"x"}, "operation-group": {"x"}, "property": {"x"}, "parameter": {"x"}, "enum-member": {"x"},
 		},
 		Types: ir.TypeRegistry{
 			prim.ID: prim,
-			"t/x/M": &ir.Model{ID: "t/x/M", Name: name("m"), Properties: []ir.Property{
-				{ID: "p/x/M/a", Name: name("a"), Type: ir.TypeRef{Target: "t/prim/string"}},
+			"type/x/M": &ir.Model{ID: "type/x/M", Name: name("m"), Properties: []ir.Property{
+				{ID: "property/x/M/a", Name: name("a"), Type: ir.TypeRef{Target: "type/primitive/string"}},
 			}},
-			"t/x/E": &ir.Enum{ID: "t/x/E", Name: name("e"), ValueType: ir.PrimString, Members: []ir.EnumMember{
-				{ID: "e/x/E/s:a", Name: name("a"), Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+			"type/x/E": &ir.Enum{ID: "type/x/E", Name: name("e"), ValueType: ir.PrimitiveString, Members: []ir.EnumMember{
+				{ID: "enum-member/x/E/string:a", Name: name("a"), Value: ir.Value{Kind: ir.ValueString, String: "a"}},
 			}},
 		},
-		Services: []ir.Service{{ID: "s/x/S", Name: name("s"), Groups: []ir.OperationGroup{{
-			ID: "g/x/G", Name: name("g"),
+		Services: []ir.Service{{ID: "service/x/S", Name: name("s"), Groups: []ir.OperationGroup{{
+			ID: "operation-group/x/G", Name: name("g"),
 			Operations: []ir.Operation{{
-				ID: "op/x/o", Name: name("o"),
-				Params: []ir.Parameter{{ID: "param/x/o/q", Name: name("q"), Type: ir.TypeRef{Target: "t/prim/string"}}},
+				ID: "operation/x/o", Name: name("o"),
+				Params: []ir.Parameter{{ID: "parameter/x/o/q", Name: name("q"), Type: ir.TypeRef{Target: "type/primitive/string"}}},
 				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 					Method: "GET", URITemplate: "/o",
-					ParamBindings: []ir.HTTPParamBinding{{Param: "param/x/o/q", Location: ir.HTTPLocationQuery}},
+					ParamBindings: []ir.HTTPParamBinding{{Param: "parameter/x/o/q", Location: ir.HTTPLocationQuery}},
 				}}},
 			}},
 		}}}},
@@ -68,7 +68,7 @@ func validateCodes(t *testing.T, doc *ir.Document) []string {
 // and the code is irverify's.
 func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 	t.Parallel()
-	model := func(d *ir.Document) *ir.Model { return d.Types["t/x/M"].(*ir.Model) }
+	model := func(d *ir.Document) *ir.Model { return d.Types["type/x/M"].(*ir.Model) }
 	op := func(d *ir.Document) *ir.Operation { return &d.Services[0].Groups[0].Operations[0] }
 	channel := ir.Naming{Source: "c", Canonical: "c"}
 	for _, tc := range []struct {
@@ -86,9 +86,9 @@ func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 			op(d).Pagination = &ir.Pagination{Strategy: "bogus"}
 		}},
 		{"message direction", "ir/unknown-message-direction", func(d *ir.Document) {
-			d.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: channel}}
+			d.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: channel}}
 			d.IDSpaces[ir.IDKindChannel] = []string{"x"}
-			op(d).Bindings.Message = &ir.MessageBinding{Channel: "chan/x/c", Direction: "bogus"}
+			op(d).Bindings.Message = &ir.MessageBinding{Channel: "channel/x/c", Direction: "bogus"}
 		}},
 		{"severity", "ir/unknown-severity", func(d *ir.Document) {
 			d.Diagnostics = []ir.Diagnostic{{
@@ -107,10 +107,10 @@ func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 		}},
 		{"primitive source", "ir/prim-names-source", func(d *ir.Document) {
 			d.Sources = []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml"}}
-			d.Types["t/prim/string"].Common().Provenance = ir.Provenance{Source: 0}
+			d.Types["type/primitive/string"].Common().Provenance = ir.Provenance{Source: 0}
 		}},
 		{"enum member kind", "ir/enum-member-kind", func(d *ir.Document) {
-			d.Types["t/x/E"].(*ir.Enum).ValueType = ir.PrimInteger
+			d.Types["type/x/E"].(*ir.Enum).ValueType = ir.PrimitiveInteger
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

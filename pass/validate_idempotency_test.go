@@ -18,8 +18,8 @@ import (
 // saying which half is missing.
 func TestValidate_IdempotencyTokenIsPairedWithItsKind(t *testing.T) {
 	t.Parallel()
-	const token = ir.ParamID("param/x/put/key")
-	const noToken, unasked = "names no token parameter", `names token parameter "param/x/put/key"`
+	const token = ir.ParameterID("parameter/x/put/key")
+	const noToken, unasked = "names no token parameter", `names token parameter "parameter/x/put/key"`
 	for _, tc := range []struct {
 		name string
 		idem ir.Idempotency
@@ -34,7 +34,7 @@ func TestValidate_IdempotencyTokenIsPairedWithItsKind(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "op/x/put", Params: []ir.Parameter{{ID: token, Name: ir.Naming{Source: "key"}}}, Idempotency: tc.idem}
+			op := ir.Operation{ID: "operation/x/put", Params: []ir.Parameter{{ID: token, Name: ir.Naming{Source: "key"}}}, Idempotency: tc.idem}
 			var got []ir.Diagnostic
 			for _, d := range validated(t, docWithOperations(op)) {
 				if d.Code == "pass/idempotency-token-mismatch" {
@@ -47,7 +47,7 @@ func TestValidate_IdempotencyTokenIsPairedWithItsKind(t *testing.T) {
 			}
 			require.Len(t, got, 1)
 			assert.Equal(t, ir.SeverityError, got[0].Severity)
-			assert.Equal(t, "op/x/put/idempotency", got[0].Provenance.Node)
+			assert.Equal(t, "operation/x/put/idempotency", got[0].Provenance.Node)
 			assert.Contains(t, got[0].Message, tc.want)
 		})
 	}

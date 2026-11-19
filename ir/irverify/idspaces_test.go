@@ -39,7 +39,7 @@ func spacedClasses() []spacedClass {
 				m := &ir.Model{ID: ir.TypeID(id), Name: ir.Naming{Source: "M", Canonical: "m"}}
 				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
 			},
-			path: func(id string) string { return "doc.Types[" + id + "]" },
+			path: func(id string) string { return "document.Types[" + id + "]" },
 		},
 		spacedClass{
 			name: "auth", prefix: ir.IDKindAuth,
@@ -47,7 +47,7 @@ func spacedClasses() []spacedClass {
 				scheme := ir.AuthScheme{ID: ir.AuthID(id), Name: ir.Naming{Source: "a", Canonical: "a"}}
 				return &ir.Document{IRVersion: ir.IRVersion, Auth: map[ir.AuthID]ir.AuthScheme{scheme.ID: scheme}}
 			},
-			path: func(id string) string { return "doc.Auth[" + id + "]" },
+			path: func(id string) string { return "document.Auth[" + id + "]" },
 		},
 		spacedClass{
 			name: "channel", prefix: ir.IDKindChannel,
@@ -55,7 +55,7 @@ func spacedClasses() []spacedClass {
 				ch := ir.Channel{ID: ir.ChannelID(id), Name: ir.Naming{Source: "c", Canonical: "c"}}
 				return &ir.Document{IRVersion: ir.IRVersion, Channels: map[ir.ChannelID]ir.Channel{ch.ID: ch}}
 			},
-			path: func(id string) string { return "doc.Channels[" + id + "]" },
+			path: func(id string) string { return "document.Channels[" + id + "]" },
 		},
 		spacedClass{
 			name: "message", prefix: ir.IDKindMessage,
@@ -63,7 +63,7 @@ func spacedClasses() []spacedClass {
 				m := ir.Message{ID: ir.MessageID(id), Name: ir.Naming{Source: "m", Canonical: "m"}}
 				return &ir.Document{IRVersion: ir.IRVersion, Messages: map[ir.MessageID]ir.Message{m.ID: m}}
 			},
-			path: func(id string) string { return "doc.Messages[" + id + "]" },
+			path: func(id string) string { return "document.Messages[" + id + "]" },
 		},
 	)
 }
@@ -120,7 +120,7 @@ func TestVerify_IDInAnUndeclaredNamespaceIsAViolation(t *testing.T) {
 func TestVerify_EachIDOutsideTheDeclarationIsReportedAtItsOwnNode(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
-	for _, id := range []ir.TypeID{"t/openapipaths/x/a", "t/openapi/x/b", "t/openapipaths/x/c"} {
+	for _, id := range []ir.TypeID{"type/openapipaths/x/a", "type/openapi/x/b", "type/openapipaths/x/c"} {
 		doc.Types[id] = &ir.Model{ID: id, Name: ir.Naming{Source: "M", Canonical: "m"}}
 	}
 	declaration := map[string][]string{}
@@ -130,7 +130,7 @@ func TestVerify_EachIDOutsideTheDeclarationIsReportedAtItsOwnNode(t *testing.T) 
 	declaration[ir.IDKindType] = []string{"openapi"}
 
 	got := irverify.Verify(declaring(doc, declaration))
-	assert.Equal(t, []string{"doc.Types[t/openapipaths/x/a]", "doc.Types[t/openapipaths/x/c]"},
+	assert.Equal(t, []string{"document.Types[type/openapipaths/x/a]", "document.Types[type/openapipaths/x/c]"},
 		violationPaths(got, "ir/id-space-undeclared"))
 }
 
@@ -144,7 +144,7 @@ func TestVerify_NamespaceDeclaredForAnotherKindDoesNotCount(t *testing.T) {
 			t.Parallel()
 			other := ir.IDKindGroup
 			if class.prefix == other {
-				other = ir.IDKindOp
+				other = ir.IDKindOperation
 			}
 			id := class.prefix + "/openapi/x"
 			declared := declaredAround(class, "elsewhere")
@@ -160,7 +160,7 @@ func TestVerify_NamespaceDeclaredForAnotherKindDoesNotCount(t *testing.T) {
 // have to list it, and a document of nothing else needs no declaration at all.
 func TestVerify_PrimitiveNamespaceNeedsNoDeclaration(t *testing.T) {
 	t.Parallel()
-	prim := &ir.Primitive{ID: ir.PrimTypeID(ir.PrimString), Prim: ir.PrimString}
+	prim := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString}
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{prim.ID: prim}}
 
 	got := irverify.Verify(doc)
@@ -184,7 +184,7 @@ func TestVerify_PrimitiveNamespaceIsExemptOnlyForTypes(t *testing.T) {
 		}
 		t.Run(class.name, func(t *testing.T) {
 			t.Parallel()
-			id := class.prefix + "/" + ir.IDSpacePrim + "/x"
+			id := class.prefix + "/" + ir.IDSpacePrimitive + "/x"
 			got := irverify.Verify(declaring(class.doc(id), declaredAround(class, "openapi")))
 			assert.Equal(t, []string{class.path(id)}, violationPaths(got, "ir/id-space-undeclared"))
 		})
@@ -201,7 +201,7 @@ func TestVerify_DocumentDeclaringNothingIsReportedOnce(t *testing.T) {
 		t.Run(class.name, func(t *testing.T) {
 			t.Parallel()
 			got := irverify.Verify(class.doc(class.prefix + "/openapi/x"))
-			assert.Equal(t, []string{"doc.IDSpaces"}, violationPaths(got, "ir/id-spaces-absent"))
+			assert.Equal(t, []string{"document.IDSpaces"}, violationPaths(got, "ir/id-spaces-absent"))
 			assert.Empty(t, violationPaths(got, "ir/id-space-undeclared"),
 				"each ID would be undeclared in an empty vocabulary; that is one defect, not many")
 		})
@@ -255,14 +255,14 @@ func TestVerify_UnusableDeclarationIsAViolation(t *testing.T) {
 		code        string
 		path        string
 	}{
-		{"a key that is no kind prefix", map[string][]string{"x": {"a"}}, "ir/id-spaces-unknown-kind", `doc.IDSpaces["x"]`},
-		{"an empty key", map[string][]string{"": {"a"}}, "ir/id-spaces-unknown-kind", `doc.IDSpaces[""]`},
-		{"an empty namespace", map[string][]string{ir.IDKindOp: {""}}, "ir/id-space-invalid", "doc.IDSpaces[op][0]"},
-		{"a namespace with the separator", map[string][]string{ir.IDKindOp: {"a/b"}}, "ir/id-space-invalid", "doc.IDSpaces[op][0]"},
-		{"a kind with an empty list", map[string][]string{ir.IDKindOp: {}}, "ir/id-spaces-not-canonical", "doc.IDSpaces[op]"},
-		{"a kind with a nil list", map[string][]string{ir.IDKindOp: nil}, "ir/id-spaces-not-canonical", "doc.IDSpaces[op]"},
-		{"an unsorted list", map[string][]string{ir.IDKindOp: {"b", "a"}}, "ir/id-spaces-not-canonical", "doc.IDSpaces[op][1]"},
-		{"a repeated namespace", map[string][]string{ir.IDKindOp: {"a", "a"}}, "ir/id-spaces-not-canonical", "doc.IDSpaces[op][1]"},
+		{"a key that is no kind prefix", map[string][]string{"x": {"a"}}, "ir/id-spaces-unknown-kind", `document.IDSpaces["x"]`},
+		{"an empty key", map[string][]string{"": {"a"}}, "ir/id-spaces-unknown-kind", `document.IDSpaces[""]`},
+		{"an empty namespace", map[string][]string{ir.IDKindOperation: {""}}, "ir/id-space-invalid", "document.IDSpaces[operation][0]"},
+		{"a namespace with the separator", map[string][]string{ir.IDKindOperation: {"a/b"}}, "ir/id-space-invalid", "document.IDSpaces[operation][0]"},
+		{"a kind with an empty list", map[string][]string{ir.IDKindOperation: {}}, "ir/id-spaces-not-canonical", "document.IDSpaces[operation]"},
+		{"a kind with a nil list", map[string][]string{ir.IDKindOperation: nil}, "ir/id-spaces-not-canonical", "document.IDSpaces[operation]"},
+		{"an unsorted list", map[string][]string{ir.IDKindOperation: {"b", "a"}}, "ir/id-spaces-not-canonical", "document.IDSpaces[operation][1]"},
+		{"a repeated namespace", map[string][]string{ir.IDKindOperation: {"a", "a"}}, "ir/id-spaces-not-canonical", "document.IDSpaces[operation][1]"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -281,10 +281,10 @@ func TestVerify_ListOrderIsTheByteOrderOfUTF8(t *testing.T) {
 	t.Parallel()
 	bmp, astral := string(rune(0xFF5E)), string(rune(0x1F600))
 	verify := func(spaces ...string) []irverify.Violation {
-		return irverify.Verify(&ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindOp: spaces}})
+		return irverify.Verify(&ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindOperation: spaces}})
 	}
 	assert.Empty(t, violationPaths(verify(bmp, astral), "ir/id-spaces-not-canonical"))
-	assert.Equal(t, []string{"doc.IDSpaces[op][1]"}, violationPaths(verify(astral, bmp), "ir/id-spaces-not-canonical"))
+	assert.Equal(t, []string{"document.IDSpaces[operation][1]"}, violationPaths(verify(astral, bmp), "ir/id-spaces-not-canonical"))
 }
 
 // TestVerify_UnknownKindIsNotAlsoExamined pins the division of labour inside the
@@ -296,7 +296,7 @@ func TestVerify_UnknownKindIsNotAlsoExamined(t *testing.T) {
 		IRVersion: ir.IRVersion,
 		IDSpaces:  map[string][]string{"x": {"b", "a", ""}},
 	})
-	assert.Equal(t, []string{`doc.IDSpaces["x"]`}, violationPaths(got, "ir/id-spaces-unknown-kind"))
+	assert.Equal(t, []string{`document.IDSpaces["x"]`}, violationPaths(got, "ir/id-spaces-unknown-kind"))
 	assert.Empty(t, violationPaths(got, "ir/id-spaces-not-canonical"))
 	assert.Empty(t, violationPaths(got, "ir/id-space-invalid"))
 }
@@ -308,7 +308,7 @@ func TestVerify_UsableDeclarationIsClean(t *testing.T) {
 	t.Parallel()
 	declaration := map[string][]string{}
 	for _, kind := range ir.IDKinds() {
-		declaration[kind] = []string{"anon", "composed", "openapi", "path-prefix"}
+		declaration[kind] = []string{"anonymous", "composed", "openapi", "path-prefix"}
 	}
 	got := irverify.Verify(&ir.Document{
 		IRVersion: ir.IRVersion,

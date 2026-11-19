@@ -26,10 +26,10 @@ type partFile struct {
 // apply returns pe marked a file where f reads it one and its type did not, so
 // the marker names the heuristic only where the file rests on it.
 func (f partFile) apply(pe ir.PartEncoding) ir.PartEncoding {
-	if !f.file || pe.Filename {
+	if !f.file || pe.HasFilename {
 		return pe
 	}
-	pe.Filename, pe.Inferred = true, f.inferred
+	pe.HasFilename, pe.Inferred = true, f.inferred
 	return pe
 }
 
@@ -148,10 +148,10 @@ func partContentFile(c service.Ctx, contentTypes []string) partFile {
 // each of Elems and, where elements may follow them, Rest. A tuple admitting
 // no element at all is no file.
 func rawTuple(node func(ir.TypeID) (ir.TypeDef, bool), t *ir.Tuple) bool {
-	if len(t.Elems) == 0 && t.Rest == nil {
+	if len(t.ElementTypes) == 0 && t.Rest == nil {
 		return false
 	}
-	for _, elem := range t.Elems {
+	for _, elem := range t.ElementTypes {
 		if !rawBytes(node, elem) {
 			return false
 		}
@@ -172,7 +172,7 @@ func rawBytes(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef) bool {
 		}
 		switch t := td.(type) {
 		case *ir.Primitive:
-			return t.Prim == ir.PrimBytes
+			return t.PrimitiveKind == ir.PrimitiveBytes
 		case *ir.Scalar:
 			if t.Base == nil || t.Encoding != nil && t.Encoding.Name != "" {
 				return false

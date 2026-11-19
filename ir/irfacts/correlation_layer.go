@@ -325,8 +325,8 @@ func (c *correlator) stream(key string, s *ir.StreamDetail) {
 
 // indexPartHeaders indexes the headers each multipart part declares by the property
 // the part encodes, over every payload of ops and services.
-func indexPartHeaders(services []ir.Service, ops []*ir.Operation) map[ir.PropID][]ir.Header {
-	parts := map[ir.PropID][]ir.Header{}
+func indexPartHeaders(services []ir.Service, ops []*ir.Operation) map[ir.PropertyID][]ir.Header {
+	parts := map[ir.PropertyID][]ir.Header{}
 	add := func(p *ir.Payload) {
 		if p == nil {
 			return

@@ -247,9 +247,9 @@ func TestIdempotent_Faults(t *testing.T) {
 		{"no document over its own output", []pass.Pass{faulting{rerun: noDocument}},
 			`pass "faulting" over its own output: engine: run pass "faulting": returned no document`},
 		{"an output that does not encode", []pass.Pass{faulting{first: unencodable}},
-			`pass "faulting": engine: verify pass "faulting": the document breaks 2 invariants: ir/invalid-raw-value at "doc.Unmodeled[openapi:x]"; engine/unencodable at "doc"`},
+			`pass "faulting": engine: verify pass "faulting": the document breaks 2 invariants: ir/invalid-raw-value at "document.Unmodeled[openapi:x]"; engine/unencodable at "document"`},
 		{"a rerun output that does not encode", []pass.Pass{faulting{rerun: unencodable}},
-			`pass "faulting" over its own output: engine: verify pass "faulting": the document breaks 2 invariants: ir/invalid-raw-value at "doc.Unmodeled[openapi:x]"; engine/unencodable at "doc"`},
+			`pass "faulting" over its own output: engine: verify pass "faulting": the document breaks 2 invariants: ir/invalid-raw-value at "document.Unmodeled[openapi:x]"; engine/unencodable at "document"`},
 		{"a rerun writing into the document it is handed", []pass.Pass{faulting{rerun: stampsItsInput}},
 			`pass "faulting" over its own output: engine: run pass "faulting": changed the document it was handed`},
 	} {

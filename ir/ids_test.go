@@ -32,16 +32,16 @@ func TestIDTypes_MarshalAsPlainJSONStrings(t *testing.T) {
 		full any
 		want string
 	}{
-		{name: "TypeID", zero: ir.TypeID(""), full: ir.TypeID("t/openapi/components/schemas/User"), want: `"t/openapi/components/schemas/User"`},
-		{name: "OpID", zero: ir.OpID(""), full: ir.OpID("op/openapi/paths/~1users/get"), want: `"op/openapi/paths/~1users/get"`},
-		{name: "ServiceID", zero: ir.ServiceID(""), full: ir.ServiceID("s/openapi/petstore"), want: `"s/openapi/petstore"`},
-		{name: "GroupID", zero: ir.GroupID(""), full: ir.GroupID("g/tags/pets"), want: `"g/tags/pets"`},
-		{name: "ParamID", zero: ir.ParamID(""), full: ir.ParamID("param/openapi/paths/~1users/get/parameters/id/query"), want: `"param/openapi/paths/~1users/get/parameters/id/query"`},
-		{name: "EnumMemberID", zero: ir.EnumMemberID(""), full: ir.EnumMemberID("e/openapi/components/schemas/Status/s:active"), want: `"e/openapi/components/schemas/Status/s:active"`},
+		{name: "TypeID", zero: ir.TypeID(""), full: ir.TypeID("type/openapi/components/schemas/User"), want: `"type/openapi/components/schemas/User"`},
+		{name: "OperationID", zero: ir.OperationID(""), full: ir.OperationID("operation/openapi/paths/~1users/get"), want: `"operation/openapi/paths/~1users/get"`},
+		{name: "ServiceID", zero: ir.ServiceID(""), full: ir.ServiceID("service/openapi/petstore"), want: `"service/openapi/petstore"`},
+		{name: "GroupID", zero: ir.GroupID(""), full: ir.GroupID("operation-group/tags/pets"), want: `"operation-group/tags/pets"`},
+		{name: "ParameterID", zero: ir.ParameterID(""), full: ir.ParameterID("parameter/openapi/paths/~1users/get/parameters/id/query"), want: `"parameter/openapi/paths/~1users/get/parameters/id/query"`},
+		{name: "EnumMemberID", zero: ir.EnumMemberID(""), full: ir.EnumMemberID("enum-member/openapi/components/schemas/Status/string:active"), want: `"enum-member/openapi/components/schemas/Status/string:active"`},
 		{name: "ChannelID", zero: ir.ChannelID(""), full: ir.ChannelID("c/asyncapi/user-signup"), want: `"c/asyncapi/user-signup"`},
 		{name: "MessageID", zero: ir.MessageID(""), full: ir.MessageID("m/asyncapi/UserSignedUp"), want: `"m/asyncapi/UserSignedUp"`},
 		{name: "AuthID", zero: ir.AuthID(""), full: ir.AuthID("auth/openapi/apiKey"), want: `"auth/openapi/apiKey"`},
-		{name: "PropID", zero: ir.PropID(""), full: ir.PropID("p/openapi/components/schemas/User/properties/id"), want: `"p/openapi/components/schemas/User/properties/id"`},
+		{name: "PropertyID", zero: ir.PropertyID(""), full: ir.PropertyID("property/openapi/components/schemas/User/properties/id"), want: `"property/openapi/components/schemas/User/properties/id"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestIDTypes_MarshalAsPlainJSONStrings(t *testing.T) {
 // the document.
 func TestTypeID_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
-	want := ir.TypeID("t/openapi/components/schemas/User")
+	want := ir.TypeID("type/openapi/components/schemas/User")
 	raw, err := json.Marshal(want)
 	require.NoError(t, err)
 	var got ir.TypeID
@@ -72,28 +72,28 @@ func TestTypeID_JSONRoundTrip(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-// TestPropID_UsableAsMapKey pins that PropID (and by construction every ID
+// TestPropertyID_UsableAsMapKey pins that PropertyID (and by construction every ID
 // type sharing its underlying string representation) can be used as a JSON
 // object key, since Property lookups and PropPath segments depend on that.
-func TestPropID_UsableAsMapKey(t *testing.T) {
+func TestPropertyID_UsableAsMapKey(t *testing.T) {
 	t.Parallel()
-	m := map[ir.PropID]int{
-		"p/z": 1,
-		"p/a": 2,
+	m := map[ir.PropertyID]int{
+		"property/z": 1,
+		"property/a": 2,
 	}
 	// Deterministic(true) is explicit: v2 sorts map keys only on request. The
 	// point of the test is that the keys can sort lexically (invariant #7), which
 	// a Document asks for itself through canonicalOptions and a plain map cannot.
 	raw, err := json.Marshal(m, json.Deterministic(true))
 	require.NoError(t, err)
-	assert.Equal(t, `{"p/a":2,"p/z":1}`, string(raw), "map keys sort lexically, matching invariant #7")
+	assert.Equal(t, `{"property/a":2,"property/z":1}`, string(raw), "map keys sort lexically, matching invariant #7")
 }
 
 // TestWellFormedID_Shape pins the shape every synthetic ID must take. The rows
 // are the ways a derivation can go wrong: a missing kind, a missing space, a
 // missing separator, an empty segment.
 //
-// "t/anonaddr" is well-formed by shape on purpose. It is the malformed ID of
+// "type/anonaddr" is well-formed by shape on purpose. It is the malformed ID of
 // #141, whose space/path separator went missing, but a space with no path is
 // legal. Recording it states the limit of shape: what catches it is the ID
 // agreeing with the pointer it was derived from, which irverify checks.
@@ -105,20 +105,20 @@ func TestWellFormedID_Shape(t *testing.T) {
 		id   string
 		want bool
 	}{
-		{name: "kind, space and path", kind: ir.IDKindType, id: "t/openapi/components/schemas/User", want: true},
-		{name: "space alone names one node", kind: ir.IDKindType, id: "t/prim", want: true},
-		{name: "a path with its own separators", kind: ir.IDKindProp, id: "p/openapi/a/b/c", want: true},
-		{name: "a lost separator still reads as a space", kind: ir.IDKindType, id: "t/anonaddr", want: true},
-		{name: "multi-character kind", kind: ir.IDKindOp, id: "op/openapi/paths/~1x/get", want: true},
+		{name: "kind, space and path", kind: ir.IDKindType, id: "type/openapi/components/schemas/User", want: true},
+		{name: "space alone names one node", kind: ir.IDKindType, id: "type/primitive", want: true},
+		{name: "a path with its own separators", kind: ir.IDKindProperty, id: "property/openapi/a/b/c", want: true},
+		{name: "a lost separator still reads as a space", kind: ir.IDKindType, id: "type/anonaddr", want: true},
+		{name: "multi-character kind", kind: ir.IDKindOperation, id: "operation/openapi/paths/~1x/get", want: true},
 
 		{name: "empty", kind: ir.IDKindType, id: "", want: false},
 		{name: "kind alone", kind: ir.IDKindType, id: "t", want: false},
-		{name: "kind and separator, no space", kind: ir.IDKindType, id: "t/", want: false},
-		{name: "empty space", kind: ir.IDKindType, id: "t//path", want: false},
-		{name: "empty path", kind: ir.IDKindType, id: "t/openapi/", want: false},
-		{name: "another kind's prefix", kind: ir.IDKindType, id: "op/openapi/x", want: false},
+		{name: "kind and separator, no space", kind: ir.IDKindType, id: "type/", want: false},
+		{name: "empty space", kind: ir.IDKindType, id: "type//path", want: false},
+		{name: "empty path", kind: ir.IDKindType, id: "type/openapi/", want: false},
+		{name: "another kind's prefix", kind: ir.IDKindType, id: "operation/openapi/x", want: false},
 		{name: "kind as a prefix of a longer word", kind: ir.IDKindType, id: "types/openapi/x", want: false},
-		{name: "no separator after the kind", kind: ir.IDKindOp, id: "openapi/x", want: false},
+		{name: "no separator after the kind", kind: ir.IDKindOperation, id: "openapi/x", want: false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -130,34 +130,34 @@ func TestWellFormedID_Shape(t *testing.T) {
 	}
 }
 
-// TestPrimTypeID_IsTheSharedScheme pins the spelling every compiler must reach
+// TestPrimitiveTypeID_IsTheSharedScheme pins the spelling every compiler must reach
 // for a primitive. These IDs are written into every golden IR snapshot and are
 // the one identity two documents lowered from different formats have to agree
 // on, so a change here is a silent breaking change across formats.
-func TestPrimTypeID_IsTheSharedScheme(t *testing.T) {
+func TestPrimitiveTypeID_IsTheSharedScheme(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, ir.TypeID("t/prim/string"), ir.PrimTypeID(ir.PrimString))
-	assert.Equal(t, ir.TypeID("t/prim/datetime_offset"), ir.PrimTypeID(ir.PrimDatetimeOffset),
+	assert.Equal(t, ir.TypeID("type/primitive/string"), ir.PrimitiveTypeID(ir.PrimitiveString))
+	assert.Equal(t, ir.TypeID("type/primitive/datetime_offset"), ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset),
 		"a multi-word kind is spelled as its constant, not re-cased")
 }
 
-// TestPrimTypeID_IsWellFormedAndInjective walks the whole primitive vocabulary
+// TestPrimitiveTypeID_IsWellFormedAndInjective walks the whole primitive vocabulary
 // rather than a sample of it. Two properties have to hold for every kind, and a
 // sample cannot show either: the ID is one the grammar produces — irverify
 // rejects every document otherwise — and distinct kinds do not collide, since
 // two kinds sharing an ID would make the node reached for one of them depend on
 // which was interned first.
-func TestPrimTypeID_IsWellFormedAndInjective(t *testing.T) {
+func TestPrimitiveTypeID_IsWellFormedAndInjective(t *testing.T) {
 	t.Parallel()
-	byID := make(map[ir.TypeID]ir.PrimKind, len(primKindSpellings))
+	byID := make(map[ir.TypeID]ir.PrimitiveKind, len(primKindSpellings))
 	for kind := range primKindSpellings {
-		id := ir.PrimTypeID(kind)
+		id := ir.PrimitiveTypeID(kind)
 		require.True(t, ir.WellFormedID(ir.IDKindType, string(id)),
 			"%q is not an ID the grammar produces", id)
 
 		space, ok := ir.IDSpace(ir.IDKindType, string(id))
 		require.True(t, ok)
-		assert.Equal(t, ir.IDSpacePrim, space, "%q is addressed outside the shared space", id)
+		assert.Equal(t, ir.IDSpacePrimitive, space, "%q is addressed outside the shared space", id)
 
 		path, has := ir.IDPath(ir.IDKindType, string(id))
 		require.True(t, has)
@@ -185,13 +185,13 @@ func TestIDSpace_Extraction(t *testing.T) {
 	}{
 		{
 			name: "the segment before the path", kind: ir.IDKindType,
-			id: "t/openapi/components/schemas/User", want: "openapi", wantOK: true,
+			id: "type/openapi/components/schemas/User", want: "openapi", wantOK: true,
 		},
-		{name: "a space-only ID is all space", kind: ir.IDKindType, id: "t/prim", want: "prim", wantOK: true},
-		{name: "a path with its own separators", kind: ir.IDKindProp, id: "p/openapi/a/b/c", want: "openapi", wantOK: true},
-		{name: "an empty space reports none", kind: ir.IDKindType, id: "t//x"},
-		{name: "an empty path reports none", kind: ir.IDKindType, id: "t/openapi/"},
-		{name: "a wrong-kind ID reports none", kind: ir.IDKindType, id: "op/openapi/x"},
+		{name: "a space-only ID is all space", kind: ir.IDKindType, id: "type/primitive", want: "primitive", wantOK: true},
+		{name: "a path with its own separators", kind: ir.IDKindProperty, id: "property/openapi/a/b/c", want: "openapi", wantOK: true},
+		{name: "an empty space reports none", kind: ir.IDKindType, id: "type//x"},
+		{name: "an empty path reports none", kind: ir.IDKindType, id: "type/openapi/"},
+		{name: "a wrong-kind ID reports none", kind: ir.IDKindType, id: "operation/openapi/x"},
 		{name: "an empty ID reports none", kind: ir.IDKindType, id: ""},
 	}
 	for _, tc := range tests {
@@ -220,11 +220,11 @@ func TestIDPath_Extraction(t *testing.T) {
 	}{
 		{
 			name: "everything after the space", kind: ir.IDKindType,
-			id: "t/openapi/components/schemas/User", want: "components/schemas/User", wantHas: true,
+			id: "type/openapi/components/schemas/User", want: "components/schemas/User", wantHas: true,
 		},
-		{name: "a space-only ID carries no path", kind: ir.IDKindType, id: "t/prim"},
-		{name: "a malformed ID reports none", kind: ir.IDKindType, id: "t//x"},
-		{name: "a wrong-kind ID reports none", kind: ir.IDKindType, id: "op/openapi/x"},
+		{name: "a space-only ID carries no path", kind: ir.IDKindType, id: "type/primitive"},
+		{name: "a malformed ID reports none", kind: ir.IDKindType, id: "type//x"},
+		{name: "a wrong-kind ID reports none", kind: ir.IDKindType, id: "operation/openapi/x"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -288,17 +288,17 @@ func TestIDKinds_NoKindOpensAnother(t *testing.T) {
 // the list, after every kind that existed before them.
 func TestIDKinds_ChannelAndMessageKindsAreListedInOrder(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "chan", ir.IDKindChannel)
-	assert.Equal(t, "msg", ir.IDKindMessage)
+	assert.Equal(t, "channel", ir.IDKindChannel)
+	assert.Equal(t, "message", ir.IDKindMessage)
 
 	kinds := ir.IDKinds()
 	require.GreaterOrEqual(t, len(kinds), 2)
 	assert.Equal(t, []string{ir.IDKindChannel, ir.IDKindMessage}, kinds[len(kinds)-2:])
-	assert.True(t, ir.WellFormedID(ir.IDKindChannel, "chan/x/c"))
-	assert.True(t, ir.WellFormedID(ir.IDKindMessage, "msg/x/evt"))
-	assert.False(t, ir.WellFormedID(ir.IDKindChannel, "msg/x/evt"))
-	assert.False(t, ir.WellFormedID(ir.IDKindMessage, "chan/x/c"))
-	space, ok := ir.IDSpace(ir.IDKindMessage, "msg/x/evt")
+	assert.True(t, ir.WellFormedID(ir.IDKindChannel, "channel/x/c"))
+	assert.True(t, ir.WellFormedID(ir.IDKindMessage, "message/x/evt"))
+	assert.False(t, ir.WellFormedID(ir.IDKindChannel, "message/x/evt"))
+	assert.False(t, ir.WellFormedID(ir.IDKindMessage, "channel/x/c"))
+	space, ok := ir.IDSpace(ir.IDKindMessage, "message/x/evt")
 	assert.True(t, ok)
 	assert.Equal(t, "x", space)
 }
