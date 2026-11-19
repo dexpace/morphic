@@ -70,7 +70,7 @@ The one exception is what `NoSource` exists for. A pass reporting on the documen
 no input file to name, and every real index — `0` included — names a file the document loaded, so
 reusing one would make a renderer fabricate a location. A shared primitive has no one file to name
 either, since every source reaches it by kind ([identity](./identity.md)), so a primitive's `Source`
-is `NoSource`, and `irverify` reports one credited to a source (`ir/prim-names-source`); a
+is `NoSource`, and `irverify` reports one credited to a source (`ir/primitive-names-source`); a
 document that declares no sources admits the zero `Provenance`, as a node built without one
 carries it. `NoSource` is therefore
 the **only** out-of-table `Source` value the IR declares: a verifier accepts it and reports every

@@ -105,7 +105,7 @@ func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 			document.Versions = []string{"v1", "v2"}
 			model(document).Availability = &ir.Availability{Added: []string{"v2", "v1"}}
 		}},
-		{"primitive source", "ir/prim-names-source", func(document *ir.Document) {
+		{"primitive source", "ir/primitive-names-source", func(document *ir.Document) {
 			document.Sources = []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml"}}
 			document.Types["type/primitive/string"].Common().Provenance = ir.Provenance{Source: 0}
 		}},

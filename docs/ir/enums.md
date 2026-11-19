@@ -69,7 +69,7 @@ value.
 | `int8` to `int64`, `uint8` to `uint64`, `integer`, `float32`, `float64`, `float`, `number`, `decimal`, `decimal128` | `number` |
 | `any` | `bool`, `string`, `symbol`, `number`, `bytes`, `null` |
 
-A value type no `PrimitiveKind` declares has no row, and is reported as `ir/unknown-prim-kind`
+A value type no `PrimitiveKind` declares has no row, and is reported as `ir/unknown-primitive-kind`
 alone.
 
 ## The empty enum

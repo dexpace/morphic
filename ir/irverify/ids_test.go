@@ -135,7 +135,7 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: primitive}}
 
 			got := verifyDeclared(doc)
-			assert.Contains(t, violationCodes(got), "ir/prim-id-not-derived")
+			assert.Contains(t, violationCodes(got), "ir/primitive-id-not-derived")
 			assert.NotContains(t, violationCodes(got), "ir/id-malformed",
 				"the point of these cases is that shape alone cannot tell: each is well-shaped")
 		})
@@ -160,11 +160,11 @@ func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 
 	got := verifyDeclared(doc)
 	require.Len(t, got, 2)
-	assert.Equal(t, "ir/prim-id-not-derived", got[0].Code)
+	assert.Equal(t, "ir/primitive-id-not-derived", got[0].Code)
 	assert.Contains(t, got[0].Message, "carries no kind")
 	assert.NotContains(t, got[0].Message, string(ir.PrimitiveTypeID("")),
 		"t/prim/ is not an ID; naming it as the destination sends the reader to the wrong end")
-	assert.Equal(t, "ir/unknown-prim-kind", got[1].Code)
+	assert.Equal(t, "ir/unknown-primitive-kind", got[1].Code)
 }
 
 // TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation covers the other direction.
@@ -189,7 +189,7 @@ func TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation(t *testing.T) {
 				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
 			}
 			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: model}}
-			assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/prim-space-reserved")
+			assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/primitive-space-reserved")
 		})
 	}
 }

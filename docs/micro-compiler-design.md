@@ -205,9 +205,9 @@ produced by a compiler outside this tree, or rewritten by a pass is held by `irv
 `irverify` can only check what `ir` can compute.
 
 The gap that leaves is not hypothetical. `checkIDs` asks an ID to agree with the pointer recorded
-beside it, and a primitive records none, so before `ir/prim-id-not-derived` a `string` primitive
+beside it, and a primitive records none, so before `ir/primitive-id-not-derived` a `string` primitive
 interned at `t/openapi/components/schemas/Name` passed clean — and so did one at `t/prim/int32`, an
-ID contradicting the node it keys. `ir/prim-space-reserved` closes the converse: the space is
+ID contradicting the node it keys. `ir/primitive-space-reserved` closes the converse: the space is
 reserved, so a node there that is not a primitive is a collision waiting for the kind whose name it
 took.
 
@@ -687,7 +687,7 @@ Two assertions, neither implying the other:
 - `ID → pointer` injectivity catches a grammar that **collapses** two distinct pointers.
 
 Primitives are excluded from both: `t/prim/<kind>` is shared and derives from no source position.
-What holds them instead is `ir/prim-id-not-derived`, which asks the ID to agree with the
+What holds them instead is `ir/primitive-id-not-derived`, which asks the ID to agree with the
 `PrimitiveKind` it keys rather than with a pointer there is none of — see §3.4.
 
 `irverify` cannot host this as things stand — it is Layer 0 and imports only `ir`, while the grammar

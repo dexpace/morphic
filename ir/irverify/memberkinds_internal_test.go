@@ -155,7 +155,7 @@ func TestVerify_EnumMemberKindNamesBothKinds(t *testing.T) {
 }
 
 // TestVerify_EnumMemberKindIsReadOnlyForADeclaredValueType pins that an enum of
-// a value type no PrimitiveKind declares draws ir/unknown-prim-kind alone:
+// a value type no PrimitiveKind declares draws ir/unknown-primitive-kind alone:
 // there is no row to hold its members to.
 func TestVerify_EnumMemberKindIsReadOnlyForADeclaredValueType(t *testing.T) {
 	t.Parallel()
@@ -164,6 +164,6 @@ func TestVerify_EnumMemberKindIsReadOnlyForADeclaredValueType(t *testing.T) {
 	for _, violation := range got {
 		codes = append(codes, violation.Code)
 	}
-	assert.Contains(t, codes, "ir/unknown-prim-kind")
+	assert.Contains(t, codes, "ir/unknown-primitive-kind")
 	assert.NotContains(t, codes, memberKindCode)
 }

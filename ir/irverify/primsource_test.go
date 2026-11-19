@@ -13,7 +13,7 @@ import (
 )
 
 // primitiveSourceCode is what a primitive credited to a source draws.
-const primitiveSourceCode = "ir/prim-names-source"
+const primitiveSourceCode = "ir/primitive-names-source"
 
 // primitiveOf returns the one primitive of scenarioBase.
 func primitiveOf(doc *ir.Document) *ir.Primitive {

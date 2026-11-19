@@ -51,7 +51,7 @@ func undeclaredKind(kind ir.PrimitiveKind, what string, id ir.TypeID, field stri
 		return nil
 	}
 	return []Violation{{
-		Code:    "ir/unknown-prim-kind",
+		Code:    "ir/unknown-primitive-kind",
 		Message: what + " undeclared kind " + strconv.Quote(string(kind)),
 		Path:    typePath(id) + field,
 	}}

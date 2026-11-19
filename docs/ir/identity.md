@@ -92,13 +92,13 @@ by any compiler, `ir` being the only place that can compute it. Two documents lo
 formats must reach that same node for the same kind, or they disagree about the identity of the same
 type. The `primitive` namespace is reserved for exactly those nodes: anything else addressed there
 either collides with the primitive of that kind or squats the name of the next one. `irverify` holds
-both halves — `ir/prim-id-not-derived` and `ir/prim-space-reserved` — for every document, whatever
+both halves — `ir/primitive-id-not-derived` and `ir/primitive-space-reserved` — for every document, whatever
 produced it.
 
 Having no source position, a primitive names no source either: its `Provenance.Source` is
 `NoSource` ([provenance](./provenance.md)). An index beside the empty pointer would say that file's
 whole document declared a node every source reaches by kind. `irverify` holds every document to it
-(`ir/prim-names-source`).
+(`ir/primitive-names-source`).
 
 ## Unresolved schemes
 

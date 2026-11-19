@@ -44,7 +44,7 @@ func TestVerify_UndeclaredPrimitiveKindIsAViolation(t *testing.T) {
 			t.Parallel()
 			got := verifyDeclared(primitiveKindDocument(tc.kind))
 			require.Len(t, got, 1, "the ID derives from the kind, so nothing else can be wrong")
-			assert.Equal(t, "ir/unknown-prim-kind", got[0].Code)
+			assert.Equal(t, "ir/unknown-primitive-kind", got[0].Code)
 			assert.Equal(t, "types["+string(ir.PrimitiveTypeID(tc.kind))+"]", got[0].Path)
 			assert.Contains(t, got[0].Message, string(tc.kind))
 		})
@@ -75,7 +75,7 @@ func TestVerify_NilTypeBesideAPrimitiveDoesNotPanic(t *testing.T) {
 
 			var got []irverify.Violation
 			require.NotPanics(t, func() { got = verifyDeclared(doc) })
-			assert.Contains(t, violationCodes(got), "ir/unknown-prim-kind", "the bad kind is still reported")
+			assert.Contains(t, violationCodes(got), "ir/unknown-primitive-kind", "the bad kind is still reported")
 			assert.Contains(t, violationCodes(got), "ir/nil-type", "the nil entry is reported by its own check")
 		})
 	}
@@ -200,7 +200,7 @@ func TestVerify_AnEnumsUndeclaredValueTypeIsAViolation(t *testing.T) {
 			t.Parallel()
 			doc := &ir.Document{Types: ir.TypeRegistry{"type/x/E": &ir.Enum{ID: "type/x/E", ValueType: tc.vt}}}
 
-			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-prim-kind"))
+			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-primitive-kind"))
 		})
 	}
 }
@@ -224,7 +224,7 @@ func TestVerify_ALiteralsUndeclaredValueTypeIsAViolation(t *testing.T) {
 			doc := &ir.Document{Types: ir.TypeRegistry{"type/x/L": &ir.Literal{
 				ID: "type/x/L", Value: ir.Value{Kind: ir.ValueString, String: "a"}, ValueType: tc.vt,
 			}}}
-			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-prim-kind"))
+			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-primitive-kind"))
 		})
 	}
 }

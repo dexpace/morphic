@@ -27,7 +27,7 @@ var heldEnums = map[string]string{
 	"PageStop":         "ir/unknown-page-stop",
 	"PageStrategy":     "ir/unknown-page-strategy",
 	"PresenceKind":     "ir/unknown-presence-kind",
-	"PrimitiveKind":    "ir/unknown-prim-kind",
+	"PrimitiveKind":    "ir/unknown-primitive-kind",
 	"RelatedRole":      "ir/unknown-related-role",
 	"Severity":         "ir/unknown-severity",
 	"Stability":        "ir/unknown-stability",

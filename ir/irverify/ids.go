@@ -176,7 +176,7 @@ func checkPrimitiveIDs(doc *ir.Document) []Violation {
 		}
 		if namesSource(doc, primitive) {
 			vs = append(vs, Violation{
-				Code: "ir/prim-names-source",
+				Code: "ir/primitive-names-source",
 				Message: "primitive is credited to source " + strconv.Itoa(primitive.Provenance.Source) +
 					", and a primitive shared by every source names none",
 				Path: typePath(id),
@@ -210,7 +210,7 @@ func primitiveIDViolation(id ir.TypeID, kind ir.PrimitiveKind, want ir.TypeID) V
 	if kind == "" {
 		message = "primitive at " + strconv.Quote(string(id)) + " carries no kind, so no shared ID derives from it"
 	}
-	return Violation{Code: "ir/prim-id-not-derived", Message: message, Path: typePath(id)}
+	return Violation{Code: "ir/primitive-id-not-derived", Message: message, Path: typePath(id)}
 }
 
 // appendReservedSpace reports a type that is not a primitive addressing the
@@ -226,7 +226,7 @@ func appendReservedSpace(vs []Violation, id ir.TypeID, kind ir.TypeKind) []Viola
 		return vs
 	}
 	return append(vs, Violation{
-		Code: "ir/prim-space-reserved",
+		Code: "ir/primitive-space-reserved",
 		Message: "id " + strconv.Quote(string(id)) + " addresses the reserved primitive space but names a " +
 			string(kind),
 		Path: typePath(id),

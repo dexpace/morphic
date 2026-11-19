@@ -171,15 +171,15 @@ func messageCases() []messageCase {
 			"a binding lists operation %q among its Callbacks, but it is not marked a callback", "operation/x/S/"+illFormed)},
 		{"prim not derived", func() *ir.Document {
 			return typesDoc(&ir.Primitive{ID: ir.TypeID("type/x/" + illFormed), PrimitiveKind: ir.PrimitiveString})
-		}, "ir/prim-id-not-derived", fmt.Sprintf(
+		}, "ir/primitive-id-not-derived", fmt.Sprintf(
 			"primitive of kind \"string\" is interned at %q rather than the shared \"type/primitive/string\"", "type/x/"+illFormed)},
 		{"prim with no kind", func() *ir.Document {
 			return typesDoc(&ir.Primitive{ID: ir.TypeID("type/x/" + illFormed)})
-		}, "ir/prim-id-not-derived", fmt.Sprintf(
+		}, "ir/primitive-id-not-derived", fmt.Sprintf(
 			"primitive at %q carries no kind, so no shared ID derives from it", "type/x/"+illFormed)},
 		{"prim space reserved", func() *ir.Document {
 			return typesDoc(namedModel(ir.TypeID("type/primitive/" + illFormed)))
-		}, "ir/prim-space-reserved", fmt.Sprintf(
+		}, "ir/primitive-space-reserved", fmt.Sprintf(
 			"id %q addresses the reserved primitive space but names a model", "type/primitive/"+illFormed)},
 		{"id malformed", func() *ir.Document {
 			return typesDoc(namedModel(ir.TypeID("type//" + illFormed)))
@@ -219,7 +219,7 @@ func messageCases() []messageCase {
 		}, "ir/type-id-mismatch", fmt.Sprintf("registry key %q disagrees with node ID \"type/x/A\"", "type/x/"+illFormed)},
 		{"prim kind", func() *ir.Document {
 			return typesDoc(&ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveKind(illFormed)), PrimitiveKind: ir.PrimitiveKind(illFormed)})
-		}, "ir/unknown-prim-kind", fmt.Sprintf("primitive carries undeclared kind %q", illFormed)},
+		}, "ir/unknown-primitive-kind", fmt.Sprintf("primitive carries undeclared kind %q", illFormed)},
 		{"auth kind", func() *ir.Document {
 			doc := typesDoc()
 			doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/a": {ID: "auth/x/a", Name: named("a"), Kind: ir.AuthKind(illFormed)}}
