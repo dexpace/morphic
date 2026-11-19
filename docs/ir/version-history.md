@@ -1151,7 +1151,8 @@ it sees. Changes made together in one bump are listed together under it.
     body and as validation logic where neither does, where two entries, and such a pair beside the
     body, distributed the elected union; beside a body admitting null, the other is still
     distributed, the union of null alone kept on each variant, now with the warning. Two unions each
-    of null alone beside a body admitting null are null alone keeping both as `degraded_lowering`,
+    of null alone beside a `type` list admitting null are null alone keeping both as
+    `degraded_lowering`,
     where a nullable alias of the entry's member-less `Enum` kept the `oneOf` and dropped the
     `anyOf`. The union a pair passes over is a conjunct of the rest wherever it is written, read for
     a dead branch and by the conjuncts' warning, which names it `allOf/<n>/<keyword>` on the entry
