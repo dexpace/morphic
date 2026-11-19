@@ -166,8 +166,8 @@ func TestAllOf_RequiredNameNothingDeclaresLandsInRequires(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing should be a model")
-	assert.Nil(t, m.Base, "no $ref branch at all: no Base")
-	assert.Empty(t, m.Mixins, "no $ref branch at all: no Mixins")
+	assert.Nil(t, m.Base, "no $ref entry at all: no Base")
+	assert.Empty(t, m.Mixins, "no $ref entry at all: no Mixins")
 
 	id, hasID := openapitest.PropsByWire(m.Properties)["id"]
 	require.True(t, hasID, "the branch's own id property still lowers")
@@ -208,7 +208,7 @@ func TestAllOf_RefEntryWithSiblingRequired31(t *testing.T) {
 	level, ok := openapitest.PropsByWire(m.Properties)["level"]
 	require.True(t, ok, "level is declared by the inline entry")
 	assert.True(t, level.Required,
-		"a required sibling on a $ref branch is read off the branch's own local schema and attaches to level")
+		"a required sibling on a $ref entry is read off the entry's own local schema and attaches to level")
 }
 
 // TestAllOf_RequiresIsTheSameInEitherComponentOrder pins that an allOf making

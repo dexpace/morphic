@@ -132,7 +132,7 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	d, ok := doc.Types[componentID("Derived")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, d.Base, "the $ref branch still becomes Base")
+	require.NotNil(t, d.Base, "the $ref entry still becomes Base")
 	name, ok := propByWire(d, "name")
 	require.True(t, ok, "the inline entry's own property survives")
 	assert.True(t, name.Required,

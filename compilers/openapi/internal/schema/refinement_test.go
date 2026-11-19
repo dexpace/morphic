@@ -756,7 +756,7 @@ func TestRefinement_ReachesNoFurtherThanItCanRead(t *testing.T) {
 			schemas: "    No: false\n    S: {allOf: [{$ref: '#/components/schemas/No'}, {type: string}]}\n",
 		},
 		"a type no schema defines": {schemas: "    S: {allOf: [{type: file}]}\n", errs: true},
-		"a false branch":           {schemas: "    S: {allOf: [{type: string}, false]}\n"},
+		"a false entry":            {schemas: "    S: {allOf: [{type: string}, false]}\n"},
 		"a cycle":                  {schemas: "    S: {allOf: [{$ref: '#/components/schemas/S'}], type: string}\n"},
 		"a cycle of two": {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/R'}]}\n    R: {allOf: [{$ref: '#/components/schemas/S'}]}\n",
@@ -1178,7 +1178,7 @@ func TestRefinement_ACarrierReadsThroughARefinement(t *testing.T) {
 	assert.Equal(t, "a scan", nested.Docs.Description)
 
 	beside := propertyOf(t, doc, "Holder", "beside")
-	assert.Equal(t, "written beside", beside.Docs.Description, "what a $ref branch writes speaks too")
+	assert.Equal(t, "written beside", beside.Docs.Description, "what a $ref entry writes speaks too")
 
 	lent := propertyOf(t, doc, "Holder", "lent")
 	assert.Equal(t, "lent doc", lent.Docs.Description)

@@ -305,7 +305,7 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	narrowed, ok := doc.Types[componentID("Narrowed")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, narrowed.Base, "the $ref branch still becomes Base")
+	require.NotNil(t, narrowed.Base, "the $ref entry still becomes Base")
 	_, ok = propByWire(narrowed, "name")
 	assert.True(t, ok, "the inline entry still contributes its properties")
 	entry := unmodeledEntry(t, narrowed.Unmodeled, "openapi:allOf/1")
@@ -418,7 +418,7 @@ func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diag
 	}
 	for _, tc := range []struct {
 		model, field string
-		naming       string // the allOf branch of the declaration naming the field
+		naming       string // the allOf entry of the declaration naming the field
 		base         ir.TypeID
 		mixins       []ir.TypeID
 		nullable     bool
@@ -755,7 +755,7 @@ func narrowedProp(t *testing.T, doc *ir.Document, model string) ir.Property {
 func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	annotated, ok := doc.Types[componentID("Annotated")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, annotated.Base, "the $ref branch still composes as Base")
+	require.NotNil(t, annotated.Base, "the $ref entry still composes as Base")
 	assert.Equal(t, componentID("Base"), annotated.Base.Target, "Base names the target")
 	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Annotated/allOf/0"),
 		"the branch hoists no node")
@@ -1782,7 +1782,7 @@ func assertUnevaluatedAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.
 	}
 	closed, ok := typeByName(doc, "ClosedByABranch").(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, ir.AdditionalClosed, closed.Additional, "the false branch closes it outright")
+	assert.Equal(t, ir.AdditionalClosed, closed.Additional, "the false entry closes it outright")
 }
 
 // assertUnknownKeywordsAtSharedNodes pins that a keyword no field of the model

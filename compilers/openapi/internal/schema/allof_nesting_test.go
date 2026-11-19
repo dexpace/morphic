@@ -59,9 +59,9 @@ func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	assert.Equal(t, []string{"w"}, wires(distributed.Variants[0].Props), "each variant carries the body's own property")
 	assert.Equal(t, string(componentID("C")), distributed.Variants[0].Base, "and the ref the wrapper held as its base")
 
-	closed, _ := compileView(t, byName["a false branch"])
+	closed, _ := compileView(t, byName["a false entry"])
 	assert.Equal(t, ir.AdditionalClosed, closed.Additional)
-	assert.Positive(t, closed.Kept, "the false branch is kept beside closing the model")
+	assert.Positive(t, closed.Kept, "the false entry is kept beside closing the model")
 
 	required, _ := compileView(t, byName["a required name only the base declares"])
 	assert.Equal(t, []string{"a"}, required.Requires, "the name is required of the composition, not of a property it holds")
@@ -611,7 +611,7 @@ var equivalencePairs = []struct {
 `, `    M:
       allOf: [{$ref: '#/components/schemas/A'}, true]
 `},
-	{"a false branch", `    M:
+	{"a false entry", `    M:
       allOf:
         - allOf: [{$ref: '#/components/schemas/A'}, false]
 `, `    M:

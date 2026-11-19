@@ -740,7 +740,7 @@ func TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType(t *testing.T) {
 		{"a plain union of a model closed on its own", "{oneOf: [{$ref: " + live + "}], unevaluatedProperties: false}", false},
 		{"a type array with no object", "{type: [string, integer], unevaluatedProperties: false}", false},
 		{"the top type", "{unevaluatedProperties: false}", false},
-		{"a model a false branch closed", "{type: object, properties: {k: {type: string}}, allOf: [false], unevaluatedProperties: false}", false},
+		{"a model a false entry closed", "{type: object, properties: {k: {type: string}}, allOf: [false], unevaluatedProperties: false}", false},
 		{"a model", "{type: object, properties: {k: {type: string}}, unevaluatedProperties: false}", true},
 		{"a composition", "{allOf: [{$ref: " + live + "}, {type: object, properties: {k: {type: string}}}], unevaluatedProperties: false}", true},
 		{"a type array with an object", "{type: [object, string], properties: {k: {type: string}}, unevaluatedProperties: false}", true},
@@ -820,7 +820,7 @@ func TestClosureTyped_ReadsAlikeInEitherEntryOrder(t *testing.T) {
 	const live, closes = "{$ref: '#/components/schemas/Live'}", ", unevaluatedProperties: false"
 	for name, tc := range map[string]struct{ other, beside string }{
 		"a composition":        {"{type: object, properties: {k: {type: string}}}", closes},
-		"a false branch":       {"false", closes},
+		"a false entry":        {"false", closes},
 		"a branch's own false": {"{type: object, properties: {k: {type: string}}" + closes + "}", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
