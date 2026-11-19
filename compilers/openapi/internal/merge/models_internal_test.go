@@ -25,13 +25,13 @@ func alikeRegistry() map[ir.TypeID]ir.TypeDef {
 	owner := func(id ir.TypeID, at jsontext.Pointer, anonymous bool, name ir.TypeRef, addr ir.TypeID) *ir.Model {
 		return &ir.Model{ID: id, Anonymous: anonymous, Provenance: ptrAt(at),
 			Properties: []ir.Property{
-				{ID: ir.PropertyID("p" + at + "/name"), WireName: "name", Type: name},
-				{ID: ir.PropertyID("p" + at + "/addr"), WireName: "addr", Type: ref(addr)},
+				{ID: ir.PropertyID("property" + at + "/name"), WireName: "name", Type: name},
+				{ID: ir.PropertyID("property" + at + "/addr"), WireName: "addr", Type: ref(addr)},
 			}}
 	}
 	addr := func(id ir.TypeID, at jsontext.Pointer, anonymous bool) *ir.Model {
 		return &ir.Model{ID: id, Anonymous: anonymous, Provenance: ptrAt(at),
-			Properties: []ir.Property{{ID: ir.PropertyID("p" + at + "/street"), WireName: "street", Type: str}}}
+			Properties: []ir.Property{{ID: ir.PropertyID("property" + at + "/street"), WireName: "street", Type: str}}}
 	}
 	for _, m := range []*ir.Model{
 		owner("type/Owner", "/components/schemas/Owner", false, str, "type/Owner/addr"),

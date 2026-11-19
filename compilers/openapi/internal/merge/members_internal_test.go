@@ -20,7 +20,7 @@ import (
 
 // declared is wire's declaration of target, written at pointer.
 func declared(wire string, target ir.TypeID, pointer string) ir.Property {
-	return ir.Property{ID: ir.PropertyID("p" + pointer), Name: ir.NamingFor(wire), WireName: wire,
+	return ir.Property{ID: ir.PropertyID("property" + pointer), Name: ir.NamingFor(wire), WireName: wire,
 		Type: ir.TypeRef{Target: target}, Provenance: ptrAt(jsontext.Pointer(pointer))}
 }
 
@@ -333,7 +333,7 @@ func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 		interned   []jsontext.Pointer
 		want       ir.PropertyID
 	}{
-		"held alone":          {"/M/allOf/1/properties/p", "/M/allOf/1/properties/p", nil, "p/M/allOf/1/properties/p"},
+		"held alone":          {"/M/allOf/1/properties/p", "/M/allOf/1/properties/p", nil, "property/M/allOf/1/properties/p"},
 		"its branch interned": {"/M/allOf/1/properties/p", composedAt, []jsontext.Pointer{"/M/allOf/1"}, composed},
 		"outside the model":   {"/body/properties/p", composedAt, nil, composed},
 	} {
@@ -849,6 +849,6 @@ func TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
 
 	assert.Empty(t, diags)
 	require.Len(t, m.Properties, 1)
-	assert.Equal(t, ir.PropertyID("p/M/allOf/1/properties/p"), m.Properties[0].ID)
+	assert.Equal(t, ir.PropertyID("property/M/allOf/1/properties/p"), m.Properties[0].ID)
 	assert.Equal(t, ir.TypeID("type/M"), table["p"].Owner)
 }
