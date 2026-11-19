@@ -367,3 +367,31 @@ func TestUnion_APairAdmitsNullOnlyWhereBothUnionsMay(t *testing.T) {
 		assert.Equal(t, want[p.Name.Source], p.Type.Nullable, p.Name.Source)
 	}
 }
+
+// TestUnion_TwoUnionsSharingNoMemberBesideAScalarLowerAsTheBody pins a oneOf
+// and an anyOf whose enums share no member beside a string body, beside its
+// keywords, beside an allOf of it, on one entry and on two: each is the
+// string keeping both unions, with one warning that they share no value.
+func TestUnion_TwoUnionsSharingNoMemberBesideAScalarLowerAsTheBody(t *testing.T) {
+	t.Parallel()
+	const one, anyOf = "oneOf: [{type: string, enum: [a]}]", "anyOf: [{type: string, enum: [b]}]"
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Flat: {type: string, `+one+`, `+anyOf+`}
+    Beside: {allOf: [{type: string}], `+one+`, `+anyOf+`}
+    OneEntry: {allOf: [{type: string}, {`+one+`, `+anyOf+`}]}
+    TwoEntries: {allOf: [{type: string}, {`+one+`}, {`+anyOf+`}]}
+`))
+	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries"} {
+		scalar, ok := typeByName(doc, name).(*ir.Scalar)
+		require.True(t, ok, "%s is the string its body gives", name)
+		assert.Contains(t, scalar.Unmodeled, "openapi:oneOf", name)
+		assert.Contains(t, scalar.Unmodeled, "openapi:anyOf", name)
+		var warned []string
+		for _, d := range diags {
+			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
+				warned = append(warned, d.Message)
+			}
+		}
+		require.Len(t, warned, 1, name)
+		assert.Contains(t, warned[0], "share no value", name)
+	}
+}

@@ -4509,8 +4509,9 @@ the schema writing them draws the warning of [`allof-disjoint-conjuncts`](#allof
 once, beside the info, whether or not it writes an `allOf`, and lowers as it would without it.
 Whether they share a value is read once for the position, as the election reads its conjuncts,
 value sets included, so `oneOf: [{type: string, enum: [a]}]` and `anyOf: [{type: string, enum: [b]}]`
-share none, and each is named by what it admits, `oneOf: 1 value`; the spelling beside an `allOf` of
-a scalar body still lowers such a pair as that body and draws no warning. The two are conjuncts for
+share none, and each is named by what it admits, `oneOf: 1 value`; beside a body that is no
+`Model` such a pair lowers as that body in every spelling, keeping both, as two sharing no kind
+do. The two are conjuncts for
 null too: the reference to the position admits null only where each may, so
 `{$ref: T, oneOf: [{type: object, properties: {x: {type: string}}}], anyOf: [{type: object},
 {type: 'null'}]}`, over an object `T`, is not nullable and draws no `openapi/inferred-nullable`,
@@ -4536,10 +4537,9 @@ asks the node that was built: `type: object` beside an `allOf` is one the compos
 asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
 [`allof-refinement`](#allof-refinement)'s.
 
-- Status: partly built, #2011: beside an `allOf` of a scalar body, a pair sharing no value of one
-  kind lowers as the body and draws no warning; and beside a scalar body's own keywords, a pair
-  electing a union with a `$ref` branch lowers to the body's `Scalar`, where every `allOf` spelling
-  gives a `Union`.
+- Status: partly built: whether a pair beside a scalar body lowers to the elected `Union` or to the
+  body's `Scalar` keeping both is #2108's, as for one union: beside the body's own keywords it is the
+  `Scalar`, where the `allOf` spellings give a `Union`.
 - Cases: `codeclared-keywords`, `codeclared-schema-content`, `allof-value-set-beside-entry`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestCoDeclaredFamily_EveryPassedOverKeywordIsKept`,
@@ -4558,6 +4558,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_AUnionPairLowersAlikeInEverySpelling`,
   `schema.TestUnion_TwoUnionsSharingNoMemberWarnOnceWhereverWritten`,
   `schema.TestUnion_APairAdmitsNullOnlyWhereBothUnionsMay`,
+  `schema.TestUnion_TwoUnionsSharingNoMemberBesideAScalarLowerAsTheBody`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `schema.TestUnion_TwoUnionEntriesBesideABodyElectByCompetingKeywords`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`

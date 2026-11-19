@@ -164,11 +164,9 @@ var pairExcused = map[string]string{
 // neither union alone does, each saying how; each must still split. While one
 // stands, a oneOf and an anyOf lower apart by spelling (GitHub #2011).
 var pairOpen = map[[2]string]string{
-	{"string", "sharing no value of a kind"}:         "beside the allOf the body's Scalar keeping both, the others an Enum of the oneOf",
-	{"string or null", "sharing no value of a kind"}: "beside the allOf the body's Scalar keeping both, the others an Enum of the oneOf",
-	{"string", "refs on both"}:                       "the flat spelling is the body's Scalar, the others a Union of the oneOf",
-	{"string or null", "refs on both"}:               "the flat spelling is the body's Scalar, the others a Union of the oneOf",
-	{"string or null", "null and a ref"}:             "the flat spelling is the body's Scalar, the others a Union of the $ref",
+	{"string", "refs on both"}:           "the flat spelling is the body's Scalar, the others a Union of the oneOf",
+	{"string or null", "refs on both"}:   "the flat spelling is the body's Scalar, the others a Union of the oneOf",
+	{"string or null", "null and a ref"}: "the flat spelling is the body's Scalar, the others a Union of the $ref",
 }
 
 // singleSpellings are the spellings a union written alone has.

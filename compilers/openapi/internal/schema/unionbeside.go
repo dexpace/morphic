@@ -41,7 +41,9 @@ func hasUnionSiblings(c lowering.Ctx, s *statement.Schema) bool {
 	if slices.ContainsFunc(siblings, func(k string) bool { return !slices.Contains(said, k) }) {
 		return true
 	}
-	return !unionBranchesDeclareShape(c, s)
+	// A oneOf and an anyOf sharing no value lower as the body beside them
+	// where it is no Model (unionPairApart), whatever their branches say.
+	return !unionBranchesDeclareShape(c, s) || pairSharesNoValue(c, s) && !composesAsModel(c, s)
 }
 
 // restatableKeywords are the keywords beside a union that its branches can say

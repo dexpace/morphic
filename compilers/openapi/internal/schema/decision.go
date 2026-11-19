@@ -305,7 +305,11 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	if aside {
 		kinds, inferred = restKinds(c, s, comp)
 	}
-	principal := unionPair(c, s, conjuncts)
+	var principal *conjunct
+	if !aside {
+		// A pair the reading puts aside lowers as the rest, standing alone or not.
+		principal = unionPair(c, s, conjuncts)
+	}
 	one := usesOneRef(c, s, comp)
 	contradicts := !one && disjoint(joint, conjuncts, pairEntries(s, conjuncts))
 	apart := contradicts && joint.fixed && joint.kinds&^kindNull != 0 && kinds != kindObject
