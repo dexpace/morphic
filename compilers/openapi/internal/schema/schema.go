@@ -471,8 +471,8 @@ func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 }
 
 // lowerElected lowers s, at pointer, by the family d elects, which takes
-// precedence over the structural type, else by its effective (null-stripped)
-// type set. The families are conjoined where a schema writes more than one, so
+// precedence over the structural type, else by its types (lowerTyping). The
+// families are conjoined where a schema writes more than one, so
 // electing a winner is a degradation
 // (docs/compilers/openapi.md#competing-keywords): the ones passed over are kept
 // verbatim beside it (recordSkippedFamilies). A keyword the elected lowering
@@ -503,30 +503,107 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		})
 	}
 	// won is "": the schema declares no family, or only an allOf that refines
-	// with no branch deciding what the position is, so the type set decides.
-	types := effectiveTypes(s)
+	// with no branch deciding what the position is, so its types decide.
+	return lowerTyping(c, ts, depth, s, pointer, d, typingOf(c, s), fin, st)
+}
+
+// typedBy is what names the types a schema electing no family lowers by.
+type typedBy uint8
+
+const (
+	// byType marks the types the schema writes, null aside.
+	byType typedBy = iota
+	// byNull marks a type naming null alone, which leaves no type to build.
+	byNull
+	// byShape marks an object, an array or both, as the schema's shape keywords
+	// speak of them (untypedKinds).
+	byShape
+	// byConjuncts marks the primitive kinds the conjuncts of an allOf refining
+	// with no principal admit (undecidedTypes), none being the top type.
+	byConjuncts
+)
+
+// typing is how a schema whose dispatch elects no family lowers: the types its
+// nodes are built for, one node for one type and a Union of a variant each for
+// more, what names them, and whether the kind-inference policy read them.
+type typing struct {
+	types    []statement.Kind
+	by       typedBy
+	inferred bool
+}
+
+// top reports whether t lowers to the top type: nothing names a kind.
+func (t typing) top() bool { return t.by == byConjuncts && len(t.types) == 0 }
+
+// object reports whether t lowers to one node built for an object, a Model.
+func (t typing) object() bool { return len(t.types) == 1 && t.types[0] == statement.KindObject }
+
+// typingOf returns how s lowers where its dispatch elects no family: by the
+// types it writes, null aside; else, where it writes a type, as null alone
+// (docs/compilers/openapi.md#null-alone); else by the kinds its shape keywords
+// speak of (untypedKinds), in the order a type array listing both writes
+// them; else by what the conjuncts of its allOf admit (undecidedTypes). It is
+// the one reading of that: lowerTyping builds by it, and a reader asking ahead
+// of the build what will stand there reads it too (nodeHomes, buildsModel).
+func typingOf(c lowering.Ctx, s *statement.Schema) typing {
+	if types := effectiveTypes(s); len(types) > 0 {
+		return typing{types: types}
+	}
+	if writesType(s) {
+		return typing{by: byNull}
+	}
+	kinds, inferred := untypedKinds(c, s)
+	if kinds == 0 {
+		return typing{types: undecidedTypes(c, s), by: byConjuncts}
+	}
+	types := slices.DeleteFunc(slices.Clone(inferredKinds), func(st statement.Kind) bool { return typeKinds(st)&kinds == 0 })
+	return typing{types: types, by: byShape, inferred: inferred}
+}
+
+// lowerTyping lowers s, at pointer, whose dispatch d elects no family, by t
+// (typingOf): a type list by one variant per type, each from this same schema;
+// one type by its structural or scalar form, an object or an array its shape
+// keywords speak of marked where the kind-inference policy read the kind; a
+// type naming null alone to the value set of null; and nothing naming a kind
+// to the top type. The keywords the node cannot hold are kept beside it
+// (keepingUnread, keepUnreadAcross). fin finishes the node standing at pointer.
+func lowerTyping(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch, t typing,
+	fin finisher, st stand,
+) (ir.TypeID, []ir.Diagnostic) {
+	var mark finisher
+	if t.inferred {
+		mark = markKindInferred
+	}
+	var build func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic)
 	switch {
-	case len(types) > 1:
-		// A multi-typed schema lowers one variant per declared type, each from
-		// this same schema, so the homes are the variants', not the Union's, and
-		// the type set itself is what built them.
-		var census finished
-		id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types},
-			keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), keyBit("type"), pointer, st, &census, fin), st)
-		return id, append(diags, census.diags...)
-	case len(types) == 1:
-		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return lowerTyped(c, ts, depth, s, pointer, types[0], fin, st)
-		})
-	case writesType(s):
+	case t.by == byNull:
 		// Every type s names is null, so its value space is null and nothing
 		// else, which is no schemaless position's (docs/compilers/openapi.md#null-alone).
-		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
-			return lowerNullAlone(c, ts, standingValueSet(s, pointer, st).finishedBy(fin)), nil
-		})
+		build = func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return lowerNullAlone(c, ts, standingValueSet(s, pointer, st).finishedBy(fin)), 0, nil
+		}
+	case t.top():
+		build = func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) { return ts.PrimID(ir.PrimAny), 0, nil }
+	case len(t.types) > 1:
+		return lowerTypeList(c, ts, depth, s, pointer, t, fin, st)
+	case t.by == byShape && t.object():
+		// The node asserts an object, as the bounds beside it read it
+		// (boundKinds): one an object does not take is kept.
+		build = func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			id, diags := lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s), mark.then(fin))
+			return id, 0, diags
+		}
+	case t.by == byShape:
+		build = func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			id, diags := lowerArray(c, ts, depth, s, pointer, st.pointer(pointer), st.voices(c, s, pointer), mark.then(fin))
+			return id, 0, diags
+		}
 	default:
-		return lowerUntyped(c, ts, depth, s, pointer, d, fin, st)
+		build = func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return lowerTyped(c, ts, depth, s, pointer, t.types[0], fin, st)
+		}
 	}
+	return keepingUnread(c, ts, s, pointer, d, fin, st, build)
 }
 
 // lowerTyped dispatches a single-typed schema to its structural or scalar form,
@@ -545,39 +622,6 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		return id, 0, diags
 	default:
 		return scalarTypeID(c, ts, depth, s, kind, pointer, fin, st)
-	}
-}
-
-// lowerUntyped lowers s, which writes no kind and no family lower() elects
-// first, by the election d, as one writing the type its shape keywords speak
-// of (untypedKinds), its nodes marked where the kind-inference policy read the
-// kind, else to the top type. The keywords the node cannot hold are kept beside
-// it (keepingUnread), as for a schema writing that type.
-func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
-	fin finisher, st stand,
-) (ir.TypeID, []ir.Diagnostic) {
-	kinds, inferred := untypedKinds(c, s)
-	var mark finisher
-	if inferred {
-		mark = markKindInferred
-	}
-	switch kinds {
-	case 0:
-		return lowerUndecided(c, ts, depth, s, pointer, d, fin, st)
-	case kindObject:
-		// The node asserts an object, as the bounds beside it read it
-		// (boundKinds): one an object does not take is kept.
-		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			id, diags := lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s), mark.then(fin))
-			return id, 0, diags
-		})
-	case kindArray:
-		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			id, diags := lowerArray(c, ts, depth, s, pointer, st.pointer(pointer), st.voices(c, s, pointer), mark.then(fin))
-			return id, 0, diags
-		})
-	default:
-		return lowerUntypedUnion(c, ts, depth, s, pointer, inferredKinds, inferred, fin, st)
 	}
 }
 
