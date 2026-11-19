@@ -443,3 +443,21 @@ func TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut(t *testing.T) {
 	}
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Dead"))
 }
+
+// TestUnion_APrincipalEntryWhoseUnionSharesNoKindWithItsTypeWarnsOnce holds
+// that an allOf entry writing a type and a oneOf sharing no kind, standing for
+// the position alone or beside an annotation, draws the one warning that the
+// conjuncts share no value at the position, not a second at the entry.
+func TestUnion_APrincipalEntryWhoseUnionSharesNoKindWithItsTypeWarnsOnce(t *testing.T) {
+	t.Parallel()
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Alone: {allOf: [{type: integer, oneOf: [{type: string}, {type: boolean}]}]}
+    Annotated: {allOf: [{description: d}, {type: integer, oneOf: [{type: string}, {type: boolean}]}]}
+`))
+	warned := map[string]int{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			warned[strings.Split(string(d.Provenance.Pointer), "/")[3]]++
+		}
+	}
+	assert.Equal(t, map[string]int{"Alone": 1, "Annotated": 1}, warned)
+}

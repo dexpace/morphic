@@ -346,6 +346,10 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 			"none of its branches shares a kind with the allOf beside it, so no instance satisfies them together")
 	case unionUncomposableBody:
 		id, diags := beside(ir.ReasonDegradedLowering, "the body is not a model, so it carries no composition to distribute into")
+		if st.of != nil {
+			// A principal's conjunction is reported at the schema writing it (refinedDisjoint).
+			return id, diags
+		}
 		return id, append(diags, diagUnionApartFromBody(c, s, pointer)...)
 	case unionUnresolvedBranch:
 		id, diags := beside(ir.ReasonDegradedLowering,
