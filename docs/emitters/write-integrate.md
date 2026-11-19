@@ -4,8 +4,8 @@ Post-milestone (architecture.md §2.3), but the contract is designed so it bolts
 change** (INV9). The `manifest.Manifest` and `Artifact` fields returned from `Generate` are the
 seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
 
-- **Generation manifest keyed by IR stable IDs.** Records what the generation was built from, a **sorted**
-  file list (deterministic diffs), and an **entity → generated-symbol map keyed by
+- **Generation manifest keyed by IR stable IDs.** Records what the generation was built from,
+  a **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
   `TypeID`/`OperationID`/`PropertyID`** — assembled from the `Origin` on every emitted node. This is
   the biggest win of stable-ID keying: a rename of anything an ID is not built from is "same ID, new
   symbol" — a lookup, not oagen's structural rename-inference machinery — and one of what it is

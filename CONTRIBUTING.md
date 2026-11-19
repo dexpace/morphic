@@ -241,8 +241,8 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    100 words, and no lint suppression in the source. A call into a package the caller does not
    import, through a function, an interface or a type argument handed to it, counts in
    `callShapeBaseline` (`internal/archtest/callshape_test.go`): hand the caller a value instead, or,
-   for a call of a kind the table keeps, such as an immediate callback, raise its pair's count. *Fails
-   if missed:* `make lint`, a hand-written `recover` among its findings,
+   for a call of a kind the table keeps, such as an immediate callback, raise its pair's
+   count. *Fails if missed:* `make lint`, a hand-written `recover` among its findings,
    `TestModelHolders_NoOtherPackageHoldsAParserSchema` for a package outside its list that holds the
    model's schema type, whether it imports the library or not, `TestModelReads_HeldToTheBaseline`
    for a read of the model beside the statement, `TestMethodsPerType_StayUnderTheCap`,

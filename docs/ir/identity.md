@@ -25,10 +25,10 @@ The shape around the pointer is one grammar every compiler shares: a kind prefix
 JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
 nothing outside the format can compute one. Whatever the format, `Provenance.Pointer` records the
 path as an RFC 6901 pointer, and the ID's path is that pointer without its leading `/`: a protobuf
-full name is one segment, so `acme.v1.UserId` is recorded as `/acme.v1.UserId`. A node a lowering *mints*
-rather than finds takes a namespace of its own, so no pointer a reference can spell ever reaches it
-— the general form of the rule [models](./models.md#composition-beside-a-union) states for
-distributed unions and for the union a routed subtype composes.
+full name is one segment, so `acme.v1.UserId` is recorded as `/acme.v1.UserId`. A node a
+lowering *mints* rather than finds takes a namespace of its own, so no pointer a reference can spell
+ever reaches it — the general form of the rule [models](./models.md#composition-beside-a-union)
+states for distributed unions and for the union a routed subtype composes.
 
 ## Across documents
 

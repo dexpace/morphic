@@ -89,13 +89,13 @@ field NOT RECOMMENDED, but a document that writes it still states it, Swagger 2.
 a request validator or a mock server needs it to accept `name=`. It is a plain bool beside
 `AllowReserved`, since a declared `false` and an absent one mean the same.
 
-Every logical parameter — identified by its `ParameterID`, not its name — is bound exactly once **per
-non-host location; a `host` binding is additive** — Smithy `@hostLabel` members expand into the host
-prefix *and* still serialize at their modeled location, by spec. TypeSpec's `HttpProperty` role+path
-flattening is the model here: nested `@header`/`@body` annotations resolve to explicit
-`(role, wire name, path)` bindings rather than restructured models. A parameter a binding places
-twice at one non-host location is the error `pass/param-binding-mismatch`; one it places nowhere is
-the warning `pass/param-unbound`.
+Every logical parameter — identified by its `ParameterID`, not its name — is bound exactly
+once **per non-host location; a `host` binding is additive** — Smithy `@hostLabel` members expand
+into the host prefix *and* still serialize at their modeled location, by spec. TypeSpec's
+`HttpProperty` role+path flattening is the model here: nested `@header`/`@body` annotations resolve
+to explicit `(role, wire name, path)` bindings rather than restructured models. A parameter a
+binding places twice at one non-host location is the error `pass/param-binding-mismatch`; one it
+places nowhere is the warning `pass/param-unbound`.
 
 ## Prefix bindings
 

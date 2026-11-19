@@ -996,9 +996,9 @@ by its own spelling, so what the default reads depends on no order references ar
 mode a `$ref` naming a URL whose scheme is none of `http`, `https` and `file` fails unread, where a
 reader would take it for a path; a file whose name holds a colon is written `./a:b.yaml`, and is
 read as that file. The caller may map a URI prefix to a location, a directory or an http(s) URL
-(`Options.Locations`, `--compiler-option locate=<uri-prefix>=<location>`); nothing is mapped by inference. A
-prefix that is no absolute URI ending in `/`, or holds a query or a fragment, a prefix mapped twice,
-and a URL location ending in no `/` are refused as an option error. The
+(`Options.Locations`, `--compiler-option locate=<uri-prefix>=<location>`); nothing is mapped by
+inference. A prefix that is no absolute URI ending in `/`, or holds a query or a fragment, a prefix
+mapped twice, and a URL location ending in no `/` are refused as an option error. The
 mapping is applied where a document a URL names is opened, once the URL is spelled one way, before
 any read judges it, and never to an identifier: an `$id` or a `$self` keeps the URI it writes, so a
 reference relative to one is resolved against that URI, and the URL it names is then mapped or, out
@@ -1707,8 +1707,8 @@ parser reads them, `<<` merge keys merged in its order
 ([`merge-keys`](../parser-library.md#merge-keys)), each keyed by its text and a key that is no
 scalar by the empty string, an alias followed), a `!!binary` to `bytes`, decoded, and a YAML
 timestamp to `string` in the spelling written (`2021-1-1` stays `2021-1-1`, never RFC 3339). A
-number is the literal's exact decimal text in `Number`, never a `float64`: a magnitude past float64 or
-int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `5`, `9`), `_`
+number is the literal's exact decimal text in `Number`, never a `float64`: a magnitude past float64
+or int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `5`, `9`), `_`
 separators drop, a YAML integer base resolves (`0644` is `420`, `0x1f` is `31`, `0b1010` is `10`),
 and digits, exponent and trailing zeros otherwise stand as written (`10.0`, `1.10e+3`). A plain
 scalar that YAML resolves to a string only because it is past float64's range is still the number
