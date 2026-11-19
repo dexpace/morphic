@@ -113,7 +113,7 @@ func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
 			mixins: []ir.TypeID{componentID("A"), componentID("B")},
 		},
 		{
-			name: "a ref with an inline branch beside it carries the nested pointer",
+			name: "a ref with an inline entry beside it carries the nested pointer",
 			m: `    M:
       allOf:
         - allOf:
@@ -363,7 +363,7 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 					require.True(t, ok, "the keyword is kept under its own key; got %+v", model.Unmodeled)
 					assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0/"+tc.residue), entry.Provenance.Pointer)
 					assert.NotContains(t, model.Unmodeled, "openapi:allOf/0")
-					assert.Contains(t, infos[0].Message, "no home for "+tc.residue+" written on this inline branch")
+					assert.Contains(t, infos[0].Message, "no home for "+tc.residue+" written on this inline entry")
 					continue
 				}
 				entry, ok := model.Unmodeled["openapi:allOf/0"]
@@ -437,7 +437,7 @@ func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
 		assert.Contains(t,
 			openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/allOf/0"),
-			"nothing reads the rest of it; the branch (allOf) is kept verbatim")
+			"nothing reads the rest of it; the entry (allOf) is kept verbatim")
 	}
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),
 		"declaration order must not change the types")
@@ -477,7 +477,7 @@ func TestAllOf_NestedInlineEntryKeyedByPointer(t *testing.T) {
 				string(entry.Provenance.Pointer))
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, doc.Diagnostics, want[1], ir.SeverityInfo,
-					"/components/schemas/M/"+strings.TrimPrefix(key, "openapi:")), "inline allOf branch")
+					"/components/schemas/M/"+strings.TrimPrefix(key, "openapi:")), "inline allOf entry")
 		}
 	}
 }
@@ -564,7 +564,7 @@ var equivalencePairs = []struct {
 `, pet + `    M:
       allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/Pet'}]
 `},
-	{"inline branches with properties, required and type object", `    M:
+	{"inline entries with properties, required and type object", `    M:
       allOf:
         - allOf:
             - {$ref: '#/components/schemas/A'}

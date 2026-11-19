@@ -58,7 +58,7 @@ func TestAllOf_InlineEntryResidueKeptVerbatim(t *testing.T) {
 		assert.Contains(t, string(entry.Value), kept, "the whole branch is preserved")
 	}
 	assert.True(t, slices.ContainsFunc(diagsAtPointer(diags, diag.ValidationOnlyKeyword, "/components/schemas/S/allOf/0"),
-		func(d ir.Diagnostic) bool { return strings.Contains(d.Message, "the branch (unevaluatedProperties)") }),
+		func(d ir.Diagnostic) bool { return strings.Contains(d.Message, "the entry (unevaluatedProperties)") }),
 		"the diagnostic names what nothing read: %+v", diags)
 	assert.Equal(t, "BranchDoc", m.Docs.Description)
 	require.NotNil(t, m.Constraints)
@@ -140,7 +140,7 @@ func TestAllOf_EntryWrittenByReferenceStillDerivesResidue(t *testing.T) {
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, tc.sev,
 					"/components/schemas/"+tc.name+"/allOf/1"),
-				"the branch ("+tc.wantKeys+")",
+				"the entry ("+tc.wantKeys+")",
 				"the keywords the branch effectively declares are named, not `<<`")
 		})
 	}

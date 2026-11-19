@@ -1369,7 +1369,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for format written on this inline branch; kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for format written on this inline entry; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Zone/properties/width/allOf/1"
@@ -1396,7 +1396,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one entry under that keyword holds one value; the entry (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/0"
@@ -1405,7 +1405,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one entry under that keyword holds one value; the entry (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/1"
@@ -1425,7 +1425,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-refinement.yaml",
-      "hash": "19180a0a966d49e1ee8afccb07fdf2d3d8ff7bb5c282184af4efe660da01a9e3"
+      "hash": "713bb2f11b35c7c602f167337351c41ab83ba6614cac5e1ed75796ce8faf059f"
     }
   ]
 }

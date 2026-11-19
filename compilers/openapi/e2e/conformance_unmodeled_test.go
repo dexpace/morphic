@@ -307,7 +307,7 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	require.True(t, ok)
 	require.NotNil(t, narrowed.Base, "the $ref branch still becomes Base")
 	_, ok = propByWire(narrowed, "name")
-	assert.True(t, ok, "the inline branch still contributes its properties")
+	assert.True(t, ok, "the inline entry still contributes its properties")
 	entry := unmodeledEntry(t, narrowed.Unmodeled, "openapi:allOf/1")
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, "the reason its unevaluatedProperties has beside the allOf")
 	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"unevaluatedProperties":false,

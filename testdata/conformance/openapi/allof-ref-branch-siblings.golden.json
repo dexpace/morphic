@@ -460,7 +460,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one entry under that keyword holds one value; the entry (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/NestedAllOfBranch/allOf/0/allOf/0"
@@ -471,7 +471,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-ref-branch-siblings.yaml",
-      "hash": "ad6aa766317d420ba0bd8c68909128e09d3d73fcf6b29bbac8f7fcbb0746df08"
+      "hash": "87cbefadb9ff9719a61faa3bb359c49a03d5ab4940391fc4cd601e9d0eea4d2a"
     }
   ]
 }

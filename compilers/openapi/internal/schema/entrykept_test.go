@@ -34,7 +34,7 @@ func TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason(t *testing.
 		}
 		for _, at := range []string{"/components/schemas/S/allOf/1", "/components/schemas/S/allOf/2"} {
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
-				"another conjunct of this allOf writes a keyword this inline branch keeps otherwise", entries)
+				"another conjunct of this allOf writes a keyword this inline entry keeps otherwise", entries)
 		}
 	}
 }
@@ -52,10 +52,10 @@ func TestEntryKept_WhatARefEntryWritesBesideItsRefIsReportedAsBesideIt(t *testin
 		{"{$ref: '#/components/schemas/T', minLength: 2}, {type: object}", diag.DegradedConstruct,
 			"has no home for minLength written beside this $ref; kept"},
 		{"{$ref: '#/components/schemas/T', unevaluatedProperties: false}, {type: object}", diag.ValidationOnlyKeyword,
-			"conjunct beside this allOf branch's $ref is merged in place, and nothing reads the rest of it; " +
+			"conjunct beside this allOf entry's $ref is merged in place, and nothing reads the rest of it; " +
 				"the conjunct (unevaluatedProperties) is kept"},
 		{"{$ref: '#/components/schemas/T', allOf: [{$ref: '#/components/schemas/U'}], unevaluatedProperties: false}",
-			diag.ValidationOnlyKeyword, "conjunct beside this allOf branch's $ref is merged in place, its nested allOf composes"},
+			diag.ValidationOnlyKeyword, "conjunct beside this allOf entry's $ref is merged in place, its nested allOf composes"},
 		{"{$ref: '#/components/schemas/T', minLength: 2}, {minLength: 3}", diag.DegradedConstruct,
 			"writes a keyword the conjunct beside this $ref keeps otherwise, and one entry under that keyword holds one " +
 				"value; the conjunct (minLength) is kept"},
@@ -73,7 +73,7 @@ func TestEntryKept_WhatARefEntryWritesBesideItsRefIsReportedAsBesideIt(t *testin
 	_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", head+
 		"    S: {allOf: [{$ref: '#/components/schemas/T'}, {minLength: 2}]}\n"))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/1"),
-		"has no home for minLength written on this inline branch; kept")
+		"has no home for minLength written on this inline entry; kept")
 }
 
 // TestEntryKept_AnEntryKeptWholeHoldsWhatItFoldsOnce pins an entry kept whole

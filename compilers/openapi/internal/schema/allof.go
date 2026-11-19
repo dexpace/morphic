@@ -411,8 +411,8 @@ func applyFalseEntries(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir.
 			ir.RawValue("false"), ir.ReasonDegradedLowering, c.Place().At(e.pointer))
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, e.pointer,
-			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
-				"composed model closed and the branch kept verbatim under Unmodeled"))
+			"boolean false allOf entry matches nothing, so the composition matches nothing; "+
+				"composed model closed and the entry kept verbatim under Unmodeled"))
 	}
 
 	closer := comp.closer

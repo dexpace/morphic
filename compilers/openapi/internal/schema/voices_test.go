@@ -377,7 +377,7 @@ func TestVoices_ABoundTheComposedModelCannotTakeKeepsItsEntry(t *testing.T) {
 			assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled["openapi:"+keyword].Reason, "%v", order)
 			assert.Equal(t, jsontext.Pointer(at+"/"+keyword), m.Unmodeled["openapi:"+keyword].Provenance.Pointer, "%v", order)
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
-				"no home for "+keyword+" written on this inline branch", "%v", order)
+				"no home for "+keyword+" written on this inline entry", "%v", order)
 		}
 	}
 }
@@ -439,7 +439,7 @@ func TestVoices_ANullKeywordWritesNothing(t *testing.T) {
 // wording of what it does keep.
 func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	t.Parallel()
-	const disagreed = "the conjuncts of this allOf disagree on a keyword this inline branch writes"
+	const disagreed = "the conjuncts of this allOf disagree on a keyword this inline entry writes"
 	for name, tc := range map[string]struct{ schema, unsaid string }{
 		"a composition": {
 			"{allOf: [{$ref: '#/components/schemas/Obj'}, {description: one}, {description: two}]}", "nothing reads",
@@ -463,7 +463,7 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	_, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Str: {type: string}\n    T: {allOf: [{$ref: '#/components/schemas/Str'}, {format: uuid}, {description: d}]}\n"))
 	got := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/T/allOf/1")
-	assert.Contains(t, got, "has no home for format written on this inline branch", "nothing was disagreed on")
+	assert.Contains(t, got, "has no home for format written on this inline entry", "nothing was disagreed on")
 
 	_, diags = compileNullable(t, openapitest.ComponentSpec(
 		"    Str: {type: string}\n    T: {allOf: [{$ref: '#/components/schemas/Str'}, {nullable: true}]}\n"), true)
@@ -579,7 +579,7 @@ func TestVoices_AnUnevaluatedKeywordStaysWithItsEntry(t *testing.T) {
 					at = append(at, diagsAtPointer(diags, code, "/components/schemas/S/"+tc.at)...)
 				}
 				require.Len(t, at, 1, "the branch's one report: nothing folds to be reported; got %v", diags)
-				assert.Contains(t, at[0].Message, "the branch (", "the report is the branch's")
+				assert.Contains(t, at[0].Message, "the entry (", "the report is the entry's")
 				if m, ok := typeByName(doc, "S").(*ir.Model); ok {
 					assert.Empty(t, m.Additional, "a branch's closure is not the model's")
 				}

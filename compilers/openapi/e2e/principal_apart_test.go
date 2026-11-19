@@ -111,7 +111,7 @@ func TestPrincipalApart_AKeywordThePrincipalAndThePositionKeepHoldsBoth(t *testi
 					if d.Code != diag.DegradedConstruct || d.Provenance.Pointer != tc.reportedAt {
 						continue
 					}
-					if strings.Contains(d.Message, "otherwise than this inline branch") {
+					if strings.Contains(d.Message, "otherwise than this inline entry") {
 						said = append(said, d.Message)
 					}
 					if _, listed, ok := strings.Cut(d.Message, "which has no home for "); ok {

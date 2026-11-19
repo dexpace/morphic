@@ -64,7 +64,7 @@ func TestCompile_AValueWhereASchemaBelongsThatIsNoMappingIsNoSchema(t *testing.T
 		"a string-tagged boolean": {
 			comp + "    S: !!str true\n", comp + "    S: ~\n", "/components/schemas/S",
 		},
-		"an allOf branch": {
+		"an allOf entry": {
 			comp + "    S: {allOf: [hello, {type: object}]}\n", comp + "    S: {allOf: [~, {type: object}]}\n",
 			"/components/schemas/S/allOf/0",
 		},

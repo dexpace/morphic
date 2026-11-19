@@ -356,7 +356,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	}
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Branch"),
-		"written on an allOf branch")
+		"written on an allOf entry")
 
 	nullBranch := variantModels(t, doc, "NullBranch")
 	require.Len(t, nullBranch, 1, "the null branch is no variant")

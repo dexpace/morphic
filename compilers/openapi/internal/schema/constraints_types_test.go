@@ -466,7 +466,7 @@ func TestConstraints_AnEntryCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
 	assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(typeByName(doc, "C").Common().Unmodeled))
 	assert.Equal(t, 1, strings.Count(marshalForTest(t, doc), "99999999999999999999"))
 	require.Len(t, diags, 1, "%+v", diags)
-	assert.Contains(t, diags[0].Message, "no home for maxLength written on this inline branch")
+	assert.Contains(t, diags[0].Message, "no home for maxLength written on this inline entry")
 }
 
 // schemaKept returns what a parameter or a header keeps of what its schema

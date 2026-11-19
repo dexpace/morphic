@@ -60,8 +60,8 @@ func TestAllOfEntries_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 			assert.Len(t, m.Unmodeled, 1)
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/"+path)
-			assert.Equal(t, "inline allOf branch is nested past the flattening depth of "+strconv.Itoa(statement.MaxFlattenDepth)+
-				", so its own allOf was not flattened, and the branch is kept verbatim under Unmodeled", msg)
+			assert.Equal(t, "inline allOf entry is nested past the flattening depth of "+strconv.Itoa(statement.MaxFlattenDepth)+
+				", so its own allOf was not flattened, and the entry is kept verbatim under Unmodeled", msg)
 		})
 	}
 }
@@ -84,7 +84,7 @@ func TestAllOfEntries_KeysSpellEachEntrysPath(t *testing.T) {
 	require.True(t, ok)
 	comp := allOfEntries(l.Ctx, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/M")
 	entries := comp.entries
-	require.Len(t, entries, 6, "four inline branches and two wrappers")
+	require.Len(t, entries, 6, "four inline entries and two wrappers")
 	wantKeys := []string{
 		"openapi:allOf/0",
 		"openapi:allOf/1/allOf/0",
@@ -147,8 +147,8 @@ func TestAllOfEntries_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
 		severity ir.Severity
 		want     string
 	}{
-		{"a keyword nothing reads", "minItems: 1", ir.SeverityInfo, "the branch (minItems) is kept verbatim"},
-		{"non-object type", "type: string", ir.SeverityWarning, "the branch (type) is kept verbatim"},
+		{"a keyword nothing reads", "minItems: 1", ir.SeverityInfo, "the entry (minItems) is kept verbatim"},
+		{"non-object type", "type: string", ir.SeverityWarning, "the entry (type) is kept verbatim"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

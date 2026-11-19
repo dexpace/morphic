@@ -44,7 +44,7 @@ func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 	}{
 		{"component", noPaths, "{%s}", []string{"", "type: object, ", "type: string, ", "type: array, items: {}, ", "const: null, "}},
 		{"property", noPaths, "{type: object, properties: {p: {%s}}}", []string{"", "const: null, ", "nullable: true, "}},
-		{"allOf branch", noPaths, "{allOf: [{%s}]}", []string{"", "type: object, "}},
+		{"allOf entry", noPaths, "{allOf: [{%s}]}", []string{"", "type: object, "}},
 		{"parameter", parameter, "{}", []string{"", "type: string, "}},
 	}
 	versions := []struct {

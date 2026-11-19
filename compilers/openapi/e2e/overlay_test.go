@@ -1041,7 +1041,7 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		{"dialect keyword the overlay adds", "openapi:$id", 1},
 		{"unknown schema keyword the overlay adds (preserve.go PreserveUnknownKeywords)", "openapi:frobnicate", 1},
 		{"property extension (property.go fillPropertyAnnotations)", "openapi:x-prop", 1},
-		{"false allOf branch (allof.go applyFalseBranches)", "openapi:allOf/1", 1},
+		{"false allOf entry (allof.go applyFalseEntries)", "openapi:allOf/1", 1},
 		{"validation-only oneOf beside a model (union.go preserveBranchSets)", "openapi:oneOf", 1},
 		{"operation extension (operations.go applyOperationAnnotations)", "openapi:x-op", 1},
 		{"operation unknown key (operations.go applyOperationAnnotations)", "openapi:opBogus", 1},

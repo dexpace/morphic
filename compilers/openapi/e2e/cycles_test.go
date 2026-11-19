@@ -299,7 +299,7 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 		why   string
 		diags []report
 	}{
-		{"allOf branches", `    Y:
+		{"allOf entries", `    Y:
       allOf:
         - $ref: '#/components/schemas/Y/allOf/1'
         - $ref: '#/components/schemas/Y/allOf/0'
@@ -336,7 +336,7 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
         - $ref: '#/components/schemas/Z/anyOf/1'
         - $ref: '#/components/schemas/Z/anyOf/0'
 `, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/anyOf/0"}}},
-		{"allOf branch on a loop through a component", `    Y:
+		{"allOf entry on a loop through a component", `    Y:
       allOf:
         - $ref: '#/components/schemas/L'
     L: {$ref: '#/components/schemas/Y/allOf/0'}
@@ -354,7 +354,7 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
 			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
 		}},
-		{"allOf branch beside a distributed union on a loop through a component", `    Y:
+		{"allOf entry beside a distributed union on a loop through a component", `    Y:
       type: object
       properties:
         id: {type: string}
@@ -370,7 +370,7 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
 			{diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Y"},
 		}},
-		{"allOf branch beside a distributed union on a sibling branch on a loop through a component", `    Y:
+		{"allOf entry beside a distributed union on a sibling branch on a loop through a component", `    Y:
       type: object
       properties:
         id: {type: string}

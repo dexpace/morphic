@@ -93,7 +93,7 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 			assert.Equal(t, tc.want, mergeVisibility(tc.dst, tc.src),
 				"mergeVisibility(dst, src) for %q", tc.name)
 			assert.Equal(t, tc.want, mergeVisibility(tc.src, tc.dst),
-				"mergeVisibility(src, dst) must agree — allOf branch order is not semantic, for %q", tc.name)
+				"mergeVisibility(src, dst) must agree — allOf entry order is not semantic, for %q", tc.name)
 		})
 	}
 }
@@ -115,7 +115,7 @@ func TestMergeVisibility_ReorderedEntriesAgree(t *testing.T) {
 	forward := mergeVisibility(first, second)
 	reversed := mergeVisibility(second, first)
 
-	assert.Equal(t, forward, reversed, "allOf branch order must not reach the merged Only")
+	assert.Equal(t, forward, reversed, "allOf entry order must not reach the merged Only")
 	assert.ElementsMatch(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleQuery}, forward.Only,
 		"the merge is still the intersection, whichever order it is spelled in")
 	assert.False(t, forward.None, "a non-empty intersection is a restriction, not invisibility")

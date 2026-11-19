@@ -880,7 +880,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for minLength written on this inline branch; kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for minLength written on this inline entry; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Failure/properties/voiced/allOf/1"

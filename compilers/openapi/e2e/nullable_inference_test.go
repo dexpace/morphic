@@ -97,7 +97,7 @@ func assertNullableKeyword30(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"/components/schemas/Holder/properties/untyped/nullable":       "writes none",
 		"/components/schemas/Holder/properties/composed/nullable":      "writes none",
 		"/components/schemas/Holder/properties/unlisted/nullable":      "enum lists no null",
-		"/components/schemas/Holder/properties/typedComposed/nullable": "allOf branch",
+		"/components/schemas/Holder/properties/typedComposed/nullable": "allOf entry",
 	}
 	got := map[jsontext.Pointer]string{}
 	for _, d := range diags {

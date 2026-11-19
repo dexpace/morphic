@@ -8034,7 +8034,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch of a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
+      "message": "oneOf/anyOf written on an allOf entry of a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Positions/properties/routedBranch"

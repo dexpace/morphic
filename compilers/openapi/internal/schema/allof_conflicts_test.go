@@ -49,7 +49,7 @@ func TestAllOf_OverlappingInlineEntriesReconcile(t *testing.T) {
 	assert.Equal(t, 1, byWire["id"], "id declared in both branches reconciles to one property")
 	assert.Equal(t, 1, byWire["name"])
 	assert.Equal(t, 1, byWire["url"])
-	require.Len(t, m.Properties, 3, "no duplicate properties across overlapping inline branches")
+	require.Len(t, m.Properties, 3, "no duplicate properties across overlapping inline entries")
 
 	var id ir.Property
 	for _, p := range m.Properties {
@@ -889,8 +889,8 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	require.Len(t, conflicts, 1, "the co-declared property conflict is diagnosed once")
 	d := conflicts[0]
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
-	assert.NotContains(t, d.Message, "allOf branches",
-		"the redeclaration site is a co-declared property, not an allOf branch")
+	assert.NotContains(t, d.Message, "allOf entries",
+		"the redeclaration site is a co-declared property, not an allOf entry")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Along/allOf/0/properties/id"), d.Provenance.Pointer,
 		"the diagnostic sits at the branch the co-declared property overrides")
 	assert.Contains(t, d.Message, "/components/schemas/Along/properties/id", "and names the property kept")

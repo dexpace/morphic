@@ -59,7 +59,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 	diags = append(diags, kept.diags...)
 	where := "co-declared with structural keywords"
 	if u.holder != s {
-		where = "written on an allOf branch conjoins with the rest of the composition"
+		where = "written on an allOf entry conjoins with the rest of the composition"
 	}
 	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
 		"oneOf/anyOf %s; the composition is distributed across the union variants", where))
@@ -90,7 +90,7 @@ func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	}
 	where := "co-declared with"
 	if u.holder != s {
-		where = "written on an allOf branch of"
+		where = "written on an allOf entry of"
 	}
 	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
 		"oneOf/anyOf %s a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model", where))

@@ -13,7 +13,7 @@ components:
       properties:
         a: {type: string}
     # A `type` beside the allOf against a $ref conjunct: an object that is an
-    # array. Neither the branch census nor the census beside the allOf reads it.
+    # array. Neither the entry census nor the census beside the allOf reads it.
     OwnType:
       allOf:
         - {$ref: '#/components/schemas/List'}
@@ -23,8 +23,8 @@ components:
       allOf:
         - {$ref: '#/components/schemas/Str'}
         - {$ref: '#/components/schemas/Obj'}
-    # An inline branch against a $ref conjunct. The contradiction is reported
-    # once, at the schema, and the branch keeps its residue as an info.
+    # An inline entry against a $ref conjunct. The contradiction is reported
+    # once, at the schema, and the entry keeps its residue as an info.
     Inline:
       allOf:
         - {$ref: '#/components/schemas/Obj'}

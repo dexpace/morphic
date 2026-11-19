@@ -206,7 +206,7 @@ func TestAllOf_RefEntryWithSiblingRequired31(t *testing.T) {
 	require.NotNil(t, m.Base, "the sole $ref still becomes Base despite the sibling required")
 
 	level, ok := openapitest.PropsByWire(m.Properties)["level"]
-	require.True(t, ok, "level is declared by the inline branch")
+	require.True(t, ok, "level is declared by the inline entry")
 	assert.True(t, level.Required,
 		"a required sibling on a $ref branch is read off the branch's own local schema and attaches to level")
 }

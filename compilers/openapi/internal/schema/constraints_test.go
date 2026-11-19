@@ -599,7 +599,7 @@ func TestCollectionBound_OnAnEntryMeetsInEveryOrder(t *testing.T) {
 func TestCollectionBound_OnAnEntryWithNoFieldStaysWithItsEntry(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Tags'}"
-	const noHome = " written on this inline branch"
+	const noHome = " written on this inline entry"
 	for name, tc := range map[string]struct {
 		written, entry, key, report string
 		held                        *ir.Constraints

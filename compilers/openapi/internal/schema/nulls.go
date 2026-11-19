@@ -470,7 +470,7 @@ func (n *nulls) why(s *statement.Schema, own nullReading) string {
 	case constNullVerdict(s) == nullForbidden:
 		return "this schema's const is not null, and OpenAPI 3.0's nullable does not override it"
 	case own.declared != nullAdmitted:
-		return "an allOf branch of this schema excludes null, and OpenAPI 3.0's nullable does not override it"
+		return "an allOf entry of this schema excludes null, and OpenAPI 3.0's nullable does not override it"
 	default:
 		return "what its $ref lands on excludes null, which the keywords beside it conjoin with"
 	}

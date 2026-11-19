@@ -3,11 +3,11 @@ info: {title: AllOfRedeclaredBounds, version: "1.0.0"}
 paths: {}
 components:
   schemas:
-    # Every allOf branch holds, so a field two branches declare carries the
+    # Every allOf entry holds, so a field two entries declare carries the
     # intersection of their bounds, whichever comes first. Each pair is declared
     # in both orders as models of their own, the looser bound first as well as
     # last: the harness's order oracle reverses mappings and never swaps a
-    # sequence, so this fixture is the guard on branch order. A bound the field
+    # sequence, so this fixture is the guard on entry order. A bound the field
     # implies is no loss, so these models draw no diagnostic.
     StringBoundsLooserFirst:
       allOf:

@@ -79,13 +79,13 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			`{allOf: [` + refStr + `, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
 		{"an allOf beside a $ref, which joins its conjunction",
 			`{$ref: '#/components/schemas/Str', allOf: [` + refObj + `]}`, "$ref: string, allOf/0: object"},
-		{"an inline branch against a $ref",
+		{"an inline entry against a $ref",
 			`{allOf: [` + refObj + `, {type: string}]}`, "allOf/0: object, allOf/1: string"},
 		{"an integer against a string",
 			`{allOf: [{type: string}, {type: integer}]}`, "allOf/0: string, allOf/1: integer"},
 		{"a number against an object",
 			`{allOf: [{type: number}, ` + refObj + `]}`, "allOf/0: number, allOf/1: object"},
-		{"a type beside the allOf against an inline branch",
+		{"a type beside the allOf against an inline entry",
 			`{type: object, allOf: [{type: string}]}`, "type: object, allOf/0: string"},
 		{"a type set against a $ref",
 			`{type: [string, integer], allOf: [` + refObj + `]}`, "type: string or integer, allOf/0: object"},
@@ -288,7 +288,7 @@ func TestAllOf_DisjointInlineEntryReportsItsResidueAsInfo(t *testing.T) {
 	}
 	require.Len(t, atEntry, 1, "%+v", doc.Diagnostics)
 	assert.Equal(t, ir.SeverityInfo, atEntry[0].Severity)
-	assert.Contains(t, atEntry[0].Message, "no home for type, maxLength written on this inline branch")
+	assert.Contains(t, atEntry[0].Message, "no home for type, maxLength written on this inline entry")
 
 	s, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)

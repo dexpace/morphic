@@ -606,7 +606,7 @@ func (f *folding) foldUse() {
 		visibility := mergeVisibility(f.merged.Visibility, d.prop.Visibility)
 		if visibility.None && !f.merged.Visibility.None && !d.prop.Visibility.None {
 			f.note(i, ir.SeverityWarning, diag.DisjointVisibility,
-				"allOf branches restrict field %q to disjoint lifecycles; the merged field is visible in none",
+				"allOf entries restrict field %q to disjoint lifecycles; the merged field is visible in none",
 				f.merged.WireName)
 		}
 		f.merged.Visibility = visibility

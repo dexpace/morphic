@@ -356,7 +356,7 @@ func keepContentKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, k
 // the inline allOf entry the position lowered from writes.
 const (
 	noEncodingField = "this position lowered to a shape with no Encoding field"
-	encodingOfEntry = "the Encoding this position lowered to holds what its inline allOf branch writes"
+	encodingOfEntry = "the Encoding this position lowered to holds what its inline allOf entry writes"
 )
 
 // principalEncoding returns the inline principal of the allOf s writes at

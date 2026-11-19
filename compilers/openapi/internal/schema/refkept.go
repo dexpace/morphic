@@ -528,7 +528,7 @@ func keepTagBeside(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statem
 		return diags
 	}
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"the Union this position lowered to holds the discriminator its inline allOf branch writes, and one "+
+		"the Union this position lowered to holds the discriminator its inline allOf entry writes, and one "+
 			"Union is routed by one; the discriminator declared beside the allOf is kept verbatim under Unmodeled"))
 }
 

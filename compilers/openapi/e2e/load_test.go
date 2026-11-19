@@ -71,7 +71,7 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 			spec:    openapitest.ComponentSpec(`    S: {$ref: '#/components/schemas/Ghost'}` + "\n"),
 			pointer: "/components/schemas/S",
 		},
-		"an allOf branch": {
+		"an allOf entry": {
 			spec:    openapitest.ComponentSpec(`    S: {allOf: [{$ref: '#/components/schemas/Ghost'}]}` + "\n"),
 			pointer: "/components/schemas/S/allOf/0",
 		},

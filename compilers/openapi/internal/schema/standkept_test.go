@@ -272,7 +272,7 @@ func TestPrincipalKept_AKeywordTheNodeReadsIsNotAlsoKept(t *testing.T) {
 	assert.Equal(t, map[string]string{"openapi:contentMediaType": `"text/html" [no_ir_home]`}, keptOn(t, doc, "Media"))
 	media := reportsAt(diags, "/components/schemas/Media/contentMediaType")
 	require.Len(t, media, 1)
-	assert.Contains(t, media[0], "holds what its inline allOf branch writes")
+	assert.Contains(t, media[0], "holds what its inline allOf entry writes")
 	assert.NotContains(t, media[0], "no Encoding field")
 }
 
@@ -395,7 +395,7 @@ func keptAndSaid(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, name str
 		if d.Severity == ir.SeverityError || !strings.HasPrefix(pointer, at) || !strings.Contains(d.Message, "kept verbatim") {
 			continue
 		}
-		switch before, _, apart := strings.Cut(d.Message, " otherwise than this inline branch"); {
+		switch before, _, apart := strings.Cut(d.Message, " otherwise than this inline entry"); {
 		case apart:
 			_, list, _ := strings.Cut(before, " write ")
 			for keyword := range strings.SplitSeq(list, ", ") {
@@ -481,13 +481,13 @@ func TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds(t *testing
 	assert.Equal(t, "a", doc.Types[componentID("Tag")].(*ir.Union).Discriminator.PropertyName)
 	said := reportsAt(diags, "/components/schemas/Tag")
 	require.Len(t, said, 1)
-	assert.Contains(t, said[0], "holds the discriminator its inline allOf branch writes")
+	assert.Contains(t, said[0], "holds the discriminator its inline allOf entry writes")
 	assert.NotContains(t, said[0], "no home")
 
 	said = reportsAt(diags, "/components/schemas/Two")
 	require.Len(t, said, 2)
 	assert.Contains(t, said[0], "which has no home for maxItems declared beside it")
-	assert.Contains(t, said[1], "holds the discriminator its inline allOf branch writes")
+	assert.Contains(t, said[1], "holds the discriminator its inline allOf entry writes")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Two/discriminator/mapping/x"),
 		"the kept discriminator's mapping is resolved")
 	said = reportsAt(diags, "/components/schemas/None")
@@ -529,7 +529,7 @@ func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 		at := "/components/schemas/" + tc.name
 		said := strings.Join(slices.Concat(reportsAt(diags, at+"/allOf/0"), reportsAt(diags, at+"/allOf/0/"+tc.keyword)), "\n")
 		assert.Equal(t, 1, strings.Count(said, tc.flat), "%s: the build's report, as written flat, once: %s", tc.name, said)
-		assert.NotContains(t, said, "otherwise than this inline branch", "%s: and no second report of it", tc.name)
+		assert.NotContains(t, said, "otherwise than this inline entry", "%s: and no second report of it", tc.name)
 		assert.Len(t, reportsAt(diags, at), 1, "%s: the position's once", tc.name)
 	}
 	assert.Equal(t, map[string]string{"openapi:format": `"byte" [no_ir_home]`}, keptOn(t, doc, "Alike"))
@@ -648,7 +648,7 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 	}
 	whole := reportsAt(diags, "/components/schemas/Whole/allOf/0")
 	require.Len(t, whole, 1)
-	assert.Contains(t, whole[0], "the branch (minimum, x-k)", "the whole wrapper names what the principal's readers said, once")
+	assert.Contains(t, whole[0], "the entry (minimum, x-k)", "the whole wrapper names what the principal's readers said, once")
 	assert.Empty(t, reportsAt(diags, "/components/schemas/Whole/allOf/0/allOf/0"))
 	for _, d := range diags {
 		assert.False(t, strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/WholeAround/allOf/0/allOf/0"),

@@ -639,23 +639,23 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 		},
 		"a format in a branch": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Port'}, {type: integer, format: int32}]}",
-			key:    "openapi:format", report: "no home for format written on this inline branch",
+			key:    "openapi:format", report: "no home for format written on this inline entry",
 		},
 		"a type narrowing a number": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Num'}, {type: integer}]}",
-			key:    "openapi:type", report: "no home for type written on this inline branch",
+			key:    "openapi:type", report: "no home for type written on this inline entry",
 		},
 		"items narrowing a list": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Names'}, {type: array, items: {type: string, minLength: 1}}]}",
-			key:    "openapi:items", report: "no home for items written on this inline branch",
+			key:    "openapi:items", report: "no home for items written on this inline entry",
 		},
 		"a collection bound no field states": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Names'}, {uniqueItems: false}]}",
-			key:    "openapi:uniqueItems", report: "no home for uniqueItems written on this inline branch",
+			key:    "openapi:uniqueItems", report: "no home for uniqueItems written on this inline entry",
 		},
 		"an overlapping enum": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [set, put]}]}",
-			key:    "openapi:enum", report: "no home for enum written on this inline branch",
+			key:    "openapi:enum", report: "no home for enum written on this inline entry",
 		},
 		"an unknown keyword": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Str'}, {fancy: 1}]}",
@@ -1136,14 +1136,14 @@ func TestRefinement_AValueSetBesideTheAllOfIsAConjunct(t *testing.T) {
 	assert.Equal(t, ir.PrimInt64, bounded.ValueType)
 	assert.Equal(t, []string{"openapi:maximum"}, unmodeledKeys(bounded.Unmodeled))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-		"/components/schemas/Bounded/allOf/0"), "no home for maximum written on this inline branch")
+		"/components/schemas/Bounded/allOf/0"), "no home for maximum written on this inline entry")
 
 	composes, ok := typeByName(doc, "Composes").(*ir.Enum)
 	require.True(t, ok)
 	assert.Equal(t, []string{"openapi:properties", "openapi:type"}, unmodeledKeys(composes.Unmodeled),
 		"the election's loser is kept keyword by keyword")
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-		"/components/schemas/Composes/allOf/0"), "no home for type, properties written on this inline branch")
+		"/components/schemas/Composes/allOf/0"), "no home for type, properties written on this inline entry")
 }
 
 // TestRefinement_ACarrierReadsThroughARefinement pins GitHub #1029's sibling: a
@@ -2136,7 +2136,7 @@ func TestRefinement_AValueBoundOnAnEntryBesideATypeListLandsOnItsVariant(t *test
 			}
 			if tc.kept != nil {
 				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-					"/components/schemas/OnBranch/allOf/1"), "no home for minProperties written on this inline branch")
+					"/components/schemas/OnBranch/allOf/1"), "no home for minProperties written on this inline entry")
 				return
 			}
 			assert.Empty(t, diags)

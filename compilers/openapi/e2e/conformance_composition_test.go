@@ -60,7 +60,7 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, m.Base)
 	assert.Equal(t, componentID("Base"), m.Base.Target)
 	_, ok = propByWire(m, "name")
-	assert.True(t, ok, "inline allOf branch contributes its properties")
+	assert.True(t, ok, "inline allOf entry contributes its properties")
 }
 
 // assertAllOfNestedInline pins the flattening of
@@ -134,9 +134,9 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok)
 	require.NotNil(t, d.Base, "the $ref branch still becomes Base")
 	name, ok := propByWire(d, "name")
-	require.True(t, ok, "the inline branch's own property survives")
+	require.True(t, ok, "the inline entry's own property survives")
 	assert.True(t, name.Required,
-		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
+		"a required-only allOf entry attaches across the whole composition, not just its own properties map (issue #29)")
 }
 
 // assertRequiredMembers pins where a `required` name lands when no property of
@@ -295,7 +295,7 @@ func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Dia
 	}
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, diag.DegradedConstruct, "/components/schemas/Inline/allOf/1"),
-		"the inline branch's residue is an info, since the schema carries the warning")
+		"the inline entry's residue is an info, since the schema carries the warning")
 	assert.Empty(t, diagsAt(diags, diag.DegradedConstruct, "/components/schemas/SharedNull"),
 		"a null both conjuncts admit is a value they share")
 
@@ -315,7 +315,7 @@ func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Dia
 	require.True(t, ok)
 	require.NotNil(t, inline.Base, "the sole $ref is the Base")
 	assert.Equal(t, componentID("Obj"), inline.Base.Target)
-	assert.Contains(t, inline.Unmodeled, "openapi:type", "and the inline branch's type is still kept, under its own key")
+	assert.Contains(t, inline.Unmodeled, "openapi:type", "and the inline entry's type is still kept, under its own key")
 }
 
 // assertAllOfPositionConstraints pins GitHub #407: a value constraint written
@@ -1088,7 +1088,7 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 		}
 		assert.Contains(t,
 			openapitest.DiagMessageAt(t, diags, diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/"+name),
-			"written on an allOf branch", name)
+			"written on an allOf entry", name)
 	}
 	request, ok := doc.Types[componentID("AppRequest")].(*ir.Union)
 	require.True(t, ok)

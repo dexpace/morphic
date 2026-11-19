@@ -498,7 +498,7 @@ func TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			assert.JSONEq(t, `1`, string(entry.Value))
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 				fmt.Sprintf("/components/schemas/S/allOf/%d", at))
-			assert.Contains(t, msg, "no home for minLength written on this inline branch")
+			assert.Contains(t, msg, "no home for minLength written on this inline entry")
 		})
 	}
 }

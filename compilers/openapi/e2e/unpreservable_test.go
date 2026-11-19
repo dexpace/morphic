@@ -50,7 +50,7 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 		at string
 	}{
 		{
-			name: "unmerged allOf branch",
+			name: "unmerged allOf entry",
 			spec: openapitest.ComponentSpec("    M:\n      allOf:\n" +
 				"        - {additionalProperties: false, x-t: " + unpreservableValue + "}\n"),
 			at: "/components/schemas/M/allOf/0",

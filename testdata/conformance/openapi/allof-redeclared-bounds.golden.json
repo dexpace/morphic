@@ -1854,7 +1854,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-bounds.yaml",
-      "hash": "11b5f9c1fa8d0162f61be8c57e0caff205d1d835642906d1e1cc6eb94aaffd95"
+      "hash": "a9c20ba29465edbef6d5bf7aa107376569456a3764f1ffe388f04e7cf4726a58"
     }
   ]
 }

@@ -3948,7 +3948,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-narrowing-redeclaration.yaml",
-      "hash": "3bc21d491977802e4fdce9027f195c7c7c7ab9a2b11c20ab29aa06f576a3e0c2"
+      "hash": "0ca7366eca433fecde5333f2d72650d7136eaa83f1906a4b94240f6e746b5bc9"
     }
   ]
 }

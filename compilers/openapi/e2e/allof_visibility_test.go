@@ -132,7 +132,7 @@ func TestAllOfVisibilityMerge_OrderIndependent(t *testing.T) {
 
 	assert.Equal(t, wantReadOnlyVisibility, asReported, "as-reported branch order")
 	if diff := cmp.Diff(asReported, reversed); diff != "" {
-		t.Errorf("merged Visibility depends on allOf branch order (-as-reported +reversed):\n%s", diff)
+		t.Errorf("merged Visibility depends on allOf entry order (-as-reported +reversed):\n%s", diff)
 	}
 }
 

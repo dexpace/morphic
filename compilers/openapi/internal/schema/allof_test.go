@@ -38,10 +38,10 @@ func TestAllOf_SoleRefBecomesBase(t *testing.T) {
 	require.NotNil(t, dog.Base, "sole $ref becomes Base")
 	assert.Equal(t, componentID("Animal"), dog.Base.Target)
 	assert.Empty(t, dog.Mixins, "no extra refs, no mixins")
-	require.Len(t, dog.Properties, 1, "only the inline branch's own property")
+	require.Len(t, dog.Properties, 1, "only the inline entry's own property")
 	assert.Equal(t, "bark", dog.Properties[0].Name.Source)
 	assert.Contains(t, dog.Properties[0].Provenance.Pointer, "/allOf/1",
-		"merged property provenance points into its allOf branch")
+		"merged property provenance points into its allOf entry")
 }
 
 func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
@@ -244,7 +244,7 @@ func TestAllOf_ARefEntryNamingNothingIsReportedByTheLowering(t *testing.T) {
 	}{
 		{"a component that is absent", `        - $ref: '#/components/schemas/Ghost'
 `, nil, true},
-		{"the whole document beside an inline branch", `        - {$ref: '#'}
+		{"the whole document beside an inline entry", `        - {$ref: '#'}
         - {type: object, properties: {a: {type: string}}}
 `, nil, false},
 		{"a component that is absent beside one that resolves", `        - $ref: '#/components/schemas/Ghost'
@@ -307,7 +307,7 @@ func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
 `))
 	msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 		ir.SeverityWarning, "/components/schemas/M/allOf/0")
-	assert.Contains(t, msg, "the branch (type, allOf) is kept verbatim")
+	assert.Contains(t, msg, "the entry (type, allOf) is kept verbatim")
 }
 
 // TestAllOf_FalseEntryClosesTheCatchAllItForbids pins that a `false` allOf

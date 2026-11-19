@@ -85,13 +85,13 @@ func TestUnresolvedRef_InAnotherDocumentsContentIsReportedOnceWhereItIsWritten(t
 		name, schema, at, ref string
 		why                   func(dir string) string // nil when the $ref resolves
 	}{
-		{"an allOf branch it declares", allOfOf("#/components/schemas/Thing"), allOf, "", nil},
+		{"an allOf entry it declares", allOfOf("#/components/schemas/Thing"), allOf, "", nil},
 		{"a union branch it declares", oneOfOf("#/components/schemas/Thing"), oneOf, "", nil},
-		{"an allOf branch it lacks", allOfOf("#/components/schemas/Gone"), allOf, "#/components/schemas/Gone",
+		{"an allOf entry it lacks", allOfOf("#/components/schemas/Gone"), allOf, "#/components/schemas/Gone",
 			func(string) string { return gone }},
 		{"a union branch it lacks", oneOfOf("#/components/schemas/Gone"), oneOf, "#/components/schemas/Gone",
 			func(string) string { return gone }},
-		{"an allOf branch naming a third document", allOfOf("./third.yaml#/Thing"), allOf, "./third.yaml#/Thing", unread},
+		{"an allOf entry naming a third document", allOfOf("./third.yaml#/Thing"), allOf, "./third.yaml#/Thing", unread},
 		{"a union branch naming a third document", oneOfOf("./third.yaml#/Thing"), oneOf, "./third.yaml#/Thing", unread},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

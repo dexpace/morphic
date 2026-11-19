@@ -241,7 +241,7 @@ func TestOlderDrafts_DependenciesAreValidationOnly(t *testing.T) {
 			f, ok := doc.Types[componentID("F")].(*ir.Model)
 			require.True(t, ok)
 			assert.Equal(t, want, unmodeledEntry(t, f.Unmodeled, "openapi:dependencies").Reason,
-				"an allOf branch's is kept as the one beside it is")
+				"an allOf entry's is kept as the one beside it is")
 		})
 	}
 }

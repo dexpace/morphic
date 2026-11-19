@@ -615,7 +615,7 @@ func mergeKept(c lowering.Ctx, p *ir.Unmodeled, held ir.Unmodeled, pointer jsont
 	for _, key := range slices.Sorted(maps.Keys(held)) {
 		if other, taken := (*p)[key]; taken && !bytes.Equal(other.Value, held[key].Value) {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
-				"internal: %s, kept apart from this allOf branch, is held with another value", key))
+				"internal: %s, kept apart from this allOf entry, is held with another value", key))
 			continue
 		}
 		if *p == nil {
@@ -662,7 +662,7 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 	}
 	diags = append(diags, keepUnknownOf(c, p, bs, unknown, at)...)
 	diags = append(diags, keepTextBounds(c, p, bs, text, at)...)
-	where := "on this inline branch"
+	where := "on this inline entry"
 	switch {
 	case k.entry.schema.Ref != nil:
 		where = "beside this $ref, which names nothing"
@@ -686,10 +686,10 @@ type entryNames struct{ lead, this, kept string }
 // conjunct written beside its $ref where it is one (besideRef).
 func namesOf(e allOfEntry) entryNames {
 	if besideRef(e) {
-		return entryNames{lead: "conjunct beside this allOf branch's $ref", this: "the conjunct beside this $ref",
+		return entryNames{lead: "conjunct beside this allOf entry's $ref", this: "the conjunct beside this $ref",
 			kept: "the conjunct"}
 	}
-	return entryNames{lead: "inline allOf branch", this: "this inline branch", kept: "the branch"}
+	return entryNames{lead: "inline allOf entry", this: "this inline entry", kept: "the entry"}
 }
 
 // keepEntryDynamicRef keeps the dynamic reference keyword the inline entry bs
@@ -802,7 +802,7 @@ func keepFailedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfCo
 
 // failedRefWholeWhy words why the $ref entry k, naming nothing, is kept whole.
 func failedRefWholeWhy(k keptEntry) string {
-	return "this allOf branch's $ref names nothing, so nothing reads what it writes, and a keyword that reads the " +
-		"others beside it, or that another conjunct writes otherwise, cannot be kept apart; the branch (" +
+	return "this allOf entry's $ref names nothing, so nothing reads what it writes, and a keyword that reads the " +
+		"others beside it, or that another conjunct writes otherwise, cannot be kept apart; the entry (" +
 		strings.Join(k.residue, ", ") + ") is kept verbatim under Unmodeled"
 }
