@@ -56,7 +56,7 @@ func homesAt(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jso
 // ownHomes returns which bounds the node the refinement s, written at pointer,
 // owns holds for the voices of its allOf: where an inline principal built it,
 // that principal's (nodeHomes), none for a value set's or a $ref's, and
-// otherwise what s's own election builds.
+// otherwise what s's own dispatch builds.
 func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) boundHomes {
 	takes := boundKinds(c, s)
 	if r, refined := refinementOf(c, s, pointer); refined && r.principal != nil {
