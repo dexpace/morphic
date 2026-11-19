@@ -2101,6 +2101,9 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
 `$ref` the keyword is a later minor's construct, warned of as one
 ([`later-version-construct`](#later-version-construct)), so it draws no second warning there.
 
+- Status: partly built: under the nullable-inference policy a union with a null branch written
+  beside a `$ref` widens the reference, and the same union beside an `allOf` of the `$ref` does not,
+  so the two spellings give it a different null (#2109).
 - Cases: `nullable-30`, `nullable-31-ref`, `nullable-enum-31`, `nullability-four-states`,
   `nullability-conjunction`, `nullable-keyword-30`, `nullable-keyword-31`
 - Codes: `openapi/inferred-nullable`, `openapi/unknown-schema-keyword`, `openapi/validation`
@@ -2545,6 +2548,9 @@ The IR's rule that compilers leave flattening to emitters
 keeping such an `allOf` a decorator for emitters to collapse is weighed in
 [models](../ir/models.md#an-allof-no-object-satisfies).
 
+- Status: partly built: a `format` written beside an `allOf`, or on another entry, whose inline
+  principal lowers to a `Scalar` or to a `type` list's scalar variants is kept under
+  `openapi:format`, where the flat spelling gives each scalar its `Encoding` (#2107).
 - Cases: `allof-refinement`, `allof-entry-infers-array`, `union-joined-value-sets`,
   `kept-ref-unrenderable`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`
@@ -3949,13 +3955,14 @@ lowering rather than to a `Union` ([type-graph](../ir/type-graph.md#type-referen
 several lowers to a `Union` of them behind a nullable reference. A `oneOf` of two null branches
 admits no `null` by JSON Schema, which `null` would match twice, yet one null branch or several are
 read alike, as the union's `null`: the document contradicts itself, and this rule does not read it
-otherwise. A `$ref` branch naming a schema of `null` alone stays a variant, a nullable reference to
-that schema's `Enum`, which an emitter reads as the union's `null`
-([unions](../emitters/refine/unions.md#a-null-a-variant-admits)): it names a node the source
-declares, which lifting it would drop, and reading it would take a distant declaration. A branch
-whose `null` only the nullable-inference policy admits is a null branch while the policy is on, and
-the reference's `null` then names it in `Inferred`, with its `openapi/inferred-nullable` info at the
-branch ([`nullable`](#nullable)); with the policy off, the branch admits nothing and is a variant.
+otherwise. A `$ref` branch naming a schema of `null` alone stays a variant, a reference to that
+schema's `Enum`, nullable where the rest of the position may admit null (below), which an emitter
+reads as the union's `null` ([unions](../emitters/refine/unions.md#a-null-a-variant-admits)): it
+names a node the source declares, which lifting it would drop, and reading it would take a distant
+declaration. A branch whose `null` only the nullable-inference policy admits is a null branch while
+the policy is on, and the reference's `null` then names it in `Inferred`, with its
+`openapi/inferred-nullable` info at the branch ([`nullable`](#nullable)); with the policy off, the
+branch admits nothing and is a variant.
 A variant's own `null`, as `{type: [string, 'null']}` admits, is shared only where every conjunct
 may admit it: where what the position writes beside the union keeps null out, the union passed over
 among it, the variant's reference is not nullable, and nothing is reported, the branch's other
@@ -4011,6 +4018,8 @@ schema writes that the `Enum` has no field for is kept by the census, as beside 
 alone. Both are written wherever the two are: beside an `allOf`, on one of its entries or one each
 on two, a body beside them or none, the other union keeps that reason in every spelling.
 
+- Status: partly built: a union of null alone on an `allOf` entry beside that entry's own `type` is
+  kept as `validation_only`, where its other spellings keep it as `degraded_lowering` (#2106).
 - Cases: `null-only-union`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestOneOfAnyOf_NullOnlyLowersAsNullAlone`,
@@ -4463,7 +4472,11 @@ judged as one whose branches declare shape.
   `e2e.TestElection_TwoUnionsSharingNoValueWarnOnceBesideAnyBody`,
   `schema.TestUnion_TwoUnionsSharingNoValueBesideAScalarKeepBoth`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806).
+  legal (#1806). A union alone on an inline `allOf` entry distributes beside a `discriminator`
+  written beside the `allOf`, and beside an `allOf` of notes on its own entry, where the same union
+  with the `discriminator` or the notes written beside it stands alone (#2104, #2105). A union
+  sharing a kind with a scalar body is the body's `Scalar` keeping it beside the body's own keywords,
+  and a `Union` beside an `allOf` of the body or on one of its entries (#2108).
 
 ### `union-beside-ref`
 
@@ -4527,8 +4540,9 @@ refinement folds neither union of such a pair into its principal as said, wherev
 written: the one passed over is kept as one schema writing both keeps it, though its branches
 declare nothing, as `anyOf: [{}]` does. Where a *structural* sibling is written as well, beside the two or on another entry
 of the `allOf` holding them on one entry or two,
-[`union-beside-structure`](#union-beside-structure) applies instead, which distributes the `oneOf`
-and keeps the `anyOf` on each variant, an `allOf` that refines being no such sibling but a
+[`union-beside-structure`](#union-beside-structure) applies instead, which distributes the one whose
+branches declare shape against the position, the `oneOf` where both do, and keeps the other on each
+variant, an `allOf` that refines being no such sibling but a
 conjunction the unions are conjuncts of ([`allof-refinement`](#allof-refinement)).
 An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its conjuncts
 ([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
