@@ -155,7 +155,7 @@ func (t *Table) flatten(st *Statement) {
 		rel := f.rel + "/allOf/" + jsontext.Pointer(strconv.Itoa(f.next))
 		f.next++
 		if conjoins(entry) {
-			st.Entries = append(st.Entries, Entry{Schema: t.reference(entry), Rel: rel})
+			st.Entries = append(st.Entries, Entry{Schema: t.reference(entry), Rel: rel, Split: true})
 			entry = t.restOf(entry)
 		}
 		wraps := entry.Ref == nil && len(entry.AllOf) > 0

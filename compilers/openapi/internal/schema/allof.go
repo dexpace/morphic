@@ -102,6 +102,9 @@ type allOfBranch struct {
 	// capped marks an inline branch whose allOf was not flattened because it sits
 	// past statement.MaxFlattenDepth, so the diagnostic can say why it was kept.
 	capped bool
+	// split marks the reference of an entry writing one beside other keys,
+	// which the statement lists apart from the rest (statement.Entry.Split).
+	split bool
 }
 
 // allOfComposition is the flattened allOf of the schema written at pointer: its
@@ -147,7 +150,9 @@ func allOfBranches(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 	entries := c.Statements().Read(s).Entries
 	out := make([]allOfBranch, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, allOfBranch{schema: c.Statements().Read(e.Schema), pointer: pointer + e.Rel, wrapper: e.Wrapper, capped: e.Capped})
+		out = append(out, allOfBranch{
+			schema: c.Statements().Read(e.Schema), pointer: pointer + e.Rel, wrapper: e.Wrapper, capped: e.Capped, split: e.Split,
+		})
 	}
 	return allOfComposition{pointer: pointer, branches: out}
 }

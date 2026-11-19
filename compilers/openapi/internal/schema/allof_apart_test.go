@@ -18,6 +18,31 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// TestAllOf_ASplitEntrysReferenceIsNamedWhereverItsRestFalls pins the name of
+// the reference an entry writes beside other keys in the report of value sets
+// sharing no member: its path and `$ref`, where the keys beside it hold an
+// allOf whose entry the statement lists between the two, as where they hold
+// none (docs/compilers/openapi.md#allof-disjoint-conjuncts).
+func TestAllOf_ASplitEntrysReferenceIsNamedWhereverItsRestFalls(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct{ entries, names string }{
+		"the rest follows": {"{$ref: '#/components/schemas/A', enum: [b]}, {enum: [c]}",
+			"allOf/0/$ref: 1 value, allOf/0: 1 value, allOf/1: 1 value"},
+		"an allOf of the rest lies between": {"{$ref: '#/components/schemas/A', enum: [b], allOf: [{enum: [c]}]}",
+			"allOf/0/$ref: 1 value, allOf/0/allOf/0: 1 value, allOf/0: 1 value"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    A: {enum: [a]}\n    S: {allOf: ["+tc.entries+"]}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			warnings := disjointReports(diags)
+			require.Len(t, warnings, 1, "%+v", diags)
+			assert.Equal(t, jsontext.Pointer("/components/schemas/S"), warnings[0].Provenance.Pointer)
+			assert.Contains(t, warnings[0].Message, "share no value ("+tc.names+")")
+		})
+	}
+}
+
 // TestAllOf_ValueSetsSharingNoMemberWarnOnce holds the one reading of conjuncts
 // sharing no value, the election's: value sets sharing no member, a format
 // the election reads as excluding a member, and an enum beside the allOf each

@@ -3732,8 +3732,9 @@ its own `allOf` admits; and for a `$ref` entry, what the schema it lands on admi
 way. The keywords beside a `$ref` entry apply to the instance as the reference does, at 3.0 as from
 3.1, since the lowering applies them ([`ref-use-site`](#ref-use-site)), so where they narrow what
 it admits they are a conjunct of their own, named `allOf/<n>` beside the reference's
-`allOf/<n>/$ref`: `{allOf: [{$ref: Str, type: object}]}` is reported at every version, beside the
-later-version warning 3.0 draws. A `oneOf` or `anyOf` beside the `allOf` none of whose branches
+`allOf/<n>/$ref`, its name whatever is written beside it, an `allOf` of the entry's own included:
+`{allOf: [{$ref: Str, type: object}]}` is reported at every version, beside the later-version
+warning 3.0 draws. A `oneOf` or `anyOf` beside the `allOf` none of whose branches
 shares a kind with the rest of the schema, or whose branches declare no shape and so are kept beside
 it as validation logic, is a conjunct too, named by its keyword and admitting what any branch does
 ([`union-beside-structure`](#union-beside-structure)). So is the one of a `oneOf`

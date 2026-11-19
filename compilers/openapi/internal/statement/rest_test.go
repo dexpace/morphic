@@ -41,7 +41,7 @@ func TestRead_ASplitEntrysRestListsNoReference(t *testing.T) {
 		}
 		st := table.At(component(c, "S"))
 		require.Equal(t, []string{
-			"/allOf/0 wrapper=false capped=false",
+			"/allOf/0 wrapper=false capped=false split",
 			"/allOf/0/allOf/0 wrapper=false capped=false",
 			"/allOf/0 wrapper=true capped=false",
 		}, listing(st))

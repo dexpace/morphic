@@ -106,7 +106,7 @@ func apartNames(s *statement.Schema, comp allOfComposition, conjuncts []conjunct
 // beside other keys by its own.
 func conjunctName(s *statement.Schema, comp allOfComposition, cj conjunct) string {
 	switch {
-	case cj.branch != nil && splitRef(comp, cj.at):
+	case cj.branch != nil && cj.branch.split:
 		return comp.branchPath(cj.branch.pointer) + "/$ref"
 	case cj.branch != nil:
 		return comp.branchPath(cj.branch.pointer)
@@ -227,7 +227,7 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 	} else if passed, key := passedOver(c, s, s); passed != nil {
 		out = append(out, unionAtoms(c, key, passed)...)
 	}
-	for i, e := range comp.branches {
+	for _, e := range comp.branches {
 		name := comp.branchPath(e.pointer)
 		r := admissionOf(c, e.schema)
 		ref, _ := declaredOf(c, e.schema)
@@ -235,7 +235,7 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 		switch {
 		case e.wrapper:
 			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(e.schema.Schema), words: e.schema.Schema})
-		case splitRef(comp, i):
+		case e.split:
 			out = append(out, conjunctAtom{name: name + "/$ref", admits: r.admits, st: e.schema, cut: r.cut, written: ref})
 		case passed != nil && e.schema.Ref == nil:
 			out = append(out, electedAtom(c, s, e, name, ref))
@@ -296,14 +296,6 @@ func valueSetAtom(c lowering.Ctx, s *statement.Schema) (conjunctAtom, bool) {
 	}
 	unread := memberSetOf(c, valueSetOf{s, name}, members).unread
 	return conjunctAtom{name: name, admits: valueKinds(c, s), words: s, written: c.Statements().Read(s), cut: unread}, true
-}
-
-// splitRef reports whether the branch at i of comp is the reference an entry
-// writes beside other keys, the next branch, at its pointer, being the rest of
-// that entry (statement.Entry).
-func splitRef(comp allOfComposition, i int) bool {
-	return i+1 < len(comp.branches) && comp.branches[i+1].pointer == comp.branches[i].pointer &&
-		comp.branches[i].pointer != comp.pointer
 }
 
 // toldWhereWritten reports whether st, written apart from the allOf naming it
