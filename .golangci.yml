@@ -282,7 +282,7 @@ linters:
       # The OpenAPI compiler's load phase reads the version each document
       # declares, and its rule table reads it as the rows of a minor. The paths
       # are unanchored so the plants' look-alikes of the two are excused too.
-      - path: (^|/)compilers/openapi/internal/(load|oas)/
+      - path: (^|/)compilers/openapi/internal/(load|specrules)/
         linters:
           - forbidigo
         text: not the version
@@ -310,11 +310,11 @@ linters:
           - containedctx
         source: ^\s*context\.Context$
       # work is what every loop of a binding asks before it does more, and
-      # walker what every read of an object an oas check makes asks first, so
-      # the context the binding or the check runs under is asked there, at the
-      # one place each counts its work, rather than threaded through every
-      # loop or recursive method that spends.
-      - path: compilers/openapi/internal/(bind/table|oas/engine)\.go
+      # walker what every read of an object a specrules check makes asks
+      # first, so the context the binding or the check runs under is asked
+      # there, at the one place each counts its work, rather than threaded
+      # through every loop or recursive method that spends.
+      - path: compilers/openapi/internal/(reftable/table|specrules/engine)\.go
         linters:
           - containedctx
         source: ^\s*ctx\s+context\.Context$
