@@ -3906,7 +3906,7 @@ What the variants read, not the union, decides a keyword's home: a keyword or bo
 reads is homed, and one none reads, a bound no listed type takes among them, is kept on the union
 ([`shape-applicator`](#shape-applicator)).
 
-The `object` variant holds no `discriminator`, so the keeping of unread keywords keeps it on the union, whether or not a
+The `object` variant holds no `discriminator`, so it is kept unread on the union, whether or not a
 `oneOf` or `anyOf` is written beside it. No `$ref` or `mapping` can name the variant's position,
 which holds a type's name and no schema, so no type is its subtype, and every route the
 discriminator takes leads elsewhere: a `mapping` target, the `defaultMapping`, or a component whose
@@ -4016,7 +4016,7 @@ lowers as one does at that position, to an `Enum` with no member behind a nullab
 ([`null-alone`](#null-alone)). The `Enum` carries no branch set, so the combinator, and the other
 one too where both are written, is kept verbatim under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, and what else the
-schema writes that the `Enum` has no field for is kept by the keeping of unread keywords, as beside a schema of `null`
+schema writes that the `Enum` has no field for is kept unread, as beside a schema of `null`
 alone. Wherever the position lowers so, whether the two are written beside an `allOf`, on one of
 its entries or one each on two, a body beside them or none, both are kept that way.
 
@@ -4289,7 +4289,7 @@ were not written: `{type: string, anyOf: [{$ref: V4}, {$ref: V6}]}` as `{anyOf: 
 {$ref: V6}]}`, and `{type: object, oneOf: [{$ref: A}, {$ref: B}]}` as the union of `A` and `B`, not
 a union of models composed over each, which a `discriminator` beside it routes. A `nullable` beside
 such a union reads as it reads beside any union ([`nullable`](#nullable)), and a keyword the
-branches do not all say, a bound or a `format` among them, is kept as the keeping of unread keywords keeps it beside a
+branches do not all say, a bound or a `format` among them, is kept unread as beside a
 union ([`shape-applicator`](#shape-applicator)). Branches declaring no shape only narrow the body,
 which stays validation logic beside it whatever they repeat, and a `discriminator` beside the union
 keeps the body where a branch composes it (shape 3).
@@ -4571,7 +4571,7 @@ dispatch passes over the `allOf` only where no value set is elected, keeping it 
 it writes an inline entry, and else each `$ref` entry under `openapi:$ref`, or `openapi:$ref/<i>`
 where several are kept, as the `$ref` beside it is kept. A keyword the *picked* lowering never reads — `type: string` beside an `allOf` composing
 an object,
-`format` beside a `const` — is kept by the keeping of unread keywords [`shape-applicator`](#shape-applicator) runs, which
+`format` beside a `const` — is kept unread by [`shape-applicator`](#shape-applicator), which
 asks the node that was built: `type: object` beside an `allOf` is one the composed `Model` already
 asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
 [`allof-refinement`](#allof-refinement)'s.
@@ -4613,8 +4613,8 @@ On a `Model` whose own properties include the one `propertyName` names, the tag 
 `PropID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
 in `Discriminator.PropertyName`. A `propertyName` that is the empty string, a legal member name, has
 no spelling there, since an empty `PropertyName` means none, so where no own property of a model
-carries it the node holds no `Discriminator`, and the keeping of unread keywords keeps the whole object verbatim and
-says why ([`shape-applicator`](#shape-applicator)): a union so written is untagged, and
+carries it the node holds no `Discriminator`, and the whole object is kept unread, verbatim, with a report
+saying why ([`shape-applicator`](#shape-applicator)): a union so written is untagged, and
 [`discriminator-inference`](#discriminator-inference) reads nothing for it. Each `mapping` entry
 lowers to its key and the type its value routes to, and 3.2's `defaultMapping` to
 `Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. OpenAPI
@@ -4687,7 +4687,7 @@ routes nowhere, its entry kept verbatim on the `Union`
 a loop, the value names no type: its entry is left out, unreported, since the failing `$ref` is
 reported where it is written, and the last position the chain reached is lowered all the same. A
 union's value naming the failing branch itself still routes to that branch's variant, as the branch
-meets the chain before it breaks. A discriminator the keeping of unread keywords keeps verbatim has its values read in
+meets the chain before it breaks. A discriminator kept unread, verbatim, has its values read in
 the same way, what each chain ends on lowered and a value naming no schema reported, since a value
 is a reference wherever its discriminator ends up.
 
@@ -5269,7 +5269,7 @@ than by a node kind, and `password` is never unhomed ([`password`](#password)). 
 is kept so whatever its name, `format: set` among them, which some documents write to mean distinct
 items and no specification defines: reading it as `uniqueItems` would be a heuristic, which only an
 injectable policy may apply, and the entry it is kept under is what such a policy would read. The
-keeping of unread keywords reads
+keywords kept when no build reads them include
 `type`, `const`, `enum`, `minItems`, `maxItems` and `uniqueItems` beside these, so a collection
 bound on an object, a scalar or a position with no type is kept the same way, and a keyword the
 lowering [`competing-keywords`](#competing-keywords) picks never reads is too. `discriminator`
@@ -5604,7 +5604,7 @@ naming only `null`, with neither beside it, lowers so too, not to the top type b
 reference, which admits every value: `{anyOf: [{}, {type: "null"}]}` lowers to that, and a consumer
 could not tell the two apart. The `Enum`'s `ValueType` is what the schema's `type` and `format`
 select, as an enumeration's is, the top type where they select none. A keyword the `Enum` has no
-field for, such as `properties`, `items`, a `format` or a bound, is kept by the keeping of unread keywords
+field for, such as `properties`, `items`, a `format` or a bound, is kept unread
 ([`shape-applicator`](#shape-applicator)) under `openapi:<keyword>` (`degraded_lowering`), with an
 info `openapi/degraded-construct` at the schema, and the `type` draws nothing, an `Enum` with no
 member typing no value. A schema writing a `$ref`, a union or an `allOf` admits what they say as
