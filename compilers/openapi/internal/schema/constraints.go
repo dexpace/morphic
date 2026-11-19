@@ -69,10 +69,11 @@ func carriesNumberAsText(td ir.TypeDef) bool {
 		sc.Encoding.WireType != nil
 }
 
-// carriesText reports whether the Scalar a type st that s writes lowers to is one
-// carriesNumberAsText holds, read off the shape scalarTypeID builds it by.
-func carriesText(s *statement.Schema, st statement.Kind) bool {
-	shape := scalarShapeOf(s, st, writtenFormat(s))
+// carriesText reports whether the Scalar a type st that s writes lowers to,
+// taking format, is one carriesNumberAsText holds, read off the shape
+// scalarTypeID builds it by.
+func carriesText(s *statement.Schema, st statement.Kind, format string) bool {
+	shape := scalarShapeOf(s, st, format)
 	return shape.format == numberTextEncoding && shape.wire != nil
 }
 

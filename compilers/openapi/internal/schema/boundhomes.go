@@ -96,7 +96,9 @@ func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d 
 		case statement.KindArray:
 			homes.collection = true
 		default:
-			if carriesText(s, st) {
+			// A type list's variant takes the format only where no other listed
+			// type pairs with it (variantFormat), as lowerTypeVariant builds it.
+			if carriesText(s, st, variantFormat(s, st, types)) {
 				homes.numberText = true
 				continue
 			}

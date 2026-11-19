@@ -5357,7 +5357,11 @@ numeric bound no string instance, so each value bound written beside it is kept 
 `openapi:<keyword>` (`no_ir_home`) on the `Scalar` alone with an info `openapi/degraded-construct`
 at it, one an inline `allOf` branch writes, and one beside an `allOf` whose inline principal it is,
 the same way ([`allof-inline-residue`](#allof-inline-residue)), both on the `Union` where the
-principal is a type list, where the flat spelling keeps them on its text variant, and neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
+principal is a type list whose `string` variant carries the number, where the flat spelling keeps
+them on that variant, and neither the `Scalar` nor a property or parameter carrying it holds one. A
+type list whose other listed type pairs with the format leaves its `string` variant the text,
+which reads a length or a `pattern` written beside it or beside an `allOf` whose principal the list
+is, as each variant reads the bounds of its kind there, and nothing keeps or reports them. The table is the same at every minor, and a pairing of `format`
 with another `type` is [`numeric-formats`](#numeric-formats)'. Beside a type array, a format the
 table pairs with `string`, `byte` and `http-date` among them, is the `string` variant's alone
 ([`type-arrays`](#type-arrays)).
@@ -5373,6 +5377,7 @@ table pairs with `string`, `byte` and `http-date` among them, is the `string` va
   `schema.TestScalar_ANumberAsTextKeepsItsBoundsVerbatim`,
   `e2e.TestNumberText_ABoundBesideAPrincipalIsKeptAsFlat`,
   `e2e.TestNumberText_TwoWritersOfABoundKeepBoth`,
+  `schema.TestPrincipalKept_ABoundATypeListVariantReadsIsKeptNowhere`,
   `schema.TestLower_NamedScalarComponentResolves`,
   `merge.TestKindOf_ANumberAsTextIsAString`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,

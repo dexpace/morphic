@@ -6,6 +6,7 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -799,5 +800,78 @@ func TestPrincipalKept_AnAlikeKeywordStandsWithItsFirstKeeper(t *testing.T) {
 			}
 		}
 		assert.Len(t, said, 1, "%s: reported once: %v", tc.name, said)
+	}
+}
+
+// TestPrincipalKept_ABoundATypeListVariantReadsIsKeptNowhere pins a bound
+// written beside a type-list principal, or on another entry: where one of its
+// variants reads it, a string variant a length or a pattern, a number variant
+// a value bound, an array variant a collection bound, that variant's
+// Constraints hold it, and nothing keeps or reports it, as written flat, a
+// format another listed type pairs with leaving the string variant its text.
+// A bound no variant reads, a string variant carrying a number as text, is
+// kept once on the Union, with its report.
+func TestPrincipalKept_ABoundATypeListVariantReadsIsKeptNowhere(t *testing.T) {
+	t.Parallel()
+	bounds := []struct{ keyword, value, field string }{
+		{"minLength", "7", `"minLength":7`}, {"pattern", "'^p7$'", `"pattern":"^p7$"`},
+		{"minimum", "17", `"min":"17"`}, {"multipleOf", "27", `"multipleOf":"27"`}, {"minItems", "37", `"minItems":37`},
+	}
+	var lines strings.Builder
+	for _, b := range bounds {
+		for _, format := range []string{"", ", format: int64"} {
+			list := "{type: [string, integer, array], items: {type: string}" + format + "}"
+			name := b.keyword + map[string]string{"": "", ", format: int64": "Text"}[format]
+			lines.WriteString("    Beside" + name + ": {allOf: [" + list + "], " + b.keyword + ": " + b.value + "}\n")
+			lines.WriteString("    Entry" + name + ": {allOf: [" + list + ", {" + b.keyword + ": " + b.value + "}]}\n")
+		}
+	}
+	unread := "{type: [string, boolean], format: int64}"
+	lines.WriteString("    Unread: {allOf: [" + unread + "], minLength: 7}\n    UnreadEntry: {allOf: [" + unread + ", {minLength: 7}]}\n")
+	lines.WriteString("    Pair: {allOf: [{type: [string, integer], format: int64}], minLength: 2}\n" +
+		"    PairBoth: {allOf: [{type: [string, integer], format: int64}], minLength: 2, minimum: 1}\n")
+	doc, diags := parseFull(t, openapitest.ComponentSpec(lines.String()))
+	nodes := func(name string) (held, kept []string) {
+		at := "/components/schemas/" + name
+		for _, td := range doc.Types {
+			if p := string(td.Common().Provenance.Pointer); p == at || strings.HasPrefix(p, at+"/") {
+				raw, err := json.Marshal(td, json.Deterministic(true))
+				require.NoError(t, err)
+				held = append(held, string(raw))
+				kept = append(kept, slices.Collect(maps.Keys(td.Common().Unmodeled))...)
+			}
+		}
+		return held, kept
+	}
+	said := func(name, keyword string) (n int) {
+		at := "/components/schemas/" + name
+		for _, d := range diags {
+			if p := string(d.Provenance.Pointer); (p == at || strings.HasPrefix(p, at+"/")) && strings.Contains(d.Message, keyword) {
+				n++
+			}
+		}
+		return n
+	}
+	for _, b := range bounds {
+		for _, suffix := range []string{"", "Text"} {
+			for _, spelling := range []string{"Beside", "Entry"} {
+				name := spelling + b.keyword + suffix
+				held, kept := nodes(name)
+				assert.Contains(t, strings.Join(held, "\n"), b.field, "%s: a variant reads it", name)
+				assert.Empty(t, kept, "%s: nothing keeps it", name)
+				assert.Zero(t, said(name, b.keyword), "%s: nothing reports it", name)
+			}
+		}
+	}
+	for _, name := range []string{"Pair", "PairBoth"} {
+		held, kept := nodes(name)
+		assert.Contains(t, strings.Join(held, "\n"), `"minLength":2`, "%s: the string variant reads it", name)
+		assert.Empty(t, kept, name)
+		assert.Zero(t, said(name, "minLength")+said(name, "minimum"), name)
+	}
+	assert.Contains(t, strings.Join(func() []string { h, _ := nodes("PairBoth"); return h }(), "\n"), `"min":"1"`)
+	for _, name := range []string{"Unread", "UnreadEntry"} {
+		assert.Equal(t, map[string]string{"openapi:minLength": "7 [no_ir_home]"}, keptOn(t, doc, name), "%s: kept once, on the Union", name)
+		assert.Equal(t, 1, said(name, "minLength"), "%s: and reported once", name)
 	}
 }
