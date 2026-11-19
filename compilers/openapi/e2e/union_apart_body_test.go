@@ -114,3 +114,43 @@ func TestElection_AnEntryTypeSharingNoKindWithItsUnionLowersAsBesideTheAllOf(t *
 		})
 	}
 }
+
+// TestElection_ANullBranchIsDeadWhereTheUnionPassedOverKeepsNullOut holds
+// that the anyOf an object or null elects over a oneOf of an object, its
+// branch a $ref to null alone, leaves that branch dead, the oneOf keeping null
+// out: the Union of the object branch keeping the null branch, with the one
+// warning, beside the body's keywords, beside an allOf of it, on one entry and
+// on two, in either order of the components, whether or not the body declares
+// a property.
+func TestElection_ANullBranchIsDeadWhereTheUnionPassedOverKeepsNullOut(t *testing.T) {
+	t.Parallel()
+	const one, anyOf = "oneOf: [{type: object}]", "anyOf: [{type: object, properties: {x: {type: string}}}, {$ref: '#/components/schemas/Null'}]"
+	for _, body := range []string{"type: [object, 'null']", "type: [object, 'null'], properties: {a: {type: string}}"} {
+		spellings := map[string]string{
+			"beside the body":  "{" + body + ", " + one + ", " + anyOf + "}",
+			"beside the allOf": "{allOf: [{" + body + "}], " + one + ", " + anyOf + "}",
+			"on one entry":     "{allOf: [{" + body + "}, {" + one + ", " + anyOf + "}]}",
+			"on two entries":   "{allOf: [{" + body + "}, {" + one + "}, {" + anyOf + "}]}",
+		}
+		for name, schema := range spellings {
+			for _, reversed := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/%t", body, name, reversed), func(t *testing.T) {
+					t.Parallel()
+					doc, diags := compileAnnotationSpec(t, "dead", bothKeywordsDoc("3.1.0", "", reversed, "Null: {type: 'null'}", "P: "+schema))
+					union, ok := kindNode(t, doc, componentID("P")).(*ir.Union)
+					require.True(t, ok, "the position is a Union")
+					require.Len(t, union.Variants, 1, "the null branch is no variant")
+					assert.Contains(t, union.Unmodeled, "openapi:anyOf/1", "the null branch is kept")
+					var warned []string
+					for _, d := range diags {
+						if d.Severity == ir.SeverityWarning {
+							warned = append(warned, d.Message)
+						}
+					}
+					require.Len(t, warned, 1)
+					assert.Contains(t, warned[0], "no instance satisfies")
+				})
+			}
+		}
+	}
+}

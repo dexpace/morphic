@@ -48,7 +48,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 			var diags []ir.Diagnostic
 			tid := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 				u := besideUnion(s, pointer)
-				u.schema = at
+				u.schema, u.dead = at, pairDeadNulls(c, at, s, st)
 				def, unionDiags := buildUnion(c, ts, u, common,
 					func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
 						ref, refDiags := Ref(c, ts, depth, b, vptr)
@@ -56,6 +56,9 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 						return ref
 					})
 				diags = append(diags, unionDiags...)
+				if u.dead != nil {
+					diags = append(diags, keepDeadBranches(c, &def.Unmodeled, at, u, st.pointer(pointer))...)
+				}
 				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, st.voices(c, s, pointer), pointer, st.takes(c, s))
 				def.Constraints = cons
 				diags = append(diags, consDiags...)
@@ -73,6 +76,37 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 		diags = append(diags, diagUnionsShareNothing(c, s, pointer, unionShape)...)
 	}
 	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, at, s, pointer))
+}
+
+// pairDeadNulls marks, by index, each branch of the union s elects at
+// position that is a variant admitting null alone, as a $ref to a schema of
+// null alone is, where position elects one union of a oneOf and an anyOf and
+// what it writes beside that union, the one passed over among it, keeps null
+// out (restForbidsNull): no instance is one of both. It is nil where none is,
+// or s elects no union of a pair (docs/compilers/openapi.md#union-beside-structure).
+func pairDeadNulls(c lowering.Ctx, position, s *statement.Schema, st stand) []bool {
+	if !writesBothUnions(s) && !pairedPrincipal(c, st) {
+		return nil
+	}
+	branches, _, _ := unionBranches(c, position, s)
+	var dead []bool
+	for i, b := range branches {
+		bs := c.Statements().Sub(b)
+		if nullBranch(c, bs) {
+			continue
+		}
+		if kinds, inferred := lowersTo(c, bs); kinds&^kindNull != 0 || inferred {
+			continue
+		}
+		if dead == nil {
+			if !restForbidsNull(c, position, s) {
+				return nil
+			}
+			dead = make([]bool, len(branches))
+		}
+		dead[i] = true
+	}
+	return dead
 }
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -418,4 +419,27 @@ func TestUnion_AnElectedUnionOfAPairIsReportedAsTheUnionItLowersTo(t *testing.T)
 	require.Len(t, reported, 1)
 	assert.Contains(t, reported[0], "lowered to the Union of its oneOf")
 	assert.NotContains(t, reported[0], "nullable reference")
+}
+
+// TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut pins a branch of
+// the anyOf an object or null elects that is a $ref to null alone: no variant
+// where the oneOf
+// passed over keeps null out, kept with the warning, an inline null branch
+// beside it lifted as ever; a variant where the oneOf admits null.
+func TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut(t *testing.T) {
+	t.Parallel()
+	const objp = "{type: object, properties: {x: {type: string}}}"
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Null: {type: 'null'}
+    Dead: {type: [object, 'null'], oneOf: [{type: object}], anyOf: [`+objp+`, {$ref: '#/components/schemas/Null'}]}
+    Both: {type: [object, 'null'], oneOf: [{type: object}], anyOf: [`+objp+`, {type: 'null'}, {$ref: '#/components/schemas/Null'}]}
+    Open: {type: [object, 'null'], oneOf: [{type: [object, 'null']}], anyOf: [`+objp+`, {$ref: '#/components/schemas/Null'}]}
+`))
+	for name, variants := range map[string]int{"Dead": 1, "Both": 1, "Open": 2} {
+		union, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, name)
+		assert.Len(t, union.Variants, variants, name)
+		_, kept := union.Unmodeled["openapi:anyOf/"+map[string]string{"Dead": "1", "Both": "2", "Open": "1"}[name]]
+		assert.Equal(t, variants == 1, kept, name)
+	}
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Dead"))
 }

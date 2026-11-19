@@ -4066,7 +4066,9 @@ among it and neither union, with an info `openapi/validation-only-keyword`, and 
 one of the shapes below, the node keeps both as that shape keeps a union, with that shape's
 findings alone, on one entry or two alike. Wherever it is written, the union passed over is a
 conjunct of the rest the elected one's branches are read against, for a dead branch (below) and for
-[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts); one sharing no kind with the rest read
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts), whether or not the elected one
+distributes: a variant admitting null alone, as a `$ref` to `{type: 'null'}`, is dead where that
+rest keeps null out, kept and warned as below; one sharing no kind with the rest read
 without either union, a union of null alone beside a rest admitting no null among them, leaves no
 instance satisfying the two, whichever branch is taken, so the position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
 naming its own keywords and that union. A union none of whose branches shares a kind with a body
@@ -4375,7 +4377,9 @@ judged as one whose branches declare shape.
   `union-inline-branches`, `allof-union-branch`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
-- Tests: `e2e.TestElection_AUnionSharingNoKindWithABodyThatIsNoModelLowersAsTheBody`,
+- Tests: `e2e.TestElection_ANullBranchIsDeadWhereTheUnionPassedOverKeepsNullOut`,
+  `schema.TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut`,
+  `e2e.TestElection_AUnionSharingNoKindWithABodyThatIsNoModelLowersAsTheBody`,
   `e2e.TestElection_AUnionSharingAKindWithAScalarBodyLowersAsBefore`,
   `e2e.TestElection_AnEntryTypeSharingNoKindWithItsUnionLowersAsBesideTheAllOf`,
   `e2e.TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits`,
