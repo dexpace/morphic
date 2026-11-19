@@ -35,6 +35,9 @@ type conjunctAtom struct {
 	// whose null is any branch's.
 	union []statement.Sub
 	cut   bool
+	// null marks an atom whose own read admits null, which admits holds
+	// apart from (electedAtom), so it admits a value whatever st reads.
+	null bool
 }
 
 // noValue is how a disjoint report names a conjunct admitting no value at all.
@@ -354,7 +357,8 @@ func electedAtom(c lowering.Ctx, s *statement.Schema, e allOfBranch, name string
 	w := newAdmissionReader(c)
 	elected, _, _ := unionBranches(c, s, e.schema.Schema)
 	read := w.written(e.schema.Schema, w.nullable).and(w.union(elected))
-	return conjunctAtom{name: name, admits: read.kinds, st: e.schema, cut: w.incomplete() || e.capped, written: ref}
+	return conjunctAtom{name: name, admits: read.kinds &^ kindNull, null: read.kinds&kindNull != 0, st: e.schema,
+		cut: w.incomplete() || e.capped, written: ref}
 }
 
 // unionAtoms returns the union keyword names, written beside an allOf with
@@ -403,7 +407,7 @@ func nullShared(c lowering.Ctx, s *statement.Schema) bool {
 // nulls reads it, which makes it its own schema's to report rather than the
 // allOf's.
 func empty(c lowering.Ctx, a conjunctAtom) bool {
-	if a.admits != 0 {
+	if a.admits != 0 || a.null {
 		return false
 	}
 	switch {

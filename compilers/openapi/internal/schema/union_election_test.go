@@ -254,3 +254,31 @@ func TestUnion_TwoShapelessUnionsSharingNoValueBesideTheirBodyWarn(t *testing.T)
 	}
 	assert.Empty(t, warned["Shared"])
 }
+
+// TestUnion_AnEntryElectingAUnionOfNullAloneIsNamedByItsNull holds that the
+// report of conjuncts sharing no value names an entry writing a oneOf and an
+// anyOf, read as its own keywords and the union it elects, by the null that
+// union admits where it admits null alone, whatever the union it passes over
+// admits.
+func TestUnion_AnEntryElectingAUnionOfNullAloneIsNamedByItsNull(t *testing.T) {
+	t.Parallel()
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Str: {allOf: [{type: string}, {oneOf: [{type: 'null'}], anyOf: [{type: string}]}]}
+    Nest: {allOf: [{type: string}, {allOf: [{oneOf: [{type: 'null'}], anyOf: [{type: string}]}]}]}
+    Obj: {allOf: [{type: object}, {oneOf: [{type: 'null'}], anyOf: [{type: 'null'}, {type: object, required: [x]}]}]}
+`))
+	want := map[string]string{
+		"Str":  "(allOf/0: string, allOf/1: null, allOf/1/anyOf: string)",
+		"Nest": "(allOf/0: string, allOf/1/allOf/0: null, allOf/1/allOf/0/anyOf: string)",
+		"Obj":  "(allOf/0: object, allOf/1: null, allOf/1/anyOf: object)",
+	}
+	for name, names := range want {
+		var warned []string
+		for _, d := range diags {
+			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
+				warned = append(warned, d.Message)
+			}
+		}
+		require.Len(t, warned, 1, name)
+		assert.Contains(t, warned[0], names, name)
+	}
+}
