@@ -196,7 +196,10 @@ func failedEntry(s *Schema) bool {
 		return false
 	}
 	// An entry's last token is its index: an items, a not or a property
-	// under a property named allOf is no entry.
+	// under a property named allOf is no entry. The schema package reads an
+	// entry off a pointer too, by a parse of its own that takes no signed
+	// index where this one does (writtenAsEntry). Neither knows how the
+	// schema is reached; a statement saying so replaces both (GitHub #2058).
 	_, err := strconv.Atoi(at[i+1:])
 	return err == nil
 }

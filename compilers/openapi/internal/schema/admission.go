@@ -207,7 +207,11 @@ func dynamicExpansionOf(c lowering.Ctx, st *statement.Statement) (bind.Position,
 	return dynamicTarget(in, st.Schema, at.Pointer)
 }
 
-// writtenAsEntry reports whether pointer names an entry of an allOf.
+// writtenAsEntry reports whether pointer names an entry of an allOf. The
+// statement reads an entry whose reference names nothing off its pointer too,
+// by a parse of its own that takes a signed index where this one takes none
+// (statement.Table's failedEntry). Neither knows how the schema is reached; a
+// statement saying so replaces both (GitHub #2058).
 func writtenAsEntry(pointer jsontext.Pointer) bool {
 	_, err := strconv.ParseUint(pointer.LastToken(), 10, 64)
 	return err == nil && pointer.Parent().LastToken() == "allOf"
