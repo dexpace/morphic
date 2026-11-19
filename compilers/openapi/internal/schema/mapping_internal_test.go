@@ -48,10 +48,10 @@ func TestChainOf_EndsWhereTheValueNames(t *testing.T) {
 `))
 	d := petDiscriminator(t, l)
 	for value, want := range map[string]ir.TypeID{
-		"#/components/schemas/Cat": ids.Document{}.NamedType("/components/schemas/Cat"),
-		"Dog":                      ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Dog")),
-		"A/B":                      ids.Document{}.NamedType(ids.Ptr("components", "schemas", "A/B")),
-		"":                         ids.Document{}.AnonType(ids.Ptr("components", "schemas", "")),
+		"#/components/schemas/Cat": ids.DocumentIDNamespace{}.NamedType("/components/schemas/Cat"),
+		"Dog":                      ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "Dog")),
+		"A/B":                      ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "A/B")),
+		"":                         ids.DocumentIDNamespace{}.AnonType(ids.Ptr("components", "schemas", "")),
 	} {
 		chain, ok := chainOf(l.Ctx, d, value)
 		require.True(t, ok, value)
@@ -95,9 +95,9 @@ func TestDeclaredAt_NamesNoUndeclaredComponentOrUnreadDocument(t *testing.T) {
 	assert.False(t, ok, "a document the compile does not list")
 	_, ok = chainOf(c.Ctx, d, "./ext.yaml#/X")
 	assert.False(t, ok)
-	_, ok = declaredAt(c.Ctx, bind.Position{Pointer: "/components/schemas/Ghost"}, nil)
+	_, ok = declaredAt(c.Ctx, bind.DocumentPointer{Pointer: "/components/schemas/Ghost"}, nil)
 	assert.False(t, ok, "an undeclared component")
-	_, ok = declaredAt(c.Ctx, bind.Position{Pointer: "/x-none"}, nil)
+	_, ok = declaredAt(c.Ctx, bind.DocumentPointer{Pointer: "/x-none"}, nil)
 	assert.False(t, ok, "no schema")
 }
 
@@ -107,7 +107,7 @@ func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	d := &statement.Discriminator{PropertyName: "kind", DefaultMapping: "Cat"}
 
 	id, diags := discriminatorDefault(l.Ctx, l.Types, d, nil, "/components/schemas/Pet")
-	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), id)
+	assert.Equal(t, ids.DocumentIDNamespace{}.NamedType("/components/schemas/Cat"), id)
 	assert.Empty(t, diags, "a resolvable defaultMapping produces no diagnostic")
 }
 
@@ -163,7 +163,7 @@ func TestRouteEntry_PromisesWhatAModelRoutesTo(t *testing.T) {
 		return id, ok
 	}
 
-	cat := ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Cat"))
+	cat := ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "Cat"))
 	for _, value := range []string{"Cat", "#/components/schemas/Cat"} {
 		id, ok := route(value)
 		assert.True(t, ok, "%s names a declared component", value)
@@ -171,7 +171,7 @@ func TestRouteEntry_PromisesWhatAModelRoutesTo(t *testing.T) {
 	}
 
 	const scalar = "#/components/schemas/Pet/properties/kind"
-	kind := ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind")
+	kind := ids.DocumentIDNamespace{}.ForPointer("/components/schemas/Pet/properties/kind")
 	chain, ok := chainOf(l.Ctx, d, scalar)
 	require.True(t, ok)
 	assert.Equal(t, kind, chain.end().id, "an un-interned scalar position is named by its pointer")
@@ -228,7 +228,7 @@ func TestDeclaredAt_NamesAPositionByItsPointerBeforeItIsInterned(t *testing.T) {
 		"      discriminator: {propertyName: k, mapping: {s: '"+sub+"', m: '"+missing+"'}}\n"))
 	_, ok := chainOf(l.Ctx, petDiscriminator(t, l), missing)
 	assert.False(t, ok, "the bindings land the value nowhere, so it does not resolve")
-	want := ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind")
+	want := ids.DocumentIDNamespace{}.ForPointer("/components/schemas/Pet/properties/kind")
 	chain, ok := chainOf(l.Ctx, petDiscriminator(t, l), sub)
 	require.True(t, ok)
 	assert.Equal(t, want, chain.end().id, "nothing is interned yet, and the position is named all the same")
@@ -244,7 +244,7 @@ func TestDeclaredAt_NamesAPositionByItsPointerBeforeItIsInterned(t *testing.T) {
 }
 
 // TestChainOf_ReadsEachPositionOnce pins that the chain from the position a
-// mapping value names is read once a compile (lowering.Remembered), not once
+// mapping value names is read once a compile (lowering.ReadOncePerRun), not once
 // for each value or each union naming it.
 func TestChainOf_ReadsEachPositionOnce(t *testing.T) {
 	t.Parallel()
@@ -254,9 +254,9 @@ func TestChainOf_ReadsEachPositionOnce(t *testing.T) {
 
 	chain, ok := chainOf(l.Ctx, petDiscriminator(t, l), "#/components/schemas/Hold/properties/p")
 	require.True(t, ok)
-	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), chain.end().id, "the position reads through to Cat")
-	held := bind.Position{Pointer: "/components/schemas/Hold/properties/p"}
-	again := lowering.Remembered(l.Ctx, chainFrom{held, l.Ctx.Statements().Of(l.Ctx.Bindings().At(held))}, func() valueChain {
+	assert.Equal(t, ids.DocumentIDNamespace{}.NamedType("/components/schemas/Cat"), chain.end().id, "the position reads through to Cat")
+	held := bind.DocumentPointer{Pointer: "/components/schemas/Hold/properties/p"}
+	again := lowering.ReadOncePerRun(l.Ctx, chainFrom{held, l.Ctx.Statements().Of(l.Ctx.Bindings().At(held))}, func() valueChain {
 		t.Error("the position was read again")
 		return valueChain{}
 	})
@@ -333,8 +333,8 @@ func TestMappingTagsFor_ReadsTheMappingOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(spec.String()))
 	d := petDiscriminator(t, l)
 
-	assert.Equal(t, []string{"t3"}, mappingTagsFor(l.Ctx, d, ids.Document{}.NamedType("/components/schemas/S3")))
-	inverted := lowering.Remembered(l.Ctx, tagsOf{d}, func() map[ir.TypeID][]string {
+	assert.Equal(t, []string{"t3"}, mappingTagsFor(l.Ctx, d, ids.DocumentIDNamespace{}.NamedType("/components/schemas/S3")))
+	inverted := lowering.ReadOncePerRun(l.Ctx, tagsOf{d}, func() map[ir.TypeID][]string {
 		t.Error("the mapping was read again")
 		return nil
 	})

@@ -164,19 +164,19 @@ func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
 	obj, list := ir.Value{Kind: ir.ValueObject}, ir.Value{Kind: ir.ValueList}
 	bin := ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}
 	for _, tc := range []struct {
-		types  []statement.Kind
+		types  []statement.JSONSchemaTypeName
 		admits []ir.Value
 		not    []ir.Value
 	}{
 		{nil, []ir.Value{str, null, obj}, nil},
-		{[]statement.Kind{statement.KindString}, []ir.Value{str, bin}, []ir.Value{one, null}},
-		{[]statement.Kind{statement.KindInteger}, []ir.Value{one}, []ir.Value{half, str}},
-		{[]statement.Kind{statement.KindNumber}, []ir.Value{one, half}, []ir.Value{str}},
-		{[]statement.Kind{statement.KindBoolean}, []ir.Value{yes}, []ir.Value{str}},
-		{[]statement.Kind{statement.KindObject}, []ir.Value{obj}, []ir.Value{list}},
-		{[]statement.Kind{statement.KindArray}, []ir.Value{list}, []ir.Value{obj}},
-		{[]statement.Kind{statement.KindInteger, statement.KindBoolean}, []ir.Value{one, yes}, []ir.Value{str}},
-		{[]statement.Kind{statement.KindInteger, "file"}, []ir.Value{str, one, null}, nil},
+		{[]statement.JSONSchemaTypeName{statement.KindString}, []ir.Value{str, bin}, []ir.Value{one, null}},
+		{[]statement.JSONSchemaTypeName{statement.KindInteger}, []ir.Value{one}, []ir.Value{half, str}},
+		{[]statement.JSONSchemaTypeName{statement.KindNumber}, []ir.Value{one, half}, []ir.Value{str}},
+		{[]statement.JSONSchemaTypeName{statement.KindBoolean}, []ir.Value{yes}, []ir.Value{str}},
+		{[]statement.JSONSchemaTypeName{statement.KindObject}, []ir.Value{obj}, []ir.Value{list}},
+		{[]statement.JSONSchemaTypeName{statement.KindArray}, []ir.Value{list}, []ir.Value{obj}},
+		{[]statement.JSONSchemaTypeName{statement.KindInteger, statement.KindBoolean}, []ir.Value{one, yes}, []ir.Value{str}},
+		{[]statement.JSONSchemaTypeName{statement.KindInteger, "file"}, []ir.Value{str, one, null}, nil},
 	} {
 		for _, v := range tc.admits {
 			assert.True(t, typesAdmit(tc.types, v), "%v admits %+v", tc.types, v)

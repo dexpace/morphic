@@ -58,9 +58,9 @@ var objectKeys = keySetOf("properties", "patternProperties", "additionalProperti
 
 // typeReadAs returns the type s writes where a node of kind reads it: every
 // type s names is kind, as its shape says.
-func typeReadAs(s *statement.Schema, kind statement.Kind) keySet {
+func typeReadAs(s *statement.Schema, kind statement.JSONSchemaTypeName) keySet {
 	types := effectiveTypes(s)
-	if len(types) == 0 || slices.ContainsFunc(types, func(t statement.Kind) bool { return t != kind }) {
+	if len(types) == 0 || slices.ContainsFunc(types, func(t statement.JSONSchemaTypeName) bool { return t != kind }) {
 		return 0
 	}
 	return keyBit("type")
@@ -70,7 +70,7 @@ func typeReadAs(s *statement.Schema, kind statement.Kind) keySet {
 // every type s names is one of a primitive's.
 func scalarTypeRead(s *statement.Schema) keySet {
 	types := effectiveTypes(s)
-	if len(types) == 0 || slices.ContainsFunc(types, func(t statement.Kind) bool {
+	if len(types) == 0 || slices.ContainsFunc(types, func(t statement.JSONSchemaTypeName) bool {
 		return t == statement.KindObject || t == statement.KindArray
 	}) {
 		return 0

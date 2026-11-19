@@ -17,8 +17,8 @@ import (
 const d4 = "'http://json-schema.org/draft-04/schema#'"
 
 // rootsOf returns where each dialect root of table is, and the URI it names.
-func rootsOf(table *bind.Table) map[bind.Position]string {
-	out := map[bind.Position]string{}
+func rootsOf(table *bind.ReferenceTargetTable) map[bind.DocumentPointer]string {
+	out := map[bind.DocumentPointer]string{}
 	for _, r := range dialectRoots(table) {
 		out[r.At] = r.URI
 	}
@@ -26,7 +26,7 @@ func rootsOf(table *bind.Table) map[bind.Position]string {
 }
 
 // dialectRoots returns the dialect roots of every document table read.
-func dialectRoots(table *bind.Table) []bind.DialectRoot {
+func dialectRoots(table *bind.ReferenceTargetTable) []bind.DialectRoot {
 	out := make([]bind.DialectRoot, 0, table.Documents())
 	for id := range bind.DocID(table.Documents()) {
 		out = append(out, table.Document(id).Dialects...)
@@ -51,7 +51,7 @@ func TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect(t *testing.T) {
 		"    C: {properties: {$schema: {type: string}}}\n"+
 		"    D: {$schema: null}\n", self)
 	d := "http://json-schema.org/draft-04/schema#"
-	assert.Equal(t, map[bind.Position]string{
+	assert.Equal(t, map[bind.DocumentPointer]string{
 		at("/components/schemas/A"):                                         d,
 		at("/paths/~1p/get/parameters/0/schema"):                            d,
 		at("/paths/~1p/get/responses/200/content/application~1json/schema"): d,
@@ -102,7 +102,7 @@ func TestDialectRoots_AnEmbeddedResourceNamesItsOwn(t *testing.T) {
 	table := bound(t, head+"components:\n  schemas:\n"+
 		"    T: {$schema: "+d4+", properties: {a: {$id: 'https://example.com/a', $schema: 'https://example.com/inner'},\n"+
 		"      b: {$id: 'spec.yaml', $schema: 'https://example.com/self'}, c: {$schema: 'https://example.com/none'}}}\n", self)
-	assert.Equal(t, map[bind.Position]string{
+	assert.Equal(t, map[bind.DocumentPointer]string{
 		at("/components/schemas/T"):              "http://json-schema.org/draft-04/schema#",
 		at("/components/schemas/T/properties/a"): "https://example.com/inner",
 	}, rootsOf(table))
@@ -113,28 +113,28 @@ func TestDialectRoots_AnEmbeddedResourceNamesItsOwn(t *testing.T) {
 // nearest above it in its document, and none where no root holds it.
 func TestDialectAt_ReadsTheInnermostRootAtOrAboveAPosition(t *testing.T) {
 	t.Parallel()
-	roots := map[bind.Position]string{{Pointer: "/a"}: "outer", {Pointer: "/a/b"}: "inner", {Doc: 1, Pointer: ""}: "other"}
+	roots := map[bind.DocumentPointer]string{{Pointer: "/a"}: "outer", {Pointer: "/a/b"}: "inner", {Doc: 1, Pointer: ""}: "other"}
 	for _, tc := range []struct {
-		at   bind.Position
+		at   bind.DocumentPointer
 		want string
 	}{
-		{bind.Position{Pointer: "/a"}, "outer"},
-		{bind.Position{Pointer: "/a/c/d"}, "outer"},
-		{bind.Position{Pointer: "/a/b/c"}, "inner"},
-		{bind.Position{Pointer: "/ab"}, ""},
-		{bind.Position{Pointer: ""}, ""},
-		{bind.Position{Doc: 1, Pointer: "/a/b"}, "other"},
+		{bind.DocumentPointer{Pointer: "/a"}, "outer"},
+		{bind.DocumentPointer{Pointer: "/a/c/d"}, "outer"},
+		{bind.DocumentPointer{Pointer: "/a/b/c"}, "inner"},
+		{bind.DocumentPointer{Pointer: "/ab"}, ""},
+		{bind.DocumentPointer{Pointer: ""}, ""},
+		{bind.DocumentPointer{Doc: 1, Pointer: "/a/b"}, "other"},
 	} {
 		got, ok := bind.DialectAt(roots, tc.at)
 		assert.Equal(t, tc.want, got, "%v", tc.at)
 		assert.Equal(t, tc.want != "", ok, "%v", tc.at)
 	}
-	_, ok := bind.DialectAt(map[bind.Position]string{}, bind.Position{Pointer: "/a"})
+	_, ok := bind.DialectAt(map[bind.DocumentPointer]string{}, bind.DocumentPointer{Pointer: "/a"})
 	assert.False(t, ok, "no roots hold anything")
 }
 
 // TestDialectRoots_ADocumentListsItsRootsInPointerOrder pins the order
-// bind.Document.Dialects lists a document's roots in, whatever order the
+// bind.ReferencedDocument.Dialects lists a document's roots in, whatever order the
 // source declares them: by pointer, so a root holding another comes before it,
 // which the load phase relies on to govern the inner first. Six roots make a
 // list left in the order a map yields them fail but once in hundreds of runs.

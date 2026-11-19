@@ -62,11 +62,11 @@ func reversedBlocks(blocks []string) []string {
 	return out
 }
 
-// TestUseSites_AnAliasChainLendsAlikeInEitherOrder pins the annotations a use
+// TestUseSites_AnAliasChainFallsBackAlikeInEitherOrder pins the annotations a use
 // takes from its chain, nearest hop first, with a default no ir.Value holds
 // reported at its own position: the aliases, the use and the schema they end
 // on declared in either order lower to one document and one set of findings.
-func TestUseSites_AnAliasChainLendsAlikeInEitherOrder(t *testing.T) {
+func TestUseSites_AnAliasChainFallsBackAlikeInEitherOrder(t *testing.T) {
 	t.Parallel()
 	doc, found := assertOneReadingInEitherOrder(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+
 		"components:\n  schemas:\n", []string{

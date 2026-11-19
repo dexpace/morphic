@@ -22,10 +22,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// voicesDoc is a document of Base, A and B, objects, Meta, an object anchored
+// foldedBranchesDoc is a document of Base, A and B, objects, Meta, an object anchored
 // dynamically, Holder, an object using S through a $ref, and a component S
 // written as written.
-func voicesDoc(written string) string {
+func foldedBranchesDoc(written string) string {
 	return openapitest.ComponentSpecVer("3.1.0", "    Base: {type: object, properties: {id: {type: string}}}\n"+
 		"    A: {type: object, properties: {a: {type: string}}}\n"+
 		"    B: {type: object, properties: {b: {type: string}}}\n"+
@@ -49,11 +49,11 @@ var besideTheAllOf = map[string]struct{ beside, code, at string }{
 	"beside a $dynamicRef":     {", $dynamicRef: '#meta'", diag.DegradedConstruct, "/$dynamicRef"},
 }
 
-// TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword on an inline
+// TestAllOfBranchFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword on an inline
 // branch to the same keyword beside the allOf, at each outcome besideTheAllOf
 // names: for each one the two lower to the same nodes, a $ref use of S among them,
 // the branch's kept nowhere else and reported nowhere but where it is written.
-func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
+func TestAllOfBranchFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 	t.Parallel()
 	for name, keyword := range map[string]string{
 		"title":             "title: mine",
@@ -81,8 +81,8 @@ func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 			t.Run(shape+"/"+name, func(t *testing.T) {
 				t.Parallel()
 				ref := "{$ref: '#/components/schemas/Base'}"
-				want, wantDiags := parseFull(t, voicesDoc("{allOf: ["+ref+"], "+keyword+tc.beside+"}"))
-				got, gotDiags := parseFull(t, voicesDoc("{allOf: ["+ref+", {"+keyword+"}]"+tc.beside+"}"))
+				want, wantDiags := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+"], "+keyword+tc.beside+"}"))
+				got, gotDiags := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+", {"+keyword+"}]"+tc.beside+"}"))
 				if tc.code != "" {
 					require.True(t, openapitest.HasDiagCodeAt(gotDiags, tc.code, "/components/schemas/S"+tc.at),
 						"the outcome this row names; got %v", gotDiags)
@@ -136,13 +136,13 @@ func severityCodes(diags []ir.Diagnostic) []string {
 	return out
 }
 
-// TestVoices_KeptAndMetBranchesHoldAtEveryOutcome pins that what keeps a branch
+// TestAllOfBranchFolding_KeptAndMetBranchesHoldAtEveryOutcome pins that what keeps a branch
 // whole, or meets two, holds at each outcome besideTheAllOf names as it does
 // alone (docs/compilers/openapi.md#allof-inline-residue): a branch disagreeing
 // with a conjunct, or reading a $ref against another base, stays whole on each
 // Model the composition lowers to, with one report saying why and nothing it
 // writes folded, and two bounds meet there in either order.
-func TestVoices_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
+func TestAllOfBranchFolding_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	const n = "\n    N: {$id: 'https://ex.test/a/n.json', type: string}" // what `n.json` names under https://ex.test/a/
@@ -165,7 +165,7 @@ func TestVoices_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
 		for shape, outcome := range besideTheAllOf {
 			t.Run(shape+"/"+name, func(t *testing.T) {
 				t.Parallel()
-				doc, diags := parseFull(t, voicesDoc("{allOf: ["+tc.branches+"]"+outcome.beside+"}"+n))
+				doc, diags := parseFull(t, foldedBranchesDoc("{allOf: ["+tc.branches+"]"+outcome.beside+"}"+n))
 				openapitest.RequireNoErrorDiags(t, diags)
 				if outcome.code != "" {
 					require.True(t, openapitest.HasDiagCodeAt(diags, outcome.code, "/components/schemas/S"+outcome.at),
@@ -216,18 +216,18 @@ func keptBranches(m *ir.Model) []string {
 	return out
 }
 
-// TestVoices_AFalseFlagAgreesWithATrue pins the boolean annotations JSON Schema
+// TestAllOfBranchFolding_AFalseFlagAgreesWithATrue pins the boolean annotations JSON Schema
 // reads in force where any occurrence is true: a branch writing one false says
 // nothing another's true disagrees with, so both fold, in either order, and the
 // use reads the flag in force.
-func TestVoices_AFalseFlagAgreesWithATrue(t *testing.T) {
+func TestAllOfBranchFolding_AFalseFlagAgreesWithATrue(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for _, flags := range []string{"{readOnly: true}, {readOnly: false}", "{readOnly: false}, {readOnly: true}",
 		"{deprecated: false}, {deprecated: true}", "{writeOnly: false}, {writeOnly: true}"} {
 		t.Run(flags, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, voicesDoc("{allOf: ["+ref+", "+flags+"]}"))
+			doc, diags := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+", "+flags+"]}"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
@@ -238,10 +238,10 @@ func TestVoices_AFalseFlagAgreesWithATrue(t *testing.T) {
 	}
 }
 
-// TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder pins that a keyword two
+// TestAllOfBranchFolding_ABranchDisagreeingFoldsNothingInEveryOrder pins that a keyword two
 // conjuncts write differently has no winner: the keywords beside the allOf stand,
 // and each branch writing another value stays whole, whichever comes first.
-func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
+func TestAllOfBranchFolding_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for name, tc := range map[string]struct {
@@ -268,7 +268,7 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, voicesDoc(tc.schema))
+			doc, diags := parseFull(t, foldedBranchesDoc(tc.schema))
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
@@ -283,7 +283,7 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 		})
 	}
 	// A disagreeing branch folds nothing, not only the keyword it disagrees on.
-	doc, diags := parseFull(t, voicesDoc("{allOf: ["+ref+", {description: a, title: only}, {description: b}]}"))
+	doc, diags := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+", {description: a, title: only}, {description: b}]}"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
@@ -291,7 +291,7 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 	assert.Empty(t, m.Docs.Description, "no precedence chooses between two descriptions")
 }
 
-// TestVoices_BoundsMeetInEveryOrder pins value bounds two conjuncts write apart:
+// TestAllOfBranchFolding_BoundsMeetInEveryOrder pins value bounds two conjuncts write apart:
 // they meet as a redeclared field's do, each taking what they say together, in
 // either order. A writer stating no value, as a 3.0 exclusive modifier with no
 // bound beside it or one of false, parts none (GitHub #1494): both fold, and the
@@ -299,7 +299,7 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 // folds into the model a Base declaring no type composes, and a numeric bound
 // into the scalar a refinement of a number lowers to, the node of a kind that
 // takes it.
-func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
+func TestAllOfBranchFolding_BoundsMeetInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	const (
@@ -330,7 +330,7 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 		}
 	}
 
-	doc, _ := parseFull(t, voicesDoc("{maxProperties: 3, allOf: ["+ref+", {maxProperties: 5}]}"))
+	doc, _ := parseFull(t, foldedBranchesDoc("{maxProperties: 3, allOf: ["+ref+", {maxProperties: 5}]}"))
 	m, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, &ir.Constraints{MaxProps: new(int64(3))}, m.Constraints, "a bound beside the allOf meets one on a branch")
@@ -351,13 +351,13 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 	}
 }
 
-// TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch pins a value bound
+// TestAllOfBranchFolding_ABoundTheComposedModelCannotTakeKeepsItsBranch pins a value bound
 // written beside a Base declaring an object: the allOf lowers to a model, which
 // takes property counts alone, so it holds the count written beside the allOf
 // and keeps the string bound there under its keyword, and the numeric bound each
 // inline branch writes under its own, each with one info at its branch, in
 // either order of the branches (docs/compilers/openapi.md#constraints).
-func TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *testing.T) {
+func TestAllOfBranchFolding_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for _, order := range [][2]string{{"{multipleOf: 4}", "{maximum: 9}"}, {"{maximum: 9}", "{multipleOf: 4}"}} {
@@ -382,12 +382,12 @@ func TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *testing.T) {
 	}
 }
 
-// TestVoices_ARefusedBoundPartsNoWriter pins a bound beside one the rule table
+// TestAllOfBranchFolding_ARefusedBoundPartsNoWriter pins a bound beside one the rule table
 // refuses, in either order (GitHub #1494): the refused value states nothing, so
 // both branches fold, the stated bound reaches the node, and the refusal is
 // reported once, at the keyword, as it is beside the allOf. Base is a number,
 // so the node the branches fold into, a scalar over it, takes the bound.
-func TestVoices_ARefusedBoundPartsNoWriter(t *testing.T) {
+func TestAllOfBranchFolding_ARefusedBoundPartsNoWriter(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for i, order := range []string{"{exclusiveMinimum: 5}, {exclusiveMinimum: true}", "{exclusiveMinimum: true}, {exclusiveMinimum: 5}"} {
@@ -404,11 +404,11 @@ func TestVoices_ARefusedBoundPartsNoWriter(t *testing.T) {
 	}
 }
 
-// TestVoices_AgreeingConjunctsSayItOnce pins that a keyword two conjuncts write
+// TestAllOfBranchFolding_AgreeingConjunctsSayItOnce pins that a keyword two conjuncts write
 // alike is one statement: it folds, once.
-func TestVoices_AgreeingConjunctsSayItOnce(t *testing.T) {
+func TestAllOfBranchFolding_AgreeingConjunctsSayItOnce(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, voicesDoc("{description: same, example: {id: a}, allOf: ["+
+	doc, diags := parseFull(t, foldedBranchesDoc("{description: same, example: {id: a}, allOf: ["+
 		"{$ref: '#/components/schemas/Base'}, {description: same, example: {id: a}}, {description: same}]}"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, withCode(diags, diag.DegradedConstruct))
@@ -418,13 +418,13 @@ func TestVoices_AgreeingConjunctsSayItOnce(t *testing.T) {
 	assert.Len(t, m.Examples, 1)
 }
 
-// TestVoices_ANullKeywordWritesNothing pins a branch writing a keyword as null,
+// TestAllOfBranchFolding_ANullKeywordWritesNothing pins a branch writing a keyword as null,
 // which reads as the keyword left out: it disagrees with no conjunct, so what
 // another branch writes folds, in either order, as it does with the key removed.
-func TestVoices_ANullKeywordWritesNothing(t *testing.T) {
+func TestAllOfBranchFolding_ANullKeywordWritesNothing(t *testing.T) {
 	t.Parallel()
 	for _, branches := range []string{"{description: null}, {description: d}", "{description: d}, {description: null}"} {
-		doc, _ := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+branches+"]}"))
+		doc, _ := parseFull(t, foldedBranchesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+branches+"]}"))
 		m, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, branches)
 		assert.Equal(t, "d", m.Docs.Description, branches)
@@ -432,12 +432,12 @@ func TestVoices_ANullKeywordWritesNothing(t *testing.T) {
 	}
 }
 
-// TestVoices_ADisagreementIsReportedAsOne pins the words a kept branch draws: its
+// TestAllOfBranchFolding_ADisagreementIsReportedAsOne pins the words a kept branch draws: its
 // keywords have homes, so the report names the disagreement that kept them from
 // folding, in a composition and in a refinement, and says neither that the node
 // has no home nor that nothing reads it. A branch with nothing to fold keeps the
 // wording of what it does keep.
-func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
+func TestAllOfBranchFolding_ADisagreementIsReportedAsOne(t *testing.T) {
 	t.Parallel()
 	const disagreed = "the conjuncts of this allOf disagree on a keyword this inline branch writes"
 	for name, tc := range map[string]struct{ schema, unsaid string }{
@@ -485,12 +485,12 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	assert.Contains(t, kept[0].Message, "nested past the flattening depth", "a capped branch says so first")
 }
 
-// TestVoices_AnExampleRenderingNothingStillAgrees pins that a keyword renders to
+// TestAllOfBranchFolding_AnExampleRenderingNothingStillAgrees pins that a keyword renders to
 // nothing without failing: two conjuncts writing `example: null` agree, so both
 // fold, where one that cannot be rendered agrees with nothing.
-func TestVoices_AnExampleRenderingNothingStillAgrees(t *testing.T) {
+func TestAllOfBranchFolding_AnExampleRenderingNothingStillAgrees(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+
+	doc, diags := parseFull(t, foldedBranchesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+
 		"{example: null, description: d}, {example: null}]}"))
 	for _, at := range []string{"/components/schemas/S/allOf/1", "/components/schemas/S/allOf/2"} {
 		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), at)
@@ -501,22 +501,22 @@ func TestVoices_AnExampleRenderingNothingStillAgrees(t *testing.T) {
 	assert.Empty(t, m.Unmodeled)
 }
 
-// TestVoices_AValueThatWillNotRenderAgreesWithNothing pins two branches writing one
+// TestAllOfBranchFolding_AValueThatWillNotRenderAgreesWithNothing pins two branches writing one
 // value no JSON holds: neither can be shown to say what the other does, so neither
 // folds, and each is reported as the whole branch it could not keep.
-func TestVoices_AValueThatWillNotRenderAgreesWithNothing(t *testing.T) {
+func TestAllOfBranchFolding_AValueThatWillNotRenderAgreesWithNothing(t *testing.T) {
 	t.Parallel()
 	const bad = "{x-t: " + unpreservableValue + "}"
-	_, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+bad+", "+bad+"]}"))
+	_, diags := parseFull(t, foldedBranchesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+bad+", "+bad+"]}"))
 	for _, at := range []string{"/components/schemas/S/allOf/1", "/components/schemas/S/allOf/2"} {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, at), at)
 	}
 }
 
-// TestVoices_KeywordsOneEntryHoldsDisagreeAsOne pins the keywords a position keeps
+// TestAllOfBranchFolding_KeywordsOneEntryHoldsDisagreeAsOne pins the keywords a position keeps
 // in one entry: written on two branches they would overwrite each other, so they
 // are compared as the entry. The same entry written twice folds.
-func TestVoices_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
+func TestAllOfBranchFolding_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for name, branches := range map[string]string{
@@ -528,26 +528,26 @@ func TestVoices_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, _ := parseFull(t, voicesDoc("{allOf: ["+ref+", "+branches+"]}"))
+			doc, _ := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+", "+branches+"]}"))
 			m, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
 			assert.NotContains(t, m.Unmodeled, "openapi:if-then-else")
 			assert.NotContains(t, m.Unmodeled, "openapi:contains")
 		})
 	}
-	doc, diags := parseFull(t, voicesDoc("{allOf: ["+ref+", {if: {required: [a]}}, {if: {required: [a]}}]}"))
+	doc, diags := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+", {if: {required: [a]}}, {if: {required: [a]}}]}"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
 	assert.Contains(t, m.Unmodeled, "openapi:if-then-else")
 }
 
-// TestVoices_AnUnevaluatedKeywordStaysWithItsBranch pins that no unevaluated
+// TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch pins that no unevaluated
 // keyword folds: on a branch it applies to what that branch alone evaluates,
 // which beside the allOf it would not, so it stays with the branch kept whole,
 // whatever its form, whether or not the branch speaks for the position, and
 // the position keeps none of it.
-func TestVoices_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T) {
+func TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for name, branch := range map[string]string{
@@ -569,7 +569,7 @@ func TestVoices_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T) {
 		} {
 			t.Run(shape+"/"+name, func(t *testing.T) {
 				t.Parallel()
-				doc, diags := parseFull(t, voicesDoc(tc.schema))
+				doc, diags := parseFull(t, foldedBranchesDoc(tc.schema))
 				openapitest.RequireNoErrorDiags(t, diags)
 				common := typeByName(doc, "S").Common()
 				require.Contains(t, common.Unmodeled, "openapi:"+tc.at, "the branch is kept whole")
@@ -588,11 +588,11 @@ func TestVoices_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T) {
 	}
 }
 
-// TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode pins readOnly and default
+// TestAllOfBranchFolding_AUseBindingKeywordReachesItsCarrierOrItsNode pins readOnly and default
 // on a branch: a carrier holds them as beside the allOf, a union distributed across
 // it or not, and with no carrier a node the position owns keeps them verbatim,
 // reported at the keyword.
-func TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode(t *testing.T) {
+func TestAllOfBranchFolding_AUseBindingKeywordReachesItsCarrierOrItsNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {id: {type: string}}}
     A: {type: object, properties: {a: {type: string}}}
@@ -622,9 +622,9 @@ func TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Bare/allOf/1/readOnly"))
 }
 
-// TestVoices_APromotedExtensionReadsFromABranch pins a key the promotion policy
+// TestAllOfBranchFolding_APromotedExtensionReadsFromABranch pins a key the promotion policy
 // maps: on a branch it reads as it does beside the allOf.
-func TestVoices_APromotedExtensionReadsFromABranch(t *testing.T) {
+func TestAllOfBranchFolding_APromotedExtensionReadsFromABranch(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {a: {type: string}}}
     Plain: {type: string}
@@ -647,12 +647,12 @@ func TestVoices_APromotedExtensionReadsFromABranch(t *testing.T) {
 	assert.Equal(t, "gone", f.Deprecation.Message)
 }
 
-// TestVoices_AnEntrysKeywordsBesideItsRefAreAVoice pins that what an allOf
+// TestAllOfBranchFolding_AnEntrysKeywordsBesideItsRefAreAFoldedBranch pins that what an allOf
 // entry writes beside its $ref is a conjunct of the position, as an inline
 // entry is: it folds where it agrees with every other conjunct, and where it
 // disagrees neither folds and each entry is kept whole. The $ref is the Base
 // itself in both, with no node hoisted at the entry.
-func TestVoices_AnEntrysKeywordsBesideItsRefAreAVoice(t *testing.T) {
+func TestAllOfBranchFolding_AnEntrysKeywordsBesideItsRefAreAFoldedBranch(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, beside string
@@ -668,7 +668,7 @@ func TestVoices_AnEntrysKeywordsBesideItsRefAreAVoice(t *testing.T) {
 			if tc.kept != nil {
 				other = "other"
 			}
-			doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base', description: "+tc.beside+
+			doc, diags := parseFull(t, foldedBranchesDoc("{allOf: [{$ref: '#/components/schemas/Base', description: "+tc.beside+
 				"}, {title: mine, description: "+other+"}]}"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := typeByName(doc, "S").(*ir.Model)

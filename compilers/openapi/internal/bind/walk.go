@@ -17,7 +17,7 @@ import (
 // it is read at: the source's root, a position a schema $ref's hop lands on,
 // read as a schema, or one a reference object's lands on, read as its kind.
 type root struct {
-	at    Position
+	at    DocumentPointer
 	state state
 }
 
@@ -27,7 +27,7 @@ type root struct {
 // its parent is read in.
 type frame struct {
 	node    *yaml.Node
-	at      Position
+	at      DocumentPointer
 	dialect string
 	res     int32
 	state   state
@@ -42,35 +42,35 @@ type finder struct {
 	docs          *docs
 	ids           *identifiers
 	work          *work
-	sites         map[Position]bool
+	sites         map[DocumentPointer]bool
 	mappingSites  map[mappingKey]bool
 	objects       map[objectKey]bool
-	fresh         []Position
+	fresh         []DocumentPointer
 	freshMappings []mappingKey
 	freshObjects  []objectKey
 	freshDynamic  []dynamicSite
 	// freshRecursive is each $recursiveRef found since the table last settled
 	// (dynamicOf).
-	freshRecursive []Position
+	freshRecursive []DocumentPointer
 	expansions     []expansion
-	landings       map[Position]bool
+	landings       map[DocumentPointer]bool
 	// objLandings is each position a reference object's chain lands on that
 	// the grammar reads as no object of its kind (ObjectLanding).
 	objLandings map[objectKey]bool
 	// tupled is each schema the parser's model cannot hold, by the schema
 	// writing it (tupleOf).
-	tupled  map[Position]Position
+	tupled  map[DocumentPointer]DocumentPointer
 	pending []root
 	covered map[root]bool
-	roots   map[Position]state
+	roots   map[DocumentPointer]state
 }
 
 // newFinder returns a finder over docs that has found nothing, noting what the
 // documents declare in ids.
 func newFinder(d *docs, w *work, ids *identifiers) *finder {
-	return &finder{docs: d, ids: ids, work: w, sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{},
-		objects: map[objectKey]bool{}, landings: map[Position]bool{}, objLandings: map[objectKey]bool{},
-		tupled: map[Position]Position{}, covered: map[root]bool{}, roots: map[Position]state{}}
+	return &finder{docs: d, ids: ids, work: w, sites: map[DocumentPointer]bool{}, mappingSites: map[mappingKey]bool{},
+		objects: map[objectKey]bool{}, landings: map[DocumentPointer]bool{}, objLandings: map[objectKey]bool{},
+		tupled: map[DocumentPointer]DocumentPointer{}, covered: map[root]bool{}, roots: map[DocumentPointer]state{}}
 }
 
 // walk reads every position below r by the grammar, noting each schema position
@@ -129,7 +129,7 @@ func (w *finder) identify(id DocID) {
 	}
 	w.ids.read[id] = true
 	res := w.ids.document(id, resources{w.docs}.document(id))
-	stack := []frame{{node: w.docs.list[id].root, at: Position{Doc: id}, state: w.docs.identityState(id), res: res,
+	stack := []frame{{node: w.docs.list[id].root, at: DocumentPointer{Doc: id}, state: w.docs.identityState(id), res: res,
 		dialect: defaultDialect(w.docs, id)}}
 	for len(stack) > 0 && w.work.spend(1) {
 		f := stack[len(stack)-1]
@@ -240,7 +240,7 @@ func (w *finder) tupleOf(n *yaml.Node, f frame) {
 // dynamicSite is a $dynamicRef: where it is written, its value, and whether a
 // $ref is written beside it, which is then the schema's reference.
 type dynamicSite struct {
-	at     Position
+	at     DocumentPointer
 	value  string
 	beside bool
 }
@@ -249,7 +249,7 @@ type dynamicSite struct {
 // names, which it reaches as a $ref reaches what it names: the one anchor of a
 // $dynamicRef's name, or the root of a $recursiveRef's resource.
 type expansion struct {
-	from, to Position
+	from, to DocumentPointer
 }
 
 // dynamicOf notes the dynamic reference the schema at f, holding n and read in
@@ -274,7 +274,7 @@ func (w *finder) dynamicOf(n *yaml.Node, f frame) {
 
 // landOn notes h, the hop the dynamic reference written at from takes to what
 // it names, as a $ref's would be (landed).
-func (w *finder) landOn(from Position, h Hop) {
+func (w *finder) landOn(from DocumentPointer, h Hop) {
 	w.landed(h)
 	w.expansions = append(w.expansions, expansion{from: from, to: h.Target})
 }
@@ -284,8 +284,8 @@ func (w *finder) landOn(from Position, h Hop) {
 // a URI reference, with a fragment or without, as OpenAPI reads a value naming
 // no schema. The parser reads none (docs/parser-library.md#mapping-unresolved),
 // so each is bound here.
-func (w *finder) mappingsOf(n *yaml.Node, at Position) {
-	disc := Position{Doc: at.Doc, Pointer: at.Pointer.AppendToken("discriminator")}
+func (w *finder) mappingsOf(n *yaml.Node, at DocumentPointer) {
+	disc := DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.AppendToken("discriminator")}
 	for _, v := range mappingValues(w.docs.list[at.Doc].view, n) {
 		if w.docs.components[v.Value] {
 			continue
@@ -360,8 +360,8 @@ func (w *finder) refsOnly(n *yaml.Node, f frame) bool {
 }
 
 // below is the position token names under p.
-func (p Position) below(token string) Position {
-	return Position{Doc: p.Doc, Pointer: p.Pointer.AppendToken(token)}
+func (p DocumentPointer) below(token string) DocumentPointer {
+	return DocumentPointer{Doc: p.Doc, Pointer: p.Pointer.AppendToken(token)}
 }
 
 // landed notes the root a resolved hop gives a walk, and, where the model
@@ -376,7 +376,7 @@ func (w *finder) landed(h Hop) {
 // landedObject notes the root a reference object's hop of kind gives a walk,
 // its target at, and, where the grammar reads no object of kind there (raw),
 // an object landing the load phase builds one for.
-func (w *finder) landedObject(at Position, kind RefKind, raw bool) {
+func (w *finder) landedObject(at DocumentPointer, kind RefKind, raw bool) {
 	w.pending = append(w.pending, root{at: at, state: kind.state()})
 	if raw {
 		w.objLandings[objectKey{at: at, kind: kind}] = true
@@ -410,7 +410,7 @@ func (w *finder) walkPending() bool {
 
 // mappingKey is a mapping value and the discriminator writing it.
 type mappingKey struct {
-	at    Position
+	at    DocumentPointer
 	value string
 }
 
@@ -426,7 +426,7 @@ func (b *binder) mapping(k mappingKey) (Mapping, bool) {
 	}
 	if m.Hop.Status != Resolved {
 		m.Chain = Chain{Status: m.Hop.Status}
-		if m.Hop.Reason == Held {
+		if m.Hop.Reason == PendingExternalDocumentRead {
 			b.wait.heldMappings = append(b.wait.heldMappings, k)
 			return m, true
 		}

@@ -58,15 +58,15 @@ func TestSameResource_SaysWhyTwoPositionsMayLieInTwo(t *testing.T) {
 		{"/components/schemas/Deep", "/components/schemas/Plain", "may hide an identifier"},
 		{"/components/schemas/Plain", "/components/schemas/Deep", "may hide an identifier"},
 	} {
-		why, ok := sameResource(l.Ctx, bind.Position{Pointer: tc.from}, bind.Position{Pointer: tc.at})
+		why, ok := sameResource(l.Ctx, bind.DocumentPointer{Pointer: tc.from}, bind.DocumentPointer{Pointer: tc.at})
 		assert.Equal(t, tc.want == "", ok, "%s %s", tc.from, tc.at)
 		assert.Contains(t, why, tc.want, "%s %s", tc.from, tc.at)
 	}
 	two, diags := LoweredFor(t, openapitest.ComponentSpec("    A: {$id: 'https://x.test/a', $defs: {d: {}}}\n"+
 		"    B: {$id: 'https://x.test/b', $defs: {d: {}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	_, ok := sameResource(two.Ctx, bind.Position{Pointer: "/components/schemas/A/$defs/d"},
-		bind.Position{Pointer: "/components/schemas/B/$defs/d"})
+	_, ok := sameResource(two.Ctx, bind.DocumentPointer{Pointer: "/components/schemas/A/$defs/d"},
+		bind.DocumentPointer{Pointer: "/components/schemas/B/$defs/d"})
 	assert.False(t, ok, "two resources an $id each starts are two")
 }
 
@@ -129,7 +129,7 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 					"the fixture must set up the case it is named for")
 			}
 
-			next, hops := dynamicHop(l.Ctx, bind.Position{Pointer: tc.at})
+			next, hops := dynamicHop(l.Ctx, bind.DocumentPointer{Pointer: tc.at})
 
 			assert.Equal(t, tc.wantNext != "", hops)
 			assert.Equal(t, tc.wantNext, next.Pointer)
@@ -149,7 +149,7 @@ func TestResolvesAt_AnswersAsResolvePointerDoes(t *testing.T) {
 		require.NoError(t, err)
 		l, _ := LoweredFor(t, string(data))
 		table := l.Ctx.Bindings().Table()
-		positions := []bind.Position{}
+		positions := []bind.DocumentPointer{}
 		for _, landing := range table.Landings() {
 			positions = append(positions, landing.At)
 		}
@@ -191,12 +191,12 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 	assert.ElementsMatch(t, []jsontext.Pointer{"/components/schemas/Deep/properties/p/items",
 		"/components/schemas/Deep/allOf/0/not"}, unresolved, "%+v", diags)
 	at := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
-		js := l.Ctx.Bindings().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name + "/properties/p")})
+		js := l.Ctx.Bindings().At(bind.DocumentPointer{Pointer: jsontext.Pointer("/components/schemas/" + name + "/properties/p")})
 		require.NotNil(t, js, name)
 		return js
 	}
 	branch := func(name string) allOfBranch {
-		s := l.Ctx.Statements().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name)}).Schema
+		s := l.Ctx.Statements().At(bind.DocumentPointer{Pointer: jsontext.Pointer("/components/schemas/" + name)}).Schema
 		return allOfBranches(l.Ctx, s, "").branches[0]
 	}
 	prov := func(name string) ir.Provenance {
@@ -217,8 +217,8 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 // identifier would change, and elsewhere, where it is.
 func TestUnresolvedRoot_SaysWhatHoldsNoSchema(t *testing.T) {
 	t.Parallel()
-	assert.Contains(t, unresolvedRoot(bind.Position{}), "under an identifier of its own")
-	assert.Equal(t, `"#" names "/x", where no schema could be built`, unresolvedRoot(bind.Position{Doc: 1, Pointer: "/x"}))
+	assert.Contains(t, unresolvedRoot(bind.DocumentPointer{}), "under an identifier of its own")
+	assert.Equal(t, `"#" names "/x", where no schema could be built`, unresolvedRoot(bind.DocumentPointer{Doc: 1, Pointer: "/x"}))
 }
 
 // TestResolvesAt_ResolvesNothingInADocumentTheCompileDidNotRead pins the verdict
@@ -233,7 +233,7 @@ func TestResolvesAt_ResolvesNothingInADocumentTheCompileDidNotRead(t *testing.T)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	read := LowererOver(service.New(0, doc, service.Policy{}))
-	e, ok := read.Ctx.Bindings().Table().Entry(bind.Position{Pointer: "/components/schemas/A"})
+	e, ok := read.Ctx.Bindings().Table().Entry(bind.DocumentPointer{Pointer: "/components/schemas/A"})
 	require.True(t, ok)
 	require.True(t, resolvesAt(read.Ctx, e.Hop.Target), "sanity: the document the compile read resolves")
 	none := *doc

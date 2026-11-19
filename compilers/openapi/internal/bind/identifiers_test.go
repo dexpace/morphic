@@ -37,7 +37,7 @@ func recordingDocuments(t *testing.T, docs map[string]string) (bind.Config, *[]s
 }
 
 // docNamed returns the ID the table gives the document named name.
-func docNamed(t *testing.T, table *bind.Table, name string) bind.DocID {
+func docNamed(t *testing.T, table *bind.ReferenceTargetTable, name string) bind.DocID {
 	t.Helper()
 	for id := range bind.DocID(table.Documents()) {
 		if table.Document(id).Name == name {
@@ -99,7 +99,7 @@ func TestBind_ReadsWhatAnotherDocumentDeclares(t *testing.T) {
 					continue
 				}
 				require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-				assert.Equal(t, bind.Position{Doc: docNamed(t, table, "o.yaml"), Pointer: tc.want}, e.Hop.Target)
+				assert.Equal(t, bind.DocumentPointer{Doc: docNamed(t, table, "o.yaml"), Pointer: tc.want}, e.Hop.Target)
 			}
 		})
 	}
@@ -116,10 +116,10 @@ func TestBind_ReadsBelowAnIDOfAnotherDocument(t *testing.T) {
 		withDocuments(map[string]string{"o.yaml": other}))
 	doc := docNamed(t, table, "o.yaml")
 	for _, site := range []jsontext.Pointer{"/Pet/properties/a", "/Pet/properties/b"} {
-		e, ok := table.Entry(bind.Position{Doc: doc, Pointer: site})
+		e, ok := table.Entry(bind.DocumentPointer{Doc: doc, Pointer: site})
 		require.True(t, ok, site)
 		require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-		assert.Equal(t, bind.Position{Doc: doc, Pointer: "/Pet/$defs/Tag"}, e.Hop.Target)
+		assert.Equal(t, bind.DocumentPointer{Doc: doc, Pointer: "/Pet/$defs/Tag"}, e.Hop.Target)
 	}
 }
 
@@ -137,7 +137,7 @@ func TestBind_AnIDNamingItsDocumentReturnsToIt(t *testing.T) {
 	a := entryAt(t, table, "/components/schemas/A")
 	require.Equal(t, bind.Resolved, a.Hop.Status, a.Hop.Why())
 	doc := docNamed(t, table, "https://x.test/o.yaml")
-	assert.Equal(t, bind.Position{Doc: doc, Pointer: "/Outer/properties/back/properties/leaf"}, a.Hop.Target)
+	assert.Equal(t, bind.DocumentPointer{Doc: doc, Pointer: "/Outer/properties/back/properties/leaf"}, a.Hop.Target)
 	assert.Equal(t, bind.NoAnchor, entryAt(t, table, "/components/schemas/B").Hop.Reason)
 }
 
@@ -185,7 +185,7 @@ func TestBind_AHeldDocumentMayDeclareAnothersURI(t *testing.T) {
 		table := bound(t, head+"components:\n  schemas:\n"+schemas, cfg)
 		assert.Equal(t, []string{"https://x.test/u1", "https://x.test/u2"}, *reads)
 		u1 := docNamed(t, table, "https://x.test/u1")
-		assert.Equal(t, bind.Position{Doc: u1, Pointer: "/S"}, entryAt(t, table, "/components/schemas/B").Hop.Target)
+		assert.Equal(t, bind.DocumentPointer{Doc: u1, Pointer: "/S"}, entryAt(t, table, "/components/schemas/B").Hop.Target)
 		assert.True(t, table.Document(docNamed(t, table, "https://x.test/u2")).Unreached)
 	}
 }
@@ -222,7 +222,7 @@ func TestBind_ALocationADocumentDeclaresIsThatIdentifier(t *testing.T) {
 
 	e := entryAt(t, table, "/components/schemas/A")
 	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, bind.Position{Doc: docNamed(t, table, "/z.yaml"), Pointer: "/S/$defs/T"}, e.Hop.Target)
+	assert.Equal(t, bind.DocumentPointer{Doc: docNamed(t, table, "/z.yaml"), Pointer: "/S/$defs/T"}, e.Hop.Target)
 	assert.True(t, table.Document(docNamed(t, table, "/a.yaml")).Unreached)
 	assert.False(t, table.Document(docNamed(t, table, "/z.yaml")).Unreached)
 }
@@ -238,7 +238,7 @@ func TestBind_TheSourceDeclaresOnceWhateverThePasses(t *testing.T) {
 		"    H: {$anchor: here, type: string}\n    A: {$ref: 'https://x.test/s'}\n    B: {$ref: '#here'}\n"+
 		"    O: {$ref: 'o.yaml#/T'}\n    C: {$ref: 'https://x.test/t'}\n", cfg)
 
-	for site, want := range map[jsontext.Pointer]bind.Position{
+	for site, want := range map[jsontext.Pointer]bind.DocumentPointer{
 		"/components/schemas/A": {Doc: bind.Source, Pointer: "/components/schemas/S"},
 		"/components/schemas/B": {Doc: bind.Source, Pointer: "/components/schemas/H"},
 		"/components/schemas/C": {Doc: docNamed(t, table, "o.yaml"), Pointer: "/T"},
@@ -277,7 +277,7 @@ func TestBind_ADocumentNoPassReachesDeclaresNothing(t *testing.T) {
 
 		e := entryAt(t, table, "/components/schemas/U")
 		require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-		assert.Equal(t, bind.Position{Doc: docNamed(t, table, "/z.yaml"), Pointer: "/S/$defs/V"}, e.Hop.Target)
+		assert.Equal(t, bind.DocumentPointer{Doc: docNamed(t, table, "/z.yaml"), Pointer: "/S/$defs/V"}, e.Hop.Target)
 		assert.True(t, table.Document(docNamed(t, table, "/a.yaml")).Unreached)
 		assert.False(t, table.Truncated(), "a merge past the bound where nothing is reached decides nothing")
 	}
@@ -354,7 +354,7 @@ func TestBind_ADocumentOnlyAnIdentifierReachesIsReached(t *testing.T) {
 	doc := docNamed(t, table, "/a.yaml")
 	e := entryAt(t, table, "/components/schemas/U")
 	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, bind.Position{Doc: doc, Pointer: "/S"}, e.Hop.Target)
+	assert.Equal(t, bind.DocumentPointer{Doc: doc, Pointer: "/S"}, e.Hop.Target)
 	assert.False(t, table.Document(doc).Unreached)
 }
 
@@ -397,7 +397,7 @@ func TestBind_DeclarationOrderReachesNoAnswer(t *testing.T) {
 func TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames(t *testing.T) {
 	t.Parallel()
 	const entry = "    E: {$ref: 'o.yaml#/E'}\n"
-	landed := func(t *testing.T, other string) (*bind.Table, bind.DocID, []jsontext.Pointer) {
+	landed := func(t *testing.T, other string) (*bind.ReferenceTargetTable, bind.DocID, []jsontext.Pointer) {
 		t.Helper()
 		table := bound(t, head+"components:\n  schemas:\n"+entry, withDocuments(map[string]string{"o.yaml": other}))
 		doc := docNamed(t, table, "o.yaml")
@@ -415,10 +415,10 @@ func TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames(t *testing.T) {
 	for _, l := range table.Landings() {
 		if l.At.Pointer == "/T" {
 			assert.True(t, l.Reached, "the expansion reaches it, so what reads a reached schema reads it")
-			assert.Equal(t, bind.Position{Doc: doc, Pointer: "/E"}, l.Site)
+			assert.Equal(t, bind.DocumentPointer{Doc: doc, Pointer: "/E"}, l.Site)
 		}
 	}
-	e, ok := table.Entry(bind.Position{Doc: doc, Pointer: "/T/properties/p"})
+	e, ok := table.Entry(bind.DocumentPointer{Doc: doc, Pointer: "/T/properties/p"})
 	require.True(t, ok, "what the anchor's schema holds is read")
 	assert.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
 
@@ -485,7 +485,7 @@ func TestDynamicAnchor_ANullAnchorNamesNothing(t *testing.T) {
 	table := bound(t, head+"components:\n  schemas:\n    A: {$dynamicAnchor: null}\n    B: {$dynamicAnchor: ~}\n"+
 		"    C: {$dynamicAnchor: Null}\n    D: {$dynamicAnchor: }\n    E: {$dynamicAnchor: \"null\"}\n", self)
 	want := map[string]bind.DynamicAnchor{
-		"null": {Site: bind.Position{Doc: bind.Source, Pointer: "/components/schemas/E"}, Count: 1, Complete: true},
+		"null": {Site: bind.DocumentPointer{Doc: bind.Source, Pointer: "/components/schemas/E"}, Count: 1, Complete: true},
 		"Null": {Complete: true},
 	}
 	for name, anchor := range want {
@@ -530,7 +530,7 @@ func TestDynamicAnchor_SaysWhenTheCountProvesNothing(t *testing.T) {
 	e := entryAt(t, bound(t, anchoredPastTheBound()+"    C: {$ref: '#ghost'}\n", self), "/components/schemas/C")
 	assert.Equal(t, bind.MergeBound, e.Hop.Reason, "a name none declares may be past the bound")
 
-	var none *bind.Table
+	var none *bind.ReferenceTargetTable
 	assert.Equal(t, bind.DynamicAnchor{Complete: true}, none.DynamicAnchor(bind.Source, "t"))
 }
 
@@ -544,7 +544,7 @@ func TestResource_NamesTheRootOfAPositionsResource(t *testing.T) {
 	t.Parallel()
 	table := resourcesTable(t)
 	doc := docNamed(t, table, "o.yaml")
-	for p, want := range map[bind.Position]bind.Position{
+	for p, want := range map[bind.DocumentPointer]bind.DocumentPointer{
 		{Pointer: "/components/schemas/P/properties/q"}:    {},
 		{Pointer: "/components/schemas/I"}:                 {Pointer: "/components/schemas/I"},
 		{Pointer: "/components/schemas/I/properties/q"}:    {Pointer: "/components/schemas/I"},
@@ -558,15 +558,15 @@ func TestResource_NamesTheRootOfAPositionsResource(t *testing.T) {
 		assert.True(t, known, p.Pointer)
 		assert.Equal(t, want, root, p.Pointer)
 	}
-	root, known := (*bind.Table)(nil).Resource(bind.Position{Doc: doc, Pointer: "/a"})
-	assert.Equal(t, bind.Position{Doc: doc}, root)
+	root, known := (*bind.ReferenceTargetTable)(nil).Resource(bind.DocumentPointer{Doc: doc, Pointer: "/a"})
+	assert.Equal(t, bind.DocumentPointer{Doc: doc}, root)
 	assert.True(t, known)
 }
 
 // resourcesTable binds the resource tests' fixture: schemas whose $id starts a
 // resource, names its document or is no schema's, and raw YAML holding one, in
 // the source and in a document of schemas.
-func resourcesTable(t *testing.T) *bind.Table {
+func resourcesTable(t *testing.T) *bind.ReferenceTargetTable {
 	t.Helper()
 	return bound(t, head+"x-e: {$id: 'https://x.test/e', k: {type: string}}\ncomponents:\n  schemas:\n"+
 		"    P: {properties: {$id: {type: string}, q: {type: string}}}\n"+
@@ -585,7 +585,7 @@ func TestBase_ReadsTheURIAReferenceResolvesAgainst(t *testing.T) {
 	table := resourcesTable(t)
 	doc := docNamed(t, table, "o.yaml")
 	source, other := table.Document(bind.Source).Name, table.Document(doc).Name
-	for p, want := range map[bind.Position]string{
+	for p, want := range map[bind.DocumentPointer]string{
 		{Pointer: "/components/schemas/P/properties/q"}:    source,
 		{Pointer: "/components/schemas/I"}:                 "https://x.test/i",
 		{Pointer: "/components/schemas/I/properties/q"}:    "https://x.test/i",
@@ -599,7 +599,7 @@ func TestBase_ReadsTheURIAReferenceResolvesAgainst(t *testing.T) {
 		assert.True(t, known, p.Pointer)
 		assert.Equal(t, want, base, p.Pointer)
 	}
-	base, known := (*bind.Table)(nil).Base(bind.Position{})
+	base, known := (*bind.ReferenceTargetTable)(nil).Base(bind.DocumentPointer{})
 	assert.Empty(t, base)
 	assert.False(t, known)
 
@@ -654,23 +654,23 @@ func TestRecursiveAnchor_CountsWhatADocumentDeclares(t *testing.T) {
 		"/components/schemas/I/properties/p": true, "/components/schemas/F": false, "/components/schemas/S": false,
 		"/components/schemas/N": false, "/components/schemas/D7": false, "/components/schemas/Z": false,
 	} {
-		declared, _, known := table.RecursiveAnchor(bind.Position{Pointer: at})
+		declared, _, known := table.RecursiveAnchor(bind.DocumentPointer{Pointer: at})
 		assert.Equal(t, want, declared, at)
 		assert.True(t, known)
 	}
-	_, reached, _ := table.RecursiveAnchor(bind.Position{Pointer: "/components/schemas/I"})
+	_, reached, _ := table.RecursiveAnchor(bind.DocumentPointer{Pointer: "/components/schemas/I"})
 	assert.True(t, reached, "I's resource is nested in the document's, which holds a declaration")
-	_, reached, _ = table.RecursiveAnchor(bind.Position{})
+	_, reached, _ = table.RecursiveAnchor(bind.DocumentPointer{})
 	assert.False(t, reached, "no other resource holding one reaches the document's")
 
 	past := strings.Replace(anchoredPastTheBound(), "    A: {$dynamicAnchor: t}\n",
 		"    A: {$schema: "+d2019+", $recursiveAnchor: true}\n", 1)
-	declared, _, known := bound(t, past, recursive).RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
+	declared, _, known := bound(t, past, recursive).RecursiveAnchor(bind.DocumentPointer{Pointer: "/components/schemas/A"})
 	assert.True(t, declared)
 	assert.False(t, known, "a schema past the bound may declare a second")
 
-	var none *bind.Table
-	declared, reached, known = none.RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
+	var none *bind.ReferenceTargetTable
+	declared, reached, known = none.RecursiveAnchor(bind.DocumentPointer{Pointer: "/components/schemas/A"})
 	assert.False(t, declared)
 	assert.False(t, reached)
 	assert.True(t, known)

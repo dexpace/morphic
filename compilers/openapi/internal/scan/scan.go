@@ -189,7 +189,7 @@ func scanRecovered(whole ir.Provenance, scan func() []ir.Diagnostic) []ir.Diagno
 // The index must cover the whole tree that reaches the parser: an alias to an
 // ancestor shows only from the root. surplus is the alias budget, which no
 // guard of yaml.v3's enforces on a node decode (GitHub #479).
-func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Index,
+func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Measurements,
 	surplus, maxBytes budget.Limit,
 ) []ir.Diagnostic {
 	return scanRecovered(whole, func() []ir.Diagnostic {
@@ -214,7 +214,7 @@ func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx
 // and having refused those makes the alias graph a DAG above the index's
 // tracked depth. One below it is the weigh walk's to end, by its cut, so the
 // walk terminates on its own account.
-func anchorCycle(ctx context.Context, tree provenance.Tree, idx sourceindex.Index) (ir.Diagnostic, bool) {
+func anchorCycle(ctx context.Context, tree provenance.Tree, idx sourceindex.Measurements) (ir.Diagnostic, bool) {
 	cycles := idx.AnchorCycles()
 	if len(cycles) == 0 {
 		return ir.Diagnostic{}, false

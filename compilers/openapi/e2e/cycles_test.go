@@ -739,7 +739,7 @@ func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 
 // scanIndex decodes a spec and indexes it, which is what load hands the scan
 // once the compile's one decode has run.
-func scanIndex(t *testing.T, src string) sourceindex.Index {
+func scanIndex(t *testing.T, src string) sourceindex.Measurements {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))

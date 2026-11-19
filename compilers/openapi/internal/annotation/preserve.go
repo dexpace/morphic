@@ -146,7 +146,7 @@ func validationOnlyMessage(label string) string {
 // CopyEntriesInto writes onto p a copy of each entry of src, its value cloned,
 // for a reader keeping one set of entries on several carriers. Unlike
 // MergeUnmodeled it never replaces an entry p holds: that one stays, and the
-// entry from src is reported missing from p (diag.UnknownKeyEntryTaken), in
+// entry from src is reported missing from p (diag.UnknownKeyEntryAlreadyClaimed), in
 // key order as the census reports. Another carrier may hold it, so the finding
 // does not say the IR lacks it.
 func CopyEntriesInto(p *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic {
@@ -177,7 +177,7 @@ func CopyEntriesInto(p *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic {
 // already holds its key. Unlike occupiedEntryDiag it claims no loss from the IR,
 // since the other carriers the entry is copied onto may hold it.
 func refusedCopyDiag(entry string, at ir.Provenance, held jsontext.Pointer) ir.Diagnostic {
-	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryTaken, at,
+	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryAlreadyClaimed, at,
 		"%s is already held by the construct at %q, so the node holding that construct keeps no copy of this one",
 		entry, held)
 }
@@ -195,18 +195,18 @@ func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 }
 
 // underlay is what Read knows of the entries it merged: those the site's own
-// schema keeps (own), and those only a voice kept whole wrote (filled).
+// schema keeps (own), and those only a folded branch kept whole wrote (filled).
 type underlay struct {
 	own, filled map[string]bool
 }
 
-// add adds to dst each entry of src, one voice's, it lacks, walking src alone:
-// overlaying the site's map on each voice would cost it all those before it.
-// An entry own keeps stays its. A voice kept whole is no writer of what it
-// folds, which its branch holds: it fills a key no other voice writes, which
-// the first voice kept apart writing it takes. One two voices kept apart write,
-// alike, as voices agree, is no one writer's, so it takes site, and no order of
-// the voices decides where it points
+// add adds to dst each entry of src, one folded branch's, it lacks, walking src
+// alone so no branch pays for those before it. An entry own keeps stays its. A
+// folded branch kept whole is no writer of what it folds, which its branch holds:
+// it fills a key no other folded branch writes, which the first folded branch kept
+// apart writing it takes. One that two folded branches kept apart write alike, as
+// folded branches agree, is no one writer's, so it takes site, and no order of the
+// folded branches decides where it points
 // (docs/compilers/openapi.md#allof-inline-residue).
 func (u *underlay) add(dst, src ir.Unmodeled, whole bool, site ir.Provenance) ir.Unmodeled {
 	if dst == nil && len(src) > 0 {
@@ -232,7 +232,7 @@ func (u *underlay) add(dst, src ir.Unmodeled, whole bool, site ir.Provenance) ir
 	return dst
 }
 
-// fill marks keyword as written by a voice kept whole alone.
+// fill marks keyword as written by a folded branch kept whole alone.
 func (u *underlay) fill(keyword string) {
 	if u.filled == nil {
 		u.filled = map[string]bool{}

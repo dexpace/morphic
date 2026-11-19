@@ -35,7 +35,7 @@ func hierarchyOf(n int) *ir.Document {
 // measures the process.
 func TestIndex_AWalkedQuestionAllocatesNothing(t *testing.T) {
 	doc := hierarchyOf(50)
-	var kept *irfacts.Index // an Index left unused is inlined onto the stack and measures nothing
+	var kept *irfacts.DocumentFacts // an Index left unused is inlined onto the stack and measures nothing
 	construction := testing.AllocsPerRun(10, func() { kept = irfacts.New(doc) })
 	require.NotNil(t, kept)
 

@@ -70,7 +70,7 @@ func TestResolvePointer_PromisesWhatItNames(t *testing.T) {
 
 	id, ok := resolvePointer(l.Ctx, l.Types, deepPointer, Standalone(object))
 	require.True(t, ok)
-	assert.Equal(t, ids.Document{}.AnonType(deepPointer), id)
+	assert.Equal(t, ids.DocumentIDNamespace{}.AnonType(deepPointer), id)
 	_, built := l.Types.Lookup(deepPointer)
 	assert.False(t, built, "the reference builds nothing itself")
 
@@ -105,7 +105,7 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 
 	assert.Empty(t, hoistSubSchema(l.Ctx, l.Types, Standalone(object), deepPointer), "an object body hoists cleanly")
 	seeded, _ := l.Types.Lookup(deepPointer)
-	assert.Equal(t, ids.Document{}.AnonType(deepPointer), seeded)
+	assert.Equal(t, ids.DocumentIDNamespace{}.AnonType(deepPointer), seeded)
 	td, ok := l.Types.NodeAt(deepPointer)
 	require.True(t, ok)
 	assert.Equal(t, ir.KindModel, td.Kind(), "the body's own node, not an alias over it")
@@ -122,8 +122,8 @@ func unheldLowerer(t *testing.T) *Lowerer {
 	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	a, ok := doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
-	bd.Schema(a, bind.Position{Pointer: "/components/schemas/A"})
-	return LowererOver(service.New(0, &load.Document{Doc: doc, Bindings: bd.Bindings()}, service.Policy{}))
+	bd.Schema(a, bind.DocumentPointer{Pointer: "/components/schemas/A"})
+	return LowererOver(service.New(0, &load.LoadedOpenAPIDocument{Doc: doc, Bindings: bd.Bindings()}, service.Policy{}))
 }
 
 // TestRefSpelling_ASchemaWritingNoReferenceSpellsAnEmptyOne pins refSpelling's

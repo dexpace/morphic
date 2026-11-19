@@ -46,7 +46,7 @@ type textOf struct {
 // writtenText renders js, nil where it cannot be rendered. Every position
 // restating a shared schema asks, so it is rendered once a run.
 func writtenText(c lowering.Ctx, js *statement.Statement) ir.RawValue {
-	return lowering.Remembered(c, textOf{js}, func() ir.RawValue {
+	return lowering.ReadOncePerRun(c, textOf{js}, func() ir.RawValue {
 		raw, err := annotation.RawFromNode(js.Node)
 		if err != nil {
 			return nil

@@ -34,7 +34,7 @@ func TestSites_ListEveryObjectAroundTheMetadata(t *testing.T) {
 		scope string
 		owner jsontext.Pointer
 	}
-	all := sites(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
+	all := sites(service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{}))
 	got := make([]keyed, 0, len(all))
 	for _, s := range all {
 		got = append(got, keyed{s.scope, s.owner})

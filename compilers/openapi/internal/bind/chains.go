@@ -15,9 +15,9 @@ import (
 // followed twice however many share it (GitHub #903). It reports waits, and
 // remembers nothing, where the chain meets a hop held for documents the pass
 // has yet to read, or a position whose chain does (waits).
-func (b *binder) chain(site Position) (Chain, bool) {
-	var path []Position
-	on := map[Position]int{}
+func (b *binder) chain(site DocumentPointer) (Chain, bool) {
+	var path []DocumentPointer
+	on := map[DocumentPointer]int{}
 	end, waits := b.follow(site, &path, on)
 	if waits {
 		for _, p := range path {
@@ -27,7 +27,7 @@ func (b *binder) chain(site Position) (Chain, bool) {
 	}
 	// closeLoop settled a loop's members and took them off path, so every
 	// position left on it leads into what end is.
-	end.Member = false
+	end.PositionLiesOnReferenceCycle = false
 	for _, p := range slices.Backward(path) {
 		if end.Status == Resolved {
 			end.Hops++
@@ -41,7 +41,7 @@ func (b *binder) chain(site Position) (Chain, bool) {
 // before, a position already on path, which closes a loop, or a hop that ends
 // it, and returns the answer for the last position left on path's successor,
 // or reports that it waits (chain).
-func (b *binder) follow(p Position, path *[]Position, on map[Position]int) (Chain, bool) {
+func (b *binder) follow(p DocumentPointer, path *[]DocumentPointer, on map[DocumentPointer]int) (Chain, bool) {
 	for {
 		if c, done := b.chains[p]; done {
 			return c, false
@@ -62,7 +62,7 @@ func (b *binder) follow(p Position, path *[]Position, on map[Position]int) (Chai
 		*path = append(*path, p)
 		switch {
 		case h.Status != Resolved:
-			return Chain{Status: Unresolved}, h.Reason == Held
+			return Chain{Status: Unresolved}, h.Reason == PendingExternalDocumentRead
 		case !b.holdsRef(h.Target):
 			return Chain{Status: Resolved, End: h.Target}, false
 		}
@@ -78,13 +78,13 @@ func (b *binder) follow(p Position, path *[]Position, on map[Position]int) (Chai
 // is followed again once nothing is held (release), once between reads
 // (released), so a chain of held documents is followed once.
 type waits struct {
-	on           map[Position]bool
+	on           map[DocumentPointer]bool
 	onObjects    map[objectKey]bool
-	sites        map[Position]bool
+	sites        map[DocumentPointer]bool
 	mappings     map[mappingKey]bool
 	objects      map[objectKey]bool
-	held         []Position
-	heldObjects  []Position
+	held         []DocumentPointer
+	heldObjects  []DocumentPointer
 	heldMappings []mappingKey
 	released     bool
 	// declaring is each document read and not yet reached whose declaration
@@ -96,7 +96,7 @@ type waits struct {
 
 // newWaits returns a pass's deferrals, holding none.
 func newWaits() *waits {
-	return &waits{on: map[Position]bool{}, onObjects: map[objectKey]bool{}, sites: map[Position]bool{},
+	return &waits{on: map[DocumentPointer]bool{}, onObjects: map[objectKey]bool{}, sites: map[DocumentPointer]bool{},
 		mappings: map[mappingKey]bool{}, objects: map[objectKey]bool{}}
 }
 
@@ -104,7 +104,7 @@ func newWaits() *waits {
 // reference object in f to settle again, now the documents they wait for are
 // read. A held position waits no longer, so its own chain reads its hop again;
 // one that leads to it waits on until release.
-func (w *waits) requeue(f *finder, hops map[Position]Hop, objHops map[Position]objectHop) {
+func (w *waits) requeue(f *finder, hops map[DocumentPointer]Hop, objHops map[DocumentPointer]objectHop) {
 	for _, p := range w.held {
 		delete(hops, p)
 		delete(w.on, p)
@@ -155,7 +155,7 @@ func (w *waits) release(f *finder) bool {
 // holdsRef reports whether p writes a $ref of its own, which a chain landing
 // there follows on, or a $dynamicRef that is the $ref it spells, or may be
 // once the document its hop waits for is read (namesDynamic).
-func (b *binder) holdsRef(p Position) bool {
+func (b *binder) holdsRef(p DocumentPointer) bool {
 	// Only a hop's target is asked, a position its document holds, so the path
 	// reaches it.
 	path, _ := b.docs.path(p)
@@ -172,11 +172,11 @@ func (b *binder) holdsRef(p Position) bool {
 }
 
 // closeLoop records members as a loop, each settled as its member.
-func (b *binder) closeLoop(members []Position) {
+func (b *binder) closeLoop(members []DocumentPointer) {
 	sorted := slices.SortedFunc(slices.Values(members), b.docs.compare)
 	b.loops = append(b.loops, Loop{Members: sorted})
 	for _, m := range members {
-		b.chains[m] = Chain{Status: Cyclic, Member: true}
+		b.chains[m] = Chain{Status: Cyclic, PositionLiesOnReferenceCycle: true}
 	}
 }
 

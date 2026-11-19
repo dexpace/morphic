@@ -59,11 +59,11 @@ func exampleObject() Object {
 		Fields: []Field{
 			field("summary", String, c(V30, "Short description for the example.")),
 			field("description", String, c(V30, "Long description for the example.")),
-			field("dataValue", Any, c(V32, "An example of the data structure that MUST be valid according to the relevant")).
+			field("dataValue", AnyShapeUnchecked, c(V32, "An example of the data structure that MUST be valid according to the relevant")).
 				during(From(V32)),
 			field("serializedValue", String, c(V32, "An example of the serialized form of the value")).during(From(V32)),
 			field("externalValue", String, c(V30, "A URL that points to the literal example.")).formatted(URI),
-			field("value", Any, c(V30, "Embedded literal example.")),
+			field("value", AnyShapeUnchecked, c(V30, "Embedded literal example.")),
 		},
 		Rules: exampleRules(c),
 	}
@@ -91,7 +91,7 @@ func linkObject() Object {
 			field("operationRef", String, c(V30, "A URI reference to an OAS operation.")).formatted(URI),
 			field("operationId", String, c(V30, "The name of an _existing_, resolvable OAS operation")),
 			field("parameters", RawMap, c(V30, "A map representing parameters to pass to an operation")),
-			field("requestBody", Any, c(V30, "A literal value or [{expression}](#runtime-expressions) to use as a request body")),
+			field("requestBody", AnyShapeUnchecked, c(V30, "A literal value or [{expression}](#runtime-expressions) to use as a request body")),
 			field("description", String, c(V30, "A description of the link.")),
 			objectOf("server", Server, c(V30, "A server object to be used by the target operation.")),
 		},

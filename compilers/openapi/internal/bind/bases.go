@@ -9,8 +9,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// bases answers the resource a position read as a schema is in (Table.Base,
-// Table.Resource) as resources.holding does, remembering the walk at each
+// bases answers the resource a position read as a schema is in (ReferenceTargetTable.Base,
+// ReferenceTargetTable.Resource) as resources.holding does, remembering the walk at each
 // position it passes. A position below one walked before starts there rather
 // than at its document's root, so asking at every level of a deep schema walks
 // its depth once rather than once a level. Where ids says a document is read
@@ -18,7 +18,7 @@ import (
 // one the schema holding it enters (resources.enterIn).
 type bases struct {
 	res   resources
-	walks map[Position]walked
+	walks map[DocumentPointer]walked
 	ids   *identifiers
 }
 
@@ -38,14 +38,14 @@ type walked struct {
 // newBases returns bases over r, whose documents' dialect roots ids holds,
 // having walked nothing.
 func newBases(r resources, ids *identifiers) *bases {
-	return &bases{res: r, walks: map[Position]walked{}, ids: ids}
+	return &bases{res: r, walks: map[DocumentPointer]walked{}, ids: ids}
 }
 
 // holding is resources.holding of p read as a schema, along what its pointer
 // reaches from its document's root. A pointer that is not valid is walked from
 // the root each time, as holding spells a resource's root on one otherwise than
 // by its prefixes.
-func (b *bases) holding(p Position) (resource, bool) {
+func (b *bases) holding(p DocumentPointer) (resource, bool) {
 	if !p.Pointer.IsValid() {
 		path, _ := b.res.docs.path(p)
 		return b.res.holding(p, path, true /* schema */, b.ids.readsDialects(p.Doc))
@@ -75,7 +75,7 @@ func (b *bases) start(id DocID) walked {
 // them, from the deepest one walked before, remembering each it passes. It
 // returns the index of the last one reached, and false where the document's
 // root is no node at all.
-func (b *bases) walk(at []Position) (int, bool) {
+func (b *bases) walk(at []DocumentPointer) (int, bool) {
 	doc := b.res.docs.list[at[0].Doc]
 	k := b.deepest(at)
 	if k < 0 {
@@ -103,7 +103,7 @@ func (b *bases) walk(at []Position) (int, bool) {
 // deepest is the index of the deepest of at walked before, or -1 for none. A
 // walk remembers every position on its way, so those walked are a run from the
 // first, and a search halving it finds its end.
-func (b *bases) deepest(at []Position) int {
+func (b *bases) deepest(at []DocumentPointer) int {
 	n := len(at) - 1
 	if _, ok := b.walks[at[n]]; ok {
 		return n
@@ -130,11 +130,11 @@ func (b *bases) deepest(at []Position) int {
 // among them, of at most most tokens, as nodeview.View.DocumentPath follows at
 // most that many. p's pointer is valid, so each '/' past the first character
 // begins a token.
-func prefixes(p Position, most int) []Position {
-	at := []Position{{Doc: p.Doc}}
+func prefixes(p DocumentPointer, most int) []DocumentPointer {
+	at := []DocumentPointer{{Doc: p.Doc}}
 	for i := 1; i < len(p.Pointer) && len(at) <= most; i++ {
 		if p.Pointer[i] == '/' {
-			at = append(at, Position{Doc: p.Doc, Pointer: p.Pointer[:i]})
+			at = append(at, DocumentPointer{Doc: p.Doc, Pointer: p.Pointer[:i]})
 		}
 	}
 	if p.Pointer != "" && len(at) <= most {
@@ -147,7 +147,7 @@ func prefixes(p Position, most int) []Position {
 // a schema, or a position of a document of schemas, is entered, so an
 // identifier it writes starts the resource the walk is in past it, and its
 // `$schema` the dialect (resources.holding).
-func (b *bases) past(from walked, n *yaml.Node, s state, here Position) walked {
+func (b *bases) past(from walked, n *yaml.Node, s state, here DocumentPointer) walked {
 	out := walked{node: n, s: s, in: from.in, known: from.known, dialect: from.dialect, held: heldBelow(from)}
 	if s == sSchema || s == sLoose {
 		e := b.entered(from, n, here)
@@ -159,7 +159,7 @@ func (b *bases) past(from walked, n *yaml.Node, s state, here Position) walked {
 // entered is what the walk from enters at the schema n at here: the resource
 // it is in past it, whether that is known, and the dialect what n holds is
 // read in, as resources.holding enters each schema on its way.
-func (b *bases) entered(from walked, n *yaml.Node, here Position) entering {
+func (b *bases) entered(from walked, n *yaml.Node, here DocumentPointer) entering {
 	e := entering{dialect: from.dialect}
 	if b.ids.readsDialects(here.Doc) {
 		held := heldBelow(from)

@@ -164,7 +164,7 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 }
 
 // TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares pins the rows load hands
-// the lowering for the source (Document.Rows): those of the minor it declares,
+// the lowering for the source (LoadedOpenAPIDocument.Rows): those of the minor it declares,
 // the Schema Object's and the Encoding Object's alike, in the dialect its
 // jsonSchemaDialect names.
 func TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares(t *testing.T) {
@@ -316,7 +316,7 @@ func TestLoad_RejectsARelativeLocation(t *testing.T) {
 // TestLoad_RejectsAnOverlaySharingTheSourceIndex pins the one way the
 // attribution can go wrong without anything noticing.
 //
-// The overlay's index and its place in Document.Sources are decided in two
+// The overlay's index and its place in LoadedOpenAPIDocument.Sources are decided in two
 // packages and have to agree. An index past the end disagrees loudly — irverify
 // reports it as the dangling reference it is — but an index equal to the
 // source's addresses a declared entry, so every position the overlay introduced
@@ -349,7 +349,7 @@ func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 // index, not that the walk stops at a number.
 func TestLoad_ADocumentTooLargeToIndexIsRefused(t *testing.T) {
 	t.Parallel()
-	opts := Options{buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Index {
+	opts := Options{buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Measurements {
 		return sourceindex.Build(ctx, root, 1)
 	}}
 
@@ -380,7 +380,7 @@ func TestLoad_TheSameDocumentLoadsOnceItFitsTheIndex(t *testing.T) {
 // independent of each other and of anything running beside them.
 func countingIndexBuilder(base Options) (Options, *int) {
 	built := 0
-	base.buildIndex = func(ctx context.Context, root *yaml.Node) sourceindex.Index {
+	base.buildIndex = func(ctx context.Context, root *yaml.Node) sourceindex.Measurements {
 		built++
 		return defaultIndex(ctx, root)
 	}

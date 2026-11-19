@@ -134,7 +134,7 @@ route, not of the subtype relation every other reader of it asks.
 `Base`, `Implements`, and `Mixins` for the full shape; the flattening is computed, never stored.
 `ir.FlattenedProperties` computes it, by the rules under *The flattening* below; `ir.ExposedProps`
 computes the flat set of property IDs it reads, and `ir.Supertypes` and `ir.IsSubtype` the subtype
-relation, which excludes mixins; `irfacts.Index` answers the exposed set and the subtype relation
+relation, which excludes mixins; `irfacts.DocumentFacts` answers the exposed set and the subtype relation
 for many questions at once ([derived-facts](./derived-facts.md)). This preserves what oagen and
 Kiota lose: the difference between "inherits from", "conforms to", "mixes in", and "declares".
 `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract` models — the
@@ -148,12 +148,12 @@ it is GraphQL's). It reports as well each type with no finite value, `pass/no-fi
 warning: a type whose every way to a value needs a type that needs it in turn, a model requiring
 itself through required properties that are not nullable, a list that must hold an element of itself,
 a tuple that must hold itself, a union all of whose variants are such. Each is told at every type
-of the knot, naming the base, mixin, property, element or variant that leads on, and a cycle of composition
+of the type cycle, naming the base, mixin, property, element or variant that leads on, and a cycle of composition
 is told once, as that, and not again as lacking a value. A base or mixin that is a union is no need
 of the model composing it: a union that lists a model composing it, `Shape` over `Circle` whose
 `allOf` names `Shape`, narrows nothing ([a union a composition names](#a-union-a-composition-names)),
 and each instance is one variant. Not read, each of which can only leave a
-knot unreported: a member only `Requires` makes required, a bound on the position of a reference to a
+type cycle unreported: a member only `Requires` makes required, a bound on the position of a reference to a
 list, and `Implements`.
 
 ## Required members

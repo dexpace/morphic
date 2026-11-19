@@ -200,11 +200,11 @@ func readSources(t *testing.T) []compilers.Source {
 func TestUnread_EdgesCompileAsTheyDid(t *testing.T) {
 	t.Parallel()
 	doc, _ := schema.LowerSpec(t, string(readEdges()[0].Data))
-	pattern := doc.Types[ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "EmptyPattern"))]
+	pattern := doc.Types[ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "EmptyPattern"))]
 	require.NotNil(t, pattern)
 	assert.Equal(t, ir.KindUnion, pattern.Kind())
 	assert.Contains(t, pattern.Common().Unmodeled, "openapi:pattern", "no variant holds the empty pattern")
-	enum, ok := doc.Types[ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "EnumOfTypes"))].(*ir.Enum)
+	enum, ok := doc.Types[ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "EnumOfTypes"))].(*ir.Enum)
 	require.True(t, ok, "the members are of one kind")
 	assert.Equal(t, ir.PrimString, enum.ValueType)
 	assert.NotContains(t, enum.Unmodeled, "openapi:type", "every member is a value of the types")

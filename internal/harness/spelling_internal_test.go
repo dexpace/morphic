@@ -68,11 +68,11 @@ func spellingPair(version, partner, spelling string, eq Equal) fake {
 	if eq.Rule == "" {
 		eq.Rule = spellingRule
 	}
-	return fake{axes: []Axis{coreAxis("spelling", "partner", "spelling")}, write: func(at []int) (Document, bool) {
+	return fake{axes: []Axis{coreAxis("spelling", "partner", "spelling")}, write: func(at []int) (CaseDocument, bool) {
 		if at[0] == 0 {
-			return Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: spellingSpec(version, partner)}}}, true
+			return CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml", Data: spellingSpec(version, partner)}}}, true
 		}
-		return Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: spellingSpec(version, spelling)}},
+		return CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml", Data: spellingSpec(version, spelling)}},
 			Equal: &eq}, true
 	}}
 }
@@ -277,7 +277,7 @@ func swapUncompiled(t *testing.T) map[string]string {
 // partner writing nothing are faults.
 func TestSpelled_WhatStopsAComparison(t *testing.T) {
 	f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
-	unequal := fake{axes: f.axes, write: func(at []int) (Document, bool) {
+	unequal := fake{axes: f.axes, write: func(at []int) (CaseDocument, bool) {
 		doc, _ := f.write(at)
 		doc.Equal = nil
 		return doc, true
@@ -302,7 +302,7 @@ func TestSpelled_WhatStopsAComparison(t *testing.T) {
 	assert.True(t, r.Faulted(), "a document that does not encode is a fault")
 	assert.Contains(t, r.Detail, "harness: encode case [1] or its partner: ")
 
-	alone := fake{axes: f.axes, write: func(at []int) (Document, bool) {
+	alone := fake{axes: f.axes, write: func(at []int) (CaseDocument, bool) {
 		doc, _ := f.write(at)
 		return doc, at[0] == 1
 	}}
@@ -320,7 +320,7 @@ func TestSpelled_ACaseNamingAPartnerAmissPanics(t *testing.T) {
 	for _, eq := range []Equal{{Rule: spellingRule}, {Relocate: eraseAllOf}} {
 		f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
 		write := f.write
-		f.write = func(at []int) (Document, bool) {
+		f.write = func(at []int) (CaseDocument, bool) {
 			doc, ok := write(at)
 			if doc.Equal != nil {
 				eq.To = doc.Equal.To
@@ -336,7 +336,7 @@ func TestSpelled_ACaseNamingAPartnerAmissPanics(t *testing.T) {
 
 	f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
 	doc, _ := f.write([]int{1})
-	s := newShard(fake{axes: f.axes, write: func([]int) (Document, bool) { return Document{}, false }}, f.axes, []int{1})
+	s := newShard(fake{axes: f.axes, write: func([]int) (CaseDocument, bool) { return CaseDocument{}, false }}, f.axes, []int{1})
 	assert.PanicsWithValue(t, "harness: case [1] writes nothing to compile", func() { spelled(t.Context(), s, []int{1}, doc) })
 }
 

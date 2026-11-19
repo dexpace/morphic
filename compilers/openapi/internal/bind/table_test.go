@@ -37,21 +37,21 @@ var resolving = bind.Config{Self: "/spec.yaml", Locate: func(uri, base string) (
 }}
 
 // bound binds src under cfg.
-func bound(t *testing.T, src string, cfg bind.Config) *bind.Table {
+func bound(t *testing.T, src string, cfg bind.Config) *bind.ReferenceTargetTable {
 	t.Helper()
 	return bind.Bind(t.Context(), openapitest.YAMLDocument(t, src), cfg)
 }
 
 // entryAt returns the entry the table holds at the source pointer site.
-func entryAt(t *testing.T, table *bind.Table, site jsontext.Pointer) bind.Entry {
+func entryAt(t *testing.T, table *bind.ReferenceTargetTable, site jsontext.Pointer) bind.ReferenceSite {
 	t.Helper()
-	e, ok := table.Entry(bind.Position{Pointer: site})
+	e, ok := table.Entry(bind.DocumentPointer{Pointer: site})
 	require.True(t, ok, "an entry at %s", site)
 	return e
 }
 
 // at is the source position pointer names.
-func at(pointer jsontext.Pointer) bind.Position { return bind.Position{Pointer: pointer} }
+func at(pointer jsontext.Pointer) bind.DocumentPointer { return bind.DocumentPointer{Pointer: pointer} }
 
 // TestBind_ReadsEachHop pins one row per way a $ref's own hop lands: where,
 // what the reading finds there, and why one that lands on no schema does not.
@@ -383,13 +383,13 @@ func TestBind_ReportsEachLoopOnceAtItsLeastMember(t *testing.T) {
 		table := bound(t, head+"components:\n  schemas:\n"+b.String(), self)
 		loops := table.Loops()
 		require.Len(t, loops, 1, "%v", order)
-		assert.Equal(t, bind.Loop{Members: []bind.Position{at("/components/schemas/B"), at("/components/schemas/C")},
+		assert.Equal(t, bind.Loop{Members: []bind.DocumentPointer{at("/components/schemas/B"), at("/components/schemas/C")},
 			Site: at("/components/schemas/B")}, loops[0], "%v", order)
 		for site, member := range map[jsontext.Pointer]bool{"/components/schemas/B": true,
 			"/components/schemas/C": true, "/components/schemas/A": false} {
 			e := entryAt(t, table, site)
 			assert.Equal(t, bind.Cyclic, e.Chain.Status, site)
-			assert.Equal(t, member, e.Chain.Member, site)
+			assert.Equal(t, member, e.Chain.PositionLiesOnReferenceCycle, site)
 		}
 		assert.Equal(t, bind.NoTarget, entryAt(t, table, "/components/schemas/P").Hop.Reason,
 			"a pointer into what P only refers to names nothing")
@@ -417,10 +417,10 @@ func TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember(t *testing.T) {
 		byFirst[l.Members[0].Pointer] = l
 	}
 	xy := byFirst["/X"]
-	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/X"}, xy.Site)
+	assert.Equal(t, bind.DocumentPointer{Doc: 1, Pointer: "/X"}, xy.Site)
 	assert.Equal(t, bind.DocID(1), xy.Members[0].Doc)
-	assert.Equal(t, []bind.Position{{Doc: 1, Pointer: "/Z"}}, byFirst["/Z"].Members)
-	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/Z"}, byFirst["/Z"].Site, "only W's content leads into Z")
+	assert.Equal(t, []bind.DocumentPointer{{Doc: 1, Pointer: "/Z"}}, byFirst["/Z"].Members)
+	assert.Equal(t, bind.DocumentPointer{Doc: 1, Pointer: "/Z"}, byFirst["/Z"].Site, "only W's content leads into Z")
 }
 
 // withDocuments is self reading other documents from docs, by name.
@@ -484,7 +484,7 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 		"each spelling is judged, once for each time its hop is read")
 	assert.Contains(t, located, "/elsewhere/b", "the $id is placed")
 	id := entryAt(t, table, "/components/schemas/Id")
-	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Res"}, id.Hop.Target, id.Hop.Why())
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/components/schemas/Res"}, id.Hop.Target, id.Hop.Why())
 }
 
 // TestIsEmpty_HoldsNoNode pins what an empty document is: one parsed to no
@@ -558,7 +558,7 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	back := entryAt(t, table, "/components/schemas/Back")
 	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Hops: 2},
 		back.Chain, "a chain back into the source ends there, past a $ref naming another document")
-	there, ok := table.Entry(bind.Position{Doc: back.Hop.Target.Doc, Pointer: "/S"})
+	there, ok := table.Entry(bind.DocumentPointer{Doc: back.Hop.Target.Doc, Pointer: "/S"})
 	require.True(t, ok)
 	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Hops: 1}, there.Chain, "another document's $ref naming the source")
 	for _, value := range []string{"other.yaml#/S", "other.yaml#/T", "#/components/schemas/Leaf"} {
@@ -577,7 +577,7 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	id, ok := table.Find("other.yaml")
 	require.True(t, ok)
 	assert.Equal(t, "other.yaml", table.Document(id).Name)
-	defs, ok := table.Entry(bind.Position{Doc: id, Pointer: "/T/properties/d"})
+	defs, ok := table.Entry(bind.DocumentPointer{Doc: id, Pointer: "/T/properties/d"})
 	require.True(t, ok, "a site in raw YAML another document holds")
 	assert.Equal(t, bind.NoDefinition, defs.Hop.Reason, "raw YAML holds no ancestor's definitions")
 	_, ok = table.Find("gone.yaml")

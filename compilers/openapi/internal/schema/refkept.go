@@ -47,7 +47,7 @@ type outcomeKeeps struct {
 // position having lost it, and how it stood in the election (voteOf).
 type keptBranch struct {
 	entry allOfBranch
-	vote  refVote
+	vote  refCandidacy
 }
 
 // holdsAny reports whether k keeps anything.
@@ -89,7 +89,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	if collapsed {
 		k.nulls = nullBranchKeeps(c, s, r.principal.schema.Schema, r.principal.pointer)
 	}
-	voices := voicingOf(c, s)
+	foldedBranches := allOfBranchFoldingOf(c, s)
 	w := newAdmissionReader(c)
 	pair := writesUnionPair(s, r.comp)
 	residues := make([][]string, len(r.comp.branches))
@@ -107,12 +107,12 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 			k.branches = append(k.branches, keptBranch{entry: e, vote: r.votes[i]})
 		case stated(e.schema.Schema):
 			// The principal's node keeps what it passes over (preserveUnusedCombinator).
-			read := residueRead(c, &w, r, typed, e, voices.speaks[i], censused, collapsed && r.principalIs(e), homes,
+			read := residueRead(c, &w, r, typed, e, foldedBranches.branchFoldsIntoPosition[i], censused, collapsed && r.principalIs(e), homes,
 				pair && !r.principalIs(e))
 			residues[i] = unmergedBranchKeys(e.schema.Schema, lessPattern(read, censused && patternBeside(s, e.schema.Schema, homes)))
 		}
 	}
-	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties, r.principal)
+	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, foldedBranches, isAdditionalProperties, r.principal)
 	for i := range k.entries {
 		k.entries[i].numberText = homes.numberText
 	}
@@ -331,7 +331,7 @@ func said(w *admissionReader, r refinement, typed setType, s *statement.Schema, 
 // keyword by keyword, as what it admits leaves its bounds and annotations unread,
 // and one writing what no reading compares says more. A read cut short says no.
 func unionHeld(w *admissionReader, r refinement, s *statement.Schema, key string) bool {
-	var branches []statement.Sub
+	var branches []statement.Subschema
 	switch key {
 	case "oneOf":
 		branches = s.ChoiceKeywords().OneOf
@@ -346,7 +346,7 @@ func unionHeld(w *admissionReader, r refinement, s *statement.Schema, key string
 	}
 	within, overlaps := 0, 0
 	for _, b := range branches {
-		branch := w.c.Statements().Sub(b)
+		branch := w.c.Statements().Subschema(b)
 		switch {
 		case w.restates(r.held, principal, branch):
 			within++

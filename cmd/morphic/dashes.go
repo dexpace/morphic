@@ -43,7 +43,7 @@ func misreadDashes(root *cobra.Command, args []string) error {
 			i++
 		case endsFlags, refused:
 			return nil
-		case standsAlone:
+		case argumentStandsAlone:
 		}
 	}
 	return nil
@@ -103,14 +103,14 @@ func dropsAsGoTestFlag(fs *pflag.FlagSet, shorts string) bool {
 	return false
 }
 
-// reading is how pflag reads one argument on its own.
-type reading int
+// pflagArgumentReading is how pflag reads one argument on its own.
+type pflagArgumentReading int
 
 const (
-	standsAlone reading = iota // an operand, or flags with every value they need
-	wantsValue                 // a flag whose value is the next argument
-	endsFlags                  // the "--" after which every argument is an operand
-	refused                    // an argument the parse fails on
+	argumentStandsAlone pflagArgumentReading = iota // an operand, or flags with every value they need
+	wantsValue                                      // a flag whose value is the next argument
+	endsFlags                                       // the "--" after which every argument is an operand
+	refused                                         // an argument the parse fails on
 )
 
 // readAlone asks pflag how it reads tok, so that which argument is a flag's
@@ -118,7 +118,7 @@ const (
 // the command's flags and is parsed with values discarded, so neither the flags
 // nor the command's own flag set change. Once a "--" is read, probe reports
 // every later argument as ending the flags, so a reading stops there.
-func readAlone(probe *pflag.FlagSet, tok string) reading {
+func readAlone(probe *pflag.FlagSet, tok string) pflagArgumentReading {
 	err := probe.ParseAll([]string{tok}, func(*pflag.Flag, string) error { return nil })
 
 	if _, ok := errors.AsType[*pflag.ValueRequiredError](err); ok {
@@ -130,6 +130,6 @@ func readAlone(probe *pflag.FlagSet, tok string) reading {
 	case probe.ArgsLenAtDash() >= 0:
 		return endsFlags
 	default:
-		return standsAlone
+		return argumentStandsAlone
 	}
 }

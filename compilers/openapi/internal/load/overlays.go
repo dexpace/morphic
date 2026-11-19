@@ -141,19 +141,19 @@ func patchedRefusals(ctx context.Context, tree provenance.Tree, root *yaml.Node,
 // it is not read as, and the shapes an update copies through its aliases
 // (overlay.copyOf): an anchor naming its own ancestor gives the copy no end, an
 // alias bomb exhausts memory (GitHub #489).
-func overlayRefusals(ctx context.Context, opts Options) (doctree.Document, []ir.Diagnostic) {
+func overlayRefusals(ctx context.Context, opts Options) (doctree.ParsedYAMLDocument, []ir.Diagnostic) {
 	at := ir.Provenance{Source: opts.OverlaySrcIndex}
 	// The byte budget is checked before anything reads the bytes, as the
 	// source's is (GitHub #75, #491).
 	if !opts.MaxSourceBytes.Admits(len(opts.Overlay.Data)) {
-		return doctree.Document{}, []ir.Diagnostic{overlayPastBudget(opts)}
+		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{overlayPastBudget(opts)}
 	}
 	doc, err := doctree.Read(ctx, opts.Overlay.Data, opts.MaxSourceNodes)
 	if d, past := pastNodes(at, "overlay", err); past {
-		return doctree.Document{}, []ir.Diagnostic{d}
+		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{d}
 	}
 	if err != nil {
-		return doctree.Document{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
+		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
 			"cannot parse overlay: %s", diag.OneLine(err))}
 	}
 

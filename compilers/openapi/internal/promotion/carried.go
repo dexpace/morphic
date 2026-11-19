@@ -103,20 +103,20 @@ type carried struct {
 	entry ir.UnmodeledEntry
 }
 
-// Lent returns from with what the objects own carries state, each read as a
+// WithOwnCarriedState returns from with what the objects own carries state, each read as a
 // $ref target's keys are: a single-sided fact holds where any states it, and
 // a deprecation's members fill from the nearest stating them. The carrier's
 // own keys are its caller's to read, and from is farther than any scope.
-func (p Promoter) Lent(from Referent, own ir.Unmodeled, scopes ...string) Referent {
-	var lent Referent
+func (p Promoter) WithOwnCarriedState(from Referent, own ir.Unmodeled, scopes ...string) Referent {
+	var fallbackReferent Referent
 	for i := range scopes {
 		entries := scopedEntries(p.keys, own, scopes[i])
 		if entries == nil {
 			continue
 		}
-		lent = nearer(lent, p.readReferent(true, entries))
+		fallbackReferent = nearer(fallbackReferent, p.readReferent(true, entries))
 	}
-	return nearer(lent, from)
+	return nearer(fallbackReferent, from)
 }
 
 // scopedEntries returns the entries own holds beneath scope for one of keys, keyed

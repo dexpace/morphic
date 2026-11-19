@@ -329,7 +329,7 @@ func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding
 // it before it validates it, empty when it does not: a document it never
 // validates has no findings to compare, and some, such as an alias bomb, must
 // not reach the library at all.
-func loaded(t *testing.T, d validationDoc) (*load.Document, string) {
+func loaded(t *testing.T, d validationDoc) (*load.LoadedOpenAPIDocument, string) {
 	t.Helper()
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: d.name, Data: d.data}, load.Options{})
 	if err != nil {
@@ -350,7 +350,7 @@ func loaded(t *testing.T, d validationDoc) (*load.Document, string) {
 // Schema Object read with the rows of the dialect doc, the load of the same
 // document, reads it in: its own or a dialect root's at or above it, which
 // gives every schema the rows the compiler's check reads it with.
-func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.Document) []finding {
+func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.LoadedOpenAPIDocument) []finding {
 	t.Helper()
 	view := nodeview.New()
 	locate := func(ptr jsontext.Pointer) ir.Provenance {
@@ -363,7 +363,7 @@ func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.Docu
 	}
 	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate, Rows: doc.Rows.Schema,
 		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) {
-			return doc.Dialects.RootAt(bind.Position{Doc: bind.Source, Pointer: at})
+			return doc.Dialects.RootAt(bind.DocumentPointer{Doc: bind.Source, Pointer: at})
 		}})
 	out := make([]finding, 0, len(diags))
 	for _, d := range diags {

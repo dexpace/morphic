@@ -496,7 +496,7 @@ const (
 	// rather than that one's error because such a document is legal and still
 	// lowers.
 	UnknownKeyUnreachable = "openapi/unknown-key-unreachable"
-	// UnknownKeyEntryTaken reports a key whose Unmodeled entry is already held by
+	// UnknownKeyEntryAlreadyClaimed reports a key whose Unmodeled entry is already held by
 	// a construct declared somewhere else, so the key reached the IR in no form.
 	//
 	// The carriers holding more than one object's entries are where two constructs
@@ -506,7 +506,7 @@ const (
 	// refusing a key on that operation alone. Warning rather than error because
 	// the document is otherwise lowered whole, and the entry that did survive is
 	// in it.
-	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
+	UnknownKeyEntryAlreadyClaimed = "openapi/unknown-key-entry-taken"
 	// InvalidLocationKeyword reports a style, explode or allowReserved at in:
 	// querystring, at the keyword. OpenAPI 3.2 binds the whole query string from
 	// the parameter's content there and states its serialization through the

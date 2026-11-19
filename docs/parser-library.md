@@ -395,7 +395,7 @@ components:
 - Code:
   - `load.taggedMappingRefusal` refuses every such mapping, wherever it is, before the document is
     decoded.
-  - `sourceindex.Index.TaggedMappings` finds them.
+  - `sourceindex.Measurements.TaggedMappings` finds them.
   - `load.buildRecovered` recovers a panic on its own goroutine only.
 
 ### `recoverable-panic`
@@ -798,7 +798,7 @@ components:
 - Pinned by: `TestLibraryBehaviour/null-schema-is-false`
 - Code:
   - `statement.truthOf` reads such a value as `Unwritten` by its node.
-  - `statement.Truth.ReadsFalse` excludes it, so no reader takes one for `false`.
+  - `statement.SchemaValueForm.ReadsFalse` excludes it, so no reader takes one for `false`.
   - `statement.Schema.Held` tells a position holding one from a position holding nothing.
 
 ### `failure-beneath-itself`
@@ -822,7 +822,7 @@ components:
 - Code:
   - `bind/typed.Builder.mend` decodes each such schema again, in place, up to `typed.MaxMends` of
     them one below another, once `Build` has built the landings.
-  - `statement.Truth` holds one left past that bound as `Unread`, which the lowering reports and
+  - `statement.SchemaValueForm` holds one left past that bound as `Unread`, which the lowering reports and
     lowers as the top type.
 
 ### `null-type-is-empty`

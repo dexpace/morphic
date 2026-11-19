@@ -1289,7 +1289,7 @@ the item as what else it writes.
   `bind.TestBind_PassesAReferenceObjectWhereAPointerIntoAnotherDocumentStarts`,
   `bind.TestBind_ReadsADefinitionByTheDefsRule`,
   `e2e.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
-  `e2e.TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches`,
+  `e2e.TestExternalContent_ARefGivesItsUseSiteAsFallbackWhatItsTypeReaches`,
   `schema.TestSchema_AnEmptyRefBesideKeywordsIsAConjunctAsInAnAllOf`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_ThePassTheBudgetRunsOutInStands`,
@@ -1830,9 +1830,9 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `schema.TestUse_ACarrierReadsThroughADecorator`,
   `schema.TestUse_ALoopOfNarrowingEnumsEnds`, `annotation.TestEffectiveDeprecated_AnySchemaDeprecates`,
   `annotation.TestEffectiveVisibility_MapsTheFlagsToLifecycles`,
-  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`, `schema.TestUseOf_LendsEachHopOfTheChain`,
-  `schema.TestUseOf_LendsEachHopAcrossTwoDocuments`, `schema.TestUseOf_AnAliasHopIsNoPassage`,
-  `schema.TestUseOf_PassagesAreBoundedAndAliasesSpendNone`,
+  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`, `schema.TestUseOf_FallsBackToEachHopOfTheChain`,
+  `schema.TestUseOf_FallsBackToEachHopAcrossTwoDocuments`, `schema.TestUseOf_AnAliasHopIsNoReadThrough`,
+  `schema.TestUseOf_ReadThroughsAreBoundedAndAliasesSpendNone`,
   `statement.TestRead_ASplitEntrysRestListsNoReference`,
   `e2e.TestRefConjunction_AnEntrysRefAndKeywordsLowerAsTwoEntries`,
   `e2e.TestRefConjunction_AValueSetBesideAnEntrysRefIsReportedOnce`,
@@ -2453,7 +2453,7 @@ the principal's node holds, a
 type list's on its string variant, and one written otherwise is kept under its keyword, reported
 as held beside an `Encoding` holding its branch's. A `discriminator` written beside the `allOf`
 of a principal whose `Union` holds its own is kept under its keyword, its mapping resolved, and
-reported as kept beside the discriminator the `Union` holds, which one `Union` is routed by. The conjunct reads as a voice of the position, what it
+reported as kept beside the discriminator the `Union` holds, which one `Union` is routed by. The conjunct reads as a folded branch of the position, what it
 writes that its node has no field for kept there at its own pointer, as any conjunct's is, once the
 position has written its own ([`allof-inline-residue`](#allof-inline-residue)). A `oneOf`
 or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
@@ -2877,7 +2877,7 @@ entries: the position lowers from them, and each of their keywords is kept once 
 - Cases: `allof-inline-residue`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`, `openapi/unknown-schema-keyword`,
   `openapi/unresolved-ref`, `openapi/cyclic-ref`, `openapi/unpreservable-construct`
-- Tests: `schema.TestVoices_AFalseFlagAgreesWithATrue`,
+- Tests: `schema.TestAllOfBranchFolding_AFalseFlagAgreesWithATrue`,
   `e2e.TestPrincipalApart_AKeywordThePrincipalAndThePositionKeepHoldsBoth`,
   `e2e.TestPrincipalApart_AParameterSchemaHoldsBoth`,
   `e2e.TestPrincipalApart_AReportNamesTheEntryWhereACarrierKeepsIt`,
@@ -2892,7 +2892,7 @@ entries: the position lowers from them, and each of their keywords is kept once 
   `schema.TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName`,
   `schema.TestKeepApart_AnObjectThatCannotRenderIsReportedAndClaimsNothing`,
   `schema.TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions`,
-  `schema.TestPrincipalKept_AVoicesBuildKeepStaysThePositions`,
+  `schema.TestPrincipalKept_AFoldedBranchesBuildKeepStaysThePositions`,
   `schema.TestKeepBuilt_AKeyNoKeywordNamesHeldOtherwiseIsAnInvariantBroken`,
   `schema.TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce`,
   `schema.TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce`,
@@ -2929,7 +2929,7 @@ entries: the position lowers from them, and each of their keywords is kept once 
   `schema.TestEntryKeptReason_ABoundOnANumberAsTextIsKeptAsBesideIt`,
   `schema.TestEntryKeptReason_AnUnevaluatedKeywordKeepsItsEntryValidationOnly`,
   `annotation.TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite`,
-  `annotation.TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne`,
+  `annotation.TestUnderlayAdd_AFoldedBranchKeptWholeWritesForNoOne`,
   `schema.TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone`,
   `schema.TestEntryKeptOnce_AtACarrierTheEntryKeptWholeHoldsItsOwn`,
   `schema.TestEntryKeptOnce_APromotedKeyStaysBesideTheEntryKeptWhole`,
@@ -2942,15 +2942,15 @@ entries: the position lowers from them, and each of their keywords is kept once 
   `schema.TestAllOf_NestedEmptyAllOfKeptVerbatim`,
   `schema.TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth`,
   `schema.TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice`,
-  `schema.TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt`,
-  `schema.TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder`,
-  `schema.TestVoices_BoundsMeetInEveryOrder`,
-  `schema.TestVoices_ARefusedBoundPartsNoWriter`,
+  `schema.TestAllOfBranchFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt`,
+  `schema.TestAllOfBranchFolding_ABranchDisagreeingFoldsNothingInEveryOrder`,
+  `schema.TestAllOfBranchFolding_BoundsMeetInEveryOrder`,
+  `schema.TestAllOfBranchFolding_ARefusedBoundPartsNoWriter`,
   `schema.TestAgreement_ReadsABoundInTheDialectOfItsSchemas`,
-  `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
-  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
-  `schema.TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode`,
-  `schema.TestVoices_KeptAndMetBranchesHoldAtEveryOutcome`,
+  `schema.TestAllOfBranchFolding_KeywordsOneEntryHoldsDisagreeAsOne`,
+  `schema.TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch`,
+  `schema.TestAllOfBranchFolding_AUseBindingKeywordReachesItsCarrierOrItsNode`,
+  `schema.TestAllOfBranchFolding_KeptAndMetBranchesHoldAtEveryOutcome`,
   `schema.TestAllOf_BranchResidueRidesEveryDistributedVariant`,
   `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
   `schema.TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase`,
@@ -3332,7 +3332,7 @@ schema's null verdicts fold under ([`nullable`](#nullable)).
 
 The fold waits for every type to lower because the judgment reads the nodes the declarations name, a
 component declared after the schema composing it or a node a `$ref` into another document promises
-among them; it finishes the model before any other decision reads it (`compile.Types.Complete`), so
+among them; it finishes the model before any other decision reads it (`compile.Types.QueueSettlementBeforeDeferredOnes`), so
 a form part's flags read the merged field. A fold judges every pair of declarations, so it judges a
 field's first 64 at most; each later one is kept verbatim, unjudged, under an
 `openapi/budget-exceeded` error at the first of them.
@@ -5755,7 +5755,7 @@ no bound ([`string-formats`](#string-formats)).
   `e2e.TestCompile_ABoundBesideAReferenceToAModelIsHeldOnce`,
   `e2e.TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant`,
   `e2e.TestCorpus_NoCarrierRestatesABoundItsOwnNodeHolds`,
-  `schema.TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch`,
+  `schema.TestAllOfBranchFolding_ABoundTheComposedModelCannotTakeKeepsItsBranch`,
   `schema.TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome`,
   `schema.TestConstraints_AReferenceLandingOnAPropertyReadsItsNode`,
   `e2e.TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion`,
@@ -5868,7 +5868,7 @@ document lands on, hop by hop, as it would one a lowered keyword names.
   `annotation.TestValidationOnlyAt_AttributesAnInertEntryByItsUnevaluatedKeyword`,
   `schema.TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType`,
   `schema.TestClosureTyped_ReadsAlikeInEitherBranchOrder`,
-  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
+  `schema.TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch`,
   `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`,
   `annotation.TestWritesEmptyDependencyMap_TellsAnEmptyMapFromAnEntry`,
   `statement.TestKey_DefinedTellsAKeywordTheRowsDefine`,
@@ -8043,8 +8043,8 @@ saying why.
   `e2e.TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone`,
   `promotion.TestPromoter_ReadsSourcesInPolicyOrder`,
   `promotion.TestPromoter_MemberReadsOneFactOfAnObject`,
-  `promotion.TestPromoter_ReferentLendsBeneathOwnKeys`,
-  `promotion.TestPromoter_ReferentReadsWhatASchemaLends`,
+  `promotion.TestPromoter_ReferentFallsBackBeneathOwnKeys`,
+  `promotion.TestPromoter_ReferentReadsWhatASchemaOffersAsFallback`,
   `promotion.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
   `promotion.TestPromoter_ReadsReplacementNames`, `whole.TestParamIndex_NamedReadsALocationQualifiedName`,
   `replacement.TestResolve_NamesEachReplacementInItsNodesScope`,
@@ -8053,8 +8053,8 @@ saying why.
   `e2e.TestPromotion_ReplacementsResolveOnceTheDocumentIsWhole`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
   `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
-  `e2e.TestPromotion_ARefinementLendsWhatItRefines`,
-  `e2e.TestPromotion_ALostRefLendsTheNodeItSpeaksOn`,
+  `e2e.TestPromotion_ARefinementFallsBackToWhatItRefines`,
+  `e2e.TestPromotion_ALostRefFallsBackToTheNodeItIsWrittenOn`,
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
   `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `promotion.TestCarried_ReturnsOwnWhereNothingIsCarried`,
@@ -8122,7 +8122,7 @@ A page walk an extension declares fills `Operation.Pagination`
 ([extension-promotion](#extension-promotion)), read once the document is whole, since its values are
 members of response bodies. Each field is a target of the policy: `pagination.cursor`,
 `pagination.offset` and `pagination.page` the input continuing a walk of strategy `cursor`, `offset`
-or `page`, `pagination.limit` the page size, and `pagination.items`, `pagination.nextCursor`,
+or `page`, `pagination.carriesPageSize` the page size, and `pagination.items`, `pagination.nextCursor`,
 `pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages` the page values of the
 same names, and `pagination.hasMore` the flag a page states that another follows, which fills
 `HasMore` and ends the walk by it alone, `Stop: [no_more]`, and which no default source reads. A

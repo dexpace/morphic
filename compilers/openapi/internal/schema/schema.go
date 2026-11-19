@@ -188,7 +188,7 @@ func pastBoundOnce(c lowering.Ctx, s *statement.Schema) (ir.Diagnostic, bool) {
 	if !s.Truncated {
 		return ir.Diagnostic{}, false
 	}
-	reported := lowering.Remembered(c, mergedPastOf{s}, func() *bool { return new(bool) })
+	reported := lowering.ReadOncePerRun(c, mergedPastOf{s}, func() *bool { return new(bool) })
 	if *reported {
 		return ir.Diagnostic{}, false
 	}
@@ -253,7 +253,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 	// answer it. One lowering to a reference built none, so it takes the census
 	// of a position lowered to one, and its verdict homes an alias.
 	if !decl.ran && homesDeclaration(c, schema, target, pointer, home,
-		keepsAtOutcome(c, schema, target, pointer).holdsAny() || declaresScoped(c, declarationVoices(c, schema, target, pointer))) {
+		keepsAtOutcome(c, schema, target, pointer).holdsAny() || declaresScoped(c, declarationFoldedBranches(c, schema, target, pointer))) {
 		var homeDiags []ir.Diagnostic
 		decl.target = target
 		ref, homeDiags = hoistUseHome(c, ts, schema, target, pointer, decl.finish)
@@ -531,7 +531,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 // lowerTyped dispatches a single-typed schema to its structural or scalar form,
 // fin finishing the node it builds at pointer, and returns what a lowering to
 // a shared primitive read.
-func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, kind statement.Kind,
+func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, kind statement.JSONSchemaTypeName,
 	fin finisher, st stand,
 ) (ir.TypeID, keySet, []ir.Diagnostic) {
 	switch kind {
@@ -540,7 +540,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		id, diags := lowerModel(c, ts, depth, s, pointer, true /* discriminated */, kindObject, fin)
 		return id, 0, diags
 	case statement.KindArray:
-		id, diags := lowerArray(c, ts, depth, s, pointer, st.pointer(pointer), st.voices(c, s, pointer), fin)
+		id, diags := lowerArray(c, ts, depth, s, pointer, st.pointer(pointer), st.foldedBranches(c, s, pointer), fin)
 		return id, 0, diags
 	default:
 		return scalarTypeID(c, ts, depth, s, kind, pointer, fin, st)
@@ -572,7 +572,7 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		})
 	case kindArray:
 		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			id, diags := lowerArray(c, ts, depth, s, pointer, st.pointer(pointer), st.voices(c, s, pointer), mark.then(fin))
+			id, diags := lowerArray(c, ts, depth, s, pointer, st.pointer(pointer), st.foldedBranches(c, s, pointer), mark.then(fin))
 			return id, 0, diags
 		})
 	default:
@@ -732,15 +732,15 @@ func recordSkippedFamilies(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, d
 // none: `type: null` is the keyword left out, unlike `type: "null"`
 // (docs/compilers/openapi.md#null-keywords).
 func writesType(s *statement.Schema) bool {
-	return slices.ContainsFunc(s.Types(), func(t statement.Kind) bool { return t != "" })
+	return slices.ContainsFunc(s.Types(), func(t statement.JSONSchemaTypeName) bool { return t != "" })
 }
 
 // effectiveTypes returns a schema's declared types with the JSON Schema "null"
 // member removed, and any null that declares none (writesType); nullability is
 // normalized onto the TypeRef, not the type set.
-func effectiveTypes(s *statement.Schema) []statement.Kind {
+func effectiveTypes(s *statement.Schema) []statement.JSONSchemaTypeName {
 	types := s.Types()
-	out := make([]statement.Kind, 0, len(types))
+	out := make([]statement.JSONSchemaTypeName, 0, len(types))
 	for _, t := range types {
 		if t == statement.KindNull || t == "" {
 			continue

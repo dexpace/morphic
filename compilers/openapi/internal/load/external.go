@@ -128,7 +128,7 @@ func (e external) verdict(ctx context.Context, id, location string, reach compil
 // dialled as far as bound, to a reference bounded by reach, or nil.
 func beyond(id string, bound, reach compilers.AddressSpace) error {
 	if bound > reach {
-		return barred(id, beyondReach(bound, reach))
+		return documentRefusal(id, beyondReach(bound, reach))
 	}
 	return nil
 }
@@ -136,7 +136,7 @@ func beyond(id string, bound, reach compilers.AddressSpace) error {
 // unsaid returns the refusal of the document id, whose reader did not say
 // where its read dialled, to a reference bounded by a reach.
 func unsaid(id string) error {
-	return barred(id, "the reader did not say what address it was read from, "+
+	return documentRefusal(id, "the reader did not say what address it was read from, "+
 		"which a reference in a document read over http or https needs")
 }
 
@@ -159,9 +159,9 @@ func spaceNamed(space compilers.AddressSpace) string {
 	}
 }
 
-// barred is the refusal of the document under key to one asker alone,
+// documentRefusal is the refusal of the document under key to one asker alone,
 // for reason (bind.BarredError).
-func barred(key, reason string) error {
+func documentRefusal(key, reason string) error {
 	return &bind.BarredError{Why: refused(key, reason).Error()}
 }
 
@@ -318,13 +318,13 @@ func barredFor(key string, err error, reach compilers.AddressSpace) error {
 	var past *compilers.AddressSpaceError
 	switch {
 	case errors.As(err, &past):
-		return barred(key, beyondReach(past.Space, reach))
+		return documentRefusal(key, beyondReach(past.Space, reach))
 	case errors.Is(err, compilers.ErrAddressSpace):
 		// A reader naming no space refused one past reach, which says no more.
-		return barred(key, fmt.Sprintf("it is at an address more private than a reference in a document "+
+		return documentRefusal(key, fmt.Sprintf("it is at an address more private than a reference in a document "+
 			"read from a %s one reaches", spaceNamed(reach)))
 	case errors.Is(err, compilers.ErrUnboundedRead):
-		return barred(key, "the reader cannot bound the addresses its read dials, "+
+		return documentRefusal(key, "the reader cannot bound the addresses its read dials, "+
 			"which a reference in a document read over http or https needs")
 	default:
 		return nil
@@ -383,10 +383,10 @@ func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]b
 //
 // Any finding refuses it, the scan's report that it could not finish included,
 // where the source carries that one forward as a warning. A refused document
-// is not read into the compile, so it has no Document.Sources entry a finding
+// is not read into the compile, so it has no LoadedOpenAPIDocument.Sources entry a finding
 // could name: the reference that named the document is what fails, with the
 // findings as its reason.
-func (e external) admit(ctx context.Context, key string, doc doctree.Document) error {
+func (e external) admit(ctx context.Context, key string, doc doctree.ParsedYAMLDocument) error {
 	place := nowhere()
 	findings := refusals(ctx, place, place.Node(nil), doc.Root, e.opts, false)
 	if len(findings) > 0 {

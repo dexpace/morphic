@@ -68,7 +68,7 @@ func refKindOf(model any) (bind.RefKind, bool) {
 // read (indexWalk), noting in faults each media type the parser faulted on. It
 // returns each position it could build nothing for, with why, and stops once
 // ctx is done.
-func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.Table, media MediaTypes, faults mediaFaults,
+func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.ReferenceTargetTable, media MediaTypes, faults mediaFaults,
 	sibs *Siblings,
 ) []builtObject {
 	o := objectBuild{bd: bd, table: table, media: media, faults: faults, view: nodeview.New(),
@@ -79,8 +79,8 @@ func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.Table, med
 		}
 	}
 	for _, r := range table.References() {
-		var at []bind.Position
-		if !r.Key {
+		var at []bind.DocumentPointer
+		if !r.IsSecurityRequirementKey {
 			at = append(at, r.Site)
 		}
 		if r.Chain.Status == bind.Resolved {
@@ -100,7 +100,7 @@ func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.Table, med
 // could build nothing for.
 type objectBuild struct {
 	bd     *typed.Builder
-	table  *bind.Table
+	table  *bind.ReferenceTargetTable
 	media  MediaTypes
 	faults mediaFaults
 	view   *nodeview.View
@@ -114,7 +114,7 @@ type objectBuild struct {
 
 // objectSite is a position read as a kind of object.
 type objectSite struct {
-	at   bind.Position
+	at   bind.DocumentPointer
 	kind bind.RefKind
 }
 
@@ -148,7 +148,7 @@ func (o *objectBuild) build(ctx context.Context, l bind.ObjectLanding) bool {
 func (o *objectBuild) besideRefs(ctx context.Context, l bind.ObjectLanding, items iter.Seq[soa.WalkItem]) {
 	first, err := o.sibs.addLanding(ctx, items, l.At.Pointer)
 	for i := first; i < len(o.sibs.list); i++ {
-		indexWalk(o.bd, o.media.within(ctx, o.sibs.modelWalk(ctx, i)), bind.Position{Doc: l.At.Doc}, o.faults)
+		indexWalk(o.bd, o.media.within(ctx, o.sibs.modelWalk(ctx, i)), bind.DocumentPointer{Doc: l.At.Doc}, o.faults)
 	}
 	if err != nil {
 		o.failed = append(o.failed, builtObject{landing: l,

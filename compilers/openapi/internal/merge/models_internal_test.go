@@ -104,8 +104,8 @@ func TestTypeJudge_ModelsAlikeAreCopies(t *testing.T) {
 		a, b ir.TypeID
 		want relation
 	}{
-		{"a component, then an inline copy", "t/Owner", "t/copy1", relANarrower},
-		{"an inline copy, then a component", "t/copy0", "t/Owner", relBNarrower},
+		{"a component, then an inline copy", "t/Owner", "t/copy1", firstTypeIsNarrower},
+		{"an inline copy, then a component", "t/copy0", "t/Owner", secondTypeIsNarrower},
 		{"two inline copies", "t/copy0", "t/copy1", relSame},
 		{"two components alike, naming one nested type", "t/Home", "t/House", relOverlap},
 		{"two components alike, each nesting its own object", "t/Owner", "t/Twin", relUnrelated},

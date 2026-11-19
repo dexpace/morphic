@@ -72,7 +72,7 @@ func (s Scope) namesSelf(ref references.Reference) bool {
 }
 
 // selfURI is the URI the source's $self names, resolved against where it lies,
-// which is its base and a second name of it (bind.Document.Self), or empty
+// which is its base and a second name of it (bind.ReferencedDocument.Self), or empty
 // for none.
 func (s Scope) selfURI() string {
 	if s.Bindings == nil {

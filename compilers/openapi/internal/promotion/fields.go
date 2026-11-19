@@ -36,7 +36,7 @@ func AllowReserved(p Promoter, unmodeled ir.Unmodeled, prov *ir.Provenance) (boo
 	reserved, _, diags := firstStated(unmodeled, p.Sources(TargetAllowReserved), reading[bool]{
 		target: TargetAllowReserved,
 		want:   "is not a boolean",
-		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
+		read: func(src ExtensionSource, raw ir.RawValue) (bool, sourceValueMeaning) {
 			if len(src.Values) > 0 {
 				return listed(p.targets, src, raw)
 			}
@@ -62,7 +62,7 @@ func TokenEndpointAuthMethods(p Promoter, unmodeled ir.Unmodeled, inferred *ir.I
 	text, found, diags := firstStated(unmodeled, p.Sources(TargetTokenEndpointAuthMethods), reading[string]{
 		target: TargetTokenEndpointAuthMethods,
 		want:   "is neither a method nor a list of distinct methods",
-		read: func(_ ExtensionSource, raw ir.RawValue) (string, statement) {
+		read: func(_ ExtensionSource, raw ir.RawValue) (string, sourceValueMeaning) {
 			methods, ok := ListedText(raw)
 			switch {
 			case !ok || len(slices.Compact(slices.Sorted(slices.Values(methods)))) != len(methods):

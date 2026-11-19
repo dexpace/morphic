@@ -20,16 +20,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// nullVerdict is what one keyword family says about the null value. JSON Schema
+// nullDeclaration is what one keyword family says about the null value. JSON Schema
 // conjoins keywords, so the families are read together rather than first-match:
 // a schema admits null when one family puts it in the value space and no other
 // takes it out.
-type nullVerdict int
+type nullDeclaration int
 
 const (
-	// nullSilent is a family the schema does not declare, or one that constrains
+	// nullUnconstrained is a family the schema does not declare, or one that constrains
 	// only non-null instances. It forbids nothing.
-	nullSilent nullVerdict = iota
+	nullUnconstrained nullDeclaration = iota
 	// nullAdmitted is a family that puts null in the value space.
 	nullAdmitted
 	// nullForbidden is a family that takes null out of it.
@@ -52,11 +52,13 @@ const maxNullConjuncts = 256
 // written on. The two differ only there, so lenient admits wherever declared
 // does.
 type nullReading struct {
-	declared, lenient nullVerdict
+	declared, lenient nullDeclaration
 }
 
-// alike is the reading of a family that reads the same under both.
-func alike(v nullVerdict) nullReading { return nullReading{declared: v, lenient: v} }
+// nullReadingAlikeUnderBothPolicies is the reading of a family that reads the same under both.
+func nullReadingAlikeUnderBothPolicies(v nullDeclaration) nullReading {
+	return nullReading{declared: v, lenient: v}
+}
 
 // foldNullReadings conjoins readings, each reading on its own.
 func foldNullReadings(a, b nullReading) nullReading {
@@ -74,7 +76,7 @@ func (r nullReading) admits(c lowering.Ctx) bool { return r.selected(c) == nullA
 func (r nullReading) forbids(c lowering.Ctx) bool { return r.selected(c) == nullForbidden }
 
 // selected is the verdict of the reading c's policy selects.
-func (r nullReading) selected(c lowering.Ctx) nullVerdict {
+func (r nullReading) selected(c lowering.Ctx) nullDeclaration {
 	if c.NullableInference.Honours() {
 		return r.lenient
 	}
@@ -204,7 +206,7 @@ func (n *nulls) findings(c lowering.Ctx) []ir.Diagnostic {
 // `nullable: true` or an inline allOf branch speaking for it does.
 func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
 	if !stated(s) || !n.conjuncts.Spend(1) {
-		return alike(nullSilent)
+		return nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	}
 	if s.BesideRef != nil {
 		// The keywords written beside a $ref are read over what it lands on, as
@@ -220,7 +222,7 @@ func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
 // interned at its own ID discards the reference its definition produced.
 func (n *nulls) ref(js *statement.Statement, site nullSite) nullReading {
 	if !stated(js.Schema) || !n.conjuncts.Spend(1) {
-		return alike(nullSilent)
+		return nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	}
 	return n.usage(js.Schema, n.lands(js), site)
 }
@@ -249,7 +251,7 @@ func (n *nulls) usage(s *statement.Schema, target nullReading, site nullSite) nu
 // readings, not n squared over two.
 func (n *nulls) lands(js *statement.Statement) nullReading {
 	if js.Ref == nil || !js.Ref.Bound || js.Ref.Entry.Chain.Status != bind.Resolved {
-		return alike(nullSilent)
+		return nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	}
 	e := js.Ref.Entry
 	sites := []*landing{landingOf(n, js)}
@@ -304,13 +306,13 @@ type landsRead struct{}
 // landingOf returns the landing of the reference site js as n reads it, one
 // per compile.
 func landingOf(n *nulls, js *statement.Statement) *landing {
-	return lowering.Remembered(n.c, landedOn{js: js, rest: n.rest, variants: n.variants}, func() *landing { return &landing{} })
+	return lowering.ReadOncePerRun(n.c, landedOn{js: js, rest: n.rest, variants: n.variants}, func() *landing { return &landing{} })
 }
 
 // landingCount returns the count of hop readings lands has made in the
 // compile, which only the tests read.
 func landingCount(c lowering.Ctx) *int {
-	return lowering.Remembered(c, landsRead{}, func() *int { return new(int) })
+	return lowering.ReadOncePerRun(c, landsRead{}, func() *int { return new(int) })
 }
 
 // keep notes r as what l lands on, kept unless the read's conjunct budget ran
@@ -389,7 +391,7 @@ func (n *nulls) valueParts(s *statement.Schema) (typed, union nullReading) {
 
 // typed is what s's type says of null under each reading, conjoined with the
 // verdicts of its const and enum.
-func (n *nulls) typed(s *statement.Schema, constant, enum nullVerdict) nullReading {
+func (n *nulls) typed(s *statement.Schema, constant, enum nullDeclaration) nullReading {
 	return nullReading{
 		declared: foldNullVerdicts(n.declaredTypeVerdict(s), constant, enum),
 		lenient:  foldNullVerdicts(typeNullVerdict(s), constant, enum),
@@ -411,7 +413,7 @@ type (
 // Each reads only the schema, the same whichever site asks; the union's is read
 // under each reading, as its null branches are.
 type valueVerdicts struct {
-	constant, enum nullVerdict
+	constant, enum nullDeclaration
 	union          nullReading
 }
 
@@ -419,7 +421,7 @@ type valueVerdicts struct {
 // and the enum and union families scan each member and branch, so reading them
 // at each reference would cost the references times the members.
 func valueNulls(c lowering.Ctx, s *statement.Schema) valueVerdicts {
-	return lowering.Remembered(c, valueNullsOf{s}, func() valueVerdicts {
+	return lowering.ReadOncePerRun(c, valueNullsOf{s}, func() valueVerdicts {
 		v := valueSetNulls(c, s)
 		v.union = unionNullReading(c, s)
 		return v
@@ -430,7 +432,7 @@ func valueNulls(c lowering.Ctx, s *statement.Schema) valueVerdicts {
 // with no union: a read of null on variants reads that otherwise
 // (nulls.variantsNull), asking no union whether it is distributed.
 func valueSetNulls(c lowering.Ctx, s *statement.Schema) valueVerdicts {
-	return lowering.Remembered(c, valueSetNullsOf{s}, func() valueVerdicts {
+	return lowering.ReadOncePerRun(c, valueSetNullsOf{s}, func() valueVerdicts {
 		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s)}
 	})
 }
@@ -481,7 +483,7 @@ func (n *nulls) why(s *statement.Schema, own nullReading) string {
 // it adds null to a type written in the same Schema Object, beside a $ref as
 // anywhere, as `type: [T, "null"]` spells it from 3.1, so the result then
 // conjoins like any type. Where it does not, nullable says nothing.
-func (n *nulls) declaredTypeVerdict(s *statement.Schema) nullVerdict {
+func (n *nulls) declaredTypeVerdict(s *statement.Schema) nullDeclaration {
 	v := typeNullVerdict(s)
 	if v == nullForbidden && n.nullable && nullableTrue(s) {
 		return nullAdmitted
@@ -493,8 +495,8 @@ func (n *nulls) declaredTypeVerdict(s *statement.Schema) nullVerdict {
 // schema, otherwise one admitting family does, and a schema no family speaks for
 // stays silent — which is not the same answer as forbidding, since a silent
 // conjunct must not veto a sibling that admits.
-func foldNullVerdicts(verdicts ...nullVerdict) nullVerdict {
-	out := nullSilent
+func foldNullVerdicts(verdicts ...nullDeclaration) nullDeclaration {
+	out := nullUnconstrained
 	for _, v := range verdicts {
 		if v == nullForbidden {
 			return nullForbidden
@@ -508,9 +510,9 @@ func foldNullVerdicts(verdicts ...nullVerdict) nullVerdict {
 
 // typeNullVerdict reads the `type` keyword. A schema writing none constrains no
 // instance kind at all, so it is silent rather than forbidding.
-func typeNullVerdict(s *statement.Schema) nullVerdict {
+func typeNullVerdict(s *statement.Schema) nullDeclaration {
 	if !writesType(s) {
-		return nullSilent
+		return nullUnconstrained
 	}
 	if slices.Contains(s.Types(), statement.KindNull) {
 		return nullAdmitted
@@ -519,10 +521,10 @@ func typeNullVerdict(s *statement.Schema) nullVerdict {
 }
 
 // constNullVerdict reads `const`, which fixes the value space to one member.
-func constNullVerdict(s *statement.Schema) nullVerdict {
+func constNullVerdict(s *statement.Schema) nullDeclaration {
 	node := s.Const()
 	if node == nil {
-		return nullSilent
+		return nullUnconstrained
 	}
 	if isNullValue(node) {
 		return nullAdmitted
@@ -537,10 +539,10 @@ func constNullVerdict(s *statement.Schema) nullVerdict {
 // reading it as "no null member" would let a degenerate keyword strip a
 // co-declared type array's null; what an empty enum lowers to is GitHub #278's
 // question, and this rule leaves it open.
-func enumNullVerdict(s *statement.Schema) nullVerdict {
+func enumNullVerdict(s *statement.Schema) nullDeclaration {
 	nodes := s.Enum()
 	if len(nodes) == 0 {
-		return nullSilent
+		return nullUnconstrained
 	}
 	if slices.ContainsFunc(nodes, isNullValue) {
 		return nullAdmitted
@@ -567,9 +569,9 @@ func isNullValue(node *yaml.Node) bool {
 // one keeps it out (pairMayAdmitNull).
 func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
 	choice := s.ChoiceKeywords()
-	out := alike(nullSilent)
+	out := nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	for _, b := range slices.Concat(choice.OneOf, choice.AnyOf) {
-		st := c.Statements().Sub(b)
+		st := c.Statements().Subschema(b)
 		if !inlineBranch(st) {
 			continue
 		}
@@ -589,10 +591,10 @@ func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
 	if !pairMayAdmitNull(c, choice) {
 		// A oneOf and an anyOf are conjuncts: one keeping null out keeps it
 		// out of the position, as on two allOf entries (pairKeepsNullOut).
-		return alike(nullForbidden)
+		return nullReadingAlikeUnderBothPolicies(nullForbidden)
 	}
-	if out.lenient == nullSilent || hasUnionSiblings(c, s) && !distributesUnion(c, s) {
-		return alike(nullSilent)
+	if out.lenient == nullUnconstrained || hasUnionSiblings(c, s) && !distributesUnion(c, s) {
+		return nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	}
 	return out
 }
@@ -615,7 +617,7 @@ func pairMayAdmitNull(c lowering.Ctx, choice statement.Choice) bool {
 // the rest of the walk, finds the oneOf or the anyOf of choice keeping null
 // out: every branch of it does within that budget.
 func pairForbidsNull(n *nulls, choice statement.Choice) bool {
-	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
+	for _, branches := range [][]statement.Subschema{choice.OneOf, choice.AnyOf} {
 		if n.branchesNull(branches).forbids(n.c) && !n.conjuncts.Exhausted() {
 			return true
 		}
@@ -663,7 +665,7 @@ type nullAloneRead struct {
 // reads a union's branches by this. Every reader of a branch asks, so it is
 // read once a run.
 func nullAloneReading(c lowering.Ctx, s *statement.Schema) (nullReading, bool) {
-	r := lowering.Remembered(c, nullAloneOf{s}, func() nullAloneRead {
+	r := lowering.ReadOncePerRun(c, nullAloneOf{s}, func() nullAloneRead {
 		if !leavesOnlyNull(c, s) {
 			return nullAloneRead{}
 		}
@@ -700,12 +702,12 @@ func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
 // conjunct, and nullability is a property of the usage that names the
 // conjunction.
 func (n *nulls) allOf(s *statement.Schema, site nullSite) nullReading {
-	out := alike(nullSilent)
+	out := nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	for _, b := range allOfIn(s) {
-		out = foldNullReadings(out, n.conjunct(n.c.Statements().Sub(b), site.child("allOf", strconv.Itoa(b.Index))))
+		out = foldNullReadings(out, n.conjunct(n.c.Statements().Subschema(b), site.child("allOf", strconv.Itoa(b.Index))))
 	}
 	if pairKeepsNullOut(n, s) {
-		out = foldNullReadings(out, alike(nullForbidden))
+		out = foldNullReadings(out, nullReadingAlikeUnderBothPolicies(nullForbidden))
 	}
 	return out
 }
@@ -734,7 +736,7 @@ func pairKeepsNullOut(n *nulls, s *statement.Schema) bool {
 		return false
 	}
 	for _, b := range allOfIn(s) {
-		if st := n.c.Statements().Sub(b); inlineBranch(st) && !note(st.Schema) {
+		if st := n.c.Statements().Subschema(b); inlineBranch(st) && !note(st.Schema) {
 			return false
 		}
 	}
@@ -760,7 +762,7 @@ func pairKeepsNullOut(n *nulls, s *statement.Schema) bool {
 // stays conjoined, which beside a $ref it does not
 // (docs/compilers/openapi.md#allof-refinement).
 func (n *nulls) widenByBranch(s *statement.Schema, r nullReading, site nullSite) nullReading {
-	for _, e := range nullableVoices(n.c, s) {
+	for _, e := range nullableFoldingBranches(n.c, s) {
 		r.lenient = nullAdmitted
 		if !site.ok {
 			break // a read across a $ref reports nothing, so one widening is all it needs
@@ -775,24 +777,24 @@ func (n *nulls) widenByBranch(s *statement.Schema, r nullReading, site nullSite)
 	return r
 }
 
-// nullableVoicesOf keys what nullableVoices read of one schema.
-type nullableVoicesOf struct {
+// nullableFoldingBranchesKey keys what nullableFoldingBranches read of one schema.
+type nullableFoldingBranchesKey struct {
 	schema *statement.Schema
 }
 
-// nullableVoices returns the branches of s's flattened allOf, each at its pointer
+// nullableFoldingBranches returns the branches of s's flattened allOf, each at its pointer
 // under s's, that speak for s, write `nullable: true` and write no properties
 // (foldsNullable). Every use of s asks, so it is read once a run. A branch writing
 // `false` widens nothing, though it speaks where the only `true` beside it is on a
 // $ref branch, which no fold compares.
-func nullableVoices(c lowering.Ctx, s *statement.Schema) []allOfBranch {
-	return lowering.Remembered(c, nullableVoicesOf{s}, func() []allOfBranch {
+func nullableFoldingBranches(c lowering.Ctx, s *statement.Schema) []allOfBranch {
+	return lowering.ReadOncePerRun(c, nullableFoldingBranchesKey{s}, func() []allOfBranch {
 		if !allOfDecides(c, s) {
 			return nil
 		}
 		comp := allOfBranches(c, s, "")
 		var out []allOfBranch
-		for i, speaks := range voicesAmong(c, s) {
+		for i, speaks := range foldingAllOfBranches(c, s) {
 			e := comp.branches[i]
 			if speaks && nullableTrue(e.schema.Schema) && foldsNullable(e.schema.Schema) {
 				out = append(out, e)
@@ -805,15 +807,15 @@ func nullableVoices(c lowering.Ctx, s *statement.Schema) []allOfBranch {
 // conjunct reads one allOf branch, or what a $ref lands on. A `false` schema
 // admits no instance whatever, null included; a `true` one constrains nothing,
 // nor does a `null` written for one, which is no `false`
-// (statement.Truth.ReadsFalse).
+// (statement.SchemaValueForm.ReadsFalse).
 func (n *nulls) conjunct(b *statement.Statement, site nullSite) nullReading {
 	switch {
 	case b == nil:
-		return alike(nullSilent)
+		return nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	case b.Truth.ReadsFalse():
-		return alike(nullForbidden)
+		return nullReadingAlikeUnderBothPolicies(nullForbidden)
 	case b.Truth != statement.Stated:
-		return alike(nullSilent)
+		return nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	case b.Ref != nil:
 		return n.ref(b, site)
 	default:

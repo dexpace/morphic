@@ -16,7 +16,7 @@ import (
 )
 
 // reading is what a Namer reads of the way to one position: how the grammar
-// reads each position on it (bind.Table.Kinds) and the node written at each,
+// reads each position on it (bind.ReferenceTargetTable.Kinds) and the node written at each,
 // the root's first, so kinds[k] and path[k] are what tokens[:k] leads to. path
 // ends early where the document holds no node further on.
 type reading struct {
@@ -25,7 +25,7 @@ type reading struct {
 }
 
 // read returns the reading of the way to p, empty for a Namer with no table.
-func (n *Namer) read(p bind.Position) reading {
+func (n *Namer) read(p bind.DocumentPointer) reading {
 	if n.table == nil {
 		return reading{}
 	}
@@ -39,7 +39,7 @@ func (n *Namer) read(p bind.Position) reading {
 // Title returns the name the title of the schema at p gives the node built
 // there (titles.at), and false where it gives none, as walking the structure
 // to p reads it.
-func (n *Namer) Title(p bind.Position) (string, bool) {
+func (n *Namer) Title(p bind.DocumentPointer) (string, bool) {
 	hint, _, titled := n.walk(p)
 	if !titled {
 		return "", false
@@ -54,9 +54,9 @@ func (n *Namer) Title(p bind.Position) (string, bool) {
 // positions beneath it are named: like a name, none reads more than the
 // documents.
 type titles struct {
-	table      *bind.Table
+	table      *bind.ReferenceTargetTable
 	read       map[*yaml.Node]string
-	lists      map[bind.Position]map[string]int
+	lists      map[bind.DocumentPointer]map[string]int
 	components map[string]bool
 }
 
@@ -106,7 +106,7 @@ func (t *titles) collides(doc bind.DocID, tokens []string, list *yaml.Node, word
 // listed returns how many branches of the list written as list at holder in
 // doc write a title of each set of words, read once per list.
 func (t *titles) listed(doc bind.DocID, holder []string, list *yaml.Node) map[string]int {
-	at := bind.Position{Doc: doc, Pointer: pointerOf(holder)}
+	at := bind.DocumentPointer{Doc: doc, Pointer: pointerOf(holder)}
 	if counted, ok := t.lists[at]; ok {
 		return counted
 	}

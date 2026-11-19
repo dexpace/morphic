@@ -27,11 +27,11 @@ type grid struct {
 
 func (g grid) Axes() []harness.Axis { return g.axes }
 
-func (g grid) Write(at []int) (harness.Document, bool) {
+func (g grid) Write(at []int) (harness.CaseDocument, bool) {
 	if g.skip != nil && g.skip(at) {
-		return harness.Document{}, false
+		return harness.CaseDocument{}, false
 	}
-	return harness.Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}, true
+	return harness.CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}, true
 }
 
 // axis returns an axis of core values named as given.
@@ -215,8 +215,8 @@ type parted struct{ parts [][]int }
 
 func (parted) Axes() []harness.Axis { return []harness.Axis{axis("n", "a", "b", "c")} }
 
-func (p parted) Write(at []int) (harness.Document, bool) {
-	doc := harness.Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}
+func (p parted) Write(at []int) (harness.CaseDocument, bool) {
+	doc := harness.CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}
 	if at[0] == 0 {
 		doc.Equal = &harness.Equal{To: []int{1}, Rule: "docs/compilers/openapi.md#ref-use-site",
 			Relocate: func(s string) string { return s }, Parts: p.parts}

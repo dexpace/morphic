@@ -63,13 +63,13 @@ type Config struct {
 	// Components is the keys of the source's schema components. A
 	// discriminator mapping value spelling one names that component, in
 	// whichever document it is written, so the table reads every other value,
-	// and none of these, as a reference (Table.Mapping).
+	// and none of these, as a reference (ReferenceTargetTable.Mapping).
 	Components []string
 	// SecuritySchemes is the keys of the source's securitySchemes components.
 	// A Security Requirement key spelling one names that component, in
 	// whichever document it is written; where KeysByURI holds for the document
 	// writing it, the table reads any other as a reference to a Security
-	// Scheme Object, written where the key is (Table.Reference).
+	// Scheme Object, written where the key is (ReferenceTargetTable.Reference).
 	SecuritySchemes []string
 	// KeysByURI reports whether the document named name reads a requirement
 	// key as a URI, as OpenAPI 3.2 does. Nil reads none so.
@@ -78,7 +78,7 @@ type Config struct {
 	// whether a mapping holds it, whose key is a node at that pointer too. Only
 	// this package's tests set it, to total the pointers a table's walks spell
 	// (Config.Spelling).
-	pushed func(at Position, member bool)
+	pushed func(at DocumentPointer, member bool)
 }
 
 // DialectRule is what the table reads otherwise in a dialect than in 2020-12.
@@ -172,8 +172,8 @@ type binder struct {
 	ids       *identifiers
 	reads     *reads
 	wait      *waits
-	hops      map[Position]Hop
-	chains    map[Position]Chain
+	hops      map[DocumentPointer]Hop
+	chains    map[DocumentPointer]Chain
 	objs      *objects
 	dyn       *dynamicRefs
 	loops     []Loop
@@ -193,7 +193,7 @@ type binder struct {
 // only when what it reached changes a URI it asked for, and only the last
 // stands, so no declaration order reaches an answer (reread); each reads what
 // none before it did (identifiers.commit).
-func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
+func Bind(ctx context.Context, src *yaml.Node, cfg Config) *ReferenceTargetTable {
 	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
 	d := newDocs(src, cfg, w)
 	ids := newIdentifiers(resources{d}.document(Source))
@@ -214,20 +214,20 @@ func newBinder(cfg Config, d *docs, w *work, ids *identifiers, asked *reads) *bi
 	d.reached, d.fresh = map[DocID]bool{Source: true}, nil
 	clear(asked.held)
 	b := &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
-		find: newFinder(d, w, ids), ids: ids, reads: asked, wait: newWaits(), hops: map[Position]Hop{},
-		chains: map[Position]Chain{}, dyn: newDynamicRefs()}
-	b.objs = &objects{b: b, hops: map[Position]objectHop{}, chains: map[objectKey]Chain{}}
+		find: newFinder(d, w, ids), ids: ids, reads: asked, wait: newWaits(), hops: map[DocumentPointer]Hop{},
+		chains: map[DocumentPointer]Chain{}, dyn: newDynamicRefs()}
+	b.objs = &objects{b: b, hops: map[DocumentPointer]objectHop{}, chains: map[objectKey]Chain{}}
 	return b
 }
 
 // run answers every reference the pass b reaches, going on past what it held
 // for as long as that changes no answer it gave (goOn). A site still waiting
 // when the pass ends, as the budget or a change stopped it, has no entry: the
-// table says why (Table.Unread), or the pass is read again.
-func run(b *binder) *Table {
+// table says why (ReferenceTargetTable.Unread), or the pass is read again.
+func run(b *binder) *ReferenceTargetTable {
 	b.find.walk(rootOf(Source, sDocument), false)
 	b.ids.begin()
-	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}, references: map[objectKey]Reference{}}
+	t := &ReferenceTargetTable{entries: map[DocumentPointer]ReferenceSite{}, mappings: map[mappingKey]Mapping{}, references: map[objectKey]Reference{}}
 	for {
 		for more := true; more && !b.work.over(); more = b.find.walkPending() {
 			b.settle(t)
@@ -334,14 +334,14 @@ func declaredFor(b *binder, uri string, asker DocID) bool {
 
 // rootOf is the root at the root of document id, read at s.
 func rootOf(id DocID, s state) root {
-	return root{at: Position{Doc: id}, state: s}
+	return root{at: DocumentPointer{Doc: id}, state: s}
 }
 
 // settle answers every site, mapping value and reference object noted since it
 // last ran, in order, so that where the budget runs out does not depend on what
 // was noted first. Each is sorted once, in the round that noted it, and costs a
 // step, so a round that answered one again would show in the work.
-func (b *binder) settle(t *Table) {
+func (b *binder) settle(t *ReferenceTargetTable) {
 	staticSites(b)
 	sites, keys, objects := b.find.fresh, b.find.freshMappings, b.find.freshObjects
 	b.find.fresh, b.find.freshMappings, b.find.freshObjects = nil, nil, nil
@@ -357,7 +357,7 @@ func (b *binder) settle(t *Table) {
 		if c, waits := b.chain(site); waits {
 			b.wait.sites[site] = true
 		} else {
-			t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c, Keyword: keywordAt(b, site)}
+			t.entries[site] = ReferenceSite{Site: site, Hop: b.hops[site], Chain: c, Keyword: keywordAt(b, site)}
 		}
 	}
 	slices.SortFunc(keys, mappingOrder(b.docs))
@@ -424,20 +424,20 @@ func mappingOrder(d *docs) func(x, y mappingKey) int {
 // table finishes t: an entry for each position a chain passed that no walk
 // found, which only a budget cutting the walks leaves, the loops, the
 // landings, and the verdicts of the budget and of the merge bound.
-func (b *binder) table(t *Table) *Table {
+func (b *binder) table(t *ReferenceTargetTable) *ReferenceTargetTable {
 	for p, c := range b.chains {
 		if _, found := t.entries[p]; !found {
-			t.entries[p] = Entry{Site: p, Hop: b.hops[p], Chain: c, Keyword: keywordAt(b, p)}
+			t.entries[p] = ReferenceSite{Site: p, Hop: b.hops[p], Chain: c, Keyword: keywordAt(b, p)}
 		}
 	}
 	for k, c := range b.objs.chains {
 		if _, found := t.references[k]; !found {
 			_, key := b.docs.keyRefs[k.at]
 			t.references[k] = Reference{Site: k.at, Kind: k.kind, Hop: ofKind(b.objs.hops[k.at], k.kind), Chain: c,
-				Key: key}
+				IsSecurityRequirementKey: key}
 		}
 	}
-	t.entryList = slices.SortedFunc(maps.Values(t.entries), func(x, y Entry) int { return b.docs.compare(x.Site, y.Site) })
+	t.entryList = slices.SortedFunc(maps.Values(t.entries), func(x, y ReferenceSite) int { return b.docs.compare(x.Site, y.Site) })
 	t.roots, t.bases, t.ids = b.find.roots, newBases(b.resources, b.ids), b.ids
 	shared := sharedNames(b.ids)
 	var graph reach
@@ -451,7 +451,7 @@ func (b *binder) table(t *Table) *Table {
 	dialects := dialectsByDocument(withLandingRoots(b.find, b.ids.dialects))
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
-		t.docs = append(t.docs, Document{Name: d.name, Self: d.self, Root: d.root, Unreached: !reached,
+		t.docs = append(t.docs, ReferencedDocument{Name: d.name, Self: d.self, Root: d.root, Unreached: !reached,
 			Dialects: dialects[DocID(id)]})
 		t.truncated = t.truncated || reached && d.view.Exhausted()
 	}
@@ -478,12 +478,12 @@ func (b *binder) table(t *Table) *Table {
 // document. Starting from each in order, a chain is followed until it meets a
 // position a lesser start reached, whose chain on from there that start has
 // marked, so each position is marked once.
-func (b *binder) attribute(t *Table) map[Position]Position {
+func (b *binder) attribute(t *ReferenceTargetTable) map[DocumentPointer]DocumentPointer {
 	type start struct {
-		from, first Position
+		from, first DocumentPointer
 	}
 	var starts []start
-	add := func(from Position, h Hop) {
+	add := func(from DocumentPointer, h Hop) {
 		if h.Status == Resolved {
 			starts = append(starts, start{from: from, first: h.Target})
 		}
@@ -503,7 +503,7 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 		}
 		return b.docs.compare(x.first, y.first)
 	})
-	reach := map[Position]Position{}
+	reach := map[DocumentPointer]DocumentPointer{}
 	for _, s := range starts {
 		for p := s.first; ; {
 			if _, seen := reach[p]; seen {
@@ -520,12 +520,12 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 	return reach
 }
 
-// Document is a document a table read: its name and its root node. Unreached
+// ReferencedDocument is a document a table read: its name and its root node. Unreached
 // reports that only a pass that did not stand asked for it, so that nothing the
 // table holds is in it: a reference read it as a location before a later
 // document declared that URI. Dialects is each schema resource root in it
 // that names its dialect, in pointer order.
-type Document struct {
+type ReferencedDocument struct {
 	Name string
 	// Self is the URI the document's $self names, resolved against Name, or
 	// empty for none: a second name of the document, and its base.
@@ -535,23 +535,23 @@ type Document struct {
 	Unreached bool
 }
 
-// Table is every reference a source holds, a schema's $ref or a Reference
+// ReferenceTargetTable is every reference a source holds, a schema's $ref or a Reference
 // Object's, where each lands and where its chain ends, the loops among them,
 // and what the reading cost. It is built once, and no answer it gives changes
 // after: only its base lookups write, to remember the walks they make (bases),
 // so one is not safe for concurrent use. Each list it gives is sorted once, as
 // it is built, in the order docs.compare reads positions in.
-type Table struct {
-	entries     map[Position]Entry
+type ReferenceTargetTable struct {
+	entries     map[DocumentPointer]ReferenceSite
 	references  map[objectKey]Reference
-	roots       map[Position]state
+	roots       map[DocumentPointer]state
 	mappings    map[mappingKey]Mapping
 	loops       []Loop
 	landings    []Landing
 	objLandings []ObjectLanding
-	entryList   []Entry
+	entryList   []ReferenceSite
 	refList     []Reference
-	docs        []Document
+	docs        []ReferencedDocument
 	steps       int
 	passes      int
 	limit       budget.Limit
@@ -569,53 +569,53 @@ type Table struct {
 // Entry returns the entry of the $ref written at site, and false for a
 // position the table read no $ref at: one writing none, or one the budget
 // left unread. A nil table read none.
-func (t *Table) Entry(site Position) (Entry, bool) {
+func (t *ReferenceTargetTable) Entry(site DocumentPointer) (ReferenceSite, bool) {
 	if t == nil {
-		return Entry{}, false
+		return ReferenceSite{}, false
 	}
 	e, ok := t.entries[site]
 	return e, ok
 }
 
 // Entries returns every entry, ordered by site.
-func (t *Table) Entries() []Entry { return slices.Clone(t.entryList) }
+func (t *ReferenceTargetTable) Entries() []ReferenceSite { return slices.Clone(t.entryList) }
 
 // Mapping returns where the mapping value written by the discriminator at at
 // lands, and false for one the table did not read: a value naming a schema
 // component of the source (Config.Components), or one it left unread (Unread).
-func (t *Table) Mapping(at Position, value string) (Mapping, bool) {
+func (t *ReferenceTargetTable) Mapping(at DocumentPointer, value string) (Mapping, bool) {
 	m, ok := t.mappings[mappingKey{at: at, value: value}]
 	return m, ok
 }
 
 // Loops returns every loop of $refs.
-func (t *Table) Loops() []Loop { return slices.Clone(t.loops) }
+func (t *ReferenceTargetTable) Loops() []Loop { return slices.Clone(t.loops) }
 
 // Landings returns every landing, ordered by position.
-func (t *Table) Landings() []Landing { return slices.Clone(t.landings) }
+func (t *ReferenceTargetTable) Landings() []Landing { return slices.Clone(t.landings) }
 
 // Document returns the document id names.
-func (t *Table) Document(id DocID) Document { return t.docs[id] }
+func (t *ReferenceTargetTable) Document(id DocID) ReferencedDocument { return t.docs[id] }
 
 // Documents reports how many documents the table read, the source included.
-func (t *Table) Documents() int { return len(t.docs) }
+func (t *ReferenceTargetTable) Documents() int { return len(t.docs) }
 
 // Reference returns the entry of the Reference Object written at site, read
 // as kind, and false for a position the table read no such reference at: one
 // writing no $ref, one no walk read as that kind, or one the budget left
 // unread.
-func (t *Table) Reference(site Position, kind RefKind) (Reference, bool) {
+func (t *ReferenceTargetTable) Reference(site DocumentPointer, kind RefKind) (Reference, bool) {
 	r, ok := t.references[objectKey{at: site, kind: kind}]
 	return r, ok
 }
 
 // References returns every Reference Object's entry, ordered by site, then
 // kind.
-func (t *Table) References() []Reference { return slices.Clone(t.refList) }
+func (t *ReferenceTargetTable) References() []Reference { return slices.Clone(t.refList) }
 
 // ObjectLandings returns every object landing, ordered by position, then
 // kind.
-func (t *Table) ObjectLandings() []ObjectLanding { return slices.Clone(t.objLandings) }
+func (t *ReferenceTargetTable) ObjectLandings() []ObjectLanding { return slices.Clone(t.objLandings) }
 
 // DynamicAnchor is what the $dynamicAnchor declarations of one name in one
 // document say: the first in pointer order, how many there are, whether a
@@ -623,7 +623,7 @@ func (t *Table) ObjectLandings() []ObjectLanding { return slices.Clone(t.objLand
 // whether that is all known: false where the budget or a merge past the bound
 // may have hidden a declaration or a path, so a count of one proves nothing.
 type DynamicAnchor struct {
-	Site     Position
+	Site     DocumentPointer
 	Count    int
 	Reached  bool
 	Complete bool
@@ -631,7 +631,7 @@ type DynamicAnchor struct {
 
 // DynamicAnchor returns what document id's declarations of the $dynamicAnchor
 // name say, sorted once as the table was built. A nil table knows of none.
-func (t *Table) DynamicAnchor(id DocID, name string) DynamicAnchor {
+func (t *ReferenceTargetTable) DynamicAnchor(id DocID, name string) DynamicAnchor {
 	if t == nil {
 		return DynamicAnchor{Complete: true}
 	}
@@ -642,7 +642,7 @@ func (t *Table) DynamicAnchor(id DocID, name string) DynamicAnchor {
 }
 
 // dynamicAnchorsOf returns what each name's declarations in each document say
-// (Table.DynamicAnchor), each name's sorted once, and whether another
+// (ReferenceTargetTable.DynamicAnchor), each name's sorted once, and whether another
 // document's declaring resource reaches the first, as reached read it.
 func dynamicAnchorsOf(ids *identifiers, exhausted bool, reached dynamicReach) map[dynamicKey]DynamicAnchor {
 	out := make(map[dynamicKey]DynamicAnchor, len(ids.dynamic))
@@ -660,7 +660,7 @@ func dynamicAnchorsOf(ids *identifiers, exhausted bool, reached dynamicReach) ma
 // document, reaches it (reach), so is in its dynamic scope, and whether both
 // are known, as DynamicAnchor says, each declaration's resource and the
 // resources on the way included. A nil table knows of none.
-func (t *Table) RecursiveAnchor(root Position) (declared, reached, known bool) {
+func (t *ReferenceTargetTable) RecursiveAnchor(root DocumentPointer) (declared, reached, known bool) {
 	if t == nil {
 		return false, false, true
 	}
@@ -669,13 +669,13 @@ func (t *Table) RecursiveAnchor(root Position) (declared, reached, known bool) {
 }
 
 // recursiveAnchors is what the `$recursiveAnchor: true` declarations of one
-// document say (Table.RecursiveAnchor): where they are, which of the resources
+// document say (ReferenceTargetTable.RecursiveAnchor): where they are, which of the resources
 // holding them another such resource reaches, and whether one lies where a
 // merge past the bound may hide the resource it is in, or a resource on the
 // way.
 type recursiveAnchors struct {
-	sites    map[Position]bool
-	reached  map[Position]bool
+	sites    map[DocumentPointer]bool
+	reached  map[DocumentPointer]bool
 	unplaced bool
 }
 
@@ -685,9 +685,9 @@ type recursiveAnchors struct {
 // than a read of every declaration.
 func recursiveAnchorsOf(ids *identifiers, b *bases, g reach) map[DocID]recursiveAnchors {
 	out := make(map[DocID]recursiveAnchors, len(ids.recursive))
-	var origins []Position
+	var origins []DocumentPointer
 	for id, sites := range ids.recursive {
-		r := recursiveAnchors{sites: make(map[Position]bool, len(sites)), reached: map[Position]bool{},
+		r := recursiveAnchors{sites: make(map[DocumentPointer]bool, len(sites)), reached: map[DocumentPointer]bool{},
 			unplaced: !g.known}
 		for _, site := range sites {
 			r.sites[site] = true
@@ -715,9 +715,9 @@ func recursiveAnchorsOf(ids *identifiers, b *bases, g reach) map[DocID]recursive
 // document's root where none on the way does. It is false where a schema on
 // the way may hide one past the merge bound. A nil table reads every position
 // as its document's.
-func (t *Table) Resource(p Position) (root Position, known bool) {
+func (t *ReferenceTargetTable) Resource(p DocumentPointer) (root DocumentPointer, known bool) {
 	if t == nil {
-		return Position{Doc: p.Doc}, true
+		return DocumentPointer{Doc: p.Doc}, true
 	}
 	res, known := t.bases.holding(p)
 	return res.root, known
@@ -728,7 +728,7 @@ func (t *Table) Resource(p Position) (root Position, known bool) {
 // identifier at or above it names. Two schemas with one base read every
 // reference they write alike. It is false where a schema on the way may hide
 // one past the merge bound, and a nil table knows none.
-func (t *Table) Base(p Position) (string, bool) {
+func (t *ReferenceTargetTable) Base(p DocumentPointer) (string, bool) {
 	if t == nil {
 		return "", false
 	}
@@ -737,23 +737,23 @@ func (t *Table) Base(p Position) (string, bool) {
 }
 
 // Limit reports the work the table was allowed (Config.Limit).
-func (t *Table) Limit() budget.Limit { return t.limit }
+func (t *ReferenceTargetTable) Limit() budget.Limit { return t.limit }
 
 // Exhausted reports whether the budget ran out, so that a site may be missing
 // or answered OverBudget.
-func (t *Table) Exhausted() bool { return t.exhausted }
+func (t *ReferenceTargetTable) Exhausted() bool { return t.exhausted }
 
 // Truncated reports whether a mapping of a document the table reached merges
 // through `<<` deeper than the view expands (nodeview.MergeDepthLimit), so that
 // a site past the bound may be missing, and a position past it read as holding
 // nothing.
-func (t *Table) Truncated() bool { return t.truncated }
+func (t *ReferenceTargetTable) Truncated() bool { return t.truncated }
 
 // Unread returns why a schema $ref the table holds no entry for went unread:
 // the budget ran out, or a merge past the bound hid it. It is empty when
 // neither happened, and every $ref was read, or for a nil table, which read
 // none.
-func (t *Table) Unread() string {
+func (t *ReferenceTargetTable) Unread() string {
 	switch {
 	case t == nil:
 		return ""

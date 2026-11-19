@@ -57,7 +57,7 @@ func objectFields(spec oas.Spec) map[state]map[string]state {
 // reads, that kind's state or the map or list of it.
 func leads(shape oas.Shape, of oas.Kind) state {
 	switch shape {
-	case oas.Any:
+	case oas.AnyShapeUnchecked:
 		return sRaw
 	case oas.String, oas.Boolean, oas.Number, oas.PositiveNumber, oas.Natural:
 		return sValue

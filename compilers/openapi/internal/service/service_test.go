@@ -37,7 +37,7 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
 
 	ext := service.GroupingExtension{Key: "x-group", Lists: service.ListsAreGroups, Fallback: service.GroupByPathPrefix}
-	c := service.New(7, &load.Document{Doc: doc, Source: src},
+	c := service.New(7, &load.LoadedOpenAPIDocument{Doc: doc, Source: src},
 		service.Policy{Grouping: service.GroupByExtension, GroupingExtension: ext})
 
 	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
@@ -196,7 +196,7 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := service.New(0, &load.Document{Doc: tc.doc}, service.Policy{})
+			c := service.New(0, &load.LoadedOpenAPIDocument{Doc: tc.doc}, service.Policy{})
 			for _, n := range tc.declares {
 				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
 			}
@@ -233,7 +233,7 @@ func TestSources_ListsTheOverlayAfterTheSourceItPatched(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src, Overlay: origin}, service.Policy{})
+	c := service.New(0, &load.LoadedOpenAPIDocument{Doc: openapitest.DocDeclaring(), Source: src, Overlay: origin}, service.Policy{})
 
 	require.Len(t, c.Sources(), 2)
 	assert.Equal(t, src, c.Sources()[0], "the source being lowered comes first")
@@ -248,7 +248,7 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 	t.Parallel()
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml"}
 
-	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src}, service.Policy{})
+	c := service.New(0, &load.LoadedOpenAPIDocument{Doc: openapitest.DocDeclaring(), Source: src}, service.Policy{})
 
 	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
 }
@@ -264,7 +264,7 @@ func TestPlace_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Overlay: origin}, service.Policy{})
+	c := service.New(0, &load.LoadedOpenAPIDocument{Doc: openapitest.DocDeclaring(), Overlay: origin}, service.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
 		c.Place().At("/info/description"), "the overlay wrote this position of the source")

@@ -145,12 +145,12 @@ func namesDialect(ctx context.Context, root *yaml.Node, version string) bool {
 // those of a dialect root it is or is held by, else the source's. What it
 // refuses and accepts is recorded for settle as the first check's is. Its one
 // caller asks it only where some Schema Object waits (loading.bindRefs).
-func judgeSchemas(ctx context.Context, j judgment, d dialect.Table) judgment {
+func judgeSchemas(ctx context.Context, j judgment, d dialect.SchemaDialectRows) judgment {
 	opts := j.opts
 	opts.Judged = j.note
-	opts.Rows = d.At(bind.Position{Doc: bind.Source})
+	opts.Rows = d.At(bind.DocumentPointer{Doc: bind.Source})
 	opts.RootRows = func(at jsontext.Pointer) (oas.SchemaRules, bool) {
-		return d.RootAt(bind.Position{Doc: bind.Source, Pointer: at})
+		return d.RootAt(bind.DocumentPointer{Doc: bind.Source, Pointer: at})
 	}
 	j.diags = append(j.diags, j.checker.CheckPending(ctx, j.pending, j.version, opts)...)
 	j.pending = nil

@@ -62,7 +62,7 @@ finding breaks.
   each rewrapped paragraph for a line opening with block markup. A comparison with the original
   cannot object: the text matches.
 - **Why.** Kotlin's table kept cells reading "the same" of a Go column it had lost, citations
-  outlived the passages they named, and a reflowed line rendered as a list, all past word and link
+  outlived the read-throughs they named, and a reflowed line rendered as a list, all past word and link
   checks (#1179, #1184).
 - **Probe.** `git grep -nwE 'the same|there|too|also' -- <files>`, each section's first line for a
   pronoun, `git show <rev>:<cited file> | grep -c <name>` for each name cited, and

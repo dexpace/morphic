@@ -261,7 +261,7 @@ type said struct {
 }
 
 // useOf reads doc, a case at the component position, as said.
-func useOf(t *testing.T, doc harness.Document) said {
+func useOf(t *testing.T, doc harness.CaseDocument) said {
 	t.Helper()
 	data := doc.Sources[0].Data
 	var out said

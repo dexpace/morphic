@@ -71,7 +71,7 @@ func readSchema(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch b
 	}
 	// The union holds beside what s says itself, so a string s keeps its
 	// branches to strings.
-	read := lowering.Remembered(c.Ctx, unionFileOf{s: s, part: branch.part}, func() fileReading {
+	read := lowering.ReadOncePerRun(c.Ctx, unionFileOf{s: s, part: branch.part}, func() fileReading {
 		return readUnion(c, union, branch.read)
 	})
 	if own != readsString || read != readsUntyped {
@@ -92,7 +92,7 @@ type branchReading struct {
 }
 
 // unionFileOf is what a union's reading as a file is remembered under
-// (lowering.Remembered): s, the schema writing the union, which a $ref chain
+// (lowering.ReadOncePerRun): s, the schema writing the union, which a $ref chain
 // ends on, and whether its branches are read as a part's, which reads a list
 // of bytes through its elements where a body's does not. The reading turns on
 // nothing else: the documents, and the bindings of their $refs.

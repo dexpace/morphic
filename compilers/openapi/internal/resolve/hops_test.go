@@ -44,7 +44,7 @@ func TestHops_ListsTheReferencesAChainPassesThrough(t *testing.T) {
 		require.Len(t, got, hops, "%d hops", hops)
 		for i, hop := range got {
 			pointer := jsontext.Pointer("/components/parameters/P" + strconv.Itoa(i))
-			assert.Equal(t, bind.Position{Pointer: pointer}, hop.At, "hop %d is P%d", i, i)
+			assert.Equal(t, bind.DocumentPointer{Pointer: pointer}, hop.At, "hop %d is P%d", i, i)
 			wrapper, _ := doc.Doc.Components.GetParameters().Get("P" + strconv.Itoa(i))
 			assert.Same(t, wrapper, hop.Ref, "hop %d is the wrapper read there", i)
 		}
@@ -86,12 +86,12 @@ paths:
 	got := resolve.Hops[soa.PathItem](doc.Bindings, item)
 
 	require.Len(t, got, 2, "other.yaml's /x, then the source's /b")
-	assert.Equal(t, bind.Position{Doc: other, Pointer: "/paths/~1x"}, got[0].At, "/x is written in other.yaml")
-	assert.Equal(t, bind.Position{Pointer: "/paths/~1b"}, got[1].At, "/b is written in the source")
+	assert.Equal(t, bind.DocumentPointer{Doc: other, Pointer: "/paths/~1x"}, got[0].At, "/x is written in other.yaml")
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/paths/~1b"}, got[1].At, "/b is written in the source")
 }
 
 // documentNamed returns the document table read under name.
-func documentNamed(t *testing.T, table *bind.Table, name string) bind.DocID {
+func documentNamed(t *testing.T, table *bind.ReferenceTargetTable, name string) bind.DocID {
 	t.Helper()
 	for id := range bind.DocID(table.Documents()) {
 		if table.Document(id).Name == name {
@@ -120,7 +120,7 @@ components:
 `), &tree))
 	bd := typed.NewBuilder(bind.Bind(t.Context(), &tree, bind.Config{Self: "spec.yaml"}))
 	a := &soa.ReferencedParameter{}
-	bd.Object(a, bind.RefParameter, bind.Position{Pointer: "/components/parameters/A"})
+	bd.Object(a, bind.RefParameter, bind.DocumentPointer{Pointer: "/components/parameters/A"})
 
 	assert.Empty(t, resolve.Hops[soa.Parameter](bd.Bindings(), a), "no wrapper is held at B")
 	assert.Nil(t, resolve.Object[soa.Parameter](bd.Bindings(), a), "nor at C, where the chain ends")

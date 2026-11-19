@@ -57,7 +57,7 @@ func LowerService(ctx context.Context, c service.Ctx, ts *compile.Types, declare
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups(c.Doc.GetTags())
-	w := walk{
+	w := operationLoweringState{
 		types: ts, claims: newOperationIDClaims(), servers: reg, schemes: schemes,
 		kept: newKeptOnce(), links: &Links{},
 	}
@@ -94,14 +94,14 @@ type Lowered struct {
 	Links   Links
 }
 
-// walk is what lowering a service's operations accumulates across all of them,
+// operationLoweringState is what lowering a service's operations accumulates across all of them,
 // whichever route mounts each: the type registry, the operationId claims judged
 // once every operation has lowered, the server registry a path item's and an
 // operation's servers go into, the scheme registry a requirement's names go
 // into, what the walk keeps for the Document, and the links resolved once the
 // service is whole. One is built per service and handed down by value, since
 // each field is the shared accumulator itself.
-type walk struct {
+type operationLoweringState struct {
 	types   *compile.Types
 	claims  *operationIDClaims
 	servers *servers.Registry
@@ -169,7 +169,7 @@ func (o opContext) keyFields() (uriTemplate, webhookName string) {
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (docs/ir/operations.md,
 // docs/ir/http-binding.md).
-func lowerOperation(c service.Ctx, w walk, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+func lowerOperation(c service.Ctx, w operationLoweringState, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place. Its
 	// heuristic marker is filled in below, once every lowering that can add one
@@ -295,7 +295,7 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // else its path item's (docs/compilers/openapi.md#extension-promotion).
 func promoteOperation(p promotion.Promoter, op *ir.Operation) []ir.Diagnostic {
 	own := promotion.Carried(p, op.Unmodeled, pathItemScope)
-	diags := p.Deprecation(own, p.Lent(promotion.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
+	diags := p.Deprecation(own, p.WithOwnCarriedState(promotion.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
 		&op.Provenance)
 	diags = append(diags, promotion.Stability(p, own, &op.Stability, &op.Provenance)...)
 	// What the path item states behind the operation's own key is read for its

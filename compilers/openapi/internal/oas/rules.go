@@ -24,8 +24,8 @@ type tri uint8
 // not written, or not a scalar: a rule that rests on it does not fire.
 const (
 	unknown tri = iota
-	yes
-	no
+	answerYes
+	answerNo
 )
 
 // test reports whether every term holds on the object's siblings. One term
@@ -33,11 +33,11 @@ const (
 // Written term fails where the object does not write its field, and holds
 // where it does, a mapping included, which no text reads.
 func (f frame) test(terms []Term) tri {
-	answer := yes
+	answer := answerYes
 	for _, t := range terms {
 		if t.Written {
 			if _, ok := f.byKey[t.Field]; !ok {
-				return no
+				return answerNo
 			}
 			continue
 		}
@@ -46,7 +46,7 @@ func (f frame) test(terms []Term) tri {
 		case !ok:
 			answer = unknown
 		case !slices.Contains(t.In, got):
-			return no
+			return answerNo
 		}
 	}
 	return answer
@@ -104,7 +104,7 @@ func (r ruler) apply(rule Rule) {
 	case RuleForbiddenWhen:
 		r.forbiddenWhen(rule)
 	case RuleMustBe:
-		r.mustBe(rule)
+		r.reportFieldWithoutRequiredValue(rule)
 	case RuleMember:
 		r.member(rule)
 	case RuleUnique:
@@ -241,7 +241,7 @@ func written(pairs []nodeview.Pair, counted func(nodeview.Pair) bool) int {
 
 // requiredWhen reports a field missing where the conditions make it required.
 func (r ruler) requiredWhen(rule Rule) {
-	if _, ok := r.f.byKey[rule.Field]; ok || r.f.test(rule.When) != yes {
+	if _, ok := r.f.byKey[rule.Field]; ok || r.f.test(rule.When) != answerYes {
 		return
 	}
 	r.fail(rule, classRequired, r.f.at.ptr,
@@ -250,7 +250,7 @@ func (r ruler) requiredWhen(rule Rule) {
 
 // forbiddenWhen reports each of the fields written where the conditions bar it.
 func (r ruler) forbiddenWhen(rule Rule) {
-	if r.f.test(rule.When) != yes {
+	if r.f.test(rule.When) != answerYes {
 		return
 	}
 	where := ""
@@ -262,11 +262,11 @@ func (r ruler) forbiddenWhen(rule Rule) {
 	}
 }
 
-// mustBe reports a field written with another value than the rule demands,
+// reportFieldWithoutRequiredValue reports a field written with another value than the rule demands,
 // where the conditions hold.
-func (r ruler) mustBe(rule Rule) {
+func (r ruler) reportFieldWithoutRequiredValue(rule Rule) {
 	got, ok := r.f.text(rule.Field)
-	if !ok || r.f.test(rule.When) != yes || strings.EqualFold(got, rule.Value) {
+	if !ok || r.f.test(rule.When) != answerYes || strings.EqualFold(got, rule.Value) {
 		return
 	}
 	r.fail(rule, classValues, r.f.at.ptr.AppendToken(rule.Field),
@@ -293,7 +293,7 @@ func (r ruler) member(rule Rule) {
 // conditions hold.
 func (r ruler) syntax(rule Rule) {
 	got, ok := r.f.text(rule.Field)
-	if !ok || ValidFormat(rule.Format, got) || r.f.test(rule.When) != yes {
+	if !ok || ValidFormat(rule.Format, got) || r.f.test(rule.When) != answerYes {
 		return
 	}
 	r.fail(rule, classFormat, r.f.at.ptr.AppendToken(rule.Field),
@@ -349,7 +349,7 @@ func (r ruler) keysOf(node *yaml.Node) map[string]*yaml.Node {
 
 // inapplicable warns of a field written where the conditions give it no effect.
 func (r ruler) inapplicable(rule Rule) {
-	if !r.f.writes(rule.Field, r.w.minor) || r.f.test(rule.When) != yes {
+	if !r.f.writes(rule.Field, r.w.minor) || r.f.test(rule.When) != answerYes {
 		return
 	}
 	ptr := r.f.at.ptr.AppendToken(rule.Field)
@@ -364,7 +364,7 @@ func (r ruler) inapplicable(rule Rule) {
 // ignored; it lowers as declared, for the emitter to suppress.
 func reservedNames(r ruler, rule Rule) {
 	node := nodeview.Deref(r.f.byKey[rule.Field])
-	if node == nil || r.f.test(rule.When) != yes {
+	if node == nil || r.f.test(rule.When) != answerYes {
 		return
 	}
 	ptr := r.f.at.ptr.AppendToken(rule.Field)
@@ -403,7 +403,7 @@ func reservedName(name string, names []string) (string, bool) {
 
 // misplaced warns of each field written where the conditions bar it.
 func (r ruler) misplaced(rule Rule) {
-	if r.f.test(rule.When) != yes {
+	if r.f.test(rule.When) != answerYes {
 		return
 	}
 	for _, name := range r.present(rule.Fields) {

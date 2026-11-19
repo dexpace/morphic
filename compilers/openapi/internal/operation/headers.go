@@ -22,7 +22,7 @@ import (
 // entry's own pointer stays its ID and Provenance (two keys $ref'ing the same
 // header must not collide), but its schema — and the name hint that schema is
 // hoisted under — follow the ref target's declaration instead (issue #107).
-func lowerHeaders(c service.Ctx, w walk, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr jsontext.Pointer) ([]ir.Header, []ir.Diagnostic) {
+func lowerHeaders(c service.Ctx, w operationLoweringState, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr jsontext.Pointer) ([]ir.Header, []ir.Diagnostic) {
 	if headers == nil || headers.Len() == 0 {
 		return nil, nil
 	}
@@ -55,7 +55,7 @@ func lowerHeaders(c service.Ctx, w walk, headers *sequencedmap.Map[string, *soa.
 // hold, as declared: undeclared, each stays unset rather than being written as
 // the default. Written beside content, where they have no effect, they lower
 // as declared, and load's rule table reports them, as a parameter's.
-func lowerHeader(c, dc service.Ctx, w walk, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Header, []ir.Diagnostic) {
+func lowerHeader(c, dc service.Ctx, w operationLoweringState, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Header, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(dc, w, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
 		"header", "ir.Property")
 	// The schema is named after the key the header is declared under, never
@@ -86,10 +86,10 @@ func lowerHeader(c, dc service.Ctx, w walk, h *soa.Header, name string, hptr, hd
 	promotion.DropContained(dc.Promoter(), &p.Unmodeled)
 	p.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), p.Unmodeled), elected.unmodeled)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
-	lent := dc.Promoter().Lent(schema.KeysLentTo(dc.Ctx, c.Statements().Of(elected.js), p.Type, elected.pointer), p.Unmodeled,
+	fallbackReferent := dc.Promoter().WithOwnCarriedState(schema.FallbackKeysForCarrier(dc.Ctx, c.Statements().Of(elected.js), p.Type, elected.pointer), p.Unmodeled,
 		elected.carries...)
 	own := promotion.Carried(dc.Promoter(), p.Unmodeled, elected.carries...)
-	diags = append(diags, schema.PromoteUse(dc.Ctx, lent, own, &p.Deprecation, &p.Secret, &p.Provenance)...)
+	diags = append(diags, schema.PromoteUse(dc.Ctx, fallbackReferent, own, &p.Deprecation, &p.Secret, &p.Provenance)...)
 	diags = append(diags, promoteShadowed(dc, p.Unmodeled, elected.carries...)...)
 	lowered := ir.Header{Property: p, Explode: h.Explode}
 	if h.Style != nil {

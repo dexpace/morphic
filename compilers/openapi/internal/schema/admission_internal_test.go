@@ -53,13 +53,13 @@ func (w *admissionReader) formerWhole(js *statement.Statement) admitted {
 		out = out.and(w.formerWhole(b))
 	}
 	choice := js.ChoiceKeywords()
-	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
+	for _, branches := range [][]statement.Subschema{choice.OneOf, choice.AnyOf} {
 		if len(branches) == 0 {
 			continue
 		}
-		union := w.formerWhole(w.c.Statements().Sub(branches[0]))
+		union := w.formerWhole(w.c.Statements().Subschema(branches[0]))
 		for _, b := range branches[1:] {
-			union = union.or(w.formerWhole(w.c.Statements().Sub(b)))
+			union = union.or(w.formerWhole(w.c.Statements().Subschema(b)))
 		}
 		out = out.and(union)
 	}
@@ -112,7 +112,7 @@ func statementsOfDocument(l *Lowerer, visit func(at jsontext.Pointer, st *statem
 		if n == nil || depth > 512 {
 			return
 		}
-		if st := l.Ctx.Statements().At(bind.Position{Doc: bind.Source, Pointer: at}); st.Held() {
+		if st := l.Ctx.Statements().At(bind.DocumentPointer{Doc: bind.Source, Pointer: at}); st.Held() {
 			visit(at, st)
 		}
 		switch n.Kind {
@@ -266,7 +266,7 @@ func TestAdmissionOf_MergesWhatGrowsWithTheDocument(t *testing.T) {
 // the nulls walk reads.
 func TestInstanceKinds_ReadsEachKindOfInstance(t *testing.T) {
 	t.Parallel()
-	for kind, want := range map[merge.Instance]kindSet{
+	for kind, want := range map[merge.JSONInstanceKind]kindSet{
 		merge.InstanceString: kindString, merge.InstanceInteger: kindInteger, merge.InstanceNumber: kindNumber,
 		merge.InstanceBoolean: kindBoolean, merge.InstanceArray: kindArray, merge.InstanceObject: kindObject,
 		merge.InstanceNull: 0,
@@ -324,7 +324,9 @@ func TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch(t *testing.T) {
     N: {type: object, allOf: [{allOf: [{oneOf: [{anyOf: [{type: string}]}]}]}]}
     T: {prefixItems: [{type: string}]}
 `))
-	at := func(p string) bind.Position { return bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer(p)} }
+	at := func(p string) bind.DocumentPointer {
+		return bind.DocumentPointer{Doc: bind.Source, Pointer: jsontext.Pointer(p)}
+	}
 	for _, tc := range []struct {
 		from    string
 		holders []string
@@ -470,7 +472,7 @@ func TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart(t *testing.T) {
 	}
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas.String()))
 	for name, row := range rows {
-		st := l.Ctx.Statements().At(bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		st := l.Ctx.Statements().At(bind.DocumentPointer{Doc: bind.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
 		r := admissionOf(l.Ctx, st)
 		assert.Equal(t, row.partial, r.partial&r.admits, "%s: %s", name, row.schema)
 	}
@@ -581,7 +583,7 @@ func TestAdmissionOf_AUnionHoldsFewSetsApart(t *testing.T) {
 			fmt.Fprintf(&b, "    E%d: {enum: [a%d, b%d, c]}\n", j, j, j)
 		}
 		l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", b.String()))
-		at := bind.Position{Doc: bind.Source, Pointer: "/components/schemas/U"}
+		at := bind.DocumentPointer{Doc: bind.Source, Pointer: "/components/schemas/U"}
 		union := admissionOf(l.Ctx, l.Ctx.Statements().At(at)).admitted
 		assert.LessOrEqual(t, len(union.joined), maxJoinedSets, "a union of %d", k)
 		assert.Equal(t, 2*k+1, union.size(), "a union of %d holds each member once", k)

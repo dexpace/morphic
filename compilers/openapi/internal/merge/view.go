@@ -216,9 +216,9 @@ func viewOf(end ir.TypeDef, chain []*ir.Scalar, bounds *ir.Constraints) (ir.Type
 
 // standsFor relates td to the type id names where td is an alias whose chain
 // reaches id: a reference to td reads all id says, and td may say more, so td is
-// within it (relANarrower), unless a link admits null, which id lacks. Such a
-// chain whose every alias says nothing else (aliasSaysNothing), docs included,
-// adds only null, so id is within td (relBNarrower). Any other is relUnrelated,
+// within it (firstTypeIsNarrower), unless a link admits null, which id lacks. Such a
+// chain whose every alias says nothing else (aliasAddsNothingBeyondBase), docs included,
+// adds only null, so id is within td (secondTypeIsNarrower). Any other is relUnrelated,
 // for the view to judge, as is a td whose chain does not reach id. Docs count,
 // as a use of td reads them (docs/compilers/openapi.md#ref-use-site).
 func (r registry) standsFor(td ir.TypeDef, id ir.TypeID) relation {
@@ -228,7 +228,7 @@ func (r registry) standsFor(td ir.TypeDef, id ir.TypeID) relation {
 		if !alias || s.Base == nil {
 			return relUnrelated
 		}
-		null, says = null || s.Base.Nullable, says || !aliasSaysNothing(s, false)
+		null, says = null || s.Base.Nullable, says || !aliasAddsNothingBeyondBase(s, false)
 		if s.Base.Target == id {
 			return addsNull(null, says)
 		}
@@ -247,9 +247,9 @@ func (r registry) standsFor(td ir.TypeDef, id ir.TypeID) relation {
 func addsNull(null, says bool) relation {
 	switch {
 	case !null:
-		return relANarrower
+		return firstTypeIsNarrower
 	case !says:
-		return relBNarrower
+		return secondTypeIsNarrower
 	default:
 		return relUnrelated
 	}

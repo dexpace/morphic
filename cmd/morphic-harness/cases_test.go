@@ -28,14 +28,14 @@ func (cases) Axes() []harness.Axis {
 	return []harness.Axis{{Name: "n", Values: []harness.Value{{Name: "zero"}, {Name: "one"}, {Name: "two", Like: "zero"}}}}
 }
 
-func (c cases) Write(at []int) (harness.Document, bool) {
+func (c cases) Write(at []int) (harness.CaseDocument, bool) {
 	switch {
 	case at[0] == 1:
-		return harness.Document{}, false
+		return harness.CaseDocument{}, false
 	case at[0] == 2 && !c.calm:
 		panic("the writer exploded")
 	default:
-		return harness.Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}, true
+		return harness.CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}, true
 	}
 }
 
@@ -194,16 +194,16 @@ func (spelt) Axes() []harness.Axis {
 	return []harness.Axis{{Name: "n", Values: []harness.Value{{Name: "zero"}, {Name: "one"}, {Name: "two", Like: "zero"}}}}
 }
 
-func (c spelt) Write(at []int) (harness.Document, bool) {
+func (c spelt) Write(at []int) (harness.CaseDocument, bool) {
 	spec := testspec.Tiny
 	switch {
 	case at[0] == 1:
-		return harness.Document{Sources: []compilers.Source{{Path: "spec.yaml",
+		return harness.CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml",
 			Data: []byte(strings.Replace(spec, "title: Tiny", "title: Other", 1))}}}, true
 	case at[0] == 2 && c.other:
 		spec = strings.Replace(spec, "/ping", "/pong", 1)
 	}
-	return harness.Document{
+	return harness.CaseDocument{
 		Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
 		Equal: &harness.Equal{To: []int{1}, Rule: "docs/compilers/openapi.md#ref-use-site",
 			Relocate: func(s string) string { return s }},
@@ -250,8 +250,8 @@ func (uncompiled) Axes() []harness.Axis {
 	return []harness.Axis{{Name: "n", Values: []harness.Value{{Name: "zero"}, {Name: "one"}}}}
 }
 
-func (uncompiled) Write(at []int) (harness.Document, bool) {
-	doc := harness.Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.BadHeader)}}}
+func (uncompiled) Write(at []int) (harness.CaseDocument, bool) {
+	doc := harness.CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.BadHeader)}}}
 	if at[0] == 0 {
 		doc.Equal = &harness.Equal{To: []int{1}, Rule: "docs/compilers/openapi.md#ref-use-site",
 			Relocate: func(s string) string { return s }}

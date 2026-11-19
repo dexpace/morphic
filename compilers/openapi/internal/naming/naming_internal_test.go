@@ -20,7 +20,7 @@ import (
 )
 
 // loaded returns the table a load of spec binds.
-func loaded(t *testing.T, spec string) *bind.Table {
+func loaded(t *testing.T, spec string) *bind.ReferenceTargetTable {
 	t.Helper()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "root.yaml"), []byte(spec), 0o600))

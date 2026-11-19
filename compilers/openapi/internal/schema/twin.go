@@ -42,7 +42,7 @@ func TwinKeyword(c lowering.Ctx, s *statement.Schema, key string) string {
 // rulesOf returns the rows s is read with, for a reading that has s and not
 // where it is: those of where the bindings place it (placedAt), so a node an
 // alias places under two roots reads at each the dialect of that place, and
-// those of its node where they place it nowhere (dialect.Table.Of).
+// those of its node where they place it nowhere (dialect.SchemaDialectRows.Of).
 func rulesOf(c lowering.Ctx, s *statement.Schema) oas.SchemaRules {
 	if there, at, placed := placedAt(c, s); placed {
 		return there.Rules().At(there.Position(at))

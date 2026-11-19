@@ -205,7 +205,7 @@ func TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite(t *testing.T) {
 	for _, at := range []string{"x-both", "bogusBoth", "summary", "parameters/0"} {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/"+at), at)
 	}
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed))
 }
 
 // TestPathItem_WithNoOperationIsReportedAtItsUseSite pins where a mount

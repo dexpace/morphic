@@ -1037,11 +1037,11 @@ func TestPromoter_OffWritesNothing(t *testing.T) {
 	assert.Empty(t, on.Redaction(stating, promotion.Referent{}, nil, &ir.Provenance{}))
 }
 
-// TestPromoter_ReferentLendsBeneathOwnKeys pins the merge a use site makes, a
+// TestPromoter_ReferentFallsBackBeneathOwnKeys pins the merge a use site makes, a
 // key on the carrier winning field by field and the rest coming from the
 // referent. A referent's misfit reports nothing here, since it reports where it
 // is written, and a carrier's own still does.
-func TestPromoter_ReferentLendsBeneathOwnKeys(t *testing.T) {
+func TestPromoter_ReferentFallsBackBeneathOwnKeys(t *testing.T) {
 	t.Parallel()
 	own := ir.Unmodeled{
 		"openapi:x-deprecated-reason": vendorExtension(`"mine"`),
@@ -1121,12 +1121,12 @@ func TestPromoter_ADeprecatedBaseHomesTheNodesMembers(t *testing.T) {
 	}
 }
 
-// TestPromoter_ReferentReadsWhatASchemaLends pins the reading of a $ref's target.
+// TestPromoter_ReferentReadsWhatASchemaOffersAsFallback pins the reading of a $ref's target.
 // A key stating a deprecation or a redaction lends it, and a member lends only
 // where the target is deprecated: on a live one it annotates nothing, there or at
 // a use. What the target cannot hold lends nothing and returns no report, since
 // the target makes it where it is written.
-func TestPromoter_ReferentReadsWhatASchemaLends(t *testing.T) {
+func TestPromoter_ReferentReadsWhatASchemaOffersAsFallback(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string
@@ -1156,7 +1156,7 @@ func TestPromoter_ReferentReadsWhatASchemaLends(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := promotion.New(promotion.ExtensionPromotions{}).Referent(bind.Position{}, tc.declared,
+			got := promotion.New(promotion.ExtensionPromotions{}).Referent(bind.DocumentPointer{}, tc.declared,
 				func() ir.Unmodeled { return tc.entries })
 			assert.Equal(t, tc.want, got)
 		})
@@ -1174,8 +1174,8 @@ func TestPromoter_ReferentReadsEachSchemaOnce(t *testing.T) {
 		reads++
 		return ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}
 	}
-	first := bind.Position{Pointer: "/components/schemas/A"}
-	second := bind.Position{Pointer: "/components/schemas/B"}
+	first := bind.DocumentPointer{Pointer: "/components/schemas/A"}
+	second := bind.DocumentPointer{Pointer: "/components/schemas/B"}
 
 	p := promotion.New(promotion.ExtensionPromotions{})
 	copied := p
@@ -1192,7 +1192,7 @@ func TestPromoter_ReferentReadsEachSchemaOnce(t *testing.T) {
 func TestPromoter_ReferentReadsNothingOffPolicy(t *testing.T) {
 	t.Parallel()
 	p := promotion.New(promotion.ExtensionPromotions{Disabled: true})
-	assert.Equal(t, promotion.Referent{}, p.Referent(bind.Position{}, true, func() ir.Unmodeled {
+	assert.Equal(t, promotion.Referent{}, p.Referent(bind.DocumentPointer{}, true, func() ir.Unmodeled {
 		t.Error("a policy mapping no key read the schema")
 		return nil
 	}))

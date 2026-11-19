@@ -15,7 +15,7 @@ import (
 // checkDiscriminators reports discriminator mappings whose target either does
 // not exist or is not a legal variant/subtype, and a model discriminator whose
 // tag property the model does not expose. facts indexes doc.
-func checkDiscriminators(doc *ir.Document, live []ir.TypeID, facts *irfacts.Index) []ir.Diagnostic {
+func checkDiscriminators(doc *ir.Document, live []ir.TypeID, facts *irfacts.DocumentFacts) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var read mappingReads
 	for _, id := range live {
@@ -63,7 +63,7 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union, read *mappingReads) 
 // Abstract, whose own instances are a payload too
 // (docs/ir/models.md#discriminator), and the tag property to be one this model
 // exposes. Its routes and tag are asked of facts, the one index of the run.
-func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model, read *mappingReads) []ir.Diagnostic {
+func checkModelDiscriminator(doc *ir.Document, facts *irfacts.DocumentFacts, m *ir.Model, read *mappingReads) []ir.Diagnostic {
 	if m.Discriminator == nil {
 		return nil
 	}
@@ -83,7 +83,7 @@ func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model
 // tag naming a declaration the model's flattening overrides passes, though
 // docs/ir/models.md#the-flattening has it name the one taken, as
 // appendUnknownPartDiags says.
-func checkDiscriminatorProperty(facts *irfacts.Index, m *ir.Model) []ir.Diagnostic {
+func checkDiscriminatorProperty(facts *irfacts.DocumentFacts, m *ir.Model) []ir.Diagnostic {
 	prop := m.Discriminator.Property
 	if prop == "" || facts.Exposes(m.ID, prop) {
 		return nil

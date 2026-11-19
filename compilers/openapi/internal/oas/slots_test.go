@@ -100,7 +100,7 @@ func TestSlots_EveryKeywordReadsIntoItsSlotAndNoOther(t *testing.T) {
 				assert.Equal(t, f.Name, k.Name, row)
 				assert.NotEqual(t, oas.SlotUnknown, k.Slot, row)
 				assert.Equal(t, slot, k.Slot, row)
-				assert.Equal(t, isLater, k.Later, row)
+				assert.Equal(t, isLater, k.DefinedOnlyInLaterMinor, row)
 				for s, holds := range slots(st) {
 					switch {
 					case s != slot:

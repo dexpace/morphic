@@ -772,14 +772,14 @@ paths:
 	}
 }
 
-// TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches pins that a use
+// TestExternalContent_ARefGivesItsUseSiteAsFallbackWhatItsTypeReaches pins that a use
 // site borrows what its schema $ref ends on, a default, a description, a form
 // body's parts, a file body or a discriminator, whichever documents the chain
 // passes, as its type reaches that schema there. A form body's parts are keyed
 // to the properties of the model in the document declaring it, so none
 // addresses a property the IR lacks (GitHub #1023), and a model composing a
 // discriminated base from another document takes its discriminator value.
-func TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches(t *testing.T) {
+func TestExternalContent_ARefGivesItsUseSiteAsFallbackWhatItsTypeReaches(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "lib.yaml"), []byte(`RB:

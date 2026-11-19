@@ -204,10 +204,10 @@ func TestResolve_AMappingChainReadsADefinitionWhereItIsWritten(t *testing.T) {
 		require.NotNil(t, doc, name)
 
 		assert.Equal(t, tc.want, severityLines(diags), name)
-		m, ok := doc.Bindings.Table().Mapping(bind.Position{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/S")
+		m, ok := doc.Bindings.Table().Mapping(bind.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/S")
 		require.True(t, ok, name)
 		if len(tc.want) == 0 {
-			assert.Equal(t, bind.Position{Pointer: "/components/schemas/Holder/$defs/X"}, m.Chain.End, name)
+			assert.Equal(t, bind.DocumentPointer{Pointer: "/components/schemas/Holder/$defs/X"}, m.Chain.End, name)
 		} else {
 			assert.Equal(t, bind.Unresolved, m.Chain.Status, name)
 		}

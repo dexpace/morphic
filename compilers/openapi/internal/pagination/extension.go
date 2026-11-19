@@ -39,7 +39,7 @@ func responseTargets() []promotion.ExtensionTarget {
 // filled or not: those an inference leaves alone, by that rule's precedence.
 // root is the document root's Unmodeled, which an operation's key written
 // true reads (promotion.PageStatementOf).
-func Promote(p promotion.Promoter, w *whole.Document, root ir.Unmodeled) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
+func Promote(p promotion.Promoter, w *whole.CompiledDocumentView, root ir.Unmodeled) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
 	if root == nil {
 		root = ir.Unmodeled{} // the nodes read are operations, whose root states nothing
 	}
@@ -66,7 +66,7 @@ func Promote(p promotion.Promoter, w *whole.Document, root ir.Unmodeled) (stated
 // each marking key (pager.reaching).
 type pager struct {
 	p     promotion.Promoter
-	w     *whole.Document
+	w     *whole.CompiledDocumentView
 	root  ir.Unmodeled
 	reach map[string]map[ir.TypeID]bool
 }

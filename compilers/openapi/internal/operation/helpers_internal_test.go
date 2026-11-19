@@ -51,8 +51,8 @@ func lowererOver(ctx service.Ctx) *lowerer {
 // serviceWalk stands in for the walk LowerService hands the lowerings beneath it:
 // l's registry, and a kept set and links of its own. It holds no operationId
 // claims, servers or schemes: no lowering a test here hands it to reads them.
-func (l *lowerer) serviceWalk() walk {
-	return walk{types: l.types, kept: newKeptOnce(), links: &Links{}}
+func (l *lowerer) serviceWalk() operationLoweringState {
+	return operationLoweringState{types: l.types, kept: newKeptOnce(), links: &Links{}}
 }
 
 // loweredFor loads src and returns the fixture over it with nothing lowered
@@ -75,7 +75,7 @@ func loweredAt(t *testing.T, src compilers.Source, opts load.Options) (*lowerer,
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing
 // the parser so nil slice/map entries can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
+	return lowererOver(service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{}))
 }
 
 // lowerServiceSpec loads src and runs the phases the service walk needs beneath

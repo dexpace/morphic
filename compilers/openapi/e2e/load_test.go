@@ -579,7 +579,9 @@ func TestCompile_ARefAnIDAnswersIsNeverRefusedUnread(t *testing.T) {
 		"    Pet:\n      type: object\n      properties:\n        kind: {$ref: 'urn:example:kind'}\n" +
 		"        other: {$ref: 'urn:example:none'}\n    Kind: {$id: 'urn:example:kind', type: string}\n")
 	path := filepath.Join(t.TempDir(), "root.yaml")
-	component := func(name string) ir.TypeID { return ids.Document{}.ForPointer(ids.Ptr("components", "schemas", name)) }
+	component := func(name string) ir.TypeID {
+		return ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", name))
+	}
 	for _, allow := range []bool{false, true} {
 		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: root}},
 			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
@@ -627,7 +629,7 @@ func TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 
-		pet, ok := doc.Types[ids.Document{}.ForPointer("/components/schemas/Pet")].(*ir.Model)
+		pet, ok := doc.Types[ids.DocumentIDNamespace{}.ForPointer("/components/schemas/Pet")].(*ir.Model)
 		require.True(t, ok, "Pet is a Model")
 		tag, ok := propByWire(pet, "tag")
 		require.True(t, ok, "Pet declares tag")

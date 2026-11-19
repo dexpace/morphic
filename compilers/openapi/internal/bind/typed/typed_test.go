@@ -54,7 +54,7 @@ func bindingsOf(t *testing.T, text string) (*typed.Bindings, *soa.OpenAPI, []typ
 	require.NoError(t, err)
 	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	for item := range soa.Walk(t.Context(), doc) {
-		at := bind.Position{Pointer: typed.PointerOf(item.Location)}
+		at := bind.DocumentPointer{Pointer: typed.PointerOf(item.Location)}
 		require.NoError(t, item.Match(soa.Matcher{
 			Schema: func(js *oas3.JSONSchema[oas3.Referenceable]) error { bd.Schema(js, at); return nil },
 		}))
@@ -83,11 +83,11 @@ func TestBindings_AnswerByTheSchemaTheLoweringHolds(t *testing.T) {
 
 	site, ok := b.Site(q)
 	require.True(t, ok)
-	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Q"}, site)
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/components/schemas/Q"}, site)
 	assert.Same(t, r, b.Declared(q), "Q lands on R, the model's own schema")
 	s := b.End(q)
 	require.NotNil(t, s, "Q's chain ends on the schema built for /x-lib/S")
-	assert.Same(t, s, b.At(bind.Position{Pointer: "/x-lib/S"}))
+	assert.Same(t, s, b.At(bind.DocumentPointer{Pointer: "/x-lib/S"}))
 	assert.Same(t, s, b.Declared(r))
 	inner, ok := s.GetSchema().GetProperties().Get("inner")
 	require.True(t, ok)
@@ -141,14 +141,14 @@ components:
 func TestBindings_AnswerAMappingValueByItsDiscriminator(t *testing.T) {
 	t.Parallel()
 	b, _, _ := bindings(t)
-	m, ok := b.Mapping(bind.Position{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/S")
+	m, ok := b.Mapping(bind.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/S")
 	require.True(t, ok)
-	assert.Equal(t, bind.Position{Pointer: "/x-lib/S"}, m.Hop.Target)
-	_, ok = b.Mapping(bind.Position{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/T")
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/x-lib/S"}, m.Hop.Target)
+	_, ok = b.Mapping(bind.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/T")
 	assert.False(t, ok, "a value the mapping does not write")
-	_, ok = b.Mapping(bind.Position{}, "#/x-lib/S")
+	_, ok = b.Mapping(bind.DocumentPointer{}, "#/x-lib/S")
 	assert.False(t, ok, "the position of a schema the bindings do not know")
-	_, ok = b.Mapping(bind.Position{Pointer: "/x-lib/S/discriminator"}, "#/x-lib/S")
+	_, ok = b.Mapping(bind.DocumentPointer{Pointer: "/x-lib/S/discriminator"}, "#/x-lib/S")
 	assert.False(t, ok, "a discriminator that maps nothing")
 }
 
@@ -182,18 +182,18 @@ func TestBindings_ANilOneKnowsNothing(t *testing.T) {
 	assert.False(t, ok)
 	assert.Nil(t, b.Declared(js))
 	assert.Nil(t, b.End(js))
-	assert.Nil(t, b.At(bind.Position{}))
+	assert.Nil(t, b.At(bind.DocumentPointer{}))
 	assert.Nil(t, b.Table())
-	_, ok = b.Mapping(bind.Position{Pointer: "/components/schemas/D/discriminator"}, "#/x")
+	_, ok = b.Mapping(bind.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}, "#/x")
 	assert.False(t, ok)
 	_, _, ok = b.ObjectSite(&soa.ReferencedParameter{})
 	assert.False(t, ok)
 	_, ok = b.Reference(&soa.ReferencedParameter{})
 	assert.False(t, ok)
-	assert.Nil(t, b.ObjectAt(bind.Position{}, bind.RefParameter))
+	assert.Nil(t, b.ObjectAt(bind.DocumentPointer{}, bind.RefParameter))
 	bd := typed.NewBuilder(nil)
-	bd.Schema(nil, bind.Position{})
-	assert.Nil(t, bd.Bindings().At(bind.Position{}), "recording no schema holds none")
+	bd.Schema(nil, bind.DocumentPointer{})
+	assert.Nil(t, bd.Bindings().At(bind.DocumentPointer{}), "recording no schema holds none")
 }
 
 // TestBindings_HoldsTheFirstObjectRecordedAtAPosition pins the object index:
@@ -203,13 +203,13 @@ func TestBindings_ANilOneKnowsNothing(t *testing.T) {
 func TestBindings_HoldsTheFirstObjectRecordedAtAPosition(t *testing.T) {
 	t.Parallel()
 	bd := typed.NewBuilder(nil)
-	p := bind.Position{Pointer: "/components/parameters/P"}
+	p := bind.DocumentPointer{Pointer: "/components/parameters/P"}
 	first, second, header := &soa.ReferencedParameter{}, &soa.ReferencedParameter{}, &soa.ReferencedHeader{}
 	bd.Object(first, bind.RefParameter, p)
 	bd.Object(second, bind.RefParameter, p)
 	bd.Object(header, bind.RefHeader, p)
-	bd.Object(nil, bind.RefParameter, bind.Position{Pointer: "/x"})
-	bd.Object(&soa.ReferencedLink{}, 0, bind.Position{Pointer: "/y"})
+	bd.Object(nil, bind.RefParameter, bind.DocumentPointer{Pointer: "/x"})
+	bd.Object(&soa.ReferencedLink{}, 0, bind.DocumentPointer{Pointer: "/y"})
 	b := bd.Bindings()
 
 	assert.Same(t, first, b.ObjectAt(p, bind.RefParameter), "the first recorded is held")
@@ -220,8 +220,8 @@ func TestBindings_HoldsTheFirstObjectRecordedAtAPosition(t *testing.T) {
 	require.True(t, ok, "a wrapper not held is placed all the same")
 	assert.Equal(t, p, at)
 	assert.Equal(t, bind.RefParameter, kind)
-	assert.Nil(t, b.ObjectAt(bind.Position{Pointer: "/x"}, bind.RefParameter), "no wrapper, none held")
-	assert.Nil(t, b.ObjectAt(bind.Position{Pointer: "/y"}, 0), "no kind, none held")
+	assert.Nil(t, b.ObjectAt(bind.DocumentPointer{Pointer: "/x"}, bind.RefParameter), "no wrapper, none held")
+	assert.Nil(t, b.ObjectAt(bind.DocumentPointer{Pointer: "/y"}, 0), "no kind, none held")
 }
 
 // TestBindings_ReadsTheReferenceAtAWrappersSite pins Reference: the table's
@@ -242,15 +242,15 @@ components:
 	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	params := doc.Components.GetParameters()
 	p, q := params.GetOrZero("P"), params.GetOrZero("Q")
-	bd.Object(p, bind.RefParameter, bind.Position{Pointer: "/components/parameters/P"})
-	bd.Object(q, bind.RefParameter, bind.Position{Pointer: "/components/parameters/Q"})
+	bd.Object(p, bind.RefParameter, bind.DocumentPointer{Pointer: "/components/parameters/P"})
+	bd.Object(q, bind.RefParameter, bind.DocumentPointer{Pointer: "/components/parameters/Q"})
 	other := &soa.ReferencedHeader{}
-	bd.Object(other, bind.RefHeader, bind.Position{Pointer: "/components/parameters/P"})
+	bd.Object(other, bind.RefHeader, bind.DocumentPointer{Pointer: "/components/parameters/P"})
 	b := bd.Bindings()
 
 	r, ok := b.Reference(p)
 	require.True(t, ok)
-	assert.Equal(t, bind.Position{Pointer: "/components/parameters/Q"}, r.Chain.End)
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/components/parameters/Q"}, r.Chain.End)
 	_, ok = b.Reference(q)
 	assert.False(t, ok, "an inline object writes no reference")
 	_, ok = b.Reference(other)

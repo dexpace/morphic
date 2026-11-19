@@ -23,7 +23,7 @@ type members struct {
 	settled map[ir.TypeID]bool
 	// tables holds the Table of each model settled, and of each model a part
 	// names that the walks did not note, which composes nothing.
-	tables map[ir.TypeID]merge.Table
+	tables map[ir.TypeID]merge.RedeclaredWireNameTable
 	// shared is the wire names more than one model declares (sharedNames).
 	shared map[string]bool
 	// reads is what remains of the declarations settleMembers reads
@@ -36,7 +36,7 @@ type members struct {
 func membersOf(c lowering.Ctx) *members {
 	return lowering.Settled(c, func() *members {
 		return &members{byID: map[ir.TypeID]modelFields{}, settled: map[ir.TypeID]bool{},
-			tables: map[ir.TypeID]merge.Table{}, reads: budget.New(budget.AtMost(maxMemberReads))}
+			tables: map[ir.TypeID]merge.RedeclaredWireNameTable{}, reads: budget.New(budget.AtMost(maxMemberReads))}
 	})
 }
 
@@ -45,7 +45,7 @@ func membersOf(c lowering.Ctx) *members {
 // note a model place what is minted and reported for it.
 func (rec *members) note(f modelFields) {
 	if len(rec.byID) == 0 {
-		f.ts.Complete(settleMembers{c: f.c})
+		f.ts.QueueSettlementBeforeDeferredOnes(settleMembers{c: f.c})
 	}
 	if _, ok := rec.byID[f.m.ID]; !ok {
 		rec.byID[f.m.ID] = f
@@ -54,8 +54,8 @@ func (rec *members) note(f modelFields) {
 
 // settleMembers is the settlement folding, on each model the walk notes, each
 // member more than one declaration decides, its own or those its entries bring
-// (merge.PropIndex.Settle; docs/compilers/openapi.md#allof-redeclared-property).
-// It is a completion (compile.Types.Complete), so it reads every node the walks
+// (merge.ModelPropertyDeclarations.Settle; docs/compilers/openapi.md#allof-redeclared-property).
+// It is a completion (compile.Types.QueueSettlementBeforeDeferredOnes), so it reads every node the walks
 // built and every other settlement reads what it writes.
 type settleMembers struct {
 	c lowering.Ctx
@@ -73,7 +73,7 @@ const maxMemberRounds = 8
 const maxMemberAliasHops = 64
 
 // maxMemberReads bounds the declarations the settlement reads of what the
-// models a model composes say (merge.Table), summed over the run
+// models a model composes say (merge.RedeclaredWireNameTable), summed over the run
 // (styleguide bounded-everything rule). A table holds only the names more than
 // one model declares, so a hierarchy costs its depth again at each level only
 // where every level adds such a name, or composes a model redeclaring one it
@@ -220,8 +220,8 @@ func (rec *members) composed(reg ir.TypeRegistry, id ir.TypeID) []ir.TypeID {
 
 // partTables returns the Table of each type m composes (merge.ComposedOf),
 // read for m (tableOf).
-func (rec *members) partTables(reg ir.TypeRegistry, m *ir.Model) map[ir.TypeID]merge.Table {
-	out := map[ir.TypeID]merge.Table{}
+func (rec *members) partTables(reg ir.TypeRegistry, m *ir.Model) map[ir.TypeID]merge.RedeclaredWireNameTable {
+	out := map[ir.TypeID]merge.RedeclaredWireNameTable{}
 	for _, target := range merge.ComposedOf(m) {
 		out[target] = rec.tableOf(reg, target, m.ID)
 	}
@@ -234,7 +234,7 @@ func (rec *members) partTables(reg ir.TypeRegistry, m *ir.Model) map[ir.TypeID]m
 // flattening takes as it stands but from's (asItStands). A model the walks did
 // not note composes nothing, so its table is kept. It returns none once the
 // reads run out, and none for a type naming no model.
-func (rec *members) tableOf(reg ir.TypeRegistry, target, from ir.TypeID) merge.Table {
+func (rec *members) tableOf(reg ir.TypeRegistry, target, from ir.TypeID) merge.RedeclaredWireNameTable {
 	id, isModel := modelOf(reg, target)
 	if !isModel || rec.reads.Exhausted() {
 		rec.cutAt(from)
@@ -285,11 +285,11 @@ func modelOf(reg ir.TypeRegistry, target ir.TypeID) (ir.TypeID, bool) {
 // more than one model declares, the declaration its flattening takes but
 // from's (merge.TakenOutside), charging what the flattening walks and reads.
 // It returns none once the reads run out.
-func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.Table {
+func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.RedeclaredWireNameTable {
 	if !rec.chargeComposition(reg, id) {
 		return nil
 	}
-	table := merge.Table{}
+	table := merge.RedeclaredWireNameTable{}
 	for _, member := range ir.FlattenedProperties(reg, id).Properties {
 		rec.reads.Spend(1 + len(member.Overridden))
 		if d, ok := merge.TakenOutside(member, from); ok && rec.shared[member.Property.WireName] {

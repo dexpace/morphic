@@ -172,7 +172,7 @@ func (l *locator) positions(ctx context.Context, ids []int) ([]position, error) 
 // member a merge brings in is made the mapping's own first, as every member
 // is where whole is set.
 func (l *locator) slot(ctx context.Context, holder *yaml.Node, s jsonpath.Step, whole bool) (int, error) {
-	if !s.Member {
+	if !s.IsObjectMemberStep {
 		if holder.Kind == yaml.SequenceNode && s.Index < len(holder.Content) {
 			return s.Index, nil
 		}

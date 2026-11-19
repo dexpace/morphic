@@ -154,8 +154,8 @@ func whyNot(ref bind.Reference) string {
 // own document the first time a requirement reaches it, so which reaches it
 // first decides nothing. One naming no mechanism, or that nothing could be
 // built for, is minted in the space ir reserves for that kind, at its position
-// in its document, as a key naming nothing is (ids.Document.UnresolvedAuth).
-func (r *Registry) landed(c service.Ctx, end bind.Position) (ir.AuthID, []ir.Diagnostic) {
+// in its document, as a key naming nothing is (ids.DocumentIDNamespace.UnresolvedAuth).
+func (r *Registry) landed(c service.Ctx, end bind.DocumentPointer) (ir.AuthID, []ir.Diagnostic) {
 	dc, read := service.InDocument(c, end.Doc)
 	id := dc.IDs().Auth(end.Pointer)
 	if _, lowered := r.byID[id]; lowered {
@@ -183,7 +183,7 @@ func (r *Registry) landed(c service.Ctx, end bind.Position) (ir.AuthID, []ir.Dia
 // landingName returns the name of the Security Scheme Object at end: the key it
 // is declared under, and at a document's root, which no key names, the
 // document's name, as a schema there is named (lowering.NameOfDocument).
-func landingName(c service.Ctx, end bind.Position) string {
+func landingName(c service.Ctx, end bind.DocumentPointer) string {
 	if end.Pointer == "" {
 		return lowering.NameOfDocument(c.Ctx, end.Doc)
 	}

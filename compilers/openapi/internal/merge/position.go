@@ -59,7 +59,7 @@ func (g *Merger) judgePosition(decls []declaration, ms []member, depth int) posi
 // or meets it: a type of member i's, with what a meeting adds, loses nothing
 // member j says of its type.
 func (p position) holds(i, j int) bool {
-	return p.rel[i][j] == relSame || p.rel[i][j] == relANarrower || p.rel[i][j] == relMeet
+	return p.rel[i][j] == relSame || p.rel[i][j] == firstTypeIsNarrower || p.rel[i][j] == relMeet
 }
 
 // widestCone returns the member whose type holds the most members' types: of

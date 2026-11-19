@@ -114,7 +114,7 @@ func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 // TestRefScope_ReadsTheSourceWhereItLies pins that the scope judges a document
 // part internal against where the source lies, its Location, which the
 // references were read against, and not against the Path the caller handed,
-// which Document.Sources records.
+// which BoundDocument.Sources records.
 func TestRefScope_ReadsTheSourceWhereItLies(t *testing.T) {
 	t.Parallel()
 	located := filepath.Join(t.TempDir(), "spec.yaml")
@@ -162,7 +162,7 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	assert.Same(t, loaded.Bindings, atSource(t, carrying.Ctx).Bindings(), "a copy shares it")
 	e, ok := carrying.RefScope().Bindings.Entry(alias)
 	require.True(t, ok && e.Lands(), "its $ref lands where the load phase resolved it")
-	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Target"}, e.Hop.Target)
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/components/schemas/Target"}, e.Hop.Target)
 }
 
 // TestRefScope_ReadsAMappingTargetTheModelHoldsAsRawYAML pins that a mapping
@@ -188,9 +188,9 @@ x-lib:
 	require.True(t, ok)
 	require.NotNil(t, pet.GetSchema().GetDiscriminator())
 
-	at, ok := c.RefScope().MappingTarget(bind.Position{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/Cat")
+	at, ok := c.RefScope().MappingTarget(bind.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/Cat")
 	require.True(t, ok)
-	assert.Equal(t, bind.Position{Pointer: "/x-lib/Cat"}, at)
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/x-lib/Cat"}, at)
 	built := c.Bindings().At(at)
 	require.NotNil(t, built, "the load phase built a schema there")
 	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
@@ -208,11 +208,11 @@ func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
 	}
 	c := servicetest.Context(t, bindingsSpec, service.Policy{})
 
-	assert.Equal(t, 1, lowering.Remembered(c.Ctx, "k", read))
-	assert.Equal(t, 1, lowering.Remembered(atSource(t, c.Ctx), "k", read), "a copy shares what c read")
-	assert.Equal(t, 2, lowering.Remembered(c.Ctx, "other", read), "another key is another reading")
+	assert.Equal(t, 1, lowering.ReadOncePerRun(c.Ctx, "k", read))
+	assert.Equal(t, 1, lowering.ReadOncePerRun(atSource(t, c.Ctx), "k", read), "a copy shares what c read")
+	assert.Equal(t, 2, lowering.ReadOncePerRun(c.Ctx, "other", read), "another key is another reading")
 	other := servicetest.Context(t, bindingsSpec, service.Policy{})
-	assert.Equal(t, 3, lowering.Remembered(other.Ctx, "k", read), "another context remembers nothing of c's")
+	assert.Equal(t, 3, lowering.ReadOncePerRun(other.Ctx, "k", read), "another context remembers nothing of c's")
 }
 
 // TestStatements_IsOneTableForTheRun pins that every copy of a context reads
@@ -226,7 +226,7 @@ func TestStatements_IsOneTableForTheRun(t *testing.T) {
 	assert.Same(t, table, atSource(t, c.Ctx).Statements(), "a copy shares the table")
 	target := table.At(c.Position("/components/schemas/Target"))
 	require.NotNil(t, target.Kinds)
-	assert.Equal(t, []statement.Kind{statement.KindString}, target.Kinds.Types, "read off the bindings")
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString}, target.Kinds.Types, "read off the bindings")
 	k, _ := target.Key("type")
 	assert.Equal(t, oas.SlotKinds, k.Slot, "read in the rows the load phase read")
 	other := servicetest.Context(t, bindingsSpec, service.Policy{})
@@ -248,10 +248,10 @@ func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 		return "s"
 	}
 
-	assert.Equal(t, 1, lowering.Remembered(c.Ctx, "k", number))
-	assert.Equal(t, "s", lowering.Remembered(c.Ctx, "k", text))
-	assert.Equal(t, 1, lowering.Remembered(c.Ctx, "k", number))
-	assert.Equal(t, "s", lowering.Remembered(c.Ctx, "k", text))
+	assert.Equal(t, 1, lowering.ReadOncePerRun(c.Ctx, "k", number))
+	assert.Equal(t, "s", lowering.ReadOncePerRun(c.Ctx, "k", text))
+	assert.Equal(t, 1, lowering.ReadOncePerRun(c.Ctx, "k", number))
+	assert.Equal(t, "s", lowering.ReadOncePerRun(c.Ctx, "k", text))
 	assert.Equal(t, 2, reads, "each type of answer is read once")
 }
 
@@ -268,11 +268,11 @@ func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
 	}
 	outer := func() int {
 		reads++
-		return lowering.Remembered(c.Ctx, "inner", inner) + 1
+		return lowering.ReadOncePerRun(c.Ctx, "inner", inner) + 1
 	}
 
-	assert.Equal(t, 2, lowering.Remembered(c.Ctx, "outer", outer))
-	assert.Equal(t, 1, lowering.Remembered(c.Ctx, "inner", inner))
+	assert.Equal(t, 2, lowering.ReadOncePerRun(c.Ctx, "outer", outer))
+	assert.Equal(t, 1, lowering.ReadOncePerRun(c.Ctx, "inner", inner))
 	assert.Equal(t, 2, reads, "inner was read once, within outer")
 }
 
@@ -306,7 +306,7 @@ func TestSettled_BuildsOneStorePerRun(t *testing.T) {
 // as silently, since nothing downstream can tell a wrong one from a right one.
 func TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
 	t.Parallel()
-	c := service.New(7, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
+	c := service.New(7, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 7, Pointer: "/components/schemas/User"},
 		c.Place().At("/components/schemas/User"))
@@ -320,7 +320,7 @@ func TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
 // converted leaves could not be while only the accumulating form existed.
 func TestDiagAt_StampsAndHandsBack(t *testing.T) {
 	t.Parallel()
-	c := service.New(3, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
+	c := service.New(3, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
 
 	got := c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/paths/~1x", "dropped %d of %d", 1, 2)
 
@@ -340,7 +340,7 @@ func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := service.New(0, doc, service.Policy{})
 
-	assert.Equal(t, bind.DynamicAnchor{Site: bind.Position{Pointer: "/components/schemas/A"}, Count: 2, Complete: true},
+	assert.Equal(t, bind.DynamicAnchor{Site: bind.DocumentPointer{Pointer: "/components/schemas/A"}, Count: 2, Complete: true},
 		c.DynamicAnchor("m"))
 }
 
@@ -349,7 +349,7 @@ func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 func TestPosition_PlacesAPointerInTheContextsDocument(t *testing.T) {
 	t.Parallel()
 	c := servicetest.Context(t, bindingsSpec, service.Policy{})
-	assert.Equal(t, bind.Position{Pointer: "/a"}, c.Position("/a"))
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/a"}, c.Position("/a"))
 }
 
 // TestNew_CarriesTheLimits pins that the budgets reach the walk through the
@@ -379,7 +379,7 @@ func TestNew_CarriesThePromotionPolicy(t *testing.T) {
 		reads++
 		return ir.Unmodeled{"openapi:x-k": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`true`)}}
 	}
-	at := bind.Position{Pointer: "/components/schemas/S"}
+	at := bind.DocumentPointer{Pointer: "/components/schemas/S"}
 	assert.True(t, c.Promoter().Referent(at, false, entries).Redacted)
 	assert.True(t, atSource(t, c.Ctx).Promoter().Referent(at, false, entries).Redacted)
 	assert.Equal(t, 1, reads, "a copy of the context reads the promoter the context does")
@@ -404,7 +404,7 @@ func atSource(t *testing.T, c lowering.Ctx) lowering.Ctx {
 func TestNew_ReadsWhatTheLoadPhaseReadAsValues(t *testing.T) {
 	t.Parallel()
 	sources := []ir.SourceInfo{{Path: "spec.yaml"}, {Path: "ext.yaml"}}
-	documents := map[bind.DocID]lowering.Document{
+	documents := map[bind.DocID]lowering.BoundDocument{
 		bind.Source: {Place: provenance.Doc{Source: 3}},
 		1:           {Name: "/r/ext.yaml", Place: provenance.Doc{Source: 4}, IDs: ids.In("ext.yaml")},
 	}
@@ -412,7 +412,7 @@ func TestNew_ReadsWhatTheLoadPhaseReadAsValues(t *testing.T) {
 		lowering.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 3, Pointer: "/a"}, c.Place().At("/a"))
-	assert.Equal(t, bind.Position{Doc: bind.Source, Pointer: "/a"}, c.Position("/a"))
+	assert.Equal(t, bind.DocumentPointer{Doc: bind.Source, Pointer: "/a"}, c.Position("/a"))
 	assert.True(t, c.DeclaresSchema("User"))
 	assert.False(t, c.RefScope().Foreign)
 	there, ok := lowering.InDocument(c, 1)
@@ -424,7 +424,7 @@ func TestNew_ReadsWhatTheLoadPhaseReadAsValues(t *testing.T) {
 	_, ok = lowering.InDocument(c, 2)
 	assert.False(t, ok, "a document the compile did not read")
 
-	sources[0], documents[1] = ir.SourceInfo{Path: "other.yaml"}, lowering.Document{}
+	sources[0], documents[1] = ir.SourceInfo{Path: "other.yaml"}, lowering.BoundDocument{}
 	assert.Equal(t, "spec.yaml", c.Sources()[0].Path, "the context holds a copy of the sources")
 	there, ok = lowering.InDocument(c, 1)
 	require.True(t, ok, "and of the documents")

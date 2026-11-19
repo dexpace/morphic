@@ -38,7 +38,7 @@ components:
 
 // loadSplit loads splitRoot beside ext, written as ext.yaml, reading ext.yaml
 // from disk, and returns the context over it.
-func loadSplit(t *testing.T, ext string) (service.Ctx, *load.Document) {
+func loadSplit(t *testing.T, ext string) (service.Ctx, *load.LoadedOpenAPIDocument) {
 	t.Helper()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(ext), 0o600))
@@ -83,7 +83,7 @@ func TestOtherIDs_NamesEachDocumentReadBesideTheSource(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 
-	assert.Equal(t, []ids.Document{ids.In("ext.yaml")}, service.OtherIDs(c))
+	assert.Equal(t, []ids.DocumentIDNamespace{ids.In("ext.yaml")}, service.OtherIDs(c))
 }
 
 // TestDeclared_LowersAReferencedObjectWhereItIsDeclared pins where a reference
@@ -172,7 +172,7 @@ func TestDeclared_KeepsTheUseSiteOfAReferenceThatResolvedNothing(t *testing.T) {
 
 	assert.Nil(t, p)
 	assert.Equal(t, "/paths/~1a/get/parameters/0", string(at))
-	assert.Equal(t, ids.Document{}, there.IDs())
+	assert.Equal(t, ids.DocumentIDNamespace{}, there.IDs())
 }
 
 // TestInDocument_PlacesADocumentByItsNumberNotItsSourcesEntry pins that the

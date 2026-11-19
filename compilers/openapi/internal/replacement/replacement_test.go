@@ -45,8 +45,8 @@ func deprecated() *ir.Deprecation { return &ir.Deprecation{} }
 // is deprecated and names its replacement through value, and each has another
 // of its kind to name: headers among them at each place a list of them sits.
 func replacementDoc(value string) *ir.Document {
-	v2 := ids.Document{}.NamedType("/components/schemas/v2")
-	old := ids.Document{}.NamedType("/components/schemas/old")
+	v2 := ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")
+	old := ids.DocumentIDNamespace{}.NamedType("/components/schemas/old")
 	header := func(id ir.PropID, name string, unmodeled ir.Unmodeled, dep *ir.Deprecation) ir.Header {
 		return ir.Header{ID: id, WireName: name, Unmodeled: unmodeled, Deprecation: dep}
 	}
@@ -108,8 +108,8 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 	assert.Empty(t, replacement.Resolve(p, whole.New(doc)))
 
 	op := doc.Services[0].Groups[0].Operations[0]
-	v2 := ids.Document{}.NamedType("/components/schemas/v2")
-	old := ids.Document{}.NamedType("/components/schemas/old")
+	v2 := ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")
+	old := ids.DocumentIDNamespace{}.NamedType("/components/schemas/old")
 	for _, tc := range []struct {
 		name string
 		dep  *ir.Deprecation
@@ -239,7 +239,7 @@ func TestResolve_AnUnmappedOrUndeprecatedNodeTakesNone(t *testing.T) {
 	p := mapped()
 	doc = replacementDoc(`"v2"`)
 	doc.Services[0].Groups[0].Operations[0].Deprecation = nil
-	doc.Types[ids.Document{}.NamedType("/components/schemas/v2")] = (*ir.Model)(nil)
+	doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")] = (*ir.Model)(nil)
 	assert.Empty(t, replacement.Resolve(p, whole.New(doc)))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Deprecation)
 }

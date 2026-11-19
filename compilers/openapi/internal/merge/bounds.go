@@ -29,9 +29,9 @@ func boundsRelation(a, b *ir.Constraints) relation {
 	case aHolds && bHolds:
 		return relSame
 	case aHolds:
-		return relANarrower
+		return firstTypeIsNarrower
 	case bHolds:
-		return relBNarrower
+		return secondTypeIsNarrower
 	default:
 		return relMeet
 	}
@@ -153,9 +153,9 @@ func allBounds(j typeJudge, p *ir.Property) *ir.Constraints {
 	return Constraints(Constraints(&all, p.Constraints), nodeBounds(j, p.Type))
 }
 
-// alike reports whether a and b are one type but for the bounds their nodes hold:
+// sameTypeIgnoringBounds reports whether a and b are one type but for the bounds their nodes hold:
 // the judgment on the two with those bounds set aside.
-func alike(j typeJudge, a, b ir.TypeRef) bool {
+func sameTypeIgnoringBounds(j typeJudge, a, b ir.TypeRef) bool {
 	at, aok := j.resolve(a.Target)
 	bt, bok := j.resolve(b.Target)
 	return aok && bok && j.boundedNodes(withBounds(at, nil), withBounds(bt, nil), 0) == relSame

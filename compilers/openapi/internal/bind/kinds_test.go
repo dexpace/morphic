@@ -90,8 +90,8 @@ components:
 
 	assert.Equal(t, []bind.Kind{kOth, kRaw, kSch, kMap, kSch}, table.Kinds(at("/x-lib/Thing/properties/p")))
 	assert.Equal(t, []bind.Kind{kOth, kRaw, kRaw}, table.Kinds(at("/x-lib/Other")), "no reference reads it")
-	assert.Equal(t, []bind.Kind{kRaw, kPar, kSch}, table.Kinds(bind.Position{Doc: params, Pointer: "/Size/schema"}))
-	assert.Equal(t, []bind.Kind{kSch, kMap, kSch}, table.Kinds(bind.Position{Doc: pet, Pointer: "/properties/p"}))
+	assert.Equal(t, []bind.Kind{kRaw, kPar, kSch}, table.Kinds(bind.DocumentPointer{Doc: params, Pointer: "/Size/schema"}))
+	assert.Equal(t, []bind.Kind{kSch, kMap, kSch}, table.Kinds(bind.DocumentPointer{Doc: pet, Pointer: "/properties/p"}))
 }
 
 // TestKinds_KeepsWhatTheSourceWrites pins that a position the source's own
@@ -154,7 +154,7 @@ func TestReadingAt_ReadsWhatKindsReadsLast(t *testing.T) {
 	params, ok := table.Find("/params.yaml")
 	require.True(t, ok)
 	tests := []struct {
-		pos               bind.Position
+		pos               bind.DocumentPointer
 		schema, referable bool
 	}{
 		{at(""), false, false},
@@ -165,8 +165,8 @@ func TestReadingAt_ReadsWhatKindsReadsLast(t *testing.T) {
 		{at("/components/securitySchemes/S"), false, true},
 		{at("/components/examples/E/value"), false, false},
 		{at("/x-ext/schema"), false, false},
-		{bind.Position{Doc: params, Pointer: "/Size"}, false, true},
-		{bind.Position{Doc: params, Pointer: "/Size/schema"}, true, false},
+		{bind.DocumentPointer{Doc: params, Pointer: "/Size"}, false, true},
+		{bind.DocumentPointer{Doc: params, Pointer: "/Size/schema"}, true, false},
 	}
 	for _, tc := range tests {
 		t.Run(string(tc.pos.Pointer), func(t *testing.T) {
@@ -208,7 +208,7 @@ func TestReading_BelowStepsTheGrammar(t *testing.T) {
 // for.
 func TestReadingAt_ReadsRawWhereItPlacesNothing(t *testing.T) {
 	t.Parallel()
-	var none *bind.Table
+	var none *bind.ReferenceTargetTable
 	assert.Equal(t, bind.Reading{}, none.ReadingAt(at("/components/parameters/P")))
 	assert.False(t, bind.Reading{}.Below("schema").Schema())
 	assert.False(t, bind.Reading{}.Referable())

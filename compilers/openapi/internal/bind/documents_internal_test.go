@@ -22,9 +22,9 @@ func TestDocs_NodeIsNilWhereTheDocumentHoldsNone(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("a: {b: 1}\n"), &root))
 	d := newDocs(&root, Config{Self: "spec.yaml"}, &work{ctx: t.Context(), steps: budget.New(budget.AtMost(MaxSteps))})
 
-	assert.Nil(t, d.node(Position{Pointer: "/a/c"}))
-	require.NotNil(t, d.node(Position{Pointer: "/a/b"}))
-	assert.Equal(t, "1", d.node(Position{Pointer: "/a/b"}).Value)
+	assert.Nil(t, d.node(DocumentPointer{Pointer: "/a/c"}))
+	require.NotNil(t, d.node(DocumentPointer{Pointer: "/a/b"}))
+	assert.Equal(t, "1", d.node(DocumentPointer{Pointer: "/a/b"}).Value)
 }
 
 // TestReads_ARefusalToOneAskerIsNoAnswerOfTheDocument pins that a read

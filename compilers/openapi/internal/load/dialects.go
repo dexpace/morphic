@@ -83,7 +83,7 @@ func (d *dialects) at(version, uri string) dialectRows {
 // chooses nothing and draws none: validation reports it where it judges it,
 // which in a document a reference reaches is only what the reference reaches.
 // Each document is read under one name (resolve.Locate), so warned of once.
-func readDialects(table *bind.Table, others Others, d *dialects, sites places) (dialect.Table, []ir.Diagnostic) {
+func readDialects(table *bind.ReferenceTargetTable, others Others, d *dialects, sites places) (dialect.SchemaDialectRows, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	unread := func(at ir.Provenance, keyword, uri string) {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.UnreadDialect, at,
@@ -92,7 +92,7 @@ func readDialects(table *bind.Table, others Others, d *dialects, sites places) (
 	}
 	at := jsontext.Pointer("").AppendToken("jsonSchemaDialect")
 	if d.at(d.version, d.dialect).unread {
-		unread(sites.position(bind.Position{Doc: bind.Source, Pointer: at}), "jsonSchemaDialect", d.dialect)
+		unread(sites.position(bind.DocumentPointer{Doc: bind.Source, Pointer: at}), "jsonSchemaDialect", d.dialect)
 	}
 	for _, o := range others.List() {
 		if d.at(o.version, o.dialect).unread {
@@ -116,7 +116,7 @@ func readDialects(table *bind.Table, others Others, d *dialects, sites places) (
 		for _, root := range slices.Backward(table.Document(id).Dialects) {
 			r := d.at(version, root.URI)
 			if r.unread {
-				unread(sites.position(bind.Position{Doc: id, Pointer: root.At.Pointer.AppendToken("$schema")}), "$schema",
+				unread(sites.position(bind.DocumentPointer{Doc: id, Pointer: root.At.Pointer.AppendToken("$schema")}), "$schema",
 					root.URI)
 			}
 			b.Root(root.At, root.Node, r.rows.Schema)
@@ -133,7 +133,7 @@ func readDialects(table *bind.Table, others Others, d *dialects, sites places) (
 
 // versionOf returns the version the schemas of document id of table are read
 // at, and false for a document the compile did not read beside the source.
-func versionOf(table *bind.Table, others Others, d *dialects, id bind.DocID) (string, bool) {
+func versionOf(table *bind.ReferenceTargetTable, others Others, d *dialects, id bind.DocID) (string, bool) {
 	if id == bind.Source {
 		return d.version, true
 	}

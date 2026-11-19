@@ -18,9 +18,9 @@ type DocID int
 // Source is the document being compiled.
 const Source DocID = 0
 
-// Position is where a node is written: a document and the JSON pointer to the
+// DocumentPointer is where a node is written: a document and the JSON pointer to the
 // node from that document's root.
-type Position struct {
+type DocumentPointer struct {
 	Doc     DocID
 	Pointer jsontext.Pointer
 }
@@ -29,7 +29,7 @@ type Position struct {
 // table reads them in where they share a document or one is the source's.
 // Two other documents are ordered by name (docs.compare): a DocID numbers them
 // in the order the table first needed them, which a declaration order changes.
-func comparePositions(p, q Position) int {
+func comparePositions(p, q DocumentPointer) int {
 	if c := cmp.Compare(p.Doc, q.Doc); c != 0 {
 		return c
 	}
@@ -39,14 +39,14 @@ func comparePositions(p, q Position) int {
 // PositionOrder returns the order t reads positions in: the source's first,
 // another document's by its name, then by pointer, so an order by it depends
 // on no order documents were read in.
-func PositionOrder(t *Table) func(p, q Position) int {
+func PositionOrder(t *ReferenceTargetTable) func(p, q DocumentPointer) int {
 	name := func(id DocID) string { return t.docs[id].Name }
-	return func(p, q Position) int { return compareNamed(p, q, name) }
+	return func(p, q DocumentPointer) int { return compareNamed(p, q, name) }
 }
 
 // compareNamed orders p and q as a table reads them, documents named by name
 // (PositionOrder, docs.compare).
-func compareNamed(p, q Position, name func(DocID) string) int {
+func compareNamed(p, q DocumentPointer, name func(DocID) string) int {
 	if c, ok := byName(p, q, name); ok {
 		return c
 	}
@@ -55,7 +55,7 @@ func compareNamed(p, q Position, name func(DocID) string) int {
 
 // byName orders p and q, positions in two documents neither of which is the
 // source, by the names name gives those documents.
-func byName(p, q Position, name func(DocID) string) (int, bool) {
+func byName(p, q DocumentPointer, name func(DocID) string) (int, bool) {
 	if p.Doc == q.Doc || p.Doc == Source || q.Doc == Source {
 		return 0, false
 	}
@@ -182,10 +182,10 @@ const (
 	// document, whose chain does not resolve, or whose resolution needs the
 	// hop reading that pointer.
 	Unpassable
-	// Held is a reference to a document an absolute URI names, whose read waits
+	// PendingExternalDocumentRead is a reference to a document an absolute URI names, whose read waits
 	// until the pass's walks are done. The pass then reads it and answers it,
 	// unless the budget cuts it first.
-	Held
+	PendingExternalDocumentRead
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the
 	// bound: one the pointer names, an $id that may give the base it is read
@@ -198,7 +198,7 @@ const (
 // chain, or why there is none.
 type Hop struct {
 	// Target is the position the hop lands on.
-	Target Position
+	Target DocumentPointer
 	// Ref is the $ref as written.
 	Ref string
 	// Detail is a read error, for Unreadable, a parse error, for Unparsable,
@@ -217,21 +217,21 @@ type Hop struct {
 type Chain struct {
 	// End is the position the chain ends on, when Resolved; Hops counts the
 	// $refs read to reach it.
-	End  Position
+	End  DocumentPointer
 	Hops int
 	// Status is how the chain ended.
 	Status Status
-	// Member reports, when Cyclic, whether the position itself lies on a loop
+	// PositionLiesOnReferenceCycle reports, when Cyclic, whether the position itself lies on a loop
 	// rather than leading into one.
-	Member bool
+	PositionLiesOnReferenceCycle bool
 }
 
-// Entry is one position writing a schema $ref: its hop and its chain.
+// ReferenceSite is one position writing a schema $ref: its hop and its chain.
 // Keyword is the keyword the reference is written under: `$ref`, or a
 // `$dynamicRef` naming no `$dynamicAnchor`, which is the $ref it spells (JSON
 // Schema 2020-12 §8.2.3.2).
-type Entry struct {
-	Site    Position
+type ReferenceSite struct {
+	Site    DocumentPointer
 	Hop     Hop
 	Chain   Chain
 	Keyword string
@@ -240,8 +240,8 @@ type Entry struct {
 // Lands reports whether e's $ref lands where a type can be read: its hop
 // resolves, and its position is no member of a loop of $refs, which resolves
 // nowhere.
-func (e Entry) Lands() bool {
-	return e.Hop.Status == Resolved && !e.Chain.Member
+func (e ReferenceSite) Lands() bool {
+	return e.Hop.Status == Resolved && !e.Chain.PositionLiesOnReferenceCycle
 }
 
 // Loop is a cycle of $refs: its members, ordered, and Site, where it is
@@ -249,8 +249,8 @@ func (e Entry) Lands() bool {
 // object a loop of reference objects stands for, and zero for one of schema
 // $refs.
 type Loop struct {
-	Members []Position
-	Site    Position
+	Members []DocumentPointer
+	Site    DocumentPointer
 	Kind    RefKind
 }
 
@@ -296,11 +296,11 @@ func (k RefKind) String() string {
 // Key is set where the site is no Reference Object but a requirement key the
 // table reads as one (Config.KeysByURI), whose value is the key's scopes.
 type Reference struct {
-	Site  Position
-	Kind  RefKind
-	Hop   Hop
-	Chain Chain
-	Key   bool
+	Site                     DocumentPointer
+	Kind                     RefKind
+	Hop                      Hop
+	Chain                    Chain
+	IsSecurityRequirementKey bool
 }
 
 // ObjectLanding is a position a Reference Object's chain lands on that the
@@ -310,10 +310,10 @@ type Reference struct {
 // chain reaches it, in whichever document; Reached is false when none does, as
 // where the budget cut the reading.
 type ObjectLanding struct {
-	At      Position
+	At      DocumentPointer
 	Kind    RefKind
 	Name    string
-	Site    Position
+	Site    DocumentPointer
 	Reached bool
 }
 
@@ -325,16 +325,16 @@ type ObjectLanding struct {
 // an expanding $dynamicRef's, in whichever document, or the schema writing the
 // tuple; Reached is false when none does, as where the budget cut the reading.
 type Landing struct {
-	At      Position
+	At      DocumentPointer
 	Name    string
-	Site    Position
+	Site    DocumentPointer
 	Reached bool
 }
 
 // Mapping is where a discriminator's mapping value lands, read as a $ref
 // written at At, the discriminator's position.
 type Mapping struct {
-	At    Position
+	At    DocumentPointer
 	Hop   Hop
 	Chain Chain
 }
@@ -342,7 +342,7 @@ type Mapping struct {
 // Why says why h, a hop that did not resolve, lands on no schema, in one
 // phrasing for every report of it.
 func (h Hop) Why() string {
-	if h.Status == OverBudget || h.Reason == Held {
+	if h.Status == OverBudget || h.Reason == PendingExternalDocumentRead {
 		return "it was not read within the budget"
 	}
 	switch h.Reason {

@@ -158,10 +158,10 @@ func routesByName(c lowering.Ctx, a, s *statement.Schema) bool {
 		return true
 	}
 	branches, _, _ := unionBranches(c, a, holder)
-	listed := lowering.Remembered(c, listedBy{a}, func() map[*statement.Schema]bool {
+	listed := lowering.ReadOncePerRun(c, listedBy{a}, func() map[*statement.Schema]bool {
 		set := make(map[*statement.Schema]bool, len(branches))
 		for _, b := range branches {
-			if target := refBranchTarget(c, c.Statements().Sub(b)); stated(target) {
+			if target := refBranchTarget(c, c.Statements().Subschema(b)); stated(target) {
 				set[target] = true
 			}
 		}
@@ -253,10 +253,10 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 	if d == nil {
 		return false
 	}
-	return lowering.Remembered(c, composedByOf{s, u.holder}, func() bool {
+	return lowering.ReadOncePerRun(c, composedByOf{s, u.holder}, func() bool {
 		branches, _, _ := u.branches(c)
-		return slices.ContainsFunc(branches, func(b statement.Sub) bool {
-			st := c.Statements().Sub(b)
+		return slices.ContainsFunc(branches, func(b statement.Subschema) bool {
+			st := c.Statements().Subschema(b)
 			target := st.Schema
 			if st.Ref != nil {
 				target = refBranchTarget(c, st)
@@ -309,7 +309,7 @@ func namedBranches(c lowering.Ctx, s, holder *statement.Schema) []ir.TypeID {
 	branches, _, _ := unionBranches(c, s, holder)
 	var named []ir.TypeID
 	for _, b := range branches {
-		if _, id, ok := componentNamed(scope, referenceOf(c, c.Statements().Sub(b))); ok {
+		if _, id, ok := componentNamed(scope, referenceOf(c, c.Statements().Subschema(b))); ok {
 			named = append(named, id)
 		}
 	}
@@ -424,7 +424,7 @@ func implicitRoutes(c lowering.Ctx, u unionAt) []implicitRoute {
 	branches, _, _ := u.branches(c)
 	routes := make([]implicitRoute, 0, len(branches))
 	for i, b := range branches {
-		st := c.Statements().Sub(b)
+		st := c.Statements().Subschema(b)
 		if !u.variantBranch(c, i, st) {
 			continue
 		}
@@ -493,7 +493,7 @@ func (d besideUnionDiscriminator) Settle(_ context.Context, reg ir.TypeRegistry)
 
 // routesToSubtypes reports whether every type m's discriminator routes to is a
 // subtype of m: each mapping target, the default, and each of named. Each is
-// one ir.IsSubtype walk rather than a question of an irfacts.Index, which
+// one ir.IsSubtype walk rather than a question of an irfacts.DocumentFacts, which
 // indexes the whole registry: a settlement asks a few questions, of a registry
 // the settlements before it may have rewritten. Walks are not shared between
 // settlements (GitHub #1008).

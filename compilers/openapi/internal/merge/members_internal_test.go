@@ -43,11 +43,11 @@ func membersRegistry() ir.TypeRegistry {
 
 // settled builds model M in reg as compose does, by the steps the walk takes,
 // settles it, and returns it with what it reports.
-func settled(t *testing.T, reg ir.TypeRegistry, steps ...func(idx *PropIndex)) (*ir.Model, []ir.Diagnostic) {
+func settled(t *testing.T, reg ir.TypeRegistry, steps ...func(idx *ModelPropertyDeclarations)) (*ir.Model, []ir.Diagnostic) {
 	t.Helper()
 	m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
 	reg["t/M"] = m
-	idx := NewPropIndex(m)
+	idx := NewModelPropertyDeclarations(m)
 	for _, step := range steps {
 		step(idx)
 	}
@@ -58,10 +58,10 @@ func settled(t *testing.T, reg ir.TypeRegistry, steps ...func(idx *PropIndex)) (
 // settleFlat settles idx's model against reg, reading each part as its
 // flattening stands and every name as shared, as a run reads a part it has
 // not settled.
-func settleFlat(g *stubbed, idx *PropIndex, reg ir.TypeRegistry) []ir.Diagnostic {
-	parts, shared := map[ir.TypeID]Table{}, map[string]bool{}
+func settleFlat(g *stubbed, idx *ModelPropertyDeclarations, reg ir.TypeRegistry) []ir.Diagnostic {
+	parts, shared := map[ir.TypeID]RedeclaredWireNameTable{}, map[string]bool{}
 	for _, target := range ComposedOf(idx.m) {
-		parts[target] = Table{}
+		parts[target] = RedeclaredWireNameTable{}
 		for _, member := range ir.FlattenedProperties(reg, target).Properties {
 			if d, ok := TakenOutside(member, idx.m.ID); ok {
 				parts[target][member.Property.WireName] = DeclaredAt(d)
@@ -80,16 +80,16 @@ func settleFlat(g *stubbed, idx *PropIndex, reg ir.TypeRegistry) []ir.Diagnostic
 }
 
 // composes composes target as written at /M/allOf/<n>, recording it as Mixins.
-func composes(target ir.TypeID, n string) func(idx *PropIndex) {
-	return func(idx *PropIndex) {
+func composes(target ir.TypeID, n string) func(idx *ModelPropertyDeclarations) {
+	return func(idx *ModelPropertyDeclarations) {
 		idx.m.Mixins = append(idx.m.Mixins, ir.TypeRef{Target: target})
 		idx.Compose(target, jsontext.Pointer("/M/allOf/"+n))
 	}
 }
 
 // own declares wire as target in the model's own entry n.
-func own(wire string, target ir.TypeID, n string) func(idx *PropIndex) {
-	return func(idx *PropIndex) {
+func own(wire string, target ir.TypeID, n string) func(idx *ModelPropertyDeclarations) {
+	return func(idx *ModelPropertyDeclarations) {
 		idx.MergeProperty(declared(wire, target, "/M/allOf/"+n+"/properties/"+wire), written(`{"own":true}`), "")
 	}
 }
@@ -101,7 +101,7 @@ func own(wire string, target ir.TypeID, n string) func(idx *PropIndex) {
 // staying declared on its model.
 func TestPropIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 	t.Parallel()
-	id := ids.Document{}.ComposedProp("/M/allOf/properties/p")
+	id := ids.DocumentIDNamespace{}.ComposedProp("/M/allOf/properties/p")
 	for _, tc := range []struct {
 		first, second ir.TypeID
 		want          ir.TypeID
@@ -131,10 +131,10 @@ func TestPropIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 func TestPropIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
-	id := ids.Document{}.ComposedType("/M")
+	id := ids.DocumentIDNamespace{}.ComposedType("/M")
 	m := &ir.Model{ID: id, Provenance: ptrAt("/M")}
 	reg[id] = m
-	idx := NewPropIndex(m)
+	idx := NewModelPropertyDeclarations(m)
 	composes("t/A", "0")(idx)
 	composes("t/B", "1")(idx)
 	g, _ := stubMerger(reg)
@@ -142,7 +142,7 @@ func TestPropIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper(t *testing.T) {
 	settleFlat(g, idx, reg)
 
 	require.Len(t, m.Properties, 1)
-	assert.Equal(t, ids.Document{}.ComposedProp("/M/allOf/allOf/properties/p"), m.Properties[0].ID)
+	assert.Equal(t, ids.DocumentIDNamespace{}.ComposedProp("/M/allOf/allOf/properties/p"), m.Properties[0].ID)
 }
 
 // TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt pins a model's own
@@ -163,7 +163,7 @@ func TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target, "the own declaration, written later")
 
 	reg := membersRegistry()
-	m, _ = settled(t, reg, func(idx *PropIndex) { idx.m.Requires = []string{"p"} }, composes("t/A", "0"), composes("t/B", "1"))
+	m, _ = settled(t, reg, func(idx *ModelPropertyDeclarations) { idx.m.Requires = []string{"p"} }, composes("t/A", "0"), composes("t/B", "1"))
 	assert.True(t, m.Properties[0].Required)
 	assert.Empty(t, m.Requires)
 }
@@ -185,7 +185,7 @@ func TestPropIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/B/p"), diags[0].Provenance.Pointer, "B's, through the entry composing it")
 
 	reg = membersRegistry()
-	m, diags = settled(t, reg, func(idx *PropIndex) { idx.m.Base = &ir.TypeRef{Target: "t/B"} }, composes("t/A", "0"))
+	m, diags = settled(t, reg, func(idx *ModelPropertyDeclarations) { idx.m.Base = &ir.TypeRef{Target: "t/B"} }, composes("t/A", "0"))
 	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target, "B's, read first at the model")
 	require.Len(t, diags, 1)
 	assert.Equal(t, jsontext.Pointer("/B/p"), diags[0].Provenance.Pointer)
@@ -262,8 +262,8 @@ func TestTypeJudge_AUnionsVariantIsJudgedAtTheUnionsSite(t *testing.T) {
 	g, _ := stubMerger(reg)
 	union, copied := ir.TypeRef{Target: "t/u"}, ir.TypeRef{Target: "t/e"}
 
-	assert.Equal(t, relBNarrower, g.judgeAt(sitesAt("/d0"), sitesAt("/d1")).relateFrom(union, copied, 0))
-	assert.Equal(t, relANarrower, g.judgeAt(sitesAt("/d1"), sitesAt("/d0")).relateFrom(copied, union, 0))
+	assert.Equal(t, secondTypeIsNarrower, g.judgeAt(sitesAt("/d0"), sitesAt("/d1")).relateFrom(union, copied, 0))
+	assert.Equal(t, firstTypeIsNarrower, g.judgeAt(sitesAt("/d1"), sitesAt("/d0")).relateFrom(copied, union, 0))
 }
 
 // TestPropIndex_ComposesModelsAsTheirEntriesBringThem pins a member entries
@@ -281,7 +281,7 @@ func TestPropIndex_ComposesModelsAsTheirEntriesBringThem(t *testing.T) {
 		}
 		m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
 		reg["t/M"] = m
-		idx := NewPropIndex(m)
+		idx := NewModelPropertyDeclarations(m)
 		composes(order[0], "0")(idx)
 		composes(order[1], "1")(idx)
 		g, _ := stubMerger(reg)
@@ -327,7 +327,7 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 	t.Parallel()
 	const composedAt jsontext.Pointer = "/M/allOf/properties/p"
-	composed := ids.Document{}.ComposedProp(composedAt)
+	composed := ids.DocumentIDNamespace{}.ComposedProp(composedAt)
 	for name, tc := range map[string]struct {
 		at, wantAt jsontext.Pointer
 		interned   []jsontext.Pointer
@@ -340,7 +340,7 @@ func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 		reg := membersRegistry()
 		m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
 		reg["t/M"] = m
-		idx := NewPropIndex(m)
+		idx := NewModelPropertyDeclarations(m)
 		composes("t/B", "0")(idx)
 		idx.MergeProperty(declared("p", "t/prim/string", string(tc.at)), written(`{}`), "")
 		g, _ := stubMerger(reg)
@@ -797,7 +797,7 @@ func TestPropIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID(t *testing.T) 
 		member := declared("kind", "t/prim/string", "/M/allOf/properties/kind")
 		member.ID = "p/composed/M/allOf/properties/kind"
 
-		NewPropIndex(m).place(-1, member)
+		NewModelPropertyDeclarations(m).place(-1, member)
 
 		assert.Equal(t, want, *m.Discriminator, name)
 	}
@@ -838,12 +838,12 @@ func TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
 	reg := membersRegistry()
 	m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
 	reg["t/M"] = m
-	idx := NewPropIndex(m)
+	idx := NewModelPropertyDeclarations(m)
 	composes("t/A", "0")(idx)
 	idx.MergeProperty(declared("p", "t/prim/integer", "/M/allOf/1/properties/p"), written(`{}`), "")
 	g, _ := stubMerger(reg)
 	g.walk.interned = []jsontext.Pointer{"/M/allOf/1"}
-	parts := map[ir.TypeID]Table{"t/A": {"p": DeclaredAt(ir.PropertyDecl{Owner: "t/M", Property: &m.Properties[0]})}}
+	parts := map[ir.TypeID]RedeclaredWireNameTable{"t/A": {"p": DeclaredAt(ir.PropertyDecl{Owner: "t/M", Property: &m.Properties[0]})}}
 
 	diags, table := idx.Settle(g.Merger, parts, map[string]bool{"p": true})
 

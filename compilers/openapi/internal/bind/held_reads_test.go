@@ -78,7 +78,7 @@ func ladder(n int, base string) (src string, docs map[string]string) {
 
 // laddered binds ladder(n, base) as the source named self reads it, through
 // log.
-func laddered(t *testing.T, n int, base string, log *askLog) *bind.Table {
+func laddered(t *testing.T, n int, base string, log *askLog) *bind.ReferenceTargetTable {
 	t.Helper()
 	src, docs := ladder(n, base)
 	cfg := resolving
@@ -176,7 +176,7 @@ func TestBind_HeldDocumentsDeclaringEachOthersURIAreAnsweredInEitherOrder(t *tes
 			assert.Equal(t, "spec.yaml", r.from, "the source asked for %s", r.name)
 		}
 		u1 := docNamed(t, table, "https://x.test/u1")
-		assert.Equal(t, bind.Position{Doc: u1, Pointer: "/S"}, entryAt(t, table, "/components/schemas/B").Hop.Target)
+		assert.Equal(t, bind.DocumentPointer{Doc: u1, Pointer: "/S"}, entryAt(t, table, "/components/schemas/B").Hop.Target)
 		assert.True(t, table.Document(docNamed(t, table, "https://x.test/u2")).Unreached)
 	}
 }
@@ -199,7 +199,7 @@ func TestBind_APathADocumentDeclaresIsAnsweredByTheDeclarationNotTheFile(t *test
 		var log askLog
 		table := bound(t, head+"components:\n  schemas:\n"+schemas, log.opening(t, resolving, docs))
 		b := docNamed(t, table, "/b.yaml")
-		assert.Equal(t, bind.Position{Doc: b, Pointer: "/S"}, entryAt(t, table, "/components/schemas/A").Hop.Target,
+		assert.Equal(t, bind.DocumentPointer{Doc: b, Pointer: "/S"}, entryAt(t, table, "/components/schemas/A").Hop.Target,
 			"the declared path answers")
 		for id := range bind.DocID(table.Documents()) {
 			if table.Document(id).Name == "/a.yaml" {

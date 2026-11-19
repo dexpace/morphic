@@ -42,7 +42,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 	u.deadRoutes = deadRoutesOf(c, u)
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
-			voices: positionVoices(c, s, pointer, ir.TypeRef{}), inferred: bodyKindInferred(c, s), union: u}
+			foldedBranches: positionFoldedBranches(c, s, pointer, ir.TypeRef{}), inferred: bodyKindInferred(c, s), union: u}
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
 		diags = append(diags, keepDeadBranches(c, &common.Unmodeled, s, u, pointer)...)
 		def, unionDiags := buildUnion(c, ts, u, common,
@@ -139,9 +139,9 @@ func composeMixin(c lowering.Ctx, ts *compile.Types, depth int, td ir.TypeDef, u
 // composedBody is the schema every distributed variant carries: the enclosing
 // schema and where it is written.
 type composedBody struct {
-	schema *statement.Schema
-	comp   allOfComposition   // schema's flattened allOf, built once for every variant
-	voices []annotation.Voice // what comp's folding branches say of the position, read once too
+	schema         *statement.Schema
+	comp           allOfComposition               // schema's flattened allOf, built once for every variant
+	foldedBranches []annotation.FoldedAllOfBranch // what comp's folding branches say of the position, read once too
 	// inferred marks a schema the kind-inference policy made the model its
 	// variants compose (bodyKindInferred), so a variant over a branch that
 	// declares no object names the policy.
@@ -249,7 +249,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	branch ir.TypeID, composes bool, common ir.TypeCommon,
 ) (ir.TypeDef, []ir.Diagnostic) {
 	kinds, _ := lowersTo(c, b)
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, body.comp.bounds&kinds)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.foldedBranches, body.comp.pointer, body.comp.bounds&kinds)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
 	if composes {
@@ -304,7 +304,7 @@ func branchReferent(c lowering.Ctx, b *statement.Statement) (variant ir.TypeID, 
 // compose (branchReferent), verbatim under m's Unmodeled (unionBranchKey), and
 // reports it, as keepUncomposedRefs keeps an allOf's $ref entries. b lowers
 // nowhere, so this is its one home; the target of a $ref it writes lowers
-// where the $ref lands, as every landing does (PromiseLandings).
+// where the $ref lands, as every landing does (ReserveNodesAtReferenceTargets).
 func keepUncomposedBranch(c lowering.Ctx, m *ir.Model, b *statement.Statement) []ir.Diagnostic {
 	at := m.Provenance.Pointer
 	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, unionBranchKey(at), b.Node,

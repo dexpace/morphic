@@ -31,7 +31,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *s
 	def, diags := use.Default(c, js.Schema, pointer)
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, use.Site(js.Schema).Chain(), pointer)...)
-	diags = append(diags, fillPropertyConstraints(c, p, js.Schema, use.Voices, pointer)...)
+	diags = append(diags, fillPropertyConstraints(c, p, js.Schema, use.FoldedAllOfBranches, pointer)...)
 	diags = append(diags, fillPropertyAnnotations(c, p, js.Schema, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
@@ -61,13 +61,13 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*statement.S
 // carrier at this position: a property's schema is read through CarriedRef, so
 // it hoists no node of its own to hold either.
 //
-// It reads ref and its voices and never the $ref target, which is why no referent
+// It reads ref and its foldedBranches and never the $ref target, which is why no referent
 // reaches it: bounds conjoin rather than override, so a referent's bound merged
 // here under use-site precedence would publish the wider of the two as the whole
 // truth. It stays on the node the reference points at instead
 // (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *statement.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
-	cons, diags := CarrierConstraintsOf(c, &p.Unmodeled, ref, voices, p.Type, pointer)
+func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, pointer jsontext.Pointer) []ir.Diagnostic {
+	cons, diags := CarrierConstraintsOf(c, &p.Unmodeled, ref, foldedBranches, p.Type, pointer)
 	p.Constraints = cons
 	return diags
 }
@@ -123,7 +123,7 @@ func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schem
 
 // PromoteUse reads the vendor extensions into the deprecation and redaction of a
 // carrier: a property, a header or a parameter. Its own keys are the ones kept in
-// unmodeled, and from (KeysLentTo) lends beneath them
+// unmodeled, and from (FallbackKeysForCarrier) lends beneath them
 // (docs/compilers/openapi.md#ref-use-site).
 //
 // A caller runs it once the carrier's keywords and keys are all on it, which for
@@ -135,15 +135,15 @@ func PromoteUse(c lowering.Ctx, from promotion.Referent, unmodeled ir.Unmodeled,
 	return append(diags, c.Promoter().Redaction(unmodeled, from, redact, prov)...)
 }
 
-// KeysLentTo returns what the mapped keys of what a carrier of js falls back to
-// lend it, js written at pointer and lowered to t (Use.lentKeys). A position
+// FallbackKeysForCarrier returns what the mapped keys of what a carrier of js falls back to
+// lend it, js written at pointer and lowered to t (Use.fallbackKeys). A position
 // owning a node lends its carrier none, as it lends no keyword: the node takes
 // them (attachDeclaredAnnotations).
-func KeysLentTo(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
+func FallbackKeysForCarrier(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
 	if js.Truth != statement.Stated || LoweredToOwnNode(c, pointer, t) {
 		return promotion.Referent{}
 	}
-	return readUse(c, js, t, pointer).lentKeys(c)
+	return readUse(c, js, t, pointer).fallbackKeys(c)
 }
 
 // LoweredToOwnNode reports whether t, what the declaration at pointer in c's

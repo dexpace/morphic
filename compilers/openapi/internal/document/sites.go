@@ -43,14 +43,14 @@ func documentUnknownKeys(c service.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	return diags
 }
 
-// site is one object around the document metadata that lowers to no node of
+// metadataObjectSite is one object around the document metadata that lowers to no node of
 // its own, so its x-* and its undeclared keys ride on ir.Document, keyed under
 // scope: the path from the root down to the object, empty for the root itself,
 // which ir.Document stands for. A tag's path holds its index rather than its
 // name, which is the pointer it is written at: OpenAPI's requirement that tag
 // names be unique is the document's to keep, not this compiler's to rely on,
 // and two tags spelled alike would silently leave one entry.
-type site struct {
+type metadataObjectSite struct {
 	scope string
 	owner jsontext.Pointer
 	model extensible
@@ -73,10 +73,10 @@ type extensible interface {
 // is an entry of it (docs/parser-library.md#embedded-map-keys), while the
 // Components Object is a fixed-field struct and a key it does not define is as
 // undeclared as one on any other site.
-func sites(c service.Ctx) []site {
+func sites(c service.Ctx) []metadataObjectSite {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
-	out := []site{
+	out := []metadataObjectSite{
 		{scope: "", owner: "", model: c.Doc},
 		{scope: "info", owner: infoPtr, model: info},
 		{scope: "info/contact", owner: infoPtr + ids.Ptr("contact"), model: info.GetContact()},

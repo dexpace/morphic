@@ -33,7 +33,7 @@ const maxSpellingDepth = 2 * maxReverseDepth
 // compare alike whatever the case says. A compile's error, a document that
 // does not encode and a partner the product writes nothing for are faults, and
 // a panic.
-func spelled(ctx context.Context, s *shard, at []int, doc Document) Verdict {
+func spelled(ctx context.Context, s *shard, at []int, doc CaseDocument) Verdict {
 	eq := doc.Equal
 	if eq == nil {
 		return declined(OracleSpelling, DeclineNoPartner)
@@ -331,12 +331,12 @@ func differingCodes(d diagnosed) []string {
 
 // spellingDetail is a finding's Detail: what differs, the rule, the two
 // documents' and diagnostics' difference, and both sources.
-func spellingDetail(what, rule string, a, b any, diags diagnosed, mine, partner Document) string {
+func spellingDetail(what, rule string, a, b any, diags diagnosed, mine, partner CaseDocument) string {
 	var out strings.Builder
 	out.WriteString(what + "\n" + rule + "\n")
 	out.WriteString(lineDifference(indented(b), indented(a)))
 	out.WriteString(lineDifference(diags.theirs, diags.mine))
-	for _, d := range []Document{mine, partner} {
+	for _, d := range []CaseDocument{mine, partner} {
 		for _, src := range d.Sources {
 			out.WriteString("--- " + src.Path + "\n" + string(src.Data) + "\n")
 		}

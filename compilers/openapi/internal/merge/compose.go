@@ -49,7 +49,7 @@ func (p position) composition(reg registry) []conjunct {
 // member i's does: one narrower, or the same one standing for it (stands).
 func (p position) heldByAnother(i int) bool {
 	for j := range p.members {
-		if p.rel[j][i] == relANarrower || (p.rel[j][i] == relSame && p.stands(j, i)) {
+		if p.rel[j][i] == firstTypeIsNarrower || (p.rel[j][i] == relSame && p.stands(j, i)) {
 			return true
 		}
 	}

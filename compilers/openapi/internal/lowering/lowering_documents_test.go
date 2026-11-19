@@ -41,7 +41,7 @@ components:
 
 // loadSplit loads splitRoot beside ext, written as ext.yaml, reading ext.yaml
 // from disk, and returns the context over it.
-func loadSplit(t *testing.T, ext string) (lowering.Ctx, *load.Document) {
+func loadSplit(t *testing.T, ext string) (lowering.Ctx, *load.LoadedOpenAPIDocument) {
 	t.Helper()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(ext), 0o600))
@@ -67,7 +67,7 @@ func extDoc(t *testing.T, c lowering.Ctx) bind.DocID {
 
 // TestInDocument_PlacesWhatAnotherDocumentDeclares pins the context a lowering
 // of another document's content runs in: its references read in that
-// document's scope, each Provenance naming its Document.Sources entry, and its
+// document's scope, each Provenance naming its BoundDocument.Sources entry, and its
 // IDs qualified by its label. The source's own number returns to the source's
 // coordinates, and a context given no document holding that one cannot place
 // it.
@@ -90,7 +90,7 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 
 	back, ok := lowering.InDocument(there, bind.Source)
 	require.True(t, ok)
-	assert.Equal(t, ids.Document{}, back.IDs())
+	assert.Equal(t, ids.DocumentIDNamespace{}, back.IDs())
 	assert.Equal(t, ir.Provenance{Pointer: "/X"}, back.Place().At("/X"))
 	assert.False(t, back.RefScope().Foreign)
 	assert.Empty(t, back.RefScope().Holder)
@@ -103,7 +103,7 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	unread := service.New(0, &none, service.Policy{})
 	same, ok := lowering.InDocument(unread.Ctx, id)
 	assert.False(t, ok, "a document the compile did not list")
-	assert.Equal(t, ids.Document{}, same.IDs(), "and the context is left as it was")
+	assert.Equal(t, ids.DocumentIDNamespace{}, same.IDs(), "and the context is left as it was")
 }
 
 // TestSchemaRules_FollowTheDocumentTheScopeReads pins which document's rows a
@@ -187,7 +187,7 @@ func TestRules_AtReadsTheDialectOfWhereASchemaIs(t *testing.T) {
 }
 
 // TestNew_ReadsTheSourcesRowsFromTheLoad pins where a context over a loaded
-// document gets the source's rows: the load phase's own (load.Document.Rows),
+// document gets the source's rows: the load phase's own (load.LoadedOpenAPIDocument.Rows),
 // held by identity, so building the context builds no rule table, which alone
 // allocates more than the whole context does. It runs alone, since the
 // allocation counts are the process's.

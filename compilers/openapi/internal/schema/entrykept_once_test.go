@@ -27,7 +27,7 @@ type keptOnceCase struct {
 // keyword an entry kept whole for a closure writes alike with another entry: the
 // entry kept whole holds its own, and the other entry's is kept at its keyword,
 // not at the position, in every order of the three entries. A vendor extension
-// and a validation-only keyword fold; readOnly is kept as each voice's residue.
+// and a validation-only keyword fold; readOnly is kept as each folded branch's residue.
 func TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone(t *testing.T) {
 	t.Parallel()
 	ref := "{$ref: '#/components/schemas/Str'}"
@@ -133,7 +133,7 @@ var keptOnceKeys = []string{"x-a", "not", "readOnly"}
 // member an entry writes to one record: inside its entry where that is kept
 // whole, else at its keyword where no other entry kept apart writes it, else
 // at the position, but readOnly, a residue keyword, at the nearest writer's
-// (recordVoicedResidue).
+// (recordFoldedBranchResidue).
 func TestEntryKeptOnce_EveryKeywordOfAGridIsKeptOnce(t *testing.T) {
 	t.Parallel()
 	var schemas strings.Builder

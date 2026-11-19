@@ -28,7 +28,7 @@ func ContainsRaw(s *statement.Schema) (ir.RawValue, []string, error) {
 	if s == nil || s.Array == nil {
 		return nil, nil, nil
 	}
-	if a := s.Array; a.Contains == (statement.Sub{}) && a.MinContains == nil && a.MaxContains == nil {
+	if a := s.Array; a.Contains == (statement.Subschema{}) && a.MinContains == nil && a.MaxContains == nil {
 		return nil, nil, nil
 	}
 	return combine(s, "contains", "minContains", "maxContains")
@@ -47,7 +47,7 @@ func ExamplesRaw(s *statement.Schema) (ir.RawValue, []string, error) {
 // an applicator kept verbatim that evaluates a member leaves the closure typed
 // (GitHub #1904).
 func ClosesAfterComposition(s *statement.Schema) bool {
-	return s.ObjectKeywords().UnevaluatedProperties.Truth().ReadsFalse() && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
+	return s.ObjectKeywords().UnevaluatedProperties.SchemaValueForm().ReadsFalse() && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
 }
 
 // unevaluatedRaw renders the entry holding kept, each inert keyword beside the
@@ -84,10 +84,10 @@ func unevaluatedKept(s *statement.Schema, closure bool, dialect Dialect) []keptU
 	keep := func(keyword string) {
 		out = append(out, keptUnevaluated{keyword: keyword, inertBy: inertBeside(s, keyword, dialect)})
 	}
-	if up := s.ObjectKeywords().UnevaluatedProperties.Truth(); up != statement.Unwritten && (!closure || !up.ReadsFalse()) {
+	if up := s.ObjectKeywords().UnevaluatedProperties.SchemaValueForm(); up != statement.Unwritten && (!closure || !up.ReadsFalse()) {
 		keep("unevaluatedProperties")
 	}
-	if s.ArrayKeywords().UnevaluatedItems.Truth() != statement.Unwritten {
+	if s.ArrayKeywords().UnevaluatedItems.SchemaValueForm() != statement.Unwritten {
 		keep("unevaluatedItems")
 	}
 	return out
@@ -116,7 +116,7 @@ func unevaluatedMembers(kept []keptUnevaluated) []string {
 // list any other dialect reads is no schema, and evaluates nothing.
 func inertBeside(s *statement.Schema, keyword string, dialect Dialect) string {
 	if keyword == "unevaluatedProperties" {
-		if s.ObjectKeywords().AdditionalProperties.Truth() != statement.Unwritten {
+		if s.ObjectKeywords().AdditionalProperties.SchemaValueForm() != statement.Unwritten {
 			return "additionalProperties"
 		}
 		return ""
@@ -127,7 +127,7 @@ func inertBeside(s *statement.Schema, keyword string, dialect Dialect) string {
 		}
 		return ""
 	}
-	if s.ArrayKeywords().Items.Truth() != statement.Unwritten {
+	if s.ArrayKeywords().Items.SchemaValueForm() != statement.Unwritten {
 		return "items"
 	}
 	return ""
@@ -240,7 +240,7 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 // (docs/ir/boundaries.md#validation-only-constructs) a schema declares that the
 // IR does not model, keeping each verbatim and announcing it, `dependencies`
 // among them where dialect defines it. own says s is the schema written at the
-// position rather than a voice, whose unevaluated keywords stay with its branch
+// position rather than a folded branch, whose unevaluated keywords stay with its branch
 // (schema.foldEntry), and closure is unevaluatedKept's.
 //
 // Site-only: these constrain the value at the position that wrote them.
@@ -275,7 +275,7 @@ func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, doc.At(pointer), note)...)
 	}
 
-	if s.LogicKeywords().Not.Truth() != statement.Unwritten {
+	if s.LogicKeywords().Not.SchemaValueForm() != statement.Unwritten {
 		keepKeyword("not")
 	}
 	ite, iteKeys, iteErr := IfThenElseRaw(s)
@@ -299,7 +299,7 @@ func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
 		keepKeyword("dependencies")
 	}
-	if s.ObjectKeywords().PropertyNames.Truth() != statement.Unwritten {
+	if s.ObjectKeywords().PropertyNames.SchemaValueForm() != statement.Unwritten {
 		keepKeyword("propertyNames")
 	}
 	craw, cKeys, cErr := ContainsRaw(s)

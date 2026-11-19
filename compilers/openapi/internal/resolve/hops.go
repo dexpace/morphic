@@ -12,7 +12,7 @@ import (
 // it is written, and that position, in whichever document.
 type Hop[R any] struct {
 	Ref R
-	At  bind.Position
+	At  bind.DocumentPointer
 }
 
 // Hops returns the references the chain of ref passes after ref itself,

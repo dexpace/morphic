@@ -28,26 +28,26 @@ func readBounds(fields []Field) []Field {
 }
 
 // keyword returns a JSON Schema keyword defined during span s.
-func keyword(name string, shape Shape, s Span, cite Cite) Field {
+func keyword(name string, shape Shape, s MinorVersionRange, cite Cite) Field {
 	return field(name, shape, cite).during(s).keyword()
 }
 
 // schemaOf returns a keyword holding a schema.
-func schemaOf(name string, s Span, cite Cite) Field {
+func schemaOf(name string, s MinorVersionRange, cite Cite) Field {
 	f := keyword(name, Nested, s, cite)
 	f.Of = Schema
 	return f
 }
 
 // schemasOf returns a keyword holding a list of schemas.
-func schemasOf(name string, s Span, cite Cite) Field {
+func schemasOf(name string, s MinorVersionRange, cite Cite) Field {
 	f := keyword(name, List, s, cite)
 	f.Of = Schema
 	return f
 }
 
 // schemaMapOf returns a keyword holding a map of schemas.
-func schemaMapOf(name string, s Span, cite Cite) Field {
+func schemaMapOf(name string, s MinorVersionRange, cite Cite) Field {
 	f := keyword(name, Map, s, cite)
 	f.Of = Schema
 	return f
@@ -89,7 +89,7 @@ func keywords30() []Field {
 		schemaOf("additionalProperties", s, adjust("Value can be boolean or object.")).also(Boolean, s),
 		keyword("description", String, s, adjust("[CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.")),
 		keyword("format", String, s, adjust("See [Data Type Formats](#data-type-format) for further details.")),
-		keyword("default", Any, s, adjust("The default value represents what would be assumed by the consumer of the input")),
+		keyword("default", AnyShapeUnchecked, s, adjust("The default value represents what would be assumed by the consumer of the input")),
 		keyword("readOnly", Boolean, s, c(V30, "Declares the property as \"read only\".")),
 		keyword("writeOnly", Boolean, s, c(V30, "Declares the property as \"write only\".")),
 		keyword("deprecated", Boolean, s, c(V30, "Specifies that a schema is deprecated and SHOULD be transitioned out of usage.")),
@@ -145,7 +145,7 @@ func dialectValidation() []Field {
 	types = append(types, valFrom("null", V31))
 	return slices.Concat([]Field{
 		keyword("type", String, s, cite).admits(types...).also(StringList, s),
-		keyword("const", Any, s, cite),
+		keyword("const", AnyShapeUnchecked, s, cite),
 		keyword("enum", RawList, s, cite),
 		keyword("multipleOf", PositiveNumber, s, cite),
 		keyword("required", StringList, s, cite),
@@ -160,7 +160,7 @@ func dialectValidation() []Field {
 }
 
 // keywordsOf returns the keywords of one shape that share a citation.
-func keywordsOf(shape Shape, s Span, cite Cite, names ...string) []Field {
+func keywordsOf(shape Shape, s MinorVersionRange, cite Cite, names ...string) []Field {
 	out := make([]Field, len(names))
 	for i, name := range names {
 		out[i] = keyword(name, shape, s, cite)
@@ -179,7 +179,7 @@ func dialectAnnotations() []Field {
 		keyword("contentMediaType", String, s, cite),
 		keyword("title", String, s, cite),
 		keyword("description", String, s, cite),
-		keyword("default", Any, s, cite),
+		keyword("default", AnyShapeUnchecked, s, cite),
 		keyword("deprecated", Boolean, s, cite),
 		keyword("readOnly", Boolean, s, cite),
 		keyword("writeOnly", Boolean, s, cite),

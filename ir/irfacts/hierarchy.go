@@ -98,7 +98,7 @@ func mostSupertypes(types ir.TypeRegistry) int {
 	return most
 }
 
-// subtype answers [Index.IsSubtype] from the intervals, with settled false where
+// subtype answers [DocumentFacts.IsSubtype] from the intervals, with settled false where
 // they leave the pair open.
 func (h *hierarchy) subtype(target, base ir.TypeID) (sub, settled bool) {
 	t, named := h.vertex[target]

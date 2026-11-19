@@ -179,7 +179,7 @@ func (s *valueSite) fits(v *ir.Value) string {
 		}
 		return "is null, and " + string(target) + " is not nullable here"
 	}
-	if s.encoded || enc || sh == shapeUnjudged {
+	if s.encoded || enc || sh == shapeNotChecked {
 		return ""
 	}
 	return fitsShape(v, sh, target, &b)

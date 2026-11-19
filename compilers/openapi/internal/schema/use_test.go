@@ -189,9 +189,9 @@ func TestUse_ACarrierReadsThroughADecorator(t *testing.T) {
 	}
 }
 
-// TestUse_ANarrowingOfTwoRefsLendsNothing pins that an enum beside an allOf of two
+// TestUse_ANarrowingOfTwoRefsFallsBackToNothing pins that an enum beside an allOf of two
 // $refs reads neither: no precedence chooses one.
-func TestUse_ANarrowingOfTwoRefsLendsNothing(t *testing.T) {
+func TestUse_ANarrowingOfTwoRefsFallsBackToNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: string, description: a}
     B: {type: string, description: b}

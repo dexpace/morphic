@@ -73,7 +73,7 @@ x-m: {<<: [{o: {name: o, in: query}}, {q: {name: q, in: query}}]}
 
 // referenceAt returns the table's entry for the reference object of kind at
 // the source pointer site.
-func referenceAt(t *testing.T, table *bind.Table, site jsontext.Pointer, kind bind.RefKind) bind.Reference {
+func referenceAt(t *testing.T, table *bind.ReferenceTargetTable, site jsontext.Pointer, kind bind.RefKind) bind.Reference {
 	t.Helper()
 	r, ok := table.Reference(at(site), kind)
 	require.True(t, ok, "a reference at %s", site)
@@ -147,11 +147,11 @@ func TestBind_ReportsALoopOfReferenceObjectsAtItsLeastMember(t *testing.T) {
 		}
 	}
 	l1, l2 := at("/components/requestBodies/L1"), at("/components/requestBodies/L2")
-	assert.Equal(t, []bind.Loop{{Members: []bind.Position{l1, l2}, Site: l1, Kind: bind.RefRequestBody}}, loops)
-	for _, p := range []bind.Position{l1, l2} {
+	assert.Equal(t, []bind.Loop{{Members: []bind.DocumentPointer{l1, l2}, Site: l1, Kind: bind.RefRequestBody}}, loops)
+	for _, p := range []bind.DocumentPointer{l1, l2} {
 		r, ok := table.Reference(p, bind.RefRequestBody)
 		require.True(t, ok)
-		assert.Equal(t, bind.Chain{Status: bind.Cyclic, Member: true}, r.Chain)
+		assert.Equal(t, bind.Chain{Status: bind.Cyclic, PositionLiesOnReferenceCycle: true}, r.Chain)
 	}
 }
 
@@ -184,7 +184,7 @@ func TestBind_StopsReferenceObjectsAtItsBudget(t *testing.T) {
 	cfg := self
 	cfg.Limit = budget.AtMost(full.Steps())
 	require.False(t, bound(t, objectsSpec, cfg).Exhausted(), "the cost itself suffices")
-	want := map[bind.Position]bind.Reference{}
+	want := map[bind.DocumentPointer]bind.Reference{}
 	for _, r := range full.References() {
 		want[r.Site] = r
 	}
@@ -273,7 +273,7 @@ func TestBind_AReferenceObjectWaitsForAHeldDocument(t *testing.T) {
 `, withDocuments(map[string]string{"https://x.test/p.yaml": "P: {name: p, in: query, x-alt: {name: q, in: query}}\n"}))
 	other := bind.DocID(1)
 	require.Equal(t, "https://x.test/p.yaml", table.Document(other).Name)
-	for site, end := range map[jsontext.Pointer]bind.Position{
+	for site, end := range map[jsontext.Pointer]bind.DocumentPointer{
 		"A": {Doc: other, Pointer: "/P"},
 		"B": {Doc: other, Pointer: "/P"},
 		"C": {Doc: other, Pointer: "/P/x-alt"},
@@ -309,7 +309,7 @@ x-l:
 	}
 	assert.Equal(t, []bind.RefKind{bind.RefParameter, bind.RefHeader}, kinds)
 	require.Len(t, table.Loops(), 1)
-	assert.Equal(t, bind.Loop{Members: []bind.Position{at("/x-l/a"), at("/x-l/b")}, Site: at("/x-l/a"),
+	assert.Equal(t, bind.Loop{Members: []bind.DocumentPointer{at("/x-l/a"), at("/x-l/b")}, Site: at("/x-l/a"),
 		Kind: bind.RefParameter}, table.Loops()[0])
 }
 
@@ -332,9 +332,9 @@ func TestPositionOrder_ReadsTheSourceFirstThenEachDocumentByName(t *testing.T) {
 	require.True(t, ok)
 	require.Less(t, b, a, "b.yaml is read first")
 	order := bind.PositionOrder(table)
-	assert.Negative(t, order(bind.Position{Doc: a, Pointer: "/P"}, bind.Position{Doc: b, Pointer: "/A"}))
-	assert.Negative(t, order(at("/z"), bind.Position{Doc: a, Pointer: "/A"}))
-	assert.Negative(t, order(bind.Position{Doc: a, Pointer: "/A"}, bind.Position{Doc: a, Pointer: "/P"}))
+	assert.Negative(t, order(bind.DocumentPointer{Doc: a, Pointer: "/P"}, bind.DocumentPointer{Doc: b, Pointer: "/A"}))
+	assert.Negative(t, order(at("/z"), bind.DocumentPointer{Doc: a, Pointer: "/A"}))
+	assert.Negative(t, order(bind.DocumentPointer{Doc: a, Pointer: "/A"}, bind.DocumentPointer{Doc: a, Pointer: "/P"}))
 }
 
 // TestRefKind_SpellsEachKind pins how a kind of object reads in a message.

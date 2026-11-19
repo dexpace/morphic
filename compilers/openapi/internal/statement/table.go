@@ -20,17 +20,17 @@ import (
 
 // Source is what a Table reads: the bindings holding each schema of the
 // documents and where it was read, and the rows each position's schema is
-// read with, those of the dialect in force there (dialect.Table.At).
+// read with, those of the dialect in force there (dialect.SchemaDialectRows.At).
 type Source struct {
 	Bindings *typed.Bindings
-	Rules    dialect.Table
+	Rules    dialect.SchemaDialectRows
 }
 
-// Table reads schema objects into statements and remembers each, keyed by the
+// MemoizingSchemaReader reads schema objects into statements and remembers each, keyed by the
 // parser's value, which is one per coordinate (docs/parser-library.md#alias-expansion).
 // What it remembers turns on the documents and their bindings alone, so every
 // walk of a run shares one. It is not safe for concurrent use.
-type Table struct {
+type MemoizingSchemaReader struct {
 	src        Source
 	schemas    map[*model]*Schema
 	statements map[*model]*Statement
@@ -46,8 +46,8 @@ type Table struct {
 
 // NewTable returns a table reading from src, which has read nothing yet. The
 // zero Rules reads every key with the zero rows, which define none.
-func NewTable(src Source) *Table {
-	return &Table{
+func NewTable(src Source) *MemoizingSchemaReader {
+	return &MemoizingSchemaReader{
 		src: src, schemas: map[*model]*Schema{}, statements: map[*model]*Statement{},
 		rests: map[*Schema]*Schema{}, references: map[*Schema]*Schema{},
 	}
@@ -55,12 +55,12 @@ func NewTable(src Source) *Table {
 
 // At returns the statement of the schema the bindings hold at p, an Unwritten
 // one where they hold none.
-func (t *Table) At(p bind.Position) *Statement {
+func (t *MemoizingSchemaReader) At(p bind.DocumentPointer) *Statement {
 	return t.Of(t.src.Bindings.At(p))
 }
 
-// Sub returns the statement of the schema s names.
-func (t *Table) Sub(s Sub) *Statement {
+// Subschema returns the statement of the schema s names.
+func (t *MemoizingSchemaReader) Subschema(s Subschema) *Statement {
 	return t.Of(s.m)
 }
 
@@ -71,7 +71,7 @@ func (t *Table) Sub(s Sub) *Statement {
 // reads as Unwritten, and so does one no table read, which holds no value. s
 // is one t read: a schema another table built a statement over keeps that
 // statement, whichever table is asked.
-func (t *Table) Read(s *Schema) *Statement {
+func (t *MemoizingSchemaReader) Read(s *Schema) *Statement {
 	switch {
 	case s == nil:
 		return t.Of(nil)
@@ -102,7 +102,7 @@ func readKeys(s *Schema, rules oas.SchemaRules) {
 	s.Keys = make([]Key, len(pairs))
 	for i, p := range pairs {
 		slot, later := rules.Slot(p.Key)
-		s.Keys[i] = Key{Name: p.Key, Node: p.Val, Slot: slot, Later: later, Null: isNull(p.Val), Modeled: true}
+		s.Keys[i] = Key{Name: p.Key, Node: p.Val, Slot: slot, DefinedOnlyInLaterMinor: later, Null: isNull(p.Val), Modeled: true}
 	}
 	index(s)
 	for _, name := range s.Unknown {
@@ -133,9 +133,9 @@ func index(s *Schema) {
 // most MaxFlattenDepth lists hold it, and listed Capped past that. It walks an
 // explicit stack of at most MaxFlattenDepth+1 lists, reading each entry's
 // schema object and never an entry's statement, so it adds no recursion.
-func (t *Table) flatten(st *Statement) {
+func (t *MemoizingSchemaReader) flatten(st *Statement) {
 	type frame struct {
-		list  []Sub
+		list  []Subschema
 		next  int
 		owner *Schema
 		rel   jsontext.Pointer
@@ -147,7 +147,7 @@ func (t *Table) flatten(st *Statement) {
 			owner, rel := f.owner, f.rel
 			stack = stack[:len(stack)-1]
 			if owner != nil {
-				st.Entries = append(st.Entries, Entry{Schema: owner, Rel: rel, Wrapper: true})
+				st.Entries = append(st.Entries, AllOfConjunct{Schema: owner, Rel: rel, Wrapper: true})
 			}
 			continue
 		}
@@ -155,7 +155,7 @@ func (t *Table) flatten(st *Statement) {
 		rel := f.rel + "/allOf/" + jsontext.Pointer(strconv.Itoa(f.next))
 		f.next++
 		if conjoins(entry) {
-			st.Entries = append(st.Entries, Entry{Schema: t.reference(entry), Rel: rel})
+			st.Entries = append(st.Entries, AllOfConjunct{Schema: t.reference(entry), Rel: rel})
 			entry = t.restOf(entry)
 		}
 		wraps := entry.Ref == nil && len(entry.AllOf) > 0
@@ -163,7 +163,7 @@ func (t *Table) flatten(st *Statement) {
 			stack = append(stack, frame{list: entry.AllOf, owner: entry, rel: rel})
 			continue
 		}
-		st.Entries = append(st.Entries, Entry{Schema: entry, Rel: rel, Capped: wraps})
+		st.Entries = append(st.Entries, AllOfConjunct{Schema: entry, Rel: rel, Capped: wraps})
 	}
 }
 
@@ -212,7 +212,7 @@ func refKey(s *Schema) (int, bool) {
 // own returns the schema object js holds as its statement reads it: the
 // object itself, or, for one writing a reference beside other keys
 // (conjoins), the rest of it, whose reference is the statement's first entry.
-func (t *Table) own(js *model) *Schema {
+func (t *MemoizingSchemaReader) own(js *model) *Schema {
 	s := t.read(js)
 	if conjoins(s) {
 		return t.wordsOf(s)
@@ -223,7 +223,7 @@ func (t *Table) own(js *model) *Schema {
 // wordsOf returns s, which conjoins and a position writes, less its
 // reference (lessReference), and the reference as its BesideRef: the
 // position's statement lists the two. Of builds it once.
-func (t *Table) wordsOf(s *Schema) *Schema {
+func (t *MemoizingSchemaReader) wordsOf(s *Schema) *Schema {
 	w := lessReference(s)
 	w.BesideRef = t.reference(s)
 	return w
@@ -235,7 +235,7 @@ func (t *Table) wordsOf(s *Schema) *Schema {
 // holding its keys alone, so no reader of the composition's conjuncts reads
 // the reference twice; it names it WrittenBeside, for a reader of how its
 // keys are spelt (docs/compilers/openapi.md#ref-use-site).
-func (t *Table) restOf(s *Schema) *Schema {
+func (t *MemoizingSchemaReader) restOf(s *Schema) *Schema {
 	if r, ok := t.rests[s]; ok {
 		return r
 	}
@@ -263,7 +263,7 @@ func lessReference(s *Schema) *Schema {
 // reference returns the reference s, which conjoins, writes, as a schema
 // object writing it alone, its node too, and its statement, which lists no
 // entry. A reference no key of s names is read from its text.
-func (t *Table) reference(s *Schema) *Schema {
+func (t *MemoizingSchemaReader) reference(s *Schema) *Schema {
 	if r, ok := t.references[s]; ok {
 		return r
 	}

@@ -11,15 +11,15 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 )
 
-// Table is the rows each schema of a compile is read with: by where it is
+// SchemaDialectRows is the rows each schema of a compile is read with: by where it is
 // (At), by its node (Of), and by its document (In). Nothing writes it once a
 // Builder returns it, so every copy may read it at once. The zero Table reads
 // every schema with the zero rows, which define nothing.
-type Table struct {
+type SchemaDialectRows struct {
 	// byRoot is the rows of each schema resource root naming its dialect
-	// (bind.Document.Dialects), and byNode those of each mapping and list such
+	// (bind.ReferencedDocument.Dialects), and byNode those of each mapping and list such
 	// a root's tree holds, a root it holds governing its own.
-	byRoot map[bind.Position]oas.SchemaRules
+	byRoot map[bind.DocumentPointer]oas.SchemaRules
 	byNode map[*yaml.Node]oas.SchemaRules
 	// byDoc is the rows each document's schemas no root governs are read with,
 	// the source's at bind.Source.
@@ -29,7 +29,7 @@ type Table struct {
 // At returns the rows the schema at p is read with: those of the innermost
 // root at or above it naming its dialect, else those of p's document, else
 // the source's, as for a document the compile did not read beside it.
-func (t Table) At(p bind.Position) oas.SchemaRules {
+func (t SchemaDialectRows) At(p bind.DocumentPointer) oas.SchemaRules {
 	if r, ok := bind.DialectAt(t.byRoot, p); ok {
 		return r
 	}
@@ -39,7 +39,7 @@ func (t Table) At(p bind.Position) oas.SchemaRules {
 // RootAt returns the rows of the root naming its dialect at p, and false
 // where none is there, a root above p not counted: what a check entering the
 // schema at p switches to.
-func (t Table) RootAt(p bind.Position) (oas.SchemaRules, bool) {
+func (t SchemaDialectRows) RootAt(p bind.DocumentPointer) (oas.SchemaRules, bool) {
 	r, ok := t.byRoot[p]
 	return r, ok
 }
@@ -49,7 +49,7 @@ func (t Table) RootAt(p bind.Position) (oas.SchemaRules, bool) {
 // places at several positions reads at all of them the rows of the first root
 // to govern it (Builder.Root), so a reading asks Of of a schema the bindings
 // place nowhere, and asks At of one they place.
-func (t Table) Of(n *yaml.Node) oas.SchemaRules {
+func (t SchemaDialectRows) Of(n *yaml.Node) oas.SchemaRules {
 	if r, ok := t.byNode[nodeview.Deref(n)]; ok {
 		return r
 	}
@@ -59,7 +59,7 @@ func (t Table) Of(n *yaml.Node) oas.SchemaRules {
 // In returns the rows the schemas document id declares are read with where
 // no root names a dialect: the document's own, else the source's, as for the
 // source and for a document the compile did not read beside it.
-func (t Table) In(id bind.DocID) oas.SchemaRules {
+func (t SchemaDialectRows) In(id bind.DocID) oas.SchemaRules {
 	if r, ok := t.byDoc[id]; ok {
 		return r
 	}
@@ -70,13 +70,13 @@ func (t Table) In(id bind.DocID) oas.SchemaRules {
 // each document's rows (Document), and each root naming one, innermost first
 // (Root). It is used once, by one goroutine, and Table hands its maps over.
 type Builder struct {
-	t Table
+	t SchemaDialectRows
 }
 
 // NewBuilder returns a Builder of a Table reading the source's schemas no
 // root governs with source.
 func NewBuilder(source oas.SchemaRules) *Builder {
-	return &Builder{t: Table{byRoot: map[bind.Position]oas.SchemaRules{}, byNode: map[*yaml.Node]oas.SchemaRules{},
+	return &Builder{t: SchemaDialectRows{byRoot: map[bind.DocumentPointer]oas.SchemaRules{}, byNode: map[*yaml.Node]oas.SchemaRules{},
 		byDoc: map[bind.DocID]oas.SchemaRules{bind.Source: source}}}
 }
 
@@ -89,7 +89,7 @@ func (b *Builder) Document(id bind.DocID, rules oas.SchemaRules) {
 // Root notes that the schema resource root at at, whose node is node, names a
 // dialect read with rules, and governs what its tree holds (Govern). Roots
 // are noted innermost first, so a nested root keeps its own.
-func (b *Builder) Root(at bind.Position, node *yaml.Node, rules oas.SchemaRules) {
+func (b *Builder) Root(at bind.DocumentPointer, node *yaml.Node, rules oas.SchemaRules) {
 	b.t.byRoot[at] = rules
 	b.Govern(node, rules)
 }
@@ -116,6 +116,6 @@ func (b *Builder) Govern(root *yaml.Node, rules oas.SchemaRules) {
 }
 
 // Table returns the table b filled. b is not used after.
-func (b *Builder) Table() Table {
+func (b *Builder) Table() SchemaDialectRows {
 	return b.t
 }

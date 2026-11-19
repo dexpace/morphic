@@ -52,28 +52,28 @@ func ParseMinor(version string) (Minor, bool) {
 	return 0, false
 }
 
-// Span is a run of minors, inclusive at both ends. The zero Span holds no
+// MinorVersionRange is a run of minors, inclusive at both ends. The zero Span holds no
 // minor, which is how a row says "never"; a zero Until leaves the run open,
 // reaching every later minor.
-type Span struct{ Since, Until Minor }
+type MinorVersionRange struct{ Since, Until Minor }
 
 // Always is every minor.
-func Always() Span { return Span{Since: V30} }
+func Always() MinorVersionRange { return MinorVersionRange{Since: V30} }
 
 // From is the minor m and every later one.
-func From(m Minor) Span { return Span{Since: m} }
+func From(m Minor) MinorVersionRange { return MinorVersionRange{Since: m} }
 
 // Only is the minor m alone.
-func Only(m Minor) Span { return Span{Since: m, Until: m} }
+func Only(m Minor) MinorVersionRange { return MinorVersionRange{Since: m, Until: m} }
 
 // Through is every minor up to and including m.
-func Through(m Minor) Span { return Span{Since: V30, Until: m} }
+func Through(m Minor) MinorVersionRange { return MinorVersionRange{Since: V30, Until: m} }
 
 // Holds reports whether minor m falls in the span.
-func (s Span) Holds(m Minor) bool {
+func (s MinorVersionRange) Holds(m Minor) bool {
 	return s.Since != 0 && m >= s.Since && (s.Until == 0 || m <= s.Until)
 }
 
 // Later reports whether the span starts after minor m: a construct it
 // describes was added by a later minor than the one declared.
-func (s Span) Later(m Minor) bool { return s.Since > m }
+func (s MinorVersionRange) Later(m Minor) bool { return s.Since > m }

@@ -24,7 +24,7 @@ import (
 // The code carries the ir/ namespace because it names the defect, not the
 // finder (see the package doc), so a second checker growing this check adopts
 // it. Only this pass reports it today. facts indexes doc.
-func checkEncodingKeys(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
+func checkEncodingKeys(doc *ir.Document, facts *irfacts.DocumentFacts) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var keys []ir.PropID // every content's keys are sorted in this one list
 	forEachPayload(doc, func(site payloadSite) {
@@ -226,7 +226,7 @@ func siteOf(p ir.Payload, owner, field string, index int, request bool) payloadS
 // A content whose type no entry declares exposes no part, so each of its keys
 // is reported beside checkDanglingRefs's finding on the type. The claims
 // differ, as with checkMapping.
-func appendEncodingKeyDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.Index, site payloadSite,
+func appendEncodingKeyDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.DocumentFacts, site payloadSite,
 	keys *[]ir.PropID,
 ) []ir.Diagnostic {
 	for i, c := range site.contents {
@@ -243,7 +243,7 @@ func appendEncodingKeyDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 // type's flattening overrides passes, though docs/ir/models.md#the-flattening
 // has it name the one taken: flattening every type asked about grows
 // quadratically down a deep hierarchy.
-func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.Index, c ir.Content,
+func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.DocumentFacts, c ir.Content,
 	site payloadSite, i int, keys *[]ir.PropID,
 ) []ir.Diagnostic {
 	*keys = (*keys)[:0]
@@ -269,7 +269,7 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 // distributed across a union puts the body's properties on every variant;
 // else one a shape of such a type that is a model narrowing a union holds
 // (narrowedHolds), which is read only then (docs/ir/payloads.md).
-func partNamed(types ir.TypeRegistry, facts *irfacts.Index, target ir.TypeID, key ir.PropID) bool {
+func partNamed(types ir.TypeRegistry, facts *irfacts.DocumentFacts, target ir.TypeID, key ir.PropID) bool {
 	return anyHolder(types, target, func(h ir.TypeID) bool { return facts.Exposes(h, key) }) ||
 		anyHolder(types, target, func(h ir.TypeID) bool { return narrowedHolds(types, h, key, maxNarrowedSteps) })
 }

@@ -206,10 +206,10 @@ func TestMergeUnmodeled_AllocatesOnlyOnFirstWrite(t *testing.T) {
 	}, MergeUnmodeled(dst, src))
 }
 
-// TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite pins what a voice may add: an
+// TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite pins what a folded branch may add: an
 // entry the site does not hold. One the site's own schema holds stays the
-// site's, its provenance with it; one another voice wrote takes the site's
-// provenance, so no order of the voices names a writer.
+// site's, its provenance with it; one another folded branch wrote takes the site's
+// provenance, so no order of the folded branches names a writer.
 func TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 	t.Parallel()
 	site := ir.Provenance{Pointer: "/site"}
@@ -229,11 +229,11 @@ func TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 	assert.Nil(t, u.add(nil, nil, false, site), "nothing to add allocates nothing")
 }
 
-// TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne pins that a voice kept whole,
+// TestUnderlayAdd_AFoldedBranchKeptWholeWritesForNoOne pins that a folded branch kept whole,
 // whose branch holds what it folds, counts as no writer: it fills a key alone,
-// gives it up to a voice kept apart in either order, and leaves one two voices
+// gives it up to a folded branch kept apart in either order, and leaves one two folded branches
 // kept apart write at the site.
-func TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne(t *testing.T) {
+func TestUnderlayAdd_AFoldedBranchKeptWholeWritesForNoOne(t *testing.T) {
 	t.Parallel()
 	site := ir.Provenance{Pointer: "/site"}
 	whole := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/allOf/1/x-a"}}
@@ -274,7 +274,7 @@ func TestCopyEntriesInto_KeepsWhatTheCarrierHolds(t *testing.T) {
 
 	assert.Equal(t, held, p["openapi:k"], "the entry the carrier held stays")
 	require.Len(t, diags, 1)
-	assert.Equal(t, diag.UnknownKeyEntryTaken, diags[0].Code)
+	assert.Equal(t, diag.UnknownKeyEntryAlreadyClaimed, diags[0].Code)
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/k"), diags[0].Provenance.Pointer, "sited at the copy that was refused")
 	assert.Contains(t, diags[0].Message, `"/paths/~1a/get/k"`, "naming the construct that holds the entry")
 	assert.NotContains(t, diags[0].Message, "in no form", "another carrier may hold the copy, so the IR is not said to lack it")

@@ -28,13 +28,13 @@ import (
 // budget is then crossed.
 type expansion struct {
 	spent   budget.Budget
-	weights map[weighed]int
+	weights map[measuredDeclaration]int
 }
 
-// weighed is a declaration as weightOf weighs it: its node, how the grammar
+// measuredDeclaration is a declaration as referenceExpansionSize weighs it: its node, how the grammar
 // reads it, which decides what in it is a schema, and whether it is a hop of a
 // chain, weighed for what it writes beside its $ref (weightBeside).
-type weighed struct {
+type measuredDeclaration struct {
 	node   *yaml.Node
 	at     bind.Reading
 	beside bool
@@ -42,7 +42,7 @@ type weighed struct {
 
 // newExpansion returns an expansion charging against l.
 func newExpansion(l budget.Limit) *expansion {
-	return &expansion{spent: budget.New(l), weights: map[weighed]int{}}
+	return &expansion{spent: budget.New(l), weights: map[measuredDeclaration]int{}}
 }
 
 // admit charges one copy of the declaration whose node is end, and of each hop
@@ -57,11 +57,11 @@ func (e *expansion) admit(at bind.Reading, end *yaml.Node, hops ...*yaml.Node) b
 	if e.spent.Exhausted() {
 		return false
 	}
-	if !e.charge(weighed{node: nodeview.Deref(end), at: at}) {
+	if !e.charge(measuredDeclaration{node: nodeview.Deref(end), at: at}) {
 		return false
 	}
 	for _, hop := range hops {
-		if !e.charge(weighed{node: nodeview.Deref(hop), at: at, beside: true}) {
+		if !e.charge(measuredDeclaration{node: nodeview.Deref(hop), at: at, beside: true}) {
 			return false
 		}
 	}
@@ -70,10 +70,10 @@ func (e *expansion) admit(at bind.Reading, end *yaml.Node, hops ...*yaml.Node) b
 
 // charge spends what key weighs, weighed once and remembered, and reports
 // whether the copies so far are within the budget.
-func (e *expansion) charge(key weighed) bool {
+func (e *expansion) charge(key measuredDeclaration) bool {
 	weight, known := e.weights[key]
 	if !known {
-		weigh := weightOf
+		weigh := referenceExpansionSize
 		if key.beside {
 			weigh = weightBeside
 		}
@@ -170,32 +170,32 @@ func (e *expansion) refusal(srcIndex int) (ir.Diagnostic, bool) {
 			"additionalOperations entry its own copy of what its path item declares", e.spent.Limit().Cap()), true
 }
 
-// frame is a node weightOf has yet to weigh, and how the grammar reads it.
+// frame is a node referenceExpansionSize has yet to weigh, and how the grammar reads it.
 type frame struct {
 	node *yaml.Node
 	at   bind.Reading
 }
 
-// weightOf returns what a copy of the declaration under root, read as at,
+// referenceExpansionSize returns what a copy of the declaration under root, read as at,
 // weighs: one for each node, an alias as a copy of its target, as the model is
 // built (docs/parser-library.md#alias-expansion), one for each byte of a
 // scalar, and one for a schema, which lowers once, to a type every copy shares.
 // A schema beneath a merge key weighs in full. It visits at most one node past
 // within, so a weight past within is all it says. No alias leads back up:
 // lowering never sees an anchor naming its own ancestor.
-func weightOf(root *yaml.Node, at bind.Reading, within budget.Limit) int {
+func referenceExpansionSize(root *yaml.Node, at bind.Reading, within budget.Limit) int {
 	return weigh([]frame{{node: root, at: at}}, within.Past())
 }
 
 // weightBeside returns what a use copies of hop, a mapping of a chain writing a
 // $ref, read as at: one for the mapping, and each key and value beside its $ref
-// as weightOf weighs them. The $ref is read, not copied, so it is charged
+// as referenceExpansionSize weighs them. The $ref is read, not copied, so it is charged
 // nothing; one merged in through `<<` is weighed as written, beneath the merge
 // key. A hop that is no mapping, or one read as a schema, is weighed whole.
 func weightBeside(hop *yaml.Node, at bind.Reading, within budget.Limit) int {
 	n := expanded(hop)
 	if n == nil || n.Kind != yaml.MappingNode || at.Schema() {
-		return weightOf(hop, at, within)
+		return referenceExpansionSize(hop, at, within)
 	}
 	var stack []frame
 	for i := 0; i+1 < len(n.Content); i += 2 {
@@ -208,7 +208,7 @@ func weightBeside(hop *yaml.Node, at bind.Reading, within budget.Limit) int {
 	return 1 + weigh(stack, within.Past()-1)
 }
 
-// weigh returns what the nodes on stack weigh, as weightOf weighs one, visiting
+// weigh returns what the nodes on stack weigh, as referenceExpansionSize weighs one, visiting
 // at most left of them.
 func weigh(stack []frame, left int) int {
 	weight := 0
@@ -233,7 +233,7 @@ func weigh(stack []frame, left int) int {
 	return weight
 }
 
-// expanded returns what weightOf visits for n: what an alias names, in its
+// expanded returns what referenceExpansionSize visits for n: what an alias names, in its
 // place, or n itself, as nodeview.AliasTarget reads it.
 func expanded(n *yaml.Node) *yaml.Node {
 	if t := nodeview.Deref(n); t != nil {

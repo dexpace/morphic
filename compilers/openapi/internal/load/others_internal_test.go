@@ -32,7 +32,7 @@ func (servedReader) ReadDocument(context.Context, compilers.DocumentRequest) (co
 // loadReferencing loads a source at /r/root.yaml whose component A is a $ref
 // to ref, reading every other document through servedReader, and returns it
 // with the code of each diagnostic the load reported.
-func loadReferencing(t *testing.T, ref string) (*Document, []string) {
+func loadReferencing(t *testing.T, ref string) (*LoadedOpenAPIDocument, []string) {
 	t.Helper()
 	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "/r/root.yaml", Data: []byte(
 		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n    A: {$ref: '" + ref + "'}\n",
@@ -153,7 +153,7 @@ func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T
 }
 
 // TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource pins the path
-// Document.Sources records for another document: beside the path the caller
+// LoadedOpenAPIDocument.Sources records for another document: beside the path the caller
 // handed, as relative as it is, where its label is relative, though the
 // references were read against the source's absolute Location, a label
 // climbing out of the handed directory keeping its dot segments, which a link
@@ -184,7 +184,7 @@ func TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource(t *testing.T) {
 }
 
 // TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead pins what leaves
-// Document.Sources: a document the table holds nothing of.
+// LoadedOpenAPIDocument.Sources: a document the table holds nothing of.
 func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 	t.Parallel()
 	docs := map[string]string{

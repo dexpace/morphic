@@ -69,7 +69,7 @@ func readBody(c lowering.Ctx, s, holder *statement.Schema) *bodyReading {
 // it nor a $ref it writes beside its keywords holds.
 func otherEntryUnion(b *statement.Statement, s, holder *statement.Schema) bool {
 	return holder != s && b.Ref == nil && b.BesideRef == nil && b.Schema != holder && declaresUnion(b.Schema) &&
-		!slices.ContainsFunc(b.Entries, func(e statement.Entry) bool { return e.Schema == holder })
+		!slices.ContainsFunc(b.Entries, func(e statement.AllOfConjunct) bool { return e.Schema == holder })
 }
 
 // readOwnBody reads only what s itself writes: its own keywords, and its own
@@ -116,7 +116,7 @@ func unionBranchesDeclareShape(c lowering.Ctx, s *statement.Schema) bool {
 // body's own reading settles first each branch restating what s itself writes
 // (ownRestatements), and only the rest are judged against the whole reading,
 // which they would restate under too, as more declarations admit less.
-func setsDeclareShape(c lowering.Ctx, s, holder *statement.Schema, sets ...[]statement.Sub) bool {
+func setsDeclareShape(c lowering.Ctx, s, holder *statement.Schema, sets ...[]statement.Subschema) bool {
 	branches := statementsOf(c, slices.Concat(sets...))
 	if slices.ContainsFunc(branches, func(b *statement.Statement) bool { return referenceOf(c, b) != nil }) {
 		return true
@@ -169,7 +169,7 @@ func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*statement.
 // is judged alike, so restating the body changes no verdict. A branch writing
 // no key judged against the body, `required` alone the commonest, leaves it
 // unread.
-func branchDeclaresShape(t *statement.Table, body func() *bodyReading, b *statement.Statement) bool {
+func branchDeclaresShape(t *statement.MemoizingSchemaReader, body func() *bodyReading, b *statement.Statement) bool {
 	if b.Truth != statement.Stated {
 		return false
 	}
@@ -186,7 +186,7 @@ func branchDeclaresShape(t *statement.Table, body func() *bodyReading, b *statem
 // judged reports whether s's key is judged against what the body says: it is
 // neither shapeless, its schemas read from t, nor a `type` naming only null,
 // which contributes the null.
-func judged(t *statement.Table, s *statement.Schema, key string) bool {
+func judged(t *statement.MemoizingSchemaReader, s *statement.Schema, key string) bool {
 	return !shapeless(t, s, key) && (key != "type" || len(effectiveTypes(s)) > 0)
 }
 
@@ -224,7 +224,7 @@ func (r *bodyReading) restates(top claim) bool {
 			return false
 		}
 		for _, j := range conjuncts {
-			claims = append(claims, claim{written: r.w.c.Statements().Sub(j), held: c.held, at: c.at})
+			claims = append(claims, claim{written: r.w.c.Statements().Subschema(j), held: c.held, at: c.at})
 		}
 		for _, n := range inner {
 			sub, open, ok := r.claimOf(n)
@@ -247,13 +247,13 @@ func (r *bodyReading) restates(top claim) bool {
 // boolean conjunct says nothing or only forbids. Keys are the statement's,
 // which hold the keywords the model has no field for
 // (docs/parser-library.md#unmodeled-keywords).
-func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
+func (r *bodyReading) keysRestate(c claim) ([]statement.Subschema, []nested, bool) {
 	if !stated(c.written.Schema) {
 		return nil, nil, true
 	}
 	t := r.w.c.Statements()
 	var inner []nested
-	var conjuncts []statement.Sub
+	var conjuncts []statement.Subschema
 	for _, k := range c.written.Keys {
 		switch {
 		case !judged(t, c.written.Schema, k.Name):
@@ -262,14 +262,14 @@ func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
 		case k.Name == "properties":
 			decls := r.declarationsAt(c)
 			for _, p := range c.written.ObjectKeywords().Properties {
-				inner = append(inner, nested{written: t.Sub(p), at: decls.property(t, p.Name)})
+				inner = append(inner, nested{written: t.Subschema(p), at: decls.property(t, p.Name)})
 			}
 		case k.Name == "items":
 			if _, listed := listedItems(c.written.Schema); listed {
 				// A tuple, or a malformed list, which no element the body declares restates.
 				return nil, nil, false
 			}
-			inner = append(inner, nested{written: t.Sub(c.written.ArrayKeywords().Items), at: r.declarationsAt(c).items})
+			inner = append(inner, nested{written: t.Subschema(c.written.ArrayKeywords().Items), at: r.declarationsAt(c).items})
 		case k.Name == refKeyword(c.written):
 			if !r.lands(c) {
 				return nil, nil, false
@@ -333,11 +333,11 @@ func (r *bodyReading) lands(c claim) bool {
 // shapelessKeywords names, or an unevaluatedProperties other than false, read
 // from t, which is validation logic where false closes the object
 // (docs/ir/boundaries.md#validation-only-constructs).
-func shapeless(t *statement.Table, s *statement.Schema, key string) bool {
+func shapeless(t *statement.MemoizingSchemaReader, s *statement.Schema, key string) bool {
 	if annotation.WritesKeywordLeftOut(s, key) || strings.HasPrefix(key, "x-") || slices.Contains(shapelessKeywords, key) {
 		return true
 	}
-	return key == "unevaluatedProperties" && !t.Sub(s.ObjectKeywords().UnevaluatedProperties).Truth.ReadsFalse()
+	return key == "unevaluatedProperties" && !t.Subschema(s.ObjectKeywords().UnevaluatedProperties).Truth.ReadsFalse()
 }
 
 // conjunctWithout is what the conjunct b admits, as lowered reads it, but
@@ -350,10 +350,10 @@ func conjunctWithout(w *admissionReader, b *statement.Statement, holder *stateme
 		return writtenLowered(w, holder, w.nullable)
 	case holder != nil && b.BesideRef != nil && holder.WrittenBeside == b.BesideRef:
 		// An entry writing its union beside a $ref is listed as that reference
-		// and the rest of its keywords (statement.Table.restOf), the holder.
+		// and the rest of its keywords (statement.MemoizingSchemaReader.restOf), the holder.
 		return lowered(w, w.c.Statements().Read(b.BesideRef)).and(writtenLowered(w, holder, w.nullable))
 	}
-	if holder == nil || !slices.ContainsFunc(b.Entries, func(e statement.Entry) bool { return e.Schema == holder }) {
+	if holder == nil || !slices.ContainsFunc(b.Entries, func(e statement.AllOfConjunct) bool { return e.Schema == holder }) {
 		return lowered(w, b)
 	}
 	read := inlineConjunct(w, b.Schema)

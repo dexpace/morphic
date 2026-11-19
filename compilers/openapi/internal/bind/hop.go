@@ -23,7 +23,7 @@ import (
 // $ref's is and a discriminator's mapping value's is not: its own $id then
 // counts, and a "#/$defs/..." pointer nothing answers says whether its own
 // definitions hold the name.
-func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bool) Hop {
+func (b *binder) resolve(site DocumentPointer, path []*yaml.Node, ref string, schema bool) Hop {
 	h := Hop{Ref: ref, Status: Unresolved}
 	uri, frag, _ := strings.Cut(ref, "#")
 	if strings.Contains(frag, "#") {
@@ -89,7 +89,7 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	case found:
 		b.ids.keep(key)
 		b.docs.reach(root.Doc)
-		return resource{root: root, uri: key, id: true}, NoReason, ""
+		return resource{root: root, uri: key, namedByDollarID: true}, NoReason, ""
 	case why == DuplicateID:
 		b.ids.keep(key)
 		return resource{}, why, key
@@ -97,10 +97,10 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 		// A document read and not yet reached declares it: the hop waits for
 		// that document as a held one waits for its read (goOn).
 		b.wait.declaring = append(b.wait.declaring, waitOn...)
-		return resource{}, Held, ""
+		return resource{}, PendingExternalDocumentRead, ""
 	}
 	located, reason, detail := locatedAt(b, in, uri, key)
-	if reason != Held {
+	if reason != PendingExternalDocumentRead {
 		b.ids.keep(key)
 	}
 	return located, reason, detail
@@ -111,7 +111,7 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 // $id's or a $self's base where only those name it (readAt), else where it
 // is written (opened).
 func locatedAt(b *binder, in resource, uri, key string) (resource, Reason, string) {
-	if (in.id || in.based) && !fragment.Absolute(uri) {
+	if (in.namedByDollarID || in.based) && !fragment.Absolute(uri) {
 		return b.readAt(in, uri, key)
 	}
 	return b.opened(in, uri, key)
@@ -205,13 +205,13 @@ func OverNetwork(location string) bool {
 // read is the resource of the document named name, read through Config.Open
 // as a reference written in the resource in reads it, which the hop then
 // reaches, or why the read failed. The first read of a document waits until
-// the pass's walks are done (Held), since a document read meanwhile may
+// the pass's walks are done (PendingExternalDocumentRead), since a document read meanwhile may
 // declare its name, and an identifier is not a location to read (goOn).
 func (b *binder) read(name string, in resource) (resource, Reason, string) {
 	from := b.docs.name(in.root.Doc)
 	if b.reads.unread(b.docs, name, from) {
 		b.reads.hold(name, in.root.Doc)
-		return resource{}, Held, ""
+		return resource{}, PendingExternalDocumentRead, ""
 	}
 	id, err := b.reads.open(b.docs, name, from)
 	var unparsable *UnparsableError
@@ -234,7 +234,7 @@ func (b *binder) read(name string, in resource) (resource, Reason, string) {
 // "#/$defs/..." one in a document's own resource by the $defs rule
 // (definition), or the schema a plain name names (anchored). It notes in h
 // the URI of a resource it names nothing in.
-func (b *binder) land(site Position, path []*yaml.Node, to resource, ref string, schema bool, h *Hop,
+func (b *binder) land(site DocumentPointer, path []*yaml.Node, to resource, ref string, schema bool, h *Hop,
 ) (reading, Reason) {
 	pointer := fragment.Pointer(ref)
 	switch {
@@ -243,12 +243,12 @@ func (b *binder) land(site Position, path []*yaml.Node, to resource, ref string,
 	case !pointer.IsValid() || !utf8.ValidString(string(pointer)):
 		return reading{}, BadPointer
 	}
-	if uri, _, _ := strings.Cut(ref, "#"); strings.TrimSpace(uri) == "" && !to.id && isDefs(pointer) {
+	if uri, _, _ := strings.Cut(ref, "#"); strings.TrimSpace(uri) == "" && !to.namedByDollarID && isDefs(pointer) {
 		r, reason := b.readPointer(site.Doc, pointer)
 		return b.defs.definition(site, path, pointer, schema, r, reason)
 	}
 	r, reason := b.readPointer(to.root.Doc, to.root.Pointer+pointer)
-	if reason == NoTarget && to.id {
+	if reason == NoTarget && to.namedByDollarID {
 		reason, h.Detail = NoResourceTarget, to.uri
 	}
 	return r, reason
@@ -277,7 +277,7 @@ func (b *binder) anchored(to resource, name string) (reading, Reason) {
 // hop is the hop of the $ref written at p, read once and remembered. Only a
 // position writing a $ref is asked, a site or a hop's target that writes one,
 // or a $dynamicRef that is the $ref it spells (holdsRef).
-func (b *binder) hop(p Position) Hop {
+func (b *binder) hop(p DocumentPointer) Hop {
 	if h, ok := b.hops[p]; ok {
 		return h
 	}
@@ -296,7 +296,7 @@ func (b *binder) hop(p Position) Hop {
 	if h.Status == Resolved {
 		b.find.landed(h)
 	}
-	if h.Reason == Held {
+	if h.Reason == PendingExternalDocumentRead {
 		b.wait.held = append(b.wait.held, p)
 	}
 	return h

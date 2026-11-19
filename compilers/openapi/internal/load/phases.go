@@ -79,7 +79,7 @@ type loading struct {
 	src      compilers.Source
 	opts     Options
 	// read is the source as doctree read it, and root its tree.
-	read doctree.Document
+	read doctree.ParsedYAMLDocument
 	root *yaml.Node
 	// places is where the files the compile names lie, one answer for each
 	// directory however often a read asks.
@@ -112,7 +112,7 @@ type loading struct {
 	reader    *external
 	bound     bound
 	// named is the rows each schema of the documents is read with.
-	named dialect.Table
+	named dialect.SchemaDialectRows
 	// sites places a finding at a reference site, or a position of the
 	// bindings, in whichever document writes it.
 	sites places
@@ -273,7 +273,7 @@ func (l *loading) judgeLate(ctx context.Context) bool {
 // what the load places and lowers by: the other documents a reference read,
 // where a finding is placed, and the dialect each schema is read in, with
 // what that reading could not read.
-func (l *loading) readTable(ctx context.Context) (*bind.Table, []ir.Diagnostic) {
+func (l *loading) readTable(ctx context.Context) (*bind.ReferenceTargetTable, []ir.Diagnostic) {
 	table := bindTable(ctx, l.doc, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
 	l.bound.others = Others{}
 	if l.reader != nil {
@@ -311,7 +311,7 @@ func (l *loading) reread(ctx context.Context) error {
 // judgments and the source's left it (settle): what they refuse and no reading
 // accepts is turned, and the shapes the model faults on are set aside. It
 // returns the context's error where that cut the judging short.
-func (l *loading) judgeLandings(ctx context.Context, table *bind.Table) error {
+func (l *loading) judgeLandings(ctx context.Context, table *bind.ReferenceTargetTable) error {
 	var (
 		j   judgment
 		cut error
@@ -363,9 +363,9 @@ func (l *loading) checkSource(ctx context.Context) (bool, error) {
 
 // document assembles the loaded Document from the phases, and what they
 // reported in the order the load lists it.
-func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
+func (l *loading) document(hash string) (*LoadedOpenAPIDocument, []ir.Diagnostic) {
 	diags := slices.Concat(l.early, l.sibFaults, l.judged.diags, l.resolved, l.checked)
-	return &Document{
+	return &LoadedOpenAPIDocument{
 		Doc:      l.doc,
 		Location: l.self.path,
 		Places:   l.places,

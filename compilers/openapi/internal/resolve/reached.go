@@ -34,7 +34,7 @@ func (r *Reached) Has(pointer jsontext.Pointer) bool {
 
 // noteSource records the pointer of p, a position of the source, unless r is
 // nil or p is another document's.
-func (r *Reached) noteSource(p bind.Position) {
+func (r *Reached) noteSource(p bind.DocumentPointer) {
 	if r != nil && p.Doc == bind.Source {
 		r.at[p.Pointer] = true
 	}

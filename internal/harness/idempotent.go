@@ -122,7 +122,7 @@ func runEncoded(ctx context.Context, e *engine.Engine, doc *ir.Document) (*ir.Do
 }
 
 // encodeOwn encodes what doc says of its own: indented, so that a difference
-// reads line by line, and without Document.Diagnostics, which the engine
+// reads line by line, and without CaseDocument.Diagnostics, which the engine
 // writes and a rerun may report differently.
 func encodeOwn(doc *ir.Document) ([]byte, error) {
 	own := *doc

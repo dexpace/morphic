@@ -46,7 +46,7 @@ type bound struct {
 // (dialectRuleOf).
 func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reader *external, refuse func(uri string) error,
 	d *dialects,
-) *bind.Table {
+) *bind.ReferenceTargetTable {
 	opened := map[string]*yaml.Node{}
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Map: self.mapTo, Refuse: refuse,
 		Limit: budget.AtMost(bind.MaxSteps),
@@ -77,10 +77,10 @@ func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reade
 // bindAll indexes the model's schemas and wrappers where table places them,
 // then builds an object or a schema for each landing. doc is the source's
 // model, and media yields the media types the parser does not model.
-func bindAll(ctx context.Context, table *bind.Table, doc *soa.OpenAPI, sibs *Siblings, media MediaTypes) bound {
+func bindAll(ctx context.Context, table *bind.ReferenceTargetTable, doc *soa.OpenAPI, sibs *Siblings, media MediaTypes) bound {
 	bd := typed.NewBuilder(table)
 	faults := mediaFaults{}
-	indexWalk(bd, walkSource(ctx, doc, *sibs, media), bind.Position{}, faults)
+	indexWalk(bd, walkSource(ctx, doc, *sibs, media), bind.DocumentPointer{}, faults)
 	objects := buildObjects(ctx, bd, table, media, faults, sibs)
 	return bound{bindings: bd.Bindings(), objects: objects, built: bd.Build(ctx), faults: faults}
 }
@@ -98,9 +98,9 @@ func declaredIn(doc *soa.OpenAPI, opened map[string]*yaml.Node, self sourceDocum
 // items was read: at base, where the walk starts, followed by the item's
 // location. It notes in faults where it meets each content entry the
 // parser faulted building a reference from.
-func indexWalk(bd *typed.Builder, items iter.Seq[soa.WalkItem], base bind.Position, faults mediaFaults) {
+func indexWalk(bd *typed.Builder, items iter.Seq[soa.WalkItem], base bind.DocumentPointer, faults mediaFaults) {
 	for item := range items {
-		at := bind.Position{Doc: base.Doc, Pointer: base.Pointer + typed.PointerOf(item.Location)}
+		at := bind.DocumentPointer{Doc: base.Doc, Pointer: base.Pointer + typed.PointerOf(item.Location)}
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{
 			Schema: func(js *schemaRef) error { bd.Schema(js, at); return nil },
@@ -124,19 +124,19 @@ type mediaFaults map[*yaml.Node]placedFault
 
 // placedFault is a fault, and where it is reported.
 type placedFault struct {
-	at  bind.Position
+	at  bind.DocumentPointer
 	err error
 }
 
 // note records f at at, unless a walk met its mapping before.
-func (m mediaFaults) note(at bind.Position, f mediaFault) {
+func (m mediaFaults) note(at bind.DocumentPointer, f mediaFault) {
 	if _, met := m[f.node]; !met {
 		m[f.node] = placedFault{at: at, err: f.err}
 	}
 }
 
 // diags reports each fault once, where it was first met, in order of position.
-func (m mediaFaults) diags(sites places, table *bind.Table) []ir.Diagnostic {
+func (m mediaFaults) diags(sites places, table *bind.ReferenceTargetTable) []ir.Diagnostic {
 	order := bind.PositionOrder(table)
 	faults := slices.SortedFunc(maps.Values(m), func(x, y placedFault) int { return order(x.at, y.at) })
 	diags := make([]ir.Diagnostic, 0, len(faults))
@@ -188,16 +188,16 @@ func (s sourceDocument) nameOf(name string) string {
 
 // bindingDiags reports what the table found: each $ref whose own hop fails, a
 // Reference Object's and then a schema's, at the $ref, in whichever document,
-// worded with the keyword it is written under (bind.Entry.Keyword), so a chain
+// worded with the keyword it is written under (bind.ReferenceSite.Keyword), so a chain
 // failing past its first hop is reported once, where it fails; each loop
 // of $refs once, where the table places it; and the budget or the merge
 // bound, if either stopped the reading.
-func bindingDiags(sites places, table *bind.Table) []ir.Diagnostic {
+func bindingDiags(sites places, table *bind.ReferenceTargetTable) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, r := range table.References() {
 		// A requirement key that resolves to nothing is the security
 		// lowering's to report (auth.Registry.Requirements).
-		if r.Hop.Status == bind.Unresolved && !r.Key {
+		if r.Hop.Status == bind.Unresolved && !r.IsSecurityRequirementKey {
 			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(r.Site),
 				"unresolved $ref %q: %s", r.Hop.Ref, r.Hop.Why()))
 		}
@@ -213,7 +213,7 @@ func bindingDiags(sites places, table *bind.Table) []ir.Diagnostic {
 			"cyclic $ref: the chain of $refs through %s comes back to where it started and never reaches %s",
 			spellLoop(l, table), reachesNone(l.Kind)))
 	}
-	at := sites.position(bind.Position{})
+	at := sites.position(bind.DocumentPointer{})
 	if table.Exhausted() {
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
 			"resolving the $refs takes more than %d steps; the $refs past them are left unresolved",
@@ -258,7 +258,7 @@ func buildFailures(sites places, built []typed.Built, objects []builtObject) []i
 
 // buildFailure reports, at site, that no object of kind could be built at at,
 // in the document named name, with why.
-func buildFailure(sites places, at, site bind.Position, name, kind string, err error) ir.Diagnostic {
+func buildFailure(sites places, at, site bind.DocumentPointer, name, kind string, err error) ir.Diagnostic {
 	where := "#" + string(at.Pointer)
 	if at.Doc != site.Doc {
 		where += " in " + name
@@ -270,7 +270,7 @@ func buildFailure(sites places, at, site bind.Position, name, kind string, err e
 // spellLoop names l's members, in order: one in the document l is reported in
 // by its pointer, and another document's by its pointer in that document's
 // name.
-func spellLoop(l bind.Loop, table *bind.Table) string {
+func spellLoop(l bind.Loop, table *bind.ReferenceTargetTable) string {
 	parts := make([]string, len(l.Members))
 	for i, m := range l.Members {
 		parts[i] = "#" + string(m.Pointer)

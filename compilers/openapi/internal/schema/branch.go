@@ -51,16 +51,16 @@ func runEnd(c lowering.Ctx, st *statement.Statement) (*statement.Statement, bool
 // lands, as the bindings resolved its first hop (typed.Bindings.DeclaredAt),
 // and the position it lands at; nil and the zero position where it lands on
 // none.
-func declaredOf(c lowering.Ctx, st *statement.Statement) (*statement.Statement, bind.Position) {
+func declaredOf(c lowering.Ctx, st *statement.Statement) (*statement.Statement, bind.DocumentPointer) {
 	if st.Ref == nil || !st.Ref.Bound || st.Ref.Entry.Hop.Status != bind.Resolved {
-		return nil, bind.Position{}
+		return nil, bind.DocumentPointer{}
 	}
 	return c.Statements().At(st.Ref.Entry.Hop.Target), st.Ref.Entry.Hop.Target
 }
 
 // declared returns the statement of the schema written where x's $ref lands,
 // as declaredOf reads it, and an Unwritten one where it lands on none, for a
-// reader taking the statement of none (lentBy).
+// reader taking the statement of none (fallbackAnnotationsOf).
 func declared(c lowering.Ctx, x *statement.Statement) *statement.Statement {
 	if st, _ := declaredOf(c, x); st != nil {
 		return st
@@ -70,9 +70,9 @@ func declared(c lowering.Ctx, x *statement.Statement) *statement.Statement {
 
 // siteOf returns the position the bindings read s at, and false for a schema
 // they do not place, which the statement reads at the zero position.
-func siteOf(s *statement.Schema) (bind.Position, bool) {
-	if s == nil || s.At == (bind.Position{}) {
-		return bind.Position{}, false
+func siteOf(s *statement.Schema) (bind.DocumentPointer, bool) {
+	if s == nil || s.At == (bind.DocumentPointer{}) {
+		return bind.DocumentPointer{}, false
 	}
 	return s.At, true
 }
@@ -105,7 +105,7 @@ func conjunctsIn(c lowering.Ctx, s *statement.Schema) []*statement.Statement {
 		out = append(out, c.Statements().Read(s.BesideRef))
 	}
 	for _, b := range s.AllOf {
-		out = append(out, c.Statements().Sub(b))
+		out = append(out, c.Statements().Subschema(b))
 	}
 	return out
 }
@@ -126,7 +126,7 @@ func referenceOf(c lowering.Ctx, st *statement.Statement) *statement.Statement {
 
 // allOfIn returns the schemas s's allOf lists, nil for a nil s and one
 // writing none.
-func allOfIn(s *statement.Schema) []statement.Sub {
+func allOfIn(s *statement.Schema) []statement.Subschema {
 	if s == nil {
 		return nil
 	}

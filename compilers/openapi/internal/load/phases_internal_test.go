@@ -280,14 +280,14 @@ func TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	split := splitSpec(t, dir, 12, 0)
-	for name, load := range map[string]func(ctx context.Context) (*Document, []ir.Diagnostic, error){
-		"one document": func(ctx context.Context) (*Document, []ir.Diagnostic, error) {
+	for name, load := range map[string]func(ctx context.Context) (*LoadedOpenAPIDocument, []ir.Diagnostic, error){
+		"one document": func(ctx context.Context) (*LoadedOpenAPIDocument, []ir.Diagnostic, error) {
 			return Load(ctx, 0, openapitest.SourceOf(phasedSpec), phasedOptions(nil))
 		},
-		"split across documents": func(ctx context.Context) (*Document, []ir.Diagnostic, error) {
+		"split across documents": func(ctx context.Context) (*LoadedOpenAPIDocument, []ir.Diagnostic, error) {
 			return Load(ctx, 0, split, Options{Reader: reader.Disk{}, Within: dir})
 		},
-		"one whose schemas are judged late": func(ctx context.Context) (*Document, []ir.Diagnostic, error) {
+		"one whose schemas are judged late": func(ctx context.Context) (*LoadedOpenAPIDocument, []ir.Diagnostic, error) {
 			return Load(ctx, 0, openapitest.SourceOf(lateSpec), Options{})
 		},
 	} {

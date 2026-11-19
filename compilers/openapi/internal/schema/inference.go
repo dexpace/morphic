@@ -35,7 +35,7 @@ func untypedKinds(c lowering.Ctx, s *statement.Schema) (kindSet, bool) {
 // inferredKinds are the types a schema whose shape keywords speak of an object
 // and an array lowers by, in the order a type array listing both writes them,
 // whichever order the keywords are written in.
-var inferredKinds = []statement.Kind{statement.KindObject, statement.KindArray}
+var inferredKinds = []statement.JSONSchemaTypeName{statement.KindObject, statement.KindArray}
 
 // lowerUntypedUnion lowers s, which writes no type, by types, as a type list
 // naming them beside its keywords lowers (lowerUnion): an object and an array
@@ -44,7 +44,7 @@ var inferredKinds = []statement.Kind{statement.KindObject, statement.KindArray}
 // variant are marked, as each variant's kind was read off the keywords too.
 // The union stands where st says.
 func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
-	types []statement.Kind, inferred bool, fin finisher, st stand,
+	types []statement.JSONSchemaTypeName, inferred bool, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var mark finisher
 	if inferred {
@@ -116,7 +116,7 @@ type siblingKeyword struct {
 	key    string
 	writes func(*statement.Schema) bool
 	claims kindSet
-	infers func(*statement.Table, *statement.Schema) bool
+	infers func(*statement.MemoizingSchemaReader, *statement.Schema) bool
 }
 
 // shapeKeywords are the keywords that declare data shape — a type, a property
@@ -124,17 +124,19 @@ type siblingKeyword struct {
 // what an already-declared shape accepts (docs/compilers/openapi.md#union-beside-structure).
 var shapeKeywords = []siblingKeyword{
 	{"properties", func(s *statement.Schema) bool { return len(s.ObjectKeywords().Properties) > 0 }, kindObject,
-		func(_ *statement.Table, s *statement.Schema) bool { return len(s.ObjectKeywords().Properties) > 0 }},
+		func(_ *statement.MemoizingSchemaReader, s *statement.Schema) bool {
+			return len(s.ObjectKeywords().Properties) > 0
+		}},
 	{"const", func(s *statement.Schema) bool { return s.Const() != nil }, 0, nil},
 	{"enum", enumWritten, 0, nil},
 	{"allOf", writesConjuncts, 0, nil},
 	{"additionalProperties", func(s *statement.Schema) bool {
 		return written(s.ObjectKeywords().AdditionalProperties)
-	}, kindObject, func(t *statement.Table, s *statement.Schema) bool {
+	}, kindObject, func(t *statement.MemoizingSchemaReader, s *statement.Schema) bool {
 		return typesInstances(t, s.ObjectKeywords().AdditionalProperties)
 	}},
 	{"patternProperties", func(s *statement.Schema) bool { return len(s.ObjectKeywords().PatternProperties) > 0 }, kindObject,
-		func(_ *statement.Table, s *statement.Schema) bool {
+		func(_ *statement.MemoizingSchemaReader, s *statement.Schema) bool {
 			return len(s.ObjectKeywords().PatternProperties) > 0
 		}},
 	{"type", func(s *statement.Schema) bool { return len(effectiveTypes(s)) > 0 }, 0, nil},
@@ -153,12 +155,14 @@ var narrowingKeywords = []siblingKeyword{
 	{"items", func(s *statement.Schema) bool {
 		_, listed := listedItems(s)
 		return listed || written(s.ArrayKeywords().Items)
-	}, kindArray, func(t *statement.Table, s *statement.Schema) bool {
+	}, kindArray, func(t *statement.MemoizingSchemaReader, s *statement.Schema) bool {
 		_, listed := listedItems(s)
 		return listed || typesInstances(t, s.ArrayKeywords().Items)
 	}},
 	{"prefixItems", func(s *statement.Schema) bool { return len(s.ArrayKeywords().PrefixItems) > 0 }, kindArray,
-		func(_ *statement.Table, s *statement.Schema) bool { return len(s.ArrayKeywords().PrefixItems) > 0 }},
+		func(_ *statement.MemoizingSchemaReader, s *statement.Schema) bool {
+			return len(s.ArrayKeywords().PrefixItems) > 0
+		}},
 }
 
 // typesInstances reports whether sub, the schema an `items` or an
@@ -166,8 +170,8 @@ var narrowingKeywords = []siblingKeyword{
 // schema object writing a keyword. `true` and `{}` state nothing, as leaving
 // the keyword out does (JSON Schema Core 2020-12 §10.3.1.2, §10.3.2.3), and
 // `false`, which admits no instance, types none either.
-func typesInstances(t *statement.Table, sub statement.Sub) bool {
-	return sub.Truth() == statement.Stated && len(t.Sub(sub).Keys) > 0
+func typesInstances(t *statement.MemoizingSchemaReader, sub statement.Subschema) bool {
+	return sub.SchemaValueForm() == statement.Stated && len(t.Subschema(sub).Keys) > 0
 }
 
 // siblingKeywords returns the keywords of shapeKeywords and narrowingKeywords

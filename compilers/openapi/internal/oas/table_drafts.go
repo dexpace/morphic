@@ -37,7 +37,7 @@ func draft06Keywords() []Field {
 		keyword("dependencies", RawMap, s, v(`6.21. dependencies`, `This keyword's value MUST be an object.`)),
 		schemaOf("propertyNames", s, v(`6.22. propertyNames`, `The value of "propertyNames" MUST be a valid JSON Schema.`)),
 		keyword("enum", RawList, s, v(`6.23. enum`, `The value of this keyword MUST be an array.`)),
-		keyword("const", Any, s, v(`6.24. const`, `The value of this keyword MAY be of any type, including null.`)),
+		keyword("const", AnyShapeUnchecked, s, v(`6.24. const`, `The value of this keyword MAY be of any type, including null.`)),
 		keyword("type", String, s, v(`6.25. type`, `The value of this keyword MUST be either a string or an array.`)).
 			admits(vals("array", "boolean", "integer", "null", "number", "object", "string")...).also(StringList, s),
 		schemasOf("allOf", s, v(`6.26. allOf`, `This keyword's value MUST be a non-empty array.`)),
@@ -47,7 +47,7 @@ func draft06Keywords() []Field {
 		schemaMapOf("definitions", s, v(`7.1. definitions`, `This keyword's value MUST be an object.`)),
 		keyword("title", String, s, v(`7.2. "title" and "description"`, `The value of both of these keywords MUST be a string.`)),
 		keyword("description", String, s, v(`7.2. "title" and "description"`, `The value of both of these keywords MUST be a string.`)),
-		keyword("default", Any, s, v(`7.3. "default"`, `There are no restrictions placed on the value of this keyword.`)),
+		keyword("default", AnyShapeUnchecked, s, v(`7.3. "default"`, `There are no restrictions placed on the value of this keyword.`)),
 		keyword("examples", RawList, s, v(`7.4. "examples"`, `The value of this keyword MUST be an array.`)),
 		keyword("format", String, s, v(`8.1. Foreword`, `It MUST be a string.`)),
 	}
@@ -68,7 +68,7 @@ func draft07Keywords() []Field {
 		keyword("type", String, s, v(`6.1.1. type`, `The value of this keyword MUST be either a string or an array.`)).
 			admits(vals("array", "boolean", "integer", "null", "number", "object", "string")...).also(StringList, s),
 		keyword("enum", RawList, s, v(`6.1.2. enum`, `The value of this keyword MUST be an array.`)),
-		keyword("const", Any, s, v(`6.1.3. const`, `The value of this keyword MAY be of any type, including null.`)),
+		keyword("const", AnyShapeUnchecked, s, v(`6.1.3. const`, `The value of this keyword MAY be of any type, including null.`)),
 		keyword("multipleOf", PositiveNumber, s, v(`6.2.1. multipleOf`, `The value of "multipleOf" MUST be a number, strictly greater than 0.`)),
 		keyword("maximum", Number, s, v(`6.2.2. maximum`, `The value of "maximum" MUST be a number`)),
 		keyword("exclusiveMaximum", Number, s, v(`6.2.3. exclusiveMaximum`, `The value of "exclusiveMaximum" MUST be number`)),
@@ -104,7 +104,7 @@ func draft07Keywords() []Field {
 		schemaMapOf("definitions", s, v(`9. Schema Re-Use With "definitions"`, `This keyword's value MUST be an object.`)),
 		keyword("title", String, s, v(`10.1. "title" and "description"`, `The value of both of these keywords MUST be a string.`)),
 		keyword("description", String, s, v(`10.1. "title" and "description"`, `The value of both of these keywords MUST be a string.`)),
-		keyword("default", Any, s, v(`10.2. "default"`, `There are no restrictions placed on the value of this keyword.`)),
+		keyword("default", AnyShapeUnchecked, s, v(`10.2. "default"`, `There are no restrictions placed on the value of this keyword.`)),
 		keyword("readOnly", Boolean, s, v(`10.3. "readOnly" and "writeOnly"`, `The value of these keywords MUST be a boolean.`)),
 		keyword("writeOnly", Boolean, s, v(`10.3. "readOnly" and "writeOnly"`, `The value of these keywords MUST be a boolean.`)),
 		keyword("examples", RawList, s, v(`10.4. "examples"`, `The value of this keyword MUST be an array.`)),
@@ -147,7 +147,7 @@ func draft2019Keywords() []Field {
 		keyword("type", String, s, v(`6.1.1. type`, `The value of this keyword MUST be either a string or an array.`)).
 			admits(vals("array", "boolean", "integer", "null", "number", "object", "string")...).also(StringList, s),
 		keyword("enum", RawList, s, v(`6.1.2. enum`, `The value of this keyword MUST be an array.`)),
-		keyword("const", Any, s, v(`6.1.3. const`, `The value of this keyword MAY be of any type, including null.`)),
+		keyword("const", AnyShapeUnchecked, s, v(`6.1.3. const`, `The value of this keyword MAY be of any type, including null.`)),
 		keyword("multipleOf", PositiveNumber, s, v(`6.2.1. multipleOf`, `The value of "multipleOf" MUST be a number, strictly greater than 0.`)),
 		keyword("maximum", Number, s, v(`6.2.2. maximum`, `The value of "maximum" MUST be a number`)),
 		keyword("exclusiveMaximum", Number, s, v(`6.2.3. exclusiveMaximum`, `The value of "exclusiveMaximum" MUST be number`)),
@@ -171,7 +171,7 @@ func draft2019Keywords() []Field {
 		schemaOf("contentSchema", s, v(`8.5. contentSchema`, `this property contains a schema which describes the structure of the string.`)),
 		keyword("title", String, s, v(`9.1. "title" and "description"`, `The value of both of these keywords MUST be a string.`)),
 		keyword("description", String, s, v(`9.1. "title" and "description"`, `The value of both of these keywords MUST be a string.`)),
-		keyword("default", Any, s, v(`9.2. "default"`, `There are no restrictions placed on the value of this keyword.`)),
+		keyword("default", AnyShapeUnchecked, s, v(`9.2. "default"`, `There are no restrictions placed on the value of this keyword.`)),
 		keyword("deprecated", Boolean, s, v(`9.3. "deprecated"`, `The value of this keyword MUST be a boolean.`)),
 		keyword("readOnly", Boolean, s, v(`9.4. "readOnly" and "writeOnly"`, `The value of these keywords MUST be a boolean.`)),
 		keyword("writeOnly", Boolean, s, v(`9.4. "readOnly" and "writeOnly"`, `The value of these keywords MUST be a boolean.`)),

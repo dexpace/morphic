@@ -140,7 +140,7 @@ func nullableKeywords(t *testing.T, minor oas.Minor) []string {
 	require.True(t, ok)
 	var out []string
 	for _, f := range schema.Fields {
-		if f.Defined.Holds(minor) && f.Shape != oas.Any {
+		if f.Defined.Holds(minor) && f.Shape != oas.AnyShapeUnchecked {
 			out = append(out, f.Name)
 		}
 	}

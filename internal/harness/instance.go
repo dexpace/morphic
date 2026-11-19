@@ -30,7 +30,7 @@ const kindInference = "kind-inference"
 // holds an instance at no carrier, which the judge never met. A Go error
 // compiling the case is the writer's or the harness's fault, not the source's,
 // so it ends the case as a panic does.
-func admitted(ctx context.Context, s *shard, at []int, doc Document) Verdict {
+func admitted(ctx context.Context, s *shard, at []int, doc CaseDocument) Verdict {
 	var valid []Instance
 	for _, in := range doc.Instances {
 		if in.Valid {

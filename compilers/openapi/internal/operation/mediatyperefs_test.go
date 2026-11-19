@@ -194,7 +194,7 @@ components:
 	assert.Equal(t, "/paths/~1a/get/parameters/0/content/application~1json/summary",
 		string(kept["openapi:content/application~1json/reference/0/summary"].Provenance.Pointer))
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed))
 }
 
 // TestMediaTypeRef_ReferencesInsideTheDeclarationResolve pins that what a
@@ -345,7 +345,7 @@ components:
 			kept := op.Params[0].Unmodeled["openapi:content/application~1json/description"]
 			assert.JSONEq(t, `"From the declaration."`, string(kept.Value))
 			assert.Equal(t, "/components/mediaTypes/M/description", string(kept.Provenance.Pointer))
-			assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed))
 		})
 	}
 }

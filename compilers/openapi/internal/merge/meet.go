@@ -26,7 +26,7 @@ type builder struct {
 }
 
 // mint registers node at pointer, its parts brought where brought says and
-// placed as the field is (folding.assembled; Walk.Mint), or in a dry run names
+// placed as the field is (folding.assembled; FieldDeclarationContext.Mint), or in a dry run names
 // nothing.
 func (b *builder) mint(pointer jsontext.Pointer, node ir.TypeDef, brought []jsontext.Pointer) ir.TypeID {
 	if b.dry {

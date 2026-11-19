@@ -41,13 +41,13 @@ func (n *nulls) variantsNull(s *statement.Schema) nullReading {
 // branchesNull is what one union's branches say of null, under each reading:
 // admitted where a branch admits it, forbidden where every branch forbids it,
 // and silent where it writes none.
-func (n *nulls) branchesNull(branches []statement.Sub) nullReading {
+func (n *nulls) branchesNull(branches []statement.Subschema) nullReading {
 	if len(branches) == 0 {
-		return alike(nullSilent)
+		return nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	}
-	out := alike(nullForbidden)
+	out := nullReadingAlikeUnderBothPolicies(nullForbidden)
 	for _, b := range branches {
-		r := n.conjunct(n.c.Statements().Sub(b), nullSite{})
+		r := n.conjunct(n.c.Statements().Subschema(b), nullSite{})
 		out.declared = disjoinNullVerdicts(out.declared, r.declared)
 		out.lenient = disjoinNullVerdicts(out.lenient, r.lenient)
 	}
@@ -56,14 +56,14 @@ func (n *nulls) branchesNull(branches []statement.Sub) nullReading {
 
 // disjoinNullVerdicts is what two branches of a union say of null together:
 // one admitting it decides, and the union keeps it out only where both do.
-func disjoinNullVerdicts(a, b nullVerdict) nullVerdict {
+func disjoinNullVerdicts(a, b nullDeclaration) nullDeclaration {
 	switch {
 	case a == nullAdmitted || b == nullAdmitted:
 		return nullAdmitted
 	case a == nullForbidden && b == nullForbidden:
 		return nullForbidden
 	default:
-		return nullSilent
+		return nullUnconstrained
 	}
 }
 
@@ -100,7 +100,7 @@ func liftedNulls(c lowering.Ctx, position, s *statement.Schema, pointer jsontext
 	branches, key, _ := unionBranches(c, position, s)
 	var out []liftedNull
 	for i, b := range branches {
-		st := c.Statements().Sub(b)
+		st := c.Statements().Subschema(b)
 		if !nullBranch(c, st) {
 			continue
 		}

@@ -16,7 +16,7 @@ import (
 
 // objectKey is a position read as a Reference Object of a kind.
 type objectKey struct {
-	at   Position
+	at   DocumentPointer
 	kind RefKind
 }
 
@@ -26,7 +26,7 @@ type objectKey struct {
 // reads come back to it for each reference object they pass.
 type objects struct {
 	b      *binder
-	hops   map[Position]objectHop
+	hops   map[DocumentPointer]objectHop
 	chains map[objectKey]Chain
 }
 
@@ -44,7 +44,7 @@ type objectHop struct {
 // hopAt is the hop of the reference object at p, read once and
 // remembered, or the chain its pointer passes that must be settled first,
 // having remembered nothing (settle).
-func (o *objects) hopAt(p Position) (objectHop, objectKey) {
+func (o *objects) hopAt(p DocumentPointer) (objectHop, objectKey) {
 	if h, ok := o.hops[p]; ok {
 		return h, objectKey{}
 	}
@@ -61,7 +61,7 @@ func (o *objects) hopAt(p Position) (objectHop, objectKey) {
 		h = objectHop{hop: Hop{Ref: ref, Status: OverBudget}}
 	}
 	o.hops[p] = h
-	if h.hop.Reason == Held {
+	if h.hop.Reason == PendingExternalDocumentRead {
 		o.b.wait.heldObjects = append(o.b.wait.heldObjects, p)
 	}
 	return h, objectKey{}
@@ -95,7 +95,7 @@ func (o *objects) readRef(id DocID, ref string) (objectHop, objectKey) {
 	switch {
 	case need.kind != 0:
 		return objectHop{}, need
-	case reason == NoTarget && to.id:
+	case reason == NoTarget && to.namedByDollarID:
 		h.Reason, h.Detail = NoResourceTarget, to.uri
 	case reason != NoReason:
 		h.Reason = reason
@@ -128,7 +128,7 @@ func ofKind(h objectHop, kind RefKind) Hop {
 func (o *objects) settle(key objectKey) {
 	type frame struct {
 		key objectKey
-		at  Position
+		at  DocumentPointer
 	}
 	stack := []frame{{key: key}}
 	on := map[objectKey]int{key: 0}
@@ -161,7 +161,7 @@ func (o *objects) settle(key objectKey) {
 
 // refAt is the $ref the reference object at p writes, or the key a
 // requirement key at p is read by (finder.requirementKeys).
-func (o *objects) refAt(p Position) string {
+func (o *objects) refAt(p DocumentPointer) string {
 	if key, ok := o.b.docs.keyRefs[p]; ok {
 		return key
 	}
@@ -176,9 +176,9 @@ func (o *objects) refAt(p Position) string {
 // waits, and is settled later (waits). Where a hop's pointer needs another
 // chain settled first, it returns that hop's position and that chain, having
 // settled nothing.
-func (o *objects) chain(key objectKey) (Position, objectKey) {
-	var path []Position
-	on := map[Position]int{}
+func (o *objects) chain(key objectKey) (DocumentPointer, objectKey) {
+	var path []DocumentPointer
+	on := map[DocumentPointer]int{}
 	var end Chain
 	for p := key.at; ; {
 		k := objectKey{at: p, kind: key.kind}
@@ -188,7 +188,7 @@ func (o *objects) chain(key objectKey) (Position, objectKey) {
 		}
 		if o.b.wait.onObjects[k] {
 			o.waitOn(path, key.kind)
-			return Position{}, objectKey{}
+			return DocumentPointer{}, objectKey{}
 		}
 		if i, looped := on[p]; looped {
 			o.closeLoop(path[i:], key.kind)
@@ -206,9 +206,9 @@ func (o *objects) chain(key objectKey) (Position, objectKey) {
 		on[p] = len(path)
 		path = append(path, p)
 		h := ofKind(oh, key.kind)
-		if h.Status != Resolved && h.Reason == Held {
+		if h.Status != Resolved && h.Reason == PendingExternalDocumentRead {
 			o.waitOn(path, key.kind)
-			return Position{}, objectKey{}
+			return DocumentPointer{}, objectKey{}
 		}
 		if h.Status != Resolved {
 			end = Chain{Status: Unresolved}
@@ -222,15 +222,15 @@ func (o *objects) chain(key objectKey) (Position, objectKey) {
 		p = h.Target
 	}
 	o.settleChain(path, key.kind, end)
-	return Position{}, objectKey{}
+	return DocumentPointer{}, objectKey{}
 }
 
 // settleChain settles each position on path, read as kind, with end, the
 // answer of the position after the last, counting the hop each position adds
 // to a chain that resolved. A loop's members were settled already, and taken
 // off path, so every position left leads into what end is.
-func (o *objects) settleChain(path []Position, kind RefKind, end Chain) {
-	end.Member = false
+func (o *objects) settleChain(path []DocumentPointer, kind RefKind, end Chain) {
+	end.PositionLiesOnReferenceCycle = false
 	for _, p := range slices.Backward(path) {
 		if end.Status == Resolved {
 			end.Hops++
@@ -241,7 +241,7 @@ func (o *objects) settleChain(path []Position, kind RefKind, end Chain) {
 
 // waitOn notes each position on path, read as kind, as waiting with the chain
 // it is on for documents the pass has yet to read.
-func (o *objects) waitOn(path []Position, kind RefKind) {
+func (o *objects) waitOn(path []DocumentPointer, kind RefKind) {
 	for _, p := range path {
 		o.b.wait.onObjects[objectKey{at: p, kind: kind}] = true
 	}
@@ -250,11 +250,11 @@ func (o *objects) waitOn(path []Position, kind RefKind) {
 // closeLoop records members, reference objects read as kind, as a loop,
 // each settled as its member, to be reported once, as the parser's resolver
 // does not (docs/parser-library.md#reference-object-cycle).
-func (o *objects) closeLoop(members []Position, kind RefKind) {
+func (o *objects) closeLoop(members []DocumentPointer, kind RefKind) {
 	sorted := slices.SortedFunc(slices.Values(members), o.b.docs.compare)
 	o.b.loops = append(o.b.loops, Loop{Members: sorted, Kind: kind})
 	for _, m := range members {
-		o.chains[objectKey{at: m, kind: kind}] = Chain{Status: Cyclic, Member: true}
+		o.chains[objectKey{at: m, kind: kind}] = Chain{Status: Cyclic, PositionLiesOnReferenceCycle: true}
 	}
 }
 
@@ -269,7 +269,7 @@ func (o *objects) reference(k objectKey) (Reference, bool) {
 		return Reference{}, true
 	}
 	_, key := o.b.docs.keyRefs[k.at]
-	r := Reference{Site: k.at, Kind: k.kind, Hop: Hop{Status: OverBudget}, Chain: Chain{Status: OverBudget}, Key: key}
+	r := Reference{Site: k.at, Kind: k.kind, Hop: Hop{Status: OverBudget}, Chain: Chain{Status: OverBudget}, IsSecurityRequirementKey: key}
 	if c, done := o.chains[k]; done {
 		r.Chain = c
 	}
@@ -291,7 +291,7 @@ func compareObjects(d *docs) func(x, y objectKey) int {
 
 // settleAll answers each of keys, the reference objects binder.settle took,
 // in order of position and then kind, as settle answers sites.
-func (o *objects) settleAll(t *Table, keys []objectKey) {
+func (o *objects) settleAll(t *ReferenceTargetTable, keys []objectKey) {
 	slices.SortFunc(keys, compareObjects(o.b.docs))
 	for _, k := range keys {
 		if o.b.work.cancelled() {
@@ -308,7 +308,7 @@ func (o *objects) settleAll(t *Table, keys []objectKey) {
 // landings returns the table's object landings, each placed at the least
 // reference object whose chain reaches it (attribute), ordered by position and
 // then kind.
-func (o *objects) landings(t *Table) []ObjectLanding {
+func (o *objects) landings(t *ReferenceTargetTable) []ObjectLanding {
 	reach := o.attribute(t)
 	out := make([]ObjectLanding, 0, len(o.b.find.objLandings))
 	for k := range o.b.find.objLandings {
@@ -328,7 +328,7 @@ func (o *objects) landings(t *Table) []ObjectLanding {
 // reference object's chain reaches, the least reference object of that kind
 // whose chain does, in whichever document, as binder.attribute does for
 // schemas.
-func (o *objects) attribute(t *Table) map[objectKey]Position {
+func (o *objects) attribute(t *ReferenceTargetTable) map[objectKey]DocumentPointer {
 	starts := make([]Reference, 0, len(t.references))
 	for _, r := range t.references {
 		if r.Hop.Status == Resolved {
@@ -338,7 +338,7 @@ func (o *objects) attribute(t *Table) map[objectKey]Position {
 	slices.SortFunc(starts, func(x, y Reference) int {
 		return compareObjects(o.b.docs)(objectKey{at: x.Site, kind: x.Kind}, objectKey{at: y.Site, kind: y.Kind})
 	})
-	reach := map[objectKey]Position{}
+	reach := map[objectKey]DocumentPointer{}
 	for _, s := range starts {
 		for p := s.Hop.Target; ; {
 			k := objectKey{at: p, kind: s.Kind}

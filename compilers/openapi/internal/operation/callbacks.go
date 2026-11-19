@@ -28,7 +28,7 @@ const maxCallbackNesting = 4
 // (lowerCallbacks) while it is nested in fewer than maxCallbackNesting
 // callbacks. Past that the map is kept verbatim, beside the callbacks' own
 // extensions, and reported (docs/compilers/openapi.md#callbacks).
-func operationCallbacks(c service.Ctx, w walk, src *soa.Operation, opCtx opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func operationCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operation, opCtx opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	if src.GetCallbacks().Len() == 0 {
 		return nil, nil, nil, nil
 	}
@@ -55,7 +55,7 @@ func operationCallbacks(c service.Ctx, w walk, src *soa.Operation, opCtx opConte
 // identity, so two parents sharing one $ref'd callback keep distinct callback
 // operations; parent.ptrs.decl is the base a $ref'd callback or path item
 // resolves against (issue #107).
-func lowerCallbacks(c service.Ctx, w walk, src *soa.Operation, parent opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operation, parent opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	var ext ir.Unmodeled
@@ -110,7 +110,7 @@ func lowerCallbacks(c service.Ctx, w walk, src *soa.Operation, parent opContext)
 // An expression whose item mounts no operation keeps what the item wrote on the
 // returned map, which goes where the Callback Object's own extensions go, the
 // parent's HTTP binding.
-func lowerCallbackOps(w walk, layers []layer, at mountSite, route opContext) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbackOps(w operationLoweringState, layers []layer, at mountSite, route opContext) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var orphan ir.Unmodeled
 	at.residue = &orphan
 	mounted, diags := mountPathItem(w, layers, at, route)
@@ -129,7 +129,7 @@ func lowerCallbackOps(w walk, layers []layer, at mountSite, route opContext) ([]
 // webhooks-map key, an event's name rather than a path, as WebhookName. It
 // stops between webhooks when ctx is done, as lowerPaths does, and svc holds
 // what a webhook item mounting no operation writes.
-func lowerWebhooks(ctx context.Context, c service.Ctx, w walk, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerWebhooks(ctx context.Context, c service.Ctx, w operationLoweringState, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil

@@ -5,7 +5,7 @@
 // references, and what the IR has no field for.
 //
 // A position is lowered from three readings, each made once a run: what its
-// schema writes (statement.Table), what that admits (admissionOf) and which
+// schema writes (statement.MemoizingSchemaReader), what that admits (admissionOf) and which
 // conjunct of its allOf decides it (decisionOf). A node's build says which
 // keywords it read (keySet); the rest the node keeps verbatim (keepUnread). It
 // is one package because lowering a schema resolves its references and a

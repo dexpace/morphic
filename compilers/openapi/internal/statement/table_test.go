@@ -174,7 +174,7 @@ func readAll(t *testing.T, spec string, n int) (first, again int) {
 				table.Read(s)
 				if s.Object != nil {
 					for _, p := range s.Object.Properties {
-						table.Sub(p)
+						table.Subschema(p)
 					}
 				}
 			}

@@ -14,9 +14,9 @@ import (
 type shape uint8
 
 const (
-	// shapeUnjudged is a type the checks read no further: an enum, a literal, a
+	// shapeNotChecked is a type the checks read no further: an enum, a literal, a
 	// union, an external type, a scalar with no base, and one nothing declares.
-	shapeUnjudged shape = iota
+	shapeNotChecked shape = iota
 	shapeNumber
 	shapeInteger
 	shapeText
@@ -50,7 +50,7 @@ func primShape(k ir.PrimKind) shape {
 	case ir.PrimAny:
 		return shapeAnything
 	default:
-		return shapeUnjudged
+		return shapeNotChecked
 	}
 }
 
@@ -133,20 +133,20 @@ func lesser(a, b *int64) *int64 {
 // conjoining what each declares into b, and returns the shape the value is, the
 // type the chain ends at, and whether a scalar or list on the way holds an
 // encoding. The type is nil where the chain meets nothing declared or runs past
-// the hops, and the shape then is shapeUnjudged.
+// the hops, and the shape then is shapeNotChecked.
 func settle(doc *ir.Document, target ir.TypeID, b *bounds) (shape, ir.TypeDef, bool) {
 	encoded := false
 	for range maxAliasHops {
 		td := doc.Types[target]
 		if ir.IsNilTypeDef(td) {
-			return shapeUnjudged, nil, encoded
+			return shapeNotChecked, nil, encoded
 		}
 		switch t := td.(type) {
 		case *ir.Scalar:
 			b.and(t.Constraints)
 			encoded = encoded || t.Encoding != nil
 			if t.Base == nil {
-				return shapeUnjudged, td, encoded
+				return shapeNotChecked, td, encoded
 			}
 			target = t.Base.Target
 		case *ir.Primitive:
@@ -166,10 +166,10 @@ func settle(doc *ir.Document, target ir.TypeID, b *bounds) (shape, ir.TypeDef, b
 		case *ir.Any:
 			return shapeAnything, td, encoded
 		default:
-			return shapeUnjudged, td, encoded
+			return shapeNotChecked, td, encoded
 		}
 	}
-	return shapeUnjudged, nil, encoded
+	return shapeNotChecked, nil, encoded
 }
 
 // empty reports whether the bounds b holds admit no value of shape s. A bound
@@ -235,7 +235,7 @@ func unsatisfiable(doc *ir.Document, own *ir.Constraints, target ir.TypeID, self
 	}
 	var b bounds
 	s := self
-	if s == shapeUnjudged {
+	if s == shapeNotChecked {
 		s, _, _ = settle(doc, target, &b)
 	}
 	if b.empty(s) {
@@ -264,7 +264,7 @@ func checkBounds(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	}
 	var keys []ir.PropID
 	eachPosition(doc, live, &keys, func(p *position) {
-		if why := unsatisfiable(doc, p.own, p.typ.Target, shapeUnjudged); why != "" {
+		if why := unsatisfiable(doc, p.own, p.typ.Target, shapeNotChecked); why != "" {
 			diags = append(diags, diagAt("pass/bounds-admit-no-value", why, p.node, p.from))
 		}
 	})
@@ -311,7 +311,7 @@ func typeBounds(td ir.TypeDef) (*ir.Constraints, ir.TypeID, shape) {
 	switch t := td.(type) {
 	case *ir.Scalar:
 		if t.Base != nil {
-			return t.Constraints, t.Base.Target, shapeUnjudged
+			return t.Constraints, t.Base.Target, shapeNotChecked
 		}
 	case *ir.List:
 		return t.Constraints, "", shapeList
@@ -325,5 +325,5 @@ func typeBounds(td ir.TypeDef) (*ir.Constraints, ir.TypeID, shape) {
 		// no other type declares bounds a value is read against with a chain;
 		// a union's are judged kind by kind (typeUnsatisfiable)
 	}
-	return nil, "", shapeUnjudged
+	return nil, "", shapeNotChecked
 }

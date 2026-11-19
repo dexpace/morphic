@@ -65,7 +65,7 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 	require.Len(t, full.Loops(), 1)
 	assert.Equal(t, budget.Unbounded(), full.Limit(), "an unset limit is unbounded")
 	assert.False(t, bound(t, budgetSpec, budgetConfig(budget.AtMost(full.Steps()))).Exhausted(), "the cost itself suffices")
-	want := map[bind.Position]bind.Entry{}
+	want := map[bind.DocumentPointer]bind.ReferenceSite{}
 	for _, e := range full.Entries() {
 		want[e.Site] = e
 	}
@@ -117,7 +117,7 @@ func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
 		"/a.yaml": "type: integer\n$defs: {Z: {$ref: 'z.yaml#/S'}}\n",
 		"/z.yaml": "S: {$id: 'a.yaml', type: string}\n",
 	}
-	bindAt := func(limit budget.Limit) *bind.Table {
+	bindAt := func(limit budget.Limit) *bind.ReferenceTargetTable {
 		cfg := withDocuments(docs)
 		cfg.Self, cfg.Locate, cfg.Limit = resolving.Self, resolving.Locate, limit
 		return bound(t, src, cfg)
@@ -125,7 +125,7 @@ func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
 	full := bindAt(budget.Unbounded())
 	require.False(t, full.Exhausted())
 	z := docNamed(t, full, "/z.yaml")
-	require.Equal(t, bind.Position{Doc: z, Pointer: "/S"}, entryAt(t, full, "/components/schemas/Y").Hop.Target,
+	require.Equal(t, bind.DocumentPointer{Doc: z, Pointer: "/S"}, entryAt(t, full, "/components/schemas/Y").Hop.Target,
 		"a second pass answers Y by the identifier")
 
 	least := 0
@@ -140,9 +140,9 @@ func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
 	require.Equal(t, 1, first.Passes())
 	a := docNamed(t, first, "/a.yaml")
 	assert.False(t, first.Document(a).Unreached, "the first pass stands, a.yaml reached in it")
-	y, ok := first.Entry(bind.Position{Pointer: "/components/schemas/Y"})
+	y, ok := first.Entry(bind.DocumentPointer{Pointer: "/components/schemas/Y"})
 	require.True(t, ok)
-	assert.NotEqual(t, bind.Position{Doc: docNamed(t, first, "/z.yaml"), Pointer: "/S"}, y.Hop.Target,
+	assert.NotEqual(t, bind.DocumentPointer{Doc: docNamed(t, first, "/z.yaml"), Pointer: "/S"}, y.Hop.Target,
 		"no answer of a second pass")
 }
 
@@ -166,7 +166,7 @@ func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
 	shapes := []struct {
 		name  string
 		doc   func(i, n int) string
-		check func(t *testing.T, table *bind.Table, n int)
+		check func(t *testing.T, table *bind.ReferenceTargetTable, n int)
 	}{
 		{"a chain", func(i, n int) string {
 			return "S: " + cmp.Or(tail(i, n, fmt.Sprintf("{$ref: '%s#/S'}", name(i+1))), "{type: string}") + "\n"
@@ -176,7 +176,7 @@ func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
 		}, resolvesA},
 		{"a loop", func(i, n int) string {
 			return fmt.Sprintf("S: {$ref: '%s#/S'}\n", name(i%n+1))
-		}, func(t *testing.T, table *bind.Table, n int) {
+		}, func(t *testing.T, table *bind.ReferenceTargetTable, n int) {
 			t.Helper()
 			require.Len(t, table.Loops(), 1, "the loop is found whole")
 			assert.Len(t, table.Loops()[0].Members, n)
@@ -184,9 +184,9 @@ func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
 		{"mapping values", func(i, n int) string {
 			return fmt.Sprintf("S: {discriminator: {propertyName: k, mapping: {%s}}}\n",
 				tail(i, n, fmt.Sprintf("m: '%s#/S'", name(i+1))))
-		}, func(t *testing.T, table *bind.Table, n int) {
+		}, func(t *testing.T, table *bind.ReferenceTargetTable, n int) {
 			t.Helper()
-			at := bind.Position{Doc: docNamed(t, table, name(n-1)), Pointer: "/S/discriminator"}
+			at := bind.DocumentPointer{Doc: docNamed(t, table, name(n-1)), Pointer: "/S/discriminator"}
 			m, ok := table.Mapping(at, name(n)+"#/S")
 			require.True(t, ok)
 			assert.Equal(t, bind.Resolved, m.Chain.Status)
@@ -194,11 +194,11 @@ func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
 		{"links naming the one before by its $id", func(i, n int) string {
 			return fmt.Sprintf("S: {$id: 'https://x.test/id%d', properties: {p: {$ref: 'https://x.test/id%d'}%s}}\n",
 				i, i-1, tail(i, n, fmt.Sprintf(", n: {$ref: '%s#/S'}", name(i+1))))
-		}, func(t *testing.T, table *bind.Table, n int) {
+		}, func(t *testing.T, table *bind.ReferenceTargetTable, n int) {
 			t.Helper()
-			e, ok := table.Entry(bind.Position{Doc: docNamed(t, table, name(n)), Pointer: "/S/properties/p"})
+			e, ok := table.Entry(bind.DocumentPointer{Doc: docNamed(t, table, name(n)), Pointer: "/S/properties/p"})
 			require.True(t, ok)
-			assert.Equal(t, bind.Position{Doc: docNamed(t, table, name(n-1)), Pointer: "/S"}, e.Hop.Target)
+			assert.Equal(t, bind.DocumentPointer{Doc: docNamed(t, table, name(n-1)), Pointer: "/S"}, e.Hop.Target)
 		}},
 	}
 	for _, shape := range shapes {
@@ -233,7 +233,7 @@ func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
 }
 
 // resolvesA checks that the chain from component A resolves.
-func resolvesA(t *testing.T, table *bind.Table, _ int) {
+func resolvesA(t *testing.T, table *bind.ReferenceTargetTable, _ int) {
 	t.Helper()
 	assert.Equal(t, bind.Resolved, entryAt(t, table, "/components/schemas/A").Chain.Status)
 }
@@ -323,7 +323,7 @@ func TestTable_SaysWhyARefWentUnread(t *testing.T) {
 	full := bound(t, budgetSpec, budgetConfig(budget.Unbounded()))
 	assert.False(t, full.Truncated())
 	assert.Empty(t, full.Unread())
-	assert.Empty(t, (*bind.Table)(nil).Unread(), "a nil table read nothing, so it says nothing")
+	assert.Empty(t, (*bind.ReferenceTargetTable)(nil).Unread(), "a nil table read nothing, so it says nothing")
 	assert.Equal(t, "it was not read within the budget", bound(t, budgetSpec, budgetConfig(budget.AtMost(1))).Unread())
 
 	deep := bound(t, deepMerge(), self)
@@ -455,7 +455,7 @@ func TestBind_AnswersAlikeInEitherOrder(t *testing.T) {
 		"    M: {$ref: '#/components/schemas/H/properties/p'}\n",
 		"    P: {discriminator: {propertyName: k, mapping: {a: '#/x-lib/C', b: '#/components/schemas/M'}}}\n",
 	}
-	build := func(order []string) *bind.Table {
+	build := func(order []string) *bind.ReferenceTargetTable {
 		return bound(t, head+"components:\n  schemas:\n"+strings.Join(order, "")+
 			"x-lib:\n  C: {properties: {d: {$ref: '#/components/schemas/A'}}}\n", self)
 	}
@@ -485,7 +485,7 @@ func TestSpellings(t *testing.T) {
 		bind.Object: "object", 9: "none"} {
 		assert.Equal(t, want, r.String())
 	}
-	assert.Equal(t, "it was not read within the budget", bind.Hop{Reason: bind.Held}.Why(),
+	assert.Equal(t, "it was not read within the budget", bind.Hop{Reason: bind.PendingExternalDocumentRead}.Why(),
 		"a read the pass was to make once its walks were done, which the budget cut")
 	for text, hop := range map[string]bind.Hop{
 		"it names nothing in the document it points into": {Reason: bind.NoTarget},

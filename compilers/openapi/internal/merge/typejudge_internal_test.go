@@ -272,11 +272,11 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"one target", "t/lit-a", "t/lit-a", relSame},
 		{"a dangling target", "t/absent", "t/prim/integer", relUnrelated},
 		{"a dangling second", "t/prim/integer", "t/absent", relUnrelated},
-		{"the top loses to a bare kind", prim(ir.PrimAny), prim(ir.PrimInt32), relBNarrower},
+		{"the top loses to a bare kind", prim(ir.PrimAny), prim(ir.PrimInt32), secondTypeIsNarrower},
 		{"a degraded any node is not the top", "t/model", "t/any", relUnrelated},
 		{"`{}` is unrelated to a degraded any", prim(ir.PrimAny), "t/any", relUnrelated},
-		{"bare narrower", prim(ir.PrimInt32), prim(ir.PrimInteger), relANarrower},
-		{"bare broader", prim(ir.PrimInteger), prim(ir.PrimInt32), relBNarrower},
+		{"bare narrower", prim(ir.PrimInt32), prim(ir.PrimInteger), firstTypeIsNarrower},
+		{"bare broader", prim(ir.PrimInteger), prim(ir.PrimInt32), secondTypeIsNarrower},
 		{"bare overlap", prim(ir.PrimInt32), prim(ir.PrimUint32), relOverlap},
 		{"bare disjoint", prim(ir.PrimString), prim(ir.PrimInteger), relDisjoint},
 		{"an enum of integer against bare int32", "t/enum-int", prim(ir.PrimInt32), relOverlap},
@@ -286,27 +286,27 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"an enum with no members against an overlapping kind", "t/enum-none", prim(ir.PrimInt32), relDisjoint},
 		{"an enum against a kind with no judge", "t/enum-str", prim(ir.PrimBytes), relOverlap},
 		{"an enum of bytes against a format no member meets", "t/enum-bytes", prim(ir.PrimUUID), relDisjoint},
-		{"an enum of string over bare string", "t/enum-str", prim(ir.PrimString), relANarrower},
-		{"bare string under an enum of string", prim(ir.PrimString), "t/enum-str", relBNarrower},
+		{"an enum of string over bare string", "t/enum-str", prim(ir.PrimString), firstTypeIsNarrower},
+		{"bare string under an enum of string", prim(ir.PrimString), "t/enum-str", secondTypeIsNarrower},
 		{"an enum against another family", "t/enum-str", prim(ir.PrimInteger), relDisjoint},
-		{"a scalar over its own kind", "t/scalar-str", prim(ir.PrimString), relANarrower},
-		{"a scalar over a narrower kind", "t/scalar-int", prim(ir.PrimNumber), relANarrower},
+		{"a scalar over its own kind", "t/scalar-str", prim(ir.PrimString), firstTypeIsNarrower},
+		{"a scalar over a narrower kind", "t/scalar-int", prim(ir.PrimNumber), firstTypeIsNarrower},
 		{"a scalar over a broader kind", "t/scalar-int", prim(ir.PrimInt32), relOverlap},
-		{"an alias over the top type", "t/scalar-any", prim(ir.PrimInt32), relBNarrower},
-		{"an alias over the top type holding what a reference carries down", "t/scalar-any-doc", prim(ir.PrimInt32), relBNarrower},
+		{"an alias over the top type", "t/scalar-any", prim(ir.PrimInt32), secondTypeIsNarrower},
+		{"an alias over the top type holding what a reference carries down", "t/scalar-any-doc", prim(ir.PrimInt32), secondTypeIsNarrower},
 		{"an alias over the top type holding examples", "t/scalar-any-ex", prim(ir.PrimInt32), relOverlap},
 		{"an alias of an alias holding docs over the top type", "t/alias-scalar-any-doc", "t/model", relUnrelated},
-		{"an alias holding docs of an alias over the top type", "t/alias-doc-scalar-any", "t/model", relBNarrower},
-		{"a list of an alias over the top type", "t/list-scalar-any", "t/list-i32", relBNarrower},
+		{"an alias holding docs of an alias over the top type", "t/alias-doc-scalar-any", "t/model", secondTypeIsNarrower},
+		{"a list of an alias over the top type", "t/list-scalar-any", "t/list-i32", secondTypeIsNarrower},
 		{"a list of an alias holding docs over the top type", "t/list-scalar-any-doc", "t/list-i32", relOverlap},
 		{"an opaque scalar", "t/scalar-opaque", prim(ir.PrimInt32), relUnrelated},
-		{"a literal the kind admits", "t/lit-1", prim(ir.PrimInteger), relANarrower},
+		{"a literal the kind admits", "t/lit-1", prim(ir.PrimInteger), firstTypeIsNarrower},
 		{"a literal string against integer", "t/lit-a", prim(ir.PrimInteger), relDisjoint},
 		{"a literal 1.5 against integer", "t/lit-1.5", prim(ir.PrimInteger), relDisjoint},
 		{"a literal against a kind with no judge", "t/lit-x", prim(ir.PrimBytes), relOverlap},
-		{"a literal the local date-time kind admits", "t/lit-local", prim(ir.PrimDatetime), relANarrower},
+		{"a literal the local date-time kind admits", "t/lit-local", prim(ir.PrimDatetime), firstTypeIsNarrower},
 		{"a literal the local date-time kind refuses", "t/lit-x", prim(ir.PrimDatetime), relDisjoint},
-		{"a time scalar within string", "t/scalar-time", prim(ir.PrimString), relANarrower},
+		{"a time scalar within string", "t/scalar-time", prim(ir.PrimString), firstTypeIsNarrower},
 		{"a time scalar against a date-time", "t/scalar-time", prim(ir.PrimDatetimeOffset), relDisjoint},
 		{"a time scalar against a local time", "t/scalar-time", prim(ir.PrimTime), relDisjoint},
 		{"a time scalar against bytes", "t/scalar-time", prim(ir.PrimBytes), relOverlap},
@@ -314,13 +314,13 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"an alias of a time scalar against a date-time", "t/alias-time", prim(ir.PrimDatetimeOffset), relDisjoint},
 		{"a time scalar whose encoding says more", "t/scalar-time-media", prim(ir.PrimDatetimeOffset), relOverlap},
 		{"a scalar of a format with no grammar here", "t/scalar-email", prim(ir.PrimDatetimeOffset), relOverlap},
-		{"a time a time scalar admits", "t/lit-time", "t/scalar-time", relANarrower},
+		{"a time a time scalar admits", "t/lit-time", "t/scalar-time", firstTypeIsNarrower},
 		{"a string a time scalar refuses", "t/lit-x", "t/scalar-time", relDisjoint},
 		{"a time a time scalar's bound refuses", "t/lit-time", "t/scalar-time-max", relDisjoint},
-		{"a time a time scalar's bound admits", "t/lit-time", "t/scalar-time-roomy", relANarrower},
+		{"a time a time scalar's bound admits", "t/lit-time", "t/scalar-time-roomy", firstTypeIsNarrower},
 		{"a literal against an alias of a kind it is not", "t/lit-a", "t/scalar-int", relOverlap},
 		{"a time against a time scalar holding detail", "t/lit-time", "t/scalar-time-doc", relMeet},
-		{"a time against an alias of a time scalar", "t/lit-time", "t/alias-time", relANarrower},
+		{"a time against an alias of a time scalar", "t/lit-time", "t/alias-time", firstTypeIsNarrower},
 		{"a time against a format with no grammar here", "t/lit-time", "t/scalar-email", relOverlap},
 		{"an enum no member of which is a time", "t/enum-str", "t/scalar-time", relDisjoint},
 		{"an enum with a time member", "t/enum-time", "t/scalar-time", relOverlap},
@@ -329,78 +329,78 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a time scalar against a format with no grammar here", "t/scalar-time", "t/scalar-email", relOverlap},
 		{"a null literal against a bare integer", "t/lit-null", prim(ir.PrimInteger), relDisjoint},
 		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relDisjoint},
-		{"a model stating no instance type against a bare kind", "t/model-untyped", prim(ir.PrimInteger), relBNarrower},
-		{"one holding docs a reference carries down", "t/model-untyped-doc", prim(ir.PrimInteger), relBNarrower},
+		{"a model stating no instance type against a bare kind", "t/model-untyped", prim(ir.PrimInteger), secondTypeIsNarrower},
+		{"one holding docs a reference carries down", "t/model-untyped-doc", prim(ir.PrimInteger), secondTypeIsNarrower},
 		{"one holding examples", "t/model-untyped-ex", prim(ir.PrimInteger), relOverlap},
 		{"one holding docs written at the declaration", "t/model-untyped-doc-inline", prim(ir.PrimInteger), relOverlap},
-		{"an enum against a model stating no instance type", "t/enum-str", "t/model-untyped", relANarrower},
-		{"a literal against a model stating no instance type", "t/lit-a", "t/model-untyped", relANarrower},
-		{"a list against a model stating no instance type", "t/list-i32", "t/model-untyped", relANarrower},
-		{"an alias stating none of a model stating none", "t/alias-untyped", prim(ir.PrimInteger), relBNarrower},
-		{"an alias holding docs a reference carries down of one", "t/alias-doc-untyped", prim(ir.PrimInteger), relBNarrower},
+		{"an enum against a model stating no instance type", "t/enum-str", "t/model-untyped", firstTypeIsNarrower},
+		{"a literal against a model stating no instance type", "t/lit-a", "t/model-untyped", firstTypeIsNarrower},
+		{"a list against a model stating no instance type", "t/list-i32", "t/model-untyped", firstTypeIsNarrower},
+		{"an alias stating none of a model stating none", "t/alias-untyped", prim(ir.PrimInteger), secondTypeIsNarrower},
+		{"an alias holding docs a reference carries down of one", "t/alias-doc-untyped", prim(ir.PrimInteger), secondTypeIsNarrower},
 		{"an alias of one holding docs", "t/alias-of-untyped-doc", prim(ir.PrimInteger), relOverlap},
 		{"an alias stating a type of a model stating none", "t/alias-typed-untyped", prim(ir.PrimInteger), relDisjoint},
 		{"two structures each stating no instance type", "t/list-untyped", "t/model-untyped", relOverlap},
-		{"a list stating none against a model", "t/list-untyped", "t/model", relBNarrower},
-		{"a map stating none against a list", "t/map-untyped", "t/list-i32", relBNarrower},
-		{"a list of a model stating none against a list of strings", "t/list-model-untyped", "t/list-str", relBNarrower},
+		{"a list stating none against a model", "t/list-untyped", "t/model", secondTypeIsNarrower},
+		{"a map stating none against a list", "t/map-untyped", "t/list-i32", secondTypeIsNarrower},
+		{"a list of a model stating none against a list of strings", "t/list-model-untyped", "t/list-str", secondTypeIsNarrower},
 		{"a list of one holding docs against a list of strings", "t/list-model-untyped-doc", "t/list-str", relOverlap},
-		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relBNarrower},
-		{"an alias over the top type holding docs against a model", "t/scalar-any-doc", "t/model", relBNarrower},
+		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", secondTypeIsNarrower},
+		{"an alias over the top type holding docs against a model", "t/scalar-any-doc", "t/model", secondTypeIsNarrower},
 		{"an alias over the top type holding examples against a model", "t/scalar-any-ex", "t/model", relUnrelated},
 		{"two different literals", "t/lit-a", "t/lit-x", relDisjoint},
 		{"two identical hoisted literals", "t/lit-a-h1", "t/lit-a-h2", relSame},
-		{"a named enum against a hoisted copy", "t/enum-str", "t/enum-str-h", relANarrower},
+		{"a named enum against a hoisted copy", "t/enum-str", "t/enum-str-h", firstTypeIsNarrower},
 		{"two identical named literals", "t/lit-a", "t/lit-a-twin", relOverlap},
 		{"two identical named enums", "t/enum-str", "t/enum-str-twin", relOverlap},
 		{"two identical named scalars", "t/scalar-str", "t/scalar-str-twin", relOverlap},
 		{"a literal against an enum", "t/lit-a", "t/enum-str", relOverlap},
 		{"a scalar against an enum", "t/scalar-str", "t/enum-str", relOverlap},
 		{"a scalar against a literal", "t/scalar-str", "t/lit-a", relOverlap},
-		{"a narrower element", "t/list-int-null", "t/list-i32", relBNarrower},
-		{"a narrower element, the other way", "t/list-i32", "t/list-int-null", relANarrower},
+		{"a narrower element", "t/list-int-null", "t/list-i32", secondTypeIsNarrower},
+		{"a narrower element, the other way", "t/list-i32", "t/list-int-null", firstTypeIsNarrower},
 		{"a narrower element that admits null the broader does not", "t/list-int", "t/list-i32-null", relMeet},
-		{"one element admitting null and the other not", "t/list-i32-null", "t/list-i32", relBNarrower},
+		{"one element admitting null and the other not", "t/list-i32-null", "t/list-i32", secondTypeIsNarrower},
 		{"a loser-only constraint", "t/list-int-min", "t/list-i32", relMeet},
-		{"a winner-only constraint", "t/list-int", "t/list-i32-min", relBNarrower},
-		{"the same constraint on both", "t/list-int-min", "t/list-i32-min", relBNarrower},
+		{"a winner-only constraint", "t/list-int", "t/list-i32-min", secondTypeIsNarrower},
+		{"the same constraint on both", "t/list-int-min", "t/list-i32-min", secondTypeIsNarrower},
 		{"two lists alike, declared apart", "t/list-i32", "t/list-i32-twin", relOverlap},
 		{"two hoisted copies of one list", "t/list-i32-h1", "t/list-i32-h2", relSame},
-		{"a list declared apart against a hoisted copy", "t/list-i32", "t/list-i32-h1", relANarrower},
-		{"a map declared apart against a hoisted copy", "t/map-int", "t/map-int-h", relANarrower},
-		{"a list another document hoists at the declaration's pointer", "t/list-i32-other", "t/list-i32-h1", relANarrower},
-		{"two lists of one element, one constrained", "t/list-i32-min", "t/list-i32", relANarrower},
-		{"two lists of one element, one bound tighter", "t/list-i32-min2", "t/list-i32-min", relANarrower},
+		{"a list declared apart against a hoisted copy", "t/list-i32", "t/list-i32-h1", firstTypeIsNarrower},
+		{"a map declared apart against a hoisted copy", "t/map-int", "t/map-int-h", firstTypeIsNarrower},
+		{"a list another document hoists at the declaration's pointer", "t/list-i32-other", "t/list-i32-h1", firstTypeIsNarrower},
+		{"two lists of one element, one constrained", "t/list-i32-min", "t/list-i32", firstTypeIsNarrower},
+		{"two lists of one element, one bound tighter", "t/list-i32-min2", "t/list-i32-min", firstTypeIsNarrower},
 		{"two lists of one element, each adding a bound", "t/list-i32-min", "t/list-i32-max", relMeet},
-		{"a narrower element and bounds that say all the other's do", "t/list-i32-min2", "t/list-int-min1", relANarrower},
+		{"a narrower element and bounds that say all the other's do", "t/list-i32-min2", "t/list-int-min1", firstTypeIsNarrower},
 		{"a narrower element and looser bounds", "t/list-i32-min", "t/list-int-min2", relMeet},
 		{"a narrower element and a bound only the broader says", "t/list-i32-min", "t/list-int-max", relMeet},
 		{"two lists of one element differing beside a bound", "t/list-i32-described", "t/list-i32-max", relMeet},
-		{"a narrower element holding detail the broader lacks", "t/list-i32-described", "t/list-int", relANarrower},
-		{"a narrower element holding the detail the broader holds", "t/list-i32-described", "t/list-int-described", relANarrower},
+		{"a narrower element holding detail the broader lacks", "t/list-i32-described", "t/list-int", firstTypeIsNarrower},
+		{"a narrower element holding the detail the broader holds", "t/list-i32-described", "t/list-int-described", firstTypeIsNarrower},
 		{"a narrower element lacking detail the broader holds", "t/list-i32", "t/list-int-described", relMeet},
 		{"a narrower element lacking examples the broader gives", "t/list-i32", "t/list-int-exampled", relOverlap},
 		{"two lists of one element, one described", "t/list-i32", "t/list-i32-described", relOverlap},
 		{"two hoisted lists of one element, one described", "t/list-i32-h1", "t/list-i32-h-described", relOverlap},
 		{"a narrower element lacking what the broader keeps", "t/list-i32", "t/list-int-kept", relMeet},
 		{"two opaque scalars, one described", "t/scalar-opaque", "t/scalar-opaque-doc", relUnrelated},
-		{"an enum within another", "t/enum-str", "t/enum-ab", relANarrower},
+		{"an enum within another", "t/enum-str", "t/enum-ab", firstTypeIsNarrower},
 		{"an enum within another saying its shared member otherwise", "t/enum-str", "t/enum-ab-doc", relOverlap},
 		{"two lists of lists whose elements meet", "t/lists-min", "t/lists-max", relMeet},
-		{"two lists of lists, one element tighter", "t/lists-min2", "t/lists-min", relANarrower},
+		{"two lists of lists, one element tighter", "t/lists-min2", "t/lists-min", firstTypeIsNarrower},
 		{"two maps of one value, each adding a bound", "t/map-min", "t/map-max", relMeet},
-		{"two maps of one value, one constrained", "t/map-min", "t/map-bare", relANarrower},
-		{"two scalars alike but for a bound", "t/scalar-enc-min", "t/scalar-enc", relANarrower},
+		{"two maps of one value, one constrained", "t/map-min", "t/map-bare", firstTypeIsNarrower},
+		{"two scalars alike but for a bound", "t/scalar-enc-min", "t/scalar-enc", firstTypeIsNarrower},
 		{"two scalars, each adding a bound", "t/scalar-enc-min", "t/scalar-enc-max", relMeet},
 		{"two scalars differing in a keyword with no order", "t/scalar-enc-a", "t/scalar-enc-b", relMeet},
 		{"two scalars differing beside their bounds", "t/scalar-enc-min", "t/scalar-int", relOverlap},
 		{"two tuples, each adding a bound", "t/tuple-min", "t/tuple-max", relMeet},
-		{"two tuples, one constrained", "t/tuple-min", "t/tuple", relANarrower},
+		{"two tuples, one constrained", "t/tuple-min", "t/tuple", firstTypeIsNarrower},
 		{"two tuples of different lengths", "t/tuple", "t/tuple-long", relUnrelated},
-		{"two tuples, one position narrower", "t/tuple", "t/tuple-int", relANarrower},
-		{"two tuples, one position admitting null", "t/tuple", "t/tuple-null", relANarrower},
+		{"two tuples, one position narrower", "t/tuple", "t/tuple-int", firstTypeIsNarrower},
+		{"two tuples, one position admitting null", "t/tuple", "t/tuple-null", firstTypeIsNarrower},
 		{"a tuple with a rest against one with none", "t/tuple", "t/tuple-rest", relUnrelated},
-		{"two tuples, one rest narrower", "t/tuple-rest", "t/tuple-rest-int", relANarrower},
+		{"two tuples, one rest narrower", "t/tuple-rest", "t/tuple-rest-int", firstTypeIsNarrower},
 		{"two tuples whose rests share no value", "t/tuple-rest", "t/tuple-rest-str", relUnrelated},
 		{"two literals of one value, one described", "t/lit-a", "t/lit-a-doc", relOverlap},
 		{"a narrower element keeping a key the broader keeps otherwise", "t/list-i32-kept-other", "t/list-int-kept", relOverlap},
@@ -411,15 +411,15 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"disjoint values where one map is never empty", "t/map-str", "t/map-int-min", relDisjoint},
 		{"disjoint elements that both admit null overlap", "t/list-str-null", "t/list-int-null-min", relOverlap},
 		{"disjoint elements where only one admits null", "t/list-str-null", "t/list-int-min", relDisjoint},
-		{"nested lists", "t/list-list-int", "t/list-list-i32", relBNarrower},
+		{"nested lists", "t/list-list-int", "t/list-list-i32", secondTypeIsNarrower},
 		{"a list against a map", "t/list-int", "t/map-int", relDisjoint},
 		{"enum members sharing no value, one list never empty", "t/list-enum-str-min", "t/list-enum-int", relDisjoint},
 		{"enum members sharing no value, both lists admitting the empty one", "t/list-enum-str", "t/list-enum-int", relOverlap},
-		{"a map value", "t/map-int", "t/map-i32", relBNarrower},
+		{"a map value", "t/map-int", "t/map-i32", secondTypeIsNarrower},
 		{"maps with different keys", "t/map-i32", "t/map-i32-keyed", relUnrelated},
 		{"nesting past the cap", "t/cycle", "t/cycle-b", relUnrelated},
-		{"an enum within another of a broader value type", "t/enum-integer-1", "t/enum-number-12", relANarrower},
-		{"one set of values of a narrower value type", "t/enum-integer-12", "t/enum-number-12", relANarrower},
+		{"an enum within another of a broader value type", "t/enum-integer-1", "t/enum-number-12", firstTypeIsNarrower},
+		{"one set of values of a narrower value type", "t/enum-integer-12", "t/enum-number-12", firstTypeIsNarrower},
 		{"one set of values of another type in another order", "t/enum-integer-12", "t/enum-number-21", relOverlap},
 		{"an enum within another of a narrower value type", "t/enum-number-1", "t/enum-integer-12", relMeet},
 		{"enums of different value types sharing some values", "t/enum-number-12.5", "t/enum-integer-13", relMeet},
@@ -428,18 +428,18 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"enums of overlapping value types sharing none", "t/enum-int32-1", "t/enum-uint32-2", relDisjoint},
 		{"an alias of an enum no member of which a kind admits", "t/alias-enum-str-max", prim(ir.PrimUUID), relDisjoint},
 		{"an alias of a const a kind refuses", "t/alias-lit-a-max", prim(ir.PrimInteger), relDisjoint},
-		{"an alias of a const a kind admits", "t/alias-lit-a-max", prim(ir.PrimString), relANarrower},
+		{"an alias of a const a kind admits", "t/alias-lit-a-max", prim(ir.PrimString), firstTypeIsNarrower},
 		{"an alias of an enum against a node of a kind no member meets", "t/alias-enum-big-max", "t/scalar-i32-doc", relDisjoint},
-		{"an alias of an enum against the enum", "t/alias-enum-ab", "t/enum-ab", relANarrower},
+		{"an alias of an enum against the enum", "t/alias-enum-ab", "t/enum-ab", firstTypeIsNarrower},
 		{"an alias of an enum against one it meets", "t/alias-enum-ab", "t/enum-bc", relMeet},
 		{"an alias of a list against one it meets", "t/alias-list-i32-min", "t/list-i32-max", relMeet},
-		{"an alias of a time scalar holding a bound a time meets", "t/lit-time", "t/alias-scalar-time", relANarrower},
+		{"an alias of a time scalar holding a bound a time meets", "t/lit-time", "t/alias-scalar-time", firstTypeIsNarrower},
 		{"an alias of a time holding docs a time scalar gives otherwise", "t/alias-lit-time-doc", "t/scalar-time-doc", relOverlap},
 		{"two aliases of one list saying it otherwise, judged as two scalars", "t/alias-list-i32-min", "t/alias-list-i32-min-doc", relUnrelated},
 		{"a time against an alias of a time scalar the view cannot read", "t/lit-time", "t/alias-time-ref", relOverlap},
 		{"two enums differing in closedness", "t/enum-str", "t/enum-str-closed", relOverlap},
-		{"an alias of the top type against the top it stands for", "t/alias-doc-scalar-any", "t/scalar-any", relANarrower},
-		{"an alias adding null to an enum against the enum", "t/alias-enum-str-null", "t/enum-str", relBNarrower},
+		{"an alias of the top type against the top it stands for", "t/alias-doc-scalar-any", "t/scalar-any", firstTypeIsNarrower},
+		{"an alias adding null to an enum against the enum", "t/alias-enum-str-null", "t/enum-str", secondTypeIsNarrower},
 		{"an alias adding null to an enum against a kind holding it", "t/alias-enum-str-null", prim(ir.PrimString), relOverlap},
 	} {
 		want := tc.want
@@ -449,22 +449,22 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 
 	nullTwin := ref("t/lit-a-h2")
 	nullTwin.Nullable = true
-	assert.Equal(t, relBNarrower, j.relate(nullTwin, ref("t/lit-a-h1")), "identical hoisted nodes order by null")
-	assert.Equal(t, relANarrower, j.relate(ref("t/lit-a-h1"), nullTwin), "in either order")
+	assert.Equal(t, secondTypeIsNarrower, j.relate(nullTwin, ref("t/lit-a-h1")), "identical hoisted nodes order by null")
+	assert.Equal(t, firstTypeIsNarrower, j.relate(ref("t/lit-a-h1"), nullTwin), "in either order")
 
 	nullInt := primRef(ir.PrimInteger)
 	nullInt.Nullable = true
-	assert.Equal(t, relANarrower, j.relate(ref("t/lit-null"), nullInt), "a null literal against a nullable integer")
-	assert.Equal(t, relBNarrower, j.relate(nullInt, ref("t/lit-null")), "a nullable integer against a null literal")
+	assert.Equal(t, firstTypeIsNarrower, j.relate(ref("t/lit-null"), nullInt), "a null literal against a nullable integer")
+	assert.Equal(t, secondTypeIsNarrower, j.relate(nullInt, ref("t/lit-null")), "a nullable integer against a null literal")
 
 	nullString := primRef(ir.PrimString)
 	nullString.Nullable = true
-	assert.Equal(t, relANarrower, j.relate(ref("t/alias-enum-str-null"), nullString),
+	assert.Equal(t, firstTypeIsNarrower, j.relate(ref("t/alias-enum-str-null"), nullString),
 		"an alias admitting null within a kind whose reference admits null too")
 
 	nullTime := ref("t/scalar-time")
 	nullTime.Nullable = true
-	assert.Equal(t, relANarrower, j.relate(ref("t/lit-null"), nullTime), "a null literal against a time scalar admitting null")
+	assert.Equal(t, firstTypeIsNarrower, j.relate(ref("t/lit-null"), nullTime), "a null literal against a time scalar admitting null")
 	assert.Equal(t, relDisjoint, j.relate(ref("t/lit-null"), ref("t/scalar-time")), "and against one that does not")
 }
 
@@ -479,10 +479,10 @@ func TestRelateKinds_ReadsAHeldFormatAsAStringFormat(t *testing.T) {
 		k    valueKind
 		want relation
 	}{
-		{"the top", valueKind{prim: ir.PrimAny}, relANarrower},
+		{"the top", valueKind{prim: ir.PrimAny}, firstTypeIsNarrower},
 		{"itself", held, relSame},
 		{"another held format", valueKind{prim: ir.PrimString, format: "other"}, relDisjoint},
-		{"string", valueKind{prim: ir.PrimString}, relANarrower},
+		{"string", valueKind{prim: ir.PrimString}, firstTypeIsNarrower},
 		{"a string format", valueKind{prim: ir.PrimDate}, relDisjoint},
 	} {
 		assert.Equal(t, tc.want, relateKinds(held, tc.k), tc.name)
@@ -599,22 +599,22 @@ func TestTypeJudge_AnEncodedScalarRelatesAsItsValues(t *testing.T) {
 		a, b ir.TypeID
 		want relation
 	}{
-		{"t/unixtime-int", prim(ir.PrimInteger), relANarrower},
-		{"t/unixtime-int", prim(ir.PrimNumber), relANarrower},
+		{"t/unixtime-int", prim(ir.PrimInteger), firstTypeIsNarrower},
+		{"t/unixtime-int", prim(ir.PrimNumber), firstTypeIsNarrower},
 		{"t/unixtime-int", prim(ir.PrimInt64), relOverlap},
 		{"t/unixtime-int", prim(ir.PrimString), relDisjoint},
 		{"t/unixtime-int", prim(ir.PrimDatetimeOffset), relDisjoint},
 		{"t/unixtime-int", "t/http-date", relDisjoint},
 		{"t/unixtime-int", "t/enum-seconds", relOverlap},
 		{"t/unixtime-num", prim(ir.PrimInteger), relOverlap},
-		{"t/unixtime-str", prim(ir.PrimString), relANarrower},
+		{"t/unixtime-str", prim(ir.PrimString), firstTypeIsNarrower},
 		{"t/unixtime-str", prim(ir.PrimInteger), relDisjoint},
-		{"t/http-date", prim(ir.PrimDatetimeOffset), relANarrower},
-		{"t/http-date", prim(ir.PrimString), relANarrower},
+		{"t/http-date", prim(ir.PrimDatetimeOffset), firstTypeIsNarrower},
+		{"t/http-date", prim(ir.PrimString), firstTypeIsNarrower},
 		{"t/http-date", prim(ir.PrimInteger), relDisjoint},
 		{"t/http-date", "t/enum-http-date", relOverlap},
 		{"t/offset-base64", "t/enum-base64", relOverlap},
-		{"t/byte", prim(ir.PrimBytes), relANarrower},
+		{"t/byte", prim(ir.PrimBytes), firstTypeIsNarrower},
 		{"t/byte", "t/base64url", relOverlap},
 		{"t/enum-http-date", prim(ir.PrimDatetimeOffset), relDisjoint},
 	} {
@@ -728,8 +728,8 @@ func TestRelation_Flipped(t *testing.T) {
 	for _, r := range []relation{relUnrelated, relDisjoint, relOverlap, relSame, relMeet} {
 		assert.Equal(t, r, r.flipped())
 	}
-	assert.Equal(t, relBNarrower, relANarrower.flipped())
-	assert.Equal(t, relANarrower, relBNarrower.flipped())
+	assert.Equal(t, secondTypeIsNarrower, firstTypeIsNarrower.flipped())
+	assert.Equal(t, firstTypeIsNarrower, secondTypeIsNarrower.flipped())
 }
 
 func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
@@ -813,25 +813,25 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		{"a model and a list", "t/model", "t/list", relDisjoint},
 		{"a map and a tuple", "t/map", "t/tuple", relDisjoint},
 		{"a model and a union that may hold it", "t/model", "t/union", relUnrelated},
-		{"a model and an inclusive union one variant of which holds it", "t/model", "t/holds", relANarrower},
-		{"a model and an exclusive union one variant of which alone holds it", "t/model", "t/one-holds", relANarrower},
+		{"a model and an inclusive union one variant of which holds it", "t/model", "t/holds", firstTypeIsNarrower},
+		{"a model and an exclusive union one variant of which alone holds it", "t/model", "t/one-holds", firstTypeIsNarrower},
 		{"a model and an exclusive union two variants of which hold it", "t/model", "t/two-hold", relUnrelated},
 		{"a model and an exclusive union another variant of which may hold it", "t/model", "t/may-hold", relUnrelated},
 		{"a model and a discriminated union holding it", "t/model", "t/routes", relUnrelated},
 		{"a model and a key-tagged union holding it", "t/model", "t/keyed", relUnrelated},
-		{"a list and a union holding it", "t/list", "t/holds", relANarrower},
+		{"a list and a union holding it", "t/list", "t/holds", firstTypeIsNarrower},
 		{"two unions", "t/holds", "t/one-holds", relUnrelated},
-		{"a union every variant of which is within a bare object", "t/of-models", "t/bare", relANarrower},
+		{"a union every variant of which is within a bare object", "t/of-models", "t/bare", firstTypeIsNarrower},
 		{"an open union every variant it lists of which is", "t/open-models", "t/bare", relUnrelated},
-		{"a model and an open union one variant of which holds it", "t/model", "t/open-models", relANarrower},
+		{"a model and an open union one variant of which holds it", "t/model", "t/open-models", firstTypeIsNarrower},
 		{"a union some variant of which is not", "t/holds", "t/bare", relUnrelated},
 		{"a closed union some variant of which is not", "t/closed-mix", "t/bare", relUnrelated},
 		{"a discriminated union every variant of which is", "t/routed", "t/bare", relUnrelated},
 		{"a union of no variant", "t/union", "t/bare", relUnrelated},
 		{"a model and a union one variant of which holds it, bounded beside", "t/model", "t/bounded", relUnrelated},
 		{"a model and a bounded alias of a union holding it", "t/model", "t/holds-alias", relUnrelated},
-		{"a model and an alias of a union holding it", "t/model", "t/plain-alias", relANarrower},
-		{"a bounded union every variant of which is within a bare object", "t/bounded-of-models", "t/bare", relANarrower},
+		{"a model and an alias of a union holding it", "t/model", "t/plain-alias", firstTypeIsNarrower},
+		{"a bounded union every variant of which is within a bare object", "t/bounded-of-models", "t/bare", firstTypeIsNarrower},
 		{"a list and a union", "t/list", "t/union", relUnrelated},
 		{"a model and an external", "t/model", "t/external", relUnrelated},
 		{"a model and an opaque scalar", "t/model", "t/opaque", relUnrelated},
@@ -845,31 +845,31 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		{"a list literal and a list", "t/lit-list", "t/list", relUnrelated},
 		{"a list literal and a model", "t/lit-list", "t/model", relDisjoint},
 		{"a model and an alias of another", "t/other", "t/alias-model", relUnrelated},
-		{"a model and an alias of itself", "t/model", "t/alias-model", relBNarrower},
-		{"a chain of aliases and the model at its end", "t/alias-chain", "t/model", relANarrower},
-		{"two links of one chain", "t/alias-chain", "t/alias-model", relANarrower},
-		{"a list and an alias of itself", "t/list", "t/alias-list", relBNarrower},
-		{"a model and its Base", "t/derived", "t/model", relANarrower},
-		{"a model and its Base's Base", "t/grandchild", "t/model", relANarrower},
-		{"a model and a mixin", "t/mixed", "t/model", relANarrower},
-		{"a model and the model an alias Base stands for", "t/via-alias", "t/model", relANarrower},
+		{"a model and an alias of itself", "t/model", "t/alias-model", secondTypeIsNarrower},
+		{"a chain of aliases and the model at its end", "t/alias-chain", "t/model", firstTypeIsNarrower},
+		{"two links of one chain", "t/alias-chain", "t/alias-model", firstTypeIsNarrower},
+		{"a list and an alias of itself", "t/list", "t/alias-list", secondTypeIsNarrower},
+		{"a model and its Base", "t/derived", "t/model", firstTypeIsNarrower},
+		{"a model and its Base's Base", "t/grandchild", "t/model", firstTypeIsNarrower},
+		{"a model and a mixin", "t/mixed", "t/model", firstTypeIsNarrower},
+		{"a model and the model an alias Base stands for", "t/via-alias", "t/model", firstTypeIsNarrower},
 		{"a Base the registry does not hold", "t/dangling", "t/model", relUnrelated},
-		{"a part the registry does not hold beside one that leads there", "t/partly-gone", "t/model", relANarrower},
-		{"an alias of a scalar is within the scalar it stands for", "t/scalar-on", "t/scalar", relANarrower},
+		{"a part the registry does not hold beside one that leads there", "t/partly-gone", "t/model", firstTypeIsNarrower},
+		{"an alias of a scalar is within the scalar it stands for", "t/scalar-on", "t/scalar", firstTypeIsNarrower},
 		{"models composing each other", "t/cycle-a", "t/cycle-b", relOverlap},
-		{"a model and a bare object", "t/model", "t/bare", relANarrower},
-		{"a map and a bare object", "t/map", "t/bare", relANarrower},
-		{"an object literal and a bare object", "t/lit-object", "t/bare", relANarrower},
-		{"an alias of a model and a bare object", "t/alias-model", "t/bare", relANarrower},
+		{"a model and a bare object", "t/model", "t/bare", firstTypeIsNarrower},
+		{"a map and a bare object", "t/map", "t/bare", firstTypeIsNarrower},
+		{"an object literal and a bare object", "t/lit-object", "t/bare", firstTypeIsNarrower},
+		{"an alias of a model and a bare object", "t/alias-model", "t/bare", firstTypeIsNarrower},
 		{"a list and a bare object", "t/list", "t/bare", relDisjoint},
 		{"a list literal and a bare object", "t/lit-list", "t/bare", relDisjoint},
 		{"a union and a bare object", "t/union", "t/bare", relUnrelated},
 		{"two bare objects declared apart", "t/bare", "t/bare-twin", relOverlap},
-		{"an alias of a bare object and that object", "t/alias-bare", "t/bare", relANarrower},
+		{"an alias of a bare object and that object", "t/alias-bare", "t/bare", firstTypeIsNarrower},
 		{"a model and an alias of a bare object, which may say more", "t/model", "t/alias-bare", relUnrelated},
 		{"a model and an object with a title", "t/model", "t/bare-titled", relUnrelated},
 		{"a map and an object with a title", "t/map", "t/bare-titled", relUnrelated},
-		{"an object with a title and a bare object", "t/bare-titled", "t/bare", relANarrower},
+		{"an object with a title and a bare object", "t/bare-titled", "t/bare", firstTypeIsNarrower},
 		{"a model and an alias of a list", "t/model", "t/alias-list", relDisjoint},
 		{"an alias chain is read to its end", "t/list", "t/alias-chain", relDisjoint},
 		{"an alias of a model against a kind", "t/alias-model", "t/prim/string", relDisjoint},
@@ -1060,7 +1060,7 @@ func TestTypeJudge_ComparesReferentsNotReferences(t *testing.T) {
 
 // TestTypeJudge_CopiesUnderAnotherBaseOverlap pins that a hoisted copy keeping
 // a reference is one type with a node held alike only where the two read it
-// against one base (Walk.Alike): elsewhere they are two types declared apart,
+// against one base (FieldDeclarationContext.Alike): elsewhere they are two types declared apart,
 // which overlap, whether the other is a copy or a node declared elsewhere.
 // Copies keeping none say the same under any base.
 func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
@@ -1080,7 +1080,7 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref"), ref("t/lit-a-ref1")), "a node declared apart")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-h1"), ref("t/lit-a-h2")), "copies keeping no reference")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-abs1"), ref("t/lit-a-abs2")), "copies keeping an absolute one")
-	assert.Equal(t, relANarrower, j.relate(ref("t/enum-str"), ref("t/enum-str-h")),
+	assert.Equal(t, firstTypeIsNarrower, j.relate(ref("t/enum-str"), ref("t/enum-str-h")),
 		"a node declared apart still wins over a hoisted copy")
 }
 
@@ -1107,7 +1107,7 @@ func TestTypeJudge_UnionVariantsStopAtTheirBudget(t *testing.T) {
 		targets[n-1] = "t/model"
 		reg["t/u"] = &ir.Union{ID: "t/u", Variants: variantsOf(targets...)}
 		g, _ := stubMerger(reg)
-		want := relANarrower
+		want := firstTypeIsNarrower
 		if n > maxVariantReads {
 			want = relUnrelated
 		}
@@ -1132,7 +1132,7 @@ func TestTypeJudge_AUnionWithinATypeStopsAtTheBudget(t *testing.T) {
 			"t/bare":  &ir.Model{ID: "t/bare"},
 			"t/u":     &ir.Union{ID: "t/u", Closed: true, Variants: variantsOf(targets...)},
 		})
-		want := relANarrower
+		want := firstTypeIsNarrower
 		if n > maxVariantReads/2 {
 			want = relUnrelated
 		}
@@ -1141,12 +1141,12 @@ func TestTypeJudge_AUnionWithinATypeStopsAtTheBudget(t *testing.T) {
 }
 
 // TestInstance_NamesTheKindOfAValue pins the kind of JSON instance the other
-// side of a judgment is asked of a structure's source as (Walk.Admits): a
+// side of a judgment is asked of a structure's source as (FieldDeclarationContext.Admits): a
 // primitive by its JSON spelling, an integer apart from a number with a
 // fraction, and a literal or a structure by its value.
 func TestInstance_NamesTheKindOfAValue(t *testing.T) {
 	t.Parallel()
-	for p, want := range map[ir.PrimKind]Instance{
+	for p, want := range map[ir.PrimKind]JSONInstanceKind{
 		ir.PrimBool: InstanceBoolean, ir.PrimInt32: InstanceInteger, ir.PrimInteger: InstanceInteger,
 		ir.PrimUint64: InstanceInteger, ir.PrimFloat64: InstanceNumber, ir.PrimNumber: InstanceNumber,
 		ir.PrimDecimal: InstanceNumber, ir.PrimString: InstanceString, ir.PrimBytes: InstanceString,
@@ -1156,7 +1156,7 @@ func TestInstance_NamesTheKindOfAValue(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		td   ir.TypeDef
-		want Instance
+		want JSONInstanceKind
 	}{
 		{&ir.Model{}, InstanceObject},
 		{&ir.MapT{}, InstanceObject},

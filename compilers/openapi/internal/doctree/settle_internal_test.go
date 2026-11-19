@@ -177,7 +177,7 @@ func TestLegacy_ALongScalarIsReadByKindAlone(t *testing.T) {
 }
 
 // read reads text with no node budget, which it must read.
-func read(t *testing.T, text string) Document {
+func read(t *testing.T, text string) ParsedYAMLDocument {
 	t.Helper()
 	doc, err := Read(t.Context(), []byte(text), budget.Unbounded())
 	require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestSettle_StopsOnceTheContextIsDone(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("a: [1, 2, 3]\n"), &root))
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	doc := Document{Root: &root}
+	doc := ParsedYAMLDocument{Root: &root}
 
 	err := settle(ctx, &doc, respelling{})
 

@@ -33,8 +33,8 @@ func needs(id string, typ ir.TypeRef) ir.Property {
 	return prop(id, typ, func(p *ir.Property) { p.Required = true })
 }
 
-// knotDoc is valueDoc holding defs.
-func knotDoc(defs ...ir.TypeDef) *ir.Document {
+// noFiniteValueDoc is valueDoc holding defs.
+func noFiniteValueDoc(defs ...ir.TypeDef) *ir.Document {
 	doc := valueDoc()
 	for _, td := range defs {
 		doc.Types[td.Common().ID] = td
@@ -51,7 +51,7 @@ func knotDoc(defs ...ir.TypeDef) *ir.Document {
 func TestValidate_ACompositionCycleIsReportedAtEachTypeOfIt(t *testing.T) {
 	t.Parallel()
 	cyclic := func(id string) *ir.TypeRef { r := ref(id); return &r }
-	doc := knotDoc(
+	doc := noFiniteValueDoc(
 		composed("t/a", cyclic("t/b")), composed("t/b", cyclic("t/a")), composed("t/c", cyclic("t/c")), composed("t/d", cyclic("t/a")),
 	)
 
@@ -62,7 +62,7 @@ func TestValidate_ACompositionCycleIsReportedAtEachTypeOfIt(t *testing.T) {
 	}, found(t, doc, cycleCode))
 	assert.Empty(t, found(t, doc, finiteCode), "a cycle of bases is told once, as a cycle")
 
-	chain := knotDoc(composed("t/a", cyclic("t/b")), composed("t/b", nil), composed("t/d", cyclic("t/a")))
+	chain := noFiniteValueDoc(composed("t/a", cyclic("t/b")), composed("t/b", nil), composed("t/d", cyclic("t/a")))
 	assert.Empty(t, found(t, chain, cycleCode), "a chain of bases that ends")
 }
 
@@ -75,7 +75,7 @@ func TestValidate_ACycleThroughAMixinNamesTheMixin(t *testing.T) {
 	b := composed("t/b", nil)
 	b.Mixins = []ir.TypeRef{ref("t/a")}
 
-	got := found(t, knotDoc(a, b, composed("t/ok", nil)), cycleCode)
+	got := found(t, noFiniteValueDoc(a, b, composed("t/ok", nil)), cycleCode)
 
 	assert.Equal(t, []finding{
 		{"t/a", "composition never ends: mixin 1 t/b leads back into a cycle of bases and mixins"},
@@ -83,15 +83,15 @@ func TestValidate_ACycleThroughAMixinNamesTheMixin(t *testing.T) {
 	}, got)
 }
 
-// TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot holds a type
+// TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle holds a type
 // that needs itself, through a required property, an element a list must hold,
 // a value a map must hold, a position a tuple must fill, a union's only
-// variant, or a base, to a warning at each type of the knot, naming what leads
+// variant, or a base, to a warning at each type of the type cycle, naming what leads
 // on, never a base of a cycle told already; and the nearest founded type to
 // none: a property not required, a
 // reference that admits null, a list that may be empty, a union with another
 // variant, a type that only needs one with no finite value.
-func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot(t *testing.T) {
+func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *testing.T) {
 	t.Parallel()
 	const none = ", which has none either"
 	list := func(id, elem string, minItems *int64) *ir.List {
@@ -109,7 +109,7 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot(t *testing
 		doc  *ir.Document
 		want []finding
 	}{
-		{"a required property of its own type, a mutual pair, and a type needing one", knotDoc(
+		{"a required property of its own type, a mutual pair, and a type needing one", noFiniteValueDoc(
 			composed("t/n", nil, needs("p/n/0", ref("t/n"))),
 			composed("t/x", nil, needs("p/x/0", ref("t/y"))), composed("t/y", nil, needs("p/y/0", ref("t/x"))),
 			composed("t/h", nil, needs("p/h/0", ref("t/n"))),
@@ -118,71 +118,71 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot(t *testing
 			{"t/x", "no finite value: each needs its required property 0, t/y" + none},
 			{"t/y", "no finite value: each needs its required property 0, t/x" + none},
 		}},
-		{"the same properties, not required", knotDoc(
+		{"the same properties, not required", noFiniteValueDoc(
 			composed("t/n", nil, prop("p/n/0", ref("t/n"), nil)),
 			composed("t/x", nil, prop("p/x/0", ref("t/y"), nil)), composed("t/y", nil, needs("p/y/0", ref("t/x"))),
 		), nil},
-		{"the same properties, one admitting null", knotDoc(
+		{"the same properties, one admitting null", noFiniteValueDoc(
 			composed("t/x", nil, needs("p/x/0", ref("t/y"))), composed("t/y", nil, needs("p/y/0", maybe("t/x"))),
 		), nil},
-		{"a list that must hold an element that needs the list", knotDoc(
+		{"a list that must hold an element that needs the list", noFiniteValueDoc(
 			list("t/k", "t/t", new(int64(1))), composed("t/t", nil, needs("p/t/0", ref("t/k"))),
 		), []finding{
 			{"t/k", "no finite value: each needs its element, t/t" + none},
 			{"t/t", "no finite value: each needs its required property 0, t/k" + none},
 		}},
-		{"the same list, which may be empty", knotDoc(
+		{"the same list, which may be empty", noFiniteValueDoc(
 			list("t/k", "t/t", nil), composed("t/t", nil, needs("p/t/0", ref("t/k"))),
 		), nil},
-		{"the same list, with a minimum of none", knotDoc(
+		{"the same list, with a minimum of none", noFiniteValueDoc(
 			list("t/k", "t/t", new(int64(0))), composed("t/t", nil, needs("p/t/0", ref("t/k"))),
 		), nil},
-		{"a map that must hold a value of its own type", knotDoc(
+		{"a map that must hold a value of its own type", noFiniteValueDoc(
 			&ir.MapT{ID: "t/mp", Key: new(strT), Value: ref("t/mp"), Constraints: &ir.Constraints{MinProps: new(int64(1))}, Provenance: provAt("t/mp")},
 		), []finding{{"t/mp", "no finite value: each needs its value, t/mp" + none}}},
-		{"a tuple that must hold itself", knotDoc(
+		{"a tuple that must hold itself", noFiniteValueDoc(
 			tuple("t/p", new(int64(2)), nil, ref("t/prim/string"), ref("t/p")),
 		), []finding{{"t/p", "no finite value: each needs its element 1, t/p" + none}}},
-		{"a tuple that must hold itself past its leading positions", knotDoc(
+		{"a tuple that must hold itself past its leading positions", noFiniteValueDoc(
 			tuple("t/p", new(int64(2)), new(ref("t/p")), ref("t/prim/string")),
 		), []finding{{"t/p", "no finite value: each needs its element 1, t/p" + none}}},
-		{"the same tuple, which need not hold that position", knotDoc(
+		{"the same tuple, which need not hold that position", noFiniteValueDoc(
 			tuple("t/p", new(int64(1)), new(ref("t/p")), ref("t/prim/string"), ref("t/p")),
 		), nil},
-		{"the same tuple, with no minimum", knotDoc(
+		{"the same tuple, with no minimum", noFiniteValueDoc(
 			tuple("t/p", nil, nil, ref("t/prim/string"), ref("t/p")),
 		), nil},
-		{"a tuple whose element admits null", knotDoc(
+		{"a tuple whose element admits null", noFiniteValueDoc(
 			tuple("t/p", new(int64(1)), nil, maybe("t/p")),
 		), nil},
-		{"a union whose one variant is the union", knotDoc(
+		{"a union whose one variant is the union", noFiniteValueDoc(
 			&ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: ref("t/u")}}, Provenance: provAt("t/u")},
 		), []finding{{"t/u", "no finite value: each needs its variant 0, t/u" + none}}},
-		{"a union with a second variant that is a string", knotDoc(
+		{"a union with a second variant that is a string", noFiniteValueDoc(
 			&ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: ref("t/u")}, {Type: strT}}, Provenance: provAt("t/u")},
 		), nil},
-		{"a union whose variant admits null", knotDoc(
+		{"a union whose variant admits null", noFiniteValueDoc(
 			&ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: maybe("t/u")}}, Provenance: provAt("t/u")},
 		), nil},
-		{"a base that needs the type", knotDoc(
+		{"a base that needs the type", noFiniteValueDoc(
 			composed("t/a", new(ref("t/b"))), composed("t/b", nil, needs("p/b/0", ref("t/a"))),
 		), []finding{
 			{"t/a", "no finite value: each needs its base, t/b" + none},
 			{"t/b", "no finite value: each needs its required property 0, t/a" + none},
 		}},
-		{"a cycle of bases whose types each require the other", knotDoc(
+		{"a cycle of bases whose types each require the other", noFiniteValueDoc(
 			composed("t/a", new(ref("t/b")), needs("p/a/0", ref("t/b"))), composed("t/b", new(ref("t/a")), needs("p/b/0", ref("t/a"))),
 		), []finding{
 			{"t/a", "no finite value: each needs its required property 0, t/b" + none},
 			{"t/b", "no finite value: each needs its required property 0, t/a" + none},
 		}},
-		{"a scalar alias of itself", knotDoc(
+		{"a scalar alias of itself", noFiniteValueDoc(
 			&ir.Scalar{ID: "t/s", Base: new(ref("t/s")), Provenance: provAt("t/s")},
 		), []finding{{"t/s", "no finite value: each needs its base, t/s" + none}}},
-		{"a scalar alias admitting null of itself", knotDoc(
+		{"a scalar alias admitting null of itself", noFiniteValueDoc(
 			&ir.Scalar{ID: "t/s", Base: new(maybe("t/s")), Provenance: provAt("t/s")},
 		), nil},
-		{"a type holding itself in a property that is not required", knotDoc(
+		{"a type holding itself in a property that is not required", noFiniteValueDoc(
 			composed("t/node", nil, prop("p/node/next", ref("t/node"), nil)),
 		), nil},
 	} {
@@ -199,30 +199,30 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot(t *testing
 // type of the one reads a base whatever the other needs.
 func TestValidate_ABaseThatNeedsItsDerivedTypeIsToldAsNoFiniteValueAlone(t *testing.T) {
 	t.Parallel()
-	doc := knotDoc(composed("t/a", new(ref("t/b"))), composed("t/b", nil, needs("p/b/0", ref("t/a"))))
+	doc := noFiniteValueDoc(composed("t/a", new(ref("t/b"))), composed("t/b", nil, needs("p/b/0", ref("t/a"))))
 
 	assert.Empty(t, found(t, doc, cycleCode))
 	assert.Len(t, found(t, doc, finiteCode), 2)
 }
 
-// TestValidate_TheKnotsAreReportedInIDOrderCompositionFirst holds the findings
+// TestValidate_TheTypeCyclesAreReportedInIDOrderCompositionFirst holds the findings
 // of one document to the compositions' first, then the values', each in ID
 // order, the types declared in the reverse.
-func TestValidate_TheKnotsAreReportedInIDOrderCompositionFirst(t *testing.T) {
+func TestValidate_TheTypeCyclesAreReportedInIDOrderCompositionFirst(t *testing.T) {
 	t.Parallel()
-	doc := knotDoc(
+	doc := noFiniteValueDoc(
 		composed("t/z", nil, needs("p/z/0", ref("t/z"))), composed("t/y", new(ref("t/y"))),
 		composed("t/b", nil, needs("p/b/0", ref("t/b"))), composed("t/a", new(ref("t/a"))),
 	)
 
-	got := onlyKnots(validated(t, doc))
+	got := onlyNoFiniteValueFindings(validated(t, doc))
 
 	assert.Equal(t, []string{"t/a", "t/y", "t/b", "t/z"}, pointers(got))
 	assert.Equal(t, []string{cycleCode, cycleCode, finiteCode, finiteCode}, irtest.DiagCodes(got))
 }
 
-// onlyKnots returns the findings of the two knot codes, in the order drawn.
-func onlyKnots(diags []ir.Diagnostic) []ir.Diagnostic {
+// onlyNoFiniteValueFindings returns the findings of the two type cycle codes, in the order drawn.
+func onlyNoFiniteValueFindings(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	for _, d := range diags {
 		if d.Code == cycleCode || d.Code == finiteCode {

@@ -191,7 +191,7 @@ func TestPrincipalKept_ADraftsDependenciesBesideAKeyNoDialectDefines(t *testing.
 			"    Alike: {allOf: [{"+draft07+", type: string, dependencies: {a: [z]}}], dependencies: {a: [z]}}\n"+
 			"    Alone: {allOf: [{"+draft07+", type: string, dependencies: {a: [z]}}]}\n"+
 			"    Model: {type: object, allOf: [{"+draft07+", dependencies: {a: [z]}}], dependencies: {b: [z]}}\n"))
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken), "no value is refused its key")
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed), "no value is refused its key")
 
 	principal := keptOn(t, doc, "Principal")
 	assert.Equal(t, `{"b":["z"]} [out_of_scope]`, principal["openapi:dependencies"])
@@ -548,12 +548,12 @@ func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 	assert.Equal(t, keptOn(t, doc, "Alike"), keptOn(t, doc, "Free"), "alone, it is kept as written flat")
 }
 
-// TestPrincipalKept_AVoicesBuildKeepStaysThePositions pins what the build of
+// TestPrincipalKept_AFoldedBranchesBuildKeepStaysThePositions pins what the build of
 // a principal's node keeps of the position's own keywords, read beside the
 // principal: a 3.0 exclusive modifier with no bound beside it. It is the
 // position's, held back with nothing of the principal's, and one the principal
 // writes alike is kept once.
-func TestPrincipalKept_AVoicesBuildKeepStaysThePositions(t *testing.T) {
+func TestPrincipalKept_AFoldedBranchesBuildKeepStaysThePositions(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
 		"    Beside: {allOf: [{type: number, format: fixed}], exclusiveMinimum: true}\n"+

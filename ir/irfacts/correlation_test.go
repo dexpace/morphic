@@ -64,7 +64,7 @@ func opsDoc(ops []ir.Operation, defs ...ir.TypeDef) *ir.Document {
 }
 
 // keysOf returns the key of each id, "" for one that has none.
-func keysOf(facts *irfacts.Index, ids ...string) map[string]string {
+func keysOf(facts *irfacts.DocumentFacts, ids ...string) map[string]string {
 	got := map[string]string{}
 	for _, id := range ids {
 		key, ok := facts.Correlation(id)
@@ -664,7 +664,7 @@ func TestCorrelation_TakesTheLeastKeyAmongThePositionsNamingAType(t *testing.T) 
 
 func TestCorrelation_ADocumentWithNothingNamedKeysNothing(t *testing.T) {
 	t.Parallel()
-	var zero irfacts.Index
+	var zero irfacts.DocumentFacts
 	_, fromZero := zero.Correlation("t/anon/x")
 	_, fromNil := irfacts.New(nil).Correlated("type:X")
 	var typedNil *ir.Model

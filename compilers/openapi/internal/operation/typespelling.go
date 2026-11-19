@@ -58,16 +58,16 @@ func (s typeSpelling) schemaScope() string { return s.carries[len(s.carries)-1] 
 // Property.Encoding.MediaType), where `schema` would push the media type into
 // Unmodeled. The specification gives no precedence. The election is
 // unconditional, even where the entry names no schema (GitHub #320).
-func electTypeSpelling(c service.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenceable],
+func electTypeSpelling(c service.Ctx, w operationLoweringState, js *oas3.JSONSchema[oas3.Referenceable],
 	content *sequencedmap.Map[string, *soa.MediaType], root *yaml.Node, at jsontext.Pointer,
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
 	// A content parameter or header declares exactly one media type;
-	// electContentEntry takes it, and passedOverEntries keeps and reports what a
+	// chooseSingleContentEntry takes it, and passedOverEntries keeps and reports what a
 	// document declares beyond it, rather than dropping that in silence (GitHub
 	// #139).
 	var diags []ir.Diagnostic
-	mt, media, ok := electContentEntry(content)
+	mt, media, ok := chooseSingleContentEntry(content)
 	if ok {
 		mediaPtr := at + ids.Ptr("content", mt)
 		elected, electedDiags := contentSpelling(c, media, mt, mediaPtr, carrier, home)
@@ -138,7 +138,7 @@ func passedOverSpelling(c service.Ctx, u *ir.Unmodeled, root *yaml.Node, passed,
 			"both, so it lowered as its %s, with %s kept verbatim under Unmodeled", elected, passed))
 }
 
-// electContentEntry returns the one entry a content-style header or parameter
+// chooseSingleContentEntry returns the one entry a content-style header or parameter
 // lowers through, or false where no entry holds one.
 //
 // OpenAPI requires exactly one entry at both positions, and ir.Property and
@@ -146,7 +146,7 @@ func passedOverSpelling(c service.Ctx, u *ir.Unmodeled, root *yaml.Node, passed,
 // election. It takes the lowest key as written, which no declaration order can
 // change: the specification ranks none, and the entry a run lowers must not
 // follow the order of a map.
-func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (string, *soa.MediaType, bool) {
+func chooseSingleContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (string, *soa.MediaType, bool) {
 	var elected string
 	var chosen *soa.MediaType
 	for mt, media := range content.All() {

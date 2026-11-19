@@ -44,7 +44,7 @@ func TestBind_AReadBarredToOneAskerIsNoAnswerOfTheDocument(t *testing.T) {
 		table := bound(t, head+"components:\n  schemas:\n"+schemas, cfg)
 
 		assert.Equal(t, bind.Resolved, entryAt(t, table, "/components/schemas/B").Chain.Status)
-		e, ok := table.Entry(bind.Position{Doc: docNamed(t, table, evil), Pointer: "/X"})
+		e, ok := table.Entry(bind.DocumentPointer{Doc: docNamed(t, table, evil), Pointer: "/X"})
 		require.True(t, ok)
 		assert.Equal(t, bind.Unresolved, e.Hop.Status)
 		assert.Equal(t, why, e.Hop.Detail)

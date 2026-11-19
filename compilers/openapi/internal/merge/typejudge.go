@@ -35,10 +35,10 @@ const (
 	relOverlap
 	// relSame is a pair that is one type.
 	relSame
-	// relANarrower says the first type is within the second.
-	relANarrower
-	// relBNarrower says the second type is within the first.
-	relBNarrower
+	// firstTypeIsNarrower says the first type is within the second.
+	firstTypeIsNarrower
+	// secondTypeIsNarrower says the second type is within the first.
+	secondTypeIsNarrower
 	// relMeet is a pair of nodes each saying what the other lacks, in their
 	// bounds, members or what else they say (verdict): a value of both is one of
 	// a node holding both, so each folds into the field (builder).
@@ -47,11 +47,11 @@ const (
 
 // flipped is the relation seen from the other side.
 func (r relation) flipped() relation {
-	if r == relANarrower {
-		return relBNarrower
+	if r == firstTypeIsNarrower {
+		return secondTypeIsNarrower
 	}
-	if r == relBNarrower {
-		return relANarrower
+	if r == secondTypeIsNarrower {
+		return firstTypeIsNarrower
 	}
 	return r
 }
@@ -98,7 +98,7 @@ type declarationSites struct {
 	// walk is Merger.Walk, whose Alike says two nodes held alike keeping a
 	// reference are one type only where they read it against one base, and
 	// whose Admits says whether a node's source admits a kind of instance.
-	walk Walk
+	walk FieldDeclarationContext
 }
 
 // relateFrom compares a with b, two types at depth: a field's own at 0, a
@@ -137,9 +137,9 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	case aTop && bTop:
 		// Neither loses for being the top type; what else each says decides.
 	case aTop:
-		return relBNarrower
+		return secondTypeIsNarrower
 	case bTop:
-		return relANarrower
+		return firstTypeIsNarrower
 	}
 	rel := j.arms(a, at, b, bt, depth)
 	if rel == relUnrelated {
@@ -157,9 +157,9 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 // reference says, so the two overlap.
 func (j typeJudge) heldNull(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, rel relation) relation {
 	switch {
-	case rel == relANarrower && !b.Nullable && j.nullThroughChain(at):
+	case rel == firstTypeIsNarrower && !b.Nullable && j.nullThroughChain(at):
 		return relOverlap
-	case rel == relBNarrower && !a.Nullable && j.nullThroughChain(bt):
+	case rel == secondTypeIsNarrower && !a.Nullable && j.nullThroughChain(bt):
 		return relOverlap
 	default:
 		return rel
@@ -229,9 +229,9 @@ func (j typeJudge) structures(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.T
 	case aWithin && bWithin:
 		return j.sites.copies(a, at, b, bt)
 	case aWithin:
-		return relANarrower
+		return firstTypeIsNarrower
 	case bWithin:
-		return relBNarrower
+		return secondTypeIsNarrower
 	default:
 		return relUnrelated
 	}
@@ -364,12 +364,12 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 // againstOtherInstance is the verdict on td, a structure through any aliases,
 // against a type whose values are of the kind other, from td's side. Where
 // td's source and each alias's admit every instance of that kind, exactly
-// (Walk.Admits), td admits every value of the other type, so that one is
+// (FieldDeclarationContext.Admits), td admits every value of the other type, so that one is
 // narrower: `properties` alone constrains objects and admits a string. A node
 // saying more than that, such as examples, overlaps instead, as topAt reads an
 // alias of `{}`, since a type replacing it would lose it. Any other structure
 // is disjoint from the other type.
-func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, depth int, other Instance) relation {
+func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, depth int, other JSONInstanceKind) relation {
 	chain, end := j.aliasChain(td)
 	if !isStructural(end) || !sourceAdmits(j.sites.walk, end.Common().Provenance, other) {
 		return relDisjoint
@@ -379,31 +379,31 @@ func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, de
 	// sites reached through one may hold them; one written there keeps them on
 	// itself alone (docs/ir/annotations.md#what-a-reference-carries-down).
 	carried := depth == 0 && !hoistedAt(td, sites)
-	saysNothing := structureSaysNothing(end, carried && len(chain) == 0)
+	saysNothing := structureAddsNothingBeyondBase(end, carried && len(chain) == 0)
 	for k, s := range chain {
 		if !sourceAdmits(j.sites.walk, s.Provenance, other) {
 			return relDisjoint
 		}
-		saysNothing = saysNothing && aliasSaysNothing(s, carried && k == 0)
+		saysNothing = saysNothing && aliasAddsNothingBeyondBase(s, carried && k == 0)
 	}
 	if !saysNothing {
 		return relOverlap
 	}
-	return relBNarrower
+	return secondTypeIsNarrower
 }
 
 // sourceAdmits reports whether the source written at at admits every instance
-// of kind, by a read of walk's that follows all it writes (Walk.Admits): one
+// of kind, by a read of walk's that follows all it writes (FieldDeclarationContext.Admits): one
 // that does not decides nothing, and the structure stays disjoint from the
 // other type.
-func sourceAdmits(walk Walk, at ir.Provenance, kind Instance) bool {
+func sourceAdmits(walk FieldDeclarationContext, at ir.Provenance, kind JSONInstanceKind) bool {
 	admits, exact := walk.Admits(at, kind)
 	return admits && exact
 }
 
 // primInstance returns the kind of JSON instance a value of p is: a boolean, an
 // integer, a number, or a string, which every other primitive is written as.
-func primInstance(p ir.PrimKind) Instance {
+func primInstance(p ir.PrimKind) JSONInstanceKind {
 	switch {
 	case p == ir.PrimBool:
 		return InstanceBoolean
@@ -419,7 +419,7 @@ func primInstance(p ir.PrimKind) Instance {
 // nodeInstance returns the kind of JSON instance td's values are, td being a
 // literal or a structure (saysItsValues): an object for a model or a map, an
 // array for a list or a tuple, and a literal's value's own.
-func nodeInstance(td ir.TypeDef) Instance {
+func nodeInstance(td ir.TypeDef) JSONInstanceKind {
 	kind := instanceKind(td)
 	lit, isLit := td.(*ir.Literal)
 	switch {
@@ -442,11 +442,11 @@ func nodeInstance(td ir.TypeDef) Instance {
 	}
 }
 
-// structureSaysNothing reports whether td holds nothing in its TypeCommon but
+// structureAddsNothingBeyondBase reports whether td holds nothing in its TypeCommon but
 // where it was declared, and, where carried, what a reference carries down to
-// its use, as aliasSaysNothing reads an alias. What else a structure holds
+// its use, as aliasAddsNothingBeyondBase reads an alias. What else a structure holds
 // constrains only values of its own instance type.
-func structureSaysNothing(td ir.TypeDef, carried bool) bool {
+func structureAddsNothingBeyondBase(td ir.TypeDef, carried bool) bool {
 	c := siteless(*td.Common())
 	if carried {
 		c.Docs, c.Deprecation, c.Sensitive = ir.Docs{}, nil, false
@@ -521,7 +521,7 @@ func (j typeJudge) againstKind(td ir.TypeDef, kindRef ir.TypeRef, kindNode ir.Ty
 	case !j.admits(kindRef, lit.Value):
 		return relDisjoint
 	case saysOnlyFormat(kindNode):
-		return relANarrower
+		return firstTypeIsNarrower
 	default:
 		return j.literalBesideDetail(lit, kindNode)
 	}
@@ -654,9 +654,9 @@ func sameNodes(a, b ir.TypeRef, aHoisted, bHoisted bool) relation {
 	case aHoisted && bHoisted:
 		return byNull(a, b)
 	case bHoisted:
-		return relANarrower
+		return firstTypeIsNarrower
 	case aHoisted:
-		return relBNarrower
+		return secondTypeIsNarrower
 	default:
 		return relOverlap
 	}
@@ -732,10 +732,10 @@ func fromSpelling(r spelling.Relation) relation {
 		return relSame
 	}
 	if r == spelling.ANarrower {
-		return relANarrower
+		return firstTypeIsNarrower
 	}
 	if r == spelling.BNarrower {
-		return relBNarrower
+		return secondTypeIsNarrower
 	}
 	if r == spelling.Overlap {
 		return relOverlap
@@ -767,7 +767,7 @@ func (r registry) topAt(td ir.TypeDef, depth int) bool {
 		if !alias {
 			return isTop(td)
 		}
-		if s.Base == nil || !aliasSaysNothing(s, carried) {
+		if s.Base == nil || !aliasAddsNothingBeyondBase(s, carried) {
 			return false
 		}
 		next, ok := r.resolve(s.Base.Target)
@@ -779,10 +779,10 @@ func (r registry) topAt(td ir.TypeDef, depth int) bool {
 	return false
 }
 
-// aliasSaysNothing reports whether the alias s holds nothing but its base and
+// aliasAddsNothingBeyondBase reports whether the alias s holds nothing but its base and
 // where it was declared, and, where carried, what a reference carries down to
 // its use.
-func aliasSaysNothing(s *ir.Scalar, carried bool) bool {
+func aliasAddsNothingBeyondBase(s *ir.Scalar, carried bool) bool {
 	bare := *s
 	bare.TypeCommon, bare.Base = siteless(s.TypeCommon), nil
 	if carried {
@@ -824,9 +824,9 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRe
 	bareK := valueKind{prim: bareKind}
 	rel := relateKinds(k, bareK)
 	if rel == relSame {
-		return relANarrower
+		return firstTypeIsNarrower
 	}
-	if rel == relBNarrower {
+	if rel == secondTypeIsNarrower {
 		rel = relOverlap
 	}
 	if en, ok := end.(*ir.Enum); ok && rel == relOverlap && noMemberMeets(en, bareK, bare.Nullable) {
@@ -843,11 +843,11 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRe
 func literalAgainst(v ir.Value, kind valueKind, nullable bool) relation {
 	switch {
 	case v.Kind == ir.ValueNull && nullable:
-		return relANarrower
+		return firstTypeIsNarrower
 	case v.Kind == ir.ValueNull:
 		return relDisjoint
 	case kind.admits(v):
-		return relANarrower
+		return firstTypeIsNarrower
 	case !kind.judged():
 		return relOverlap
 	default:
@@ -935,7 +935,7 @@ func (j typeJudge) scalars(a, b *ir.Scalar) relation {
 	}
 	values := boundsHolding(a.Constraints, b.Constraints)
 	detail, adoptable := j.detailOf(extras{Common: a.TypeCommon}, extras{Common: b.TypeCommon})
-	if values == holdsBoth && detail != holdsBoth {
+	if values == bothNodesHoldPart && detail != bothNodesHoldPart {
 		return relUnrelated
 	}
 	return verdict(values, detail, adoptable)
@@ -1036,9 +1036,9 @@ func byNull(a, b ir.TypeRef) relation {
 	case a.Nullable == b.Nullable:
 		return relSame
 	case a.Nullable:
-		return relBNarrower
+		return secondTypeIsNarrower
 	default:
-		return relANarrower
+		return firstTypeIsNarrower
 	}
 }
 
@@ -1119,7 +1119,7 @@ func formatAgainst(f string, k valueKind) relation {
 	case k.format == f:
 		return relSame
 	case k.format == "" && (k.prim == ir.PrimString || k.prim == ir.PrimAny):
-		return relANarrower
+		return firstTypeIsNarrower
 	case k.format == "" && k.prim == ir.PrimBytes:
 		return relOverlap
 	default:

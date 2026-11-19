@@ -138,7 +138,7 @@ func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *test
 	assert.True(t, governed(node("T", "a")), "a subschema reads its root's")
 	assert.Equal(t, doc.Rows.Schema, doc.Dialects.Of(node("V")), "a schema below no root naming one reads its document's")
 	assert.Equal(t, doc.Rows.Schema, doc.Dialects.Of(node("R")), "a $schema naming no dialect chooses none")
-	_, root := doc.Dialects.RootAt(bind.Position{Doc: bind.Source, Pointer: "/components/schemas/U"})
+	_, root := doc.Dialects.RootAt(bind.DocumentPointer{Doc: bind.Source, Pointer: "/components/schemas/U"})
 	assert.True(t, root, "U names a dialect, if one it cannot read")
 	assert.True(t, doc.Dialects.Of(node("U")).Takes("exclusiveMinimum", oas.Number),
 		"a dialect it cannot read reads as the minor's own")
@@ -151,7 +151,7 @@ func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *test
 		}
 	}
 	require.NotZero(t, defs)
-	e := doc.Bindings.At(bind.Position{Doc: defs, Pointer: jsontext.Pointer("/definitions/E")})
+	e := doc.Bindings.At(bind.DocumentPointer{Doc: defs, Pointer: jsontext.Pointer("/definitions/E")})
 	require.NotNil(t, e)
 	assert.True(t, governed(e.GetSchema().GetRootNode()), "a document of schemas names its dialect at its root")
 	assert.True(t, other.Rows.Schema.Takes("exclusiveMinimum", oas.Number), "o.yaml's own dialect is unread")
@@ -186,7 +186,7 @@ func TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds(t *testing.T
 		for id := range bind.DocID(table.Documents()) {
 			if strings.HasSuffix(table.Document(id).Name, file) {
 				at := jsontext.Pointer("/components/schemas").AppendToken(name)
-				s := doc.Bindings.At(bind.Position{Doc: id, Pointer: at})
+				s := doc.Bindings.At(bind.DocumentPointer{Doc: id, Pointer: at})
 				require.NotNil(t, s, name)
 				return s.GetSchema().GetRootNode()
 			}
@@ -210,7 +210,7 @@ func (customServed) ReadDocument(context.Context, compilers.DocumentRequest) (co
 }
 
 // TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce pins that a document
-// two references spell two ways, one Document.Sources entry and one name to
+// two references spell two ways, one LoadedOpenAPIDocument.Sources entry and one name to
 // the binder (resolve.Locate), is warned of once: its `$schema` is one
 // finding, whichever spelling reached it.
 func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
@@ -233,7 +233,7 @@ func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
 }
 
 // TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds pins that a
-// document only a pass that did not stand read, which Document.Sources leaves
+// document only a pass that did not stand read, which LoadedOpenAPIDocument.Sources leaves
 // out, draws no warning: its `$schema` governs nothing the result holds, and
 // no entry would place the finding.
 func TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds(t *testing.T) {

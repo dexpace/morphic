@@ -48,10 +48,10 @@ func dynamicRefOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer)
 // close no cycle, which walks their whole chain. A reader following it as a
 // conjunct edge, as admissionOf does, cuts such a cycle as it cuts one of
 // $refs.
-func dynamicTarget(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (bind.Position, bool) {
+func dynamicTarget(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (bind.DocumentPointer, bool) {
 	ref, _, ok := expandableRef(c, s, pointer)
 	if !ok {
-		return bind.Position{}, false
+		return bind.DocumentPointer{}, false
 	}
 	at, _, ok := dynamicTargetOf(c, ref, c.Position(pointer))
 	return at, ok
@@ -68,17 +68,17 @@ func dynamicTarget(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 // a $ref to that position resolves to (resolvesAt). One closing a cycle of
 // expansions is irreducible (dynamicChainVerdict). One naming no
 // $dynamicAnchor is a reference site (typed.Bindings.RefKeyword).
-func dynamicExpansion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (at bind.Position, why string, ok bool) {
+func dynamicExpansion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (at bind.DocumentPointer, why string, ok bool) {
 	ref, why, ok := expandableRef(c, s, pointer)
 	if !ok {
-		return bind.Position{}, why, false
+		return bind.DocumentPointer{}, why, false
 	}
 	from := c.Position(pointer)
 	if at, why, ok = dynamicTargetOf(c, ref, from); !ok {
-		return bind.Position{}, why, false
+		return bind.DocumentPointer{}, why, false
 	}
 	if why, ok = dynamicChainVerdict(c, at, from); !ok {
-		return bind.Position{}, why, false
+		return bind.DocumentPointer{}, why, false
 	}
 	return at, "", true
 }
@@ -105,23 +105,23 @@ func expandableRef(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 // $dynamicAnchor of its name its document declares, in its own resource, and
 // for a $recursiveRef the root of its resource (recursiveTarget); each where a
 // schema stands to resolve to.
-func dynamicTargetOf(c lowering.Ctx, ref dynamicRef, from bind.Position) (bind.Position, string, bool) {
+func dynamicTargetOf(c lowering.Ctx, ref dynamicRef, from bind.DocumentPointer) (bind.DocumentPointer, string, bool) {
 	if ref.keyword == "$recursiveRef" {
 		return recursiveTarget(c, ref.node.Value, from)
 	}
 	name, why, ok := bind.DynamicFragment(ref.node.Value)
-	var at bind.Position
+	var at bind.DocumentPointer
 	if ok {
 		at, why, ok = soleAnchorSite(c, name)
 	}
 	if !ok {
-		return bind.Position{}, why, false
+		return bind.DocumentPointer{}, why, false
 	}
 	if why, ok = sameResource(c, from, at); !ok {
-		return bind.Position{}, why, false
+		return bind.DocumentPointer{}, why, false
 	}
 	if !resolvesAt(c, at) {
-		return bind.Position{}, fmt.Sprintf("$dynamicAnchor %q is declared at %q, where no schema could be built",
+		return bind.DocumentPointer{}, fmt.Sprintf("$dynamicAnchor %q is declared at %q, where no schema could be built",
 			name, at.Pointer), false
 	}
 	return at, "", true
@@ -133,20 +133,20 @@ func dynamicTargetOf(c lowering.Ctx, ref dynamicRef, from bind.Position) (bind.P
 // that root declares $recursiveAnchor true, the target is the outermost schema
 // of the dynamic scope declaring it too, which is that root only where every
 // declaration of the document lies in its resource (recursiveScope).
-func recursiveTarget(c lowering.Ctx, value string, from bind.Position) (bind.Position, string, bool) {
+func recursiveTarget(c lowering.Ctx, value string, from bind.DocumentPointer) (bind.DocumentPointer, string, bool) {
 	if strings.TrimSpace(value) != "#" {
-		return bind.Position{}, fmt.Sprintf(`its value is %q, and JSON Schema 2019-09 defines it only for "#"`, value), false
+		return bind.DocumentPointer{}, fmt.Sprintf(`its value is %q, and JSON Schema 2019-09 defines it only for "#"`, value), false
 	}
 	root, known := c.Bindings().Table().Resource(from)
 	switch {
 	case !known:
-		return bind.Position{}, fmt.Sprintf("a schema at or above %q merges past the levels the compiler expands, which "+
+		return bind.DocumentPointer{}, fmt.Sprintf("a schema at or above %q merges past the levels the compiler expands, which "+
 			"may hide an identifier starting a schema resource of its own", from.Pointer), false
 	case !resolvesAt(c, root):
-		return bind.Position{}, unresolvedRoot(root), false
+		return bind.DocumentPointer{}, unresolvedRoot(root), false
 	}
 	if why, ok := recursiveScope(c, root); !ok {
-		return bind.Position{}, why, false
+		return bind.DocumentPointer{}, why, false
 	}
 	return root, "", true
 }
@@ -155,7 +155,7 @@ func recursiveTarget(c lowering.Ctx, value string, from bind.Position) (bind.Pos
 // no schema could be built, does not expand: at a document's root, as a schema
 // under no identifier finds its OpenAPI Object, what an identifier on the
 // schema would change.
-func unresolvedRoot(root bind.Position) string {
+func unresolvedRoot(root bind.DocumentPointer) string {
 	if root.Pointer == "" {
 		return `"#" names the root of the document it is written in, which holds no schema; under an identifier ` +
 			`of its own, the schema it means to recurse to would be that root`
@@ -170,7 +170,7 @@ func unresolvedRoot(root bind.Position) string {
 // root, so none is in its dynamic scope and the outermost on any path is root.
 // A document whose identifiers were not read whole may hide another, which
 // must not read as none.
-func recursiveScope(c lowering.Ctx, root bind.Position) (string, bool) {
+func recursiveScope(c lowering.Ctx, root bind.DocumentPointer) (string, bool) {
 	declared, reached, known := c.Bindings().Table().RecursiveAnchor(root)
 	switch {
 	case !known:
@@ -208,19 +208,19 @@ func dynamicRefSiblings(s *statement.Schema) bool {
 // static lowering can resolve, as does a resource of another document declaring
 // the name that reaches it, and an incomplete read may hide a second, which an
 // expansion would then rest on unverified (docs/compilers/openapi.md#dynamic-ref).
-func soleAnchorSite(c lowering.Ctx, name string) (bind.Position, string, bool) {
+func soleAnchorSite(c lowering.Ctx, name string) (bind.DocumentPointer, string, bool) {
 	anchor := c.DynamicAnchor(name)
 	switch {
 	case anchor.Count > 1:
-		return bind.Position{}, fmt.Sprintf("$dynamicAnchor %q is declared %d times, so the target depends on the "+
+		return bind.DocumentPointer{}, fmt.Sprintf("$dynamicAnchor %q is declared %d times, so the target depends on the "+
 			"evaluation path", name, anchor.Count), false
 	case !anchor.Complete:
-		return bind.Position{}, fmt.Sprintf("this document's identifiers were not read whole, so $dynamicAnchor %q "+
+		return bind.DocumentPointer{}, fmt.Sprintf("this document's identifiers were not read whole, so $dynamicAnchor %q "+
 			"is not known to be declared once", name), false
 	case anchor.Count == 0:
-		return bind.Position{}, fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false
+		return bind.DocumentPointer{}, fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false
 	case anchor.Reached:
-		return bind.Position{}, fmt.Sprintf("$dynamicAnchor %q is also declared in a schema resource of another "+
+		return bind.DocumentPointer{}, fmt.Sprintf("$dynamicAnchor %q is also declared in a schema resource of another "+
 			"document that reaches this one, so the target depends on the evaluation path", name), false
 	default:
 		return anchor.Site, "", true
@@ -235,8 +235,8 @@ func soleAnchorSite(c lowering.Ctx, name string) (bind.Position, string, bool) {
 // so the whole cycle is preserved.
 //
 // The loop is bounded: each turn returns or adds a position to seen.
-func dynamicChainVerdict(c lowering.Ctx, at, from bind.Position) (string, bool) {
-	seen := map[bind.Position]bool{}
+func dynamicChainVerdict(c lowering.Ctx, at, from bind.DocumentPointer) (string, bool) {
+	seen := map[bind.DocumentPointer]bool{}
 	for cur := at; !seen[cur]; {
 		if cur == from {
 			return fmt.Sprintf("expanding it closes a cycle of $dynamicRef expansions back onto %q, "+
@@ -257,7 +257,7 @@ func dynamicChainVerdict(c lowering.Ctx, at, from bind.Position) (string, bool) 
 // hide an identifier, which must not read as none. A dynamic reference is
 // first resolved against its own resource's base (JSON Schema 2020-12
 // §8.2.3.2), so an anchor in another resource is not the one it names.
-func sameResource(c lowering.Ctx, from, at bind.Position) (string, bool) {
+func sameResource(c lowering.Ctx, from, at bind.DocumentPointer) (string, bool) {
 	table := c.Bindings().Table()
 	own, knownOwn := table.Resource(from)
 	theirs, knownTheirs := table.Resource(at)
@@ -279,17 +279,17 @@ func sameResource(c lowering.Ctx, from, at bind.Position) (string, bool) {
 // dynamic reference of its own expands, as dynamicTargetOf names it. Anything
 // else ends the chain: a position that lowers to a shape rather than to
 // another reference cannot extend a cycle of references.
-func dynamicHop(c lowering.Ctx, at bind.Position) (bind.Position, bool) {
+func dynamicHop(c lowering.Ctx, at bind.DocumentPointer) (bind.DocumentPointer, bool) {
 	if e, ok := c.Bindings().Table().Entry(at); ok {
 		return e.Chain.End, e.Chain.Status == bind.Resolved
 	}
 	s := annotation.At(c.Statements().At(at)).Node
 	if !stated(s) {
-		return bind.Position{}, false
+		return bind.DocumentPointer{}, false
 	}
 	ref, _, ok := expandableRef(c, s, at.Pointer)
 	if !ok {
-		return bind.Position{}, false
+		return bind.DocumentPointer{}, false
 	}
 	next, _, ok := dynamicTargetOf(c, ref, at)
 	return next, ok

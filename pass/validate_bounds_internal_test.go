@@ -25,9 +25,9 @@ func TestPrimShapes_EveryPrimKindHasARow(t *testing.T) {
 	require.NotEmpty(t, kinds)
 
 	for _, k := range kinds {
-		assert.NotEqual(t, shapeUnjudged, primShape(ir.PrimKind(k.Value)), "%s has no shape", k.Value)
+		assert.NotEqual(t, shapeNotChecked, primShape(ir.PrimKind(k.Value)), "%s has no shape", k.Value)
 	}
-	assert.Equal(t, shapeUnjudged, primShape("no-such-kind"))
+	assert.Equal(t, shapeNotChecked, primShape("no-such-kind"))
 }
 
 // TestKindWords_NamesEveryKind holds the words a value is described in to

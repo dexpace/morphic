@@ -213,7 +213,7 @@ func spelledCases(version string, all bool) []spelledCase {
 		o, _ := oas.Table().Object(kind)
 		names := []string{"x-e", "zz"}
 		for _, f := range o.Fields {
-			if f.Shape == oas.Any || f.Shape == oas.RawMap || f.Shape == oas.RawList {
+			if f.Shape == oas.AnyShapeUnchecked || f.Shape == oas.RawMap || f.Shape == oas.RawList {
 				names = append(names, f.Name)
 			}
 		}

@@ -17,8 +17,8 @@ import (
 func TestEntry_LandsWhereItsHopResolvesOffALoop(t *testing.T) {
 	t.Parallel()
 	resolved := bind.Hop{Status: bind.Resolved}
-	assert.True(t, bind.Entry{Hop: resolved, Chain: bind.Chain{Status: bind.Resolved}}.Lands())
-	assert.True(t, bind.Entry{Hop: resolved, Chain: bind.Chain{Status: bind.Cyclic}}.Lands(), "leading into a loop")
-	assert.False(t, bind.Entry{Hop: resolved, Chain: bind.Chain{Status: bind.Cyclic, Member: true}}.Lands())
-	assert.False(t, bind.Entry{Hop: bind.Hop{Status: bind.Unresolved}}.Lands())
+	assert.True(t, bind.ReferenceSite{Hop: resolved, Chain: bind.Chain{Status: bind.Resolved}}.Lands())
+	assert.True(t, bind.ReferenceSite{Hop: resolved, Chain: bind.Chain{Status: bind.Cyclic}}.Lands(), "leading into a loop")
+	assert.False(t, bind.ReferenceSite{Hop: resolved, Chain: bind.Chain{Status: bind.Cyclic, PositionLiesOnReferenceCycle: true}}.Lands())
+	assert.False(t, bind.ReferenceSite{Hop: bind.Hop{Status: bind.Unresolved}}.Lands())
 }

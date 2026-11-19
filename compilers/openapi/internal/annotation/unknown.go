@@ -47,7 +47,7 @@ func unreachableKeyDiag(entry string, at ir.Provenance) ir.Diagnostic {
 // cannot settle that alone, because moving either side moves keys other
 // mechanisms already publish (GitHub #396).
 func occupiedEntryDiag(entry string, at ir.Provenance, held jsontext.Pointer) ir.Diagnostic {
-	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryTaken, at,
+	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryAlreadyClaimed, at,
 		"%s is already held by the construct at %q, so this key is represented in the IR in "+
 			"no form at all", entry, held)
 }

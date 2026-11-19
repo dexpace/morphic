@@ -16,7 +16,7 @@ import (
 // and returns what the readings report. p is the run's promoter, whose keys a
 // reading defers to, and w the document its lowerings built, whose service
 // tree and registry are whole.
-func Apply(policy Policy, p promotion.Promoter, w *whole.Document) (diags []ir.Diagnostic) {
+func Apply(policy Policy, p promotion.Promoter, w *whole.CompiledDocumentView) (diags []ir.Diagnostic) {
 	for _, op := range w.Ops {
 		diags = append(diags, operation(policy, p, w, op)...)
 	}
@@ -37,7 +37,7 @@ func Apply(policy Policy, p promotion.Promoter, w *whole.Document) (diags []ir.D
 // operation fills what op's names imply: its idempotency token, the redaction
 // of its parameters and of every header it declares, and the text of each of
 // its header parameters and its responses' headers.
-func operation(policy Policy, p promotion.Promoter, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
+func operation(policy Policy, p promotion.Promoter, w *whole.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
 	reg := w.Types
 	diags := idempotency(policy.Idempotency, w, op)
 	for i := range op.Params {

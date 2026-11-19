@@ -56,7 +56,7 @@ func TestMinor_StringSpellsTheMinor(t *testing.T) {
 
 // validSpan reports whether s is empty or runs forward over the minors the
 // table covers, which every span a row writes must be.
-func validSpan(s oas.Span) bool {
+func validSpan(s oas.MinorVersionRange) bool {
 	if s.Since == 0 {
 		return s.Until == 0
 	}
@@ -65,7 +65,7 @@ func validSpan(s oas.Span) bool {
 }
 
 // overlaps reports whether the two spans share a minor.
-func overlaps(a, b oas.Span) bool {
+func overlaps(a, b oas.MinorVersionRange) bool {
 	return slices.ContainsFunc(minors(), func(m oas.Minor) bool { return a.Holds(m) && b.Holds(m) })
 }
 
@@ -73,14 +73,14 @@ func overlaps(a, b oas.Span) bool {
 func TestSpan_HoldsTheMinorsItNames(t *testing.T) {
 	tests := []struct {
 		name string
-		span oas.Span
+		span oas.MinorVersionRange
 		want [3]bool // V30, V31, V32
 	}{
 		{"always", oas.Always(), [3]bool{true, true, true}},
 		{"from 3.1", oas.From(oas.V31), [3]bool{false, true, true}},
 		{"only 3.1", oas.Only(oas.V31), [3]bool{false, true, false}},
 		{"through 3.1", oas.Through(oas.V31), [3]bool{true, true, false}},
-		{"zero", oas.Span{}, [3]bool{false, false, false}},
+		{"zero", oas.MinorVersionRange{}, [3]bool{false, false, false}},
 	}
 	for _, tc := range tests {
 		for i, m := range []oas.Minor{oas.V30, oas.V31, oas.V32} {
@@ -94,16 +94,16 @@ func TestSpan_HoldsTheMinorsItNames(t *testing.T) {
 func TestSpan_Later(t *testing.T) {
 	assert.True(t, oas.From(oas.V32).Later(oas.V31), "3.2 is after a 3.1 document")
 	assert.False(t, oas.From(oas.V31).Later(oas.V31))
-	assert.False(t, oas.Span{}.Later(oas.V30), "an empty span is never after anything")
+	assert.False(t, oas.MinorVersionRange{}.Later(oas.V30), "an empty span is never after anything")
 }
 
 // TestValidSpan_RefusesBackwardsAndUnknownRuns pins what the table tests take a
 // well-formed span to be, so the check holding every row to it can fail.
 func TestValidSpan_RefusesBackwardsAndUnknownRuns(t *testing.T) {
-	assert.False(t, validSpan(oas.Span{Since: oas.V32, Until: oas.V30}), "runs backwards")
-	assert.False(t, validSpan(oas.Span{Since: oas.V30, Until: 9}), "ends at an unknown minor")
-	assert.False(t, validSpan(oas.Span{Since: 9}), "starts at an unknown minor")
-	assert.False(t, validSpan(oas.Span{Until: oas.V31}), "an end with no start")
+	assert.False(t, validSpan(oas.MinorVersionRange{Since: oas.V32, Until: oas.V30}), "runs backwards")
+	assert.False(t, validSpan(oas.MinorVersionRange{Since: oas.V30, Until: 9}), "ends at an unknown minor")
+	assert.False(t, validSpan(oas.MinorVersionRange{Since: 9}), "starts at an unknown minor")
+	assert.False(t, validSpan(oas.MinorVersionRange{Until: oas.V31}), "an end with no start")
 }
 
 // TestOverlaps_OnSharedMinors pins when the table tests take two spans to
@@ -111,5 +111,5 @@ func TestValidSpan_RefusesBackwardsAndUnknownRuns(t *testing.T) {
 func TestOverlaps_OnSharedMinors(t *testing.T) {
 	assert.True(t, overlaps(oas.Through(oas.V31), oas.From(oas.V31)))
 	assert.False(t, overlaps(oas.Only(oas.V30), oas.From(oas.V31)))
-	assert.False(t, overlaps(oas.Span{}, oas.Always()))
+	assert.False(t, overlaps(oas.MinorVersionRange{}, oas.Always()))
 }

@@ -26,7 +26,7 @@ func Pairs(n *yaml.Node) []Pair {
 // It builds no view, and allocates nothing for a mapping that merges nothing,
 // which is what lets every reader of a schema keyword ask it. Its work is the
 // merge structure's, which the alias scans bound; the load phase reports a
-// chain past MergeDepthLimit (bind.Table.Truncated).
+// chain past MergeDepthLimit (bind.ReferenceTargetTable.Truncated).
 func Child(n *yaml.Node, key string) *yaml.Node {
 	v, _ := childIn(Deref(DocumentRoot(n)), key, lastCopy, nil)
 	return v

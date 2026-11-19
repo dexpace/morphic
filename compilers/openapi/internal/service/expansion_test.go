@@ -49,7 +49,7 @@ func doubling(levels int) *yaml.Node {
 func reading(t *testing.T, pointer string) bind.Reading {
 	t.Helper()
 	table := bind.Bind(t.Context(), openapitest.YAMLDocument(t, "openapi: 3.1.0\n"), bind.Config{Self: "spec.yaml"})
-	r := table.ReadingAt(bind.Position{Pointer: jsontext.Pointer(pointer)})
+	r := table.ReadingAt(bind.DocumentPointer{Pointer: jsontext.Pointer(pointer)})
 	require.True(t, r.Referable())
 	return r
 }

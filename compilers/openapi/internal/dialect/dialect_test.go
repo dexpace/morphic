@@ -38,19 +38,19 @@ func TestTable_FallsBackFromTheRootToTheDocumentToTheSource(t *testing.T) {
 	held := tree.Content[0]
 	b := dialect.NewBuilder(source)
 	b.Document(1, other)
-	b.Root(bind.Position{Doc: 1, Pointer: "/R"}, held, root)
+	b.Root(bind.DocumentPointer{Doc: 1, Pointer: "/R"}, held, root)
 	table := b.Table()
 
 	for _, tc := range []struct {
-		at   bind.Position
+		at   bind.DocumentPointer
 		want oas.SchemaRules
 		name string
 	}{
-		{bind.Position{Doc: 1, Pointer: "/R"}, root, "the root itself"},
-		{bind.Position{Doc: 1, Pointer: "/R/properties/a"}, root, "beneath the root"},
-		{bind.Position{Doc: 1, Pointer: "/S"}, other, "beside it, its document's"},
-		{bind.Position{Doc: 0, Pointer: "/R"}, source, "the source's own"},
-		{bind.Position{Doc: 2, Pointer: "/R"}, source, "a document the compile did not read"},
+		{bind.DocumentPointer{Doc: 1, Pointer: "/R"}, root, "the root itself"},
+		{bind.DocumentPointer{Doc: 1, Pointer: "/R/properties/a"}, root, "beneath the root"},
+		{bind.DocumentPointer{Doc: 1, Pointer: "/S"}, other, "beside it, its document's"},
+		{bind.DocumentPointer{Doc: 0, Pointer: "/R"}, source, "the source's own"},
+		{bind.DocumentPointer{Doc: 2, Pointer: "/R"}, source, "a document the compile did not read"},
 	} {
 		if table.At(tc.at) != tc.want {
 			t.Errorf("At(%v), %s: read another document's rows", tc.at, tc.name)
@@ -62,12 +62,12 @@ func TestTable_FallsBackFromTheRootToTheDocumentToTheSource(t *testing.T) {
 	if table.Of(held.Content[3]) != root || table.Of(&yaml.Node{Kind: yaml.MappingNode}) != source {
 		t.Error("Of reads a node another root's rows than the one holding it, or than the source's")
 	}
-	r, ok := table.RootAt(bind.Position{Doc: 1, Pointer: "/R"})
+	r, ok := table.RootAt(bind.DocumentPointer{Doc: 1, Pointer: "/R"})
 	assert.True(t, ok)
 	assert.Equal(t, root, r)
-	_, ok = table.RootAt(bind.Position{Doc: 1, Pointer: "/R/properties/a"})
+	_, ok = table.RootAt(bind.DocumentPointer{Doc: 1, Pointer: "/R/properties/a"})
 	assert.False(t, ok, "a root above a position is not at it")
-	assert.Equal(t, oas.SchemaRules{}, dialect.Table{}.At(bind.Position{}), "the zero Table reads the zero rows")
+	assert.Equal(t, oas.SchemaRules{}, dialect.SchemaDialectRows{}.At(bind.DocumentPointer{}), "the zero Table reads the zero rows")
 }
 
 // TestTable_AsksTheSourcesRowsAtNoCost pins the cost of the question the
@@ -78,7 +78,7 @@ func TestTable_AsksTheSourcesRowsAtNoCost(t *testing.T) {
 	table := dialect.NewBuilder(rows(t, "3.0.3", "")).Table()
 	var defines bool
 	allocs := testing.AllocsPerRun(100, func() {
-		defines = table.At(bind.Position{Pointer: "/components/schemas/A"}).Defines("nullable")
+		defines = table.At(bind.DocumentPointer{Pointer: "/components/schemas/A"}).Defines("nullable")
 	})
 	assert.True(t, defines)
 	assert.Zero(t, allocs)

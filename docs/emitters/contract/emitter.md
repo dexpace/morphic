@@ -162,7 +162,7 @@ language. Plan policy is document-level, not per-target — the plan is language
 definition, so there is nothing per-language to vary in it. A single-target invocation may compute
 the plan inline; the function is the same.
 
-The derived facts work the same way. The engine builds one `irfacts.Index` for the document once the
+The derived facts work the same way. The engine builds one `irfacts.DocumentFacts` for the document once the
 last pass has run, since an index answers for the document it was built from and a pass may change
 it ([derived-facts](../../ir/derived-facts.md)), and hands that index to `plan.Build` and, as
 `EmitterInput.Facts`, to every `Generate`. So the strongly connected components a refiner reads to

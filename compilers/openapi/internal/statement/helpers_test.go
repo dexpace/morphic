@@ -21,7 +21,7 @@ import (
 )
 
 // everywhere returns the rows table reading every position with rules.
-func everywhere(rules oas.SchemaRules) dialect.Table {
+func everywhere(rules oas.SchemaRules) dialect.SchemaDialectRows {
 	return dialect.NewBuilder(rules).Table()
 }
 
@@ -41,14 +41,14 @@ func document(version string, schemas ...string) string {
 
 // tableOver loads spec and returns a table reading its bindings with rules,
 // and the context positions in its document are taken from.
-func tableOver(t *testing.T, spec string, rules oas.SchemaRules) (*statement.Table, lowering.Ctx) {
+func tableOver(t *testing.T, spec string, rules oas.SchemaRules) (*statement.MemoizingSchemaReader, lowering.Ctx) {
 	t.Helper()
 	c := servicetest.Context(t, spec, service.Policy{})
 	return statement.NewTable(statement.Source{Bindings: c.Bindings(), Rules: everywhere(rules)}), c.Ctx
 }
 
 // component returns the position of the component schema name.
-func component(c lowering.Ctx, name string) bind.Position {
+func component(c lowering.Ctx, name string) bind.DocumentPointer {
 	return c.Position(jsontext.Pointer("/components/schemas/" + name))
 }
 

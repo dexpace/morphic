@@ -23,15 +23,15 @@ import (
 // lowerArray hoists an array schema, written at pointer, at at, as a Tuple when
 // its `items` is a list its dialect reads as one (listedTuple), or when
 // prefixItems is present, else a List over its item schema, each with the
-// collection bounds it declares met with those voices write, fin finishing it
+// collection bounds it declares met with those foldedBranches write, fin finishing it
 // once built.
 func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer, at jsontext.Pointer,
-	voices []annotation.Voice, fin finisher,
+	foldedBranches []annotation.FoldedAllOfBranch, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	read := keyBit("items") | typeReadAs(s, statement.KindArray) | collectionReads(s)
 	id := internNode(c, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		cons := voicedCollectionBounds(ownCollectionConstraints(s), voices)
+		cons := collectionBoundsMetWithFoldedBranches(ownCollectionConstraints(s), foldedBranches)
 		if n, tuple := listedTuple(c, s); tuple {
 			t, tupleDiags := buildListedTuple(c, ts, depth, s, common, pointer, n, cons)
 			diags = append(diags, tupleDiags...)
@@ -42,7 +42,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 			diags = append(diags, tupleDiags...)
 			return t, read | keySetOf("prefixItems", "additionalItems")
 		}
-		elem, elemDiags := Ref(c, ts, depth, c.Statements().Sub(itemsSchema(s)), pointer+ids.Ptr("items"))
+		elem, elemDiags := Ref(c, ts, depth, c.Statements().Subschema(itemsSchema(s)), pointer+ids.Ptr("items"))
 		diags = append(diags, elemDiags...)
 		return &ir.List{TypeCommon: common, Elem: elem, Constraints: cons}, read
 	}, fin)
@@ -73,9 +73,9 @@ func listedItems(s *statement.Schema) (int, bool) {
 // itemsSchema returns the one schema s writes `items` as, and the zero Sub,
 // which names none, where it writes a list, a tuple, whose entries no reader
 // of one items schema reads: the parser's model holds the false schema there.
-func itemsSchema(s *statement.Schema) statement.Sub {
+func itemsSchema(s *statement.Schema) statement.Subschema {
 	if _, listed := listedItems(s); listed || s == nil || s.Array == nil {
-		return statement.Sub{}
+		return statement.Subschema{}
 	}
 	return s.Array.Items
 }
@@ -183,18 +183,18 @@ func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *statement.Statement {
 // lowers to the top type as `items: true` does, though only the latter makes an
 // unevaluatedItems beside it inert. No field is derived from another: Elems is
 // never trimmed to maxItems, and a closed tuple gains no maxItems.
-func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []statement.Sub,
+func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []statement.Subschema,
 	cons *ir.Constraints,
 ) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
-		ref, refDiags := Ref(c, ts, depth, c.Statements().Sub(ps), pointer+ids.Ptr("prefixItems", strconv.Itoa(i)))
+		ref, refDiags := Ref(c, ts, depth, c.Statements().Subschema(ps), pointer+ids.Ptr("prefixItems", strconv.Itoa(i)))
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: cons}
-	if items := c.Statements().Sub(itemsSchema(s)); !items.Truth.ReadsFalse() {
+	if items := c.Statements().Subschema(itemsSchema(s)); !items.Truth.ReadsFalse() {
 		rest, restDiags := Ref(c, ts, depth, items, pointer+ids.Ptr("items"))
 		diags = append(diags, restDiags...)
 		t.Rest = &rest

@@ -21,7 +21,7 @@ import (
 
 // wholeOf is a Document over a document whose one service holds op in its one
 // group, and the operation as it holds it, which is the one Params reads.
-func wholeOf(op ir.Operation) (*whole.Document, *ir.Operation) {
+func wholeOf(op ir.Operation) (*whole.CompiledDocumentView, *ir.Operation) {
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}}
 	w := whole.New(doc)
 	return w, &doc.Services[0].Groups[0].Operations[0]

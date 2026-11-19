@@ -114,7 +114,7 @@ func TestTable_SpansAreWellFormed(t *testing.T) {
 		for _, f := range o.Fields {
 			where := o.Name + "." + f.Name
 			assert.NotZero(t, f.Defined, where+": a field is defined at some minor")
-			for _, s := range []oas.Span{f.Defined, f.Required, f.NonEmpty} {
+			for _, s := range []oas.MinorVersionRange{f.Defined, f.Required, f.NonEmpty} {
 				assert.True(t, validSpan(s), where)
 			}
 			for _, m := range minors() {
@@ -123,7 +123,7 @@ func TestTable_SpansAreWellFormed(t *testing.T) {
 				}
 			}
 			for _, v := range f.Values {
-				assert.True(t, validSpan(v.Span) && v.Span != (oas.Span{}), where+" value "+v.Name)
+				assert.True(t, validSpan(v.Span) && v.Span != (oas.MinorVersionRange{}), where+" value "+v.Name)
 			}
 			for _, a := range f.Alts {
 				assert.True(t, validSpan(a.Span), where)
@@ -151,7 +151,7 @@ func TestTable_SpansAreWellFormed(t *testing.T) {
 func withinIsWellFormed(t *testing.T, where string, f oas.Field) {
 	t.Helper()
 	for i, w := range f.Within {
-		assert.True(t, validSpan(w.Span) && w.Span != (oas.Span{}), where+" within "+w.MediaType)
+		assert.True(t, validSpan(w.Span) && w.Span != (oas.MinorVersionRange{}), where+" within "+w.MediaType)
 		assert.Equal(t, strings.ToLower(strings.TrimSpace(w.MediaType)), w.MediaType, where)
 		assert.NotContains(t, w.MediaType, ";", where)
 		for _, m := range minors() {
@@ -177,7 +177,7 @@ func defaultsAreWellFormed(t *testing.T, o oas.Object) {
 	}
 	for i, d := range o.Defaults {
 		where := o.Name + "." + d.Field + " default"
-		assert.True(t, validSpan(d.Span) && d.Span != (oas.Span{}), where)
+		assert.True(t, validSpan(d.Span) && d.Span != (oas.MinorVersionRange{}), where)
 		assert.NotZero(t, d.Case, where+" names no case")
 		for _, m := range minors() {
 			if d.Span.Holds(m) {
@@ -350,7 +350,7 @@ func tableLaterRows() []laterRow {
 			rows = append(rows, laterRow{o.Name, "$ref", "", o.Referenceable.Since.String()})
 		}
 		for _, f := range o.Fields {
-			if f.Keyword {
+			if f.IsJSONSchemaKeyword {
 				continue
 			}
 			if f.Defined.Since > oas.V30 {

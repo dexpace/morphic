@@ -10,7 +10,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// typeGraph is the graph [Index.Usage] spreads along and [Index.Recursive]
+// typeGraph is the graph [DocumentFacts.Usage] spreads along and [DocumentFacts.Recursive]
 // reads cycles in (docs/ir/derived-facts.md). Each declared type has two
 // vertices: its shape, what a value of exactly that type holds, and its range,
 // every shape a value declared as that type may take. A held part reaches its

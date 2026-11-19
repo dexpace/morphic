@@ -17,11 +17,11 @@ import (
 
 // settledModel builds the model id in reg, written at at, as compose does, by
 // the entries its steps compose, settles it, and returns what it reports.
-func settledModel(t *testing.T, reg ir.TypeRegistry, id ir.TypeID, at string, steps ...func(idx *PropIndex, at string)) []ir.Diagnostic {
+func settledModel(t *testing.T, reg ir.TypeRegistry, id ir.TypeID, at string, steps ...func(idx *ModelPropertyDeclarations, at string)) []ir.Diagnostic {
 	t.Helper()
 	m := &ir.Model{ID: id, Provenance: ptrAt(jsontext.Pointer(at))}
 	reg[id] = m
-	idx := NewPropIndex(m)
+	idx := NewModelPropertyDeclarations(m)
 	for _, step := range steps {
 		step(idx, at)
 	}
@@ -30,16 +30,16 @@ func settledModel(t *testing.T, reg ir.TypeRegistry, id ir.TypeID, at string, st
 }
 
 // partAt composes target as the model's allOf entry n.
-func partAt(target ir.TypeID, n string) func(idx *PropIndex, at string) {
-	return func(idx *PropIndex, at string) {
+func partAt(target ir.TypeID, n string) func(idx *ModelPropertyDeclarations, at string) {
+	return func(idx *ModelPropertyDeclarations, at string) {
 		idx.m.Mixins = append(idx.m.Mixins, ir.TypeRef{Target: target})
 		idx.Compose(target, jsontext.Pointer(at+"/allOf/"+n))
 	}
 }
 
 // ownAt declares wire as target in the model's own entry n.
-func ownAt(wire string, target ir.TypeID, n string) func(idx *PropIndex, at string) {
-	return func(idx *PropIndex, at string) {
+func ownAt(wire string, target ir.TypeID, n string) func(idx *ModelPropertyDeclarations, at string) {
+	return func(idx *ModelPropertyDeclarations, at string) {
 		idx.MergeProperty(declared(wire, target, at+"/allOf/"+n+"/properties/"+wire), written(`{"own":true}`), "")
 	}
 }

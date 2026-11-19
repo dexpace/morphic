@@ -41,7 +41,7 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/compile": {
 		// The settlement queue runs what a lowering deferred, once the registry is
 		// whole and in order (#898), as operation's form parts and item defaults
-		// and its stream elements are, and Types.Promise's queue builds a node a
+		// and its stream elements are, and Types.ReserveNodeAtCoordinate's queue builds a node a
 		// reference names that no lowering built: designed seams. Types.Intern
 		// also calls the build schema hands it before it returns: an immediate
 		// callback.
@@ -71,9 +71,9 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema":    25,
 	},
 	"compilers/openapi/internal/merge": {
-		// What a fold asks the walk that declared the field, through merge.Walk:
+		// What a fold asks the walk that declared the field, through merge.FieldDeclarationContext:
 		// Alike three times, Admits once, Mint once and Interned once.
-		// merge.Source, a lazy render of a declaration nobody may keep. And the
+		// merge.DeclarationConstructRenderer, a lazy render of a declaration nobody may keep. And the
 		// predicate SelectBase calls before it returns, an immediate callback.
 		"compilers/openapi/internal/schema": 8,
 	},

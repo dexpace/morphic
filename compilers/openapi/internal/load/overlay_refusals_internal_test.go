@@ -138,7 +138,7 @@ func TestLoad_AnOverlayUsingAnchorsModestlyStillApplies(t *testing.T) {
 func TestLoad_AnOverlayTooLargeToIndexIsRefused(t *testing.T) {
 	t.Parallel()
 	opts := overlayOf("overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $.info\n    update: {description: d}\n")
-	opts.buildIndex = func(ctx context.Context, root *yaml.Node) sourceindex.Index {
+	opts.buildIndex = func(ctx context.Context, root *yaml.Node) sourceindex.Measurements {
 		if content := root.Content; len(content) == 1 && len(content[0].Content) > 0 && content[0].Content[0].Value == "overlay" {
 			return sourceindex.Build(ctx, root, 1)
 		}

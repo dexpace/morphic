@@ -48,9 +48,9 @@ func TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt(t *testing.T) {
 		entry, ok := got.Bindings.Entry(prop)
 		require.True(t, ok, "%s is bound", c.prop)
 		assert.Equal(t, bind.Resolved, entry.Hop.Status, c.prop)
-		assert.Equal(t, bind.Position{Pointer: jsontext.Pointer(c.lands)}, entry.Hop.Target, "%s lands on the root's definition", c.prop)
+		assert.Equal(t, bind.DocumentPointer{Pointer: jsontext.Pointer(c.lands)}, entry.Hop.Target, "%s lands on the root's definition", c.prop)
 		assert.Equal(t, bind.Resolved, entry.Chain.Status, c.prop)
-		assert.Equal(t, bind.Position{Pointer: jsontext.Pointer(c.ends)}, entry.Chain.End, "%s's chain goes on from there", c.prop)
+		assert.Equal(t, bind.DocumentPointer{Pointer: jsontext.Pointer(c.ends)}, entry.Chain.End, "%s's chain goes on from there", c.prop)
 	}
 	q, _ := a.GetSchema().GetProperties().Get("q")
 	require.NotNil(t, got.Bindings.End(q))
@@ -95,8 +95,8 @@ func TestLoad_ARootDefinitionAnswersBeforeASchemasOwn(t *testing.T) {
 					assert.NotEqual(t, diag.UnresolvedRef, d.Code, d.Message)
 					assert.NotEqual(t, diag.CyclicRef, d.Code, d.Message)
 				}
-				root := bind.Position{Pointer: "/$defs/e"}
-				entry, ok := got.Bindings.Table().Entry(bind.Position{Pointer: "/components/schemas/A"})
+				root := bind.DocumentPointer{Pointer: "/$defs/e"}
+				entry, ok := got.Bindings.Table().Entry(bind.DocumentPointer{Pointer: "/components/schemas/A"})
 				require.True(t, ok)
 				assert.Equal(t, bind.Resolved, entry.Hop.Status)
 				assert.Equal(t, root, entry.Hop.Target, "the root's definition answers, not A's own")
@@ -104,7 +104,7 @@ func TestLoad_ARootDefinitionAnswersBeforeASchemasOwn(t *testing.T) {
 				if c.chained == "" {
 					return
 				}
-				via, ok := got.Bindings.Table().Entry(bind.Position{Pointer: jsontext.Pointer(c.chained)})
+				via, ok := got.Bindings.Table().Entry(bind.DocumentPointer{Pointer: jsontext.Pointer(c.chained)})
 				require.True(t, ok)
 				assert.Equal(t, root, via.Chain.End, "a chain through A ends on the root's definition too")
 			})

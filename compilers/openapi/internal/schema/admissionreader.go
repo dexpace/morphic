@@ -167,9 +167,9 @@ func newDeclarationSet() declarationSet {
 // add records s and its `items`. An s holding no schema object, a boolean
 // schema's, declares nothing: it writes no `items` and no property
 // (statement.Schema.Property).
-func (d *declarationSet) add(t *statement.Table, s *statement.Schema) {
+func (d *declarationSet) add(t *statement.MemoizingSchemaReader, s *statement.Schema) {
 	d.schemas = append(d.schemas, s)
-	if items := t.Sub(itemsSchema(s)); items.Truth != statement.Unwritten {
+	if items := t.Subschema(itemsSchema(s)); items.Truth != statement.Unwritten {
 		if d.items == nil {
 			d.items = &place{}
 		}
@@ -179,7 +179,7 @@ func (d *declarationSet) add(t *statement.Table, s *statement.Schema) {
 
 // property returns the place of the property name, nil where no schema of d
 // declares it, gathered once and read from t.
-func (d *declarationSet) property(t *statement.Table, name string) *place {
+func (d *declarationSet) property(t *statement.MemoizingSchemaReader, name string) *place {
 	if at, ok := d.properties[name]; ok {
 		return at
 	}
@@ -189,7 +189,7 @@ func (d *declarationSet) property(t *statement.Table, name string) *place {
 			if at == nil {
 				at = &place{}
 			}
-			at.decls = append(at.decls, t.Sub(p))
+			at.decls = append(at.decls, t.Subschema(p))
 		}
 	}
 	d.properties[name] = at
@@ -250,19 +250,19 @@ func (d *declarationSet) declare(w *admissionReader, stack []*statement.Statemen
 
 // statementsOf returns the statements of the schemas list names, in its
 // order.
-func statementsOf(c lowering.Ctx, list []statement.Sub) []*statement.Statement {
+func statementsOf(c lowering.Ctx, list []statement.Subschema) []*statement.Statement {
 	out := make([]*statement.Statement, len(list))
 	for i, b := range list {
-		out[i] = c.Statements().Sub(b)
+		out[i] = c.Statements().Subschema(b)
 	}
 	return out
 }
 
 // union reads a oneOf's or anyOf's branches, any of which an instance may be.
-func (w *admissionReader) union(branches []statement.Sub) admitted {
-	out := w.of(w.c.Statements().Sub(branches[0]))
+func (w *admissionReader) union(branches []statement.Subschema) admitted {
+	out := w.of(w.c.Statements().Subschema(branches[0]))
 	for _, b := range branches[1:] {
-		out = out.or(w.of(w.c.Statements().Sub(b)))
+		out = out.or(w.of(w.c.Statements().Subschema(b)))
 	}
 	return out
 }
@@ -285,7 +285,7 @@ func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
 func (w *admissionReader) written(s *statement.Schema, nullable bool) admitted {
 	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
-	if items := w.c.Statements().Sub(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
+	if items := w.c.Statements().Subschema(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
 		out.items = items
 	}
 	if form, ok := formOf(s); ok {
@@ -365,7 +365,7 @@ func (w *admissionReader) valueSet(key valueSetOf, members []*yaml.Node) admitte
 // memberSetOf returns the members of the set key names, members, read once a
 // run.
 func memberSetOf(c lowering.Ctx, key valueSetOf, members []*yaml.Node) memberSet {
-	return lowering.Remembered(c, key, func() memberSet { return readMembers(members) })
+	return lowering.ReadOncePerRun(c, key, func() memberSet { return readMembers(members) })
 }
 
 // valueKinds returns the kinds the enum and the const s writes leave, null

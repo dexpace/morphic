@@ -194,13 +194,13 @@ func TestValidate_ADefaultIsHeldToTheMembersOfAnEnumAsTheyAreWritten(t *testing.
 	}
 }
 
-// TestValidate_ATypeOnlyAKnotNeedsHasNoFiniteValueOfItsOwn holds a type that
-// needs only a type of a knot to none, however long the chain that leads into
+// TestValidate_ATypeOnlyATypeCycleNeedsHasNoFiniteValueOfItsOwn holds a type that
+// needs only a type of a type cycle to none, however long the chain that leads into
 // it: each is dropped once nothing unfounded needs it, so the finding is at the
-// knot alone. A scalar with no base ends a chain of aliases unjudged.
-func TestValidate_ATypeOnlyAKnotNeedsHasNoFiniteValueOfItsOwn(t *testing.T) {
+// type cycle alone. A scalar with no base ends a chain of aliases unjudged.
+func TestValidate_ATypeOnlyATypeCycleNeedsHasNoFiniteValueOfItsOwn(t *testing.T) {
 	t.Parallel()
-	doc := knotDoc(
+	doc := noFiniteValueDoc(
 		composed("t/n", nil, needs("p/n/0", ref("t/n"))),
 		composed("t/m", nil, needs("p/m/0", ref("t/n"))),
 		composed("t/h", nil, needs("p/h/0", ref("t/m")), needs("p/h/1", strT)),

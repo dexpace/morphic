@@ -75,7 +75,7 @@ func closerOf(c lowering.Ctx, s *statement.Schema, comp allOfComposition) closur
 // properties do not name: additionalProperties, or patternProperties naming a
 // pattern.
 func writesCatchAll(s *statement.Schema) bool {
-	return s.ObjectKeywords().AdditionalProperties.Truth() != statement.Unwritten || len(s.ObjectKeywords().PatternProperties) > 0
+	return s.ObjectKeywords().AdditionalProperties.SchemaValueForm() != statement.Unwritten || len(s.ObjectKeywords().PatternProperties) > 0
 }
 
 // declaresMembers reports whether s names a member its additionalProperties
@@ -90,7 +90,7 @@ func declaresMembers(s *statement.Schema) bool {
 func unionDeclares(c lowering.Ctx, s *statement.Schema) bool {
 	choice := s.ChoiceKeywords()
 	for _, sub := range slices.Concat(choice.OneOf, choice.AnyOf) {
-		b := c.Statements().Sub(sub)
+		b := c.Statements().Subschema(sub)
 		if b.Truth == statement.Stated && b.Ref == nil && declaresMembers(b.Schema) {
 			return true
 		}
@@ -120,10 +120,10 @@ func fillComposedAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.
 	e := comp.closer
 	if e.schema == nil {
 		diags := keepUnclosing(c, m, s, comp.pointer)
-		return append(diags, fillCatchAll(c, ts, depth, m, statement.Sub{}, s, comp.pointer, closes)...)
+		return append(diags, fillCatchAll(c, ts, depth, m, statement.Subschema{}, s, comp.pointer, closes)...)
 	}
 	ap := e.schema.ObjectKeywords().AdditionalProperties
-	return fillCatchAll(c, ts, depth, m, ap, e.schema, e.at, closes && ap.Truth() == statement.Unwritten)
+	return fillCatchAll(c, ts, depth, m, ap, e.schema, e.at, closes && ap.SchemaValueForm() == statement.Unwritten)
 }
 
 // keepUnclosing keeps the additionalProperties s, the position written at

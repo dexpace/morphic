@@ -56,7 +56,7 @@ func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		// kind-inference policy's reading of their shape keywords.
 		common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
 	}
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, comp.bounds)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, s, positionFoldedBranches(c, s, pointer, ir.TypeRef{}), pointer, comp.bounds)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
 	fields := newModelFields(c, ts, m)
@@ -114,12 +114,12 @@ type allOfComposition struct {
 	// warning docs/compilers/openapi.md#allof-disjoint-conjuncts describes, and
 	// is nil otherwise (readAllOf).
 	disjoint []string
-	// speaks marks each branch that folds at the position (voicesAmong), and
+	// branchFoldsIntoPosition marks each branch that folds at the position (foldingAllOfBranches), and
 	// rebased each whose folding keywords write a relative $ref it reads against
 	// another base, so it does not. They are nil where the allOf is not what the
 	// position lowers (allOfDecides).
-	speaks  []bool
-	rebased []bool
+	branchFoldsIntoPosition []bool
+	rebased                 []bool
 	// conjoins is the pointer of the branch whose union the position lowers,
 	// distributing it across its variants (branchUnion), whose merge consumes it,
 	// and empty where no branch's is.
@@ -136,8 +136,10 @@ type allOfComposition struct {
 	kept []keptEntry
 }
 
-// branchSpeaks reports whether the branch at index i folds at the position.
-func (a allOfComposition) branchSpeaks(i int) bool { return a.speaks != nil && a.speaks[i] }
+// foldsIntoPositionAt reports whether the branch at index i folds at the position.
+func (a allOfComposition) foldsIntoPositionAt(i int) bool {
+	return a.branchFoldsIntoPosition != nil && a.branchFoldsIntoPosition[i]
+}
 
 // allOfBranches returns the branches of s's allOf as its statement flattens
 // them (statement.Statement.Entries), each with the pointer it was written at,
@@ -154,9 +156,9 @@ func allOfBranches(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 
 // readAllOf is allOfBranches of the schema written at pointer, with what its
 // conjuncts jointly admit read and, where the allOf is what the position lowers,
-// which branches fold there (voicingOf) and which writes the union the position
+// which branches fold there (allOfBranchFoldingOf) and which writes the union the position
 // lowers (branchUnion), for a lowering that composes it. That gate is
-// positionVoices', so a branch gives up a keyword only where a reader of the
+// positionFoldedBranches', so a branch gives up a keyword only where a reader of the
 // position takes it up; both composers pass it, and the report of an allOf the
 // election passed over does not.
 func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) allOfComposition {
@@ -165,14 +167,14 @@ func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) al
 	comp.bounds = modelTakes(boundKinds(c, s))
 	comp.closer = closerOf(c, s, comp)
 	if allOfDecides(c, s) {
-		v := voicingOf(c, s)
-		comp.speaks, comp.rebased = v.speaks, v.rebased
+		v := allOfBranchFoldingOf(c, s)
+		comp.branchFoldsIntoPosition, comp.rebased = v.branchFoldsIntoPosition, v.rebased
 	}
 	if u, _, ok := branchUnion(c, s, pointer); ok {
 		comp.conjoins = u.at
 	}
 	comp.kept = entryKeeps(c, s, comp, func(i int) []string { return compositionResidue(c, comp, i) },
-		voicing{speaks: comp.speaks, rebased: comp.rebased}, catchAllKeyword, nil)
+		allOfBranchFolding{branchFoldsIntoPosition: comp.branchFoldsIntoPosition, rebased: comp.rebased}, catchAllKeyword, nil)
 	return comp
 }
 
@@ -259,7 +261,7 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 //
 // An inline branch merges in place: its `properties` and `required`
 // (requireMembers) merge, its catch-all keywords where it closes the model
-// (closerOf), what it writes for the position folds there (voicesAmong), and
+// (closerOf), what it writes for the position folds there (foldingAllOfBranches), and
 // the rest stays verbatim beside the model (preserveUnmergedBranch, GitHub
 // #123).
 //
@@ -455,7 +457,7 @@ func compositionResidue(c lowering.Ctx, comp allOfComposition, i int) []string {
 	if e.schema.Ref != nil {
 		return failedRefResidue(c, e)
 	}
-	speaks := comp.branchSpeaks(i)
+	speaks := comp.foldsIntoPositionAt(i)
 	conjoined := comp.conjoins != "" && e.pointer == comp.conjoins
 	closes := comp.closer.entryAt(e.pointer)
 	return unmergedBranchKeys(e.schema.Schema, func(keyword string) bool {
@@ -656,7 +658,7 @@ type inHierarchyOf struct {
 // reads the source, so no lowering order decides it, and every composition
 // naming s asks, so it is read once a run.
 func inHierarchy(c lowering.Ctx, s *statement.Schema) bool {
-	return lowering.Remembered(c, inHierarchyOf{s}, func() bool {
+	return lowering.ReadOncePerRun(c, inHierarchyOf{s}, func() bool {
 		return s.Discriminator() != nil || len(discriminatedAncestors(c, s)) > 0
 	})
 }

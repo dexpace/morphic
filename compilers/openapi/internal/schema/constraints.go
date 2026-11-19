@@ -22,29 +22,29 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// ConstraintsOf returns the value constraints s and its voices write that apply
+// ConstraintsOf returns the value constraints s and its foldedBranches write that apply
 // to a value of the kinds takes, the position's types', and of each writer's
-// own (writerTakes), or nil where they write none, for the node or carrier at
+// (writerTakes), or nil where they write none, for the node or carrier at
 // pointer to hold (docs/compilers/openapi.md#constraints). A bound several
-// write meets (merge.Constraints): a voice speaks only where its bounds meet
+// write meets (merge.Constraints): a folded branch speaks only where its bounds meet
 // every other writer's (docs/compilers/openapi.md#allof-inline-residue). Of two
 // patterns the first writer's stands: s's, but the position's own keywords'
-// (annotation.Voice.Beside) before an inline principal's (patternBeside).
+// (annotation.FoldedAllOfBranch.Beside) before an inline principal's (patternBeside).
 //
 // p is the Unmodeled of that node or carrier, keeping a 3.0 exclusive
 // modifier with no bound beside it (GitHub #286).
-func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, pointer jsontext.Pointer, takes kindSet) (*ir.Constraints, []ir.Diagnostic) {
+func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, pointer jsontext.Pointer, takes kindSet) (*ir.Constraints, []ir.Diagnostic) {
 	cons, diags := constraintsAt(c, p, s, pointer, boundsFor(takes))
-	for _, v := range voices {
-		voiced, voicedDiags := constraintsAt(c, p, v.Node, v.At, boundsFor(writerTakes(takes, v.Node)))
-		diags = append(diags, voicedDiags...)
+	for _, v := range foldedBranches {
+		foldedConstraints, foldedConstraintDiags := constraintsAt(c, p, v.Node, v.At, boundsFor(writerTakes(takes, v.Node)))
+		diags = append(diags, foldedConstraintDiags...)
 		if v.Beside {
-			cons = merge.Constraints(voiced, cons)
+			cons = merge.Constraints(foldedConstraints, cons)
 			continue
 		}
-		cons = merge.Constraints(cons, voiced)
+		cons = merge.Constraints(cons, foldedConstraints)
 	}
-	writers := append([]annotation.Voice{{Node: s, At: pointer}}, voices...)
+	writers := append([]annotation.FoldedAllOfBranch{{Node: s, At: pointer}}, foldedBranches...)
 	return cons, append(diags, keepCounts(c, p, writers, takes)...)
 }
 
@@ -72,7 +72,7 @@ func carriesNumberAsText(td ir.TypeDef) bool {
 // carriesText reports whether the Scalar a type st that s writes lowers to,
 // taking format, is one carriesNumberAsText holds, read off the shape
 // scalarTypeID builds it by.
-func carriesText(s *statement.Schema, st statement.Kind, format string) bool {
+func carriesText(s *statement.Schema, st statement.JSONSchemaTypeName, format string) bool {
 	shape := scalarShapeOf(s, st, format)
 	return shape.format == numberTextEncoding && shape.wire != nil
 }
@@ -125,13 +125,13 @@ func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer
 var valueCountKeywords = []string{"maxLength", "maxProperties", "minLength", "minProperties"}
 
 // keepCounts keeps verbatim in p each value count that writers, a position's
-// schema and its voices, write and no field states (keptCount), of those a
+// schema and its folded branches, write and no field states (keptCount), of those a
 // reader of the kinds takes reads of each (writerTakes): of several writing one
 // keyword, the one binding the rest (bindingCount), so the entry is the same
 // whatever their order. Each writer's kept counts are reported once, where it
 // was written (docs/compilers/openapi.md#constraints). A count no such reader
 // reads is the node's finishing to keep (keepUnread).
-func keepCounts(c lowering.Ctx, p *ir.Unmodeled, writers []annotation.Voice, takes kindSet) []ir.Diagnostic {
+func keepCounts(c lowering.Ctx, p *ir.Unmodeled, writers []annotation.FoldedAllOfBranch, takes kindSet) []ir.Diagnostic {
 	binding := make([]int, len(valueCountKeywords))
 	for k, keyword := range valueCountKeywords {
 		binding[k] = bindingCount(writers, keyword, takes)
@@ -168,7 +168,7 @@ func countsKept(c lowering.Ctx, kept []string, pointer jsontext.Pointer) ir.Diag
 // writer's: the smallest maximum or the largest minimum, compared as the
 // integers they are (compareCounts), the first of one value written twice. It
 // returns -1 where no writer writes one.
-func bindingCount(writers []annotation.Voice, keyword string, takes kindSet) int {
+func bindingCount(writers []annotation.FoldedAllOfBranch, keyword string, takes kindSet) int {
 	best, sign := -1, 1
 	if strings.HasPrefix(keyword, "max") {
 		sign = -1
@@ -320,9 +320,9 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 // so its carrier holds none. One owning none holds those a reference does
 // (referenceConstraintsOf), since the census hoists an alias to keep any other.
 // PreserveRefSiteKeywords draws the same line.
-func CarrierConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+func CarrierConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !LoweredToOwnNode(c, pointer, t) {
-		return referenceConstraintsOf(c, p, s, voices, t, pointer)
+		return referenceConstraintsOf(c, p, s, foldedBranches, t, pointer)
 	}
 	return nil, nil
 }
@@ -331,31 +331,31 @@ func CarrierConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, 
 // a reference, a $ref site, a collapsed union, an expanded $dynamicRef or a
 // refinement: no node of its own holds the collection bounds it wrote, so they
 // join its value bounds on the alias or carrier it owns
-// (docs/compilers/openapi.md#constraints), with those its voices write where
+// (docs/compilers/openapi.md#constraints), with those its foldedBranches write where
 // the position holds them (homesAt). Every bound is read by the types the
 // position admits, those of the schemas it names among them (boundKinds),
 // so a collection bound is held only where they admit an array, and the census
 // keeps one they do not (unreadByReference).
-func referenceConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+func referenceConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !stated(s) {
 		return nil, nil
 	}
 	takes := boundKinds(c, s)
-	cons, diags := ConstraintsOf(c, p, s, voices, pointer, takes)
+	cons, diags := ConstraintsOf(c, p, s, foldedBranches, pointer, takes)
 	if takes&kindArray == 0 {
 		return cons, diags
 	}
 	cons = merge.Constraints(cons, heldCollectionBounds(s))
-	if len(voices) > 0 && homesAt(c, s, target, pointer).collection {
-		cons = voicedCollectionBounds(cons, voices)
+	if len(foldedBranches) > 0 && homesAt(c, s, target, pointer).collection {
+		cons = collectionBoundsMetWithFoldedBranches(cons, foldedBranches)
 	}
 	return cons, diags
 }
 
-// voicedCollectionBounds is cons met with the collection bounds voices write,
-// which agree where they speak (voicesAmong).
-func voicedCollectionBounds(cons *ir.Constraints, voices []annotation.Voice) *ir.Constraints {
-	for _, v := range voices {
+// collectionBoundsMetWithFoldedBranches is cons met with the collection bounds foldedBranches write,
+// which agree where they speak (foldingAllOfBranches).
+func collectionBoundsMetWithFoldedBranches(cons *ir.Constraints, foldedBranches []annotation.FoldedAllOfBranch) *ir.Constraints {
+	for _, v := range foldedBranches {
 		cons = merge.Constraints(cons, heldCollectionBounds(v.Node))
 	}
 	return cons

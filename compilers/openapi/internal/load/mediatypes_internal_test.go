@@ -262,7 +262,7 @@ paths:
 	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	faults := mediaFaults{}
 
-	indexWalk(bd, walkSource(t.Context(), doc, Siblings{}, media), bind.Position{}, faults)
+	indexWalk(bd, walkSource(t.Context(), doc, Siblings{}, media), bind.DocumentPointer{}, faults)
 
 	diags := faults.diags(places{}, bd.Bindings().Table())
 	require.Len(t, diags, 2, "%+v", diags)

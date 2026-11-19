@@ -29,7 +29,7 @@ type externalReads struct {
 	trees map[string]*yaml.Node
 	data  map[string][]byte
 	// read is what reading each prepared document found beside its tree.
-	read map[string]doctree.Document
+	read map[string]doctree.ParsedYAMLDocument
 	// answers holds each document's read by the key it was read under, and
 	// documents charges each read to the document budget.
 	answers   map[string]*reading
@@ -40,7 +40,7 @@ type externalReads struct {
 // reads are held to documents, the document budget.
 func newExternalReads(self sourceDocument, documents budget.Limit) *externalReads {
 	return &externalReads{self: self, trees: map[string]*yaml.Node{}, data: map[string][]byte{},
-		read:    map[string]doctree.Document{},
+		read:    map[string]doctree.ParsedYAMLDocument{},
 		answers: map[string]*reading{}, documents: budget.New(documents)}
 }
 
@@ -215,7 +215,7 @@ func (r *externalReads) exhausted(place provenance.Doc) []ir.Diagnostic {
 }
 
 // recordTree notes a document prepared under key from data.
-func (r *externalReads) recordTree(key string, doc doctree.Document, data []byte) {
+func (r *externalReads) recordTree(key string, doc doctree.ParsedYAMLDocument, data []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.trees[key], r.read[key] = doc.Root, doc

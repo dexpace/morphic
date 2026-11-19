@@ -23,7 +23,7 @@ const shorthandRequest = "$" + SourceRequest + "."
 // the type of the parameter or member it names, "" for the body whole, which
 // no one declaration types, and why it resolves nothing. Every step reading
 // an expression of the request reads it here, so they read it alike.
-func RequestValue(w *whole.Document, op *ir.Operation, text string) (*ir.InputPath, ir.TypeID, string) {
+func RequestValue(w *whole.CompiledDocumentView, op *ir.Operation, text string) (*ir.InputPath, ir.TypeID, string) {
 	if e, isExpression, err := Parse(text); isExpression && err == nil {
 		if e.Source != SourceRequest {
 			return nil, "", "names no value of the request"
@@ -56,7 +56,7 @@ func RequestValue(w *whole.Document, op *ir.Operation, text string) (*ir.InputPa
 
 // bodyInput is the member of op's request body tokens walk to, the body whole
 // for none, and its type.
-func bodyInput(w *whole.Document, op *ir.Operation, tokens []string) (*ir.InputPath, ir.TypeID, string) {
+func bodyInput(w *whole.CompiledDocumentView, op *ir.Operation, tokens []string) (*ir.InputPath, ir.TypeID, string) {
 	segments, why, ok := BodyPath(w, op.Request, tokens, "request")
 	if !ok {
 		return nil, "", why
@@ -69,7 +69,7 @@ func bodyInput(w *whole.Document, op *ir.Operation, tokens []string) (*ir.InputP
 
 // paramInput is the member of op's parameter id that names walk to, the
 // parameter whole for none, and its type.
-func paramInput(w *whole.Document, op *ir.Operation, id ir.ParamID, names []string) (*ir.InputPath, ir.TypeID, string) {
+func paramInput(w *whole.CompiledDocumentView, op *ir.Operation, id ir.ParamID, names []string) (*ir.InputPath, ir.TypeID, string) {
 	i := slices.IndexFunc(op.Params, func(p ir.Parameter) bool { return p.ID == id })
 	if i < 0 {
 		// A binding names only a parameter its operation holds.
@@ -90,9 +90,9 @@ func paramInput(w *whole.Document, op *ir.Operation, id ir.ParamID, names []stri
 }
 
 // walkedType is the type of the member tokens walk to from root, a walk
-// whole.Document.Walk has already taken, so each step reads a kept answer.
+// whole.CompiledDocumentView.Walk has already taken, so each step reads a kept answer.
 // It is "" where a step finds no member, which no such walk leaves.
-func walkedType(w *whole.Document, root ir.TypeID, tokens []string) ir.TypeID {
+func walkedType(w *whole.CompiledDocumentView, root ir.TypeID, tokens []string) ir.TypeID {
 	at := root
 	for _, token := range tokens {
 		member, ok := w.Member(at, token)

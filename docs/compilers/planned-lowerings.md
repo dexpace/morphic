@@ -49,7 +49,7 @@ highlights, and the list moves to a specification of its own when the compiler l
   contents chain, filename location)
 - streams/SSE → StreamDetail + the streaming Content's Stream + Variant.Event (contentType,
   terminal)
-- `@error` → the response becomes an `ErrorCase`, whose payload `irfacts.Index.Usage` marks
+- `@error` → the response becomes an `ErrorCase`, whose payload `irfacts.DocumentFacts.Usage` marks
   `UsageError`
 - `@example`/`@opExample` → Examples (Input/Output pairs)
 - `@pattern` message → Constraints.PatternMessage

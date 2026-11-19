@@ -23,7 +23,7 @@ import (
 // every promotion (docs/compilers/openapi.md#policies), and reads nothing
 // while policy is off. p is the run's promoter, and w the document, which is
 // whole.
-func Infer(policy Inference, p promotion.Promoter, w *whole.Document) []ir.Diagnostic {
+func Infer(policy Inference, p promotion.Promoter, w *whole.CompiledDocumentView) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}

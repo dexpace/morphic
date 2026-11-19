@@ -28,13 +28,15 @@ type Settlement interface {
 // refused, as is one deferred after Finish, which would never be.
 func (t *Types) Defer(s Settlement) { t.queue(&t.pending, "defer", s) }
 
-// Complete queues s for Finish to settle before every settlement Defer queued,
+// QueueSettlementBeforeDeferredOnes queues s for Finish to settle before every settlement Defer queued,
 // whenever either was queued, and refuses what Defer refuses. It is for a
 // settlement that finishes a node its lowering left open, because finishing it
 // reads nodes not built yet, such as a field several declarations write: every
 // settlement Defer queued then reads that node finished, whether it only reads
 // it or rewrites it too.
-func (t *Types) Complete(s Settlement) { t.queue(&t.completing, "complete", s) }
+func (t *Types) QueueSettlementBeforeDeferredOnes(s Settlement) {
+	t.queue(&t.completing, "complete", s)
+}
 
 // queue appends s to q, which verb names, or refuses it as Defer documents.
 func (t *Types) queue(q *[]Settlement, verb string, s Settlement) {

@@ -30,7 +30,7 @@ import (
 func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home,
 	unhomed bool, fin finisher,
 ) (ir.TypeRef, []ir.Diagnostic) {
-	if !homesDeclaration(c, s, target, pointer, home, unhomed || declaresScoped(c, declarationVoices(c, s, target, pointer))) {
+	if !homesDeclaration(c, s, target, pointer, home, unhomed || declaresScoped(c, declarationFoldedBranches(c, s, target, pointer))) {
 		return target, nil
 	}
 	var decl finished
@@ -40,16 +40,16 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, tar
 	return ref, append(diags, decl.diags...)
 }
 
-// declarationVoices returns the voices of the position s, written at pointer
+// declarationFoldedBranches returns the folded branches of the position s, written at pointer
 // and lowered to target, each marked where its entry is kept whole.
-func declarationVoices(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) []annotation.Voice {
-	return markKeptWhole(c, s, pointer, target, positionVoices(c, s, pointer, target))
+func declarationFoldedBranches(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) []annotation.FoldedAllOfBranch {
+	return markKeptWhole(c, s, pointer, target, positionFoldedBranches(c, s, pointer, target))
 }
 
 // declarationOn writes the declaration s, written at pointer and lowered to
 // target, on td, in hand, the node standing there: its annotations
 // (attachDeclaredAnnotations), and where that node is its home, what binds a
-// use, its voices' first (recordVoicedResidue, recordResidue). A carrier keeps
+// use, its folded branches' first (recordFoldedBranchResidue, recordResidue). A carrier keeps
 // the latter itself.
 func declarationOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home,
 	td ir.TypeDef,
@@ -62,7 +62,7 @@ func declarationOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targe
 	if home != annotation.HomeOwnNode {
 		return diags
 	}
-	diags = append(diags, recordVoicedResidue(c, td, s, declarationVoices(c, s, target, pointer))...)
+	diags = append(diags, recordFoldedBranchResidue(c, td, s, declarationFoldedBranches(c, s, target, pointer))...)
 	leaves := leftToWhole(c, s, target, pointer)
 	return append(diags, recordResidue(c, td.Common(), s, pointer, func(keyword string) bool { return slices.Contains(leaves, keyword) })...)
 }
@@ -221,13 +221,13 @@ func declaresValidationOnly(s *statement.Schema) bool {
 
 // written reports whether sub is a schema written at its position, which a
 // value written as no schema is not (statement.Unwritten).
-func written(sub statement.Sub) bool {
-	return sub.Truth() != statement.Unwritten
+func written(sub statement.Subschema) bool {
+	return sub.SchemaValueForm() != statement.Unwritten
 }
 
 // stated reports whether s is a schema object, which alone has keys and slots
 // to read: a nil s, a boolean schema, a value written as no schema and a
-// mapping the parser read as a boolean are none (statement.Truth).
+// mapping the parser read as a boolean are none (statement.SchemaValueForm).
 func stated(s *statement.Schema) bool {
 	return s != nil && s.Truth == statement.Stated
 }
@@ -268,7 +268,7 @@ func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
 // principal's node stands at s's position, written at pointer and lowered to
 // target (standsAtPosition): that node holds the discriminator as one written
 // at the position, so it keeps the object's keys as the position's own
-// (annotation.DiscriminatorKeys), which no voice's read keeps.
+// (annotation.DiscriminatorKeys), which no folded branch's read keeps.
 func principalDiscriminatorKeys(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (ir.Unmodeled, []ir.Diagnostic) {
 	r, refines := refinementOf(c, s, pointer)
@@ -326,7 +326,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.S
 	// of it, which the node keeps no second time (GitHub #849).
 	promotion.DropContained(c.Promoter(), &common.Unmodeled, "openapi:discriminator")
 	dropFoldedIntoWhole(c, &common.Unmodeled)
-	from := use.lentKeys(c)
+	from := use.fallbackKeys(c)
 	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
 	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)
 	// The openness promotions are applied here rather than where the Enum or

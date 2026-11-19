@@ -22,7 +22,7 @@ import (
 )
 
 // Ctx is everything the schema lowering may read: the document whose content
-// it reads (Site), the caller's policies, and the indexes derived from the
+// it reads (DocumentPlacement), the caller's policies, and the indexes derived from the
 // load once at entry. New builds one; the zero Ctx is invalid.
 //
 // It is a value: a function taking one takes a copy, and every lowering takes
@@ -33,7 +33,7 @@ import (
 // Call sites bind it to c: ctx names the context.Context a Compile takes.
 type Ctx struct {
 	// Site is the document whose content the context reads (InDocument).
-	Site
+	DocumentPlacement
 
 	// Limits is the caller's budget for the constructs the walk builds. It
 	// arrives already resolved: the compiler's Options fills the unset budgets
@@ -89,8 +89,8 @@ type shared struct {
 	// the one table it built, so no context builds another. Copies share them
 	// on purpose: nothing writes either after the load, so no lowering changes
 	// what another reads.
-	documents map[bind.DocID]Document
-	dialects  dialect.Table
+	documents map[bind.DocID]BoundDocument
+	dialects  dialect.SchemaDialectRows
 	// sources is the compile's input files, in the order Provenance.Source
 	// indexes them (Sources).
 	sources []ir.SourceInfo
@@ -106,7 +106,7 @@ type shared struct {
 	// for the run (Statements). Copies share it on purpose: a statement reads
 	// only the documents, their bindings and their rows, which no lowering
 	// changes, so what one copy reads is what another would.
-	statements *statement.Table
+	statements *statement.MemoizingSchemaReader
 	// settled holds each store Settled built, by its type (store). Copies share
 	// it on purpose, so every settlement of a run reads one store. Unlike an
 	// answer in readings, what a store holds reads the registry, so it would
@@ -126,14 +126,14 @@ type Policy struct {
 	TitleNames             TitleNames
 }
 
-// Document is one document of the bindings' table the compile read, as a
-// lowering places and names what it reads there (Site): the name the bindings
+// BoundDocument is one document of the bindings' table the compile read, as a
+// lowering places and names what it reads there (DocumentPlacement): the name the bindings
 // read it by, which a reference in it is resolved against, where its positions
 // are recorded, and how the IDs of what it declares name it.
-type Document struct {
+type BoundDocument struct {
 	Name  string
 	Place provenance.Doc
-	IDs   ids.Document
+	IDs   ids.DocumentIDNamespace
 }
 
 // Loaded is what New reads of the load phase, as values of the packages
@@ -147,8 +147,8 @@ type Loaded struct {
 	Places    *resolve.Places
 	Bindings  *typed.Bindings
 	Declares  resolve.Names
-	Documents map[bind.DocID]Document
-	Rules     dialect.Table
+	Documents map[bind.DocID]BoundDocument
+	Rules     dialect.SchemaDialectRows
 	Sources   []ir.SourceInfo
 }
 
@@ -162,7 +162,7 @@ type Loaded struct {
 func New(in Loaded, p Policy) Ctx {
 	promoter := promotion.New(p.Promotions)
 	return Ctx{
-		Site:                   siteOf(bind.Source, in.Documents[bind.Source]),
+		DocumentPlacement:      siteOf(bind.Source, in.Documents[bind.Source]),
 		Limits:                 p.Limits,
 		schemas:                in.Declares,
 		promoter:               &promoter,
@@ -180,8 +180,8 @@ func New(in Loaded, p Policy) Ctx {
 }
 
 // siteOf returns the site of document id, which d is.
-func siteOf(id bind.DocID, d Document) Site {
-	return Site{place: d.Place, ids: d.IDs, doc: id}
+func siteOf(id bind.DocID, d BoundDocument) DocumentPlacement {
+	return DocumentPlacement{place: d.Place, ids: d.IDs, doc: id}
 }
 
 // Promoter returns the vendor-extension promotion policy this context carries.
@@ -218,17 +218,17 @@ func (c Ctx) Bindings() *typed.Bindings {
 
 // Statements returns the run's statements: what each schema the documents
 // write says, read once for every copy of c.
-func (c Ctx) Statements() *statement.Table {
+func (c Ctx) Statements() *statement.MemoizingSchemaReader {
 	return c.shared.statements
 }
 
-// Remembered returns read's answer for key, read once and remembered for every
+// ReadOncePerRun returns read's answer for key, read once and remembered for every
 // copy of c. read must turn only on the documents and their bindings, which no
 // lowering changes, and key on all else it turns on; a package's own key type
 // keeps its readings from another's. Each type of key and answer has a map of
 // its own, so neither is boxed to be found or kept, and a key read for two
 // types of answer is read once for each.
-func Remembered[K comparable, V any](c Ctx, key K, read func() V) V {
+func ReadOncePerRun[K comparable, V any](c Ctx, key K, read func() V) V {
 	answers, ok := c.shared.readings[memo[K, V]{}].(map[K]V)
 	if !ok {
 		// Kept before read runs, so a reading that asks Remembered for answers of
@@ -253,7 +253,7 @@ type memo[K comparable, V any] struct{}
 // registry. Remembered may not keep such a reading, as it reads what the
 // settlements before it left: it is sound only while no settlement after it
 // rewrites what it read. The run takes every completion
-// (compile.Types.Complete) before any deferred settlement, so a store only
+// (compile.Types.QueueSettlementBeforeDeferredOnes) before any deferred settlement, so a store only
 // deferred settlements fill is sound where only completions rewrite what it
 // reads. S's documentation names them, and each reports a store it finds
 // filled.
@@ -275,7 +275,7 @@ type store[S any] struct{}
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas.Has(name) }
 
 // SchemaRules returns the Schema Object's rows of the document whose content c
-// reads, where no root names a dialect (dialect.Table.In). A reading only a
+// reads, where no root names a dialect (dialect.SchemaDialectRows.In). A reading only a
 // minor decides, such as a required `items` or the effect `nullable` has, asks
 // these rather than the version; a keyword's shape, which a schema's dialect
 // decides, asks Rules.
@@ -283,7 +283,7 @@ func (c Ctx) SchemaRules() oas.SchemaRules { return c.Rules().In(c.doc) }
 
 // Rules returns the rows each schema of the compile is read with, which the
 // load phase read off the one table it judged the documents against.
-func (c Ctx) Rules() dialect.Table { return c.shared.dialects }
+func (c Ctx) Rules() dialect.SchemaDialectRows { return c.shared.dialects }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
 // own path, what it declares, and the parsed document itself.
@@ -329,7 +329,7 @@ func NameOfDocument(c Ctx, doc bind.DocID) string {
 }
 
 // InDocument returns c for lowering what document id of the bindings' table
-// declares, at that document's own coordinates (Site): the source's, or
+// declares, at that document's own coordinates (DocumentPlacement): the source's, or
 // another's, whose references are read in its scope, whose positions are its
 // own, so each Provenance names it, and whose IDs it qualifies. It is the one
 // way to another document, or back to the source. It is false, c unchanged,
@@ -339,12 +339,12 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 	if !ok {
 		return c, false
 	}
-	c.Site = siteOf(id, d)
+	c.DocumentPlacement = siteOf(id, d)
 	return c, true
 }
 
 // DynamicAnchor returns what c's document's declarations of the
-// $dynamicAnchor name say (bind.Table.DynamicAnchor).
+// $dynamicAnchor name say (bind.ReferenceTargetTable.DynamicAnchor).
 func (c Ctx) DynamicAnchor(name string) bind.DynamicAnchor {
 	return c.Bindings().Table().DynamicAnchor(c.doc, name)
 }

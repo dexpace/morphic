@@ -19,7 +19,7 @@ import (
 // costs two steps more than one over one, and a limit one short of it cuts it.
 func TestBind_SpendsAStepOnEachTagAnOperationLists(t *testing.T) {
 	t.Parallel()
-	steps := func(tags string, limit budget.Limit) *bind.Table {
+	steps := func(tags string, limit budget.Limit) *bind.ReferenceTargetTable {
 		cfg := self
 		cfg.Limit = limit
 		return bound(t, "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {/a: {get: {tags: "+tags+

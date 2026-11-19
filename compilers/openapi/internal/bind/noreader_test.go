@@ -43,7 +43,7 @@ func TestBind_ASourceAtAURLWithNoReaderReadsNoOtherDocument(t *testing.T) {
 	} {
 		assert.Equal(t, want, entryAt(t, table, jsontext.Pointer("/components/schemas/"+name)).Hop.Status, name)
 	}
-	at := bind.Position{Pointer: "/components/schemas/M/discriminator"}
+	at := bind.DocumentPointer{Pointer: "/components/schemas/M/discriminator"}
 	for value, want := range map[string]bind.Status{
 		self + "#/components/schemas/T": bind.Resolved, id: bind.Resolved, other: bind.Unresolved,
 	} {

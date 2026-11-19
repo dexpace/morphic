@@ -17,7 +17,7 @@ import (
 // known is false where a resource on the way was not placed, as a merge past
 // the bound may hide one.
 type reach struct {
-	out   map[Position][]Position
+	out   map[DocumentPointer][]DocumentPointer
 	work  *work
 	known bool
 }
@@ -26,18 +26,18 @@ type reach struct {
 // position through t's bases, in the order t lists them, so where the budget
 // runs out depends on no order of reading. Past the budget, or once the
 // binding's context is done, it links nothing more and is not known.
-func reachOf(b *binder, t *Table) reach {
-	r := reach{out: map[Position][]Position{}, work: b.work, known: true}
+func reachOf(b *binder, t *ReferenceTargetTable) reach {
+	r := reach{out: map[DocumentPointer][]DocumentPointer{}, work: b.work, known: true}
 	cut := false
-	place := func(p Position) Position {
+	place := func(p DocumentPointer) DocumentPointer {
 		if cut = cut || b.work.over(); cut {
-			return Position{}
+			return DocumentPointer{}
 		}
 		in, known := t.bases.holding(p)
 		r.known = r.known && known
 		return in.root
 	}
-	link := func(from, to Position) {
+	link := func(from, to DocumentPointer) {
 		inFrom, inTo := place(from), place(to)
 		r.known = r.known && !cut
 		if !cut && inFrom != inTo {
@@ -46,7 +46,7 @@ func reachOf(b *binder, t *Table) reach {
 	}
 	for _, res := range b.ids.resources {
 		if res.root.Pointer != "" && b.docs.reached[res.root.Doc] {
-			link(Position{Doc: res.root.Doc, Pointer: res.root.Pointer.Parent()}, res.root)
+			link(DocumentPointer{Doc: res.root.Doc, Pointer: res.root.Pointer.Parent()}, res.root)
 		}
 	}
 	for _, e := range t.entryList {
@@ -72,15 +72,15 @@ func reachOf(b *binder, t *Table) reach {
 // itself, so each edge is walked at most twice for each resource it leaves,
 // and each walk is a step of the binding's budget: past it, the walk stops
 // short and the budget says so. A graph not known is not walked.
-func (r reach) reachers(origins []Position) func(resource Position) bool {
-	held := map[Position][]Position{}
+func (r reach) reachers(origins []DocumentPointer) func(resource DocumentPointer) bool {
+	held := map[DocumentPointer][]DocumentPointer{}
 	if !r.known {
 		// What no verdict rests on, as it is not known, is not walked.
 		origins = nil
 	}
-	type visit struct{ at, origin Position }
+	type visit struct{ at, origin DocumentPointer }
 	var queue []visit
-	add := func(at, origin Position) {
+	add := func(at, origin DocumentPointer) {
 		if len(held[at]) < 2 && !slices.Contains(held[at], origin) {
 			held[at] = append(held[at], origin)
 			queue = append(queue, visit{at: at, origin: origin})
@@ -99,8 +99,8 @@ func (r reach) reachers(origins []Position) func(resource Position) bool {
 			add(next, v.origin)
 		}
 	}
-	return func(resource Position) bool {
-		return slices.ContainsFunc(held[resource], func(o Position) bool { return o != resource })
+	return func(resource DocumentPointer) bool {
+		return slices.ContainsFunc(held[resource], func(o DocumentPointer) bool { return o != resource })
 	}
 }
 
@@ -140,17 +140,17 @@ type dynamicReach struct {
 func dynamicReachOf(ids *identifiers, b *bases, g reach, shared map[string][]dynamicKey) dynamicReach {
 	out := dynamicReach{by: map[dynamicKey]bool{}, unknown: map[dynamicKey]bool{}}
 	stopped := !g.known
-	place := func(p Position) (Position, bool) {
+	place := func(p DocumentPointer) (DocumentPointer, bool) {
 		if stopped = stopped || g.work.over(); stopped {
-			return Position{}, false
+			return DocumentPointer{}, false
 		}
 		res, placed := b.holding(p)
 		return res.root, placed
 	}
 	for _, name := range slices.Sorted(maps.Keys(shared)) {
 		keys := shared[name]
-		first := map[dynamicKey]Position{}
-		var origins []Position
+		first := map[dynamicKey]DocumentPointer{}
+		var origins []DocumentPointer
 		known := true
 		for _, k := range keys {
 			site := slices.MinFunc(ids.dynamic[k], comparePositions)

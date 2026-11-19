@@ -66,7 +66,7 @@ type branchesSayOf struct {
 // of no branch, which every keyword would pass. Every reader asks, so it is
 // read once a run.
 func branchesSay(c lowering.Ctx, union, beside *statement.Schema) []string {
-	return lowering.Remembered(c, branchesSayOf{union, beside}, func() []string {
+	return lowering.ReadOncePerRun(c, branchesSayOf{union, beside}, func() []string {
 		choice := union.ChoiceKeywords()
 		branches := slices.Concat(choice.OneOf, choice.AnyOf)
 		if len(branches) == 0 {
@@ -75,7 +75,7 @@ func branchesSay(c lowering.Ctx, union, beside *statement.Schema) []string {
 		w := newAdmissionReader(c)
 		reads := make([]admitted, len(branches))
 		for i, b := range branches {
-			reads[i] = lowered(&w, c.Statements().Sub(b))
+			reads[i] = lowered(&w, c.Statements().Subschema(b))
 		}
 		if w.incomplete() {
 			return nil
@@ -299,8 +299,8 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 // branch writing its $ref beside other keywords is read by that $ref.
 func branchesNameReferents(c lowering.Ctx, position, s *statement.Schema) bool {
 	branches, _, _ := unionBranches(c, position, s)
-	return !slices.ContainsFunc(branches, func(b statement.Sub) bool {
-		ref := referenceOf(c, c.Statements().Sub(b))
+	return !slices.ContainsFunc(branches, func(b statement.Subschema) bool {
+		ref := referenceOf(c, c.Statements().Subschema(b))
 		return ref != nil && !namesReferent(c, ref)
 	})
 }
@@ -453,7 +453,7 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 	branches, key, _ := unionBranches(c, s, s)
 	var diags []ir.Diagnostic
 	for i, b := range branches {
-		st := referenceOf(c, c.Statements().Sub(b))
+		st := referenceOf(c, c.Statements().Subschema(b))
 		if st == nil || namesReferent(c, st) || onLoop(st) {
 			continue
 		}

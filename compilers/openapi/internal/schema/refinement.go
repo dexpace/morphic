@@ -132,7 +132,7 @@ const primitiveKinds = kindString | kindNumber | kindBoolean
 // array, whose shape no entry was elected to give, every kind among them, or
 // the kind-inference policy read them, as it reads only those: the position is
 // then the top type.
-func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []statement.Kind {
+func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []statement.JSONSchemaTypeName {
 	r, refines := refinementOf(c, s, pointer)
 	if !refines || r.principal != nil {
 		return nil
@@ -142,7 +142,7 @@ func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointe
 	if kinds == 0 || kinds&^primitiveKinds != 0 || inferred {
 		return nil
 	}
-	var out []statement.Kind
+	var out []statement.JSONSchemaTypeName
 	if kinds&kindString != 0 {
 		out = append(out, statement.KindString)
 	}

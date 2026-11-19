@@ -35,12 +35,12 @@ func TestBind_ARequirementKeyIsAReferenceWhereItsDocumentReadsOneAsAURI(t *testi
 	byURI := func(string) bool { return true }
 	table := bind.Bind(t.Context(), openapitest.YAMLDocument(t, requirementSpec),
 		bind.Config{Self: "spec.yaml", SecuritySchemes: []string{"named"}, KeysByURI: byURI})
-	r, ok := table.Reference(bind.Position{Pointer: "/security/0/#~1x~1s"}, bind.RefSecurityScheme)
+	r, ok := table.Reference(bind.DocumentPointer{Pointer: "/security/0/#~1x~1s"}, bind.RefSecurityScheme)
 	require.True(t, ok, "a key naming no entry is a reference")
 	assert.Equal(t, "#/x/s", r.Hop.Ref)
 	assert.Equal(t, bind.Resolved, r.Chain.Status)
-	assert.Equal(t, bind.Position{Pointer: "/x/s"}, r.Chain.End)
-	_, ok = table.Reference(bind.Position{Pointer: "/security/0/named"}, bind.RefSecurityScheme)
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/x/s"}, r.Chain.End)
+	_, ok = table.Reference(bind.DocumentPointer{Pointer: "/security/0/named"}, bind.RefSecurityScheme)
 	assert.False(t, ok, "a key naming an entry is that entry's name")
 
 	for name, cfg := range map[string]bind.Config{
@@ -48,7 +48,7 @@ func TestBind_ARequirementKeyIsAReferenceWhereItsDocumentReadsOneAsAURI(t *testi
 		"a reading of names": {Self: "spec.yaml", KeysByURI: func(string) bool { return false }},
 	} {
 		table := bind.Bind(t.Context(), openapitest.YAMLDocument(t, requirementSpec), cfg)
-		_, ok := table.Reference(bind.Position{Pointer: "/security/0/#~1x~1s"}, bind.RefSecurityScheme)
+		_, ok := table.Reference(bind.DocumentPointer{Pointer: "/security/0/#~1x~1s"}, bind.RefSecurityScheme)
 		assert.False(t, ok, name)
 	}
 }

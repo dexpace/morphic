@@ -11,7 +11,7 @@ import (
 )
 
 // UsageFlags is a bitset recording how a type is used across the API surface,
-// from the client's side of the wire. [Index.Usage] derives it and no type
+// from the client's side of the wire. [DocumentFacts.Usage] derives it and no type
 // stores it, so the bits cannot disagree with the operations they describe.
 // Input and Output say which way a value travels, Error and Multipart in what
 // role, so a type in an error payload also carries the side it travels on.
@@ -45,7 +45,7 @@ const multipartPrefix = "multipart/"
 // operation the API itself starts, a webhook or a callback, swaps the two. A
 // flag spreads along the type graph, and a field argument makes the type it
 // names Input. Partial says when operations went unread.
-func (x *Index) Usage(id ir.TypeID) UsageFlags {
+func (x *DocumentFacts) Usage(id ir.TypeID) UsageFlags {
 	return x.usageIndex()[id]
 }
 

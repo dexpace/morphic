@@ -29,7 +29,7 @@ const (
 
 // kindOfType returns the kinds a `type` member admits, and none for a spelling
 // no schema defines.
-func kindOfType(t statement.Kind) kindSet {
+func kindOfType(t statement.JSONSchemaTypeName) kindSet {
 	switch t {
 	case statement.KindString:
 		return kindString
@@ -147,7 +147,7 @@ func declaredInstanceTypes(s *statement.Schema) kindSet {
 // typeKinds returns the kinds st, one type a type array lists, admits, and every
 // kind but null for a spelling no dialect defines, as declaredInstanceTypes
 // reads one.
-func typeKinds(st statement.Kind) kindSet {
+func typeKinds(st statement.JSONSchemaTypeName) kindSet {
 	if kinds := kindOfType(st) &^ kindNull; kinds != 0 {
 		return kinds
 	}

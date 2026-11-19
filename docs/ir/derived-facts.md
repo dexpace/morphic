@@ -3,7 +3,7 @@
 Part of the [IR design](./README.md). What `ir/irfacts` derives from a document and never stores.
 
 What a document implies and does not state is derived by one per-document index,
-`irfacts.Index` (`irfacts.New(doc)`), and never stored: nothing orders the derivations, and none
+`irfacts.DocumentFacts` (`irfacts.New(doc)`), and never stored: nothing orders the derivations, and none
 goes stale after a transform. Each of its indexes is built whole the first time one of its facts
 needs it and never written again, so an `Index` is safe for concurrent use; a caller that changes
 the document builds a new one. The package imports only `ir`, which keeps the definitions it

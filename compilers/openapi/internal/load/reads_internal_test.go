@@ -156,7 +156,7 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 			t.Parallel()
 			tree := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
 			for range 100 {
-				r.recordTree(key, doctree.Document{Root: tree}, nil)
+				r.recordTree(key, doctree.ParsedYAMLDocument{Root: tree}, nil)
 				got, ok := r.preparedFor(key)
 				assert.True(t, ok)
 				assert.Same(t, tree, got)
@@ -179,7 +179,7 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("/tmp/doc.yaml", doctree.Document{Root: tree}, nil)
+		r.recordTree("/tmp/doc.yaml", doctree.ParsedYAMLDocument{Root: tree}, nil)
 
 		got, ok := r.preparedFor("/tmp/doc.yaml")
 
@@ -191,7 +191,7 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("dir/with space/doc.yaml", doctree.Document{Root: tree}, nil)
+		r.recordTree("dir/with space/doc.yaml", doctree.ParsedYAMLDocument{Root: tree}, nil)
 
 		got, ok := r.preparedFor("dir/with space/doc.yaml")
 
@@ -203,7 +203,7 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("http://host/doc.yaml", doctree.Document{Root: tree}, nil)
+		r.recordTree("http://host/doc.yaml", doctree.ParsedYAMLDocument{Root: tree}, nil)
 
 		got, ok := r.preparedFor("http://host/doc.yaml")
 		_, other := r.preparedFor("HTTP://host:/doc.yaml")

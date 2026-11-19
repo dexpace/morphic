@@ -174,13 +174,13 @@ const refinedComponents = `    RefinesSpent: {allOf: [{$ref: '#/components/schem
     LiveSpent: {allOf: [{$ref: '#/components/schemas/Spent'}], deprecated: false}
 `
 
-// TestPromotion_ARefinementLendsWhatItRefines holds a refinement's carriers to
+// TestPromotion_ARefinementFallsBackToWhatItRefines holds a refinement's carriers to
 // the chain their keywords are read along (docs/compilers/openapi.md#extension-promotion):
 // a refinement is a use of its target, a $ref to one reads through it, any link
 // stating a deprecation, by a keyword or a key, deprecates it, and a false
 // withdraws none. Reading only the end of a $ref, each would read the
 // refinement's own keys, which are none.
-func TestPromotion_ARefinementLendsWhatItRefines(t *testing.T) {
+func TestPromotion_ARefinementFallsBackToWhatItRefines(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name   string
@@ -212,11 +212,11 @@ func TestPromotion_ARefinementLendsWhatItRefines(t *testing.T) {
 	}
 }
 
-// TestPromotion_ALostRefLendsTheNodeItSpeaksOn holds a node a $ref speaks on
+// TestPromotion_ALostRefFallsBackToTheNodeItIsWrittenOn holds a node a $ref speaks on
 // after losing the type, to a value set narrowing it or an enum beside its allOf
 // (docs/compilers/openapi.md#ref-use-site), to that $ref's keys as to its
 // keyword: the $ref is no Base of the node, so nothing else reaches them.
-func TestPromotion_ALostRefLendsTheNodeItSpeaksOn(t *testing.T) {
+func TestPromotion_ALostRefFallsBackToTheNodeItIsWrittenOn(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileUse(t, `openapi: 3.1.0
 info: {title: T, version: "1"}

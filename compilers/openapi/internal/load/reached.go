@@ -42,7 +42,7 @@ type reached struct {
 	tree   provenance.Tree
 	others Others
 	// dialects gives the rows each schema checked is read with.
-	dialects dialect.Table
+	dialects dialect.SchemaDialectRows
 	// seen holds the objects read as their kind, by the source's own check
 	// and by each check of a target since.
 	seen map[objectKey]bool
@@ -64,7 +64,7 @@ type reached struct {
 // node it is written as, the position it is at, and the name of the document
 // holding it, all as the bindings' table reads them.
 type reachedTarget struct {
-	site, at bind.Position
+	site, at bind.DocumentPointer
 	kind     oas.Kind
 	node     *yaml.Node
 	doc      string
@@ -81,13 +81,13 @@ func (t reachedTarget) inSource() bool { return t.at.Doc == bind.Source }
 // own check made. It returns the findings and what it judged, the acceptances
 // of the source's check counted, for settle to read the tree by, and the
 // context's error where it cut the checks short.
-func judgeReached(ctx context.Context, sites places, table *bind.Table, doc *soa.OpenAPI, opts Options,
-	self sourceDocument, others Others, dialects dialect.Table,
+func judgeReached(ctx context.Context, sites places, table *bind.ReferenceTargetTable, doc *soa.OpenAPI, opts Options,
+	self sourceDocument, others Others, dialects dialect.SchemaDialectRows,
 ) ([]ir.Diagnostic, judgment, error) {
 	checks := newReached(doc, opts, self.tree, self.judged)
 	checks.others, checks.dialects = others, dialects
 	view := nodeview.New()
-	written := func(p bind.Position) *yaml.Node { return writtenIn(view, table, p) }
+	written := func(p bind.DocumentPointer) *yaml.Node { return writtenIn(view, table, p) }
 	targets := landingTargets(table.Landings(), written)
 	targets = append(targets, objectTargets(table.ObjectLandings(), written)...)
 	found := checkReached(ctx, sites, targets, bind.PositionOrder(table), checks)
@@ -100,7 +100,7 @@ func judgeReached(ctx context.Context, sites places, table *bind.Table, doc *soa
 // One no position reaches, which only a budget cutting the reading leaves, is
 // no target, and nor is one written as no mapping, which no reference resolves
 // to.
-func objectTargets(landings []bind.ObjectLanding, written func(bind.Position) *yaml.Node) []reachedTarget {
+func objectTargets(landings []bind.ObjectLanding, written func(bind.DocumentPointer) *yaml.Node) []reachedTarget {
 	var out []reachedTarget
 	for _, l := range landings {
 		kind, known := objectKinds[l.Kind]
@@ -130,7 +130,7 @@ var objectKinds = map[bind.RefKind]oas.Kind{
 // schema, such as a number, is one, which the check reports, but a tuple's
 // rest that is no mapping is judged by its own row where the schema writing
 // it is read.
-func landingTargets(landings []bind.Landing, written func(bind.Position) *yaml.Node) []reachedTarget {
+func landingTargets(landings []bind.Landing, written func(bind.DocumentPointer) *yaml.Node) []reachedTarget {
 	var out []reachedTarget
 	for _, l := range landings {
 		node := written(l.At)
@@ -144,7 +144,7 @@ func landingTargets(landings []bind.Landing, written func(bind.Position) *yaml.N
 
 // writtenIn returns the node the documents of table write at p, read through
 // view, and nil where none is there.
-func writtenIn(view *nodeview.View, table *bind.Table, p bind.Position) *yaml.Node {
+func writtenIn(view *nodeview.View, table *bind.ReferenceTargetTable, p bind.DocumentPointer) *yaml.Node {
 	path, complete := view.DocumentPath(table.Document(p.Doc).Root, p.Pointer)
 	if !complete || len(path) == 0 {
 		return nil
@@ -166,7 +166,7 @@ func isBoolean(n *yaml.Node) bool {
 
 // checkReached checks targets, each object once, at the least site reaching
 // it as compare orders sites, less those already read as the kind expected.
-func checkReached(ctx context.Context, sites places, targets []reachedTarget, compare func(p, q bind.Position) int,
+func checkReached(ctx context.Context, sites places, targets []reachedTarget, compare func(p, q bind.DocumentPointer) int,
 	checks *reached,
 ) []ir.Diagnostic {
 	least := map[objectKey]reachedTarget{}
@@ -250,7 +250,7 @@ func newReached(doc *soa.OpenAPI, opts Options, tree provenance.Tree, judged jud
 // inside a container checked before it or by the source's own check, is not
 // read again; an extension's content, which no container reads, is.
 func (v *reached) checkAll(ctx context.Context, sites places, targets map[objectKey]reachedTarget,
-	compare func(p, q bind.Position) int,
+	compare func(p, q bind.DocumentPointer) int,
 ) []ir.Diagnostic {
 	order := slices.SortedFunc(maps.Values(targets), func(a, b reachedTarget) int {
 		if c := compare(a.site, b.site); c != 0 {
@@ -314,8 +314,8 @@ func (v *reached) see(kind oas.Kind, node *yaml.Node) {
 
 // positionOf returns where pointer of the document holding t's object is in
 // the bindings' table.
-func (v *reached) positionOf(t reachedTarget, pointer jsontext.Pointer) bind.Position {
-	return bind.Position{Doc: t.at.Doc, Pointer: pointer}
+func (v *reached) positionOf(t reachedTarget, pointer jsontext.Pointer) bind.DocumentPointer {
+	return bind.DocumentPointer{Doc: t.at.Doc, Pointer: pointer}
 }
 
 // versionOf returns the version t's object is held to: that of the document
@@ -330,7 +330,7 @@ func (v *reached) versionOf(t reachedTarget) string {
 }
 
 // locatorFor returns where a finding about t's object is placed: where the
-// source's tree holds the node it is about; else in the Document.Sources entry
+// source's tree holds the node it is about; else in the LoadedOpenAPIDocument.Sources entry
 // of the document holding the object, at the node's pointer there (GitHub
 // #1030); and, for a document no entry lists, nowhere yet, marked foreign for
 // placeAt to put at the $ref.

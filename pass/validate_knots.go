@@ -31,9 +31,9 @@ const (
 	compositionOnly edgeSet = iota
 	// needsWithComposition holds everything a type needs for a value.
 	needsWithComposition
-	// needsAlone holds what a type needs but for its composition, which is told
+	// needsExcludingComposition holds what a type needs but for its composition, which is told
 	// as a cycle of its own where it is one.
-	needsAlone
+	needsExcludingComposition
 )
 
 // edge is one need of a type: the vertex it needs, and what for.
@@ -157,7 +157,7 @@ func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 
 // model adds the edges of m that set picks.
 func (s *edgeSink) model(ix typeIndex, m *ir.Model, set edgeSet) {
-	if set != needsAlone {
+	if set != needsExcludingComposition {
 		s.composition(ix, m, set == needsWithComposition)
 	}
 	if set == compositionOnly {
@@ -234,14 +234,14 @@ func everyVariantNeeded(u *ir.Union, ix typeIndex) bool {
 	return true
 }
 
-// knot returns the vertices of a graph that no finite construction reaches.
+// typesWithNoFiniteValue returns the vertices of a graph that no finite construction reaches.
 // Vertex i needs targets[starts[i]:starts[i+1]], all of them where every[i] and
 // any one where not. A vertex is founded when it has no need, when every of
 // its needs is, or when one is. The unfounded vertices that no other
 // unfounded vertex needs are then dropped, one at a time, so what remains lies
 // on a cycle of needs, or between two, and not merely before one. Each edge is
 // read a constant number of times and the lists are made once.
-func knot(n int, starts, targets []int32, every []bool) []bool {
+func typesWithNoFiniteValue(n int, starts, targets []int32, every []bool) []bool {
 	reverse, from := reversed(n, starts, targets)
 	founded := make([]bool, n)
 	left := make([]int32, n)
@@ -335,7 +335,7 @@ func release(work, needs []int32, founded []bool, needed []int32) []int32 {
 	return work
 }
 
-// graph is the edges the types of a document hold, in the form knot reads.
+// graph is the edges the types of a document hold, in the form type cycle reads.
 type graph struct {
 	starts, targets []int32
 }
@@ -349,7 +349,7 @@ func edgesOf(composition bool, cyclic []bool, i int) edgeSet {
 	case composition:
 		return compositionOnly
 	case cyclic[i]:
-		return needsAlone
+		return needsExcludingComposition
 	default:
 		return needsWithComposition
 	}
@@ -372,13 +372,13 @@ func buildGraph(doc *ir.Document, ix typeIndex, composition bool, cyclic []bool)
 	return g
 }
 
-// checkKnots reports each type that lies on a cycle of bases and mixins
+// checkCompositionCyclesAndInfiniteTypes reports each type that lies on a cycle of bases and mixins
 // (pass/composition-cycle), and each that has no finite value, since each of
 // what it needs for one needs it in turn (pass/no-finite-value). Both are
 // warnings: the IR permits a composition cycle and a target reads it to its
 // fixpoint, so no target is refused (docs/ir/models.md). Each is told at every
-// type of the knot, naming the entry that leads on, the composition ones first.
-func checkKnots(doc *ir.Document, ids []ir.TypeID) []ir.Diagnostic {
+// type of the type cycle, naming the entry that leads on, the composition ones first.
+func checkCompositionCyclesAndInfiniteTypes(doc *ir.Document, ids []ir.TypeID) []ir.Diagnostic {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -390,26 +390,26 @@ func checkKnots(doc *ir.Document, ids []ir.TypeID) []ir.Diagnostic {
 		every[i] = !union
 	}
 	comp := buildGraph(doc, ix, true, nil)
-	cyclic := knot(len(ids), comp.starts, comp.targets, every)
+	cyclic := typesWithNoFiniteValue(len(ids), comp.starts, comp.targets, every)
 	needs := buildGraph(doc, ix, false, cyclic)
-	empty := knot(len(ids), needs.starts, needs.targets, every)
+	empty := typesWithNoFiniteValue(len(ids), needs.starts, needs.targets, every)
 
-	diags := appendKnot(nil, doc, ix, cyclic, true, nil, "pass/composition-cycle")
-	return appendKnot(diags, doc, ix, empty, false, cyclic, "pass/no-finite-value")
+	diags := appendTypeCycleFindings(nil, doc, ix, cyclic, true, nil, "pass/composition-cycle")
+	return appendTypeCycleFindings(diags, doc, ix, empty, false, cyclic, "pass/no-finite-value")
 }
 
-// appendKnot reports each type in knot, naming the first edge leading into the
-// knot of those edgesOf picks for it, so a type of the composition knot is read
+// appendTypeCycleFindings reports each type in type cycle, naming the first edge leading into the
+// type cycle of those edgesOf picks for it, so a type of the composition type cycle is read
 // without its composition, as the graph of needs was built.
-func appendKnot(diags []ir.Diagnostic, doc *ir.Document, ix typeIndex, knotOf []bool, composition bool, cyclic []bool,
+func appendTypeCycleFindings(diags []ir.Diagnostic, doc *ir.Document, ix typeIndex, infiniteGroupOf []bool, composition bool, cyclic []bool,
 	code string,
 ) []ir.Diagnostic {
 	for i, id := range ix.ids {
-		if !knotOf[i] {
+		if !infiniteGroupOf[i] {
 			continue
 		}
 		td := doc.Types[id]
-		sink := edgeSink{into: knotOf}
+		sink := edgeSink{into: infiniteGroupOf}
 		eachEdge(td, ix, edgesOf(composition, cyclic, i), &sink)
 		var message string
 		if composition {

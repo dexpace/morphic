@@ -148,7 +148,7 @@ keeps it.
 - **All responses and all content types survive** (oagen's "primary response" collapse is the
   counterexample). The plan layer picks a primary for SDK ergonomics; the IR doesn't.
 - **An error's body is of any kind**, a model or a union, a list or a primitive, and
-  `irfacts.Index.Usage` marks what it reaches `UsageError` ([derived-facts](./derived-facts.md)),
+  `irfacts.DocumentFacts.Usage` marks what it reaches `UsageError` ([derived-facts](./derived-facts.md)),
   with status conditions and range collapsing exactly as Kiota's error mappings (`404`, `4XX`,
   catch-all).
 - **A status's class is the protocol's; a catch-all's is no one's.** An HTTP status code states its

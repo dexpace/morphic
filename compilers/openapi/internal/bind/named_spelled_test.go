@@ -64,7 +64,7 @@ func spelledBy(t *testing.T, text string) spelled {
 	doc := openapitest.YAMLDocument(t, text)
 	var s spelled
 	s.weighed, s.complete = bind.NamedPointerBytes(t.Context(), doc, namedSteps)
-	table := bind.Bind(t.Context(), doc, compileConfig(doc).Spelling(func(at bind.Position, member bool) {
+	table := bind.Bind(t.Context(), doc, compileConfig(doc).Spelling(func(at bind.DocumentPointer, member bool) {
 		bytes := 0
 		for token := range at.Pointer.Tokens() {
 			bytes += len(token) + 1

@@ -230,8 +230,8 @@ func carrierSlots(doc *ir.Document, kind string) slots {
 // its Examples. A union variant takes none of them.
 func TestFolded_ACarrierTakesTheDocsOfWhatItsDecoratorStandsFor(t *testing.T) {
 	for _, c := range []struct {
-		kind  string
-		lends bool
+		kind          string
+		takesFallback bool
 	}{{"property", true}, {"header", true}, {"parameter", true}, {"variant", false}} {
 		t.Run(c.kind, func(t *testing.T) {
 			decorated, plain := carrying(c.kind, true), carrying(c.kind, false)
@@ -244,7 +244,7 @@ func TestFolded_ACarrierTakesTheDocsOfWhatItsDecoratorStandsFor(t *testing.T) {
 			dec.Deprecation, dec.Examples = nil, nil
 			s := carrierSlots(plain, c.kind)
 			*s.deprecation, *s.examples = nil, nil
-			if c.lends {
+			if c.takesFallback {
 				s.docs.Summary, *s.deprecation = "obj", &ir.Deprecation{Message: "obj"}
 			}
 
@@ -323,7 +323,7 @@ func TestDecoratorUses_FollowsAChainAndLeavesACycle(t *testing.T) {
 	require.True(t, ok, "a name the chain repeats is written as a list")
 	assert.Len(t, repeated, 2)
 	assert.Equal(t, ir.TypeID("t/x/gone"), uses["t/x/d"].target)
-	assert.Zero(t, uses["t/x/d"].lent, "a type the registry does not hold lends nothing")
+	assert.Zero(t, uses["t/x/d"].fallbackAnnotations, "a type the registry does not hold lends nothing")
 
 	_, more := folded(&ir.Document{Types: types})
 	b, err := json.Marshal(types["t/x/a"], json.WithMarshalers(more))

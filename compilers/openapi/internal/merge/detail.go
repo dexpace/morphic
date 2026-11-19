@@ -16,8 +16,8 @@ import (
 // both where they say the same, neither where each says what the other lacks.
 type holding struct{ a, b bool }
 
-// holdsBoth is the holding of a part two nodes say alike.
-var holdsBoth = holding{a: true, b: true}
+// bothNodesHoldPart is the holding of a part two nodes say alike.
+var bothNodesHoldPart = holding{a: true, b: true}
 
 // and is the holding of two parts together.
 func (h holding) and(o holding) holding { return holding{a: h.a && o.a, b: h.b && o.b} }
@@ -28,10 +28,10 @@ func (h holding) and(o holding) holding { return holding{a: h.a && o.a, b: h.b &
 func holdingOf(rel relation) (holding, bool) {
 	switch rel {
 	case relSame:
-		return holdsBoth, true
-	case relANarrower:
+		return bothNodesHoldPart, true
+	case firstTypeIsNarrower:
 		return holding{a: true}, true
-	case relBNarrower:
+	case secondTypeIsNarrower:
 		return holding{b: true}, true
 	case relMeet:
 		return holding{}, true
@@ -62,9 +62,9 @@ func verdict(values, detail holding, adoptable bool) relation {
 	h := values.and(detail)
 	switch {
 	case h.a:
-		return relANarrower
+		return firstTypeIsNarrower
 	case h.b:
-		return relBNarrower
+		return secondTypeIsNarrower
 	case adoptable:
 		return relMeet
 	default:
@@ -82,7 +82,7 @@ func (j typeJudge) detailOf(a, b extras) (holding, bool) {
 	h, adoptable := fieldHolding(reflect.ValueOf(a.Encoding), reflect.ValueOf(b.Encoding))
 	um, umOK := unmodeledHolding(a.Common.Unmodeled, b.Common.Unmodeled, j.sites.walk)
 	ex, exOK := fieldHolding(reflect.ValueOf(a.Common.Examples), reflect.ValueOf(b.Common.Examples))
-	h, adoptable = h.and(um).and(ex), adoptable && umOK && exOK && ex == holdsBoth
+	h, adoptable = h.and(um).and(ex), adoptable && umOK && exOK && ex == bothNodesHoldPart
 	ac, bc := siteless(a.Common), siteless(b.Common)
 	ac.Unmodeled, bc.Unmodeled, ac.Examples, bc.Examples = nil, nil, nil, nil
 	av, bv := reflect.ValueOf(ac), reflect.ValueOf(bc)
@@ -98,7 +98,7 @@ func (j typeJudge) detailOf(a, b extras) (holding, bool) {
 func fieldHolding(a, b reflect.Value) (holding, bool) {
 	switch {
 	case reflect.DeepEqual(a.Interface(), b.Interface()):
-		return holdsBoth, true
+		return bothNodesHoldPart, true
 	case b.IsZero():
 		return holding{a: true}, true
 	case a.IsZero():
@@ -111,8 +111,8 @@ func fieldHolding(a, b reflect.Value) (holding, bool) {
 // unmodeledHolding is the holding of what two nodes keep under Unmodeled, key
 // by key as fieldHolding reads a field, and false where both keep a key
 // differently, as sameEntry reads two entries through walk.
-func unmodeledHolding(a, b ir.Unmodeled, walk Walk) (holding, bool) {
-	h := holdsBoth
+func unmodeledHolding(a, b ir.Unmodeled, walk FieldDeclarationContext) (holding, bool) {
+	h := bothNodesHoldPart
 	for _, k := range slices.Sorted(maps.Keys(a)) {
 		other, ok := b[k]
 		if !ok {
@@ -136,7 +136,7 @@ func unmodeledHolding(a, b ir.Unmodeled, walk Walk) (holding, bool) {
 // to set it gives it, and differ hears of each later one setting it otherwise,
 // by its index and the name a document spells the field with. Base keeps its
 // site and its examples, which nothing adopts (detailOf).
-func adopt(base ir.TypeCommon, others []ir.TypeCommon, walk Walk,
+func adopt(base ir.TypeCommon, others []ir.TypeCommon, walk FieldDeclarationContext,
 	differ func(k int, field string),
 ) ir.TypeCommon {
 	said := func(c ir.TypeCommon) reflect.Value {
@@ -179,7 +179,7 @@ func jsonName(f reflect.StructField) string {
 // adoptUnmodeled returns own with each key of others' Unmodeled it lacks, the
 // first to keep one giving it, its provenance with it. differ hears of a later
 // one keeping the key otherwise. It writes to no map it was given.
-func adoptUnmodeled(own ir.Unmodeled, others []ir.TypeCommon, walk Walk,
+func adoptUnmodeled(own ir.Unmodeled, others []ir.TypeCommon, walk FieldDeclarationContext,
 	differ func(k int, field string),
 ) ir.Unmodeled {
 	out := maps.Clone(own)

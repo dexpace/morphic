@@ -79,7 +79,9 @@ func landingRepeats(ctx context.Context, sites places, sibs Siblings, b *typed.B
 			continue
 		}
 		doc := l.At.Doc
-		at := func(p jsontext.Pointer) ir.Provenance { return sites.position(bind.Position{Doc: doc, Pointer: p}) }
+		at := func(p jsontext.Pointer) ir.Provenance {
+			return sites.position(bind.DocumentPointer{Doc: doc, Pointer: p})
+		}
 		items := sibs.interleaved(ctx, locatedWalk(walk(ctx, rp), l.At.Pointer))
 		diags = append(diags, listRepeats(at, sibs, b, items)...)
 	}

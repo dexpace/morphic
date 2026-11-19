@@ -70,7 +70,7 @@ type docs struct {
 	schemes    map[string]bool
 	// keyRefs is the key each requirement key position is read as a
 	// reference by, which no $ref spells (objects.refAt).
-	keyRefs map[Position]string
+	keyRefs map[DocumentPointer]string
 }
 
 // ruleKey is a document and a dialect its schemas name.
@@ -89,7 +89,7 @@ func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
 	}
 	d := &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
 		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{},
-		components: components, schemes: setOf(cfg.SecuritySchemes), keyRefs: map[Position]string{}}
+		components: components, schemes: setOf(cfg.SecuritySchemes), keyRefs: map[DocumentPointer]string{}}
 	src.self, src.absolute = d.selfOf(src)
 	return d
 }
@@ -252,7 +252,7 @@ func (d *docs) unread(name string) bool {
 
 // path returns the nodes along p's pointer from its document's root, aliases
 // dereferenced, and whether it reaches p, charging a step a node.
-func (d *docs) path(p Position) ([]*yaml.Node, bool) {
+func (d *docs) path(p DocumentPointer) ([]*yaml.Node, bool) {
 	doc := d.list[p.Doc]
 	path, complete := doc.view.DocumentPath(doc.root, p.Pointer)
 	d.work.spend(len(path))
@@ -260,7 +260,7 @@ func (d *docs) path(p Position) ([]*yaml.Node, bool) {
 }
 
 // node returns the node at p, or nil where its document holds none.
-func (d *docs) node(p Position) *yaml.Node {
+func (d *docs) node(p DocumentPointer) *yaml.Node {
 	path, ok := d.path(p)
 	if !ok {
 		return nil
@@ -270,7 +270,7 @@ func (d *docs) node(p Position) *yaml.Node {
 
 // compare orders positions as a table reads them: the source's first,
 // another document's by its name, then by pointer (comparePositions).
-func (d *docs) compare(p, q Position) int {
+func (d *docs) compare(p, q DocumentPointer) int {
 	return compareNamed(p, q, d.name)
 }
 
@@ -301,7 +301,7 @@ func (d *docs) identityState(id DocID) state {
 
 // stateAt is the state the OpenAPI grammar reads p at where p is: its own
 // document's, not that of a reference read through on the way.
-func (d *docs) stateAt(p Position) state {
+func (d *docs) stateAt(p DocumentPointer) state {
 	return stateOf(d.rootState(p.Doc), slices.Collect(p.Pointer.Tokens()))
 }
 
@@ -322,7 +322,7 @@ func (d *docs) refOf(id DocID, n *yaml.Node) (string, bool) {
 // reading is where a read of a pointer stands: the position, the node there,
 // and its place in the grammar.
 type reading struct {
-	at   Position
+	at   DocumentPointer
 	node *yaml.Node
 	place
 }

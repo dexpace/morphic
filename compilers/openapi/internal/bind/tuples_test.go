@@ -15,7 +15,7 @@ import (
 
 // landingsAt returns each landing of table in the source, by where it is, with
 // the site it is attributed to, and requires each reached.
-func landingsAt(t *testing.T, table *bind.Table) map[jsontext.Pointer]jsontext.Pointer {
+func landingsAt(t *testing.T, table *bind.ReferenceTargetTable) map[jsontext.Pointer]jsontext.Pointer {
 	t.Helper()
 	out := map[jsontext.Pointer]jsontext.Pointer{}
 	for _, l := range table.Landings() {
@@ -102,7 +102,7 @@ func TestDialectRule_AChainIntoAnotherDocumentReadsItsDialect(t *testing.T) {
 	doc := docNamed(t, table, "o.yaml")
 	e := entryAt(t, table, "/components/schemas/S")
 	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, bind.Position{Doc: doc, Pointer: "/definitions/A"}, e.Chain.End, "the chain ends where the draft reads it")
+	assert.Equal(t, bind.DocumentPointer{Doc: doc, Pointer: "/definitions/A"}, e.Chain.End, "the chain ends where the draft reads it")
 
 	based := "{$schema: 'http://json-schema.org/draft-04/schema#', id: 'https://example.com/lib/',\n" +
 		"  definitions: {A: {id: 'a.json', type: integer}, Sib: {$ref: 'a.json'}}}\n"
@@ -110,7 +110,7 @@ func TestDialectRule_AChainIntoAnotherDocumentReadsItsDialect(t *testing.T) {
 		draftRule(withDocuments(map[string]string{"o.yaml": based})))
 	e = entryAt(t, table, "/components/schemas/S")
 	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, bind.Position{Doc: docNamed(t, table, "o.yaml"), Pointer: "/definitions/A"}, e.Chain.End,
+	assert.Equal(t, bind.DocumentPointer{Doc: docNamed(t, table, "o.yaml"), Pointer: "/definitions/A"}, e.Chain.End,
 		"draft 4's id at the root gives the $ref its base")
 }
 
@@ -280,7 +280,7 @@ func TestDialectRule_AWalkStartsInTheDialectAboveIt(t *testing.T) {
 	table := bound(t, head+"components:\n  schemas:\n    S: {$ref: 'o.yaml#/definitions/A'}\n",
 		draftRule(withDocuments(map[string]string{"o.yaml": other})))
 	doc := docNamed(t, table, "o.yaml")
-	e, ok := table.Entry(bind.Position{Doc: doc, Pointer: "/definitions/A/definitions/B"})
+	e, ok := table.Entry(bind.DocumentPointer{Doc: doc, Pointer: "/definitions/A/definitions/B"})
 	require.True(t, ok, "the nested entry is a schema of the draft 4 document")
 	assert.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
 }
@@ -330,10 +330,10 @@ func TestDialectRule_AWalkEntersARootBelowWhereItStarts(t *testing.T) {
 		draftRule(withDocuments(map[string]string{"o.yaml": other})))
 	doc := docNamed(t, table, "o.yaml")
 	const x = "/$defs/A/properties/x"
-	e, ok := table.Entry(bind.Position{Doc: doc, Pointer: x + "/definitions/Y"})
+	e, ok := table.Entry(bind.DocumentPointer{Doc: doc, Pointer: x + "/definitions/Y"})
 	require.True(t, ok, "the definitions entry is a schema of the draft 4 resource")
 	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, bind.Position{Doc: doc, Pointer: x + "/definitions/Z"}, e.Hop.Target)
+	assert.Equal(t, bind.DocumentPointer{Doc: doc, Pointer: x + "/definitions/Z"}, e.Hop.Target)
 }
 
 // TestDialectRule_ARootReadsItsOwnIdentifiersInItsDialect pins two readings of
@@ -391,8 +391,8 @@ func TestDialectRule_ADocumentOfSchemasReadsItsDraftAtItsRoot(t *testing.T) {
 	doc := docNamed(t, table, "o.yaml")
 	e := entryAt(t, table, "/components/schemas/S")
 	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, bind.Position{Doc: doc, Pointer: "/items/0"}, e.Hop.Target)
-	dep, ok := table.Entry(bind.Position{Doc: doc, Pointer: "/dependencies/a"})
+	assert.Equal(t, bind.DocumentPointer{Doc: doc, Pointer: "/items/0"}, e.Hop.Target)
+	dep, ok := table.Entry(bind.DocumentPointer{Doc: doc, Pointer: "/dependencies/a"})
 	require.True(t, ok, "a schema in dependencies is one the table reads")
 	assert.Equal(t, bind.Resolved, dep.Hop.Status, dep.Hop.Why())
 }

@@ -20,7 +20,7 @@ import (
 type DialectRoot struct {
 	Node *yaml.Node
 	URI  string
-	At   Position
+	At   DocumentPointer
 }
 
 // heldBySchema reports whether a schema holds the position tokens reach from
@@ -40,7 +40,7 @@ func heldBySchema(s state, tokens []string) bool {
 
 // dialectsByDocument returns the dialect roots of roots by the document each
 // is in, each document's in pointer order.
-func dialectsByDocument(roots map[Position]DialectRoot) map[DocID][]DialectRoot {
+func dialectsByDocument(roots map[DocumentPointer]DialectRoot) map[DocID][]DialectRoot {
 	out := map[DocID][]DialectRoot{}
 	for _, r := range roots {
 		out[r.At.Doc] = append(out[r.At.Doc], r)
@@ -117,7 +117,7 @@ type entering struct {
 // has an embedded resource do (§9.3.1), or as its `$schema`'s dialect spells
 // one beside no $ref its embedder ignores, and only then is read in that
 // dialect. A `$schema` naming no dialect (DialectRule.NamesNone) chooses none.
-func (r resources) enterIn(in resource, at Position, n *yaml.Node, enclosing string, schemaHeld func() bool) entering {
+func (r resources) enterIn(in resource, at DocumentPointer, n *yaml.Node, enclosing string, schemaHeld func() bool) entering {
 	doc := at.Doc
 	uri, written := scalarOf(r.docs.list[doc].view.ChildByToken(nodeview.Deref(n), "$schema"))
 	named := written && !dialectRule(r.docs, doc, uri).NamesNone
@@ -144,7 +144,7 @@ func (r resources) enterIn(in resource, at Position, n *yaml.Node, enclosing str
 }
 
 // heldAt reports whether a schema holds the position at (heldBySchema).
-func heldAt(d *docs, at Position) bool {
+func heldAt(d *docs, at DocumentPointer) bool {
 	return heldBySchema(d.identityState(at.Doc), slices.Collect(at.Pointer.Tokens()))
 }
 
@@ -153,9 +153,9 @@ func heldAt(d *docs, at Position) bool {
 // `$schema` names the dialect the schema at p is read in. A position reads it
 // by where it is, not by its node, so a node an alias places under two roots
 // reads each one's at each.
-func DialectAt[V any](roots map[Position]V, p Position) (V, bool) {
+func DialectAt[V any](roots map[DocumentPointer]V, p DocumentPointer) (V, bool) {
 	for ptr := p.Pointer; len(roots) > 0; ptr = ptr.Parent() {
-		if r, ok := roots[Position{Doc: p.Doc, Pointer: ptr}]; ok {
+		if r, ok := roots[DocumentPointer{Doc: p.Doc, Pointer: ptr}]; ok {
 			return r, true
 		}
 		if ptr == "" {
@@ -169,7 +169,7 @@ func DialectAt[V any](roots map[Position]V, p Position) (V, bool) {
 // dialectAbove returns the dialect the schema at p is read in, which a walk
 // from p starts in: that of the dialect root at or above it the documents
 // declare (identifiers.dialects), or its document's default.
-func dialectAbove(d *docs, ix *identifiers, p Position) string {
+func dialectAbove(d *docs, ix *identifiers, p DocumentPointer) string {
 	if r, ok := DialectAt(ix.dialects, p); ok {
 		return r.URI
 	}
@@ -178,7 +178,7 @@ func dialectAbove(d *docs, ix *identifiers, p Position) string {
 
 // rootDialect returns the dialect the root at p names, where one is there,
 // and inherited, that of the schema holding it, otherwise.
-func rootDialect(ix *identifiers, p Position, inherited string) string {
+func rootDialect(ix *identifiers, p DocumentPointer, inherited string) string {
 	if root, ok := ix.dialects[p]; ok {
 		return root.URI
 	}
@@ -224,13 +224,13 @@ func dialectRule(d *docs, id DocID, dialect string) DialectRule {
 // schema holds, so the `$schema` chooses the dialect of what it holds
 // (docs/compilers/openapi.md#dialect-keywords). Whether one holds it turns on
 // the landings alone, so no order of reading decides it.
-func landingRoot(w *finder, p Position, n *yaml.Node) (DialectRoot, bool) {
+func landingRoot(w *finder, p DocumentPointer, n *yaml.Node) (DialectRoot, bool) {
 	if !w.landings[p] || heldBySchema(w.docs.identityState(p.Doc), slices.Collect(p.Pointer.Tokens())) {
 		return DialectRoot{}, false
 	}
 	for above := p.Pointer; above != ""; {
 		above = above.Parent()
-		if w.landings[Position{Doc: p.Doc, Pointer: above}] {
+		if w.landings[DocumentPointer{Doc: p.Doc, Pointer: above}] {
 			return DialectRoot{}, false
 		}
 	}
@@ -244,7 +244,7 @@ func landingRoot(w *finder, p Position, n *yaml.Node) (DialectRoot, bool) {
 
 // startDialect is the dialect a walk from p, holding n, starts in: the one p
 // roots as a landing (landingRoot), else the one above it (dialectAbove).
-func startDialect(w *finder, p Position, n *yaml.Node) string {
+func startDialect(w *finder, p DocumentPointer, n *yaml.Node) string {
 	if root, ok := landingRoot(w, p, n); ok {
 		return root.URI
 	}
@@ -254,14 +254,14 @@ func startDialect(w *finder, p Position, n *yaml.Node) string {
 // withLandingRoots returns roots with each landing w found that is a dialect
 // root of its own (landingRoot) added, roots itself where none is. Each
 // landing's node is read as the walk that found it read it, charged then.
-func withLandingRoots(w *finder, roots map[Position]DialectRoot) map[Position]DialectRoot {
+func withLandingRoots(w *finder, roots map[DocumentPointer]DialectRoot) map[DocumentPointer]DialectRoot {
 	out := roots
 	for at := range w.landings {
 		doc := w.docs.list[at.Doc]
 		path, _ := doc.view.DocumentPath(doc.root, at.Pointer)
 		if root, ok := landingRoot(w, at, path[len(path)-1]); ok {
 			if len(out) == len(roots) {
-				out = make(map[Position]DialectRoot, len(roots)+1)
+				out = make(map[DocumentPointer]DialectRoot, len(roots)+1)
 				maps.Copy(out, roots)
 			}
 			out[at] = root

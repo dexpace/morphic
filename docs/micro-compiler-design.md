@@ -568,7 +568,7 @@ path reaches a coordinate first builds the node that role gives it, so `Intern`'
 stands for every later one and no answer follows declaration order. Three mechanisms keep it.
 
 1. A `$ref` never lowers what it names. It takes the ID the target's pointer derives in the
-   target's document and promises the node (`compile.Types.Promise`). The declaration owning the
+   target's document and promises the node (`compile.Types.ReserveNodeAtCoordinate`). The declaration owning the
    position builds it in its own walk; `Finish`, after every declaration and before any settlement,
    builds in coordinate order only what none interned, each build a walk of its own from the top
    level, under the hint the position's own lowering recorded.
@@ -579,7 +579,7 @@ stands for every later one and no answer follows declaration order. Three mechan
    is a `compile.Settlement`, taken once the registry is whole. Its diagnostics follow the walk's, an
    order no golden may be updated over unexplained (§6.1). The `allOf` merge folds every field
    declared more than once that way, from all its declarations at once. That fold finishes a node
-   its walk left open, so it is a completion (`compile.Types.Complete`), which Finish takes before
+   its walk left open, so it is a completion (`compile.Types.QueueSettlementBeforeDeferredOnes`), which Finish takes before
    every other settlement: one that reads the merged property, as a form part's flags do, reads it
    folded.
 
@@ -593,7 +593,7 @@ reported (#750) nor where it met the depth bound (#748).
 
 *Later:* names did move to the table (#981). The drift this section feared needs two readings, and
 the declaration walk now gives no name at all: every lowering asks `lowering.NameAt`, which reads
-the grammar's kinds (`bind.Table.Kinds`) and the document, so the table's is the only reading. The
+the grammar's kinds (`bind.ReferenceTargetTable.Kinds`) and the document, so the table's is the only reading. The
 home a declaration lowers in is still the declaration walk's.
 
 ## 7. Enforcement

@@ -37,7 +37,7 @@ func TestCases_CoverTheRuleTable(t *testing.T) {
 		minor, ok := oas.ParseMinor(version)
 		require.True(t, ok, "%s is a version the rule table covers", version)
 		for _, f := range schema.Fields {
-			if !f.Keyword || !f.Defined.Holds(minor) {
+			if !f.IsJSONSchemaKeyword || !f.Defined.Holds(minor) {
 				continue
 			}
 			_, excused := notCases()[f.Name]

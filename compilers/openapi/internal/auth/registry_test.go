@@ -27,7 +27,7 @@ func TestRegistrySchemes_SharesNothingWithTheRegistry(t *testing.T) {
 		SecuritySchemes: sequencedmap.New(
 			sequencedmap.NewElem("ghost", (*soa.ReferencedSecurityScheme)(nil))),
 	}}
-	c := service.New(0, &load.Document{Doc: doc}, service.Policy{})
+	c := service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{})
 	declared, _ := auth.LowerSecuritySchemes(c)
 	reg := auth.RegistryOf(c, declared)
 

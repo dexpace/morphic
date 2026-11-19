@@ -190,7 +190,7 @@ func TestNextCommand_ReadsTheArgumentsOncePerCommand(t *testing.T) {
 		args = append(args, "compile")
 		root := newRootCmd()
 		reads := 0
-		counted := func(probe *pflag.FlagSet, tok string) reading {
+		counted := func(probe *pflag.FlagSet, tok string) pflagArgumentReading {
 			reads++
 			return readAlone(probe, tok)
 		}

@@ -219,5 +219,5 @@ func TestKeepOn_RefusesAnEntryTheOperationHolds(t *testing.T) {
 	diags := keepOn(refused, kept, ir.Docs{})
 	assert.Equal(t, own, refused.Unmodeled[key], "the operation's own entry stays")
 	require.Len(t, diags, 1, "the refusal is reported")
-	assert.Equal(t, diag.UnknownKeyEntryTaken, diags[0].Code)
+	assert.Equal(t, diag.UnknownKeyEntryAlreadyClaimed, diags[0].Code)
 }

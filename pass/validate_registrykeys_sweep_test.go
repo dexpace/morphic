@@ -255,7 +255,7 @@ func holdsTheMismatchAlone(t *testing.T, name string, field reflect.StructField,
 
 // TestValidate_AnEmptyReferenceResolvesToNoNodeUnderTheEmptyKey files a node
 // of each shape a reader settles under the empty key, beside a document whose
-// empty references reach the value and knot checks, and holds Validate
+// empty references reach the value and type cycle checks, and holds Validate
 // to what it reports with no such node: an empty reference names nothing,
 // whatever a registry files under the empty key.
 func TestValidate_AnEmptyReferenceResolvesToNoNodeUnderTheEmptyKey(t *testing.T) {

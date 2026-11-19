@@ -23,7 +23,7 @@ const CorrelationVersion = 4
 // schema that changes the ID. It is false for an id the document does not
 // declare, for an entity no named position reaches, and for one whose key
 // another entity of the document shares.
-func (x *Index) Correlation(id string) (string, bool) {
+func (x *DocumentFacts) Correlation(id string) (string, bool) {
 	key, ok := x.correlationIndex().keys[id]
 	return key, ok
 }
@@ -31,13 +31,13 @@ func (x *Index) Correlation(id string) (string, bool) {
 // Correlated returns the ID of the entity whose correlation key is key, and
 // false when no entity of the document has it. Matching an entity across two
 // revisions is Correlation in one and Correlated in the other.
-func (x *Index) Correlated(key string) (string, bool) {
+func (x *DocumentFacts) Correlated(key string) (string, bool) {
 	id, ok := x.correlationIndex().ids[key]
 	return id, ok
 }
 
 // correlationIndex returns the correlation keys of the document, derived once.
-func (x *Index) correlationIndex() *correlations {
+func (x *DocumentFacts) correlationIndex() *correlations {
 	x.correlationOnce.Do(func() { x.correlation = newCorrelations(x.doc) })
 	return x.correlation
 }

@@ -132,21 +132,21 @@ func spellingValues(of []string) []harness.Value {
 // moves no such keyword or writes another's document (spelt), or indices
 // outside the product. A table the
 // writer cannot encode panics, which CheckCase reports as the case's outcome.
-func (c cases) Write(at []int) (harness.Document, bool) {
+func (c cases) Write(at []int) (harness.CaseDocument, bool) {
 	if !c.holds(at) {
-		return harness.Document{}, false
+		return harness.CaseDocument{}, false
 	}
 	v, t, p, s := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]], c.spellings[at[5]]
 	if !p.span.holds(v) {
-		return harness.Document{}, false
+		return harness.CaseDocument{}, false
 	}
 	u, ok := c.unit(at, v, t)
 	if !ok {
-		return harness.Document{}, false
+		return harness.CaseDocument{}, false
 	}
 	use, ok := c.spelt(u, s, t)
 	if !ok {
-		return harness.Document{}, false
+		return harness.CaseDocument{}, false
 	}
 
 	paths, schemas := p.place(use)
@@ -162,7 +162,7 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 	if err != nil {
 		panic(fmt.Sprintf("openapicases: case %v: %v", at, err))
 	}
-	doc := harness.Document{
+	doc := harness.CaseDocument{
 		Sources: []compilers.Source{{Path: specPath, Data: data}},
 		Options: optionsFor(u),
 		Equal:   c.equal(at, u),
@@ -233,7 +233,7 @@ func (c cases) unit(at []int, v version, t target) (written, bool) {
 // entry spelling wrap's document; left beside a row's second, it leaves that
 // row's case. A keyword the target's body writes already is replaced by the
 // construct, so no case leaves it out (Document.Replaces).
-func (c cases) neighbours(doc *harness.Document, v version, t target, at []int) {
+func (c cases) neighbours(doc *harness.CaseDocument, v version, t target, at []int) {
 	if at[2] == 0 || (at[2]-1)%2 != 0 {
 		return
 	}

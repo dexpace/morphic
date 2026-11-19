@@ -35,9 +35,9 @@ import (
 //
 // It returns the parts' and catch-alls' maps, empty, and the content's
 // Unmodeled: what they hold reads the type behind body, which a $ref may have
-// promised (compile.Types.Promise), so partKeys settles them and each entry's
+// promised (compile.Types.ReserveNodeAtCoordinate), so partKeys settles them and each entry's
 // records once every node exists, for every body stating a schema.
-func partEncodings(c service.Ctx, w walk, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
+func partEncodings(c service.Ctx, w operationLoweringState, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
 	map[ir.PropID]ir.PartEncoding, map[ir.TypeID]ir.CatchAllParts, ir.Unmodeled, []ir.Diagnostic,
 ) {
 	bodyWalk := walkBodyParts(c.Ctx, media.GetSchema())
@@ -71,7 +71,7 @@ func partEncodings(c service.Ctx, w walk, media *soa.MediaType, mt string, media
 // lowerPart lowers the entry of part, a part of a form body under mt, a
 // normalized media type, and reads whether it takes its default content type
 // (keyedPart).
-func lowerPart(c service.Ctx, w walk, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (keyedPart, []ir.Diagnostic) {
+func lowerPart(c service.Ctx, w operationLoweringState, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (keyedPart, []ir.Diagnostic) {
 	pe, partUnmodeled, diags := buildPartEncoding(c, w, part.name, encMap, mediaPtr, mt)
 	kp := keyedPart{
 		part:      part,
@@ -246,7 +246,7 @@ const unkeyedPartEntry = "names a part the form body's schema declares, but the 
 
 // Settle keys each part's encoding, writing no node of reg. It reads each
 // property a part names as the merge settled it, which Finish has done by then:
-// a fold is a completion (compile.Types.Complete).
+// a fold is a completion (compile.Types.QueueSettlementBeforeDeferredOnes).
 func (k partKeys) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	node := func(id ir.TypeID) (ir.TypeDef, bool) {
 		td, ok := reg[id]
@@ -547,14 +547,14 @@ func (v partVisits) note(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema
 // property for: an additionalProperties or unevaluatedProperties other than
 // false, or a patternProperties. A key such a member could have is not shown
 // to name nothing, though OpenAPI asks a key to name a declared property.
-func admitsMembers(t *statement.Table, s *oas3.Schema) bool {
+func admitsMembers(t *statement.MemoizingSchemaReader, s *oas3.Schema) bool {
 	return admitting(t, s.GetAdditionalProperties()) || admitting(t, s.GetUnevaluatedProperties()) ||
 		s.GetPatternProperties().Len() > 0
 }
 
 // admitting reports whether js, a catch-all's schema as t reads it, admits a
 // member: it is written, and is not the false schema.
-func admitting(t *statement.Table, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+func admitting(t *statement.MemoizingSchemaReader, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	truth := t.Of(js).Truth
 	return truth != statement.Unwritten && !truth.ReadsFalse()
 }
@@ -562,7 +562,7 @@ func admitting(t *statement.Table, js *oas3.JSONSchema[oas3.Referenceable]) bool
 // catchAllValues returns the value schemas of the catch-alls s, which may be
 // nil, holds that admit a member (admitting), additionalProperties,
 // unevaluatedProperties and each patternProperties entry, in that order.
-func catchAllValues(t *statement.Table, s *oas3.Schema) []*oas3.JSONSchema[oas3.Referenceable] {
+func catchAllValues(t *statement.MemoizingSchemaReader, s *oas3.Schema) []*oas3.JSONSchema[oas3.Referenceable] {
 	var out []*oas3.JSONSchema[oas3.Referenceable]
 	for _, js := range []*oas3.JSONSchema[oas3.Referenceable]{s.GetAdditionalProperties(), s.GetUnevaluatedProperties()} {
 		if admitting(t, js) {
@@ -884,7 +884,7 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 // name under mt, a normalized media type: content types, headers and the
 // arrangement. Its structural flags, Multi and Filename, are partKeys' to read
 // once every type has lowered (partFlags).
-func buildPartEncoding(c service.Ctx, w walk, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func buildPartEncoding(c service.Ctx, w operationLoweringState, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	enc, ok := encMap.Get(name)
 	if !ok {
 		return ir.PartEncoding{}, nil, nil

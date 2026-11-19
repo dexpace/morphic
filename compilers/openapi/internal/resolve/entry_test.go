@@ -287,7 +287,7 @@ func assertCrossDocumentDeclarations(t *testing.T, doc *ir.Document) {
 }
 
 // loaded loads src as the source, its references bound.
-func loaded(t *testing.T, src string) *load.Document {
+func loaded(t *testing.T, src string) *load.LoadedOpenAPIDocument {
 	t.Helper()
 	doc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
 	require.NoError(t, err)
@@ -348,11 +348,11 @@ func TestObjectAt_NotesEachPositionOfTheSourceItsChainPasses(t *testing.T) {
 	params := doc.Doc.Components.GetParameters()
 	reached := resolve.NewReached()
 	scope := resolve.Scope{SelfPath: doc.Location, Bindings: doc.Bindings, Reached: reached}
-	use := bind.Position{Pointer: "/use"}
+	use := bind.DocumentPointer{Pointer: "/use"}
 
 	obj, at := resolve.ObjectAt[soa.Parameter](scope, params.GetOrZero("P0"), use)
 	require.NotNil(t, obj)
-	assert.Equal(t, bind.Position{Pointer: "/components/parameters/P2"}, at)
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/components/parameters/P2"}, at)
 	for _, pointer := range []jsontext.Pointer{"/components/parameters/P1", "/components/parameters/P2"} {
 		assert.True(t, reached.Has(pointer), pointer)
 	}
@@ -416,8 +416,8 @@ components:
 	require.True(t, ok)
 
 	scope := resolve.Scope{SelfPath: doc.Location, Bindings: doc.Bindings}
-	obj, at := resolve.ObjectAt[soa.PathItem](scope, rp, bind.Position{Pointer: "/paths/~1hop"})
+	obj, at := resolve.ObjectAt[soa.PathItem](scope, rp, bind.DocumentPointer{Pointer: "/paths/~1hop"})
 	require.NotNil(t, obj)
-	assert.Equal(t, bind.Position{Pointer: "/components/pathItems/P"}, at)
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/components/pathItems/P"}, at)
 	assert.Same(t, doc.Doc.Components.GetPathItems().GetOrZero("P").GetObject(), obj, "the source's own model")
 }

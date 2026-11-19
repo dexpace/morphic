@@ -13,19 +13,19 @@ import (
 
 // places is where the load places a finding at a pointer of the source, which
 // source places as the lowering does, or of another document a reference read
-// beside it, in that document's own Document.Sources entry. A document no entry
+// beside it, in that document's own LoadedOpenAPIDocument.Sources entry. A document no entry
 // holds, which a document read for its content always has, is placed at the
 // source's root rather than nowhere. table names the documents a position of
 // the bindings is in; it is nil before binding.
 type places struct {
 	source provenance.Doc
 	others Others
-	table  *bind.Table
+	table  *bind.ReferenceTargetTable
 }
 
 // position returns where a finding at the position at of the bindings' table
 // is placed.
-func (p places) position(at bind.Position) ir.Provenance {
+func (p places) position(at bind.DocumentPointer) ir.Provenance {
 	if at.Doc == bind.Source {
 		return p.source.At(at.Pointer)
 	}

@@ -33,7 +33,7 @@ func TestIndex_AWalkedQuestionOverSeveralParentsAllocatesNothing(t *testing.T) {
 		id := ir.TypeID(fmt.Sprintf("t/x/F%d", i))
 		doc.Types[id] = &ir.Model{ID: id}
 	}
-	var kept *irfacts.Index // an Index left unused is inlined onto the stack and measures nothing
+	var kept *irfacts.DocumentFacts // an Index left unused is inlined onto the stack and measures nothing
 	construction := testing.AllocsPerRun(10, func() { kept = irfacts.New(doc) })
 	require.NotNil(t, kept)
 

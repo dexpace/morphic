@@ -40,7 +40,7 @@ type definitions struct {
 // A schema's own answer only where an identifier makes it a resource, which
 // resolve reads instead; where schema says site's own hold the key, the reason
 // says so. A read the merge bound stopped answers MergeBound.
-func (d definitions) definition(site Position, path []*yaml.Node, pointer jsontext.Pointer, schema bool,
+func (d definitions) definition(site DocumentPointer, path []*yaml.Node, pointer jsontext.Pointer, schema bool,
 	r reading, reason Reason,
 ) (reading, Reason) {
 	switch {
@@ -64,7 +64,7 @@ func (d definitions) definition(site Position, path []*yaml.Node, pointer jsonte
 // bound stops makes it MergeBound, as a farther object would answer only
 // where that one holds nothing. Where none answers and raw YAML above site
 // holds the path, the reason is RawDefinition.
-func (d definitions) ancestorDefinition(site Position, path []*yaml.Node, pointer jsontext.Pointer) (reading, Reason) {
+func (d definitions) ancestorDefinition(site DocumentPointer, path []*yaml.Node, pointer jsontext.Pointer) (reading, Reason) {
 	if !d.docs.list[site.Doc].grammar {
 		return reading{}, NoDefinition
 	}
@@ -91,7 +91,7 @@ func (d definitions) ancestorDefinition(site Position, path []*yaml.Node, pointe
 		}
 		n, past := d.below(site.Doc, path[i], rest)
 		if r := (reading{node: n, place: places[i].along(rest)}); n != nil && answers(r.role(), n) {
-			r.at = Position{Doc: site.Doc, Pointer: jsontext.Pointer(prefix(site.Pointer, i)) + pointer}
+			r.at = DocumentPointer{Doc: site.Doc, Pointer: jsontext.Pointer(prefix(site.Pointer, i)) + pointer}
 			return r, NoReason
 		}
 		if past {

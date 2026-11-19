@@ -105,7 +105,7 @@ func draft04Keywords() []Field {
 		schemaMapOf("definitions", s, v(`5.5.7.1. Valid values`, `This keyword's value MUST be an object.`)),
 		keyword("title", String, s, v(`6.1.1. Valid values`, `The value of both of these keywords MUST be a string.`)),
 		keyword("description", String, s, v(`6.1.1. Valid values`, `The value of both of these keywords MUST be a string.`)),
-		keyword("default", Any, s, v(`6.2.1. Valid values`, `There are no restrictions placed on the value of this keyword.`)),
+		keyword("default", AnyShapeUnchecked, s, v(`6.2.1. Valid values`, `There are no restrictions placed on the value of this keyword.`)),
 		keyword("format", String, s, v(`7.1. Foreword`, `It MUST be a string.`)),
 	}
 }

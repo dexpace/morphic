@@ -46,20 +46,20 @@ func (st stand) pointer(written jsontext.Pointer) jsontext.Pointer {
 	return st.at
 }
 
-// voices returns what the node of s, written at written, reads beside s: the
-// voices of its position (positionVoices), where it stands at another, that
-// position's own keywords and each voice of its allOf but s, whose keywords the
+// foldedBranches returns what the node of s, written at written, reads beside s: the
+// foldedBranches of its position (positionFoldedBranches), where it stands at another, that
+// position's own keywords and each folded branch of its allOf but s, whose keywords the
 // node reads as its own.
-func (st stand) voices(c lowering.Ctx, s *statement.Schema, written jsontext.Pointer) []annotation.Voice {
+func (st stand) foldedBranches(c lowering.Ctx, s *statement.Schema, written jsontext.Pointer) []annotation.FoldedAllOfBranch {
 	if st.of == nil {
-		return positionVoices(c, s, written, ir.TypeRef{})
+		return positionFoldedBranches(c, s, written, ir.TypeRef{})
 	}
-	voices := positionVoices(c, st.of, st.at, ir.TypeRef{})
-	out := make([]annotation.Voice, 0, len(voices)+1)
-	beside := voiceAt(c, st.of, st.at)
+	foldedBranches := positionFoldedBranches(c, st.of, st.at, ir.TypeRef{})
+	out := make([]annotation.FoldedAllOfBranch, 0, len(foldedBranches)+1)
+	beside := foldedBranchAt(c, st.of, st.at)
 	beside.Beside = true
 	out = append(out, beside)
-	for _, v := range voices {
+	for _, v := range foldedBranches {
 		if v.Node != s || v.At != written {
 			out = append(out, v)
 		}

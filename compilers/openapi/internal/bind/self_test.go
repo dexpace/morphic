@@ -116,11 +116,11 @@ func TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument(t *testing.T) {
 	table := bound(t, src, cfg)
 
 	local, hijack := docNamed(t, table, "/local.yaml"), docNamed(t, table, "https://h.test/hijack.yaml")
-	assert.Equal(t, bind.Position{Doc: local, Pointer: "/Z"}, entryAt(t, table, "/components/schemas/P").Chain.End,
+	assert.Equal(t, bind.DocumentPointer{Doc: local, Pointer: "/Z"}, entryAt(t, table, "/components/schemas/P").Chain.End,
 		"a file's declaration answers the source")
 	assert.Equal(t, bind.Unresolved, entryAt(t, table, "/components/schemas/Q").Chain.Status,
 		"another host's declaration answers no other document: the URL is read")
-	assert.Equal(t, bind.Position{Doc: hijack, Pointer: "/Z"}, entryAt(t, table, "/components/schemas/H").Chain.End,
+	assert.Equal(t, bind.DocumentPointer{Doc: hijack, Pointer: "/Z"}, entryAt(t, table, "/components/schemas/H").Chain.End,
 		"a document answers itself")
 	assert.Equal(t, bind.Unresolved, entryAt(t, table, "/components/schemas/E").Chain.Status,
 		"a fetched document is answered by no file")

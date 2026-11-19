@@ -35,7 +35,7 @@ func (j typeJudge) enums(a, b *ir.Enum) relation {
 		return relUnrelated
 	case shared == 0:
 		return relDisjoint
-	case !related, aWithin && bWithin && (kinds == holdsBoth || !ordered):
+	case !related, aWithin && bWithin && (kinds == bothNodesHoldPart || !ordered):
 		return relUnrelated
 	}
 	detail, adoptable := j.detailOf(extras{Common: a.TypeCommon}, extras{Common: b.TypeCommon})

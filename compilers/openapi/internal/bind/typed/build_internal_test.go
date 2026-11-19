@@ -35,9 +35,9 @@ func TestBuild_ReportsAFailureAndHoldsNothing(t *testing.T) {
 	require.Error(t, built[0].Err)
 	assert.Equal(t, "planted", built[0].Err.Error())
 	assert.Nil(t, built[0].Schema)
-	assert.Nil(t, bd.Bindings().At(bind.Position{Pointer: "/x-lib/S"}))
+	assert.Nil(t, bd.Bindings().At(bind.DocumentPointer{Pointer: "/x-lib/S"}))
 
-	gone := bd.build(t.Context(), bind.Landing{At: bind.Position{Pointer: "/nowhere"}})
+	gone := bd.build(t.Context(), bind.Landing{At: bind.DocumentPointer{Pointer: "/nowhere"}})
 	require.Error(t, gone.Err)
 	assert.ErrorIs(t, gone.Err, errNothingThere)
 
@@ -103,7 +103,7 @@ func chainOf(depth int) string {
 
 // decodedAt decodes src as the parser decodes a schema and records it, and
 // everything below it, at p, as the source's walk records its schemas.
-func decodedAt(t *testing.T, bd *Builder, src string, p bind.Position) {
+func decodedAt(t *testing.T, bd *Builder, src string, p bind.DocumentPointer) {
 	t.Helper()
 	var n yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &n))
@@ -121,7 +121,7 @@ func decodedAt(t *testing.T, bd *Builder, src string, p bind.Position) {
 func TestMend_DecodesAgainAMappingTheParserReadAsFalse(t *testing.T) {
 	t.Parallel()
 	bd := NewBuilder(nil)
-	at := func(p string) bind.Position { return bind.Position{Pointer: jsontext.Pointer(p)} }
+	at := func(p string) bind.DocumentPointer { return bind.DocumentPointer{Pointer: jsontext.Pointer(p)} }
 	decodedAt(t, bd, chainOf(3), at("/c"))
 	held := bd.Bindings().At(at("/c/items"))
 	require.NotNil(t, held)
@@ -175,11 +175,11 @@ func TestBuild_MendsWhatWasRecordedAndWhatItBuilds(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"+
 		"components:\n  schemas:\n    A: {$ref: '#/x-lib/S'}\nx-lib: {S: "+chainOf(2)+"}\n"), &root))
 	bd := NewBuilder(bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))
-	src := bind.Position{Pointer: "/components/schemas/B"}
+	src := bind.DocumentPointer{Pointer: "/components/schemas/B"}
 	decodedAt(t, bd, chainOf(2), src)
 	built := bd.Build(t.Context())
 
 	require.Len(t, built, 1)
-	assert.False(t, bd.Bindings().At(bind.Position{Pointer: "/x-lib/S/items"}).IsBool(), "a landing's")
-	assert.False(t, bd.Bindings().At(bind.Position{Pointer: src.Pointer + "/items"}).IsBool(), "the source's")
+	assert.False(t, bd.Bindings().At(bind.DocumentPointer{Pointer: "/x-lib/S/items"}).IsBool(), "a landing's")
+	assert.False(t, bd.Bindings().At(bind.DocumentPointer{Pointer: src.Pointer + "/items"}).IsBool(), "the source's")
 }

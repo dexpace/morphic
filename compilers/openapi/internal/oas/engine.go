@@ -84,7 +84,7 @@ type Options struct {
 // Pending is a Schema Object a check handed back unread (Options.Later): where
 // it is read and how deep, so CheckPending reads it as the check would have.
 type Pending struct {
-	at    site
+	at    objectToCheck
 	depth int
 }
 
@@ -114,7 +114,7 @@ func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, op
 		start = Document
 	}
 	w.root = nodeview.DocumentRoot(root)
-	w.object(site{kind: start, node: w.root, shared: opts.Shared}, 0)
+	w.object(objectToCheck{kind: start, node: w.root, shared: opts.Shared}, 0)
 	return w.diags
 }
 
@@ -183,11 +183,11 @@ type walker struct {
 	reporter
 }
 
-// site is an object to read: its kind, node, pointer, the key its parent
+// objectToCheck is an object to read: its kind, node, pointer, the key its parent
 // holds it under, and the kind of that parent, zero at the root. rows is the
 // rows of the schema holding it, where one does, and shared says its parent's
 // frame is shared (frame.shared).
-type site struct {
+type objectToCheck struct {
 	node   *yaml.Node
 	ptr    jsontext.Pointer
 	held   string
@@ -206,7 +206,7 @@ type site struct {
 // minor.
 type frame struct {
 	obj      Object
-	at       site
+	at       objectToCheck
 	pairs    []nodeview.Pair
 	byKey    map[string]*yaml.Node
 	rows     SchemaRules
@@ -303,7 +303,7 @@ func reportStop(w *walker, ptr jsontext.Pointer) {
 
 // object checks the mapping s holds as an object of its kind, and what lies
 // below it.
-func (w *walker) object(s site, depth int) {
+func (w *walker) object(s objectToCheck, depth int) {
 	obj, ok := w.spec.Object(s.kind)
 	node := nodeview.Deref(s.node)
 	if !ok || node == nil {
@@ -399,7 +399,7 @@ func (w *walker) unknown(f frame) {
 // rowsAt returns the rows the Schema Object s names is read with: a dialect
 // root's own (Options.RootRows), else those of the schema holding it, else its
 // document's (Options.Rows).
-func (w *walker) rowsAt(s site) SchemaRules {
+func (w *walker) rowsAt(s objectToCheck) SchemaRules {
 	if w.rootRows != nil {
 		if rows, root := w.rootRows(w.rootAt + s.ptr); root && rows.rows != nil {
 			return rows
@@ -561,7 +561,7 @@ func (o Object) addedLater(key string, m Minor) (Field, bool) {
 			found = fld
 		}
 	}
-	return found, found.Name != "" && !found.Keyword
+	return found, found.Name != "" && !found.IsJSONSchemaKeyword
 }
 
 // missing reports a required field the object does not write.

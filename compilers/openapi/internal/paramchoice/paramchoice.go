@@ -23,7 +23,7 @@ import (
 // coordinate. Choices and variants are sorted by name, as an object's members
 // keep no order. An operation holding a filled choice is marked; the key stays.
 // p is the run's promoter.
-func PromoteChoices(p promotion.Promoter, w *whole.Document) []ir.Diagnostic {
+func PromoteChoices(p promotion.Promoter, w *whole.CompiledDocumentView) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, op := range w.Ops {
 		st, written, readDiags := p.StatementOf(promotion.TargetParamChoices, op.Unmodeled)
@@ -56,7 +56,7 @@ func PromoteChoices(p promotion.Promoter, w *whole.Document) []ir.Diagnostic {
 
 // reader reads the choices one operation's key states.
 type reader struct {
-	w   *whole.Document
+	w   *whole.CompiledDocumentView
 	op  *ir.Operation
 	key string
 }

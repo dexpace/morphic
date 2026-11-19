@@ -9,11 +9,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Source renders the construct a declaration was written as, verbatim. It is a
+// DeclarationConstructRenderer renders the construct a declaration was written as, verbatim. It is a
 // function because nearly every property is declared once, and rendering a node
 // nobody will keep is a cost the merge asks for only when it has something to
 // keep.
-type Source func() (ir.RawValue, error)
+type DeclarationConstructRenderer func() (ir.RawValue, error)
 
 // WireNameIndex maps each property's wire name to its position in props, so a
 // lookup by name is one map read rather than a rescan of a wide model.
@@ -25,7 +25,7 @@ func WireNameIndex(props []ir.Property) map[string]int {
 	return idx
 }
 
-// PropIndex is one Model's composition as the walk reads it: each property it
+// ModelPropertyDeclarations is one Model's composition as the walk reads it: each property it
 // declares and each entry it composes, in the order the walk meets them, which
 // is the order the source writes them, a schema's own properties after its
 // allOf. The first declaration of a wire name lands on the model at once, so
@@ -33,7 +33,7 @@ func WireNameIndex(props []ir.Property) map[string]int {
 // once the registry is whole (Settle): which type a field folds to compares
 // nodes the walk may not have built yet, so a fold mid-walk would follow
 // declaration order (GitHub #898).
-type PropIndex struct {
+type ModelPropertyDeclarations struct {
 	m      *ir.Model
 	byWire map[string]*field
 	// entries are the types the model composes, as Compose records them.
@@ -63,10 +63,10 @@ type composedEntry struct {
 	order  int
 }
 
-// NewPropIndex returns an empty index of m's properties; m holds none yet, so
+// NewModelPropertyDeclarations returns an empty index of m's properties; m holds none yet, so
 // every property reaches it through MergeProperty.
-func NewPropIndex(m *ir.Model) *PropIndex {
-	return &PropIndex{m: m, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}}
+func NewModelPropertyDeclarations(m *ir.Model) *ModelPropertyDeclarations {
+	return &ModelPropertyDeclarations{m: m, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}}
 }
 
 // MergeProperty appends p to the model, or records it as one more declaration
@@ -80,7 +80,7 @@ func NewPropIndex(m *ir.Model) *PropIndex {
 // secretBy names the heuristics that set p.Secret, empty where a keyword
 // declared it (folding.foldUse). It reports whether p is the model's first
 // redeclaration, from which the model has members to settle.
-func (idx *PropIndex) MergeProperty(p ir.Property, source Source, secretBy ir.Inferred) (firstRedeclaration bool) {
+func (idx *ModelPropertyDeclarations) MergeProperty(p ir.Property, source DeclarationConstructRenderer, secretBy ir.Inferred) (firstRedeclaration bool) {
 	d := declaration{prop: p, source: source, secretBy: secretBy, order: idx.next()}
 	f, ok := idx.byWire[p.WireName]
 	if !ok {
@@ -97,12 +97,12 @@ func (idx *PropIndex) MergeProperty(p ir.Property, source Source, secretBy ir.In
 // Compose records that the model composes target, written at at, after what
 // the walk has met so far. The caller adds target to the model's Base or
 // Mixins; the index reads it for the declarations it brings (Settle).
-func (idx *PropIndex) Compose(target ir.TypeID, at jsontext.Pointer) {
+func (idx *ModelPropertyDeclarations) Compose(target ir.TypeID, at jsontext.Pointer) {
 	idx.entries = append(idx.entries, composedEntry{target: target, at: at, order: idx.next()})
 }
 
 // next returns the place of what the walk meets next.
-func (idx *PropIndex) next() int {
+func (idx *ModelPropertyDeclarations) next() int {
 	idx.read++
 	return idx.read
 }

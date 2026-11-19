@@ -390,7 +390,7 @@ paths:
 			assert.Empty(t, irverify.Verify(doc))
 
 			for _, op := range []ir.Operation{opByPath(t, doc, "GET", "/a"), opByPath(t, doc, "POST", "/a")} {
-				assert.Equal(t, ids.Document{}.AnonType("/paths/~1a/parameters/0/schema"), paramNamed(t, op, "useP").Type.Target)
+				assert.Equal(t, ids.DocumentIDNamespace{}.AnonType("/paths/~1a/parameters/0/schema"), paramNamed(t, op, "useP").Type.Target)
 				assert.Equal(t, tc.refType, paramNamed(t, op, "refP").Type.Target,
 					"the referent's parameter keeps its own schema, not the use site's at the same index")
 			}

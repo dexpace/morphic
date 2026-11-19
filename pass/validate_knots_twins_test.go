@@ -11,12 +11,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestValidate_ATypeWithAWayOutOfItsKnotHasAFiniteValue holds the types that
-// look like a knot and are not: each leads back to itself, and each has a
+// TestValidate_ATypeWithAWayOutOfItsTypeCycleHasAFiniteValue holds the types that
+// look like a type cycle and are not: each leads back to itself, and each has a
 // value that needs no other. A list with no bounds at all may be empty, a
 // union with a variant that is null or names nothing the document declares
 // has that variant for a value, and a map may be empty as well.
-func TestValidate_ATypeWithAWayOutOfItsKnotHasAFiniteValue(t *testing.T) {
+func TestValidate_ATypeWithAWayOutOfItsTypeCycleHasAFiniteValue(t *testing.T) {
 	t.Parallel()
 	for name, def := range map[string]ir.TypeDef{
 		"a list of itself with no bounds":          &ir.List{ID: "t/k", Elem: ref("t/k"), Provenance: provAt("t/k")},
@@ -29,13 +29,13 @@ func TestValidate_ATypeWithAWayOutOfItsKnotHasAFiniteValue(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, found(t, knotDoc(def), finiteCode))
+			assert.Empty(t, found(t, noFiniteValueDoc(def), finiteCode))
 		})
 	}
 
 	forced := &ir.MapT{ID: "t/k", Value: ref("t/k"), Constraints: &ir.Constraints{MinProps: new(int64(1))}, Provenance: provAt("t/k")}
 	assert.Equal(t, []finding{{"t/k", "no finite value: each needs its value, t/k, which has none either"}},
-		found(t, knotDoc(forced), finiteCode), "a map that must hold an entry")
+		found(t, noFiniteValueDoc(forced), finiteCode), "a map that must hold an entry")
 }
 
 // TestValidate_AModelComposingTheUnionThatListsItHasAFiniteValue holds the
@@ -64,7 +64,7 @@ func TestValidate_AModelComposingTheUnionThatListsItHasAFiniteValue(t *testing.T
 	alias := func(id, base string) *ir.Scalar {
 		return &ir.Scalar{ID: ir.TypeID(id), Base: new(ref(base)), Provenance: provAt(id)}
 	}
-	doc := knotDoc(
+	doc := noFiniteValueDoc(
 		extending("t/circle", "t/shape", false), extending("t/square", "t/shape", false), listing("t/shape", "t/circle", "t/square"),
 		extending("t/log", "t/rule", true), extending("t/block", "t/rule", true), listing("t/rule", "t/log", "t/block"),
 		extending("t/oval", "t/figure", false), alias("t/figure", "t/rounded"), alias("t/rounded", "t/round"), listing("t/round", "t/oval"),

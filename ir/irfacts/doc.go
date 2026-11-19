@@ -8,7 +8,7 @@
 // writes nothing back, so no pass orders the derivations and none goes stale
 // after a transform.
 //
-// The relations it indexes are defined in ir: [Index.IsSubtype] and
-// [Index.Exposes] answer what ir.IsSubtype and ir.ExposedProps answer, for many
+// The relations it indexes are defined in ir: [DocumentFacts.IsSubtype] and
+// [DocumentFacts.Exposes] answer what ir.IsSubtype and ir.ExposedProps answer, for many
 // questions at once. It imports only ir.
 package irfacts

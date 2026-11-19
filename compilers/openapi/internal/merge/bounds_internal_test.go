@@ -119,18 +119,18 @@ func TestBoundsRelation_JudgesWhichSaysAllTheOtherDoes(t *testing.T) {
 	}{
 		{"neither says anything", nil, nil, relSame},
 		{"nothing against an empty set", nil, &ir.Constraints{}, relSame},
-		{"one bound against none", &ir.Constraints{MaxItems: count(5)}, nil, relANarrower},
-		{"a tighter upper bound", &ir.Constraints{MaxItems: count(5)}, &ir.Constraints{MaxItems: count(9)}, relANarrower},
-		{"a tighter lower bound", &ir.Constraints{MinItems: count(5)}, &ir.Constraints{MinItems: count(1)}, relANarrower},
+		{"one bound against none", &ir.Constraints{MaxItems: count(5)}, nil, firstTypeIsNarrower},
+		{"a tighter upper bound", &ir.Constraints{MaxItems: count(5)}, &ir.Constraints{MaxItems: count(9)}, firstTypeIsNarrower},
+		{"a tighter lower bound", &ir.Constraints{MinItems: count(5)}, &ir.Constraints{MinItems: count(1)}, firstTypeIsNarrower},
 		{"one number spelled two ways", &ir.Constraints{Min: big("10")}, &ir.Constraints{Min: big("1e1")}, relSame},
-		{"a step that is a multiple of the other", &ir.Constraints{MultipleOf: big("6")}, &ir.Constraints{MultipleOf: big("2")}, relANarrower},
+		{"a step that is a multiple of the other", &ir.Constraints{MultipleOf: big("6")}, &ir.Constraints{MultipleOf: big("2")}, firstTypeIsNarrower},
 		{"two steps neither divides", &ir.Constraints{MultipleOf: big("4")}, &ir.Constraints{MultipleOf: big("6")}, relMeet},
-		{"uniqueItems against none", &ir.Constraints{UniqueItems: true}, nil, relANarrower},
+		{"uniqueItems against none", &ir.Constraints{UniqueItems: true}, nil, firstTypeIsNarrower},
 		{"each adds a bound", &ir.Constraints{MinItems: count(1)}, &ir.Constraints{MaxItems: count(5)}, relMeet},
 		{"one tighter on each keyword", &ir.Constraints{MinItems: count(2), MaxItems: count(9)}, &ir.Constraints{MinItems: count(1), MaxItems: count(5)}, relMeet},
 		{"a bound beside an exclusive one", &ir.Constraints{Min: big("5")}, &ir.Constraints{ExclusiveMin: big("5")}, relMeet},
-		{"one more keyword and the same bound", &ir.Constraints{Pattern: "^a$", MaxItems: count(5)}, &ir.Constraints{MaxItems: count(5)}, relANarrower},
-		{"one pattern against none", &ir.Constraints{Pattern: "^a$"}, nil, relANarrower},
+		{"one more keyword and the same bound", &ir.Constraints{Pattern: "^a$", MaxItems: count(5)}, &ir.Constraints{MaxItems: count(5)}, firstTypeIsNarrower},
+		{"one pattern against none", &ir.Constraints{Pattern: "^a$"}, nil, firstTypeIsNarrower},
 		{"two patterns", &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"}, relMeet},
 		{"two precisions", &ir.Constraints{Precision: count(4)}, &ir.Constraints{Precision: count(5)}, relMeet},
 		{"a tighter bound against another pattern", &ir.Constraints{Pattern: "^a$", MaxLength: count(1)}, &ir.Constraints{Pattern: "^b$", MaxLength: count(9)}, relMeet},
@@ -596,7 +596,7 @@ func TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth(t *testing.T) {
 	reg["t/held-bare"] = &ir.List{ID: "t/held-bare", Elem: ref("t/tuple")}
 	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
 
-	assert.Equal(t, relANarrower, j.relate(ref("t/tuple-min"), ref("t/tuple")), "as a field's own type")
+	assert.Equal(t, firstTypeIsNarrower, j.relate(ref("t/tuple-min"), ref("t/tuple")), "as a field's own type")
 	assert.Equal(t, relUnrelated, j.relate(ref("t/held-min"), ref("t/held-bare")), "as what a list holds")
 }
 

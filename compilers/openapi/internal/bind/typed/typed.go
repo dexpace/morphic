@@ -26,11 +26,11 @@ type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 // and the reference-or-inline wrappers of the parser's other kinds. It is
 // built once (Builder) and never written after, and a nil one knows nothing.
 type Bindings struct {
-	table *bind.Table
+	table *bind.ReferenceTargetTable
 	// at is where each schema the lowering can hold was read.
-	at map[*schemaRef]bind.Position
+	at map[*schemaRef]bind.DocumentPointer
 	// held is the schema at each position: the model's own, or one built.
-	held map[bind.Position]*schemaRef
+	held map[bind.DocumentPointer]*schemaRef
 	// objectSites is where each wrapper was read, and as which kind, and
 	// objects the wrapper of each kind held at each position: the model's own,
 	// or one built for an object landing.
@@ -40,12 +40,12 @@ type Bindings struct {
 
 // objectSite is a position and the kind of object read there.
 type objectSite struct {
-	at   bind.Position
+	at   bind.DocumentPointer
 	kind bind.RefKind
 }
 
 // Table returns the table b answers from.
-func (b *Bindings) Table() *bind.Table {
+func (b *Bindings) Table() *bind.ReferenceTargetTable {
 	if b == nil {
 		return nil
 	}
@@ -54,9 +54,9 @@ func (b *Bindings) Table() *bind.Table {
 
 // Site returns the position js was read at, and false for a schema b does not
 // know.
-func (b *Bindings) Site(js *schemaRef) (bind.Position, bool) {
+func (b *Bindings) Site(js *schemaRef) (bind.DocumentPointer, bool) {
 	if b == nil || js == nil {
-		return bind.Position{}, false
+		return bind.DocumentPointer{}, false
 	}
 	p, ok := b.at[js]
 	return p, ok
@@ -64,10 +64,10 @@ func (b *Bindings) Site(js *schemaRef) (bind.Position, bool) {
 
 // Entry returns the table's entry for the $ref js writes, and false for a
 // schema b does not know or one the table read no $ref at.
-func (b *Bindings) Entry(js *schemaRef) (bind.Entry, bool) {
+func (b *Bindings) Entry(js *schemaRef) (bind.ReferenceSite, bool) {
 	p, ok := b.Site(js)
 	if !ok {
-		return bind.Entry{}, false
+		return bind.ReferenceSite{}, false
 	}
 	return b.table.Entry(p)
 }
@@ -107,10 +107,10 @@ func (b *Bindings) Declared(js *schemaRef) *schemaRef {
 // DeclaredAt returns what Declared does and the position its $ref lands at,
 // which names the document holding it; the zero position where it lands on
 // none.
-func (b *Bindings) DeclaredAt(js *schemaRef) (*schemaRef, bind.Position) {
+func (b *Bindings) DeclaredAt(js *schemaRef) (*schemaRef, bind.DocumentPointer) {
 	e, ok := b.Entry(js)
 	if !ok || e.Hop.Status != bind.Resolved {
-		return nil, bind.Position{}
+		return nil, bind.DocumentPointer{}
 	}
 	return b.held[e.Hop.Target], e.Hop.Target
 }
@@ -126,7 +126,7 @@ func (b *Bindings) End(js *schemaRef) *schemaRef {
 }
 
 // At returns the schema held at p, or nil.
-func (b *Bindings) At(p bind.Position) *schemaRef {
+func (b *Bindings) At(p bind.DocumentPointer) *schemaRef {
 	if b == nil {
 		return nil
 	}
@@ -136,7 +136,7 @@ func (b *Bindings) At(p bind.Position) *schemaRef {
 // Mapping returns where value, a mapping value of the discriminator read at
 // at, lands, and false for a value the table did not read as a reference
 // there.
-func (b *Bindings) Mapping(at bind.Position, value string) (bind.Mapping, bool) {
+func (b *Bindings) Mapping(at bind.DocumentPointer, value string) (bind.Mapping, bool) {
 	if b == nil {
 		return bind.Mapping{}, false
 	}
@@ -145,9 +145,9 @@ func (b *Bindings) Mapping(at bind.Position, value string) (bind.Mapping, bool) 
 
 // ObjectSite returns where model, a reference-or-inline wrapper, was read, and
 // as which kind, and false for one b does not know.
-func (b *Bindings) ObjectSite(model any) (bind.Position, bind.RefKind, bool) {
+func (b *Bindings) ObjectSite(model any) (bind.DocumentPointer, bind.RefKind, bool) {
 	if b == nil {
-		return bind.Position{}, 0, false
+		return bind.DocumentPointer{}, 0, false
 	}
 	s, ok := b.objectSites[model]
 	return s.at, s.kind, ok
@@ -166,7 +166,7 @@ func (b *Bindings) Reference(model any) (bind.Reference, bool) {
 
 // ObjectAt returns the wrapper of kind held at p, the first recorded there, or
 // nil.
-func (b *Bindings) ObjectAt(p bind.Position, kind bind.RefKind) any {
+func (b *Bindings) ObjectAt(p bind.DocumentPointer, kind bind.RefKind) any {
 	if b == nil {
 		return nil
 	}
@@ -191,7 +191,7 @@ type Builder struct {
 // deep it lies (MaxMends).
 type recorded struct {
 	js    *schemaRef
-	at    bind.Position
+	at    bind.DocumentPointer
 	mends int
 }
 
@@ -202,9 +202,9 @@ type recorded struct {
 const MaxMends = 8
 
 // NewBuilder returns a Builder over table, knowing no schema yet.
-func NewBuilder(table *bind.Table) *Builder {
-	return &Builder{decode: decodeSchema, view: nodeview.New(), b: &Bindings{table: table, at: map[*schemaRef]bind.Position{},
-		held:        map[bind.Position]*schemaRef{},
+func NewBuilder(table *bind.ReferenceTargetTable) *Builder {
+	return &Builder{decode: decodeSchema, view: nodeview.New(), b: &Bindings{table: table, at: map[*schemaRef]bind.DocumentPointer{},
+		held:        map[bind.DocumentPointer]*schemaRef{},
 		objectSites: map[any]objectSite{}, objects: map[objectSite]any{}}}
 }
 
@@ -231,7 +231,7 @@ func (bd *Builder) decodeRecovered(ctx context.Context, n *yaml.Node, js *schema
 // Schema records that js was read at p. The first schema recorded at a
 // position is the one held there. A boolean one is noted, as the parser
 // decodes some written mappings as false (mend).
-func (bd *Builder) Schema(js *schemaRef, p bind.Position) {
+func (bd *Builder) Schema(js *schemaRef, p bind.DocumentPointer) {
 	if js == nil {
 		return
 	}
@@ -275,7 +275,7 @@ func (bd *Builder) mend(ctx context.Context) {
 
 // Object records that model, a reference-or-inline wrapper of kind, was read
 // at p. The first recorded of a kind at a position is the one held there.
-func (bd *Builder) Object(model any, kind bind.RefKind, p bind.Position) {
+func (bd *Builder) Object(model any, kind bind.RefKind, p bind.DocumentPointer) {
 	if model == nil || kind == 0 {
 		return
 	}
@@ -287,7 +287,7 @@ func (bd *Builder) Object(model any, kind bind.RefKind, p bind.Position) {
 }
 
 // HoldsObject reports whether a wrapper of kind is held at p.
-func (bd *Builder) HoldsObject(p bind.Position, kind bind.RefKind) bool {
+func (bd *Builder) HoldsObject(p bind.DocumentPointer, kind bind.RefKind) bool {
 	_, held := bd.b.objects[objectSite{at: p, kind: kind}]
 	return held
 }
@@ -296,12 +296,12 @@ func (bd *Builder) HoldsObject(p bind.Position, kind bind.RefKind) bool {
 // is read at, until ctx is done: the library's walk reads no
 // context (docs/parser-library.md#context-unread), so Walk asks it before each
 // item.
-func (bd *Builder) Walk(ctx context.Context, js *schemaRef, p bind.Position) {
+func (bd *Builder) Walk(ctx context.Context, js *schemaRef, p bind.DocumentPointer) {
 	for item := range oas3.Walk(ctx, js) {
 		if ctx.Err() != nil {
 			return
 		}
-		at := bind.Position{Doc: p.Doc, Pointer: p.Pointer + PointerOf(item.Location)}
+		at := bind.DocumentPointer{Doc: p.Doc, Pointer: p.Pointer + PointerOf(item.Location)}
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(oas3.SchemaMatcher{
 			Schema: func(s *schemaRef) error { bd.Schema(s, at); return nil },

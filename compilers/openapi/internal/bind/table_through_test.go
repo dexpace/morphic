@@ -76,7 +76,7 @@ func TestBind_ReadsAPointerThroughAReferenceObject(t *testing.T) {
 
 	loops := table.Loops()
 	require.Len(t, loops, 1)
-	assert.Equal(t, []bind.Position{
+	assert.Equal(t, []bind.DocumentPointer{
 		at("/components/pathItems/P/get/responses/200/content/application~1json/schema"),
 		at("/components/schemas/S"),
 	}, loops[0].Members)
@@ -113,10 +113,10 @@ components:
 	require.True(t, ok)
 	s := entryAt(t, table, "/components/schemas/S")
 	require.Equal(t, bind.Resolved, s.Hop.Status, s.Hop.Why())
-	assert.Equal(t, bind.Position{Doc: other, Pointer: "/components/headers/HO/schema"}, s.Hop.Target)
-	h, ok := table.Reference(bind.Position{Doc: other, Pointer: "/components/responses/R/headers/H"}, bind.RefHeader)
+	assert.Equal(t, bind.DocumentPointer{Doc: other, Pointer: "/components/headers/HO/schema"}, s.Hop.Target)
+	h, ok := table.Reference(bind.DocumentPointer{Doc: other, Pointer: "/components/responses/R/headers/H"}, bind.RefHeader)
 	require.True(t, ok, "other.yaml's header is read")
-	assert.Equal(t, bind.Position{Doc: other, Pointer: "/components/headers/HO"}, h.Chain.End)
+	assert.Equal(t, bind.DocumentPointer{Doc: other, Pointer: "/components/headers/HO"}, h.Chain.End)
 }
 
 // referenceObjects declares a reference object of each kind a pointer into a
@@ -178,7 +178,7 @@ func TestBind_PassesAReferenceObjectWhereAPointerIntoAnotherDocumentStarts(t *te
 			t.Parallel()
 			far := entryAt(t, table, jsontext.Pointer(fmt.Sprintf("/components/schemas/Far%d", i))).Hop
 			assert.Equal(t, bind.Resolved, far.Status, far.Why())
-			assert.Equal(t, bind.Position{Doc: other, Pointer: tc.target}, far.Target)
+			assert.Equal(t, bind.DocumentPointer{Doc: other, Pointer: tc.target}, far.Target)
 			near := entryAt(t, table, jsontext.Pointer(fmt.Sprintf("/components/schemas/Near%d", i))).Hop
 			assert.Equal(t, at(tc.target), near.Target, "the same pointer into the source")
 			bare := entryAt(t, table, jsontext.Pointer(fmt.Sprintf("/components/schemas/Bare%d", i))).Hop
@@ -195,9 +195,9 @@ func TestBind_ReadsWhatAReferenceObjectResolvedTo(t *testing.T) {
 	table := bound(t, throughSpec, throughConfig())
 	id, ok := table.Find("other.yaml")
 	require.True(t, ok)
-	e, ok := table.Entry(bind.Position{Doc: id, Pointer: "/R/content/application~1json/schema/properties/n"})
+	e, ok := table.Entry(bind.DocumentPointer{Doc: id, Pointer: "/R/content/application~1json/schema/properties/n"})
 	require.True(t, ok, "the site in what R resolved to is read")
-	assert.Equal(t, bind.Position{Doc: id, Pointer: "/Elsewhere"}, e.Hop.Target, "read against the document holding it")
+	assert.Equal(t, bind.DocumentPointer{Doc: id, Pointer: "/Elsewhere"}, e.Hop.Target, "read against the document holding it")
 }
 
 // TestBind_ReadsEverySchemaSiteOnce pins the sites a table holds: every schema
@@ -302,11 +302,13 @@ x-lib:
 `, cfg)
 	other, ok := table.Find("other.yaml")
 	require.True(t, ok)
-	got := map[bind.Position]bind.Landing{}
+	got := map[bind.DocumentPointer]bind.Landing{}
 	for _, l := range table.Landings() {
 		got[l.At] = l
 	}
-	in := func(pointer jsontext.Pointer) bind.Position { return bind.Position{Doc: other, Pointer: pointer} }
+	in := func(pointer jsontext.Pointer) bind.DocumentPointer {
+		return bind.DocumentPointer{Doc: other, Pointer: pointer}
+	}
 	assert.Equal(t, bind.Landing{At: at("/x-lib/S"), Name: "spec.yaml", Site: at("/components/schemas/P/discriminator"),
 		Reached: true}, got[at("/x-lib/S")], "the least of a mapping value and a $ref reaching it")
 	assert.Equal(t, bind.Landing{At: in("/B"), Name: "other.yaml", Site: at("/components/schemas/M"), Reached: true},

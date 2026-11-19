@@ -14,11 +14,11 @@ import (
 // Exposes reports whether the type id names exposes the property prop, as
 // ir.ExposedProps answers it: id, or a type its composition or its alias
 // scalars lead to, declares prop. Its first questions are walked, as
-// [Index.IsSubtype]'s are. After that a question is a few comparisons when one
+// [DocumentFacts.IsSubtype]'s are. After that a question is a few comparisons when one
 // model declares prop, unless the comparisons leave the pair open as
 // IsSubtype's may be. A property several models declare and an open pair are
 // walked.
-func (x *Index) Exposes(id ir.TypeID, prop ir.PropID) bool {
+func (x *DocumentFacts) Exposes(id ir.TypeID, prop ir.PropID) bool {
 	if limit := x.exposureWalks.Load(); limit > 0 {
 		exposed, spent, ok := ir.ExposesWithin(x.doc, id, prop, int(limit))
 		x.exposureWalks.Add(-int64(spent))
@@ -128,7 +128,7 @@ func (e *exposure) own(prop ir.PropID, i int) {
 	e.owner[prop] = i
 }
 
-// exposes answers [Index.Exposes] from the intervals, with settled false when
+// exposes answers [DocumentFacts.Exposes] from the intervals, with settled false when
 // they cannot: several models declare prop, or the intervals leave open
 // whether id reaches the one that does.
 func (e *exposure) exposes(id ir.TypeID, prop ir.PropID) (exposed, settled bool) {

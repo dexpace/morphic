@@ -68,7 +68,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 					reported.branch = st.of != nil
 					diags = append(diags, keepDeadBranches(c, &def.Unmodeled, at, reported, st.pointer(pointer))...)
 				}
-				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, st.voices(c, s, pointer), pointer, st.takes(c, s))
+				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, st.foldedBranches(c, s, pointer), pointer, st.takes(c, s))
 				def.Constraints = cons
 				diags = append(diags, consDiags...)
 				read := nodeBoundsRead(s, st.takes(c, s), def.Constraints, def.Unmodeled)
@@ -100,7 +100,7 @@ func pairDeadNulls(c lowering.Ctx, position, s *statement.Schema, st stand) []bo
 	branches, _, _ := unionBranches(c, position, s)
 	var dead []bool
 	for i, b := range branches {
-		bs := c.Statements().Sub(b)
+		bs := c.Statements().Subschema(b)
 		if nullBranch(c, bs) {
 			continue
 		}
@@ -134,7 +134,7 @@ func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 	var nonNull *statement.Statement
 	nonNullIdx, nonNullCount, nullCount := -1, 0, 0
 	for i, v := range variants {
-		st := c.Statements().Sub(v)
+		st := c.Statements().Subschema(v)
 		if nullBranch(c, st) {
 			nullCount++
 			continue
@@ -181,8 +181,8 @@ func electsOneOfPair(c lowering.Ctx, s *statement.Schema) bool {
 // so lowerOneOfAnyOf lowers it the same way instead.
 func allNullUnion(c lowering.Ctx, position, s *statement.Schema) bool {
 	variants, _, _ := unionBranches(c, position, s)
-	return len(variants) > 0 && !slices.ContainsFunc(variants, func(v statement.Sub) bool {
-		return !nullBranch(c, c.Statements().Sub(v))
+	return len(variants) > 0 && !slices.ContainsFunc(variants, func(v statement.Subschema) bool {
+		return !nullBranch(c, c.Statements().Subschema(v))
 	})
 }
 
@@ -260,7 +260,7 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, re
 // declines to collapse past it, and the verbatim lowering keeps both keywords
 // (preserveUnionSiblingsAt). Reading the preference as one only that last
 // lowering could reach is what dropped the anyOf in silence (GitHub #35).
-func unionBranches(c lowering.Ctx, position, holder *statement.Schema) ([]statement.Sub, string, bool) {
+func unionBranches(c lowering.Ctx, position, holder *statement.Schema) ([]statement.Subschema, string, bool) {
 	choice := holder.ChoiceKeywords()
 	if len(choice.OneOf) > 0 && (len(choice.AnyOf) == 0 || !anyOfElected(c, position, holder)) {
 		return choice.OneOf, "oneOf", true
@@ -279,7 +279,7 @@ type unionElectionOf struct {
 // types nothing (docs/compilers/openapi.md#competing-keywords). Read once a run,
 // as every reader of the union asks.
 func anyOfElected(c lowering.Ctx, position, holder *statement.Schema) bool {
-	return lowering.Remembered(c, unionElectionOf{position, holder}, func() bool {
+	return lowering.ReadOncePerRun(c, unionElectionOf{position, holder}, func() bool {
 		choice := holder.ChoiceKeywords()
 		return !setsDeclareShape(c, position, holder, choice.OneOf) && setsDeclareShape(c, position, holder, choice.AnyOf)
 	})
@@ -288,7 +288,7 @@ func anyOfElected(c lowering.Ctx, position, holder *statement.Schema) bool {
 // passedOver returns the branch set unionBranches passes over in holder at
 // position, a conjunct of the rest of that position, and its keyword: none
 // where holder writes one union.
-func passedOver(c lowering.Ctx, position, holder *statement.Schema) ([]statement.Sub, string) {
+func passedOver(c lowering.Ctx, position, holder *statement.Schema) ([]statement.Subschema, string) {
 	choice := holder.ChoiceKeywords()
 	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil, ""
@@ -300,7 +300,7 @@ func passedOver(c lowering.Ctx, position, holder *statement.Schema) ([]statement
 }
 
 // branches is unionBranches for u's holder at its position.
-func (u unionAt) branches(c lowering.Ctx) ([]statement.Sub, string, bool) {
+func (u unionAt) branches(c lowering.Ctx) ([]statement.Subschema, string, bool) {
 	return unionBranches(c, u.schema, u.holder)
 }
 
@@ -401,7 +401,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	variants := make([]ir.Variant, 0, len(branches))
 	keepsNull := restKeepsNull(c, u)
 	for i, b := range branches {
-		st := c.Statements().Sub(b)
+		st := c.Statements().Subschema(b)
 		if !u.variantBranch(c, i, st) {
 			continue // a null branch lifts to the enclosing ref's Nullable bit; a dead one is kept
 		}
@@ -556,7 +556,7 @@ func branchUnion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) 
 // every reader of a position s is written at, and of a hierarchy s is the base
 // of, asks.
 func branchUnionIndexOf(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
-	return lowering.Remembered(c, branchUnionOf{s}, func() branchUnionIndex { return findBranchUnion(c, s) })
+	return lowering.ReadOncePerRun(c, branchUnionOf{s}, func() branchUnionIndex { return findBranchUnion(c, s) })
 }
 
 // findBranchUnion is branchUnion's reading of s alone: where s lowers its

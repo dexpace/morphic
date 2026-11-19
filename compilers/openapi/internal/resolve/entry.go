@@ -37,7 +37,7 @@ func Object[T, S any, R interface {
 func ObjectAt[T, S any, R interface {
 	*S
 	Referenced[T]
-}](scope Scope, ref R, use bind.Position) (*T, bind.Position) {
+}](scope Scope, ref R, use bind.DocumentPointer) (*T, bind.DocumentPointer) {
 	obj, r := objectAt[T, S](scope.Bindings, ref)
 	if obj == nil || r == nil {
 		return obj, use

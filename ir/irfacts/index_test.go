@@ -217,7 +217,7 @@ func TestIndex_SubtypesIsSortedFreshAndNilWhenEmpty(t *testing.T) {
 
 func TestIndex_NoDocumentMeansNoFacts(t *testing.T) {
 	t.Parallel()
-	for name, facts := range map[string]*irfacts.Index{
+	for name, facts := range map[string]*irfacts.DocumentFacts{
 		"a nil document": irfacts.New(nil),
 		"the zero value": {},
 	} {
@@ -257,7 +257,7 @@ func factsChain(n int, mutate func(i int, m *ir.Model)) []ir.TypeDef {
 // return how many came out true.
 type factsWorkShape struct {
 	doc func(n int) *ir.Document
-	ask func(f *irfacts.Index, ids factsIDs, n int) int
+	ask func(f *irfacts.DocumentFacts, ids factsIDs, n int) int
 }
 
 // factsIDs are the IDs a work shape's questions name at one size, made before
@@ -298,7 +298,7 @@ func factsWorkShapes() map[string]factsWorkShape {
 				}
 				return irtest.DocOf(defs...)
 			},
-			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
+			ask: func(f *irfacts.DocumentFacts, ids factsIDs, n int) (yes int) {
 				for k := range n {
 					yes += factsCount(f.IsSubtype(ids.chain[n], ids.bases[k]))
 				}
@@ -307,7 +307,7 @@ func factsWorkShapes() map[string]factsWorkShape {
 		},
 		"each model of a chain routing to the next": {
 			doc: func(n int) *ir.Document { return irtest.DocOf(factsChain(n, nil)...) },
-			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
+			ask: func(f *irfacts.DocumentFacts, ids factsIDs, n int) (yes int) {
 				for i := range n {
 					yes += factsCount(f.IsSubtype(ids.chain[i+1], ids.chain[i]))
 				}
@@ -330,7 +330,7 @@ func factsWorkShapes() map[string]factsWorkShape {
 					}
 				})...)
 			},
-			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
+			ask: func(f *irfacts.DocumentFacts, ids factsIDs, n int) (yes int) {
 				for i := 1; i <= n; i++ {
 					yes += factsCount(f.Exposes(ids.chain[i], ids.props[0]))
 				}
@@ -341,7 +341,7 @@ func factsWorkShapes() map[string]factsWorkShape {
 			doc: func(n int) *ir.Document {
 				return irtest.DocOf(factsChain(n, func(i int, m *ir.Model) { m.Properties = []ir.Property{{ID: factsPropID(i)}} })...)
 			},
-			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
+			ask: func(f *irfacts.DocumentFacts, ids factsIDs, n int) (yes int) {
 				for i := range n {
 					yes += factsCount(f.Exposes(ids.chain[n], ids.props[i]))
 				}
@@ -353,7 +353,7 @@ func factsWorkShapes() map[string]factsWorkShape {
 				defs := factsChain(n, func(_ int, m *ir.Model) { m.Discriminator = &ir.Discriminator{PropertyName: "k"} })
 				return useDoc(ir.Operation{Responses: []ir.Response{{Payload: useBody("application/json", factsChainID(0))}}}, defs...)
 			},
-			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
+			ask: func(f *irfacts.DocumentFacts, ids factsIDs, n int) (yes int) {
 				for i := 0; i <= n; i++ {
 					yes += factsCount(f.Usage(ids.chain[i]) == irfacts.UsageOutput)
 				}
@@ -365,7 +365,7 @@ func factsWorkShapes() map[string]factsWorkShape {
 
 // factsAskTopOfChain asks whether each model of a chain of n below its top is
 // a subtype of the top.
-func factsAskTopOfChain(f *irfacts.Index, ids factsIDs, n int) (yes int) {
+func factsAskTopOfChain(f *irfacts.DocumentFacts, ids factsIDs, n int) (yes int) {
 	for i := 1; i <= n; i++ {
 		yes += factsCount(f.IsSubtype(ids.chain[i], ids.chain[0]))
 	}
@@ -515,7 +515,7 @@ var factsConcurrentProps = []ir.PropID{"p/kind", "p/side", "p/ghost"}
 
 // factsAsk collects everything facts says about id, asking IsSubtype of each
 // base in universe and Exposes of each of factsConcurrentProps.
-func factsAsk(facts *irfacts.Index, id ir.TypeID, universe []ir.TypeID) factsAnswers {
+func factsAsk(facts *irfacts.DocumentFacts, id ir.TypeID, universe []ir.TypeID) factsAnswers {
 	got := factsAnswers{
 		usage:     facts.Usage(id),
 		recursive: facts.Recursive(id),

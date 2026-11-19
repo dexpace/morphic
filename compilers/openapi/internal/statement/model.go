@@ -21,14 +21,14 @@ type model = oas3.JSONSchema[oas3.Referenceable]
 // Of returns the statement of js, read on the first ask and remembered: its
 // schema object, the reference that object writes beside other keys, and its
 // inline allOf entries, flattened. A nil js reads as Unwritten.
-func (t *Table) Of(js *model) *Statement {
+func (t *MemoizingSchemaReader) Of(js *model) *Statement {
 	t.lookups++
 	if st, ok := t.statements[js]; ok {
 		return st
 	}
 	st := &Statement{Schema: t.own(js)}
 	if st.BesideRef != nil {
-		st.Entries = []Entry{{Schema: st.BesideRef}}
+		st.Entries = []AllOfConjunct{{Schema: st.BesideRef}}
 	}
 	st.of = st
 	t.flatten(st)
@@ -65,7 +65,7 @@ func ParsedAt(st *Statement) *model {
 // remembered, which reads no other object: where the bindings read it, its
 // node, its truth and, for a stated one, its keys in their slots, its
 // reference and each slot's values.
-func (t *Table) read(js *model) *Schema {
+func (t *MemoizingSchemaReader) read(js *model) *Schema {
 	if s, ok := t.schemas[js]; ok {
 		return s
 	}
@@ -96,9 +96,9 @@ func (t *Table) read(js *model) *Schema {
 	return s
 }
 
-// Truth returns what the schema s names states, as Table.Sub reads it, with no
+// SchemaValueForm returns what the schema s names states, as MemoizingSchemaReader.Subschema reads it, with no
 // lookup.
-func (s Sub) Truth() Truth {
+func (s Subschema) SchemaValueForm() SchemaValueForm {
 	return truthOf(s.m)
 }
 
@@ -114,15 +114,15 @@ func (s *Schema) Held() bool {
 // Object.Properties lists under that name. It is false for a name s does not
 // write, for a nil or unstated s, and for a `properties` its keys do not list
 // (listedOnly).
-func (s *Schema) Property(name string) (Sub, bool) {
+func (s *Schema) Property(name string) (Subschema, bool) {
 	if s == nil || s.Object == nil || len(s.Object.Properties) == 0 {
-		return Sub{}, false
+		return Subschema{}, false
 	}
 	p, ok := s.m.GetSchema().GetProperties().Get(name)
 	if !ok {
-		return Sub{}, false
+		return Subschema{}, false
 	}
-	return Sub{Name: name, m: p}, true
+	return Subschema{Name: name, m: p}, true
 }
 
 // truthOf returns what js states. The parser reads a value written as no
@@ -130,7 +130,7 @@ func (s *Schema) Property(name string) (Sub, bool) {
 // (docs/parser-library.md#null-schema-is-false), and a mapping it fails
 // beneath as a boolean, which truthOf reads as Unread
 // (docs/parser-library.md#failure-beneath-itself).
-func truthOf(js *model) Truth {
+func truthOf(js *model) SchemaValueForm {
 	if js == nil {
 		return Unwritten
 	}
@@ -390,7 +390,7 @@ func kindsOf(m *oas3.Schema) *Kinds {
 	}
 	kinds := &Kinds{Nullable: m.Nullable}
 	for _, t := range m.GetType() {
-		kinds.Types = append(kinds.Types, Kind(t))
+		kinds.Types = append(kinds.Types, JSONSchemaTypeName(t))
 	}
 	return kinds
 }
@@ -444,7 +444,7 @@ func textOf(m *oas3.Schema) *Text {
 	}
 	return &Text{MinLength: m.MinLength, MaxLength: m.MaxLength, Pattern: m.GetPattern(),
 		ContentEncoding: m.GetContentEncoding(), ContentMediaType: m.GetContentMediaType(),
-		ContentSchema: Sub{m: m.ContentSchema}}
+		ContentSchema: Subschema{m: m.ContentSchema}}
 }
 
 // arrayOf returns what m's keywords asserting about an array say, nil where
@@ -455,14 +455,14 @@ func arrayOf(m *oas3.Schema) *Array {
 		m.UnevaluatedItems == nil {
 		return nil
 	}
-	return &Array{Items: Sub{m: m.Items}, PrefixItems: listed(m.PrefixItems), Contains: Sub{m: m.Contains},
+	return &Array{Items: Subschema{m: m.Items}, PrefixItems: listed(m.PrefixItems), Contains: Subschema{m: m.Contains},
 		MinContains: m.MinContains, MaxContains: m.MaxContains, MinItems: m.MinItems, MaxItems: m.MaxItems,
-		UniqueItems: m.UniqueItems, UnevaluatedItems: Sub{m: m.UnevaluatedItems}}
+		UniqueItems: m.UniqueItems, UnevaluatedItems: Subschema{m: m.UnevaluatedItems}}
 }
 
 // objectOf returns what m's keywords asserting about an object say, m being
 // read at at, nil where it holds none of them.
-func objectOf(m *oas3.Schema, at bind.Position) *Object {
+func objectOf(m *oas3.Schema, at bind.DocumentPointer) *Object {
 	if m.Properties == nil && m.PatternProperties == nil && m.AdditionalProperties == nil &&
 		m.PropertyNames == nil && m.UnevaluatedProperties == nil && m.Required == nil &&
 		m.MinProperties == nil && m.MaxProperties == nil && m.Discriminator == nil {
@@ -470,23 +470,23 @@ func objectOf(m *oas3.Schema, at bind.Position) *Object {
 	}
 	return &Object{Properties: named(m.GetProperties().Len(), m.GetProperties().All()),
 		PatternProperties:    named(m.GetPatternProperties().Len(), m.GetPatternProperties().All()),
-		AdditionalProperties: Sub{m: m.AdditionalProperties}, PropertyNames: Sub{m: m.PropertyNames},
-		UnevaluatedProperties: Sub{m: m.UnevaluatedProperties}, Required: m.Required,
+		AdditionalProperties: Subschema{m: m.AdditionalProperties}, PropertyNames: Subschema{m: m.PropertyNames},
+		UnevaluatedProperties: Subschema{m: m.UnevaluatedProperties}, Required: m.Required,
 		MinProperties: m.MinProperties, MaxProperties: m.MaxProperties, Discriminator: discriminatorOf(m.Discriminator, at)}
 }
 
 // discriminatorOf returns what d says, read where the walk reads it: under
 // the schema read at at, a position the bindings know only where at is not
 // the zero one.
-func discriminatorOf(d *oas3.Discriminator, at bind.Position) *Discriminator {
+func discriminatorOf(d *oas3.Discriminator, at bind.DocumentPointer) *Discriminator {
 	if d == nil {
 		return nil
 	}
 	out := &Discriminator{PropertyName: d.GetPropertyName(), DefaultMapping: d.GetDefaultMapping(),
 		Node: nodeview.Deref(d.GetRootNode()), Unknown: d.GetCore().GetUnknownProperties(),
 		Extensions: listedExtensions(d.GetExtensions().Len(), d.GetExtensions().All())}
-	if at != (bind.Position{}) {
-		out.At = bind.Position{Doc: at.Doc, Pointer: at.Pointer + "/discriminator"}
+	if at != (bind.DocumentPointer{}) {
+		out.At = bind.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer + "/discriminator"}
 	}
 	if n := d.GetMapping().Len(); n > 0 {
 		out.Mapping = make([]MappingEntry, 0, n)
@@ -511,7 +511,7 @@ func logicOf(m *oas3.Schema) *Logic {
 	if m.Not == nil && m.If == nil && m.Then == nil && m.Else == nil && m.DependentSchemas == nil {
 		return nil
 	}
-	return &Logic{Not: Sub{m: m.Not}, If: Sub{m: m.If}, Then: Sub{m: m.Then}, Else: Sub{m: m.Else},
+	return &Logic{Not: Subschema{m: m.Not}, If: Subschema{m: m.If}, Then: Subschema{m: m.Then}, Else: Subschema{m: m.Else},
 		DependentSchemas: named(m.GetDependentSchemas().Len(), m.GetDependentSchemas().All())}
 }
 
@@ -547,13 +547,13 @@ func externalDocsOf(d *oas3.ExternalDocumentation) *ExternalDocs {
 }
 
 // listed returns the schemas of a list keyword, each at its index.
-func listed(list []*model) []Sub {
+func listed(list []*model) []Subschema {
 	if len(list) == 0 {
 		return nil
 	}
-	out := make([]Sub, len(list))
+	out := make([]Subschema, len(list))
 	for i, js := range list {
-		out[i] = Sub{Index: i, m: js}
+		out[i] = Subschema{Index: i, m: js}
 	}
 	return out
 }
@@ -574,13 +574,13 @@ func listedExtensions(n int, all iter.Seq2[string, *yaml.Node]) []Extension {
 
 // named returns the n schemas of a mapping keyword, each under its name, in
 // source order.
-func named(n int, all iter.Seq2[string, *model]) []Sub {
+func named(n int, all iter.Seq2[string, *model]) []Subschema {
 	if n == 0 {
 		return nil
 	}
-	out := make([]Sub, 0, n)
+	out := make([]Subschema, 0, n)
 	for name, js := range all {
-		out = append(out, Sub{Name: name, m: js})
+		out = append(out, Subschema{Name: name, m: js})
 	}
 	return out
 }

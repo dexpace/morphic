@@ -49,22 +49,22 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Property) error {
 			c := carried[plainProperty]{Carrier: plainProperty(p)}
 			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
-				examples: &c.Carrier.Examples, lends: true})
+				examples: &c.Carrier.Examples, takesFallbackAnnotations: true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, h ir.Header) error {
 			c := carried[plainHeader]{Carrier: plainHeader(h)}
 			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
-				examples: &c.Carrier.Examples, lends: true})
+				examples: &c.Carrier.Examples, takesFallbackAnnotations: true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Parameter) error {
 			c := carried[plainParameter]{Carrier: plainParameter(p)}
 			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
-				examples: &c.Carrier.Examples, lends: true})
+				examples: &c.Carrier.Examples, takesFallbackAnnotations: true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.Variant) error {
 			c := carried[plainVariant]{Carrier: plainVariant(v)}
 			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
-				examples: &c.Carrier.Examples, lends: false})
+				examples: &c.Carrier.Examples, takesFallbackAnnotations: false})
 		}),
 	)
 }
@@ -91,9 +91,9 @@ func withoutTypes(doc *ir.Document, ids []ir.TypeID) *ir.Document {
 // takes after the chain's, as a reference to the type lends them
 // (docs/ir/annotations.md#what-a-reference-carries-down).
 type use struct {
-	target ir.TypeID
-	notes  annotations
-	lent   annotations
+	target              ir.TypeID
+	notes               annotations
+	fallbackAnnotations annotations
 }
 
 // decoratorUses returns, for each decorator of types, what it stands for. A
@@ -122,7 +122,7 @@ func chainOf(types ir.TypeRegistry, id ir.TypeID) (use, bool) {
 	for range len(types) + 1 {
 		base, ok := ir.Decorated(types[at])
 		if !ok {
-			return use{target: at, notes: notes, lent: lentBy(types[at])}, true
+			return use{target: at, notes: notes, fallbackAnnotations: annotationsAUseFallsBackTo(types[at])}, true
 		}
 		notes = notes.then(notesOf(types[at].Common()))
 		at = base.Target
@@ -130,10 +130,10 @@ func chainOf(types ir.TypeRegistry, id ir.TypeID) (use, bool) {
 	return use{}, false
 }
 
-// lentBy returns the annotations td lends a carrier naming it: its Docs and
+// annotationsAUseFallsBackTo returns the annotations td lends a carrier naming it: its Docs and
 // Deprecation, and none of a type the registry does not hold. Its Examples
 // describe the type and stay on it (docs/compilers/openapi.md#schema-examples).
-func lentBy(td ir.TypeDef) annotations {
+func annotationsAUseFallsBackTo(td ir.TypeDef) annotations {
 	if td == nil {
 		return annotations{}
 	}
@@ -303,11 +303,11 @@ type keptBeside struct {
 // and say whether the carrier takes what the chain's type lends: a union
 // variant takes none of it, as the compiler gives a variant none.
 type slots struct {
-	ref         *ir.TypeRef
-	docs        *ir.Docs
-	deprecation **ir.Deprecation
-	examples    *[]ir.Example
-	lends       bool
+	ref                      *ir.TypeRef
+	docs                     *ir.Docs
+	deprecation              **ir.Deprecation
+	examples                 *[]ir.Example
+	takesFallbackAnnotations bool
 }
 
 // write writes c with the chain its reference names folded in as the
@@ -325,8 +325,8 @@ func (c *carried[T]) write(enc *jsontext.Encoder, uses map[ir.TypeID]use, s slot
 	}
 	own := annotations{docs: *s.docs, deprecation: *s.deprecation, examples: *s.examples}
 	merged := own.then(u.notes)
-	if s.lends {
-		merged = merged.then(u.lent)
+	if s.takesFallbackAnnotations {
+		merged = merged.then(u.fallbackAnnotations)
 	}
 	s.ref.Target = u.target
 	*s.docs, *s.deprecation, *s.examples = merged.docs, merged.deprecation, merged.examples

@@ -52,7 +52,7 @@ func (r *admission) conjoin(child *admission) {
 	r.admits &= child.admits
 	r.partial |= child.partial
 	r.conjoinKinds(child)
-	if r.took(child) {
+	if r.addChildReadCostAndCheckCaps(child) {
 		r.admitted = r.admitted.and(child.admitted)
 	}
 }
@@ -82,9 +82,9 @@ func (r *admission) settleKinds() {
 	}
 }
 
-// took adds what child's read took in and met to r's, and reports whether r
+// addChildReadCostAndCheckCaps adds what child's read took in and met to r's, and reports whether r
 // is still within both caps. One past either stops (past).
-func (r *admission) took(child *admission) bool {
+func (r *admission) addChildReadCostAndCheckCaps(child *admission) bool {
 	r.cut = r.cut || child.cut
 	r.loose = r.loose || child.loose
 	r.reads = min(r.reads+child.reads, maxAdmissionReads+1)
@@ -159,7 +159,7 @@ func admissionOf(c lowering.Ctx, st *statement.Statement) *admission {
 // admissionStore returns the run's admissions in the dialect c reads an
 // unplaced schema in.
 func admissionStore(c lowering.Ctx) *admissions {
-	return lowering.Remembered(c, admissionsIn{c.SchemaRules().Defines("nullable")}, func() *admissions {
+	return lowering.ReadOncePerRun(c, admissionsIn{c.SchemaRules().Defines("nullable")}, func() *admissions {
 		return &admissions{read: map[*statement.Statement]*admission{}}
 	})
 }
@@ -182,7 +182,7 @@ func conjunctsOf(c lowering.Ctx, st *statement.Statement) []*statement.Statement
 		out = append(out, c.Statements().Read(st.BesideRef))
 	}
 	for _, b := range subs {
-		out = append(out, c.Statements().Sub(b))
+		out = append(out, c.Statements().Subschema(b))
 	}
 	if next, _ := declaredOf(c, st); next != nil {
 		out = append(out, next)
@@ -198,10 +198,10 @@ func conjunctsOf(c lowering.Ctx, st *statement.Statement) []*statement.Statement
 // do not read as a $ref, names none, or is placed nowhere. One an allOf entry
 // writes names none: no position expands it (keepEntryDynamicRef), so it masks
 // no kind (docs/compilers/openapi.md#allof-refinement).
-func dynamicExpansionOf(c lowering.Ctx, st *statement.Statement) (bind.Position, bool) {
+func dynamicExpansionOf(c lowering.Ctx, st *statement.Statement) (bind.DocumentPointer, bool) {
 	at, placed := siteOf(st.Schema)
 	if st.Ref != nil || !placed || !declaresDynamicRef(st.Schema) || writtenAsEntry(at.Pointer) {
-		return bind.Position{}, false
+		return bind.DocumentPointer{}, false
 	}
 	in, _ := lowering.InDocument(c, at.Doc)
 	return dynamicTarget(in, st.Schema, at.Pointer)
@@ -333,7 +333,7 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 		r.conjoin(w.store.read[e])
 	}
 	edges = edges[conjuncts:]
-	for i, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
+	for i, branches := range [][]statement.Subschema{choice.OneOf, choice.AnyOf} {
 		if len(branches) > 0 {
 			r.conjoin(w.join(edges[:len(branches)], i == 0))
 			edges = edges[len(branches):]
@@ -384,7 +384,7 @@ func (w *admissionWalk) join(branches []*statement.Statement, exclusive bool) *a
 	first := w.store.read[branches[0]]
 	out := &admission{admitted: first.admitted, admits: first.admits, kinds: first.kinds, firm: first.firm,
 		inferred: first.inferred}
-	out.took(first)
+	out.addChildReadCostAndCheckCaps(first)
 	whole, shared := first.admits&^first.partial, kindSet(0)
 	for _, b := range branches[1:] {
 		branch := w.store.read[b]
@@ -394,7 +394,7 @@ func (w *admissionWalk) join(branches []*statement.Statement, exclusive bool) *a
 		out.kinds |= branch.kinds
 		out.firm |= branch.firm
 		out.inferred = out.inferred || branch.inferred
-		if out.took(branch) {
+		if out.addChildReadCostAndCheckCaps(branch) {
 			out.admitted = out.admitted.or(branch.admitted)
 		}
 	}
@@ -413,7 +413,7 @@ func (w *admissionWalk) join(branches []*statement.Statement, exclusive bool) *a
 // but one refusing none (refusesNothing). A `type` refuses a kind whole, which
 // admits holds; a `not` or an `if` makes the read loose (looseIn); and a
 // keyword written null is left out.
-func narrowedWithin(t *statement.Table, s *statement.Schema) kindSet {
+func narrowedWithin(t *statement.MemoizingSchemaReader, s *statement.Schema) kindSet {
 	var out kindSet
 	for _, k := range s.Keys {
 		if k.Null {
@@ -453,9 +453,9 @@ func narrowedWithin(t *statement.Table, s *statement.Schema) kindSet {
 // that states nothing, `true` or `{}`, or a `properties`, `patternProperties`
 // or `prefixItems` each of whose schemas states nothing. Any other array or
 // object keyword is read as refusing some.
-func refusesNothing(t *statement.Table, s *statement.Schema, name string) bool {
-	statesNothing := func(sub statement.Sub) bool {
-		return sub.Truth() == statement.Anything || sub.Truth() == statement.Stated && len(t.Sub(sub).Keys) == 0
+func refusesNothing(t *statement.MemoizingSchemaReader, s *statement.Schema, name string) bool {
+	statesNothing := func(sub statement.Subschema) bool {
+		return sub.SchemaValueForm() == statement.Anything || sub.SchemaValueForm() == statement.Stated && len(t.Subschema(sub).Keys) == 0
 	}
 	switch name {
 	case "items":
@@ -463,7 +463,7 @@ func refusesNothing(t *statement.Table, s *statement.Schema, name string) bool {
 	case "unevaluatedItems":
 		return statesNothing(s.ArrayKeywords().UnevaluatedItems)
 	case "prefixItems":
-		return !slices.ContainsFunc(s.ArrayKeywords().PrefixItems, func(sub statement.Sub) bool { return !statesNothing(sub) })
+		return !slices.ContainsFunc(s.ArrayKeywords().PrefixItems, func(sub statement.Subschema) bool { return !statesNothing(sub) })
 	case "additionalProperties":
 		return statesNothing(s.ObjectKeywords().AdditionalProperties)
 	case "propertyNames":
@@ -471,9 +471,9 @@ func refusesNothing(t *statement.Table, s *statement.Schema, name string) bool {
 	case "unevaluatedProperties":
 		return statesNothing(s.ObjectKeywords().UnevaluatedProperties)
 	case "properties":
-		return !slices.ContainsFunc(s.ObjectKeywords().Properties, func(sub statement.Sub) bool { return !statesNothing(sub) })
+		return !slices.ContainsFunc(s.ObjectKeywords().Properties, func(sub statement.Subschema) bool { return !statesNothing(sub) })
 	case "patternProperties":
-		return !slices.ContainsFunc(s.ObjectKeywords().PatternProperties, func(sub statement.Sub) bool { return !statesNothing(sub) })
+		return !slices.ContainsFunc(s.ObjectKeywords().PatternProperties, func(sub statement.Subschema) bool { return !statesNothing(sub) })
 	default:
 		return false
 	}

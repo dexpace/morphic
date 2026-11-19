@@ -41,7 +41,7 @@ func TestDiscriminatorMapping_DefsValueNamesItsOwnInternedSibling(t *testing.T) 
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
 	}
 
-	petID := ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Pet"))
+	petID := ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "Pet"))
 	u, ok := doc.Types[petID].(*ir.Union)
 	require.True(t, ok, "a discriminated oneOf lowers to a Union")
 	require.NotNil(t, u.Discriminator)
@@ -86,11 +86,11 @@ func TestDiscriminatorMapping_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			for _, owner := range []string{"Pet", "Toy"} {
-				m, ok := doc.Types[ids.Document{}.NamedType(ids.Ptr("components", "schemas", owner))].(*ir.Model)
+				m, ok := doc.Types[ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", owner))].(*ir.Model)
 				require.True(t, ok, owner)
 				require.NotNil(t, m.Discriminator, owner)
 
-				want := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", owner, "$defs", "cat"))
+				want := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", owner, "$defs", "cat"))
 				assert.Equal(t, map[string]ir.TypeID{"cat": want}, m.Discriminator.Mapping, owner)
 				_, interned := doc.Types[want]
 				assert.True(t, interned, "%s's definition is interned where it is written", owner)

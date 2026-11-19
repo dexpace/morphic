@@ -38,7 +38,7 @@ func TestLowerSecuritySchemes_ANilEntryLowersAndReportsNothing(t *testing.T) {
 			sequencedmap.NewElem("ghost", (*soa.ReferencedSecurityScheme)(nil))),
 	}}
 
-	got, diags := auth.LowerSecuritySchemes(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
+	got, diags := auth.LowerSecuritySchemes(service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{}))
 
 	assert.Contains(t, got, ids.UnresolvedAuth("ghost"))
 	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
@@ -151,7 +151,7 @@ func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			c := service.New(0, &load.Document{Doc: doc}, service.Policy{})
+			c := service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{})
 			got, diags := auth.LowerSecuritySchemes(c)
 			assert.Empty(t, got)
 			assert.Empty(t, diags)

@@ -19,7 +19,7 @@ import (
 
 // refSiteRef resolves a $ref position, a schema writing its reference beside
 // nothing it reads but what a reference leaves silent: any key read beside a
-// $ref makes a conjunction (statement.Table), lowered as its allOf spelling
+// $ref makes a conjunction (statement.MemoizingSchemaReader), lowered as its allOf spelling
 // is, and an allOf entry whose reference names nothing, read whole, is no
 // position a reference reaches, as one to it reads on through its own. So
 // such a site writes nothing beside its target for a node to keep.
@@ -98,7 +98,7 @@ func unresolvedWhy(c lowering.Ctx, js *statement.Statement) string {
 }
 
 // unreadWhy is why the table holds nothing for a schema or a discriminator it
-// read: the budget or the merge bound stopped the reading (bind.Table.Unread).
+// read: the budget or the merge bound stopped the reading (bind.ReferenceTargetTable.Unread).
 func unreadWhy(refs *typed.Bindings) string {
 	if why := refs.Table().Unread(); why != "" {
 		return ": " + why
@@ -131,7 +131,7 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement
 
 // resolveAt is resolvePointer at a position of the bindings' table, read at
 // its own document's coordinates (lowering.InDocument).
-func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.Position, decl *statement.Statement) (ir.TypeID, bool) {
+func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.DocumentPointer, decl *statement.Statement) (ir.TypeID, bool) {
 	c, ok := lowering.InDocument(c, at.Doc)
 	if !ok {
 		return "", false
@@ -139,14 +139,14 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.Position, decl *statem
 	return resolvePointer(c, ts, at.Pointer, decl)
 }
 
-// PromiseLandings promises a node at each position a schema $ref of the
+// ReserveNodesAtReferenceTargets promises a node at each position a schema $ref of the
 // bindings' table lands on, hop by hop, so a position only a keyword kept
 // verbatim names, a `not` or an `if`, or only an alias a chain passes, is
 // lowered as one a lowered keyword names is, where its hop lands
-// (bind.Entry.Lands): a member of a loop of $refs lands nowhere. A position a lowering already
-// reached keeps the node built there (compile.Types.Promise). It reports
+// (bind.ReferenceSite.Lands): a member of a loop of $refs lands nowhere. A position a lowering already
+// reached keeps the node built there (compile.Types.ReserveNodeAtCoordinate). It reports
 // nothing itself: a promise reports when it is kept.
-func PromiseLandings(c lowering.Ctx, ts *compile.Types) {
+func ReserveNodesAtReferenceTargets(c lowering.Ctx, ts *compile.Types) {
 	b := c.Bindings()
 	for _, e := range b.Table().Entries() {
 		if !e.Lands() {
@@ -160,7 +160,7 @@ func PromiseLandings(c lowering.Ctx, ts *compile.Types) {
 // addresses: a source component by its stable ID, any other position by the ID
 // its pointer derives there. A reference never builds what it names, so no node
 // is built in a reference's context: it promises the node
-// (compile.Types.Promise), which hoistSubSchema builds from decl, the schema
+// (compile.Types.ReserveNodeAtCoordinate), which hoistSubSchema builds from decl, the schema
 // the bindings hold there, only where no declaration interned one. A decl it
 // cannot hoist resolves to nothing.
 //
@@ -169,7 +169,7 @@ func PromiseLandings(c lowering.Ctx, ts *compile.Types) {
 func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *statement.Statement) (ir.TypeID, bool) {
 	id, hoisted, ok := declaredIn(c, pointer, decl)
 	if hoisted {
-		ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
+		ts.ReserveNodeAtCoordinate(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
 	}
 	return id, ok
 }
@@ -182,7 +182,7 @@ func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *statement.Statem
 	// The source's components alone are lowered whole and named by name;
 	// another document's are hoisted where a reference reaches them, as any
 	// other position of it is.
-	if c.IDs() == (ids.Document{}) {
+	if c.IDs() == (ids.DocumentIDNamespace{}) {
 		if named, state := c.RefScope().ComponentRef(pointer); state.ByName() {
 			return named, false, state == ids.NamedComponent
 		}
@@ -199,7 +199,7 @@ func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *statement.Statem
 // resolvesAt reports whether a reference to at, a position of the bindings'
 // table, resolves, as resolveAt resolves one, without promising its node
 // (declaredAt).
-func resolvesAt(c lowering.Ctx, at bind.Position) bool {
+func resolvesAt(c lowering.Ctx, at bind.DocumentPointer) bool {
 	_, ok := declaredAt(c, at, c.Statements().At(at))
 	return ok
 }
@@ -243,5 +243,5 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *statement.Statement
 // phase reports once and the lowering drops to any without a report of its
 // own.
 func onLoop(b *statement.Statement) bool {
-	return b.Ref != nil && b.Ref.Bound && b.Ref.Entry.Chain.Member
+	return b.Ref != nil && b.Ref.Bound && b.Ref.Entry.Chain.PositionLiesOnReferenceCycle
 }

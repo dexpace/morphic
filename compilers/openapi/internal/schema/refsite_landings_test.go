@@ -24,7 +24,7 @@ func lowerBoth(t *testing.T, src string) (plain, promised *ir.Document) {
 		l, _ := schema.LoweredFor(t, src)
 		l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 		if promise {
-			schema.PromiseLandings(l.Ctx, l.Types)
+			schema.ReserveNodesAtReferenceTargets(l.Ctx, l.Types)
 			promised = l.Document(t)
 			continue
 		}

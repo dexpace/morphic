@@ -17,7 +17,7 @@ import (
 )
 
 // sourceDocument is the source as its references' binding reads it: the path
-// they are relative to (Location), the one Document.Sources records, the bytes
+// they are relative to (Location), the one LoadedOpenAPIDocument.Sources records, the bytes
 // and the tree its model was built from, what the table found in it, and where
 // a finding about a node of that tree is placed, at the $ref that reached it
 // where the tree holds no node.

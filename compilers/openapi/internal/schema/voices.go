@@ -108,47 +108,47 @@ func allOfDecides(c lowering.Ctx, s *statement.Schema) bool {
 	return decisionOf(c, s).refines
 }
 
-// voicesOf keys what voicesAmong read of one schema.
-type voicesOf struct {
+// allOfBranchFoldingKey keys what foldingAllOfBranches read of one schema.
+type allOfBranchFoldingKey struct {
 	schema *statement.Schema
 }
 
-// voicesAmong reports, for each branch of s's flattened allOf, whether it folds:
+// foldingAllOfBranches reports, for each branch of s's flattened allOf, whether it folds:
 // it is inline, it writes something for the position, and each such keyword
 // agrees with every other conjunct writing it, s's own keywords among them
 // (agreement). The answer reads the whole set, so no conjunct takes precedence
 // and no order decides. A null keyword writes nothing (WritesKeywordLeftOut).
 // Every use of s asks, so it is read once a run.
-func voicesAmong(c lowering.Ctx, s *statement.Schema) []bool {
-	return voicingOf(c, s).speaks
+func foldingAllOfBranches(c lowering.Ctx, s *statement.Schema) []bool {
+	return allOfBranchFoldingOf(c, s).branchFoldsIntoPosition
 }
 
-// voicing is what a schema's allOf says for the position holding it: whether
+// allOfBranchFolding is what a schema's allOf says for the position holding it: whether
 // each branch of the flattened list folds, whether it lends a use what s and
 // the folding branches before it do not, an entry none of them writes, and
 // whether what it folds writes a relative $ref it reads against another base
 // than the position does (readsAtPosition), so nothing it writes folds.
-type voicing struct {
-	speaks  []bool
-	lends   []bool
-	rebased []bool
+type allOfBranchFolding struct {
+	branchFoldsIntoPosition          []bool
+	addsKeywordNoEarlierBranchWrites []bool
+	rebased                          []bool
 }
 
-// voicingOf reads s's voicing once a run.
-func voicingOf(c lowering.Ctx, s *statement.Schema) voicing {
-	return lowering.Remembered(c, voicesOf{s}, func() voicing { return readVoices(c, s) })
+// allOfBranchFoldingOf reads s's folding once a run.
+func allOfBranchFoldingOf(c lowering.Ctx, s *statement.Schema) allOfBranchFolding {
+	return lowering.ReadOncePerRun(c, allOfBranchFoldingKey{s}, func() allOfBranchFolding { return readAllOfBranchFolding(c, s) })
 }
 
-// readVoices reads what voicingOf remembers.
-func readVoices(c lowering.Ctx, s *statement.Schema) voicing {
+// readAllOfBranchFolding reads what allOfBranchFoldingOf remembers.
+func readAllOfBranchFolding(c lowering.Ctx, s *statement.Schema) allOfBranchFolding {
 	a := newAgreement(c)
-	lent := map[string]bool{}
+	addsKeywordNoEarlierBranchWrites := map[string]bool{}
 	for _, entry := range a.write(s) {
-		lent[entry] = lent[entry] || !writesFalseFlag(entry, foldValue(s, entry))
+		addsKeywordNoEarlierBranchWrites[entry] = addsKeywordNoEarlierBranchWrites[entry] || !writesFalseFlag(entry, foldValue(s, entry))
 	}
 	comp := allOfBranches(c, s, "")
 	n := len(comp.branches)
-	out := voicing{speaks: make([]bool, n), lends: make([]bool, n), rebased: make([]bool, n)}
+	out := allOfBranchFolding{branchFoldsIntoPosition: make([]bool, n), addsKeywordNoEarlierBranchWrites: make([]bool, n), rebased: make([]bool, n)}
 	writes := make([][]string, n)
 	ids := idWrappers(comp)
 	for i, e := range comp.branches {
@@ -159,8 +159,8 @@ func readVoices(c lowering.Ctx, s *statement.Schema) voicing {
 		}
 	}
 	for i, entries := range writes {
-		out.speaks[i] = len(entries) > 0 && !slices.ContainsFunc(entries, a.apart)
-		if !out.speaks[i] {
+		out.branchFoldsIntoPosition[i] = len(entries) > 0 && !slices.ContainsFunc(entries, a.apart)
+		if !out.branchFoldsIntoPosition[i] {
 			continue
 		}
 		for _, entry := range entries {
@@ -168,8 +168,8 @@ func readVoices(c lowering.Ctx, s *statement.Schema) voicing {
 			if writesFalseFlag(entry, foldValue(comp.branches[i].schema.Schema, entry)) {
 				continue
 			}
-			out.lends[i] = out.lends[i] || !lent[entry]
-			lent[entry] = true
+			out.addsKeywordNoEarlierBranchWrites[i] = out.addsKeywordNoEarlierBranchWrites[i] || !addsKeywordNoEarlierBranchWrites[entry]
+			addsKeywordNoEarlierBranchWrites[entry] = true
 		}
 	}
 	return out
@@ -230,7 +230,7 @@ func foldsReference(c lowering.Ctx, bs *statement.Schema) bool {
 // the bindings cannot tell is no match.
 func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
 	site, placed := siteOf(e.schema.Schema)
-	at := bind.Position{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(e.pointer)))}
+	at := bind.DocumentPointer{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(e.pointer)))}
 	own, known := c.Bindings().Table().Base(site)
 	position, knownAt := c.Bindings().Table().Base(at)
 	return placed && known && knownAt && own == position
@@ -244,7 +244,7 @@ func disagreedWhy(residue []string, n branchNames) string {
 }
 
 // disagreed reports whether residue, what a branch that did not fold keeps of bs,
-// holds a keyword folding reads: voicesAmong passes over a branch for writing none
+// holds a keyword folding reads: foldingAllOfBranches passes over a branch for writing none
 // or for a disagreement, and this tells them apart.
 func disagreed(c lowering.Ctx, bs *statement.Schema, residue []string) bool {
 	return slices.ContainsFunc(residue, func(keyword string) bool {
@@ -278,22 +278,22 @@ func foldsNullable(bs *statement.Schema) bool {
 	return !hasKey(bs, "properties")
 }
 
-// positionVoices returns the voices of s, written at pointer, as a reader of
+// positionFoldedBranches returns the folded branches of s, written at pointer, as a reader of
 // what the position holds takes them, target being what the position lowered
 // to. A branch whose own node that is, the alias a $ref principal writing
 // keywords beside it stands at its entry, keeps what it writes there.
-func positionVoices(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.Voice {
+func positionFoldedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.FoldedAllOfBranch {
 	if !allOfDecides(c, s) {
 		return nil
 	}
 	comp := allOfBranches(c, s, pointer)
-	var out []annotation.Voice
-	for i, speaks := range voicesAmong(c, s) {
+	var out []annotation.FoldedAllOfBranch
+	for i, speaks := range foldingAllOfBranches(c, s) {
 		e := comp.branches[i]
 		if !speaks || LoweredToOwnNode(c, e.pointer, target) {
 			continue
 		}
-		v := voiceAt(c, e.schema.Schema, e.pointer)
+		v := foldedBranchAt(c, e.schema.Schema, e.pointer)
 		// The entry keeps a `dependencies` that does not fold (entryKeeps).
 		v.Dependencies = v.Dependencies && !foldsNoDependencies(c, s, pointer)
 		out = append(out, v)
@@ -301,65 +301,65 @@ func positionVoices(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointe
 	return out
 }
 
-// voiceAt returns the voice of node, written at at, which reads its
+// foldedBranchAt returns the folded branch of node, written at at, which reads its
 // `dependencies` in the dialect node is written in, as a fold of it does
 // (TwinKeyword): an allOf entry naming a draft by its own `$schema` keeps the
 // draft's keyword beside a position read in 2020-12, as the same schema written
 // flat in the draft keeps it (docs/compilers/openapi.md#dialect-keywords).
-func voiceAt(c lowering.Ctx, node *statement.Schema, at jsontext.Pointer) annotation.Voice {
-	return annotation.Voice{Node: node, At: at, Dependencies: rulesOf(c, node).Defines("dependencies")}
+func foldedBranchAt(c lowering.Ctx, node *statement.Schema, at jsontext.Pointer) annotation.FoldedAllOfBranch {
+	return annotation.FoldedAllOfBranch{Node: node, At: at, Dependencies: rulesOf(c, node).Defines("dependencies")}
 }
 
-// lendingBranches returns the branches of s that fold, each at its pointer below
+// fallbackAllOfBranches returns the branches of s that fold, each at its pointer below
 // s, for a use
-// reading what s lends it, but those writing only what s or such a branch before
-// them writes: the writers of an entry a use reads agree (voicesAmong), so a
+// reading what s addsKeyword it, but those writing only what s or such a branch before
+// them writes: the writers of an entry a use reads agree (foldingAllOfBranches), so a
 // reader taking the nearest takes the same value from any of them, and a use of s
 // pays for each entry once, not for each branch repeating it. Bounds, which agree
 // by meeting, are no such entry: a use never reads them through its $ref.
-func lendingBranches(c lowering.Ctx, s *statement.Schema) []allOfBranch {
+func fallbackAllOfBranches(c lowering.Ctx, s *statement.Schema) []allOfBranch {
 	if !allOfDecides(c, s) {
 		return nil
 	}
 	comp := allOfBranches(c, s, "")
 	var out []allOfBranch
-	for i, lends := range voicingOf(c, s).lends {
-		if lends {
+	for i, addsKeyword := range allOfBranchFoldingOf(c, s).addsKeywordNoEarlierBranchWrites {
+		if addsKeyword {
 			out = append(out, comp.branches[i])
 		}
 	}
 	return out
 }
 
-// declaresScoped reports whether a voice writes what only the position can hold,
+// declaresScoped reports whether a folded branch writes what only the position can hold,
 // as declaresPositionScoped asks of the schema written there.
-func declaresScoped(c lowering.Ctx, voices []annotation.Voice) bool {
-	return slices.ContainsFunc(voices, func(v annotation.Voice) bool { return declaresPositionScoped(c, v.Node) })
+func declaresScoped(c lowering.Ctx, foldedBranches []annotation.FoldedAllOfBranch) bool {
+	return slices.ContainsFunc(foldedBranches, func(v annotation.FoldedAllOfBranch) bool { return declaresPositionScoped(c, v.Node) })
 }
 
-// recordVoicedResidue keeps on td, in hand, what binds a use that voices write
-// (recordResidue), each reported at the keyword it wrote, in ResidueWriters'
-// order: an entry several write is the nearest voice's kept apart, and the
+// recordFoldedBranchResidue keeps on td, in hand, what binds a use that foldedBranches write
+// (recordResidue), each reported at the keyword it wrote, in FoldedBranchesInOverwriteOrder'
+// order: an entry several write is the nearest folded branch's kept apart, and the
 // schema written at the position records after them.
-func recordVoicedResidue(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, voices []annotation.Voice) []ir.Diagnostic {
-	diags := make([]ir.Diagnostic, 0, len(voices))
-	for _, v := range ResidueWriters(voices) {
+func recordFoldedBranchResidue(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch) []ir.Diagnostic {
+	diags := make([]ir.Diagnostic, 0, len(foldedBranches))
+	for _, v := range FoldedBranchesInOverwriteOrder(foldedBranches) {
 		// What s writes too is s's to keep and report: one writing, as the
-		// voices agree.
+		// foldedBranches agree.
 		diags = append(diags, recordResidue(c, td.Common(), v.Node, v.At, func(keyword string) bool { return hasKey(s, keyword) })...)
 	}
 	return diags
 }
 
-// ResidueWriters returns voices in the order a keeper overwriting what each
+// FoldedBranchesInOverwriteOrder returns foldedBranches in the order a keeper overwriting what each
 // writes takes them: those kept whole, then the rest, each the last first. The
-// nearest voice kept apart holds a keyword several write, and one kept whole,
-// whose branch holds it (annotation.Voice.KeptWhole), only one no other writes,
+// nearest folded branch kept apart holds a keyword several write, and one kept whole,
+// whose branch holds it (annotation.FoldedAllOfBranch.KeptWhole), only one no other writes,
 // which that branch then holds alone (dropFoldedIntoWhole).
-func ResidueWriters(voices []annotation.Voice) []annotation.Voice {
-	out := make([]annotation.Voice, 0, len(voices))
+func FoldedBranchesInOverwriteOrder(foldedBranches []annotation.FoldedAllOfBranch) []annotation.FoldedAllOfBranch {
+	out := make([]annotation.FoldedAllOfBranch, 0, len(foldedBranches))
 	for _, whole := range []bool{true, false} {
-		for _, v := range slices.Backward(voices) {
+		for _, v := range slices.Backward(foldedBranches) {
 			if v.KeptWhole == whole {
 				out = append(out, v)
 			}

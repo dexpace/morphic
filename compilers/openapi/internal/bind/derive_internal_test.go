@@ -70,7 +70,7 @@ func TestObjectFields_ReadsAReferenceWhereTheTableAdmitsOne(t *testing.T) {
 		if !stated || s == sSchema {
 			continue
 		}
-		admits := o.Referenceable != (oas.Span{}) || slices.ContainsFunc(o.Fields, func(f oas.Field) bool {
+		admits := o.Referenceable != (oas.MinorVersionRange{}) || slices.ContainsFunc(o.Fields, func(f oas.Field) bool {
 			return f.Name == "$ref"
 		})
 		_, refers := refKinds[s]
@@ -89,7 +89,7 @@ func TestObjectFields_LeadsEachShapeWhereItsValueIsRead(t *testing.T) {
 		of    oas.Kind
 		want  state
 	}{
-		{oas.Any, 0, sRaw},
+		{oas.AnyShapeUnchecked, 0, sRaw},
 		{oas.String, 0, sValue},
 		{oas.Boolean, 0, sValue},
 		{oas.Number, 0, sValue},

@@ -137,7 +137,7 @@ func enumEntries(c lowering.Ctx, s *statement.Schema, entries []enumEntry, point
 // kinds the admission reading gives a type and a value (kindOfType,
 // kindOfValue). An empty list declares no type, and a type no schema defines
 // judges nothing, which validation reports; either admits v.
-func typesAdmit(types []statement.Kind, v ir.Value) bool {
+func typesAdmit(types []statement.JSONSchemaTypeName, v ir.Value) bool {
 	var admitted kindSet
 	for _, t := range types {
 		k := kindOfType(t)
@@ -151,7 +151,7 @@ func typesAdmit(types []statement.Kind, v ir.Value) bool {
 
 // typeList spells a declared type set for a message: its one type, or the
 // list.
-func typeList(types []statement.Kind) string {
+func typeList(types []statement.JSONSchemaTypeName) string {
 	names := make([]string, 0, len(types))
 	for _, t := range types {
 		names = append(names, string(t))
@@ -459,7 +459,7 @@ func valueSetTypeRead(set *statement.Schema, td ir.TypeDef) bool {
 
 // structural reports whether st names an object or an array, which no
 // primitive types.
-func structural(st statement.Kind) bool {
+func structural(st statement.JSONSchemaTypeName) bool {
 	return st == statement.KindObject || st == statement.KindArray
 }
 

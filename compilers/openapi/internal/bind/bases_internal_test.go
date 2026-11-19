@@ -48,7 +48,7 @@ components:
 `
 
 // basesTable binds basesSpec, o.yaml beside it.
-func basesTable(t *testing.T) *Table {
+func basesTable(t *testing.T) *ReferenceTargetTable {
 	t.Helper()
 	docs := map[string]string{"o.yaml": "S: {$id: 'https://x.test/o', a: {b: {$id: 'p.json', c: {type: string}}}}\nT: [{$id: u.json}]\n"}
 	cfg := Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
@@ -69,16 +69,16 @@ func basesTable(t *testing.T) *Table {
 // positionsOf is every position of document id as a pointer walk reads it,
 // merged keys among them, then, for each of the first ones, a position past it
 // and its pointer spelled with no leading '/', which is not valid.
-func positionsOf(table *Table, id DocID) []Position {
+func positionsOf(table *ReferenceTargetTable, id DocID) []DocumentPointer {
 	view := nodeview.New()
-	var out []Position
+	var out []DocumentPointer
 	var walk func(n *yaml.Node, at jsontext.Pointer, depth int)
 	walk = func(n *yaml.Node, at jsontext.Pointer, depth int) {
 		n = nodeview.Deref(n)
 		if n == nil || depth > 12 {
 			return
 		}
-		out = append(out, Position{Doc: id, Pointer: at})
+		out = append(out, DocumentPointer{Doc: id, Pointer: at})
 		switch n.Kind {
 		case yaml.MappingNode:
 			for _, p := range view.MappingPairs(n) {
@@ -93,8 +93,8 @@ func positionsOf(table *Table, id DocID) []Position {
 	}
 	walk(table.docs[id].Root, "", 0)
 	for _, p := range slices.Clone(out[:min(len(out), 12)]) {
-		out = append(out, Position{Doc: id, Pointer: p.Pointer.AppendToken("missing").AppendToken("deeper")},
-			Position{Doc: id, Pointer: jsontext.Pointer(strings.TrimPrefix(string(p.Pointer), "/"))})
+		out = append(out, DocumentPointer{Doc: id, Pointer: p.Pointer.AppendToken("missing").AppendToken("deeper")},
+			DocumentPointer{Doc: id, Pointer: jsontext.Pointer(strings.TrimPrefix(string(p.Pointer), "/"))})
 	}
 	return out
 }
@@ -116,7 +116,7 @@ func draftDialect(_, dialect string) DialectRule {
 // dialectsTable binds a source whose schemas name dialects: draft 4 roots
 // writing `id`, one beside a `$ref`, `definitions` and a tuple, a draft 4
 // root a 2020-12 root holds, and a 2020-12 schema a draft 4 root holds.
-func dialectsTable(t *testing.T) *Table {
+func dialectsTable(t *testing.T) *ReferenceTargetTable {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"+
@@ -130,7 +130,7 @@ func dialectsTable(t *testing.T) *Table {
 }
 
 // reversed is a copy of ps, last first.
-func reversed(ps []Position) []Position {
+func reversed(ps []DocumentPointer) []DocumentPointer {
 	out := slices.Clone(ps)
 	slices.Reverse(out)
 	return out
@@ -145,12 +145,12 @@ func reversed(ps []Position) []Position {
 // pointer segments a walk follows, and a root that is no node.
 func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 	t.Parallel()
-	for name, fixture := range map[string]func(*testing.T) (*Table, []Position){
-		"resources": func(t *testing.T) (*Table, []Position) {
+	for name, fixture := range map[string]func(*testing.T) (*ReferenceTargetTable, []DocumentPointer){
+		"resources": func(t *testing.T) (*ReferenceTargetTable, []DocumentPointer) {
 			table := basesTable(t)
 			return table, append(positionsOf(table, Source), positionsOf(table, 1)...)
 		},
-		"merged past the bound": func(t *testing.T) (*Table, []Position) {
+		"merged past the bound": func(t *testing.T) (*ReferenceTargetTable, []DocumentPointer) {
 			var b strings.Builder
 			b.WriteString("x-c0: &c0 {$id: 'https://x.test/m', properties: {q: {type: string}}}\n")
 			for i := 1; i <= 70; i++ {
@@ -160,24 +160,24 @@ func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 			table := sourceTable(t, b.String())
 			return table, positionsOf(table, Source)
 		},
-		"past the segment bound": func(t *testing.T) (*Table, []Position) {
+		"past the segment bound": func(t *testing.T) (*ReferenceTargetTable, []DocumentPointer) {
 			const levels = nodeview.MaxPointerSegments/2 + 10
 			table := sourceTable(t, "components: {schemas: {A: "+strings.Repeat("{properties: {p: ", levels)+
 				"{$id: 'deep.json'}"+strings.Repeat("}}", levels)+"}}\n")
-			var out []Position
+			var out []DocumentPointer
 			at := jsontext.Pointer("/components/schemas/A")
 			for i := range levels {
 				if at = at.AppendToken("properties").AppendToken("p"); i%100 == 0 || i == levels-1 {
-					out = append(out, Position{Pointer: at})
+					out = append(out, DocumentPointer{Pointer: at})
 				}
 			}
 			return table, out
 		},
-		"dialects": func(t *testing.T) (*Table, []Position) {
+		"dialects": func(t *testing.T) (*ReferenceTargetTable, []DocumentPointer) {
 			table := dialectsTable(t)
 			return table, positionsOf(table, Source)
 		},
-		"a document's dialect": func(t *testing.T) (*Table, []Position) {
+		"a document's dialect": func(t *testing.T) (*ReferenceTargetTable, []DocumentPointer) {
 			var root yaml.Node
 			require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"+
 				"jsonSchemaDialect: '"+draft4ID+"'\npaths: {}\ncomponents:\n  schemas:\n"+
@@ -186,9 +186,9 @@ func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 			table := Bind(t.Context(), &root, Config{Self: "spec.yaml", Dialect: draftDialect})
 			return table, positionsOf(table, Source)
 		},
-		"no root": func(t *testing.T) (*Table, []Position) {
+		"no root": func(t *testing.T) (*ReferenceTargetTable, []DocumentPointer) {
 			return Bind(t.Context(), &yaml.Node{Kind: yaml.AliasNode}, Config{Self: "spec.yaml"}),
-				[]Position{{}, {Pointer: "/a"}}
+				[]DocumentPointer{{}, {Pointer: "/a"}}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -196,7 +196,7 @@ func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 			probe, all := fixture(t)
 			require.NotEmpty(t, probe.docs)
 			const shuffles = 4
-			orders := make([][]Position, 0, 2+shuffles)
+			orders := make([][]DocumentPointer, 0, 2+shuffles)
 			orders = append(orders, all, reversed(all))
 			rng := rand.New(rand.NewPCG(1, 2))
 			for range shuffles {
@@ -219,7 +219,7 @@ func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 }
 
 // sourceTable binds src, an OpenAPI 3.1 document holding nothing but it.
-func sourceTable(t *testing.T, src string) *Table {
+func sourceTable(t *testing.T, src string) *ReferenceTargetTable {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"+src), &root))
@@ -234,7 +234,7 @@ func TestBases_TheFixturesReachWhatTheyName(t *testing.T) {
 	table := basesTable(t)
 	var owned int
 	for _, p := range append(positionsOf(table, Source), positionsOf(table, 1)...) {
-		if res, _ := table.bases.holding(p); res.id {
+		if res, _ := table.bases.holding(p); res.namedByDollarID {
 			owned++
 		}
 	}
@@ -246,14 +246,14 @@ func TestBases_TheFixturesReachWhatTheyName(t *testing.T) {
 		fmt.Fprintf(&b, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
 	}
 	b.WriteString("components:\n  schemas:\n    A: {<<: *c70, properties: {q: {type: string}}}\n")
-	_, known := sourceTable(t, b.String()).bases.holding(Position{Pointer: "/components/schemas/A/properties/q"})
+	_, known := sourceTable(t, b.String()).bases.holding(DocumentPointer{Pointer: "/components/schemas/A/properties/q"})
 	assert.False(t, known, "below a schema past the merge bound")
 
 	const levels = nodeview.MaxPointerSegments/2 + 10
 	deep := sourceTable(t, "components: {schemas: {A: "+strings.Repeat("{properties: {p: ", levels)+
 		"{$id: 'deep.json'}"+strings.Repeat("}}", levels)+"}}\n")
-	res, _ := deep.bases.holding(Position{Pointer: jsontext.Pointer("/components/schemas/A" + strings.Repeat("/properties/p", levels))})
-	assert.False(t, res.id, "the $id lies past the tokens a walk follows")
+	res, _ := deep.bases.holding(DocumentPointer{Pointer: jsontext.Pointer("/components/schemas/A" + strings.Repeat("/properties/p", levels))})
+	assert.False(t, res.namedByDollarID, "the $id lies past the tokens a walk follows")
 }
 
 // TestBases_WalkEachPositionOnce pins what remembering buys: asking at every
@@ -264,14 +264,14 @@ func TestBases_WalkEachPositionOnce(t *testing.T) {
 	t.Parallel()
 	const levels = 200
 	src := "a: " + strings.Repeat("{p: ", levels) + "{}" + strings.Repeat("}", levels) + "\n"
-	spine := make([]Position, 0, levels+2)
+	spine := make([]DocumentPointer, 0, levels+2)
 	at := jsontext.Pointer("/a")
-	spine = append(spine, Position{}, Position{Pointer: at})
+	spine = append(spine, DocumentPointer{}, DocumentPointer{Pointer: at})
 	for range levels {
 		at = at.AppendToken("p")
-		spine = append(spine, Position{Pointer: at})
+		spine = append(spine, DocumentPointer{Pointer: at})
 	}
-	for name, order := range map[string][]Position{"down": spine, "up": reversed(spine)} {
+	for name, order := range map[string][]DocumentPointer{"down": spine, "up": reversed(spine)} {
 		var root yaml.Node
 		require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 		table := Bind(t.Context(), &root, Config{Self: "spec.yaml"})

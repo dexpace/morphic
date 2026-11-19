@@ -84,7 +84,7 @@ x-params:
 		assert.Equal(t, "r", p.GetName(), "%s ends at the last copy", path)
 		site, ok := doc.Bindings.Site(p.GetSchema())
 		require.True(t, ok, path)
-		assert.Equal(t, bind.Position{Pointer: "/x-params/q/schema"}, site, path)
+		assert.Equal(t, bind.DocumentPointer{Pointer: "/x-params/q/schema"}, site, path)
 	}
 }
 
@@ -258,7 +258,7 @@ components:
 	require.NotNil(t, js)
 	site, ok := doc.Bindings.Site(js)
 	require.True(t, ok)
-	assert.Equal(t, bind.Position{Pointer: "/components/parameters/R/schema"}, site)
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/components/parameters/R/schema"}, site)
 }
 
 // TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails pins that a
@@ -375,10 +375,10 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 // least position another document writes is reported in that document.
 func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 	t.Parallel()
-	failed := typed.Built{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/S"},
-		Site: bind.Position{Pointer: "/components/schemas/A"}, Reached: true}, Err: errors.New("it failed")}
-	elsewhere := typed.Built{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/S"}, Name: "other.yaml",
-		Site: bind.Position{Pointer: "/components/schemas/B"}, Reached: true}, Err: errors.New("it failed")}
+	failed := typed.Built{Landing: bind.Landing{At: bind.DocumentPointer{Pointer: "/x-lib/S"},
+		Site: bind.DocumentPointer{Pointer: "/components/schemas/A"}, Reached: true}, Err: errors.New("it failed")}
+	elsewhere := typed.Built{Landing: bind.Landing{At: bind.DocumentPointer{Doc: 1, Pointer: "/S"}, Name: "other.yaml",
+		Site: bind.DocumentPointer{Pointer: "/components/schemas/B"}, Reached: true}, Err: errors.New("it failed")}
 	foreign := failed
 	foreign.Landing.Reached = false
 	built := typed.Built{Landing: failed.Landing}
@@ -391,8 +391,8 @@ func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 	}
 	assert.Empty(t, cmp.Diff(want, buildFailures(places{}, []typed.Built{built, failed, foreign, elsewhere}, nil)))
 
-	object := builtObject{landing: bind.ObjectLanding{At: bind.Position{Pointer: "/x-params/q"}, Kind: bind.RefParameter,
-		Site: bind.Position{Pointer: "/paths/~1a/get/parameters/0"}, Reached: true}, err: errors.New("it failed")}
+	object := builtObject{landing: bind.ObjectLanding{At: bind.DocumentPointer{Pointer: "/x-params/q"}, Kind: bind.RefParameter,
+		Site: bind.DocumentPointer{Pointer: "/paths/~1a/get/parameters/0"}, Reached: true}, err: errors.New("it failed")}
 	unreached := object
 	unreached.landing.Reached = false
 	assert.Empty(t, cmp.Diff([]ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation,
@@ -402,8 +402,8 @@ func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 
 	doc, codes := loadReferencing(t, "./ext.yaml#/X")
 	require.Empty(t, codes)
-	away := typed.Built{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/S"},
-		Site: bind.Position{Doc: 1, Pointer: "/X/y"}, Reached: true}, Err: errors.New("it failed")}
+	away := typed.Built{Landing: bind.Landing{At: bind.DocumentPointer{Doc: 1, Pointer: "/S"},
+		Site: bind.DocumentPointer{Doc: 1, Pointer: "/X/y"}, Reached: true}, Err: errors.New("it failed")}
 	got := buildFailures(places{others: doc.Others, table: doc.Bindings.Table()}, []typed.Built{away}, nil)
 	require.Len(t, got, 1)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X/y"}, got[0].Provenance)
@@ -433,8 +433,8 @@ func TestLoad_AMergeFanOutPastTheMergeBoundIsRefusedForItsAliases(t *testing.T) 
 
 // byDocument places a finding at a position of table, which read other
 // documents: Source is the number the table reads the position's document
-// under, which indexes Document.Sources in the order these tests read them.
-func byDocument(table *bind.Table) places {
+// under, which indexes LoadedOpenAPIDocument.Sources in the order these tests read them.
+func byDocument(table *bind.ReferenceTargetTable) places {
 	others := Others{byName: map[string]int{}}
 	for id := range bind.DocID(table.Documents()) {
 		if id != bind.Source {
@@ -448,7 +448,7 @@ func byDocument(table *bind.Table) places {
 // TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt pins where a
 // finding at a position of the bindings' table is placed: the source's where
 // the source places its pointer, another document's in that document's
-// Document.Sources entry, and one in a document no entry lists, which a load
+// LoadedOpenAPIDocument.Sources entry, and one in a document no entry lists, which a load
 // never produces, at the source's root rather than nowhere.
 func TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
 	t.Parallel()
@@ -456,10 +456,10 @@ func TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
 	require.Empty(t, codes)
 	source := provenance.Doc{Source: 5}
 	table := doc.Bindings.Table()
-	ext := bind.Position{Doc: 1, Pointer: "/X"}
+	ext := bind.DocumentPointer{Doc: 1, Pointer: "/X"}
 
 	listed := places{source: source, others: doc.Others, table: table}
-	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components"}, listed.position(bind.Position{Pointer: "/components"}))
+	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components"}, listed.position(bind.DocumentPointer{Pointer: "/components"}))
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, listed.position(ext))
 
 	unlisted := places{source: source, table: table}
@@ -488,7 +488,7 @@ components:
 `), Options{})
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)
-	disc := bind.Position{Pointer: "/components/schemas/Pet/discriminator"}
+	disc := bind.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}
 	for value, bound := range map[string]bool{"Cat": false, "Pet": false, "cat.yaml": true} {
 		_, ok := got.Bindings.Table().Mapping(disc, value)
 		assert.Equal(t, bound, ok, value)

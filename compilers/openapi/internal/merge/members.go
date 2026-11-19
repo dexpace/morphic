@@ -15,12 +15,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Table is what a model's composition says of the wire names more than one
+// RedeclaredWireNameTable is what a model's composition says of the wire names more than one
 // model declares: for each, the declaration its flattening takes
 // (ir.FlattenedProperties), which a model settled before holds folded from
 // every other its composition gives the name. A name one model alone declares
 // never decides a member twice, so a settlement reads none.
-type Table map[string]Declared
+type RedeclaredWireNameTable map[string]Declared
 
 // Declared is the declaration a flattening takes for one name, and where the
 // nodes of its type are written: at the declaration, or, for a member a fold
@@ -47,7 +47,7 @@ func DeclaredAt(d ir.PropertyDecl) Declared {
 // settled. tables holds the Table of each type the model composes
 // (ComposedOf), settled first, and shared the names more than one model
 // declares. It returns the model's Table.
-func (idx *PropIndex) Settle(g Merger, tables map[ir.TypeID]Table, shared map[string]bool) ([]ir.Diagnostic, Table) {
+func (idx *ModelPropertyDeclarations) Settle(g Merger, tables map[ir.TypeID]RedeclaredWireNameTable, shared map[string]bool) ([]ir.Diagnostic, RedeclaredWireNameTable) {
 	brought, inherited := idx.brought(g, tables)
 	diags := make([]ir.Diagnostic, 0, len(idx.byWire))
 	for _, f := range slices.SortedFunc(maps.Values(idx.byWire), func(a, b *field) int { return cmp.Compare(a.pos, b.pos) }) {
@@ -68,8 +68,8 @@ func (idx *PropIndex) Settle(g Merger, tables map[ir.TypeID]Table, shared map[st
 // one declaration of, and each shared one it declares itself, which stands
 // over theirs, its type written where its fold says (Merger.typeSites) or,
 // where one declaration alone decides it, there.
-func (idx *PropIndex) members(shared map[string]bool, inherited Table) Table {
-	out := make(Table, len(inherited))
+func (idx *ModelPropertyDeclarations) members(shared map[string]bool, inherited RedeclaredWireNameTable) RedeclaredWireNameTable {
+	out := make(RedeclaredWireNameTable, len(inherited))
 	maps.Copy(out, inherited)
 	for i := range idx.m.Properties {
 		p := &idx.m.Properties[i]
@@ -94,7 +94,7 @@ func (idx *PropIndex) members(shared map[string]bool, inherited Table) Table {
 // (composedMember), placed by where its declarations are written
 // (assembledFrom). Where an entry brings a declaration, each report names the
 // member (naming).
-func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagnostic {
+func (idx *ModelPropertyDeclarations) settle(g Merger, pos int, decls []declaration) []ir.Diagnostic {
 	if len(decls) < 2 {
 		return nil
 	}
@@ -240,7 +240,7 @@ func heldTypes(td ir.TypeDef) []ir.TypeID {
 // composed, a field's composition or a distributed variant, since the schema
 // written at its pointer may settle a member of that name too. No schema is
 // written at an allOf, so neither path is a declaration's.
-func composedMember(d ids.Document, m *ir.Model, wire string) jsontext.Pointer {
+func composedMember(d ids.DocumentIDNamespace, m *ir.Model, wire string) jsontext.Pointer {
 	return settledAt(m, wire, d.ComposedType(m.Provenance.Pointer) == m.ID)
 }
 
@@ -274,7 +274,7 @@ func isBrought(d declaration) bool { return d.via != nil }
 // inside the model's schema, as the body a distributed variant shares with its
 // siblings is not, and no schema between the two stands as a node of its own
 // (Merger.carriedApart).
-func (idx *PropIndex) heldAlone(g Merger, d declaration) bool {
+func (idx *ModelPropertyDeclarations) heldAlone(g Merger, d declaration) bool {
 	model, at := idx.m.Provenance.Pointer, d.prop.Provenance.Pointer
 	return model.Contains(at) && !g.carriedApart(at, model)
 }
@@ -283,7 +283,7 @@ func (idx *PropIndex) heldAlone(g Merger, d declaration) bool {
 // -1. A discriminator naming the property it replaces names p, and so does one
 // naming by its name a member the model did not declare when the walk read
 // it, which the model now declares (docs/compilers/openapi.md#discriminator).
-func (idx *PropIndex) place(pos int, p ir.Property) {
+func (idx *ModelPropertyDeclarations) place(pos int, p ir.Property) {
 	d := idx.m.Discriminator
 	if pos < 0 {
 		idx.m.Properties = append(idx.m.Properties, p)
@@ -339,7 +339,7 @@ type candidate struct {
 // already. A part on a cycle may hold the model's own declaration, which the
 // model reads as its own, not brought. Names are read in order, as their walks
 // spend the run's reads (ownership).
-func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string][]declaration, Table) {
+func (idx *ModelPropertyDeclarations) brought(g Merger, tables map[ir.TypeID]RedeclaredWireNameTable) (map[string][]declaration, RedeclaredWireNameTable) {
 	parts := idx.parts()
 	byWire := map[string][]candidate{}
 	for i, part := range parts {
@@ -350,7 +350,7 @@ func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string]
 		}
 	}
 	owners := newOwnership(registry{g.resolve}, g.Reads)
-	out, inherited := map[string][]declaration{}, Table{}
+	out, inherited := map[string][]declaration{}, RedeclaredWireNameTable{}
 	for _, wire := range slices.Sorted(maps.Keys(byWire)) {
 		left := owners.left(byWire[wire])
 		for _, cd := range left {
@@ -489,7 +489,7 @@ func (o ownership) left(cs []candidate) []candidate {
 // entry naming it: the first the walk met, or one at the model, read first,
 // where none does. A type written twice brings its declarations once
 // (ownership.left).
-func (idx *PropIndex) parts() []composedEntry {
+func (idx *ModelPropertyDeclarations) parts() []composedEntry {
 	var out []composedEntry
 	for _, target := range ComposedOf(idx.m) {
 		at := slices.IndexFunc(idx.entries, func(e composedEntry) bool { return e.target == target })

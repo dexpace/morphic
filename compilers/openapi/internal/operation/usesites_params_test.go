@@ -317,12 +317,12 @@ paths:
 	assert.Equal(t, ir.StabilityBeta, doc.Services[0].Groups[1].Stability)
 }
 
-// TestHeader_LentAndCarriedReadApart holds a header's two readings of what
+// TestHeader_FallbackAndCarriedReadApart holds a header's two readings of what
 // its schema states to the case only each reads: a header's own x-sensitive:
 // false withdraws nothing its schema's true states, which the single-sided
 // reading takes; and a schema's misfit, behind no key of the header's own, is
 // reported at the schema's key, which the nearest reading does.
-func TestHeader_LentAndCarriedReadApart(t *testing.T) {
+func TestHeader_FallbackAndCarriedReadApart(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: T, version: "1"}

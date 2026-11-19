@@ -48,7 +48,7 @@ type Shape uint8
 
 // The shapes a value takes. Any, the zero value, leaves a value unchecked.
 const (
-	Any Shape = iota
+	AnyShapeUnchecked Shape = iota
 	String
 	Boolean
 	Number
@@ -198,14 +198,14 @@ type Term struct {
 // every When term holds.
 type Value struct {
 	Name string
-	Span Span
+	Span MinorVersionRange
 	When []Term
 }
 
 // Alt is a second shape a field admits, from the minors in Span.
 type Alt struct {
 	Shape Shape
-	Span  Span
+	Span  MinorVersionRange
 }
 
 // Default is a value the field Field takes where its object leaves it
@@ -214,7 +214,7 @@ type Default struct {
 	Field string
 	Value string
 	Cites []Cite
-	Span  Span
+	Span  MinorVersionRange
 	Case  DefaultCase
 }
 
@@ -259,12 +259,12 @@ type Field struct {
 	Cites []Cite
 	// Defined is the minors whose object defines the field. A construct
 	// written at an earlier minor is reported as added by a later one.
-	Defined Span
+	Defined MinorVersionRange
 	// Required is the minors at which the field must be present; empty
 	// means never.
-	Required Span
+	Required MinorVersionRange
 	// NonEmpty is the minors whose grammar refuses the empty string.
-	NonEmpty Span
+	NonEmpty MinorVersionRange
 	// Shape is the form the field's value takes in the source.
 	Shape Shape
 	// Of is the object kind an Object, Map or List holds.
@@ -272,9 +272,9 @@ type Field struct {
 	// Format is the syntax of a string value; Keys that of a map's keys.
 	Format Format
 	Keys   Format
-	// Keyword marks a JSON Schema keyword, which the dialect a schema is
+	// IsJSONSchemaKeyword marks a JSON Schema keyword, which the dialect a schema is
 	// read in defines rather than the minor (SchemaRules).
-	Keyword bool
+	IsJSONSchemaKeyword bool
 	// Decimal marks a numeric bound the schema lowering reads as the decimal
 	// its text spells, quoted or not, so the check judges it as read rather
 	// than by its shape: a literal no decimal spells, and an exclusive bound
@@ -292,7 +292,7 @@ type Field struct {
 type Within struct {
 	MediaType string
 	Cites     []Cite
-	Span      Span
+	Span      MinorVersionRange
 }
 
 // Pattern is a family of keys an object admits beside its fixed fields:
@@ -302,7 +302,7 @@ type Pattern struct {
 	Name  string
 	Shape Shape
 	Of    Kind
-	Span  Span
+	Span  MinorVersionRange
 	// Keys is the syntax of the key itself.
 	Keys  Format
 	Cites []Cite
@@ -381,7 +381,7 @@ type Rule struct {
 	Min, Max int
 	// Span is the minors the rule holds at, Kind what it demands, and Level how
 	// firmly the specification states it.
-	Span  Span
+	Span  MinorVersionRange
 	Kind  RuleKind
 	Level Level
 	// Format is the syntax a Syntax rule demands of Field.
@@ -399,15 +399,15 @@ type Object struct {
 	Defaults  []Default
 	// Referenceable is the minors at which a Reference Object may stand in
 	// the object's place.
-	Referenceable Span
+	Referenceable MinorVersionRange
 	// Boolean is the minors at which true or false may stand in the
 	// object's place.
-	Boolean Span
+	Boolean MinorVersionRange
 	// RefSiblings is the minors at which the keys a mapping writes beside a
 	// $ref are the object's own, applied beside the reference. Before it each
 	// such key is a later minor's construct; empty for an object whose $ref
 	// no minor gives siblings.
-	RefSiblings Span
+	RefSiblings MinorVersionRange
 	// Kind is the object's kind.
 	Kind Kind
 	// Extensible reports whether the object admits extension keys, those

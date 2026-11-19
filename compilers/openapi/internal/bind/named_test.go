@@ -343,7 +343,7 @@ func TestNamedPointerBytes_ARequirementKeyLandsAsTheBinderReadsIt(t *testing.T) 
 // TestNamedPointerBytes_CountsAKeyAsItIsWritten holds a key holding a `/` and
 // a `~`, which a JSON pointer escapes as two bytes each, to the total of a key
 // of its length that holds neither, as the grammar-free total it is compared
-// beside counts one (sourceindex.Index.PointerBytes).
+// beside counts one (sourceindex.Measurements.PointerBytes).
 func TestNamedPointerBytes_CountsAKeyAsItIsWritten(t *testing.T) {
 	t.Parallel()
 	const schema = namedHead + "components:\n  schemas:\n    A: {type: object, properties: {%q: {type: string}}}\n"

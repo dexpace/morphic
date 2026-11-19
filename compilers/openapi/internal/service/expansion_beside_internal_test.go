@@ -40,19 +40,19 @@ func TestExpansion_AHopWeighsWhatItWritesBesideItsRef(t *testing.T) {
 	}
 
 	end := ynode.Map(ref()...)
-	assert.Equal(t, 1+5+2, weightOf(end, at, budget.Unbounded()), "the end is weighed whole, its $ref among it")
+	assert.Equal(t, 1+5+2, referenceExpansionSize(end, at, budget.Unbounded()), "the end is weighed whole, its $ref among it")
 }
 
 // TestExpansion_AHopNoMappingHoldsIsWeighedWhole pins weightBeside's fallback:
 // what is no mapping, or is read as a schema, writes nothing beside a $ref, so
-// it is weighed as weightOf weighs it.
+// it is weighed as referenceExpansionSize weighs it.
 func TestExpansion_AHopNoMappingHoldsIsWeighedWhole(t *testing.T) {
 	t.Parallel()
 	scalar := ynode.Scalar("abc")
-	assert.Equal(t, weightOf(scalar, bind.Reading{}, budget.Unbounded()), weightBeside(scalar, bind.Reading{}, budget.Unbounded()))
+	assert.Equal(t, referenceExpansionSize(scalar, bind.Reading{}, budget.Unbounded()), weightBeside(scalar, bind.Reading{}, budget.Unbounded()))
 
 	table := bind.Bind(t.Context(), openapitest.YAMLDocument(t, "openapi: 3.1.0\n"), bind.Config{Self: "spec.yaml"})
-	schema := table.ReadingAt(bind.Position{Pointer: "/components/schemas/S"})
+	schema := table.ReadingAt(bind.DocumentPointer{Pointer: "/components/schemas/S"})
 	require.True(t, schema.Schema())
 	hop := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("x"))
 	assert.Equal(t, 1, weightBeside(hop, schema, budget.Unbounded()), "a schema weighs one, as weightOf weighs it")

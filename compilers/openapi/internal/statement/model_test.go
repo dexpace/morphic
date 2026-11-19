@@ -45,9 +45,9 @@ func texts(ns []*yaml.Node) []string {
 }
 
 // kinds returns the kinds the schema sub names writes.
-func kinds(t *testing.T, table *statement.Table, sub statement.Sub) []statement.Kind {
+func kinds(t *testing.T, table *statement.MemoizingSchemaReader, sub statement.Subschema) []statement.JSONSchemaTypeName {
 	t.Helper()
-	st := table.Sub(sub)
+	st := table.Subschema(sub)
 	require.Equal(t, statement.Stated, st.Truth, "%+v", sub)
 	require.NotNil(t, st.Kinds, "%+v", sub)
 	return st.Kinds.Types
@@ -114,7 +114,7 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 		return st
 	}
 
-	assert.Equal(t, []statement.Kind{statement.KindString, statement.KindNull}, at("Kinds").Kinds.Types)
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString, statement.KindNull}, at("Kinds").Kinds.Types)
 
 	values := at("Values").Values
 	assert.Equal(t, []string{"a", "b"}, texts(values.Enum))
@@ -130,27 +130,27 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 	assert.Equal(t, []int64{1, 5}, int64s(textual.MinLength, textual.MaxLength))
 	assert.Equal(t, []string{"^a", "base64", "image/png"}, []string{textual.Pattern, textual.ContentEncoding,
 		textual.ContentMediaType})
-	assert.Equal(t, []statement.Kind{statement.KindString}, kinds(t, table, textual.ContentSchema))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString}, kinds(t, table, textual.ContentSchema))
 
 	array := at("Array").Array
-	assert.Equal(t, []statement.Kind{statement.KindString}, kinds(t, table, array.Items))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString}, kinds(t, table, array.Items))
 	require.Len(t, array.PrefixItems, 1)
-	assert.Equal(t, []statement.Kind{statement.KindInteger}, kinds(t, table, array.PrefixItems[0]))
-	assert.Equal(t, []statement.Kind{statement.KindBoolean}, kinds(t, table, array.Contains))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindInteger}, kinds(t, table, array.PrefixItems[0]))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindBoolean}, kinds(t, table, array.Contains))
 	assert.Equal(t, []int64{1, 2, 3, 4}, int64s(array.MinContains, array.MaxContains, array.MinItems, array.MaxItems))
 	assert.Equal(t, []string{"true"}, bools(array.UniqueItems))
-	assert.Equal(t, statement.Nothing, table.Sub(array.UnevaluatedItems).Truth)
+	assert.Equal(t, statement.Nothing, table.Subschema(array.UnevaluatedItems).Truth)
 
 	object := at("Object").Object
 	require.Len(t, object.Properties, 1)
 	assert.Equal(t, "a", object.Properties[0].Name)
-	assert.Equal(t, []statement.Kind{statement.KindString}, kinds(t, table, object.Properties[0]))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString}, kinds(t, table, object.Properties[0]))
 	require.Len(t, object.PatternProperties, 1)
 	assert.Equal(t, "^x", object.PatternProperties[0].Name)
-	assert.Equal(t, []statement.Kind{statement.KindInteger}, kinds(t, table, object.PatternProperties[0]))
-	assert.Equal(t, statement.Nothing, table.Sub(object.AdditionalProperties).Truth)
-	assert.Equal(t, []statement.Kind{statement.KindString}, kinds(t, table, object.PropertyNames))
-	assert.Equal(t, statement.Anything, table.Sub(object.UnevaluatedProperties).Truth)
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindInteger}, kinds(t, table, object.PatternProperties[0]))
+	assert.Equal(t, statement.Nothing, table.Subschema(object.AdditionalProperties).Truth)
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString}, kinds(t, table, object.PropertyNames))
+	assert.Equal(t, statement.Anything, table.Subschema(object.UnevaluatedProperties).Truth)
 	assert.Equal(t, []string{"a"}, object.Required)
 	require.NotNil(t, object.DependentRequired)
 	assert.Equal(t, yaml.MappingNode, object.DependentRequired.Kind)
@@ -168,16 +168,16 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 	require.Len(t, choice.OneOf, 1)
 	require.Len(t, choice.AnyOf, 2)
 	assert.Equal(t, []int{0, 1}, []int{choice.AnyOf[0].Index, choice.AnyOf[1].Index})
-	assert.Equal(t, []statement.Kind{statement.KindBoolean}, kinds(t, table, choice.AnyOf[1]))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindBoolean}, kinds(t, table, choice.AnyOf[1]))
 
 	logic := at("Logic").Logic
-	assert.Equal(t, []statement.Kind{statement.KindInteger}, kinds(t, table, logic.Not))
-	assert.Equal(t, []statement.Kind{statement.KindString}, kinds(t, table, logic.If))
-	assert.Equal(t, []statement.Kind{statement.KindNumber}, kinds(t, table, logic.Then))
-	assert.Equal(t, []statement.Kind{statement.KindBoolean}, kinds(t, table, logic.Else))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindInteger}, kinds(t, table, logic.Not))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString}, kinds(t, table, logic.If))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindNumber}, kinds(t, table, logic.Then))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindBoolean}, kinds(t, table, logic.Else))
 	require.Len(t, logic.DependentSchemas, 1)
 	assert.Equal(t, "a", logic.DependentSchemas[0].Name)
-	assert.Equal(t, []statement.Kind{statement.KindObject}, kinds(t, table, logic.DependentSchemas[0]))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindObject}, kinds(t, table, logic.DependentSchemas[0]))
 
 	notes := at("Notes").Notes
 	assert.Equal(t, []string{"T", "D"}, []string{notes.Title, notes.Description})
@@ -197,7 +197,7 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 
 	conjunction := at("Conjunction")
 	require.Len(t, conjunction.AllOf, 1)
-	assert.Equal(t, []statement.Kind{statement.KindString}, kinds(t, table, conjunction.AllOf[0]))
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString}, kinds(t, table, conjunction.AllOf[0]))
 
 	ref := at("Reference").Ref
 	require.NotNil(t, ref)
@@ -250,7 +250,7 @@ func TestRead_AKeyTheDialectDoesNotDefineIsUnknown(t *testing.T) {
 		k, read := st.Key(tc.key)
 		require.True(t, read, tc.key)
 		assert.Equal(t, tc.slot, k.Slot, tc.key)
-		assert.Equal(t, tc.later, k.Later, tc.key)
+		assert.Equal(t, tc.later, k.DefinedOnlyInLaterMinor, tc.key)
 		assert.True(t, tc.read(st), "%s: what the slots hold", tc.key)
 	}
 }
@@ -292,7 +292,7 @@ func TestRead_ANullKeywordIsWrittenAndLeftOut(t *testing.T) {
 
 	kinded := at("/components/schemas/Typed")
 	leftOut(kinded, "type")
-	assert.Equal(t, []statement.Kind{""}, kinded.Kinds.Types,
+	assert.Equal(t, []statement.JSONSchemaTypeName{""}, kinded.Kinds.Types,
 		"the model's reading of a null type (docs/parser-library.md#null-type-is-empty)")
 
 	identified := at("/components/schemas/Identified")
@@ -363,11 +363,11 @@ func TestRead_AKeywordMergedPastTheBoundHasNoKeyAndNoValue(t *testing.T) {
 	}
 	twice := table.At(component(c, "R"))
 	assert.True(t, twice.Truncated, "one path to the anchor runs past the bound")
-	assert.Equal(t, []statement.Kind{statement.KindObject}, twice.Kinds.Types, "the other reads it within")
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindObject}, twice.Kinds.Types, "the other reads it within")
 	assert.Equal(t, []int64{1, 2}, int64s(twice.Text.MinLength, twice.Array.MinItems))
 	within := table.At(component(c, "W"))
 	assert.False(t, within.Truncated)
-	assert.Equal(t, []statement.Kind{statement.KindObject}, within.Kinds.Types)
+	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindObject}, within.Kinds.Types)
 	assert.Equal(t, []int64{1, 2}, int64s(within.Text.MinLength, within.Array.MinItems))
 	_, found = within.Property("x")
 	assert.True(t, found)
@@ -391,9 +391,9 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 
 	truths := table.At(component(c, "Truths"))
 	require.Len(t, truths.AllOf, 2)
-	assert.Equal(t, statement.Anything, table.Sub(truths.AllOf[0]).Truth)
-	assert.Equal(t, statement.Nothing, table.Sub(truths.AllOf[1]).Truth)
-	none := table.Sub(truths.Object.Properties[0])
+	assert.Equal(t, statement.Anything, table.Subschema(truths.AllOf[0]).Truth)
+	assert.Equal(t, statement.Nothing, table.Subschema(truths.AllOf[1]).Truth)
+	none := table.Subschema(truths.Object.Properties[0])
 	assert.Equal(t, statement.Unwritten, none.Truth, "a null schema is written as none")
 	assert.Empty(t, none.Keys)
 	assert.Equal(t, yaml.ScalarNode, none.Node.Kind)
@@ -406,7 +406,7 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 
 	absent := table.At(component(c, "Nothing"))
 	assert.Equal(t, statement.Unwritten, absent.Truth)
-	assert.Equal(t, bind.Position{}, absent.At)
+	assert.Equal(t, bind.DocumentPointer{}, absent.At)
 	assert.Same(t, absent, table.Read(nil))
 
 	empty := table.At(component(c, "Empty"))
@@ -445,11 +445,11 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 
 	js := c.Bindings().At(component(c, "Disc"))
 	unknown := statement.NewTable(statement.Source{Rules: everywhere(rulesAt(t, "3.1.0", ""))}).Of(js)
-	assert.Equal(t, bind.Position{}, unknown.At, "a value the bindings do not know has no position")
+	assert.Equal(t, bind.DocumentPointer{}, unknown.At, "a value the bindings do not know has no position")
 	require.NotNil(t, unknown.Object.Discriminator)
 	assert.Equal(t, "a", unknown.Object.Discriminator.PropertyName)
 	assert.Nil(t, unknown.Object.Discriminator.Mapping)
-	assert.Equal(t, bind.Position{}, unknown.Object.Discriminator.At, "nor has its discriminator")
+	assert.Equal(t, bind.DocumentPointer{}, unknown.Object.Discriminator.At, "nor has its discriminator")
 
 	unruled := statement.NewTable(statement.Source{Bindings: c.Bindings()}).Of(js)
 	k, _ := unruled.Key("discriminator")
@@ -517,7 +517,7 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 	t.Parallel()
 	rows := []struct {
 		name, value string
-		want        statement.Truth
+		want        statement.SchemaValueForm
 	}{
 		{"the word null", "null", statement.Unwritten},
 		{"a tilde", "~", statement.Unwritten},
@@ -554,10 +554,10 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 	for i, row := range rows {
 		sub := a.Object.Properties[i]
 		require.Equal(t, fmt.Sprintf("p%d", i), sub.Name)
-		assert.Equal(t, row.want, sub.Truth(), "%s: the Sub", row.name)
-		assert.Equal(t, row.want, table.Sub(sub).Truth, "%s: its statement", row.name)
-		assert.Equal(t, row.want == statement.Nothing, sub.Truth().ReadsFalse(), "%s: read as false", row.name)
-		assert.True(t, table.Sub(sub).Held(), "%s: the model holds a value, its statement says", row.name)
+		assert.Equal(t, row.want, sub.SchemaValueForm(), "%s: the Sub", row.name)
+		assert.Equal(t, row.want, table.Subschema(sub).Truth, "%s: its statement", row.name)
+		assert.Equal(t, row.want == statement.Nothing, sub.SchemaValueForm().ReadsFalse(), "%s: read as false", row.name)
+		assert.True(t, table.Subschema(sub).Held(), "%s: the model holds a value, its statement says", row.name)
 	}
 	assert.False(t, table.At(component(c, "Absent")).Held(), "none is held where nothing is written")
 	assert.False(t, (*statement.Schema)(nil).Held())
@@ -565,12 +565,12 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 	above := table.At(c.Position(jsontext.Pointer("/components/schemas/Chain" + strings.Repeat("/items", depth-2))))
 	require.Equal(t, statement.Stated, above.Truth)
 	items := above.Array.Items
-	assert.Equal(t, statement.Unread, items.Truth(), "a mapping read as a boolean")
-	assert.Equal(t, statement.Unread, table.Sub(items).Truth)
-	assert.True(t, items.Truth().ReadsFalse(), "the parser reads it as false")
+	assert.Equal(t, statement.Unread, items.SchemaValueForm(), "a mapping read as a boolean")
+	assert.Equal(t, statement.Unread, table.Subschema(items).Truth)
+	assert.True(t, items.SchemaValueForm().ReadsFalse(), "the parser reads it as false")
 
-	assert.Equal(t, statement.Unwritten, statement.Sub{}.Truth(), "no value at all")
-	assert.False(t, statement.NewTable(statement.Source{}).Sub(statement.Sub{}).Held(), "which the model holds none of")
+	assert.Equal(t, statement.Unwritten, statement.Subschema{}.SchemaValueForm(), "no value at all")
+	assert.False(t, statement.NewTable(statement.Source{}).Subschema(statement.Subschema{}).Held(), "which the model holds none of")
 	built := statement.NewTable(statement.Source{}).Of(oas3.NewJSONSchemaFromBool(false))
 	assert.Equal(t, statement.Nothing, built.Truth, "a false schema built in memory, which has no node")
 }
@@ -659,10 +659,10 @@ func TestSchema_PropertyIsTheSubPropertiesLists(t *testing.T) {
 		got, ok := w.Property(name)
 		require.True(t, ok, name)
 		assert.Equal(t, name, got.Name)
-		assert.Same(t, table.Sub(listed), table.Sub(got), "%s: the Sub the list holds", name)
+		assert.Same(t, table.Subschema(listed), table.Subschema(got), "%s: the Sub the list holds", name)
 	}
 	p7, _ := w.Property("p7")
-	assert.Equal(t, "t7", table.Sub(p7).Notes.Title, "a key written beside a merge is its own")
+	assert.Equal(t, "t7", table.Subschema(p7).Notes.Title, "a key written beside a merge is its own")
 
 	_, ok := w.Property("q")
 	assert.False(t, ok, "a name not written")

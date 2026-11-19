@@ -19,8 +19,8 @@ import (
 // role is what a query parameter's name says it sends a page walk: where the
 // walk continues under a strategy, or the page size.
 type role struct {
-	strategy ir.PageStrategy
-	limit    bool
+	strategy        ir.PageStrategy
+	carriesPageSize bool
 }
 
 // roleOf returns the role a canonical name gives a parameter, the zero role
@@ -38,7 +38,7 @@ func roleOf(canonical string) role {
 	case "page_token", "next_token", "continuation_token":
 		return role{strategy: ir.PageStrategyToken}
 	case "per_page", "page_size", "limit":
-		return role{limit: true}
+		return role{carriesPageSize: true}
 	default:
 		return role{}
 	}
@@ -69,7 +69,7 @@ func (in inputs) readsNextCursor() bool {
 // for, two places naming a continuation or a page size, a POST failing a
 // condition that tells it from a create, one of a type a walk cannot send, or
 // a page sent as a string no number shows it counts.
-func requestInputs(w *whole.Document, op *ir.Operation) (in inputs, why string, named bool) {
+func requestInputs(w *whole.CompiledDocumentView, op *ir.Operation) (in inputs, why string, named bool) {
 	name, kind := methodOf(op)
 	continuations, limits := places(w, op, kind)
 	switch {
@@ -109,7 +109,7 @@ func requestInputs(w *whole.Document, op *ir.Operation) (in inputs, why string, 
 // sendsItsInputs reads the primitive of in's cursor into in, and returns why
 // in's places are no values a walk sends: a type it cannot send, or a page
 // sent as a string no number shows it counts.
-func sendsItsInputs(w *whole.Document, in *inputs) string {
+func sendsItsInputs(w *whole.CompiledDocumentView, in *inputs) string {
 	prim, ok := sendable(w, in.cursor.typeID())
 	if !ok {
 		return notSendable(in.cursor, "where a walk continues")
@@ -141,7 +141,7 @@ func queryPlaced(placements []whole.Placement) (ir.HTTPLocation, bool) {
 
 // sendable returns the primitive the type id stands for, read through alias
 // scalars, when a walk can send it or count with it (sendableAs).
-func sendable(w *whole.Document, id ir.TypeID) (ir.PrimKind, bool) {
+func sendable(w *whole.CompiledDocumentView, id ir.TypeID) (ir.PrimKind, bool) {
 	return sendableAs(w.Stands(id))
 }
 
@@ -298,7 +298,7 @@ func methodOf(op *ir.Operation) (string, methodKind) {
 // parameters and members of object query parameters, and, but for a method
 // that is no GET, QUERY or POST, the request body's members. A POST's body
 // offset is no place: a body offset is often an identifier a create takes.
-func places(w *whole.Document, op *ir.Operation, kind methodKind) (continuations, limits []place) {
+func places(w *whole.CompiledDocumentView, op *ir.Operation, kind methodKind) (continuations, limits []place) {
 	continuations, limits = paramPlaces(w, op)
 	if kind == methodOther || op.Request == nil || len(op.Request.Contents) == 0 {
 		return continuations, limits
@@ -313,7 +313,7 @@ func places(w *whole.Document, op *ir.Operation, kind methodKind) (continuations
 			continue // a member some content does not hold is no value every request sends
 		}
 		p := place{kind: inBody, member: m, segments: segments}
-		if r.limit {
+		if r.carriesPageSize {
 			limits = append(limits, p)
 		} else {
 			continuations = append(continuations, p)
@@ -327,7 +327,7 @@ func places(w *whole.Document, op *ir.Operation, kind methodKind) (continuations
 // model, is read through its members, one level down, where one of them
 // names a role, a continuation or a page size, its own name then giving it
 // none; otherwise a parameter bound in the query is read by its own name.
-func paramPlaces(w *whole.Document, op *ir.Operation) (continuations, limits []place) {
+func paramPlaces(w *whole.CompiledDocumentView, op *ir.Operation) (continuations, limits []place) {
 	if len(op.Params) == 0 {
 		return nil, nil
 	}
@@ -346,7 +346,7 @@ func paramPlaces(w *whole.Document, op *ir.Operation) (continuations, limits []p
 		r := roleOf(p.Name.Canonical)
 		switch {
 		case r == (role{}) || location != ir.HTTPLocationQuery:
-		case r.limit:
+		case r.carriesPageSize:
 			limits = append(limits, place{kind: inQuery, param: p})
 		default:
 			continuations = append(continuations, place{kind: inQuery, param: p})
@@ -357,11 +357,11 @@ func paramPlaces(w *whole.Document, op *ir.Operation) (continuations, limits []p
 
 // memberPlaces returns the places the members of p name, where p's type
 // stands for a model, and none otherwise.
-func memberPlaces(w *whole.Document, p *ir.Parameter) (continuations, limits []place) {
+func memberPlaces(w *whole.CompiledDocumentView, p *ir.Parameter) (continuations, limits []place) {
 	for _, m := range w.Members(p.Type.Target) {
 		switch r := roleOf(m.Name.Canonical); {
 		case r == (role{}):
-		case r.limit:
+		case r.carriesPageSize:
 			limits = append(limits, place{kind: inParamMember, param: p, member: m})
 		default:
 			continuations = append(continuations, place{kind: inParamMember, param: p, member: m})

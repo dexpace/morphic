@@ -161,7 +161,7 @@ func TestExternal_AdmitRefusesANestingPastTheBound(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("a: "+itemsDeep(scan.MaxNesting)+"\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.Document{Root: root})
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.ParsedYAMLDocument{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -229,7 +229,9 @@ func TestRefusals_PlaceAWholeDocumentFindingAtWhole(t *testing.T) {
 		code     string
 	}{
 		"an index that stops early": {src: "a: 1\n", opts: Options{
-			buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Index { return sourceindex.Build(ctx, root, 1) },
+			buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Measurements {
+				return sourceindex.Build(ctx, root, 1)
+			},
 		}, code: diag.SourceTooLarge},
 		"an alias scan that faults": {src: "a: &x [*x]\n", pointers: faulting, code: diag.CycleScanFailed},
 	} {

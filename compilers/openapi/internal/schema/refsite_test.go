@@ -154,7 +154,7 @@ components:
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, x.Provenance)
 	require.NotNil(t, x.Base)
 	assert.Equal(t, ir.TypeID("t/prim/string"), x.Base.Target)
-	a, ok := doc.Types[ids.Document{}.NamedType("/components/schemas/A")].(*ir.Scalar)
+	a, ok := doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/A")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, a.Base)
 	assert.Equal(t, x.ID, a.Base.Target, "A names the schema other.yaml declares")
@@ -216,7 +216,7 @@ components:
 		unresolved("/components/schemas/Mixed/oneOf/0",
 			`union branch $ref "./ext.yaml#/components/schemas/Sub" is unresolved; the branch is kept verbatim`),
 	}, withCode(l.Diags.List(), "openapi/unresolved-ref")))
-	sub, ok := doc.Types[ids.Document{}.NamedType("/components/schemas/Sub")].(*ir.Model)
+	sub, ok := doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/Sub")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, "Sub", sub.DiscriminatorValue, "the mapping tags no subtype, which takes its own name")
 	for id := range doc.Types {
@@ -964,7 +964,7 @@ func TestRef_ToANullOrTrueValueIsHoisted(t *testing.T) {
 		alias, ok := typeByName(doc, name).(*ir.Scalar)
 		require.True(t, ok, name)
 		require.NotNil(t, alias.Base, name)
-		assert.Equal(t, ids.Document{}.AnonType(jsontext.Pointer("/components/schemas/"+at)), alias.Base.Target, name)
+		assert.Equal(t, ids.DocumentIDNamespace{}.AnonType(jsontext.Pointer("/components/schemas/"+at)), alias.Base.Target, name)
 		hoisted, ok := doc.Types[alias.Base.Target].(*ir.Scalar)
 		require.True(t, ok, "%s: the node hoisted at %s", name, at)
 		assert.Equal(t, &top, hoisted.Base, name)
@@ -972,5 +972,5 @@ func TestRef_ToANullOrTrueValueIsHoisted(t *testing.T) {
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok, "a branch naming the null value resolves")
 	require.Len(t, u.Variants, 2)
-	assert.Equal(t, ids.Document{}.AnonType("/components/schemas/H/properties/q"), u.Variants[0].Type.Target)
+	assert.Equal(t, ids.DocumentIDNamespace{}.AnonType("/components/schemas/H/properties/q"), u.Variants[0].Type.Target)
 }

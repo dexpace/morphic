@@ -41,7 +41,7 @@ const (
 // declaration pointer, so a $ref'd response interns its content once at its
 // component pointer rather than once per mount site (issue #107). Each
 // response's links go to w's, which resolves them once the service is whole.
-func lowerResponses(c service.Ctx, w walk, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerResponses(c service.Ctx, w operationLoweringState, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
@@ -100,7 +100,7 @@ func lowerResponses(c service.Ctx, w walk, op *ir.Operation, src *soa.Operation,
 // (docs/ir/responses.md), so the compiler classes it as neither: whether it is
 // the success response, an error, or both is a reading of the API, which the
 // plan makes under its policy.
-func lowerDefaultResponse(c service.Ctx, w walk, op *ir.Operation,
+func lowerDefaultResponse(c service.Ctx, w operationLoweringState, op *ir.Operation,
 	resps *soa.Responses, opDeclPtr jsontext.Pointer,
 ) []ir.Diagnostic {
 	use := opDeclPtr + ids.Ptr("responses", defaultResponseKey)
@@ -144,7 +144,7 @@ func duplicateStatusKeyDiags(c service.Ctx, byRange map[ir.StatusRange][]string,
 // status (see statusConditions). ref is the entry the document wrote there,
 // which carries the summary and description a Reference Object may put beside
 // its $ref.
-func lowerResponse(c service.Ctx, w walk, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []linkDraft, []ir.Diagnostic) {
+func lowerResponse(c service.Ctx, w operationLoweringState, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []linkDraft, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, w, r, code, rptr, ref)
 	resp := ir.Response{
 		Name:       parts.name,
@@ -178,7 +178,7 @@ type responseParts struct {
 // error interns its body once, so two naming fallbacks would rename it when
 // paths are reordered. The use-site docs fold over ref, the entry written here,
 // must agree across classes for the same reason (GitHub #610).
-func lowerResponseParts(c service.Ctx, w walk, r *soa.Response, code string, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (responseParts, []ir.Diagnostic) {
+func lowerResponseParts(c service.Ctx, w operationLoweringState, r *soa.Response, code string, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (responseParts, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, w, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, w, r.GetContent(), rptr)
 	diags = append(diags, payloadDiags...)
@@ -238,7 +238,7 @@ func responseName(code string) ir.Naming {
 // #422). code is the responses-map key, the only record of how the source
 // spelled a status its range cannot state ("4XX"); ref is the entry written
 // here.
-func lowerErrorCase(c service.Ctx, w walk, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []linkDraft, []ir.Diagnostic) {
+func lowerErrorCase(c service.Ctx, w operationLoweringState, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []linkDraft, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, w, r, code, rptr, ref)
 	ec := ir.ErrorCase{
 		Name:       parts.name,

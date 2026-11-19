@@ -52,7 +52,7 @@ func sitesAt(pointer jsontext.Pointer) []ir.Provenance { return []ir.Provenance{
 
 // atRoot is the sites of two declarations each written at its document's
 // root, which every node of the document is written under, read by walk.
-func atRoot(walk Walk) declarationSites {
+func atRoot(walk FieldDeclarationContext) declarationSites {
 	return declarationSites{walk: walk, written: [2][]ir.Provenance{sitesAt(""), sitesAt("")}}
 }
 
@@ -101,7 +101,7 @@ type stubWalk struct {
 	brought  map[ir.TypeID][]jsontext.Pointer
 }
 
-// Mint is Walk.Mint.
+// Mint is FieldDeclarationContext.Mint.
 func (w *stubWalk) Mint(pointer jsontext.Pointer, node ir.TypeDef, brought, _ []jsontext.Pointer) ir.TypeID {
 	common := node.Common()
 	common.ID = composedAt(pointer)
@@ -114,16 +114,16 @@ func (w *stubWalk) Mint(pointer jsontext.Pointer, node ir.TypeDef, brought, _ []
 	return common.ID
 }
 
-// Interned is Walk.Interned.
+// Interned is FieldDeclarationContext.Interned.
 func (w *stubWalk) Interned(pointer jsontext.Pointer) bool {
 	return slices.Contains(w.interned, pointer)
 }
 
-// Alike is Walk.Alike.
+// Alike is FieldDeclarationContext.Alike.
 func (w *stubWalk) Alike(ir.Provenance, ir.Provenance) bool { return !w.apart }
 
-// Admits is Walk.Admits: every kind, exactly, under /untyped.
-func (w *stubWalk) Admits(at ir.Provenance, _ Instance) (admits, exact bool) {
+// Admits is FieldDeclarationContext.Admits: every kind, exactly, under /untyped.
+func (w *stubWalk) Admits(at ir.Provenance, _ JSONInstanceKind) (admits, exact bool) {
 	return untypedAt(at), true
 }
 
@@ -133,12 +133,14 @@ func composedAt(pointer jsontext.Pointer) ir.TypeID { return "t/composed" + ir.T
 
 // mintedProp is the ID a field the declaration at pointer names takes where
 // another model carries its first declaration (identify).
-func mintedProp(pointer jsontext.Pointer) ir.PropID { return ids.Document{}.ComposedProp(pointer) }
+func mintedProp(pointer jsontext.Pointer) ir.PropID {
+	return ids.DocumentIDNamespace{}.ComposedProp(pointer)
+}
 
 // foldTwo folds src, rendered by source, into dst, a first declaration
 // rendered as firstSource: the pair the walk hands over for one redeclared
 // field.
-func foldTwo(g *stubbed, dst, src ir.Property, source Source) ir.Property {
+func foldTwo(g *stubbed, dst, src ir.Property, source DeclarationConstructRenderer) ir.Property {
 	return g.fold([]declaration{{prop: dst, source: written(firstSource)}, {prop: src, source: source}})
 }
 
@@ -148,8 +150,8 @@ const firstSource = `{"declared":"first"}`
 // indexOver returns an index filling m, and settle, which folds what the index
 // queued through g, recording what they report, as Finish takes the compiler's
 // completions once every lowering has returned.
-func indexOver(m *ir.Model, g *stubbed) (idx *PropIndex, settle func()) {
-	idx = NewPropIndex(m)
+func indexOver(m *ir.Model, g *stubbed) (idx *ModelPropertyDeclarations, settle func()) {
+	idx = NewModelPropertyDeclarations(m)
 	return idx, func() {
 		*g.recorded = append(*g.recorded, settleFlat(g, idx, g.Reg)...)
 	}
@@ -164,7 +166,7 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	t.Parallel()
 	reg := ir.TypeRegistry{"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString}}
 	m := &ir.Model{ID: "t/m"}
-	idx := NewPropIndex(m)
+	idx := NewModelPropertyDeclarations(m)
 
 	w := func(at string) ir.Property {
 		return ir.Property{WireName: "w", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/w"))}
@@ -172,7 +174,7 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	firsts := make([]bool, 0, 5)
 	for _, d := range []struct {
 		prop   ir.Property
-		source Source
+		source DeclarationConstructRenderer
 	}{
 		{redeclared("t/str", "0"), written(`{"type":"string"}`)}, {w("0"), unread(t)},
 		{redeclared("t/uri", "1"), unread(t)}, {w("1"), unread(t)},
@@ -208,7 +210,7 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 func TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing(t *testing.T) {
 	t.Parallel()
 	m := &ir.Model{ID: "t/m"}
-	idx := NewPropIndex(m)
+	idx := NewModelPropertyDeclarations(m)
 
 	assert.False(t, idx.MergeProperty(ir.Property{WireName: "a", Provenance: ptrAt("/properties/a")}, unread(t), ""))
 	assert.False(t, idx.MergeProperty(ir.Property{WireName: "b", Provenance: ptrAt("/properties/b")}, unread(t), ""),

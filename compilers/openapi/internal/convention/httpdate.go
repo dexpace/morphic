@@ -45,7 +45,7 @@ func httpDate(policy HTTPDateInference, p promotion.Promoter, reg ir.TypeRegistr
 // and its type reads as an instant: on the parameter itself, as its type may be
 // one a $ref shares. A parameter in any other location is not read, whatever
 // its name. The rule is docs/compilers/openapi.md#http-date-inference.
-func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, w *whole.Document,
+func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, w *whole.CompiledDocumentView,
 	op *ir.Operation,
 ) []ir.Diagnostic {
 	if !policy.Honours() || len(op.Params) == 0 {

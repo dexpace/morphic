@@ -68,7 +68,7 @@ func TestMembers_ADeclarationASettledModelHoldsKeepsWhereItsTypeIsWritten(t *tes
 	other := ir.Property{ID: "p/L/b", WireName: "b", Provenance: ir.Provenance{Pointer: "/L/properties/b"}}
 	typeAt := []ir.Provenance{{Pointer: "/K/allOf/1/properties/b"}}
 	held := ir.PropertyDecl{Owner: "t/K", Property: &settled}
-	rec := &members{tables: map[ir.TypeID]merge.Table{"t/K": {"b": {PropertyDecl: held, TypeAt: typeAt}}}}
+	rec := &members{tables: map[ir.TypeID]merge.RedeclaredWireNameTable{"t/K": {"b": {PropertyDecl: held, TypeAt: typeAt}}}}
 
 	assert.Equal(t, typeAt, rec.declared(held).TypeAt, "as its settlement left it")
 	for name, d := range map[string]ir.PropertyDecl{
@@ -150,7 +150,7 @@ func TestMembers_ReadsAPartThroughItsAliasesAndNothingElse(t *testing.T) {
 		"t/u":     &ir.Union{ID: "t/u"},
 	}
 	rec := &members{byID: map[ir.TypeID]modelFields{"t/N": {}}, settled: map[ir.TypeID]bool{},
-		tables: map[ir.TypeID]merge.Table{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}
+		tables: map[ir.TypeID]merge.RedeclaredWireNameTable{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}
 
 	got := rec.tableOf(reg, "t/alias", "t/X")
 	require.Len(t, got, 1, "q is declared once")
@@ -183,7 +183,7 @@ func TestMembers_ReadingAModelNotSettledChargesItsComposition(t *testing.T) {
 		"t/M2":    &ir.Model{ID: "t/M2", Properties: []ir.Property{prop("p/M2")}},
 	}
 	rec := &members{byID: map[ir.TypeID]modelFields{"t/N": {}}, settled: map[ir.TypeID]bool{},
-		tables: map[ir.TypeID]merge.Table{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}
+		tables: map[ir.TypeID]merge.RedeclaredWireNameTable{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}
 
 	require.Len(t, rec.tableOf(reg, "t/N", "t/X"), 1)
 	assert.Equal(t, 4+3+3+1, rec.reads.Spent(), "types, entries, declarations and the table's entry")

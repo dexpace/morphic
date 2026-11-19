@@ -33,7 +33,7 @@ type conjunctAtom struct {
 	written *statement.Statement
 	// union is the branch set of a union read as one conjunct (unionAtoms),
 	// whose null is any branch's.
-	union []statement.Sub
+	union []statement.Subschema
 	cut   bool
 	// null marks an atom whose own read admits null, which admits holds
 	// apart from (electedAtom), so it admits a value whatever st reads.
@@ -300,7 +300,7 @@ func valueSetAtom(c lowering.Ctx, s *statement.Schema) (conjunctAtom, bool) {
 
 // splitRef reports whether the branch at i of comp is the reference an entry
 // writes beside other keys, the next branch, at its pointer, being the rest of
-// that entry (statement.Entry).
+// that entry (statement.AllOfConjunct).
 func splitRef(comp allOfComposition, i int) bool {
 	return i+1 < len(comp.branches) && comp.branches[i+1].pointer == comp.branches[i].pointer &&
 		comp.branches[i].pointer != comp.pointer
@@ -364,13 +364,13 @@ func electedAtom(c lowering.Ctx, s *statement.Schema, e allOfBranch, name string
 // unionAtoms returns the union keyword names, written beside an allOf with
 // branches, as one conjunct admitting what any branch does, and none where it
 // writes none.
-func unionAtoms(c lowering.Ctx, keyword string, branches []statement.Sub) []conjunctAtom {
+func unionAtoms(c lowering.Ctx, keyword string, branches []statement.Subschema) []conjunctAtom {
 	if len(branches) == 0 {
 		return nil
 	}
 	atom := conjunctAtom{name: keyword, union: branches}
 	for _, b := range branches {
-		r := admissionOf(c, c.Statements().Sub(b))
+		r := admissionOf(c, c.Statements().Subschema(b))
 		atom.admits |= r.admits
 		atom.cut = atom.cut || r.cut
 	}
@@ -414,7 +414,7 @@ func empty(c lowering.Ctx, a conjunctAtom) bool {
 	case a.st != nil:
 		return !mayAdmitNull(c, a.st, nil)
 	case a.union != nil:
-		return !slices.ContainsFunc(a.union, func(b statement.Sub) bool { return mayAdmitNull(c, c.Statements().Sub(b), nil) })
+		return !slices.ContainsFunc(a.union, func(b statement.Subschema) bool { return mayAdmitNull(c, c.Statements().Subschema(b), nil) })
 	default:
 		return typeNullVerdict(a.words) != nullAdmitted
 	}
@@ -508,7 +508,7 @@ type pairReading struct {
 
 // pairReadingOf reads the pair pairApart describes, once a run.
 func pairReadingOf(c lowering.Ctx, s *statement.Schema) pairReading {
-	return lowering.Remembered(c, pairApartOf{s}, func() pairReading {
+	return lowering.ReadOncePerRun(c, pairApartOf{s}, func() pairReading {
 		comp := allOfBranches(c, s, "")
 		if !writesUnionPair(s, comp) {
 			return pairReading{}
@@ -546,7 +546,7 @@ type pairReads struct {
 // position, as w reads each.
 func (p *pairReads) read(w *admissionReader, at string, x *statement.Schema) {
 	choice := x.ChoiceKeywords()
-	for key, branches := range map[string][]statement.Sub{"oneOf": choice.OneOf, "anyOf": choice.AnyOf} {
+	for key, branches := range map[string][]statement.Subschema{"oneOf": choice.OneOf, "anyOf": choice.AnyOf} {
 		if len(branches) == 0 {
 			continue
 		}

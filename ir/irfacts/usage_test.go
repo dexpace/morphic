@@ -44,7 +44,7 @@ func useHolder(id ir.TypeID, ids ...ir.TypeID) *ir.Model {
 }
 
 // usageGot reads the usage of every type of doc, leaving out those with none.
-func usageGot(facts *irfacts.Index, doc *ir.Document) map[ir.TypeID]irfacts.UsageFlags {
+func usageGot(facts *irfacts.DocumentFacts, doc *ir.Document) map[ir.TypeID]irfacts.UsageFlags {
 	got := map[ir.TypeID]irfacts.UsageFlags{}
 	for id := range doc.Types {
 		if flags := facts.Usage(id); flags != 0 {

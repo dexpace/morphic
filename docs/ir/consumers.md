@@ -20,7 +20,7 @@ document, read for what these consumers need.
 | tags as the structure of a reference | `Document.TagDefs` with each tag's documentation, parent and kind; `Operation.Tags`, every membership; `Service.Groups`, the section tree the tags describe ([services](./services.md)) | carried |
 | documentation a path shares among its operations | `HTTPBinding.PathDocs` on each operation the path mounts ([http-binding](./http-binding.md#path-documentation)) | carried |
 | how a response's values feed another operation | `Links` on the response, error case or default ([links](./responses.md#links)) | carried |
-| two revisions at once | the [correlation key](./derived-facts.md#correlation-keys) of each entity, derived on demand (`irfacts.Index.Correlation` and `Correlated`) | carried |
+| two revisions at once | the [correlation key](./derived-facts.md#correlation-keys) of each entity, derived on demand (`irfacts.DocumentFacts.Correlation` and `Correlated`) | carried |
 
 ## Identity across revisions
 

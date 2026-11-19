@@ -29,7 +29,7 @@ func TestLocator_RefusesAPathTheTreeNoLongerHolds(t *testing.T) {
 	steps := budget.New(budget.Unbounded())
 	l := newLocator(newGrafter(v11, root), &steps)
 
-	_, err := l.slot(t.Context(), l.prefixes[0].node, jsonpath.Step{Name: "missing", Member: true}, false)
+	_, err := l.slot(t.Context(), l.prefixes[0].node, jsonpath.Step{Name: "missing", IsObjectMemberStep: true}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `the member "missing"`)
 
@@ -37,7 +37,7 @@ func TestLocator_RefusesAPathTheTreeNoLongerHolds(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "the element 5")
 
-	_, err = l.slot(t.Context(), list, jsonpath.Step{Name: "x", Member: true}, false)
+	_, err = l.slot(t.Context(), list, jsonpath.Step{Name: "x", IsObjectMemberStep: true}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `the member "x"`, "an array has no member")
 
@@ -88,15 +88,15 @@ func TestLocator_ChargesAnIndexBeforeBuildingIt(t *testing.T) {
 	merging := merged.Content[0].Content[3]
 
 	twoSteps := budget.New(budget.AtMost(2))
-	_, err := newLocator(newGrafter(v11, &merged), &twoSteps).slot(t.Context(), merging, jsonpath.Step{Name: "a", Member: true}, false)
+	_, err := newLocator(newGrafter(v11, &merged), &twoSteps).slot(t.Context(), merging, jsonpath.Step{Name: "a", IsObjectMemberStep: true}, false)
 	require.ErrorIs(t, err, jsonpath.ErrSteps, "the index rebuilt once the merge is flattened is charged too")
 
 	short := budget.New(budget.AtMost(1))
-	_, err = newLocator(newGrafter(v11, root), &short).slot(t.Context(), m, jsonpath.Step{Name: "b", Member: true}, false)
+	_, err = newLocator(newGrafter(v11, root), &short).slot(t.Context(), m, jsonpath.Step{Name: "b", IsObjectMemberStep: true}, false)
 	require.ErrorIs(t, err, jsonpath.ErrSteps)
 
 	enough := budget.New(budget.AtMost(2))
-	slot, err := newLocator(newGrafter(v11, root), &enough).slot(t.Context(), m, jsonpath.Step{Name: "b", Member: true}, false)
+	slot, err := newLocator(newGrafter(v11, root), &enough).slot(t.Context(), m, jsonpath.Step{Name: "b", IsObjectMemberStep: true}, false)
 	require.NoError(t, err)
 	assert.Equal(t, 3, slot)
 }

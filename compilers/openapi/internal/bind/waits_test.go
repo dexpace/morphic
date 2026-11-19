@@ -34,9 +34,9 @@ func TestBind_AReferenceObjectWaitsForADeclarationOfADocumentRead(t *testing.T) 
 
 	refs := table.References()
 	require.Len(t, refs, 1)
-	assert.Equal(t, bind.Position{Pointer: "/components/responses/R"}, refs[0].Site)
+	assert.Equal(t, bind.DocumentPointer{Pointer: "/components/responses/R"}, refs[0].Site)
 	require.Equal(t, bind.Resolved, refs[0].Hop.Status, refs[0].Hop.Why())
-	assert.Equal(t, bind.Position{Doc: docNamed(t, table, "/z.yaml"), Pointer: "/S/R"}, refs[0].Hop.Target,
+	assert.Equal(t, bind.DocumentPointer{Doc: docNamed(t, table, "/z.yaml"), Pointer: "/S/R"}, refs[0].Hop.Target,
 		"the declaration answers it, not the file")
 }
 

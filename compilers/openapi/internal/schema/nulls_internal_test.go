@@ -50,10 +50,10 @@ func TestNulls_TheConjunctWalkIsBounded(t *testing.T) {
 	}
 
 	c := NewRawLowerer(&soa.OpenAPI{}).Ctx
-	require.Equal(t, alike(nullAdmitted), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(1))}).schema(StandaloneSchema(nullable), nullSite{}),
+	require.Equal(t, nullReadingAlikeUnderBothPolicies(nullAdmitted), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(1))}).schema(StandaloneSchema(nullable), nullSite{}),
 		"the fixture admits null while there is budget to read it")
 
-	assert.Equal(t, alike(nullSilent), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(0))}).schema(StandaloneSchema(nullable), nullSite{}),
+	assert.Equal(t, nullReadingAlikeUnderBothPolicies(nullUnconstrained), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(0))}).schema(StandaloneSchema(nullable), nullSite{}),
 		"an exhausted budget stops the walk without claiming anything")
 	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
 }
@@ -84,8 +84,8 @@ func TestSchemaAdmitsNull_ReadsMaxNullConjunctsSchemas(t *testing.T) {
 func TestNulls_ABranchWithNoSchemaSaysNothing(t *testing.T) {
 	t.Parallel()
 	n := &nulls{c: NewRawLowerer(&soa.OpenAPI{}).Ctx, conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
-	assert.Equal(t, alike(nullSilent), n.conjunct(nil, nullSite{}))
-	assert.Equal(t, alike(nullSilent), n.conjunct(Standalone(openapitest.EmptyEitherSchema()), nullSite{}),
+	assert.Equal(t, nullReadingAlikeUnderBothPolicies(nullUnconstrained), n.conjunct(nil, nullSite{}))
+	assert.Equal(t, nullReadingAlikeUnderBothPolicies(nullUnconstrained), n.conjunct(Standalone(openapitest.EmptyEitherSchema()), nullSite{}),
 		"a branch whose either-value holds neither schema nor bool says nothing either")
 }
 
@@ -157,5 +157,5 @@ func TestUnionNullReading_AnUnplacedUnionBesideABodyDistributesNothing(t *testin
 	s := Standalone(js).Schema
 	require.True(t, hasUnionSiblings(c, s), "the union stands beside a body")
 	assert.False(t, distributesUnion(c, s))
-	assert.Equal(t, alike(nullSilent), unionNullReading(c, s))
+	assert.Equal(t, nullReadingAlikeUnderBothPolicies(nullUnconstrained), unionNullReading(c, s))
 }

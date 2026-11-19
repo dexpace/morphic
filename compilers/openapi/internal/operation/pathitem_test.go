@@ -772,5 +772,5 @@ func TestPathItem_DocsKeepApartFromAnOperationsOwnKeys(t *testing.T) {
 	}
 	assert.Equal(t, "the path's summary", op.Bindings.HTTP[0].PathDocs.Summary)
 	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/summary", "the pair is typed, so no key holds it")
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken), "no key is reported as reaching the IR in no form")
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed), "no key is reported as reaching the IR in no form")
 }

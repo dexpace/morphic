@@ -31,7 +31,7 @@ type refinement struct {
 	ref *allOfBranch
 	// votes is how each branch of comp stood in the election, by index: a
 	// $ref the position's kinds outvoted, or one another conjunct beat.
-	votes []refVote
+	votes []refCandidacy
 	// joint is what the conjuncts admit together.
 	joint admitted
 	// held is what the position lowers to admits, which decides what a keyword
@@ -45,18 +45,18 @@ type refinement struct {
 
 // principalIs reports whether e is the branch the position lowers from: its
 // schema at its pointer, as an entry writing a $ref beside other keys is two
-// branches at one pointer (statement.Entry).
+// branches at one pointer (statement.AllOfConjunct).
 func (r refinement) principalIs(e allOfBranch) bool {
 	return r.principal != nil && r.principal.pointer == e.pointer && r.principal.schema == e.schema
 }
 
-// refVote is how a $ref conjunct stood in the election of a principal.
-type refVote uint8
+// refCandidacy is how a $ref conjunct stood in the election of a principal.
+type refCandidacy uint8
 
 const (
-	// refElectable marks a $ref that could be the principal, and is, or lost
+	// refCandidateForDecidingConjunct marks a $ref that could be the principal, and is, or lost
 	// to a value set.
-	refElectable refVote = iota
+	refCandidateForDecidingConjunct refCandidacy = iota
 	// refNarrowed marks one another $ref beat, lying within more conjuncts.
 	refNarrowed
 	// refInferredApart marks one whose target the kind-inference policy reads
@@ -179,7 +179,7 @@ func decisionOf(c lowering.Ctx, s *statement.Schema) decision {
 	if !allOfMayRefine(s) {
 		return decision{}
 	}
-	return lowering.Remembered(c, decisionAt{s}, func() decision { return decide(c, s) })
+	return lowering.ReadOncePerRun(c, decisionAt{s}, func() decision { return decide(c, s) })
 }
 
 // unionAside reports whether the oneOf or anyOf s writes beside its allOf
@@ -248,15 +248,15 @@ func carriedAt(c lowering.Ctx, s *statement.Schema) bool {
 	}
 	p := at.Pointer
 	if p.Parent().LastToken() == "properties" {
-		owner := c.Statements().At(bind.Position{Doc: at.Doc, Pointer: p.Parent().Parent()})
-		return owner.Truth == statement.Stated && slices.ContainsFunc(owner.ObjectKeywords().Properties, func(sub statement.Sub) bool {
-			return sub.Name == p.LastToken() && c.Statements().Sub(sub).Schema == s
+		owner := c.Statements().At(bind.DocumentPointer{Doc: at.Doc, Pointer: p.Parent().Parent()})
+		return owner.Truth == statement.Stated && slices.ContainsFunc(owner.ObjectKeywords().Properties, func(sub statement.Subschema) bool {
+			return sub.Name == p.LastToken() && c.Statements().Subschema(sub).Schema == s
 		})
 	}
 	if p.LastToken() != "schema" {
 		return false
 	}
-	holder := bind.Position{Doc: at.Doc, Pointer: p.Parent()}
+	holder := bind.DocumentPointer{Doc: at.Doc, Pointer: p.Parent()}
 	if holder.Pointer.Parent().LastToken() == "content" {
 		holder.Pointer = holder.Pointer.Parent().Parent()
 	}
@@ -329,7 +329,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	case undecided:
 		principal = &conjuncts[0]
 	case principal == nil:
-		principal = pairedWith(c, s, conjuncts, w.elect(conjuncts, electable))
+		principal = pairedWith(c, s, conjuncts, w.chooseConjunctToLowerFrom(conjuncts, electable))
 	}
 	if body := nullPairBody(c, s, conjuncts, joint); body != nil {
 		principal = body
@@ -359,7 +359,7 @@ func composingElected(c lowering.Ctx, w *admissionReader, s *statement.Schema, c
 // nothing beside it conjoining with it, as hasUnionSiblings reads one written
 // at the position (docs/compilers/openapi.md#union-beside-structure): one
 // conjunct writes a union (unionEntries) and nothing else conjoins with it
-// (standsAlone).
+// (argumentStandsAlone).
 func soleUnion(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct) *conjunct {
 	unions := unionEntries(s, conjuncts)
 	if len(unions) != 1 || !standsAlone(c, s, conjuncts, unions, unions[0]) {
@@ -370,7 +370,7 @@ func soleUnion(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct) *conju
 
 // unionPair returns the conjunct writing the union the position elects where
 // its conjuncts write a oneOf and an anyOf, on one inline entry or one each on
-// two, and nothing else conjoining with them (standsAlone): the position is
+// two, and nothing else conjoining with them (argumentStandsAlone): the position is
 // then one schema writing both (docs/compilers/openapi.md#competing-keywords),
 // whatever the kinds their branches admit.
 func unionPair(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct) *conjunct {
@@ -504,7 +504,7 @@ func unionEntries(s *statement.Schema, conjuncts []conjunct) []*conjunct {
 	return unions
 }
 
-// standsAlone reports whether nothing beside unions, the conjuncts writing
+// argumentStandsAlone reports whether nothing beside unions, the conjuncts writing
 // them, conjoins with them, elected writing the one the position is: no other
 // conjunct writes a discriminator, which routes that union, and each keyword a
 // conjunct writes that a variant would carry (siblingKeywords), an allOf
@@ -573,7 +573,7 @@ func soleRef(conjuncts []conjunct) *conjunct {
 // was elected: beaten by a $ref principal, outside the value set elected for
 // conjuncts that contradict one another, or, where value sets sharing no
 // member leave no conjunct the principal (undecided), apart.
-func markBeaten(w *admissionReader, votes []refVote, electable []*conjunct, principal *conjunct, contradicts, undecided bool) {
+func markBeaten(w *admissionReader, votes []refCandidacy, electable []*conjunct, principal *conjunct, contradicts, undecided bool) {
 	for _, cj := range electable {
 		switch {
 		case undecided:
@@ -659,9 +659,9 @@ func restKinds(c lowering.Ctx, s *statement.Schema, comp allOfComposition) (kind
 // those that may be the principal. The position says what it is where those
 // kinds are declared, or where a conjunct names a kind, a union beside the
 // allOf among them.
-func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool, branches int) ([]refVote, []*conjunct) {
+func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool, branches int) ([]refCandidacy, []*conjunct) {
 	says := !inferred && kinds != anyInstance || slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.says })
-	votes := make([]refVote, branches)
+	votes := make([]refCandidacy, branches)
 	var electable []*conjunct
 	for i := range conjuncts {
 		cj := &conjuncts[i]
@@ -669,7 +669,7 @@ func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool
 			continue
 		}
 		votes[cj.at] = voteOf(c, kinds, says, cj)
-		if votes[cj.at] == refElectable {
+		if votes[cj.at] == refCandidateForDecidingConjunct {
 			electable = append(electable, cj)
 		}
 	}
@@ -682,7 +682,7 @@ func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool
 // off the target's shape keywords where kinds hold one, null aside, that it
 // leaves out, as the target then admits that kind whole, and before a target
 // admitting every kind, which says nothing of what the position is.
-func voteOf(c lowering.Ctx, kinds kindSet, says bool, ref *conjunct) refVote {
+func voteOf(c lowering.Ctx, kinds kindSet, says bool, ref *conjunct) refCandidacy {
 	target, targetInferred := lowersTo(c, ref.branch.schema)
 	switch {
 	case targetInferred && (kinds&^kindNull&^target != 0 || kinds&target == 0):
@@ -690,7 +690,7 @@ func voteOf(c lowering.Ctx, kinds kindSet, says bool, ref *conjunct) refVote {
 	case !targetInferred && target == anyInstance && says:
 		return refAdmitsEvery
 	default:
-		return refElectable
+		return refCandidateForDecidingConjunct
 	}
 }
 
@@ -857,7 +857,7 @@ func inlineConjunct(w *admissionReader, bs *statement.Schema) admitted {
 func unionsIn(w *admissionReader, s *statement.Schema) admitted {
 	read := admitted{kinds: kindAny}
 	choice := s.ChoiceKeywords()
-	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
+	for _, branches := range [][]statement.Subschema{choice.OneOf, choice.AnyOf} {
 		if len(branches) > 0 {
 			read = read.and(w.union(branches))
 		}

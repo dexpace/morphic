@@ -51,7 +51,7 @@ paths:
 	const usePtr = jsontext.Pointer("/paths/~1b")
 
 	within := testing.AllocsPerRun(20, func() {
-		resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, bind.Position{Pointer: usePtr})
+		resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, bind.DocumentPointer{Pointer: usePtr})
 		_ = l.ctx.Siblings()
 	})
 	layers := testing.AllocsPerRun(20, func() { pathItemLayers(l.ctx, rp, usePtr) })

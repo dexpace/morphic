@@ -40,7 +40,7 @@ func TestRefKeyword_NamesTheKeywordOfAReferenceSite(t *testing.T) {
 	entries := StatedIn(l, componentSchema(t, l, "M")).AllOf
 	got := make([]string, 0, len(entries))
 	for _, b := range entries {
-		got = append(got, refKeyword(l.Ctx.Statements().Sub(b)))
+		got = append(got, refKeyword(l.Ctx.Statements().Subschema(b)))
 	}
 	assert.Equal(t, []string{"$ref", "$dynamicRef", ""}, got)
 }

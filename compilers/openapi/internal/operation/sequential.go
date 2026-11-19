@@ -30,7 +30,7 @@ import (
 // itemEncoding govern the items *after* them rather than every item, which a
 // single every-item encoding would misstate. Those documents take
 // positionalEncoding instead.
-func fillSequential(c service.Ctx, w walk, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
+func fillSequential(c service.Ctx, w operationLoweringState, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if item := media.GetItemSchema(); item != nil {
 		ref, itemDiags := schema.Ref(c.Ctx, w.types, schema.TopLevelDepth, c.Statements().Of(item), mediaPtr+ids.Ptr("itemSchema"))

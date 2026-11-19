@@ -108,7 +108,7 @@ func LowerSpecCountingLands(t *testing.T, src string) (*ir.Document, []ir.Diagno
 // NewRawLowerer builds a fixture over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func NewRawLowerer(doc *soa.OpenAPI) *Lowerer {
-	return LowererOver(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
+	return LowererOver(service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{}))
 }
 
 // Schemas returns the statements of the component schemas of the fixture's

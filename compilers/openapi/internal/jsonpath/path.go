@@ -27,9 +27,9 @@ type link struct {
 // Step is one step of a Path: the member Name of an object, or the element at
 // Index of an array.
 type Step struct {
-	Name   string
-	Index  int
-	Member bool
+	Name               string
+	Index              int
+	IsObjectMemberStep bool
 }
 
 // child returns the path of the member name of the node at p.
@@ -52,7 +52,7 @@ func (p Path) Parent() (Path, Step, bool) {
 		return Path{}, Step{}, false
 	}
 	l := p.last
-	return Path{last: l.parent}, Step{Name: l.name, Index: l.index, Member: l.member}, true
+	return Path{last: l.parent}, Step{Name: l.name, Index: l.index, IsObjectMemberStep: l.member}, true
 }
 
 // String returns p as RFC 9535 section 2.7 normalizes it: `$`, then each
@@ -66,7 +66,7 @@ func (p Path) String() string {
 	var b strings.Builder
 	b.WriteByte('$')
 	for _, s := range slices.Backward(steps) {
-		if !s.Member {
+		if !s.IsObjectMemberStep {
 			b.WriteString("[" + strconv.Itoa(s.Index) + "]")
 			continue
 		}

@@ -95,7 +95,7 @@ type Policy struct {
 //
 // It is the one place the load phase's document and the schema lowering's
 // values meet: what lowering.New reads of the load is built here.
-func New(srcIndex int, doc *load.Document, p Policy) Ctx {
+func New(srcIndex int, doc *load.LoadedOpenAPIDocument, p Policy) Ctx {
 	documents, encoding := documentsOf(srcIndex, doc)
 	streaming, binary := p.StreamingInference, p.BinaryInference
 	return Ctx{
@@ -121,8 +121,8 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 // the source know (load.Others.Named), at the minor and in the dialect it is
 // read in (load.Other.Rows). Two names one document is read by are two
 // entries naming one Document.Sources entry.
-func documentsOf(srcIndex int, doc *load.Document) (map[bind.DocID]lowering.Document, map[bind.DocID]oas.EncodingRules) {
-	documents := map[bind.DocID]lowering.Document{
+func documentsOf(srcIndex int, doc *load.LoadedOpenAPIDocument) (map[bind.DocID]lowering.BoundDocument, map[bind.DocID]oas.EncodingRules) {
+	documents := map[bind.DocID]lowering.BoundDocument{
 		bind.Source: {Place: provenance.Doc{Source: srcIndex, Overlay: doc.Overlay.Attribution()}},
 	}
 	encoding := map[bind.DocID]oas.EncodingRules{bind.Source: doc.Rows.Encoding}
@@ -136,7 +136,7 @@ func documentsOf(srcIndex int, doc *load.Document) (map[bind.DocID]lowering.Docu
 		if !ok || id == bind.Source {
 			continue
 		}
-		documents[id] = lowering.Document{Name: name, Place: provenance.Doc{Source: o.Index}, IDs: ids.In(o.Label)}
+		documents[id] = lowering.BoundDocument{Name: name, Place: provenance.Doc{Source: o.Index}, IDs: ids.In(o.Label)}
 		encoding[id] = o.Rows.Encoding
 	}
 	return documents, encoding
@@ -145,7 +145,7 @@ func documentsOf(srcIndex int, doc *load.Document) (map[bind.DocID]lowering.Docu
 // sourcesOf returns doc's input files, in the order Provenance.Source indexes
 // them: the source being lowered, then the overlay applied to it if there was
 // one, then each document a reference read beside it (load.Others).
-func sourcesOf(doc *load.Document) []ir.SourceInfo {
+func sourcesOf(doc *load.LoadedOpenAPIDocument) []ir.SourceInfo {
 	out := []ir.SourceInfo{doc.Source}
 	if doc.Overlay.Applied() {
 		out = append(out, doc.Overlay.Source())
@@ -181,9 +181,9 @@ func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
 // OtherIDs returns how the IDs of what each document a reference read beside
 // the source declares name it, in the order Document.Sources lists them: the
 // documents whose namespaces the compile declares beside the source's.
-func OtherIDs(c Ctx) []ids.Document {
+func OtherIDs(c Ctx) []ids.DocumentIDNamespace {
 	others := c.loaded.others.List()
-	out := make([]ids.Document, 0, len(others))
+	out := make([]ids.DocumentIDNamespace, 0, len(others))
 	for _, o := range others {
 		out = append(out, ids.In(o.Label))
 	}

@@ -104,7 +104,7 @@ func aliasTarget(doc *Document, id TypeID, left *int) (TypeID, bool) {
 // hierarchy.
 //
 // It is the relation's definition, walked afresh for one question. A caller
-// asking many of one document asks irfacts.Index, which is held to it.
+// asking many of one document asks irfacts.DocumentFacts, which is held to it.
 func IsSubtype(doc *Document, target, base TypeID) bool {
 	sub, _, _ := IsSubtypeWithin(doc, target, base, math.MaxInt)
 	return sub
@@ -162,7 +162,7 @@ func isSubtype(doc *Document, target, base TypeID, left *int) (sub, ok bool) {
 // cyclic hierarchy.
 //
 // It is the relation's definition, walked afresh for one root. A caller asking
-// many of one document asks irfacts.Index, which is held to it.
+// many of one document asks irfacts.DocumentFacts, which is held to it.
 func ExposedProps(doc *Document, root TypeID) map[PropID]bool {
 	props := map[PropID]bool{}
 	left := math.MaxInt

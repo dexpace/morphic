@@ -36,7 +36,7 @@ func (r *nameReader) inherited(doc *ir.Document) {
 	if !r.read(byWords) || len(r.shared) == 0 {
 		return
 	}
-	var facts *irfacts.Index
+	var facts *irfacts.DocumentFacts
 	for _, id := range r.meetings(doc, ids) {
 		if facts == nil {
 			facts = irfacts.New(doc)
@@ -98,7 +98,7 @@ func entries(m *ir.Model) int {
 
 // exposed reads the members the model id exposes as one scope and reports each
 // set of one neutral name the model is the first to meet.
-func (r *nameReader) exposed(doc *ir.Document, facts *irfacts.Index, id ir.TypeID) {
+func (r *nameReader) exposed(doc *ir.Document, facts *irfacts.DocumentFacts, id ir.TypeID) {
 	fl := ir.FlattenedProperties(doc.Types, id)
 	members := fl.Properties
 	r.parties = r.parties[:0]
@@ -120,7 +120,7 @@ func (r *nameReader) exposed(doc *ir.Document, facts *irfacts.Index, id ir.TypeI
 // first reports whether the model id is the first to meet the set of members
 // from first: not where its own scope reports it, with every member its own,
 // and not where a model it composes met two of them already.
-func (r *nameReader) first(doc *ir.Document, facts *irfacts.Index, id ir.TypeID, members []ir.FlatProperty, first int) bool {
+func (r *nameReader) first(doc *ir.Document, facts *irfacts.DocumentFacts, id ir.TypeID, members []ir.FlatProperty, first int) bool {
 	owned, total := 0, 0
 	for i := first; i >= 0; i = r.later[i] {
 		total++

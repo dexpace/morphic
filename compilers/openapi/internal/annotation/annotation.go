@@ -21,7 +21,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// EffectiveDeprecated reports whether a schema of chain (Site.Chain) is
+// EffectiveDeprecated reports whether a schema of chain (SchemaPositionAnnotationSources.Chain) is
 // deprecated. JSON Schema reads a location deprecated where any occurrence of
 // the keyword applying to it is true, and an occurrence false as one omitted,
 // so no schema of a chain withdraws another's.
@@ -162,8 +162,8 @@ const (
 // references another type and may carry annotations of its own.
 type Kind int
 
-// Site is what a schema position declares: Node is the schema written there,
-// Voices the inline allOf branches read as written beside it, and Referents,
+// SchemaPositionAnnotationSources is what a schema position declares: Node is the schema written there,
+// Folded branches the inline allOf branches read as written beside it, and Referents,
 // honoured only for a reference site, what a use site's annotations fall back
 // to, nearest first.
 //
@@ -172,12 +172,12 @@ type Kind int
 // that aliases another keeps the target's annotations reachable through its
 // Base. A reader that inherits, FillPropertyDetail (schema/property.go) or
 // fillParamSchema, builds its own Site (schema.UseOf).
-type Site struct {
+type SchemaPositionAnnotationSources struct {
 	Kind Kind
 	Node *statement.Schema
-	// Voices are the branches read as written at Node
+	// FoldedAllOfBranches are the branches read as written at Node
 	// (docs/compilers/openapi.md#allof-inline-residue).
-	Voices []Voice
+	FoldedAllOfBranches []FoldedAllOfBranch
 	// Referents is empty when Kind is Reference but the $ref's chain ends on no
 	// schema; refTypeRef is what diagnoses that, not this.
 	Referents []*statement.Schema
@@ -207,9 +207,9 @@ type Dialect struct {
 	ListedTuple       bool
 }
 
-// Voice is an inline allOf branch and where it is written, so what it declares
+// FoldedAllOfBranch is an inline allOf branch and where it is written, so what it declares
 // is read, and reported, at its own pointer, in its own dialect.
-type Voice struct {
+type FoldedAllOfBranch struct {
 	Node *statement.Schema
 	At   jsontext.Pointer
 	// Dependencies says the dialect Node is written in defines `dependencies`
@@ -218,7 +218,7 @@ type Voice struct {
 	Dependencies bool
 	// KeptWhole says the position keeps the branch whole, an entry holding what
 	// it writes, so it writes no entry Read keeps beside it but one no other
-	// voice writes (docs/compilers/openapi.md#allof-inline-residue).
+	// folded branch writes (docs/compilers/openapi.md#allof-inline-residue).
 	KeptWhole bool
 	// Beside says Node is the position's own schema, read beside the inline
 	// allOf branch its node is built from: what it writes stands before that
@@ -227,11 +227,11 @@ type Voice struct {
 }
 
 // Chain returns what speaks for the site, nearest first: its own schema, its
-// voices, then the referents a reference site falls back to.
-func (st Site) Chain() []*statement.Schema {
-	chain := make([]*statement.Schema, 0, 1+len(st.Voices)+len(st.Referents))
+// folded branches, then the referents a reference site falls back to.
+func (st SchemaPositionAnnotationSources) Chain() []*statement.Schema {
+	chain := make([]*statement.Schema, 0, 1+len(st.FoldedAllOfBranches)+len(st.Referents))
 	chain = append(chain, st.Node)
-	for _, v := range st.Voices {
+	for _, v := range st.FoldedAllOfBranches {
 		chain = append(chain, v.Node)
 	}
 	if st.Kind == Declaration {
@@ -247,8 +247,8 @@ func (st Site) Chain() []*statement.Schema {
 // reference site: an empty ref resolves nowhere, so its Text is empty.
 //
 // At trusts its caller that js is the schema at the position being modeled.
-func At(js *statement.Statement) Site {
-	s := Site{Kind: Declaration}
+func At(js *statement.Statement) SchemaPositionAnnotationSources {
+	s := SchemaPositionAnnotationSources{Kind: Declaration}
 	if js == nil || js.Truth != statement.Stated {
 		return s
 	}
@@ -267,7 +267,7 @@ type Home int
 
 // The readers below consume a Site the caller supplies rather than resolving
 // one themselves, since obtaining a referent is reference resolution — walk
-// work. Site.Referents holds each hop of the $ref's chain, nearest first.
+// work. SchemaPositionAnnotationSources.Referents holds each hop of the $ref's chain, nearest first.
 
 // Set is everything a site's annotations yield, before any of it is
 // attached to a carrier.
@@ -301,16 +301,16 @@ func DeclaresRedaction(s *statement.Schema) bool {
 }
 
 // Read reads every site-local annotation at st: what its schema writes at
-// pointer, then what each voice writes at its own. A voice agrees with what
-// spoke before it wherever both write a keyword (schema.voicesAmong), so an
-// entry is kept once: the site's own, else, where several voices kept apart
-// write it, at pointer, no one writer's (underlay). A voice's unevaluated
+// pointer, then what each foldedBranch writes at its own. A foldedBranch agrees with what
+// spoke before it wherever both write a keyword (schema.foldingAllOfBranches), so an
+// entry is kept once: the site's own, else, where several folded branches kept apart
+// write it, at pointer, no one writer's (underlay). A folded branch's unevaluated
 // keywords fold nowhere (schema.foldEntry): its branch, kept whole, is their
 // one record.
 //
 // This is the one place the site-versus-referent choice is made, so no
 // position attaching annotations makes it apart.
-func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
+func Read(st SchemaPositionAnnotationSources, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
 	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect, st.Closure)
 	for _, key := range leftEntries(st) {
 		if _, kept := out.Unmodeled[key]; kept {
@@ -319,28 +319,28 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 		}
 	}
 	var u underlay
-	if len(st.Voices) > 0 {
+	if len(st.FoldedAllOfBranches) > 0 {
 		u.own = make(map[string]bool, len(out.Unmodeled))
 		for key := range out.Unmodeled {
 			u.own[key] = true
 		}
 	}
-	for _, v := range st.Voices {
-		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: v.Dependencies}, false)
-		for key := range voice.Unmodeled {
+	for _, v := range st.FoldedAllOfBranches {
+		foldedBranch, foldedBranchDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: v.Dependencies}, false)
+		for key := range foldedBranch.Unmodeled {
 			if u.own[key] {
 				// The site keeps the one writing, and its report says so.
-				voiceDiags = lessNote(voiceDiags, doc.At(v.At), key)
+				foldedBranchDiags = lessNote(foldedBranchDiags, doc.At(v.At), key)
 			}
 		}
-		diags = append(diags, voiceDiags...)
+		diags = append(diags, foldedBranchDiags...)
 		if out.XML == nil {
-			out.XML = voice.XML
+			out.XML = foldedBranch.XML
 		}
 		if len(out.Examples) == 0 {
-			out.Examples = voice.Examples
+			out.Examples = foldedBranch.Examples
 		}
-		out.Unmodeled = u.add(out.Unmodeled, voice.Unmodeled, v.KeptWhole, doc.At(pointer))
+		out.Unmodeled = u.add(out.Unmodeled, foldedBranch.Unmodeled, v.KeptWhole, doc.At(pointer))
 	}
 	chain := st.Chain()
 	FillCarrierDocs(&out.Docs, chain)
@@ -353,7 +353,7 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 // each keyword is kept under, and the one several keywords fold into, if, then
 // and else or contains and its counts, where the site leaves every one of
 // them it writes.
-func leftEntries(st Site) []string {
+func leftEntries(st SchemaPositionAnnotationSources) []string {
 	if len(st.Leaves) == 0 {
 		return nil
 	}
@@ -390,9 +390,9 @@ func lessNote(diags []ir.Diagnostic, at ir.Provenance, key string) []ir.Diagnost
 
 // readLocal reads what s, written at pointer, says of the position alone: the
 // annotations no use inherits. own says s is the schema written at the position,
-// rather than a voice, whose dialect keywords, discriminator and unevaluated
+// rather than a folded branch, whose dialect keywords, discriminator and unevaluated
 // keywords no fold reads and whose residue keeps them, dialect is what its
-// dialect spells otherwise (Site.Dialect), and closure is Site.Closure.
+// dialect spells otherwise (SchemaPositionAnnotationSources.Dialect), and closure is SchemaPositionAnnotationSources.Closure.
 func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect, closure bool) (Set, []ir.Diagnostic) {
 	var out Set
 	out.XML = XMLHints(s.XML())

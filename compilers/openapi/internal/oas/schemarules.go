@@ -71,7 +71,7 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 			rows.object.Rules = slices.Concat(obj.Rules, d.rules())
 		}
 	}
-	rows.object.Boolean = Span{}
+	rows.object.Boolean = MinorVersionRange{}
 	if rows.booleans {
 		rows.object.Boolean = Always()
 	}
@@ -98,7 +98,7 @@ func definedAt(obj Object, minor Minor, d dialect) []Field {
 	}
 	defined := make([]Field, 0, len(obj.Fields)+len(keywords))
 	for _, f := range obj.Fields {
-		if f.Defined.Holds(minor) && (keywords == nil || !f.Keyword) {
+		if f.Defined.Holds(minor) && (keywords == nil || !f.IsJSONSchemaKeyword) {
 			defined = append(defined, f)
 		}
 	}
@@ -121,7 +121,7 @@ func laterThan(obj Object, minor Minor, draft bool, fields map[string]Field) map
 	_, spelledOtherwise := fields["id"]
 	later := map[string]Field{}
 	for _, f := range obj.Fields {
-		if _, defined := fields[f.Name]; defined || !f.Defined.Holds(native) || draft && !f.Keyword {
+		if _, defined := fields[f.Name]; defined || !f.Defined.Holds(native) || draft && !f.IsJSONSchemaKeyword {
 			continue
 		}
 		if f.Name != "$id" || !spelledOtherwise {

@@ -35,7 +35,7 @@ func TestBind_AStaticDynamicRefAChainPassedInAnotherDocumentIsWordedAsOneAtEvery
 		if !ok {
 			continue
 		}
-		e, ok := cut.Entry(bind.Position{Doc: o, Pointer: "/S"})
+		e, ok := cut.Entry(bind.DocumentPointer{Doc: o, Pointer: "/S"})
 		if !ok {
 			continue
 		}
@@ -45,7 +45,7 @@ func TestBind_AStaticDynamicRefAChainPassedInAnotherDocumentIsWordedAsOneAtEvery
 	assert.Positive(t, seen, "some cut holds an entry for it")
 	o, ok := full.Find("o.yaml")
 	require.True(t, ok)
-	e, ok := full.Entry(bind.Position{Doc: o, Pointer: "/S"})
+	e, ok := full.Entry(bind.DocumentPointer{Doc: o, Pointer: "/S"})
 	require.True(t, ok)
 	assert.Equal(t, bind.Unresolved, e.Hop.Status)
 }
@@ -83,7 +83,7 @@ func TestTable_ANameDeclaredWhereAMergeMayHideItsResourceIsNotKnown(t *testing.T
 	}
 	hidden.WriteString("Outer: {<<: *c70, properties: {t: {$dynamicAnchor: n}}}\n")
 	plain := "Outer: {properties: {t: {$dynamicAnchor: n}}}\n"
-	read := func(other string) *bind.Table {
+	read := func(other string) *bind.ReferenceTargetTable {
 		return bound(t, src, withDocuments(map[string]string{"other.yaml": other}))
 	}
 

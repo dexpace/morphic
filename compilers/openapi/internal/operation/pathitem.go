@@ -105,7 +105,7 @@ func pathOperations(pi *soa.PathItem) []pathOperation {
 // lowerPaths lowers every path operation in source order into groups, stopping
 // between path items when ctx is done. svc carries what a path item mounting no
 // operation writes, which has no operation of its own to hold it.
-func lowerPaths(ctx context.Context, c service.Ctx, w walk, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerPaths(ctx context.Context, c service.Ctx, w operationLoweringState, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	paths := c.Doc.GetPaths()
 	if paths == nil {
 		return nil
@@ -134,7 +134,7 @@ func lowerPaths(ctx context.Context, c service.Ctx, w walk, groups *serviceGroup
 // and lowers from where its layer declares it (see pathItemLayers). A fragment
 // the path's key carries is left out of the URI template and the grouping, and
 // kept on each operation's binding (docs/compilers/openapi.md#path-keys).
-func lowerPathItem(c service.Ctx, w walk, groups *serviceGroups, svc *ir.Service, path string, layers []layer,
+func lowerPathItem(c service.Ctx, w operationLoweringState, groups *serviceGroups, svc *ir.Service, path string, layers []layer,
 ) []ir.Diagnostic {
 	template, fragment, fragmented := pathRoute(path)
 	route := opContext{key: path, template: template, groups: groups}
@@ -196,7 +196,7 @@ type mountSite struct {
 // keeps what its layers declare in at.residue instead (preserveUnmounted).
 // route holds what the route sets on every operation; each brings its own
 // method, pointers and parameters.
-func mountPathItem(w walk, layers []layer, at mountSite, route opContext) ([]mountedOp, []ir.Diagnostic) {
+func mountPathItem(w operationLoweringState, layers []layer, at mountSite, route opContext) ([]mountedOp, []ir.Diagnostic) {
 	mount := at.ptr
 	ops := mountedOperations(layers)
 	owner, diags := precedence(layers)

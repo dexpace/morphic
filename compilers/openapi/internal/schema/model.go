@@ -77,44 +77,44 @@ func objectNode(m *ir.Model) ir.TypeDef {
 
 // modelFields is how the walk fills one model's properties: the context the
 // model is lowered in, the types its nodes are registered with, the model, and
-// the index of what it declares and composes (merge.PropIndex). A member more
+// the index of what it declares and composes (merge.ModelPropertyDeclarations). A member more
 // than one declaration decides settles once every lowering has returned
 // (settleMembers), so a settlement reading the merged field, such as a form
 // part's flags, finds it folded, and a fold mid-walk would follow the order the
 // declarations lower in (GitHub #898). It is the walk the fold asks
-// (merge.Walk). pointer is where the model is written.
+// (merge.FieldDeclarationContext). pointer is where the model is written.
 type modelFields struct {
 	c       lowering.Ctx
 	ts      *compile.Types
 	m       *ir.Model
-	idx     *merge.PropIndex
+	idx     *merge.ModelPropertyDeclarations
 	pointer jsontext.Pointer
 }
 
 // newModelFields returns the fields of m, which holds no property yet, lowered
 // in c and registered with ts.
 func newModelFields(c lowering.Ctx, ts *compile.Types, m *ir.Model) modelFields {
-	return modelFields{c: c, ts: ts, m: m, idx: merge.NewPropIndex(m), pointer: m.Provenance.Pointer}
+	return modelFields{c: c, ts: ts, m: m, idx: merge.NewModelPropertyDeclarations(m), pointer: m.Provenance.Pointer}
 }
 
 // merge lands p on the model, or records it as one more declaration of the
-// field its wire name names (merge.PropIndex.MergeProperty), noting the model
+// field its wire name names (merge.ModelPropertyDeclarations.MergeProperty), noting the model
 // at its first redeclaration.
-func (f modelFields) merge(p ir.Property, source merge.Source, secretBy ir.Inferred) {
+func (f modelFields) merge(p ir.Property, source merge.DeclarationConstructRenderer, secretBy ir.Inferred) {
 	if f.idx.MergeProperty(p, source, secretBy) {
 		membersOf(f.c).note(f)
 	}
 }
 
 // compose records that the model composes target, written at at, where the
-// walk meets it (merge.PropIndex.Compose), and notes the model.
+// walk meets it (merge.ModelPropertyDeclarations.Compose), and notes the model.
 func (f modelFields) compose(target ir.TypeID, at jsontext.Pointer) {
 	f.idx.Compose(target, at)
 	membersOf(f.c).note(f)
 }
 
 // Interned reports whether a node stands at pointer of the model's document
-// (merge.Walk.Interned).
+// (merge.FieldDeclarationContext.Interned).
 func (f modelFields) Interned(pointer jsontext.Pointer) bool {
 	_, ok := f.ts.Lookup(f.c.IDs().Coordinate(pointer))
 	return ok
@@ -123,11 +123,11 @@ func (f modelFields) Interned(pointer jsontext.Pointer) bool {
 // place returns where p is in the bindings' table, read at f.c's position for
 // its pointer, as the model's own document holds it, and false for a site in
 // another document, such as a component a $ref there reached.
-func (f modelFields) place(p ir.Provenance) (bind.Position, bool) {
+func (f modelFields) place(p ir.Provenance) (bind.DocumentPointer, bool) {
 	return f.c.Position(p.Pointer), p.Source == f.c.Place().At(p.Pointer).Source
 }
 
-// Alike is merge.Walk.Alike. A site place does not place, or one whose base the
+// Alike is merge.FieldDeclarationContext.Alike. A site place does not place, or one whose base the
 // bindings cannot tell, is no match.
 func (f modelFields) Alike(a, b ir.Provenance) bool {
 	base := func(p ir.Provenance) (string, bool) {
@@ -140,7 +140,7 @@ func (f modelFields) Alike(a, b ir.Provenance) bool {
 	return okA && okB && ua == ub
 }
 
-// Admits is merge.Walk.Admits: the schema written at p admits every instance
+// Admits is merge.FieldDeclarationContext.Admits: the schema written at p admits every instance
 // of kind, as the run reads what its statement admits (admissionOf), its value
 // sets, unions and the keywords beside a $ref among them, and no keyword it
 // takes in refuses some instance of kind (narrowedWithin), a variant read with
@@ -148,7 +148,7 @@ func (f modelFields) Alike(a, b ir.Provenance) bool {
 // holding no schema object, and a read cut short or meeting a keyword it does
 // not follow that could refuse a kind (looseIn) are not exact, which keeps the
 // verdict a structure had before its source was read.
-func (f modelFields) Admits(p ir.Provenance, kind merge.Instance) (admits, exact bool) {
+func (f modelFields) Admits(p ir.Provenance, kind merge.JSONInstanceKind) (admits, exact bool) {
 	at, placed := f.place(p)
 	if !placed {
 		return false, false
@@ -176,7 +176,7 @@ func (f modelFields) Admits(p ir.Provenance, kind merge.Instance) (admits, exact
 // writes beside it. A schema st is an allOf entry of, and no union branch, is
 // no variant, so st alone is read. Each holder stands two tokens up the
 // pointer, so the climb ends within half its tokens.
-func variantHolders(c lowering.Ctx, at bind.Position, st *statement.Statement) []*statement.Statement {
+func variantHolders(c lowering.Ctx, at bind.DocumentPointer, st *statement.Statement) []*statement.Statement {
 	out := []*statement.Statement{st}
 	for range strings.Count(string(at.Pointer), "/") / 2 {
 		holder, keyword, ok := holderOf(c, at, st)
@@ -184,7 +184,7 @@ func variantHolders(c lowering.Ctx, at bind.Position, st *statement.Statement) [
 			break
 		}
 		out = append(out, holder)
-		at, st = bind.Position{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()}, holder
+		at, st = bind.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()}, holder
 	}
 	return out
 }
@@ -193,14 +193,14 @@ func variantHolders(c lowering.Ctx, at bind.Position, st *statement.Statement) [
 // which st, at at, is, with that keyword, and false where st is no such entry:
 // its pointer ends elsewhere, names an entry its holder lacks, or st is read
 // elsewhere.
-func holderOf(c lowering.Ctx, at bind.Position, st *statement.Statement) (*statement.Statement, string, bool) {
+func holderOf(c lowering.Ctx, at bind.DocumentPointer, st *statement.Statement) (*statement.Statement, string, bool) {
 	index, err := strconv.Atoi(at.Pointer.LastToken())
 	if err != nil {
 		return nil, "", false
 	}
 	keyword := at.Pointer.Parent().LastToken()
-	holder := c.Statements().At(bind.Position{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()})
-	var entries []statement.Sub
+	holder := c.Statements().At(bind.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()})
+	var entries []statement.Subschema
 	switch keyword {
 	case "oneOf":
 		entries = holder.ChoiceKeywords().OneOf
@@ -211,7 +211,7 @@ func holderOf(c lowering.Ctx, at bind.Position, st *statement.Statement) (*state
 	default:
 		return nil, "", false
 	}
-	if index < 0 || index >= len(entries) || c.Statements().Sub(entries[index]) != st {
+	if index < 0 || index >= len(entries) || c.Statements().Subschema(entries[index]) != st {
 		return nil, "", false
 	}
 	return holder, keyword, true
@@ -219,7 +219,7 @@ func holderOf(c lowering.Ctx, at bind.Position, st *statement.Statement) (*state
 
 // instanceKinds returns the kinds an instance of kind may be, none for the
 // null, which a reader of what a schema admits leaves to nulls.
-func instanceKinds(kind merge.Instance) kindSet {
+func instanceKinds(kind merge.JSONInstanceKind) kindSet {
 	switch kind {
 	case merge.InstanceString:
 		return kindString
@@ -239,7 +239,7 @@ func instanceKinds(kind merge.Instance) kindSet {
 }
 
 // Mint registers node, the type of the field the declaration at pointer names
-// (merge.Walk.Mint). That pointer denotes the declaration's own schema, so node
+// (merge.FieldDeclarationContext.Mint). That pointer denotes the declaration's own schema, so node
 // takes the ID of a node no schema occupies (ids.ComposedType) and points back
 // at it, as a distributed variant points at its branch. The variants of one
 // distributed union fold the same declarations, so each mints this one node,
@@ -291,7 +291,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, prop := range s.ObjectKeywords().Properties {
-		js := c.Statements().Sub(prop)
+		js := c.Statements().Subschema(prop)
 		ppointer := pointer + ids.Ptr("properties", prop.Name)
 		ref, refDiags := CarriedRef(c, ts, depth, js, ppointer)
 		diags = append(diags, refDiags...)
@@ -304,7 +304,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
 		declared := p.Secret
-		diags = append(diags, PromoteUse(c, KeysLentTo(c, js, p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
+		diags = append(diags, PromoteUse(c, FallbackKeysForCarrier(c, js, p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
 		var secretBy ir.Inferred
 		if p.Secret && !declared {
 			secretBy = promotion.ExtensionPromotionHeuristic
@@ -323,7 +323,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 //
 // A boolean schema has no node of its own to render, so its value is spelled
 // out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
-func redeclarationSource(js *statement.Statement) merge.Source {
+func redeclarationSource(js *statement.Statement) merge.DeclarationConstructRenderer {
 	return func() (ir.RawValue, error) {
 		switch js.Truth {
 		case statement.Anything, statement.Nothing, statement.Unread:
@@ -375,11 +375,11 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s
 // written in the schema object at pointer, and whether an
 // unevaluatedProperties: false closes m after composition. A composition reads
 // them off the object closing it (fillComposedAdditional).
-func fillCatchAll(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, additional statement.Sub,
+func fillCatchAll(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, additional statement.Subschema,
 	s *statement.Schema, pointer jsontext.Pointer, closes bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	ap := c.Statements().Sub(additional)
+	ap := c.Statements().Subschema(additional)
 	switch {
 	case ap.Truth == statement.Unwritten:
 		// Left out, or a null, which states nothing: no catch-all is written.
@@ -438,7 +438,7 @@ func patternProps(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	var diags []ir.Diagnostic
 	out := make([]ir.PatternProps, 0, len(pp))
 	for _, p := range pp {
-		ref, refDiags := Ref(c, ts, depth, c.Statements().Sub(p), pointer+ids.Ptr("patternProperties", p.Name))
+		ref, refDiags := Ref(c, ts, depth, c.Statements().Subschema(p), pointer+ids.Ptr("patternProperties", p.Name))
 		diags = append(diags, refDiags...)
 		out = append(out, ir.PatternProps{Pattern: p.Name, Value: ref})
 	}

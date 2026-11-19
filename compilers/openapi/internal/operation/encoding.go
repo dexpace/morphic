@@ -28,7 +28,7 @@ import (
 // second value rather than writing it, because PartEncoding carries no
 // Unmodeled map of its own; scope is where that belongs on the owning Content
 // (see encodingUnmodeled).
-func encodingConfig(c service.Ctx, w walk, enc *soa.Encoding, encPtr jsontext.Pointer, scope, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func encodingConfig(c service.Ctx, w operationLoweringState, enc *soa.Encoding, encPtr jsontext.Pointer, scope, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	if enc == nil {
 		return pe, nil, nil

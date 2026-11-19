@@ -21,7 +21,7 @@ import (
 // parameters name a walk it cannot settle keeps none, reported as an info
 // diagnostic. It reads no operation in stated, whose extensions speak of a
 // pagination, nor any while policy is off. w is the whole document.
-func InferWalks(policy Inference, w *whole.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
+func InferWalks(policy Inference, w *whole.CompiledDocumentView, stated map[ir.OpID]bool) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}

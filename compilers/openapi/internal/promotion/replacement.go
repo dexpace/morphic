@@ -49,7 +49,7 @@ func replacementReading() reading[string] {
 	return reading[string]{
 		target: TargetDeprecationReplacedBy,
 		want:   "is neither a name nor a list of names",
-		read: func(_ ExtensionSource, raw ir.RawValue) (string, statement) {
+		read: func(_ ExtensionSource, raw ir.RawValue) (string, sourceValueMeaning) {
 			names, ok := ListedText(raw)
 			switch {
 			case !ok:

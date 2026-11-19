@@ -33,7 +33,7 @@ import (
 // ID is rooted at mount, the operation's mount pointer, not at the declaration
 // it was copied from; a repeat of one name and location keeps an ID of its own
 // (paramLedger).
-func lowerParameters(c service.Ctx, w walk, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameters(c service.Ctx, w operationLoweringState, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
 		return nil, nil, nil
 	}
@@ -69,7 +69,7 @@ func lowerParameters(c service.Ctx, w walk, mount jsontext.Pointer, params []sou
 // lowerParameter lowers one resolved parameter into its logical Parameter and
 // HTTP binding, both naming the parameter by id. Path parameters are always
 // required regardless of the declared flag (OpenAPI requires it).
-func lowerParameter(c service.Ctx, w walk, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameter(c service.Ctx, w operationLoweringState, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
 		ID:         id,
@@ -111,7 +111,7 @@ func lowerParameter(c service.Ctx, w walk, id ir.ParamID, p *soa.Parameter, pptr
 // parameter, whose media type goes on the binding. Constraints come from that
 // same schema position; the default comes from it too, falling back to its $ref
 // target (docs/compilers/openapi.md#ref-use-site).
-func fillParamType(c service.Ctx, w walk, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer) (typeSpelling, []ir.Diagnostic) {
+func fillParamType(c service.Ctx, w operationLoweringState, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer) (typeSpelling, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(c, w, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr,
 		"parameter", "ir.Parameter")
 	paramType, typeDiags := schema.CarriedRef(elected.ctx.Ctx, w.types, schema.TopLevelDepth, c.Statements().Of(elected.js), elected.pointer)
@@ -155,7 +155,7 @@ func fillParamSchema(c service.Ctx, ts *compile.Types, param *ir.Parameter, writ
 	def, diags := use.Default(c.Ctx, c.Statements().Of(js).Schema, pointer)
 	param.Default = def
 
-	cons, consDiags := schema.CarrierConstraintsOf(c.Ctx, written, c.Statements().Of(js).Schema, use.Voices, param.Type, pointer)
+	cons, consDiags := schema.CarrierConstraintsOf(c.Ctx, written, c.Statements().Of(js).Schema, use.FoldedAllOfBranches, param.Type, pointer)
 	param.Constraints = cons
 	diags = append(diags, consDiags...)
 	diags = append(diags, fillParamSchemaAnnotations(c, param, written, c.Statements().Of(js).Schema, use, pointer)...)
@@ -166,7 +166,7 @@ func fillParamSchema(c service.Ctx, ts *compile.Types, param *ir.Parameter, writ
 }
 
 // fillParamSchemaAnnotations records what a parameter's schema declares on the
-// parameter itself. ir.Parameter is the carrier here as ir.Property is for a
+// parameter. ir.Parameter is the carrier here as ir.Property is for a
 // model property, so a schema that reduced to a shared primitive keeps what it
 // wrote (GitHub #116); one that hoisted a node keeps them there, one home per
 // declaration.
@@ -175,7 +175,7 @@ func fillParamSchema(c service.Ctx, ts *compile.Types, param *ir.Parameter, writ
 // win where both are set. Docs, deprecation and redaction read what use falls
 // back to (docs/compilers/openapi.md#ref-use-site); examples, xml and the
 // visibility keywords stay with the position, which they describe, and its
-// voices. What has no field of the parameter goes to written.
+// folded branches. What has no field of the parameter goes to written.
 func fillParamSchemaAnnotations(c service.Ctx, param *ir.Parameter, written *ir.Unmodeled,
 	s *statement.Schema, use schema.Use, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
@@ -187,7 +187,7 @@ func fillParamSchemaAnnotations(c service.Ctx, param *ir.Parameter, written *ir.
 	// them after the guard would drop them for exactly the parameters whose
 	// schema owns a node — an object, an enum, an array.
 	var diags []ir.Diagnostic
-	for _, v := range schema.ResidueWriters(use.Voices) {
+	for _, v := range schema.FoldedBranchesInOverwriteOrder(use.FoldedAllOfBranches) {
 		diags = append(diags, preserveParamVisibility(c, written, v.Node, v.At)...)
 	}
 	diags = append(diags, preserveParamVisibility(c, written, s, pointer)...)
@@ -207,7 +207,7 @@ func fillParamSchemaAnnotations(c service.Ctx, param *ir.Parameter, written *ir.
 	if len(a.Examples) > 0 {
 		param.Examples = a.Examples
 	}
-	for _, v := range slices.Backward(use.Voices) {
+	for _, v := range slices.Backward(use.FoldedAllOfBranches) {
 		diags = append(diags, preserveParamXML(c, written, v.Node, v.At)...)
 	}
 	diags = append(diags, preserveParamXML(c, written, s, pointer)...)
@@ -297,10 +297,10 @@ func fillParamDetail(c service.Ctx, param *ir.Parameter, p *soa.Parameter, pptr 
 	// Redaction and deprecation hold where the parameter or an object it carries
 	// states them, as they hold where its schema's $ref target does; a value is
 	// read at the nearest key writing one, and a misfit reported at each.
-	lent := c.Promoter().Lent(schema.KeysLentTo(c.Ctx, c.Statements().Of(elected.js), param.Type, elected.pointer), param.Unmodeled,
+	fallbackReferent := c.Promoter().WithOwnCarriedState(schema.FallbackKeysForCarrier(c.Ctx, c.Statements().Of(elected.js), param.Type, elected.pointer), param.Unmodeled,
 		elected.carries...)
 	carried := promotion.Carried(c.Promoter(), param.Unmodeled, elected.carries...)
-	diags = append(diags, schema.PromoteUse(c.Ctx, lent, carried, &param.Deprecation, &param.Secret, &param.Provenance)...)
+	diags = append(diags, schema.PromoteUse(c.Ctx, fallbackReferent, carried, &param.Deprecation, &param.Secret, &param.Provenance)...)
 	return append(diags, promoteShadowed(c, param.Unmodeled, elected.carries...)...)
 }
 

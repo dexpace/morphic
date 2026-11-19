@@ -65,7 +65,7 @@ func TestDialects_EveryRowCitesItsText(t *testing.T) {
 			continue
 		}
 		for _, f := range d.keywords() {
-			assert.True(t, f.Keyword, "%s %s", d.id, f.Name)
+			assert.True(t, f.IsJSONSchemaKeyword, "%s %s", d.id, f.Name)
 			assert.Equal(t, From(V31), f.Defined, "%s %s", d.id, f.Name)
 			assert.NotEmpty(t, f.Cites, "%s %s", d.id, f.Name)
 			for _, c := range f.Cites {
@@ -94,7 +94,7 @@ func TestSchemaRules_TheOwnRowsReadAsTheSchemaObject(t *testing.T) {
 		require.NotNil(t, rules.rows, version)
 		want := obj
 		want.Fields = slices.DeleteFunc(slices.Clone(obj.Fields), func(f Field) bool { return !f.Defined.Holds(minor) })
-		want.Boolean = Span{}
+		want.Boolean = MinorVersionRange{}
 		if obj.Boolean.Holds(minor) {
 			want.Boolean = Always()
 		}

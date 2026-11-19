@@ -86,13 +86,13 @@ func (c groupCases) Axes() []harness.Axis {
 // returns false for indices outside the product. A group the writer cannot
 // encode, and a suite that did not read, panic, which CheckCase reports as the
 // case's outcome.
-func (c groupCases) Write(at []int) (harness.Document, bool) {
+func (c groupCases) Write(at []int) (harness.CaseDocument, bool) {
 	if c.suite != nil {
 		panic(c.suite.Error())
 	}
 	if len(at) != 4 || !within(at[0], c.versions) || !within(at[1], c.groups) || !within(at[2], c.positions) ||
 		!within(at[3], c.spellings) {
-		return harness.Document{}, false
+		return harness.CaseDocument{}, false
 	}
 	v, g, p := c.versions[at[0]], &c.groups[at[1]], c.positions[at[2]]
 	var uses []object
@@ -103,7 +103,7 @@ func (c groupCases) Write(at []int) (harness.Document, bool) {
 		}
 		use, ok := spell(c.spellings[at[3]], object{{"$ref", groupPath}}, object{{"default", raw(string(t.Data))}}, nil)
 		if !ok {
-			return harness.Document{}, false
+			return harness.CaseDocument{}, false
 		}
 		uses, tests = append(uses, use), append(tests, t)
 	}
@@ -134,8 +134,8 @@ func within[T any](i int, of []T) bool { return i >= 0 && i < len(of) }
 // instances are valid against the kind a schema declares, not the one its shape
 // keywords imply, so the instance oracle excuses an instance of another kind
 // than the node inferred for its schema, and no more (harness's admitted).
-func groupDocument(root, schema []byte, g *Group, tests []Test, nodes []string) harness.Document {
-	doc := harness.Document{
+func groupDocument(root, schema []byte, g *Group, tests []Test, nodes []string) harness.CaseDocument {
+	doc := harness.CaseDocument{
 		Sources: []compilers.Source{{Path: specPath, Data: root}, {Path: groupPath, Data: schema}},
 		Options: map[string]string{"allow-external-refs": "true"},
 	}

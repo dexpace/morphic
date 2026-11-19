@@ -11,7 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
-// elect picks the conjunct the position lowers from, of refs the $refs that
+// chooseConjunctToLowerFrom picks the conjunct the position lowers from, of refs the $refs that
 // may be: an inline value set within every other, since it fixes the values
 // and what it narrows cannot; else a $ref, since replacing it drops what its
 // target says (narrowestRef); else, of those naming a kind, the conjunct
@@ -19,7 +19,7 @@ import (
 // one, so it never decides, and where nothing names a kind no branch does. No
 // tie goes by the order written: untie breaks one, and words neither within
 // the other elect none.
-func (w *admissionReader) elect(conjuncts []conjunct, refs []*conjunct) *conjunct {
+func (w *admissionReader) chooseConjunctToLowerFrom(conjuncts []conjunct, refs []*conjunct) *conjunct {
 	for i := range conjuncts {
 		if w.narrowsAll(conjuncts, i, refs) {
 			return untie(w, conjuncts, strongest(narrowingSets(conjuncts, i, refs)))

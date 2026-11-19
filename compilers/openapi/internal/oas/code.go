@@ -520,7 +520,7 @@ func dependencies(r ruler, rule Rule) {
 		case entry != nil && entry.Kind == yaml.SequenceNode:
 			propertyDependency(r, rule, p.Key, entry, ptr)
 		case entry != nil && (entry.Kind == yaml.MappingNode || r.f.booleans && matches(Boolean, entry)):
-			r.w.object(site{kind: Schema, node: p.Val, ptr: ptr, held: p.Key, rows: r.f.rows, in: Schema,
+			r.w.object(objectToCheck{kind: Schema, node: p.Val, ptr: ptr, held: p.Key, rows: r.f.rows, in: Schema,
 				shared: r.f.shared}, r.f.depth+1)
 		default:
 			r.fail(rule, classType, ptr, "field \"dependencies\" entry "+quote(p.Key)+" must be a list of strings or a schema")

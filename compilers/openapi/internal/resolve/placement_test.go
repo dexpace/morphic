@@ -44,7 +44,7 @@ func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
 `
 	b := loadBound(t, externalDocument(t), openapitest.ComponentSpec(schemas), load.Options{Reader: reader.Disk{}})
 	require.NotNil(t, b.component(t, "Pet").GetSchema().GetDiscriminator())
-	d := bind.Position{Pointer: "/components/schemas/Pet/discriminator"}
+	d := bind.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}
 
 	for value, want := range map[string]string{
 		"#/components/schemas/Cat": "/components/schemas/Cat",
@@ -52,7 +52,7 @@ func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
 	} {
 		got, ok := b.scope.MappingTarget(d, value)
 		assert.True(t, ok, value)
-		assert.Equal(t, bind.Position{Pointer: jsontext.Pointer(want)}, got, value)
+		assert.Equal(t, bind.DocumentPointer{Pointer: jsontext.Pointer(want)}, got, value)
 	}
 	other, ok := b.scope.MappingTarget(d, "ext.yaml#/components/schemas/E")
 	require.True(t, ok, "a value into another document lands there")
@@ -70,7 +70,7 @@ func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
 		assert.Zero(t, got, value)
 	}
 
-	_, ok = b.scope.MappingTarget(bind.Position{}, "#/components/schemas/Cat")
+	_, ok = b.scope.MappingTarget(bind.DocumentPointer{}, "#/components/schemas/Cat")
 	assert.False(t, ok, "the position of a schema the bindings do not know")
 	_, ok = resolve.Scope{}.MappingTarget(d, "#/components/schemas/Cat")
 	assert.False(t, ok, "no bindings, no target")

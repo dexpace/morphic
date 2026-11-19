@@ -216,7 +216,7 @@ func TestForPointer_ChoosesTheNamespace(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, ids.Document{}.ForPointer(tc.pointer))
+			assert.Equal(t, tc.want, ids.DocumentIDNamespace{}.ForPointer(tc.pointer))
 		})
 	}
 }
@@ -229,13 +229,13 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 	t.Parallel()
 	const pointer = "/components/schemas/User"
 	got := map[string]string{
-		"named":      string(ids.Document{}.NamedType(pointer)),
-		"anon":       string(ids.Document{}.AnonType(pointer)),
-		"composed":   string(ids.Document{}.ComposedType(pointer)),
+		"named":      string(ids.DocumentIDNamespace{}.NamedType(pointer)),
+		"anon":       string(ids.DocumentIDNamespace{}.AnonType(pointer)),
+		"composed":   string(ids.DocumentIDNamespace{}.ComposedType(pointer)),
 		"op":         string(ids.Op(pointer)),
-		"prop":       string(ids.Document{}.Prop(pointer)),
-		"minted":     string(ids.Document{}.ComposedProp(pointer)),
-		"member":     string(ids.Document{}.ComposedMember(pointer, "/s:a")),
+		"prop":       string(ids.DocumentIDNamespace{}.Prop(pointer)),
+		"minted":     string(ids.DocumentIDNamespace{}.ComposedProp(pointer)),
+		"member":     string(ids.DocumentIDNamespace{}.ComposedMember(pointer, "/s:a")),
 		"auth":       string(ids.Auth("apiKey")),
 		"unresolved": string(ids.UnresolvedAuth("apiKey")),
 		"service":    string(ids.Service(0)),
@@ -292,8 +292,8 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 		"coordinate": other.Coordinate(pointer),
 	})
 
-	assert.Equal(t, ids.Document{}, ids.In(""), "the empty label is the source's")
-	assert.Equal(t, pointer, ids.Document{}.Coordinate(pointer))
+	assert.Equal(t, ids.DocumentIDNamespace{}, ids.In(""), "the empty label is the source's")
+	assert.Equal(t, pointer, ids.DocumentIDNamespace{}.Coordinate(pointer))
 	assert.NotEqual(t, other.Coordinate(pointer), ids.In("dir").Coordinate(pointer))
 }
 

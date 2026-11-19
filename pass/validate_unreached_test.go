@@ -33,7 +33,7 @@ func TestValidate_TheChecksOfWhatASourceSaysSkipAReferenceWithNoDeclaration(t *t
 					p.Examples = []ir.Example{{Value: text("x")}}
 				})
 			}
-			doc := knotDoc(
+			doc := noFiniteValueDoc(
 				composed("t/a", &missing, blank("p/a/0")),
 				&ir.List{ID: "t/l", Elem: missing, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
 				&ir.MapT{ID: "t/mp", Value: missing, Constraints: &ir.Constraints{MinProps: new(int64(1))}},

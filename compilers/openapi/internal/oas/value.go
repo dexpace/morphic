@@ -40,7 +40,7 @@ func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	// A field of any shape reads no type: its value is the values' to render as
 	// written (nodeview.Written), so it has no say in a node another place
 	// refuses.
-	if fld.Shape != Any {
+	if fld.Shape != AnyShapeUnchecked {
 		w.accept(shared, node)
 	}
 	if shape == String {
@@ -207,7 +207,7 @@ func (f frame) nullRead(fld Field, m Minor) nullReading {
 		return wrongValue
 	}
 	for _, r := range f.obj.Rules {
-		if r.Kind != RuleRequiredWhen || r.Field != fld.Name || !r.Span.Holds(m) || f.test(r.When) != yes {
+		if r.Kind != RuleRequiredWhen || r.Field != fld.Name || !r.Span.Holds(m) || f.test(r.When) != answerYes {
 			continue
 		}
 		if r.Owner != "" {
@@ -258,7 +258,7 @@ func isNull(node *yaml.Node) bool {
 // at the declared minor, that the node has. A node tagged outside the ruleset
 // has none, but where the field takes any value (outsideRuleset).
 func shapeOf(f frame, fld Field, node *yaml.Node, minor Minor) (Shape, bool) {
-	if fld.Shape != Any && outsideRuleset(node) {
+	if fld.Shape != AnyShapeUnchecked && outsideRuleset(node) {
 		return fld.Shape, false
 	}
 	if matches(fld.Shape, node) {
@@ -322,7 +322,7 @@ func (w *walker) scalar(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointe
 // enumerated checks text against the values the field admits.
 func (w *walker) enumerated(f frame, fld Field, text string, ptr jsontext.Pointer) {
 	for _, v := range fld.Values {
-		if v.Name != text || f.test(v.When) == no {
+		if v.Name != text || f.test(v.When) == answerNo {
 			continue
 		}
 		if v.Span.Holds(w.minor) {
@@ -346,7 +346,7 @@ func (w *walker) enumerated(f frame, fld Field, text string, ptr jsontext.Pointe
 func (f frame) admitted(fld Field, m Minor) string {
 	var names []string
 	for _, v := range fld.Values {
-		if v.Span.Holds(m) && f.test(v.When) != no {
+		if v.Span.Holds(m) && f.test(v.When) != answerNo {
 			names = append(names, strconv.Quote(v.Name))
 		}
 	}
@@ -358,7 +358,7 @@ func (f frame) admitted(fld Field, m Minor) string {
 func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr jsontext.Pointer, depth int) {
 	switch shape {
 	case Nested:
-		w.object(site{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, rows: f.rows, in: f.obj.Kind,
+		w.object(objectToCheck{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, rows: f.rows, in: f.obj.Kind,
 			shared: f.shared}, depth+1)
 	case Map:
 		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+f.obj.Name)
@@ -370,14 +370,14 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 		}
 		for _, p := range pairs {
 			if !f.holdsBoolean(fld, p.Val) {
-				w.object(site{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, rows: f.rows,
+				w.object(objectToCheck{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, rows: f.rows,
 					in: f.obj.Kind, shared: f.shared}, depth+1)
 			}
 		}
 	case List:
 		for i, item := range node.Content {
 			if !f.holdsBoolean(fld, item) {
-				w.object(site{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind,
+				w.object(objectToCheck{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind,
 					shared: f.shared}, depth+1)
 			}
 		}
@@ -535,7 +535,7 @@ func (s Shape) Admits(node *yaml.Node) bool {
 // matches reports whether the node has the shape.
 func matches(shape Shape, node *yaml.Node) bool {
 	switch shape {
-	case Any:
+	case AnyShapeUnchecked:
 		return true
 	case String:
 		return node.Kind == yaml.ScalarNode && node.Tag != "!!null"

@@ -18,23 +18,23 @@ import (
 
 // Kinds is what `type` and `nullable` say.
 type Kinds struct {
-	Types    []Kind
+	Types    []JSONSchemaTypeName
 	Nullable *bool
 }
 
-// Kind is a name `type` writes: one of the seven JSON Schema names, or any
+// JSONSchemaTypeName is a name `type` writes: one of the seven JSON Schema names, or any
 // other string it holds.
-type Kind string
+type JSONSchemaTypeName string
 
 // The kinds JSON Schema names.
 const (
-	KindArray   Kind = "array"
-	KindBoolean Kind = "boolean"
-	KindInteger Kind = "integer"
-	KindNull    Kind = "null"
-	KindNumber  Kind = "number"
-	KindObject  Kind = "object"
-	KindString  Kind = "string"
+	KindArray   JSONSchemaTypeName = "array"
+	KindBoolean JSONSchemaTypeName = "boolean"
+	KindInteger JSONSchemaTypeName = "integer"
+	KindNull    JSONSchemaTypeName = "null"
+	KindNumber  JSONSchemaTypeName = "number"
+	KindObject  JSONSchemaTypeName = "object"
+	KindString  JSONSchemaTypeName = "string"
 )
 
 // Values is what `enum` and `const` say.
@@ -77,14 +77,14 @@ type Text struct {
 	MinLength, MaxLength              *int64
 	Pattern                           string
 	ContentEncoding, ContentMediaType string
-	ContentSchema                     Sub
+	ContentSchema                     Subschema
 }
 
 // Array is what the keywords asserting about an array say. AdditionalItems,
 // which only drafts before 2020-12 define, is its node.
 type Array struct {
-	Items, Contains, UnevaluatedItems Sub
-	PrefixItems                       []Sub
+	Items, Contains, UnevaluatedItems Subschema
+	PrefixItems                       []Subschema
 	AdditionalItems                   *yaml.Node
 	MinItems, MaxItems                *int64
 	MinContains, MaxContains          *int64
@@ -94,8 +94,8 @@ type Array struct {
 // Object is what the keywords asserting about an object say.
 // DependentRequired, which the parser's model does not hold, is its node.
 type Object struct {
-	Properties, PatternProperties                              []Sub
-	AdditionalProperties, PropertyNames, UnevaluatedProperties Sub
+	Properties, PatternProperties                              []Subschema
+	AdditionalProperties, PropertyNames, UnevaluatedProperties Subschema
 	Required                                                   []string
 	DependentRequired                                          *yaml.Node
 	MinProperties, MaxProperties                               *int64
@@ -112,7 +112,7 @@ type Discriminator struct {
 	Mapping        []MappingEntry
 	DefaultMapping string
 	Node           *yaml.Node
-	At             bind.Position
+	At             bind.DocumentPointer
 	Unknown        []string
 	Extensions     []Extension
 }
@@ -125,15 +125,15 @@ type MappingEntry struct {
 
 // Choice is what `oneOf` and `anyOf` say.
 type Choice struct {
-	OneOf, AnyOf []Sub
+	OneOf, AnyOf []Subschema
 }
 
 // Logic is what the keywords no kind or conjunction holds say: the in-place
 // applicators `not`, `if`, `then`, `else` and `dependentSchemas`, and the
 // drafts' `dependencies`, which is its node.
 type Logic struct {
-	Not, If, Then, Else Sub
-	DependentSchemas    []Sub
+	Not, If, Then, Else Subschema
+	DependentSchemas    []Subschema
 	Dependencies        *yaml.Node
 }
 

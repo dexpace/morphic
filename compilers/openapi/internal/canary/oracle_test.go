@@ -209,7 +209,7 @@ func binderAnswers(t *testing.T, spec string) (map[jsontext.Pointer]string, bool
 		return nil, false
 	}
 	view := nodeview.New()
-	nodeAt := func(at bind.Position) *yaml.Node {
+	nodeAt := func(at bind.DocumentPointer) *yaml.Node {
 		path, found := view.DocumentPath(table.Document(at.Doc).Root, at.Pointer)
 		if !found {
 			return nil
@@ -227,7 +227,7 @@ func binderAnswers(t *testing.T, spec string) (map[jsontext.Pointer]string, bool
 // or a reference object's, by its pointer: a site read as several kinds of
 // reference object, which only raw YAML is, by the first. A $dynamicRef the
 // table reads as the $ref it spells is no $ref the library reads.
-func sourceChains(table *bind.Table) map[jsontext.Pointer]bind.Chain {
+func sourceChains(table *bind.ReferenceTargetTable) map[jsontext.Pointer]bind.Chain {
 	out := map[jsontext.Pointer]bind.Chain{}
 	for _, e := range table.Entries() {
 		if e.Site.Doc == bind.Source && e.Keyword == "$ref" {
@@ -259,7 +259,7 @@ func binderEnds(t *testing.T, spec string) (map[jsontext.Pointer]string, bool) {
 
 // loadedTable loads spec and returns its binding table, or false when load
 // refuses spec.
-func loadedTable(t *testing.T, spec string) (*bind.Table, bool) {
+func loadedTable(t *testing.T, spec string) (*bind.ReferenceTargetTable, bool) {
 	t.Helper()
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: location, Data: []byte(spec)}, load.Options{})
 	require.NoError(t, err)
@@ -273,7 +273,7 @@ func loadedTable(t *testing.T, spec string) (*bind.Table, bool) {
 
 // chainAnswer is the answer a chain gives: the position of the node it ends
 // on, read by nodeAt, or why it ends on none.
-func chainAnswer(c bind.Chain, nodeAt func(bind.Position) *yaml.Node) string {
+func chainAnswer(c bind.Chain, nodeAt func(bind.DocumentPointer) *yaml.Node) string {
 	switch c.Status {
 	case bind.Resolved:
 		return nodeAnswer(nodeAt(c.End))

@@ -421,7 +421,7 @@ func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	decls := []declaration{stringAt("/allOf/0/properties/p", `{}`), stringAt("/allOf/1/properties/p", `{}`)}
 	_, field := fieldSpan(decls)
 	f := newFolding(&g.Merger, decls, field)
-	f.rel[f.winner][1] = relBNarrower
+	f.rel[f.winner][1] = secondTypeIsNarrower
 
 	f.drop(1)
 
@@ -516,7 +516,7 @@ func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 }
 
 // TestFold_UnmodeledAlikeUnderAnotherBaseIsKept pins that an entry two
-// declarations write alike, writing a reference, is one only where Walk.Alike
+// declarations write alike, writing a reference, is one only where FieldDeclarationContext.Alike
 // says they read it against one base: elsewhere the same text may name another
 // schema, so the earlier one is reported and kept as one given differently is.
 // An entry writing no reference is one under any base.

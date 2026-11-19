@@ -22,7 +22,7 @@ import (
 // on that response instead, with the finding that says why: a link is lowered
 // whole or not at all, so no consumer reads one missing a value its source
 // states. c is the source's context.
-func (l *Links) Resolve(c service.Ctx, w *whole.Document, srv *servers.Registry) []ir.Diagnostic {
+func (l *Links) Resolve(c service.Ctx, w *whole.CompiledDocumentView, srv *servers.Registry) []ir.Diagnostic {
 	if len(l.pending) == 0 {
 		return nil
 	}
@@ -43,7 +43,7 @@ func (l *Links) Resolve(c service.Ctx, w *whole.Document, srv *servers.Registry)
 
 // place lowers p onto the response of from it sits on, or keeps it verbatim
 // there.
-func place(ix opIndex, w *whole.Document, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
+func place(ix opIndex, w *whole.CompiledDocumentView, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
 	d := &p.draft
 	at := p.slot.in(from)
 	link, failed := resolveLink(ix, w, from, at, d)
@@ -66,7 +66,7 @@ func place(ix opIndex, w *whole.Document, srv *servers.Registry, from *ir.Operat
 }
 
 // responseView is what resolving a link reads of the response carrying it, and
-// where the link is written. key names the response, which whole.Document
+// where the link is written. key names the response, which whole.CompiledDocumentView
 // indexes its headers under.
 type responseView struct {
 	key       whole.ResponseKey
@@ -113,7 +113,7 @@ func untyped(format string, args ...any) *linkFailure {
 }
 
 // resolveLink resolves d, which a response of from carries, at.
-func resolveLink(ix opIndex, w *whole.Document, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
+func resolveLink(ix opIndex, w *whole.CompiledDocumentView, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
 	target, failed := ix.target(d)
 	if failed != nil {
 		return ir.OperationLink{}, failed
@@ -157,7 +157,7 @@ type opIndex struct {
 	byDecl map[jsontext.Pointer][]*ir.Operation
 }
 
-// indexOperations indexes ops, the document's operations (whole.Document.Ops).
+// indexOperations indexes ops, the document's operations (whole.CompiledDocumentView.Ops).
 // byDecl holds those the source declares, whose provenance names c's source.
 func indexOperations(c service.Ctx, ops []*ir.Operation) opIndex {
 	ix := opIndex{byID: map[ir.OpID]*ir.Operation{}, byName: map[string][]*ir.Operation{}, byDecl: map[jsontext.Pointer][]*ir.Operation{}}

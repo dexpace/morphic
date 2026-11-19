@@ -81,7 +81,7 @@ func assertOwnDefsProperty(t *testing.T, doc *ir.Document, owner ir.TypeID, owne
 	p, ok := propByWire(m, prop)
 	require.True(t, ok, "%s declares property %q", owner, prop)
 
-	wantID := ids.Document{}.ForPointer(ownerPointer + ids.Ptr("$defs", def))
+	wantID := ids.DocumentIDNamespace{}.ForPointer(ownerPointer + ids.Ptr("$defs", def))
 	require.Equal(t, wantID, p.Type.Target,
 		"%s.%s must resolve to its own $defs/%s, not a sibling's", owner, prop, def)
 
@@ -118,7 +118,7 @@ func TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema(t *testing.T) {
 	for _, tc := range tests {
 		owner := tc.owner
 		if owner == "" {
-			owner = ids.Document{}.ForPointer(tc.at)
+			owner = ids.DocumentIDNamespace{}.ForPointer(tc.at)
 		}
 		t.Run(tc.name, func(t *testing.T) {
 			assertOwnDefsProperty(t, doc, owner, tc.at, tc.prop, tc.def, tc.want)
@@ -236,8 +236,8 @@ func TestCompile_DefsDiscriminatorMappingNamesItsOwnSiblingDefinition(t *testing
 	require.True(t, ok, "a discriminated oneOf lowers to a Union")
 	require.NotNil(t, u.Discriminator)
 
-	wantCat := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "Pet", "$defs", "cat"))
-	wantDog := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "Pet", "$defs", "dog"))
+	wantCat := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "Pet", "$defs", "cat"))
+	wantDog := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "Pet", "$defs", "dog"))
 
 	catID, ok := u.Discriminator.Mapping["cat"]
 	require.True(t, ok)
@@ -297,8 +297,8 @@ func TestCompile_DefsPointerReachedThroughAnotherResolvesAgainstThatSchema(t *te
 			doc, diags := parseFull(t, tc.spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			wantM := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "m"))
-			wantN := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "n"))
+			wantM := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "m"))
+			wantN := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "n"))
 
 			// C is a bare $ref with nothing beside it, so lowering it hoists the
 			// node a component owns over whatever it names (annotation.HomeOwnNode,
@@ -383,7 +383,7 @@ func TestCompile_DefsPointerWithNoSiblingDefsIsUnresolvedNotBorrowed(t *testing.
 			require.True(t, ok)
 			q, ok := propByWire(b, "q")
 			require.True(t, ok)
-			wantN := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "B", "$defs", "n"))
+			wantN := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "B", "$defs", "n"))
 			assert.Equal(t, wantN, q.Type.Target, "B's own reference still resolves to its own definition")
 		})
 	}
@@ -433,7 +433,7 @@ func TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames(t *testing.T) {
 				"          properties:\n            c:\n              $defs: {K: {type: number}}\n"+
 				"              properties:\n                q: {$ref: '#/$defs/K', $defs: {K: {type: integer}}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[ids.Document{}.ForPointer(c)].(*ir.Model)
+			m, ok := doc.Types[ids.DocumentIDNamespace{}.ForPointer(c)].(*ir.Model)
 			require.True(t, ok, "c is a Model")
 			q, ok := propByWire(m, "q")
 			require.True(t, ok, "c declares q")
@@ -441,7 +441,7 @@ func TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames(t *testing.T) {
 			if resource {
 				want = b + ids.Ptr("$defs", "K")
 			}
-			assert.Equal(t, ids.Document{}.ForPointer(want), q.Type.Target)
+			assert.Equal(t, ids.DocumentIDNamespace{}.ForPointer(want), q.Type.Target)
 		})
 	}
 }

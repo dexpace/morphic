@@ -31,7 +31,7 @@ type Cases interface {
 	Axes() []Axis
 	// Write returns the document at one value index per axis, and false where the
 	// combination writes nothing: a keyword its version lacks, a value its target does not take.
-	Write(at []int) (Document, bool)
+	Write(at []int) (CaseDocument, bool)
 }
 
 // Axis is one dimension of a product: its name and its values, in order.
@@ -44,10 +44,10 @@ type Axis struct {
 // the core value of the same axis a finding at it is recorded under.
 type Value struct{ Name, Like string }
 
-// Document is what one case writes, and what the case oracles hold it to: the
+// CaseDocument is what one case writes, and what the case oracles hold it to: the
 // neighbours two compare it with, each named by its value index per axis, and
 // its instances.
-type Document struct {
+type CaseDocument struct {
 	// Sources are the root first, and the rest what its references name.
 	Sources []compilers.Source
 	// Options are the compiler options the case needs.
@@ -362,7 +362,7 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 // asked holds the case oracles CheckCase applies, in CaseOracles' order, each
 // answering for the case at, which writes doc, and compiling through s what it
 // compares. A case oracle with no entry declines as having nothing to ask.
-var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{
+var asked = []func(ctx context.Context, s *shard, at []int, doc CaseDocument) Verdict{
 	spelled,
 	present,
 	admitted,
@@ -430,7 +430,7 @@ func (s *shard) check(ctx context.Context, at []int) (Result, bool) {
 	var verdicts []Verdict
 	var parts []string
 	err := barrier.Catch(func() {
-		var doc Document
+		var doc CaseDocument
 		if doc, written = s.cases.Write(slices.Clone(at)); !written {
 			return
 		}

@@ -26,7 +26,7 @@ import (
 //
 // byte and a number carried as text put the logical primitive in Base and the
 // string the value travels as in WireType (docs/compilers/openapi.md#string-formats).
-func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, kind statement.Kind, pointer jsontext.Pointer,
+func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, kind statement.JSONSchemaTypeName, pointer jsontext.Pointer,
 	fin finisher, st stand,
 ) (ir.TypeID, keySet, []ir.Diagnostic) {
 	shape := scalarShapeOf(s, kind, writtenFormat(s))
@@ -34,7 +34,7 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		// The type and the format beside it selected the shared primitive.
 		return ts.PrimID(shape.base), scalarTypeRead(s) | shape.read, nil
 	}
-	id, diags := hoistScalar(c, ts, depth, s, shape, typeKinds(kind), st.voices(c, s, pointer), pointer, fin, st)
+	id, diags := hoistScalar(c, ts, depth, s, shape, typeKinds(kind), st.foldedBranches(c, s, pointer), pointer, fin, st)
 	return id, 0, diags
 }
 
@@ -66,7 +66,7 @@ type scalarShape struct {
 // name; and a pairing spelling.Lookup lists the primitive it selects, shared
 // unless s writes the content vocabulary for a type that takes it, a string's
 // (keywordKinds).
-func scalarShapeOf(s *statement.Schema, st statement.Kind, format string) scalarShape {
+func scalarShapeOf(s *statement.Schema, st statement.JSONSchemaTypeName, format string) scalarShape {
 	key := string(st)
 	var read keySet
 	if format != "" {
@@ -105,7 +105,7 @@ const numberTextEncoding = "string"
 // number's readers hold may travel. A contentEncoding naming another encoding
 // says the string is that encoding's text instead, so the format, which
 // encodingName then keeps verbatim, selects nothing.
-func numberAsText(s *statement.Schema, st statement.Kind, format string) (ir.PrimKind, bool) {
+func numberAsText(s *statement.Schema, st statement.JSONSchemaTypeName, format string) (ir.PrimKind, bool) {
 	if st != statement.KindString || format == "" || contentOverridesFormat(s, numberTextEncoding) {
 		return "", false
 	}
@@ -123,7 +123,7 @@ func formatPrimitive(s *statement.Schema) (ir.PrimKind, bool) {
 }
 
 // baseForType returns the base primitive for an unknown-format scalar of type st.
-func baseForType(st statement.Kind) ir.PrimKind {
+func baseForType(st statement.JSONSchemaTypeName) ir.PrimKind {
 	switch st {
 	case statement.KindInteger:
 		return ir.PrimInteger
@@ -140,7 +140,7 @@ func baseForType(st statement.Kind) ir.PrimKind {
 // position wrote a node of its own: the encoding scalarEncoding builds from the
 // shape's format name and the wire type it names, if any.
 //
-// The node carries the value constraints s and voices, the position's, write
+// The node carries the value constraints s and foldedBranches, the position's, write
 // that apply to the kinds takes, because owning a node is what stops
 // hoistDeclarationHome hoisting the alias that would otherwise carry them: that
 // fallback resolves to whatever node the pointer already owns. A scalar hoisted
@@ -148,7 +148,7 @@ func baseForType(st statement.Kind) ir.PrimKind {
 //
 // fin finishes the Scalar once built.
 func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, shape scalarShape, takes kindSet,
-	voices []annotation.Voice, pointer jsontext.Pointer, fin finisher, st stand,
+	foldedBranches []annotation.FoldedAllOfBranch, pointer jsontext.Pointer, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	var text []string
@@ -172,7 +172,7 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 			enc = nil
 		}
 		sc := &ir.Scalar{TypeCommon: common, Base: &baseRef, Encoding: enc}
-		cons, consDiags := ConstraintsOf(c, &sc.Unmodeled, s, voices, pointer, takes)
+		cons, consDiags := ConstraintsOf(c, &sc.Unmodeled, s, foldedBranches, pointer, takes)
 		if carriesNumberAsText(sc) {
 			cons = nil
 			switch {
@@ -262,7 +262,7 @@ func contentOverridesFormat(s *statement.Schema, formatName string) bool {
 // declaration can name, so the node needs no namespace of its own
 // (docs/ir/identity.md#the-id-grammar).
 func contentSchemaRef(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (*ir.TypeRef, []ir.Diagnostic) {
-	cs := c.Statements().Sub(s.TextKeywords().ContentSchema)
+	cs := c.Statements().Subschema(s.TextKeywords().ContentSchema)
 	if cs.Truth == statement.Unwritten {
 		return nil, nil
 	}

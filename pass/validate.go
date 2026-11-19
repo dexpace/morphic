@@ -123,7 +123,7 @@ func withoutEmptyKeys(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 // list and a map it keeps for the run, so a value with nothing wrong costs it
 // nothing but a step those or a log may grow by. The index it asks, facts,
 // allocates per index it builds and not per type it indexes (GitHub #1150).
-func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
+func families(doc *ir.Document, read walked, facts *irfacts.DocumentFacts) []func() []ir.Diagnostic {
 	// Sorted once for the run, and written by no family.
 	live := liveTypeIDs(doc)
 	// A family that ranges a map sorts its keys first. A new family takes a row of
@@ -151,7 +151,7 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 		func() []ir.Diagnostic { return checkArgsOutsideGraphQL(doc, live) },
 		func() []ir.Diagnostic { return checkBounds(doc, live) },
 		func() []ir.Diagnostic { return checkValues(doc, live) },
-		func() []ir.Diagnostic { return checkKnots(doc, live) },
+		func() []ir.Diagnostic { return checkCompositionCyclesAndInfiniteTypes(doc, live) },
 	}
 }
 

@@ -15,7 +15,7 @@ import (
 // exchange is the request and response a link reads values from: a response
 // of from, at, in the document w.
 type exchange struct {
-	w    *whole.Document
+	w    *whole.CompiledDocumentView
 	from *ir.Operation
 	at   responseView
 }
@@ -139,7 +139,7 @@ func (ex exchange) response(e runtimeexpr.Expression) (ir.LinkValue, *linkFailur
 
 // targetParam returns the parameter of op that a link's parameters key names
 // (whole.ParamIndex.Named), which must name one parameter only.
-func targetParam(w *whole.Document, op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
+func targetParam(w *whole.CompiledDocumentView, op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
 	id, matched := w.Params(op).Named(key)
 	switch matched {
 	case 1:

@@ -24,7 +24,7 @@ func (s Scope) ComponentRef(pointer jsontext.Pointer) (ir.TypeID, ids.ComponentS
 	case state != ids.NamedComponent:
 		return "", state
 	case s.Declares.Has(name):
-		return ids.Document{}.NamedType(ids.Ptr("components", "schemas", name)), state
+		return ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", name)), state
 	default:
 		return "", ids.UndeclaredComponent
 	}

@@ -30,7 +30,7 @@ import (
 // one it did declare.
 func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 	t.Parallel()
-	c := service.New(2, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
+	c := service.New(2, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
 
 	named := commonFor(c.Ctx, "t/x", "/components/schemas/User")
 	assert.False(t, named.Anonymous, "a component schema is a declaration")
@@ -49,7 +49,7 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 // traces a type back through.
 func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 	t.Parallel()
-	c := service.New(5, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
+	c := service.New(5, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
 	got := commonFor(c.Ctx, "t/x", "/components/schemas/User")
 
 	assert.Equal(t, ir.TypeID("t/x"), got.ID)
@@ -75,7 +75,7 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	first := internNode(c.Ctx, ts, at, build, nil)
 	second := internNode(c.Ctx, ts, at, build, nil)
 
-	assert.Equal(t, ids.Document{}.ForPointer(at), first, "the ID is derived from the pointer")
+	assert.Equal(t, ids.DocumentIDNamespace{}.ForPointer(at), first, "the ID is derived from the pointer")
 	assert.Equal(t, first, second, "a second visit returns the interned ID")
 	assert.Equal(t, 1, built, "and does not build the node again")
 
@@ -155,7 +155,7 @@ func TestUnionVariant_StopsAtTheHopCap(t *testing.T) {
 			doc, diags := LowerSpec(t, openapitest.ComponentSpec(spec.String()))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			choice, ok := doc.Types[ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "Choice"))].(*ir.Union)
+			choice, ok := doc.Types[ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "Choice"))].(*ir.Union)
 			require.True(t, ok, "Choice should be a union")
 			variant := choice.Variants[0]
 			assert.Equal(t, tc.variant, variant.Name.Hint)

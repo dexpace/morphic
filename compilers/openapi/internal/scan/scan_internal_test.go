@@ -244,7 +244,7 @@ func scanPlaced(t *testing.T, data []byte) []ir.Diagnostic {
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
 // decode never reaches the scan in a real compile — load returns a parse error
 // first — so a decode failure here is a broken fixture, not a case to scan.
-func indexOf(t *testing.T, data []byte) sourceindex.Index {
+func indexOf(t *testing.T, data []byte) sourceindex.Measurements {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal(data, &root), "the fixture must decode")

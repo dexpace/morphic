@@ -522,8 +522,8 @@ func irAnswers(t *testing.T, doc *ir.Document) []string {
 // bindAnswers is what table says of every reference it read: each schema
 // $ref's hop and chain, each landing, each reference object's hop and chain,
 // and each object landing.
-func bindAnswers(table *bind.Table) []string {
-	at := func(p bind.Position) string { return table.Document(p.Doc).Name + "#" + string(p.Pointer) }
+func bindAnswers(table *bind.ReferenceTargetTable) []string {
+	at := func(p bind.DocumentPointer) string { return table.Document(p.Doc).Name + "#" + string(p.Pointer) }
 	hop := func(h bind.Hop) string {
 		return fmt.Sprintf("hop %s %d %s %s %s | ", h.Status, h.Reason, h.Role, at(h.Target), h.Detail)
 	}

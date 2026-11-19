@@ -43,7 +43,7 @@ func readerCases() []readerCase {
 		{"LogicKeywords", func(s *statement.Schema) any { return s.LogicKeywords() },
 			func(s *statement.Schema) any { return s.LogicKeywords().Dependencies }, enumNode},
 		{"Types", func(s *statement.Schema) any { return s.Types() },
-			func(s *statement.Schema) any { return s.Types() }, []statement.Kind{statement.KindString}},
+			func(s *statement.Schema) any { return s.Types() }, []statement.JSONSchemaTypeName{statement.KindString}},
 		{"Enum", func(s *statement.Schema) any { return s.Enum() },
 			func(s *statement.Schema) any { return s.Enum() }, []*yaml.Node{enumNode}},
 		{"Const", func(s *statement.Schema) any { return s.Const() },
@@ -68,13 +68,13 @@ func readerCases() []readerCase {
 func writtenSlots() *statement.Schema {
 	name := "tag"
 	return &statement.Schema{
-		Kinds:  &statement.Kinds{Types: []statement.Kind{statement.KindString}},
+		Kinds:  &statement.Kinds{Types: []statement.JSONSchemaTypeName{statement.KindString}},
 		Values: &statement.Values{Enum: []*yaml.Node{enumNode}, Const: constNode},
 		Format: &statement.Format{Name: "uuid"},
 		Text:   &statement.Text{Pattern: "^a"},
-		Array:  &statement.Array{MinItems: &minItems, PrefixItems: []statement.Sub{{Name: "first"}}},
+		Array:  &statement.Array{MinItems: &minItems, PrefixItems: []statement.Subschema{{Name: "first"}}},
 		Object: &statement.Object{Required: []string{"id"}, Discriminator: &statement.Discriminator{PropertyName: "kind"}},
-		Choice: &statement.Choice{OneOf: []statement.Sub{{Name: "one"}}},
+		Choice: &statement.Choice{OneOf: []statement.Subschema{{Name: "one"}}},
 		Logic:  &statement.Logic{Dependencies: enumNode},
 		Notes: &statement.Notes{Default: defNode, XML: &statement.XML{Name: &name},
 			ExternalDocs: &statement.ExternalDocs{URL: "https://example.com"}},

@@ -58,7 +58,7 @@ func (k keptEntry) keeps() bool { return k.keptWhole() || len(k.own) > 0 || len(
 
 // keptWhole reports whether k is kept whole, holding what its entry writes: it
 // is no writer of a keyword it writes alike with another conjunct, kept apart
-// or folded, which that conjunct keeps alone (annotation.Voice.KeptWhole).
+// or folded, which that conjunct keeps alone (annotation.FoldedAllOfBranch.KeptWhole).
 func (k keptEntry) keptWhole() bool { return k.whole != keptApart }
 
 // wholeCause is why an inline allOf entry is kept whole.
@@ -67,33 +67,33 @@ type wholeCause uint8
 const (
 	// keptApart marks an entry keeping each keyword under its own key.
 	keptApart wholeCause = iota
-	// wholeClosure marks one writing a closure the position does not type, or
+	// keptWholeBecauseOfClosure marks one writing a closure the position does not type, or
 	// an unevaluated keyword: each reads the keywords beside it in the entry.
-	wholeClosure
-	// wholeUnflattened marks one whose own allOf is not flattened: past the
+	keptWholeBecauseOfClosure
+	// keptWholeBecauseAllOfNotFlattened marks one whose own allOf is not flattened: past the
 	// flattening depth, or empty.
-	wholeUnflattened
-	// wholeElsewhere marks one reading a relative reference against another
+	keptWholeBecauseAllOfNotFlattened
+	// keptWholeBecauseReadAgainstAnotherBase marks one reading a relative reference against another
 	// base than the position does.
-	wholeElsewhere
-	// wholeDisagreed marks one writing what folds, which another conjunct
-	// writes otherwise (voicesAmong).
-	wholeDisagreed
-	// wholeApart marks one keeping a keyword another conjunct writes otherwise,
+	keptWholeBecauseReadAgainstAnotherBase
+	// keptWholeBecauseConjunctsDisagree marks one writing what folds, which another conjunct
+	// writes otherwise (foldingAllOfBranches).
+	keptWholeBecauseConjunctsDisagree
+	// keptWholeBecauseKeywordCannotShareEntry marks one keeping a keyword another conjunct writes otherwise,
 	// which one entry under that keyword cannot hold.
-	wholeApart
+	keptWholeBecauseKeywordCannotShareEntry
 )
 
 // entryKeeps decides what each inline entry of comp, the allOf s writes, keeps
 // of what residueOf says it left unread, by index: nothing where that is
 // nothing a rule does not consume, else the entry whole (wholeCauseOf), where
 // closure names a keyword the position types no closure from, else each
-// keyword apart. v is s's voicing, nil where its allOf does not decide, and
+// keyword apart. v is s's folding, nil where its allOf does not decide, and
 // principal the inline principal the position lowers from, nil for none: what
 // it or a wrapper around it (lowersFrom) keeps that another conjunct writes
 // otherwise never keeps it whole (keptEntry.apart).
 func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, residueOf func(int) []string,
-	v voicing, closure func(string) bool, principal *allOfBranch,
+	v allOfBranchFolding, closure func(string) bool, principal *allOfBranch,
 ) []keptEntry {
 	out := make([]keptEntry, len(comp.branches))
 	for i := range comp.branches {
@@ -161,16 +161,16 @@ func foldsNoDependencies(c lowering.Ctx, s *statement.Schema, pointer jsontext.P
 	return hasKey(s, "dependencies") && writesUnknown(c, s, "dependencies", pointer)
 }
 
-// markKeptWhole marks each of voices, the voices of s written at pointer, which
+// markKeptWhole marks each of foldedBranches, the foldedBranches of s written at pointer, which
 // lowered to target, whose branch the outcome keeps whole (keptWhole), so
 // annotation.Read counts it as no writer of what it folds, as entryKeeps
 // counts no such entry as a writer of what it keeps: the entry holds it once.
-// One voice writes no keyword alike with another, so fewer than two stand.
+// One folded branch writes no keyword alike with another, so fewer than two stand.
 func markKeptWhole(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
-	voices []annotation.Voice,
-) []annotation.Voice {
-	if len(voices) < 2 {
-		return voices
+	foldedBranches []annotation.FoldedAllOfBranch,
+) []annotation.FoldedAllOfBranch {
+	if len(foldedBranches) < 2 {
+		return foldedBranches
 	}
 	var kept []keptEntry
 	if _, refined := refinementOf(c, s, pointer); refined {
@@ -185,9 +185,9 @@ func markKeptWhole(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 		}
 	}
 	if len(whole) == 0 {
-		return voices
+		return foldedBranches
 	}
-	out := slices.Clone(voices)
+	out := slices.Clone(foldedBranches)
 	for i, v := range out {
 		out[i].KeptWhole = whole[v.At]
 	}
@@ -325,21 +325,21 @@ func consumedByRule(c lowering.Ctx, bs *statement.Schema, key string, pointer js
 // wholeCauseOf returns why the inline entry at index i of comp, leaving residue
 // unread, of which it keeps kept, is kept whole, and keptApart where it keeps
 // each keyword apart. apart says which keywords their writers write apart.
-func wholeCauseOf(c lowering.Ctx, comp allOfComposition, i int, residue []string, v voicing,
+func wholeCauseOf(c lowering.Ctx, comp allOfComposition, i int, residue []string, v allOfBranchFolding,
 	closure func(string) bool, kept []string, apart map[string]bool,
 ) wholeCause {
 	e := comp.branches[i]
 	switch {
 	case slices.ContainsFunc(residue, closure) || slices.ContainsFunc(residue, unevaluatedKeyword):
-		return wholeClosure
+		return keptWholeBecauseOfClosure
 	case e.capped || slices.Contains(residue, "allOf"):
-		return wholeUnflattened
+		return keptWholeBecauseAllOfNotFlattened
 	case v.rebased != nil && v.rebased[i] || readsElsewhere(c, comp, e, kept):
-		return wholeElsewhere
-	case e.schema.Ref == nil && (v.speaks == nil || !v.speaks[i]) && disagreed(c, e.schema.Schema, residue):
-		return wholeDisagreed
+		return keptWholeBecauseReadAgainstAnotherBase
+	case e.schema.Ref == nil && (v.branchFoldsIntoPosition == nil || !v.branchFoldsIntoPosition[i]) && disagreed(c, e.schema.Schema, residue):
+		return keptWholeBecauseConjunctsDisagree
 	case slices.ContainsFunc(kept, func(key string) bool { return apart[key] }):
-		return wholeApart
+		return keptWholeBecauseKeywordCannotShareEntry
 	default:
 		return keptApart
 	}
@@ -447,7 +447,7 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 func entryUnionReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) ir.UnmodeledReason {
 	holder := comp.branches[i].schema.Schema
 	choice := holder.ChoiceKeywords()
-	sets := [][]statement.Sub{choice.OneOf, choice.AnyOf}
+	sets := [][]statement.Subschema{choice.OneOf, choice.AnyOf}
 	if refinesToNoUnion(c, s) {
 		sets = entryUnionSets(comp)
 	}
@@ -470,8 +470,8 @@ func refinesToNoUnion(c lowering.Ctx, s *statement.Schema) bool {
 
 // entryUnionSets returns the branch sets of every union comp's inline entries
 // write, in order.
-func entryUnionSets(comp allOfComposition) [][]statement.Sub {
-	var sets [][]statement.Sub
+func entryUnionSets(comp allOfComposition) [][]statement.Subschema {
+	var sets [][]statement.Subschema
 	for _, e := range comp.branches {
 		if e.schema.Ref != nil {
 			continue
@@ -751,13 +751,13 @@ func recordEntryUnhomed(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, e al
 func wholeWhy(k keptEntry) string {
 	n := namesOf(k.entry)
 	switch k.whole {
-	case wholeElsewhere:
+	case keptWholeBecauseReadAgainstAnotherBase:
 		return "this " + n.lead + " reads its $refs against another base than the position does, as an " +
 			"identifier at or above it names another URI, so nothing it writes folds or is kept apart; " + n.kept +
 			" (" + strings.Join(k.residue, ", ") + ") is kept verbatim under Unmodeled"
-	case wholeDisagreed:
+	case keptWholeBecauseConjunctsDisagree:
 		return disagreedWhy(k.residue, n)
-	case wholeApart:
+	case keptWholeBecauseKeywordCannotShareEntry:
 		return "another conjunct of this allOf writes a keyword " + n.this + " keeps otherwise, and one entry " +
 			"under that keyword holds one value; " + n.kept + " (" + strings.Join(k.residue, ", ") +
 			") is kept verbatim under Unmodeled"

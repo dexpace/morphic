@@ -91,7 +91,7 @@ components:
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: inner}, diags[0].Provenance, "placed in ext.yaml")
 	assert.True(t, strings.HasPrefix(diags[0].Message, `unresolved $dynamicRef "#node": `), diags[0].Message)
 
-	held := useTargetOf(t, doc.Types[ids.Document{}.NamedType("/components/schemas/Held")])
+	held := useTargetOf(t, doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/Held")])
 	assert.Equal(t, ext.AnonType("/Param/schema"), held, "Held names the schema ext.yaml declares")
 	model, ok := doc.Types[held].(*ir.Model)
 	require.True(t, ok)

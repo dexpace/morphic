@@ -54,7 +54,7 @@ func petMapping(mapping string) string {
 
 // loadTargets loads spec at path, external references allowed or not, and
 // requires it to load.
-func loadTargets(t *testing.T, path, spec string, external bool) (*Document, []ir.Diagnostic) {
+func loadTargets(t *testing.T, path, spec string, external bool) (*LoadedOpenAPIDocument, []ir.Diagnostic) {
 	t.Helper()
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(spec)},
 		readingIf(external))
@@ -169,7 +169,7 @@ paths:
 // through its bindings, carries both of anchoredExternalDoc's anchored
 // operations: the outcome that fails silently, an empty or half-populated path
 // item, where a document was read without the anchor release.
-func assertRecoveredAt(t *testing.T, loaded *Document, path string) {
+func assertRecoveredAt(t *testing.T, loaded *LoadedOpenAPIDocument, path string) {
 	t.Helper()
 	ref, ok := loaded.Doc.Paths.Get(path)
 	require.True(t, ok, "%s is in the document", path)

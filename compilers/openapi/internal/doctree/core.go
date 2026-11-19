@@ -28,7 +28,7 @@ type settler struct {
 // settle walks doc's tree once (settler), setting doc.Nodes and doc.Legacy. The
 // walk is bounded by the tree, which the parser built from bytes in hand, each
 // node visited once and an alias as itself; it stops only for ctx.
-func settle(ctx context.Context, doc *Document, r respelling) error {
+func settle(ctx context.Context, doc *ParsedYAMLDocument, r respelling) error {
 	s := settler{respelling: r}
 	if doc.Directive != nil && doc.Directive.Minor == 1 {
 		s.keys = map[*yaml.Node]bool{}

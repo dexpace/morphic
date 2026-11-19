@@ -23,7 +23,7 @@ type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 
 // bound is a loaded source with the scope lowering reads it in.
 type bound struct {
-	doc   *load.Document
+	doc   *load.LoadedOpenAPIDocument
 	scope resolve.Scope
 }
 
@@ -65,7 +65,7 @@ func TestResolveComponentRef(t *testing.T) {
 
 	id, state := sc.ComponentRef("/components/schemas/User")
 	assert.Equal(t, ids.NamedComponent, state)
-	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/User"), id)
+	assert.Equal(t, ids.DocumentIDNamespace{}.NamedType("/components/schemas/User"), id)
 
 	_, state = sc.ComponentRef("/components/schemas/Missing")
 	assert.Equal(t, ids.UndeclaredComponent, state, "a name the document does not declare does not resolve")
@@ -87,8 +87,8 @@ func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 
 	id, state := sc.ComponentRef("/components/schemas/A~B")
 	assert.Equal(t, ids.NamedComponent, state)
-	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/A~0B"), id,
+	assert.Equal(t, ids.DocumentIDNamespace{}.NamedType("/components/schemas/A~0B"), id,
 		"the ID is canonically re-escaped to match the interned node")
-	assert.Equal(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "A~B")), id,
+	assert.Equal(t, ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "A~B")), id,
 		"and equals the ID the component was interned under")
 }

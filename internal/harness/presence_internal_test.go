@@ -26,9 +26,9 @@ const (
 
 // presenceProduct is a product of the three cases, each writing the document
 // write gives it, with its source holding its name.
-func presenceProduct(write func(i int) Document) fake {
+func presenceProduct(write func(i int) CaseDocument) fake {
 	axes := []Axis{coreAxis("c", "none", "kw", "kw~")}
-	return fake{axes: axes, write: func(at []int) (Document, bool) {
+	return fake{axes: axes, write: func(at []int) (CaseDocument, bool) {
 		doc := write(at[0])
 		doc.Sources = []compilers.Source{{Path: "spec.json", Data: []byte(axes[0].Values[at[0]].Name)}}
 		return doc, true
@@ -37,11 +37,11 @@ func presenceProduct(write func(i int) Document) fake {
 
 // carriedDocs writes the keyword as a carried one: its case names the absent
 // and the other case, as the cases of a format do.
-func carriedDocs(i int) Document {
+func carriedDocs(i int) CaseDocument {
 	if i != caseWrite {
-		return Document{}
+		return CaseDocument{}
 	}
-	return Document{Absent: []int{caseNone}, Other: []int{caseOther}, Carried: true}
+	return CaseDocument{Absent: []int{caseNone}, Other: []int{caseOther}, Carried: true}
 }
 
 // swapDocuments makes each case compile to the document of the source's name
@@ -85,7 +85,7 @@ func presenceOf(t *testing.T, p fake) Verdict {
 func TestPresent_JudgesAKeywordAgainstItsNeighbours(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
-		write   func(i int) Document
+		write   func(i int) CaseDocument
 		docs    map[string]string // what each case compiles to
 		outcome Outcome
 		detail  string
@@ -98,7 +98,7 @@ func TestPresent_JudgesAKeywordAgainstItsNeighbours(t *testing.T) {
 			map[string]string{"none": "a", "kw": "b", "kw~": "b"}, OutcomeNotCarried, "value discarded\nequal to kw~"},
 		{"carried and equal to everything", carriedDocs,
 			map[string]string{"none": "a", "kw": "a", "kw~": "a"}, OutcomeNotCarried, "changes nothing\nequal to none"},
-		{"carried with no other value", func(i int) Document {
+		{"carried with no other value", func(i int) CaseDocument {
 			doc := carriedDocs(i)
 			doc.Other = nil
 			return doc
@@ -131,18 +131,18 @@ func TestPresent_JudgesAKeywordAgainstItsNeighbours(t *testing.T) {
 
 // replacingDocs writes the keyword as one replacing a member its target
 // writes: the none case writes the keyword too, so it is no neighbour to compare.
-func replacingDocs(i int) Document {
+func replacingDocs(i int) CaseDocument {
 	doc := carriedDocs(i)
 	doc.Replaces = true
 	return doc
 }
 
 // notCarriedDocs writes the keyword as one nothing carries, with a reason.
-func notCarriedDocs(i int) Document {
+func notCarriedDocs(i int) CaseDocument {
 	if i != caseWrite {
-		return Document{}
+		return CaseDocument{}
 	}
-	return Document{Absent: []int{caseNone}, Reason: "why not"}
+	return CaseDocument{Absent: []int{caseNone}, Reason: "why not"}
 }
 
 // TestPresent_ComparesTheDocumentAlone holds the comparison to what the case
@@ -187,7 +187,7 @@ func TestPresent_DeclinesWhatItCannotCompare(t *testing.T) {
 	same := map[string]*ir.Document{"none": named("a"), "kw": named("b"), "kw~": named("c")}
 	for _, tc := range []struct {
 		name  string
-		write func(i int) Document
+		write func(i int) CaseDocument
 		diags map[string][]ir.Diagnostic
 		want  Decline
 	}{
@@ -195,7 +195,7 @@ func TestPresent_DeclinesWhatItCannotCompare(t *testing.T) {
 		{"an error diagnostic on the absent case", carriedDocs, map[string][]ir.Diagnostic{"none": boom}, DeclineErrorDiagnostic},
 		{"an error diagnostic on the other case", carriedDocs, map[string][]ir.Diagnostic{"kw~": boom}, DeclineErrorDiagnostic},
 		{"an error diagnostic beside a keyword nothing carries", notCarriedDocs, map[string][]ir.Diagnostic{"none": boom}, DeclineErrorDiagnostic},
-		{"a case that names no neighbour", func(int) Document { return Document{} }, nil, DeclineNoConstruct},
+		{"a case that names no neighbour", func(int) CaseDocument { return CaseDocument{} }, nil, DeclineNoConstruct},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			swapDocuments(t, same, tc.diags, "")
@@ -215,7 +215,7 @@ func TestPresent_AnErrorDiagnosticBesideAnUnreadNeighbourIsNotAsked(t *testing.T
 	docs := map[string]*ir.Document{"none": named("a"), "kw": named("a"), "kw~": named("c")}
 	swapDocuments(t, docs, map[string][]ir.Diagnostic{"kw~": boom}, "")
 
-	v := presenceOf(t, presenceProduct(func(i int) Document {
+	v := presenceOf(t, presenceProduct(func(i int) CaseDocument {
 		doc := notCarriedDocs(i)
 		if i == caseWrite {
 			doc.Other = []int{caseOther}
@@ -232,21 +232,21 @@ func TestPresent_AnErrorDiagnosticBesideAnUnreadNeighbourIsNotAsked(t *testing.T
 func TestPresent_AssertsWhatACaseMustSay(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
-		write func(i int) Document
+		write func(i int) CaseDocument
 		docs  map[string]*ir.Document
 		want  string
 	}{
-		{"nothing carries it and says not why", func(i int) Document {
+		{"nothing carries it and says not why", func(i int) CaseDocument {
 			doc := notCarriedDocs(i)
 			doc.Reason = ""
 			return doc
 		}, map[string]*ir.Document{"none": named("a"), "kw": named("a")}, "says not why"},
-		{"a replacement naming no other value", func(i int) Document {
+		{"a replacement naming no other value", func(i int) CaseDocument {
 			doc := replacingDocs(i)
 			doc.Other = nil
 			return doc
 		}, map[string]*ir.Document{"none": named("a"), "kw": named("b"), "kw~": named("c")}, "names no other value"},
-		{"a replacement nothing carries", func(i int) Document {
+		{"a replacement nothing carries", func(i int) CaseDocument {
 			doc := notCarriedDocs(i)
 			doc.Replaces = true
 			return doc
@@ -271,12 +271,12 @@ func TestPresent_ACompileErrorIsAPanic(t *testing.T) {
 	docs := map[string]*ir.Document{"none": named("a"), "kw": named("b"), "kw~": named("c")}
 	for _, tc := range []struct {
 		name  string
-		write func(i int) Document
+		write func(i int) CaseDocument
 		fail  string
 		want  string
 	}{
 		{"a compile that fails", carriedDocs, "none", "harness: compile case [0]: "},
-		{"a neighbour outside the product", func(i int) Document {
+		{"a neighbour outside the product", func(i int) CaseDocument {
 			doc := carriedDocs(i)
 			if i == caseWrite {
 				doc.Other = []int{caseOther + 1}
@@ -302,9 +302,9 @@ func TestPresent_ANeighbourTheCasesWriteNothingForIsAPanic(t *testing.T) {
 	docs := map[string]*ir.Document{"none": named("a"), "kw": named("b"), "kw~": named("c")}
 	swapDocuments(t, docs, nil, "")
 	written := presenceProduct(carriedDocs)
-	p := fake{axes: written.axes, write: func(at []int) (Document, bool) {
+	p := fake{axes: written.axes, write: func(at []int) (CaseDocument, bool) {
 		if at[0] == caseNone {
-			return Document{}, false
+			return CaseDocument{}, false
 		}
 		return written.write(at)
 	}}

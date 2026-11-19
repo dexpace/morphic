@@ -23,16 +23,16 @@ import (
 )
 
 // Other is a document the compile read beside the source because a reference
-// named it: where Document.Sources records it, how the IDs of what it declares
+// named it: where LoadedOpenAPIDocument.Sources records it, how the IDs of what it declares
 // name it, and the minor it is read at, which is the one it declares, or the
 // source's where it declares none the table covers.
 type Other struct {
-	// Index is its position in Document.Sources.
+	// Index is its position in LoadedOpenAPIDocument.Sources.
 	Index int
 	// Label is its location as the source's directory reaches it, which
 	// qualifies the IDs of what it declares (ids.In).
 	Label string
-	// Info is its Document.Sources entry, whose Format names the minor.
+	// Info is its LoadedOpenAPIDocument.Sources entry, whose Format names the minor.
 	Info ir.SourceInfo
 	// Rows is what the table says at the minor in the dialect its
 	// jsonSchemaDialect names, which its Encoding Objects and its schemas where
@@ -45,7 +45,7 @@ type Other struct {
 }
 
 // Others is every document a reference reached beside the source, in the order
-// Document.Sources lists them, the names a reference reads each by, and where
+// LoadedOpenAPIDocument.Sources lists them, the names a reference reads each by, and where
 // each one's trees write a node (see tree).
 type Others struct {
 	list   []Other
@@ -61,7 +61,7 @@ type Others struct {
 
 // tree returns where a node of the document a reference reads by name is
 // placed, as the source's tree places its own: in that document's
-// Document.Sources entry, at the node's line and column, and at its pointer in
+// LoadedOpenAPIDocument.Sources entry, at the node's line and column, and at its pointer in
 // whichever of the document's trees holds it. It returns false for a document
 // the compile did not read beside the source.
 func (o Others) tree(name string) (provenance.Tree, bool) {
@@ -72,10 +72,10 @@ func (o Others) tree(name string) (provenance.Tree, bool) {
 	return o.trees[i], true
 }
 
-// List returns the documents, in the order Document.Sources lists them.
+// List returns the documents, in the order LoadedOpenAPIDocument.Sources lists them.
 func (o Others) List() []Other { return slices.Clone(o.list) }
 
-// At returns the document at index in Document.Sources, and false for an
+// At returns the document at index in LoadedOpenAPIDocument.Sources, and false for an
 // index no document of o is at.
 func (o Others) At(index int) (Other, bool) {
 	if len(o.list) == 0 {
@@ -105,9 +105,9 @@ func (o Others) index(name string) (int, bool) {
 }
 
 // unreachedKeys is the key of each document table read that nothing it holds is
-// in (bind.Document.Unreached). Such a document lowers nothing and is no input
+// in (bind.ReferencedDocument.Unreached). Such a document lowers nothing and is no input
 // of the result.
-func unreachedKeys(table *bind.Table) map[string]bool {
+func unreachedKeys(table *bind.ReferenceTargetTable) map[string]bool {
 	unused := map[string]bool{}
 	for id := range bind.DocID(table.Documents()) {
 		if d := table.Document(id); d.Unreached {
@@ -118,7 +118,7 @@ func unreachedKeys(table *bind.Table) map[string]bool {
 }
 
 // newOthers lists the documents read prepares beside the source, the first at
-// Document.Sources index first, but those under the keys unused holds. They are
+// LoadedOpenAPIDocument.Sources index first, but those under the keys unused holds. They are
 // ordered by label, not as they were read, so the order no declaration order
 // changes; two names one label reaches, a file spelled two ways, are one
 // document, as RFC 3986 reads a path. Each is read at the minor it declares,
@@ -207,7 +207,7 @@ func (s sourceDocument) labelOf(key string) (label string, relative bool) {
 	return filepath.ToSlash(clean), false
 }
 
-// shownPathOf is the path Document.Sources records for the document read
+// shownPathOf is the path LoadedOpenAPIDocument.Sources records for the document read
 // under key: a URL's as spelled, and a file's as the path the caller handed
 // names the source, so a source named relatively lists the documents beside it
 // relatively too, wherever its Location lies. That is its label joined to the

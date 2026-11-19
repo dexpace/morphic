@@ -65,7 +65,7 @@ func (f *finished) on(write func(td ir.TypeDef) []ir.Diagnostic) finisher {
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
-// TypeID (ids.Document.ForPointer) and shared TypeCommon (commonFor) once, then
+// TypeID (ids.DocumentIDNamespace.ForPointer) and shared TypeCommon (commonFor) once, then
 // interns build's result under that ID, finished by fin. build receives the
 // built TypeCommon, so it never re-derives pointer, name or id, and returns
 // what it read of the schema it builds from.
@@ -153,11 +153,11 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	voices := positionVoices(c, s, pointer, target)
+	foldedBranches := positionFoldedBranches(c, s, pointer, target)
 	if st.of != nil {
-		voices = st.voices(c, s, pointer)
+		foldedBranches = st.foldedBranches(c, s, pointer)
 	}
-	cons, diags := ConstraintsOf(c, &kept, s, voices, pointer, st.takes(c, s))
+	cons, diags := ConstraintsOf(c, &kept, s, foldedBranches, pointer, st.takes(c, s))
 	return internAliasHolding(c, ts, cons, kept, boundsRead(s, st.takes(c, s), nil), st.pointer(pointer), target, fin), diags
 }
 
@@ -169,7 +169,7 @@ func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	cons, diags := referenceConstraintsOf(c, &kept, s, positionVoices(c, s, pointer, target), target, pointer)
+	cons, diags := referenceConstraintsOf(c, &kept, s, positionFoldedBranches(c, s, pointer, target), target, pointer)
 	return internAliasHolding(c, ts, cons, kept, referenceReads(c, s), pointer, target, fin), diags
 }
 

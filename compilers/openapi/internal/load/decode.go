@@ -31,7 +31,7 @@ import (
 // The tree is live: an overlay patches it in place, so a Parsed belongs to one
 // compile.
 type Parsed struct {
-	doc   doctree.Document
+	doc   doctree.ParsedYAMLDocument
 	limit budget.Limit
 	hash  string
 }
@@ -162,7 +162,7 @@ func describeTail(what streamOf, t doctree.Tail) string {
 // YAML 1.2 while declaring another version: a warning at each thing a declared
 // YAML 1.1 reads otherwise (doctree.Legacy), and one at the directive declaring
 // a later minor, which has no pointer, so its position alone places it.
-func versionDiagnostics(tree provenance.Tree, doc doctree.Document) []ir.Diagnostic {
+func versionDiagnostics(tree provenance.Tree, doc doctree.ParsedYAMLDocument) []ir.Diagnostic {
 	if doc.Directive == nil {
 		return nil
 	}

@@ -29,13 +29,13 @@ func schemaObject() Object {
 		objectOf("discriminator", Discriminator, c(V30, "Adds support for polymorphism.")),
 		objectOf("xml", XML, c(V30, "This MAY be used only on property schemas.")),
 		objectOf("externalDocs", ExternalDocs, c(V30, "Additional external documentation for this schema.")),
-		field("example", Any, c(V30, "A free-form field to include an example of an instance for this schema.")),
+		field("example", AnyShapeUnchecked, c(V30, "A free-form field to include an example of an instance for this schema.")),
 	}
 	return Object{
 		Kind: Schema, Name: "Schema Object", Extensible: true, Boolean: From(V31), RefSiblings: From(V31),
 		Fields: slices.Concat(own, schemaKeywords()),
 		Rules: append([]Rule{
-			mustBe(Only(V30), "writeOnly", "false", when(term("readOnly", "true")),
+			ruleRequiringFieldValue(Only(V30), "writeOnly", "false", when(term("readOnly", "true")),
 				c(V30, "A property MUST NOT be marked as both `readOnly` and `writeOnly` being `true`.")),
 			requiredWhen(Only(V30), "items", when(term("type", "array")),
 				c(V30, "`items` MUST be present if `type` is `\"array\"`.")).owned(ownerSchema),

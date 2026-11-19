@@ -22,7 +22,7 @@ func (b *binder) readPointer(id DocID, pointer jsontext.Pointer) (reading, Reaso
 // into the reading only where one is passed or returned, so a read costs its
 // pointer's length rather than its square.
 func (b *binder) readFrom(id DocID, pointer jsontext.Pointer, settle bool) (reading, Reason, objectKey) {
-	r := reading{at: Position{Doc: id}, node: b.docs.list[id].root, state: b.docs.rootState(id)}
+	r := reading{at: DocumentPointer{Doc: id}, node: b.docs.list[id].root, state: b.docs.rootState(id)}
 	// grammar is the state the grammar places r's position at, which says where
 	// a reference object stands: r's own in the source, and in another OpenAPI
 	// document what it places there although r reads raw YAML, which no model
@@ -46,7 +46,7 @@ func (b *binder) readFrom(id DocID, pointer jsontext.Pointer, settle bool) (read
 			return r.spelledAs(soFar), b.docs.absent(r.at.Doc, r.node), objectKey{}
 		}
 		soFar = append(soFar, jsontext.Pointer("").AppendToken(token)...)
-		r = reading{at: Position{Doc: r.at.Doc}, node: child, place: r.below(token)}
+		r = reading{at: DocumentPointer{Doc: r.at.Doc}, node: child, place: r.below(token)}
 		grammar = step(grammar, token)
 	}
 	return r.spelledAs(soFar), NoReason, objectKey{}
@@ -80,7 +80,7 @@ func (b *binder) through(r reading, kind RefKind, token string, settle bool) (re
 	}
 	switch {
 	case !settled && b.wait.onObjects[key]:
-		return r, Held, objectKey{}
+		return r, PendingExternalDocumentRead, objectKey{}
 	case !settled && !settle:
 		return r, NoReason, key
 	case c.Status != Resolved:

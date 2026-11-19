@@ -198,7 +198,7 @@ func dynamicNames(n int) (spec string, other string) {
 // second document is reached by a resource of the first.
 func TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName(t *testing.T) {
 	t.Parallel()
-	steps := func(n int) (*bind.Table, int) {
+	steps := func(n int) (*bind.ReferenceTargetTable, int) {
 		spec, other := dynamicNames(n)
 		table := bound(t, spec, withDocuments(map[string]string{"other.yaml": other}))
 		require.False(t, table.Exhausted(), "n=%d", n)
@@ -259,7 +259,7 @@ func TestTable_AccessingADynamicAnchorAllocatesNothing(t *testing.T) {
 
 		anchor := table.DynamicAnchor(bind.Source, "n")
 		assert.Equal(t, n, anchor.Count, "every declaration is counted")
-		assert.Equal(t, bind.Position{Pointer: "/components/schemas/C0"}, anchor.Site, "the first, in pointer order, is the site")
+		assert.Equal(t, bind.DocumentPointer{Pointer: "/components/schemas/C0"}, anchor.Site, "the first, in pointer order, is the site")
 		assert.Zero(t, testing.AllocsPerRun(20, func() { _ = table.DynamicAnchor(bind.Source, "n") }), "n=%d", n)
 		assert.Equal(t, 0, table.DynamicAnchor(bind.Source, "absent").Count)
 	}

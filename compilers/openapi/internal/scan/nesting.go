@@ -16,7 +16,7 @@ import (
 )
 
 // MaxNesting bounds how deeply a document may nest, as
-// sourceindex.Index.Nesting counts it. What the parser pays per node grows
+// sourceindex.Measurements.Nesting counts it. What the parser pays per node grows
 // with the node's depth (docs/parser-library.md#nesting-cost), so a schema
 // thousands of levels deep cost seconds and gigabytes before the schema walk's
 // own bound refused it (GitHub #905).
@@ -39,13 +39,13 @@ const MaxNesting = 1024
 // anchor-cycle refusal: it nests without end, and the index's count of one
 // turn round it is no fact to refuse on or to find a site for. One below the
 // index's tracked depth, which it misses, nests past MaxNesting anyway.
-func Nesting(ctx context.Context, tree provenance.Tree, idx sourceindex.Index) (ir.Diagnostic, bool) {
+func Nesting(ctx context.Context, tree provenance.Tree, idx sourceindex.Measurements) (ir.Diagnostic, bool) {
 	return nestingWithin(ctx, tree, idx, MaxNesting)
 }
 
 // nestingWithin is Nesting under a bound of limit levels, so a test can cross
 // it without a document a thousand levels deep.
-func nestingWithin(ctx context.Context, tree provenance.Tree, idx sourceindex.Index, limit int) (ir.Diagnostic, bool) {
+func nestingWithin(ctx context.Context, tree provenance.Tree, idx sourceindex.Measurements, limit int) (ir.Diagnostic, bool) {
 	if idx.Nesting() <= limit || len(idx.AnchorCycles()) > 0 {
 		return ir.Diagnostic{}, false
 	}

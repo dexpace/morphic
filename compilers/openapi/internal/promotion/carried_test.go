@@ -80,18 +80,18 @@ func TestLent_ASingleSidedFactHoldsWhereAnyStatesIt(t *testing.T) {
 		"openapi:schema/x-deprecated": vendorExtension(`true`),
 		"openapi:schema/x-why":        vendorExtension(`"old"`),
 	}
-	got := p.Lent(promotion.Referent{}, own, "schema")
+	got := p.WithOwnCarriedState(promotion.Referent{}, own, "schema")
 	assert.True(t, got.Redacted, "the carrier's false withdraws nothing the schema states")
 	assert.True(t, got.Deprecated)
 	assert.Equal(t, "old", got.Members.Message)
 
-	assert.Equal(t, promotion.Referent{}, p.Lent(promotion.Referent{}, ir.Unmodeled{}, "schema"))
-	assert.Equal(t, promotion.Referent{}, p.Lent(promotion.Referent{}, ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, "schema"),
+	assert.Equal(t, promotion.Referent{}, p.WithOwnCarriedState(promotion.Referent{}, ir.Unmodeled{}, "schema"))
+	assert.Equal(t, promotion.Referent{}, p.WithOwnCarriedState(promotion.Referent{}, ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, "schema"),
 		"the carrier's own key is the caller's to read, not a scope's")
 	from := promotion.Referent{Deprecated: true, Redacted: true, Homes: true,
 		Members: ir.Deprecation{Message: "gone", Since: "1", RemovalVersion: "2", RemovalDate: "2099-01-01"}}
-	assert.Equal(t, from, p.Lent(from, ir.Unmodeled{}, "schema"), "what the $ref target lends stays, every fact")
-	scoped := p.Lent(from, ir.Unmodeled{"openapi:schema/x-why": vendorExtension(`"near"`)}, "schema")
+	assert.Equal(t, from, p.WithOwnCarriedState(from, ir.Unmodeled{}, "schema"), "what the $ref target lends stays, every fact")
+	scoped := p.WithOwnCarriedState(from, ir.Unmodeled{"openapi:schema/x-why": vendorExtension(`"near"`)}, "schema")
 	assert.True(t, scoped.Deprecated && scoped.Redacted && scoped.Homes, "a scope stating a member withdraws no fact")
 	assert.Equal(t, ir.Deprecation{Message: "near", Since: "1", RemovalVersion: "2", RemovalDate: "2099-01-01"},
 		scoped.Members, "the nearest member wins and the target fills the rest")

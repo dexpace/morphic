@@ -191,7 +191,7 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // §2.1) and assembles the Document. Order matters: named component schemas
 // first, so operations' refs find interned IDs; then security schemes, which
 // requirements reference; then the service walk and deferred settlements; then
-// the steps reading whole.Document.
+// the steps reading whole.CompiledDocumentView.
 //
 // It reports cancellation as a Go error, not a diagnostic: nothing about the
 // document is wrong, the caller stopped asking. It drops the document, since
@@ -199,7 +199,7 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // interned or settled, but returns the diagnostics gathered before the stop.
 // It refuses a document past Limits.MaxReferenceExpansion without error.
 func run(ctx context.Context, c service.Ctx, inf inferences, ts *compile.Types,
-	newWhole func(*ir.Document) *whole.Document,
+	newWhole func(*ir.Document) *whole.CompiledDocumentView,
 ) (*ir.Document, []ir.Diagnostic, error) {
 	// out is this function's, not a struct's: a document being built
 	// (micro-compiler-design §4.1). Nothing below allocates it.
@@ -227,10 +227,10 @@ func run(ctx context.Context, c service.Ctx, inf inferences, ts *compile.Types,
 	out.Services = []ir.Service{lowered.Service}
 	out.TagDefs = lowered.TagDefs
 	acc.AppendAll(svcDiags)
-	schema.PromiseLandings(c.Ctx, ts)
+	schema.ReserveNodesAtReferenceTargets(c.Ctx, ts)
 	// Every lowering has returned, so the registry is finished: a coordinate a
 	// $ref named and none built is built now, in its own context
-	// (compile.Types.Promise), and what was deferred until the registry is whole
+	// (compile.Types.ReserveNodeAtCoordinate), and what was deferred until the registry is whole
 	// is decided (compile.Settlement), before the check that refuses a registry
 	// either phase left cut short. What Finish reports carries each entry the
 	// registry refused, a compiler bug that would otherwise leave every reference

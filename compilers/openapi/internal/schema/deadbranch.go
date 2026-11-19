@@ -35,14 +35,14 @@ type deadBranchesOf struct {
 // whole. That reading leaves null out: the nulls walk would classify body's
 // union again.
 func deadBranches(c lowering.Ctx, body, holder *statement.Schema) []bool {
-	return lowering.Remembered(c, deadBranchesOf{body, holder}, func() []bool {
+	return lowering.ReadOncePerRun(c, deadBranchesOf{body, holder}, func() []bool {
 		branches, _, _ := unionBranches(c, body, holder)
 		out := make([]bool, len(branches))
 		if !restAdmitsObjects(c, body, holder) {
 			return out
 		}
 		for i, b := range branches {
-			st := c.Statements().Sub(b)
+			st := c.Statements().Subschema(b)
 			out[i] = !nullBranch(c, st) && deadBranch(c, body, holder, st)
 		}
 		return out
@@ -125,7 +125,7 @@ func deadOf(c lowering.Ctx, u unionAt, dead []bool) []deadBranchAt {
 	var out []deadBranchAt
 	for i, b := range branches {
 		if dead[i] {
-			out = append(out, deadBranchAt{st: c.Statements().Sub(b), at: u.at + ids.Ptr(key, strconv.Itoa(i))})
+			out = append(out, deadBranchAt{st: c.Statements().Subschema(b), at: u.at + ids.Ptr(key, strconv.Itoa(i))})
 		}
 	}
 	return out
@@ -191,7 +191,7 @@ func diagDeadBranches(c lowering.Ctx, body *statement.Schema, u unionAt, dead []
 // branches, the dead ones listed, and on, the path from the body of the allOf
 // entry it is written on, empty for a union beside the body.
 type deadReport struct {
-	branches []statement.Sub
+	branches []statement.Subschema
 	key, on  string
 	listed   string
 	routes   string
@@ -298,7 +298,7 @@ func deadRoutesOf(c lowering.Ctx, u unionAt) []deadRoute {
 	x := newBranchIndex(nil)
 	named := map[string][]int{}
 	for n, b := range branches {
-		st := c.Statements().Sub(b)
+		st := c.Statements().Subschema(b)
 		if nullBranch(c, st) {
 			continue
 		}
@@ -396,7 +396,7 @@ func routesClause(u unionAt, pronoun string) string {
 func hasLiveBranch(c lowering.Ctx, u unionAt, dead []bool) bool {
 	branches, _, _ := u.branches(c)
 	for i, b := range branches {
-		if !dead[i] && !nullBranch(c, c.Statements().Sub(b)) {
+		if !dead[i] && !nullBranch(c, c.Statements().Subschema(b)) {
 			return true
 		}
 	}

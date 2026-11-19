@@ -28,7 +28,7 @@ import (
 // component's name rather than the operationId hint (issue #107). A body $ref'd
 // from another operation has no component name, so it is named for the
 // operation declaring it, never this mount's (lowering.NameAt, GitHub #433).
-func lowerRequestBody(c service.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerRequestBody(c service.Ctx, w operationLoweringState, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	usePtr := opDeclPtr + ids.Ptr("requestBody")
 	rb, dc, bodyPtr := service.Declared[soa.RequestBody](c, src.GetRequestBody(), usePtr)
 	if rb == nil {

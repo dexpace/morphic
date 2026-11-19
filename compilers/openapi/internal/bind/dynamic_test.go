@@ -74,7 +74,7 @@ func TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor(t *tes
 		assert.Equal(t, "$ref", e.Keyword, "%s: the $ref beside it is the entry", name)
 		assert.Equal(t, p, e.Hop.Target, name)
 	}
-	_, ok := (*bind.Table)(nil).Entry(p)
+	_, ok := (*bind.ReferenceTargetTable)(nil).Entry(p)
 	assert.False(t, ok, "a nil table read none")
 
 	toDynamic := entryAt(t, table, "/components/schemas/ToDynamic")
@@ -102,8 +102,8 @@ func TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead(t *testing.T) {
 	e := entryAt(t, static, "/components/schemas/A")
 	assert.Equal(t, "$dynamicRef", e.Keyword)
 	o := docNamed(t, static, "o.yaml")
-	assert.Equal(t, bind.Position{Doc: o, Pointer: "/T"}, e.Hop.Target)
-	assert.Equal(t, bind.Chain{End: bind.Position{Doc: o, Pointer: "/T"}, Hops: 2, Status: bind.Resolved},
+	assert.Equal(t, bind.DocumentPointer{Doc: o, Pointer: "/T"}, e.Hop.Target)
+	assert.Equal(t, bind.Chain{End: bind.DocumentPointer{Doc: o, Pointer: "/T"}, Hops: 2, Status: bind.Resolved},
 		entryAt(t, static, "/components/schemas/S").Chain)
 }
 
@@ -128,7 +128,7 @@ func TestBind_ADynamicRefTheBudgetCutsIsNoOtherEntry(t *testing.T) {
 	t.Parallel()
 	full := bound(t, dynamicSpec, self)
 	require.False(t, full.Exhausted())
-	want := map[bind.Position]bind.Entry{}
+	want := map[bind.DocumentPointer]bind.ReferenceSite{}
 	for _, e := range full.Entries() {
 		want[e.Site] = e
 	}

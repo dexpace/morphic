@@ -36,7 +36,7 @@ const (
 )
 
 // read reads text with no node budget, which it must read.
-func read(t testing.TB, text string) doctree.Document {
+func read(t testing.TB, text string) doctree.ParsedYAMLDocument {
 	t.Helper()
 	doc, err := doctree.Read(t.Context(), []byte(text), budget.Unbounded())
 	require.NoError(t, err, "Read reads %q", text)
@@ -232,7 +232,7 @@ func TestRead_AStreamHoldingNoDocumentHasARootOfNoKind(t *testing.T) {
 }
 
 // TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken pins which %YAML
-// directive Document.Directive reports: one in the prologue or after a
+// directive ParsedYAMLDocument.Directive reports: one in the prologue or after a
 // document end, on its own line, governing the document taken and no other.
 func TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken(t *testing.T) {
 	t.Parallel()
@@ -274,7 +274,7 @@ func TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken(t *testing.T) {
 	assert.NotErrorAs(t, err, &past)
 }
 
-// TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise pins Document.Legacy: in
+// TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise pins ParsedYAMLDocument.Legacy: in
 // a document declaring YAML 1.1, each plain value scalar YAML 1.1 reads as
 // another JSON value than YAML 1.2 does, and each line-break character YAML 1.1
 // ends a line at, in document order.

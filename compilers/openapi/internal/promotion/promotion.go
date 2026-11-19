@@ -325,7 +325,7 @@ func readElsewhere(targets map[ExtensionTarget][]ExtensionSource, src ExtensionS
 // listed reads raw as src's Values state target's fact: one of them states it,
 // and any other value is a misfit where no other source of targets reads it
 // off the same member of the key, and states nothing where one does.
-func listed(targets map[ExtensionTarget][]ExtensionSource, src ExtensionSource, raw ir.RawValue) (bool, statement) {
+func listed(targets map[ExtensionTarget][]ExtensionSource, src ExtensionSource, raw ir.RawValue) (bool, sourceValueMeaning) {
 	if listsWord(src, raw) {
 		return true, states
 	}
@@ -420,12 +420,12 @@ func (p Promoter) Deprecation(own ir.Unmodeled, from Referent, dep **ir.Deprecat
 	if home == nil {
 		home = &ir.Deprecation{}
 	}
-	lent := deprecationMembers(&from.Members)
+	fallbackDeprecationMembers := deprecationMembers(&from.Members)
 	for i, member := range deprecationMembers(home) {
 		text, filled, misfits := firstStated(own, p.targets[member.target], textReading(member.target))
 		diags = append(diags, misfits...)
 		if !filled {
-			text = *lent[i].field
+			text = *fallbackDeprecationMembers[i].field
 		}
 		if text != "" {
 			*member.field = text
@@ -465,7 +465,7 @@ func Stability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.
 	stated, found, diags := firstStated(unmodeled, p.Sources(TargetStability), reading[ir.Stability]{
 		target: TargetStability,
 		want:   "names no stability tier",
-		read: func(src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
+		read: func(src ExtensionSource, raw ir.RawValue) (ir.Stability, sourceValueMeaning) {
 			return readStability(p, src, raw)
 		},
 	})
@@ -585,7 +585,7 @@ func UnionOpenness(p Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Pr
 func openness(p Promoter, unmodeled ir.Unmodeled, target ExtensionTarget, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
 	open, _, diags := firstStated(unmodeled, p.Sources(target), reading[bool]{
 		target: target,
-		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
+		read: func(src ExtensionSource, raw ir.RawValue) (bool, sourceValueMeaning) {
 			if len(src.Values) > 0 {
 				return listed(p.targets, src, raw)
 			}
@@ -599,13 +599,13 @@ func openness(p Promoter, unmodeled ir.Unmodeled, target ExtensionTarget, closed
 	return diags
 }
 
-// statement is what a source's value says to the target reading it.
-type statement int
+// sourceValueMeaning is what a source's value says to the target reading it.
+type sourceValueMeaning int
 
 const (
 	// statesNothing is a value the target reads as no statement of its fact,
 	// which is not a defect of the value.
-	statesNothing statement = iota
+	statesNothing sourceValueMeaning = iota
 	// states is a value that fills the target.
 	states
 	// misfit is a value of a form the target cannot hold, which is reported.
@@ -616,7 +616,7 @@ const (
 // report says of a value that misfits.
 type reading[T comparable] struct {
 	target ExtensionTarget
-	read   func(src ExtensionSource, raw ir.RawValue) (T, statement)
+	read   func(src ExtensionSource, raw ir.RawValue) (T, sourceValueMeaning)
 	want   string
 }
 
@@ -628,7 +628,7 @@ func textReading(target ExtensionTarget) reading[string] {
 	return reading[string]{
 		target: target,
 		want:   "is not a string",
-		read: func(_ ExtensionSource, raw ir.RawValue) (string, statement) {
+		read: func(_ ExtensionSource, raw ir.RawValue) (string, sourceValueMeaning) {
 			text, ok := extensionText(raw)
 			switch {
 			case !ok:
@@ -647,7 +647,7 @@ func (p Promoter) deprecationReading() reading[bool] {
 	return reading[bool]{
 		target: TargetDeprecation,
 		want:   "is neither text nor a boolean",
-		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
+		read: func(src ExtensionSource, raw ir.RawValue) (bool, sourceValueMeaning) {
 			if len(src.Values) > 0 {
 				return listed(p.targets, src, raw)
 			}
@@ -661,7 +661,7 @@ func (p Promoter) redactionReading() reading[bool] {
 	return reading[bool]{
 		target: TargetRedaction,
 		want:   "is not a boolean",
-		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
+		read: func(src ExtensionSource, raw ir.RawValue) (bool, sourceValueMeaning) {
 			if len(src.Values) > 0 {
 				return listed(p.targets, src, raw)
 			}
@@ -733,7 +733,7 @@ func firstStatedAt[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSour
 // statement, and what it reports is its report. Answering those here too would
 // report one defect twice, or call a word misread that was read. Any other
 // value, and any value on a key only this target reads, is a misfit.
-func readStability(p Promoter, src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
+func readStability(p Promoter, src ExtensionSource, raw ir.RawValue) (ir.Stability, sourceValueMeaning) {
 	if text, ok := extensionText(raw); ok {
 		if tier := stabilityTier(text); tier != ir.StabilityUnstated {
 			return tier, states
@@ -772,7 +772,7 @@ func stabilityTier(word string) ir.Stability {
 // statesDeprecated reads a value as saying that what it sits on is deprecated.
 // The text "deprecated" and a boolean true state it, false and any other word
 // state nothing, and any other shape misfits. The bool is whether it stated it.
-func statesDeprecated(raw ir.RawValue) (bool, statement) {
+func statesDeprecated(raw ir.RawValue) (bool, sourceValueMeaning) {
 	if text, ok := extensionText(raw); ok {
 		if text == "deprecated" {
 			return true, states
@@ -786,7 +786,7 @@ func statesDeprecated(raw ir.RawValue) (bool, statement) {
 // *bool for the reason extensionOpenness says: null decodes into a bool as
 // false, which would read a bare key as a statement of nothing rather than as
 // another shape.
-func statesBoolean(raw ir.RawValue) (bool, statement) {
+func statesBoolean(raw ir.RawValue) (bool, sourceValueMeaning) {
 	var flag *bool
 	if err := json.Unmarshal(raw, &flag); err != nil || flag == nil {
 		return false, misfit
@@ -801,7 +801,7 @@ func statesBoolean(raw ir.RawValue) (bool, statement) {
 // whole, or the member s names, beside the members the entry holds where s
 // reads one. An absent member states nothing, as an absent key does; a value
 // with no members cannot hold one (misfit).
-func (s ExtensionSource) value(entry ir.UnmodeledEntry) (ir.RawValue, ir.Provenance, map[string]ir.RawValue, statement) {
+func (s ExtensionSource) value(entry ir.UnmodeledEntry) (ir.RawValue, ir.Provenance, map[string]ir.RawValue, sourceValueMeaning) {
 	if s.Member == "" {
 		return entry.Value, entry.Provenance, nil, states
 	}

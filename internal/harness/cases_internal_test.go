@@ -21,16 +21,16 @@ import (
 // set, standing for Write.
 type fake struct {
 	axes  []Axis
-	write func(at []int) (Document, bool)
+	write func(at []int) (CaseDocument, bool)
 }
 
 func (f fake) Axes() []Axis { return f.axes }
 
-func (f fake) Write(at []int) (Document, bool) {
+func (f fake) Write(at []int) (CaseDocument, bool) {
 	if f.write != nil {
 		return f.write(at)
 	}
-	return Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}, true
+	return CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}, true
 }
 
 // coreAxis returns an axis of core values named as given.
@@ -48,7 +48,7 @@ func product223() []Axis {
 }
 
 // withAsked makes CheckCase ask oracles for the rest of the test.
-func withAsked(t *testing.T, oracles ...func(context.Context, *shard, []int, Document) Verdict) {
+func withAsked(t *testing.T, oracles ...func(context.Context, *shard, []int, CaseDocument) Verdict) {
 	t.Helper()
 	orig := asked
 	t.Cleanup(func() { asked = orig })
@@ -96,7 +96,7 @@ func TestCheckCases_AShardCompilesEachCaseOnce(t *testing.T) {
 		return soundDoc(), nil, nil
 	})
 	most := 0
-	withAsked(t, func(ctx context.Context, s *shard, at []int, _ Document) Verdict {
+	withAsked(t, func(ctx context.Context, s *shard, at []int, _ CaseDocument) Verdict {
 		for _, c := range [][]int{at, {at[0], at[1], 0}} {
 			got, ok := s.compile(ctx, c)
 			require.True(t, ok)
@@ -116,7 +116,7 @@ func TestCheckCases_AShardCompilesEachCaseOnce(t *testing.T) {
 }
 
 func TestShardCompile_ACaseWritingNothingOrOutsideTheProduct(t *testing.T) {
-	f := fake{axes: product223(), write: func(at []int) (Document, bool) { return Document{}, at[2] != 1 }}
+	f := fake{axes: product223(), write: func(at []int) (CaseDocument, bool) { return CaseDocument{}, at[2] != 1 }}
 	s := newShard(f, f.axes, []int{0, 0, 0})
 
 	_, ok := s.compile(t.Context(), []int{0, 0, 1})
@@ -134,8 +134,8 @@ func TestShardCompile_ACaseWritingNothingOrOutsideTheProduct(t *testing.T) {
 // declines for want of a neighbour.
 func TestCheckCase_AnOraclesFindingIsTheOutcome(t *testing.T) {
 	withAsked(t,
-		func(context.Context, *shard, []int, Document) Verdict { return passed(OracleSpelling) },
-		func(context.Context, *shard, []int, Document) Verdict {
+		func(context.Context, *shard, []int, CaseDocument) Verdict { return passed(OracleSpelling) },
+		func(context.Context, *shard, []int, CaseDocument) Verdict {
 			return found(OraclePresence, "changes nothing")
 		},
 	)
@@ -155,8 +155,8 @@ func TestCheckCase_AnOraclesFindingIsTheOutcome(t *testing.T) {
 // in Write or in an oracle is the outcome, a verdict given before it is kept,
 // and the oracles not yet asked decline as not reached.
 func TestCheckCase_APanicIsAPanicOutcome(t *testing.T) {
-	boom := func(context.Context, *shard, []int, Document) Verdict { panic("oracle exploded") }
-	withAsked(t, func(context.Context, *shard, []int, Document) Verdict { return passed(OracleSpelling) }, boom)
+	boom := func(context.Context, *shard, []int, CaseDocument) Verdict { panic("oracle exploded") }
+	withAsked(t, func(context.Context, *shard, []int, CaseDocument) Verdict { return passed(OracleSpelling) }, boom)
 
 	r, ok := CheckCase(t.Context(), fake{axes: product223()}, []int{0, 0, 0})
 	require.True(t, ok)
@@ -166,7 +166,7 @@ func TestCheckCase_APanicIsAPanicOutcome(t *testing.T) {
 		passed(OracleSpelling), declined(OraclePresence, DeclineNotReached), declined(OracleInstance, DeclineNotReached),
 	}, r.Verdicts)
 
-	panicky := fake{axes: product223(), write: func([]int) (Document, bool) { panic(errors.New("write exploded")) }}
+	panicky := fake{axes: product223(), write: func([]int) (CaseDocument, bool) { panic(errors.New("write exploded")) }}
 	r, ok = CheckCase(t.Context(), panicky, []int{0, 0, 0})
 	require.True(t, ok, "a case whose Write panics is reported")
 	assert.Equal(t, OutcomePanic, r.Outcome)

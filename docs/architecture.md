@@ -136,7 +136,7 @@ the canonical naming grammar, and the identifier grammar — the kind prefix and
 it, with the declaration of the namespaces a compiler mints in. The registry also holds the
 decisions that read nodes other lowerings intern (`compile.Settlement`), deferred until the walk
 ends, and the nodes a reference names, promised to the lowering that owns them
-(`compile.Types.Promise`): a walk lowers one declaration at a time, so a decision taken mid-walk, or
+(`compile.Types.ReserveNodeAtCoordinate`): a walk lowers one declaration at a time, so a decision taken mid-walk, or
 a node a reference built, would follow declaration order (micro-compiler-design §6.2). They live on
 the registry, though only OpenAPI uses them yet, because the registry is the one handle a lowering
 holds (micro-compiler-design §4). What stays with the compiler is what only it can compute: the
@@ -708,7 +708,7 @@ what the built document is written in. A package's allowlist says what it import
 no row, or a row naming no package, fails `TestLayers_EveryCompilerPackageHasOne`.
 
 In `internal/schema` a position is lowered from three readings, each made once a run: what its
-schema writes (`statement.Table`), what that admits (`admissionOf`), and which conjunct of its
+schema writes (`statement.MemoizingSchemaReader`), what that admits (`admissionOf`), and which conjunct of its
 `allOf` decides it (`decisionOf`). The build of its node then says which keywords it read, of those
 whose home the node's kind decides (`keySet`), and the node keeps the rest verbatim under
 `Unmodeled` (`keepUnread`).

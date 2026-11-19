@@ -209,7 +209,7 @@ func TestAliasedNode_ReadsAChainUpToItsBound(t *testing.T) {
 		_, isList := r.view(reg[next], "").(*ir.List)
 
 		assert.Equal(t, tc.read, isList, tc.name)
-		assert.Equal(t, tc.read, r.standsFor(reg[next], "t/L") == relANarrower, "%s: standsFor reads as far", tc.name)
+		assert.Equal(t, tc.read, r.standsFor(reg[next], "t/L") == firstTypeIsNarrower, "%s: standsFor reads as far", tc.name)
 	}
 }
 
@@ -227,19 +227,19 @@ func TestStandsFor_ReadsOnlyAnAliasChain(t *testing.T) {
 		id   ir.TypeID
 		want relation
 	}{
-		{"t/L-max-docs", "t/L-max", relANarrower},
-		{"t/L-max-docs", "t/L", relANarrower},
+		{"t/L-max-docs", "t/L-max", firstTypeIsNarrower},
+		{"t/L-max-docs", "t/L", firstTypeIsNarrower},
 		{"t/L-max", "t/L-max-docs", relUnrelated},
 		{"t/L", "t/L", relUnrelated},
 		{"t/gone", "t/L", relUnrelated},
-		{"t/S", "t/prim/string", relANarrower},
-		{"t/L-null", "t/L", relBNarrower},
+		{"t/S", "t/prim/string", firstTypeIsNarrower},
+		{"t/L-null", "t/L", secondTypeIsNarrower},
 		{"t/L-null-docs", "t/L", relUnrelated},
 		{"t/L-null-max", "t/L", relUnrelated},
 		{"t/L-over-null", "t/L", relUnrelated},
-		{"t/L-over-null", "t/L-null", relANarrower},
+		{"t/L-over-null", "t/L-null", firstTypeIsNarrower},
 		{"t/L-over-null-docs", "t/L", relUnrelated},
-		{"t/L-over-null-bare", "t/L", relBNarrower},
+		{"t/L-over-null-bare", "t/L", secondTypeIsNarrower},
 	} {
 		assert.Equal(t, tc.want, r.standsFor(reg[tc.td], tc.id), "%s for %s", tc.td, tc.id)
 	}

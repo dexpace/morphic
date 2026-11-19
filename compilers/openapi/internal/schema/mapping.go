@@ -30,7 +30,7 @@ const maxChainHops = 64
 // read in another document (bind.Hop.Target), and the ID of the type
 // declared there (declaredAt).
 type link struct {
-	at   bind.Position
+	at   bind.DocumentPointer
 	decl *statement.Statement
 	id   ir.TypeID
 }
@@ -50,7 +50,7 @@ func (v valueChain) end() link { return v.links[len(v.links)-1] }
 // chainFrom keys the chain read from a position and the schema held there
 // (follow).
 type chainFrom struct {
-	at   bind.Position
+	at   bind.DocumentPointer
 	decl *statement.Statement
 }
 
@@ -69,7 +69,7 @@ func chainOf(c lowering.Ctx, d *statement.Discriminator, value string) (valueCha
 	if !declared {
 		return valueChain{}, false
 	}
-	return lowering.Remembered(c, chainFrom{at, decl}, func() valueChain {
+	return lowering.ReadOncePerRun(c, chainFrom{at, decl}, func() valueChain {
 		return follow(c, link{at: at, decl: decl, id: id})
 	}), true
 }
@@ -77,9 +77,9 @@ func chainOf(c lowering.Ctx, d *statement.Discriminator, value string) (valueCha
 // valuePosition is the position value, a value of d's mapping, names, and the
 // schema held there: the entry document's component it is the name of, else
 // where it lands read as a URI reference, false where it lands on no schema.
-func valuePosition(c lowering.Ctx, d *statement.Discriminator, value string) (bind.Position, *statement.Statement, bool) {
+func valuePosition(c lowering.Ctx, d *statement.Discriminator, value string) (bind.DocumentPointer, *statement.Statement, bool) {
 	if c.DeclaresSchema(value) {
-		at := bind.Position{Doc: bind.Source, Pointer: ids.Ptr("components", "schemas", value)}
+		at := bind.DocumentPointer{Doc: bind.Source, Pointer: ids.Ptr("components", "schemas", value)}
 		return at, c.Statements().At(at), true
 	}
 	at, ok := c.RefScope().MappingTarget(d.At, value)
@@ -118,9 +118,9 @@ func follow(c lowering.Ctx, start link) valueChain {
 // it: the position its hop reaches (bind.Hop.Target). It is false for a
 // statement writing no $ref the table read, one landing on no schema and one
 // on a loop of $refs, which lands nowhere a type can be read.
-func landsAt(st *statement.Statement) (bind.Position, bool) {
+func landsAt(st *statement.Statement) (bind.DocumentPointer, bool) {
 	if st.Ref == nil || !st.Ref.Bound || !st.Ref.Entry.Lands() {
-		return bind.Position{}, false
+		return bind.DocumentPointer{}, false
 	}
 	return st.Ref.Entry.Hop.Target, true
 }
@@ -129,7 +129,7 @@ func landsAt(st *statement.Statement) (bind.Position, bool) {
 // route can name, as resolveAt resolves it without promising it (declaredIn):
 // a component the source declares, by its name, or a schema the compile can
 // hoist, in a document it read, by the ID its pointer derives there.
-func declaredAt(c lowering.Ctx, at bind.Position, decl *statement.Statement) (ir.TypeID, bool) {
+func declaredAt(c lowering.Ctx, at bind.DocumentPointer, decl *statement.Statement) (ir.TypeID, bool) {
 	in, ok := lowering.InDocument(c, at.Doc)
 	if !ok {
 		return "", false
@@ -183,7 +183,7 @@ func indexBranches(c lowering.Ctx, u unionAt, variants []ir.Variant) *branchInde
 		// A non-null branch lacking its variant is a compiler bug
 		// spellImplicitRoutes reports; it routes nothing here.
 		i := len(x.pointers)
-		st := c.Statements().Sub(b)
+		st := c.Statements().Subschema(b)
 		if !u.variantBranch(c, n, st) || i == len(variants) {
 			continue
 		}
@@ -367,7 +367,7 @@ func mappingTagsFor(c lowering.Ctx, d *statement.Discriminator, id ir.TypeID) []
 	if len(d.Mapping) == 0 {
 		return nil
 	}
-	return slices.Clone(lowering.Remembered(c, tagsOf{d}, func() map[ir.TypeID][]string {
+	return slices.Clone(lowering.ReadOncePerRun(c, tagsOf{d}, func() map[ir.TypeID][]string {
 		tags := map[ir.TypeID][]string{}
 		for _, e := range d.Mapping {
 			if chain, ok := chainOf(c, d, e.Target); ok && !chain.broken {

@@ -56,9 +56,9 @@ func boundsBeside(r registry, td ir.TypeDef) bool {
 func byVariants(j typeJudge, against func(v ir.TypeRef) relation, u *ir.Union, holds bool) relation {
 	switch {
 	case holds && withinUnion(j, against, u):
-		return relANarrower
+		return firstTypeIsNarrower
 	case unionWithin(j, against, u):
-		return relBNarrower
+		return secondTypeIsNarrower
 	default:
 		return relUnrelated
 	}
@@ -81,7 +81,7 @@ func unionWithin(j typeJudge, against func(v ir.TypeRef) relation, u *ir.Union) 
 		if j.variants == nil || !j.variants.Spend(1) {
 			return false
 		}
-		if rel := against(v.Type); rel != relSame && rel != relBNarrower {
+		if rel := against(v.Type); rel != relSame && rel != secondTypeIsNarrower {
 			return false
 		}
 	}
@@ -103,7 +103,7 @@ func withinUnion(j typeJudge, against func(v ir.TypeRef) relation, u *ir.Union) 
 			return false
 		}
 		switch rel := against(v.Type); {
-		case rel == relSame || rel == relANarrower:
+		case rel == relSame || rel == firstTypeIsNarrower:
 			if !u.Exclusive {
 				return true
 			}

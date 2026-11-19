@@ -129,9 +129,9 @@ func (sc scope) label(i int) string {
 	return sc.ids[i]
 }
 
-// lead writes what holds sc, as a message about it begins, or nothing for a
+// writeMessagePrefix writes what holds sc, as a message about it begins, or nothing for a
 // scope the document holds.
-func (sc scope) lead(b *strings.Builder) {
+func (sc scope) writeMessagePrefix(b *strings.Builder) {
 	if sc.in == "" {
 		return
 	}
@@ -226,17 +226,17 @@ func (r *nameReader) place(by comparison, seen map[uint64]int, sum uint64, i int
 // though its hash agrees.
 func (r *nameReader) setOf(by comparison, head, i int) int {
 	for first := head; first >= 0; first = r.other[first] {
-		if alike(by, r.parties[first], r.parties[i]) {
+		if namesCompareEqual(by, r.parties[first], r.parties[i]) {
 			return first
 		}
 	}
 	return -1
 }
 
-// alike reports whether by compares the names of a and b alike. A name with no
+// namesCompareEqual reports whether by compares the names of a and b alike. A name with no
 // word character is compared by its spelling alone, which every target names
 // alike and no neutral name equals, as each holds a letter or digit.
-func alike(by comparison, a, b party) bool {
+func namesCompareEqual(by comparison, a, b party) bool {
 	switch {
 	case a.words == "" || b.words == "":
 		return a.words == b.words && a.source == b.source
@@ -268,7 +268,7 @@ func (r *nameReader) report(sc scope) {
 	}
 	for _, i := range r.bare {
 		var b strings.Builder
-		sc.lead(&b)
+		sc.writeMessagePrefix(&b)
 		fmt.Fprintf(&b, "%s %s (%q) has no word character, so it has no neutral name, and a target names it "+
 			"from its characters", sc.one, sc.label(i), r.parties[i].source)
 		r.diags = append(r.diags, diag(ir.SeverityInfo, "pass/name-without-words", b.String(), sc.at()))
@@ -281,7 +281,7 @@ func (r *nameReader) report(sc scope) {
 // that differ only where their words break.
 func (r *nameReader) collision(sc scope, first int) string {
 	var b strings.Builder
-	sc.lead(&b)
+	sc.writeMessagePrefix(&b)
 	b.WriteString(sc.many)
 	b.WriteByte(' ')
 	for i := first; i >= 0; i = r.later[i] {

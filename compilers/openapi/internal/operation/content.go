@@ -29,7 +29,7 @@ import (
 // (the response or requestBody); each Content's schema hoists under
 // <pointer>/content/<mt>/schema, or under the components/mediaTypes entry an
 // entry written as a $ref names (declaredMedia).
-func lowerPayload(c service.Ctx, w walk, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
+func lowerPayload(c service.Ctx, w operationLoweringState, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
 		return nil, nil
 	}
@@ -111,7 +111,7 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, whether it streams, docs and
 // extensions, as d declares them, under mt, the key it is written under.
-func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) {
+func lowerContent(d mediaDecl, w operationLoweringState, mt string) (ir.Content, []ir.Diagnostic) {
 	c, media, mediaPtr := d.ctx, d.media, d.pointer
 	mediaType, diags := schema.Ref(c.Ctx, w.types, schema.TopLevelDepth, d.ctx.Statements().Of(media.GetSchema()), mediaPtr+ids.Ptr("schema"))
 	content := ir.Content{

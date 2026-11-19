@@ -23,14 +23,14 @@ import (
 
 // Merger is what folding the declarations of one field reads besides them, as
 // values, so a test drives a fold with a map and a stub walk rather than a
-// document. PropIndex.Settle runs it once every node exists.
+// document. ModelPropertyDeclarations.Settle runs it once every node exists.
 type Merger struct {
 	// Reg is the registry every lowering left. The judgment compares what two
 	// references point at there, not the references themselves.
 	Reg ir.TypeRegistry
 	// IDs derives, for the model's document, the identity a field named for a
 	// pointer takes (identify).
-	IDs ids.Document
+	IDs ids.DocumentIDNamespace
 	// Doc places what a fold reports.
 	Doc provenance.Doc
 	// Sources names the documents a declaration's Provenance.Source indexes,
@@ -41,11 +41,11 @@ type Merger struct {
 	// reads without bound.
 	Reads *budget.Budget
 	// Walk is the walk that declared the field.
-	Walk Walk
+	Walk FieldDeclarationContext
 }
 
-// Walk is what a fold asks of the walk that declared the field.
-type Walk interface {
+// FieldDeclarationContext is what a fold asks of the walk that declared the field.
+type FieldDeclarationContext interface {
 	// Mint registers node, which stands for the declarations of the field
 	// pointer names (fieldSpan), or for what their types hold at a position
 	// below it, and returns the ID it is registered under. It fills what in
@@ -73,17 +73,17 @@ type Walk interface {
 	// the source writes; one it cannot place, or one writing what the read does
 	// not follow but which could refuse a value of some kind, is not, and
 	// decides nothing.
-	Admits(at ir.Provenance, kind Instance) (admits, exact bool)
+	Admits(at ir.Provenance, kind JSONInstanceKind) (admits, exact bool)
 }
 
-// Instance is a kind of JSON instance, which every value of a type a
-// structure is judged against is (Walk.Admits).
-type Instance uint8
+// JSONInstanceKind is a kind of JSON instance, which every value of a type a
+// structure is judged against is (FieldDeclarationContext.Admits).
+type JSONInstanceKind uint8
 
 // The kinds of JSON instance. An integer is a number with no fraction, which
 // a schema may admit apart from the others.
 const (
-	InstanceString Instance = iota + 1
+	InstanceString JSONInstanceKind = iota + 1
 	InstanceInteger
 	InstanceNumber
 	InstanceBoolean
@@ -108,13 +108,13 @@ func (g *Merger) judgeAt(a, b []ir.Provenance) typeJudge {
 // to render it verbatim.
 type declaration struct {
 	prop   ir.Property
-	source Source
+	source DeclarationConstructRenderer
 	// secretBy names the heuristics that set prop.Secret, empty where a keyword
 	// declared it. prop.Provenance.Inferred cannot say: one marker covers every
 	// fact a promotion read into the declaration.
 	secretBy ir.Inferred
 	// order is where the walk met the declaration among the model's
-	// declarations and entries (PropIndex).
+	// declarations and entries (ModelPropertyDeclarations).
 	order int
 	// via is the entry bringing a declaration another model holds, which stays
 	// declared there, so nothing keeps it verbatim and a report about it sits
@@ -231,7 +231,7 @@ type folding struct {
 	// field is the pointer the nodes the fold mints are named for: the
 	// declaration naming the field (fieldSpan), or the member a composing model
 	// declares, which no schema is written at, so assembled holds the
-	// positions it is assembled from, which place what it mints (Walk.Mint);
+	// positions it is assembled from, which place what it mints (FieldDeclarationContext.Mint);
 	// nil where a declaration names the field.
 	field     jsontext.Pointer
 	assembled []jsontext.Pointer
@@ -352,7 +352,7 @@ func (f *folding) drop(i int) {
 	switch f.rel[f.winner][i] {
 	case relDisjoint:
 		f.disagree(i, f.winner, fmt.Sprintf("incompatible types %s and %s", w.Target, d.Target))
-	case relOverlap, relBNarrower, relMeet:
+	case relOverlap, secondTypeIsNarrower, relMeet:
 		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 			"declarations of field %q give types %s and %s whose values overlap but that the merge does not "+
 				"narrow to one; kept the type the declaration at %s gives over the one at %s, which %s",
@@ -583,9 +583,9 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 func (f *folding) ownType(judge typeJudge, i int) bool {
 	winner, own := f.decls[f.winner].prop.Type, f.decls[i].prop.Type
 	if f.merged.Type.Target == winner.Target {
-		return f.rel[f.winner][i] == relSame || alike(judge, winner, own)
+		return f.rel[f.winner][i] == relSame || sameTypeIgnoringBounds(judge, winner, own)
 	}
-	return alike(judge, f.merged.Type, own)
+	return sameTypeIgnoringBounds(judge, f.merged.Type, own)
 }
 
 // foldUse settles who sends the field and sees it: required and secret where
@@ -740,9 +740,9 @@ func writtenBefore(a, b ir.Provenance) bool {
 
 // sameEntry reports whether a and b, the entry two declarations give one key,
 // are one: written alike, and read against one base where they write a
-// reference (Walk.Alike), which the same text under another base may read as
+// reference (FieldDeclarationContext.Alike), which the same text under another base may read as
 // another schema.
-func sameEntry(walk Walk, a, b ir.UnmodeledEntry) bool {
+func sameEntry(walk FieldDeclarationContext, a, b ir.UnmodeledEntry) bool {
 	return bytes.Equal(a.Value, b.Value) && (!annotation.WritesReference(a.Value) || walk.Alike(a.Provenance, b.Provenance))
 }
 

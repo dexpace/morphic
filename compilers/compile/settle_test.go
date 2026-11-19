@@ -72,9 +72,9 @@ func TestTypes_SettleTakesEveryCompletionFirst(t *testing.T) {
 		})
 	}
 	types.Defer(read("r1"))
-	types.Complete(complete("c1"))
+	types.QueueSettlementBeforeDeferredOnes(complete("c1"))
 	types.Defer(read("r2"))
-	types.Complete(complete("c2"))
+	types.QueueSettlementBeforeDeferredOnes(complete("c2"))
 
 	diags := types.Settle(t.Context())
 
@@ -173,9 +173,9 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 		{"nil", func(types *compile.Types, _ compile.Settlement) { types.Defer(nil) }},
 		{"completion after settling", func(types *compile.Types, s compile.Settlement) {
 			types.Settle(t.Context())
-			types.Complete(s)
+			types.QueueSettlementBeforeDeferredOnes(s)
 		}},
-		{"nil completion", func(types *compile.Types, _ compile.Settlement) { types.Complete(nil) }},
+		{"nil completion", func(types *compile.Types, _ compile.Settlement) { types.QueueSettlementBeforeDeferredOnes(nil) }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -197,7 +197,7 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 func TestTypes_FinishBuildsPromisesBeforeSettling(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Promise("/a", func() []ir.Diagnostic {
+	types.ReserveNodeAtCoordinate("/a", func() []ir.Diagnostic {
 		types.Intern("/a", "t/anon/a", func() ir.TypeDef { return &ir.Model{ID: "t/anon/a"} })
 		return []ir.Diagnostic{{Code: "built"}}
 	})
@@ -240,7 +240,7 @@ func TestTypes_SettlementMayRegisterWhatItMints(t *testing.T) {
 			t.Parallel()
 			types := compile.NewTypes()
 			types.Intern("/p", "t/source/x", func() ir.TypeDef { return &ir.Model{ID: "t/source/x"} })
-			types.Complete(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+			types.QueueSettlementBeforeDeferredOnes(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
 				c.settle(types, reg)
 				return nil
 			}))

@@ -1180,9 +1180,9 @@ func TestRefinement_ACarrierReadsThroughARefinement(t *testing.T) {
 	beside := propertyOf(t, doc, "Holder", "beside")
 	assert.Equal(t, "written beside", beside.Docs.Description, "what a $ref branch writes speaks too")
 
-	lent := propertyOf(t, doc, "Holder", "lent")
-	assert.Equal(t, "lent doc", lent.Docs.Description)
-	require.NotNil(t, lent.Default, "what a target's branch writes it lends a use")
+	fallbackProperty := propertyOf(t, doc, "Holder", "lent")
+	assert.Equal(t, "lent doc", fallbackProperty.Docs.Description)
+	require.NotNil(t, fallbackProperty.Default, "what a target's branch writes it lends a use")
 
 	direct := propertyOf(t, doc, "Holder", "direct")
 	assert.NotEmpty(t, direct.Visibility.Only)
@@ -1621,7 +1621,7 @@ func TestRefinement_StructuralKeywordsBesideARefAreConsumedAsBesideTheAllOf(t *t
 
 // TestRefinement_ABranchHoldsWhatItsNodeDoes pins an inline principal: a value
 // set's node stands at the position, holding what the branch writes as any
-// conjunct's voice, a keyword nothing reads kept with the branch whole, and one
+// conjunct's folded branch, a keyword nothing reads kept with the branch whole, and one
 // that reduces to a shared primitive speaks at the position.
 func TestRefinement_ABranchHoldsWhatItsNodeDoes(t *testing.T) {
 	t.Parallel()

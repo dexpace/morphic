@@ -39,8 +39,8 @@ func instanceSpec(b string) []byte {
 
 // instanceCase is a one-case product writing data with instances.
 func instanceCase(data []byte, instances ...Instance) fake {
-	return fake{axes: []Axis{coreAxis("case", "c")}, write: func([]int) (Document, bool) {
-		return Document{Sources: []compilers.Source{{Path: "openapi.json", Data: data}}, Instances: instances}, true
+	return fake{axes: []Axis{coreAxis("case", "c")}, write: func([]int) (CaseDocument, bool) {
+		return CaseDocument{Sources: []compilers.Source{{Path: "openapi.json", Data: data}}, Instances: instances}, true
 	}}
 }
 

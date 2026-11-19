@@ -99,7 +99,7 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	assert.JSONEq(t, `{"responses":{"200":{"description":"USE"}}}`, string(bogus.Value),
 		"an undeclared key is the use site's too, as every other construct is")
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/bogusBoth"), bogus.Provenance.Pointer)
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken),
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed),
 		"the referent's key is not written, so nothing is left to say it was dropped")
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning,
 		"/paths/~1a/parameters/0"), `the parameter "dup" in query is declared here`, "a parameter is named as written")

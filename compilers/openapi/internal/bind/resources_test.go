@@ -133,7 +133,7 @@ func TestBind_ReadsTheSourcesIdentifiersFromAnotherDocument(t *testing.T) {
 	a := entryAt(t, table, "/components/schemas/A")
 	require.Equal(t, bind.Resolved, a.Chain.Status)
 	assert.Equal(t, at("/components/schemas/B"), a.Chain.End)
-	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/T"}, entryAt(t, table, "/components/schemas/C").Hop.Target)
+	assert.Equal(t, bind.DocumentPointer{Doc: 1, Pointer: "/T"}, entryAt(t, table, "/components/schemas/C").Hop.Target)
 }
 
 // TestBind_ReadsAMappingValueNamingNoComponentAsAReference pins which
@@ -150,7 +150,7 @@ func TestBind_ReadsAMappingValueNamingNoComponentAsAReference(t *testing.T) {
 		"    D:\n      $id: 'https://x.test/d'\n"+
 		"      discriminator: {propertyName: k, mapping: {x: '#x', y: 'y', n: 'Y'}, defaultMapping: 'y#'}\n"+
 		"    X: {$anchor: x}\n    Y: {$id: 'https://x.test/y'}\n", cfg)
-	disc := bind.Position{Pointer: "/components/schemas/D/discriminator"}
+	disc := bind.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}
 
 	x, ok := table.Mapping(disc, "#x")
 	require.True(t, ok)
@@ -351,7 +351,7 @@ func TestBind_AReferenceInANetworkDocumentReadsOnlyTheNetwork(t *testing.T) {
 	back := withDocuments(map[string]string{"https://h/b.yaml": "B: {$ref: 'file:///dir/spec.yaml#/components/schemas/T'}\n"})
 	back.Self, back.Locate = "file:///dir/spec.yaml", resolving.Locate
 	table = bound(t, head+"components:\n  schemas:\n    A: {$ref: 'https://h/b.yaml#/B'}\n    T: {type: string}\n", back)
-	e, ok := table.Entry(bind.Position{Doc: 1, Pointer: "/B"})
+	e, ok := table.Entry(bind.DocumentPointer{Doc: 1, Pointer: "/B"})
 	require.True(t, ok)
 	assert.Equal(t, "the document it names could not be read: "+bind.OffNetwork, e.Hop.Why(),
 		"the source, named back from the network by its own location")
