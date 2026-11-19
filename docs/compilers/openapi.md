@@ -4068,7 +4068,8 @@ findings alone, on one entry or two alike. Wherever it is written, the union pas
 conjunct of the rest the elected one's branches are read against, for a dead branch (below) and for
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts), whether or not the elected one
 distributes: a variant admitting null alone, as a `$ref` to `{type: 'null'}`, is dead where that
-rest keeps null out, kept and warned as below; one sharing no kind with the rest read
+rest keeps null out, kept and warned as below, unless every variant would be, the two then sharing
+no value, which that rule's one warning says, and the `Union` keeping them; one sharing no kind with the rest read
 without either union, a union of null alone beside a rest admitting no null among them, leaves no
 instance satisfying the two, whichever branch is taken, so the position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
 naming its own keywords and that union. One leaving that rest null alone does the same where no

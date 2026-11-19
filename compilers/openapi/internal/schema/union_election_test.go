@@ -444,6 +444,35 @@ func TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Dead"))
 }
 
+// TestUnion_APairWhoseElectedVariantsAllAdmitNullAloneKeepsThem holds that
+// where every variant of the union a position elects admits null alone and
+// the other union keeps null out, none is read as dead: the two share no
+// value, which their one warning says, and the Union keeps its variants, as
+// one with none would hold no value, in every spelling.
+func TestUnion_APairWhoseElectedVariantsAllAdmitNullAloneKeepsThem(t *testing.T) {
+	t.Parallel()
+	const null, other = "{$ref: '#/components/schemas/Null'}", "anyOf: [{$ref: '#/components/schemas/P'}, {type: string}]"
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Null: {type: 'null'}
+    P: {type: object, properties: {x: {type: string}}}
+    Flat: {oneOf: [`+null+`], `+other+`}
+    WithNull: {oneOf: [{type: 'null'}, `+null+`], `+other+`}
+    One: {allOf: [{oneOf: [`+null+`], `+other+`}]}
+    Two: {allOf: [{oneOf: [`+null+`]}, {`+other+`}]}
+`))
+	warned := map[string]int{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			warned[strings.Split(string(d.Provenance.Pointer), "/")[3]]++
+		}
+	}
+	for _, name := range []string{"Flat", "WithNull", "One", "Two"} {
+		union, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, name)
+		assert.Len(t, union.Variants, 1, name)
+		assert.Equal(t, 1, warned[name], name)
+	}
+}
+
 // TestUnion_APrincipalEntryWhoseUnionSharesNoKindWithItsTypeWarnsOnce holds
 // that an allOf entry writing a type and a oneOf sharing no kind, standing for
 // the position alone or beside an annotation, draws the one warning that the

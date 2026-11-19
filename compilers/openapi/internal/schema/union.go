@@ -92,19 +92,23 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 // null alone is, where position elects one union of a oneOf and an anyOf and
 // what it writes beside that union, the one passed over among it, keeps null
 // out (restForbidsNull): no instance is one of both. It is nil where none is,
-// or s elects no union of a pair (docs/compilers/openapi.md#union-beside-structure).
+// where no variant would live, the pair then sharing no value, which its own
+// warning says, or where s elects no union of a pair
+// (docs/compilers/openapi.md#union-beside-structure).
 func pairDeadNulls(c lowering.Ctx, position, s *statement.Schema, st stand) []bool {
 	if !writesBothUnions(s) && !pairedPrincipal(c, st) {
 		return nil
 	}
 	branches, _, _ := unionBranches(c, position, s)
 	var dead []bool
+	live := false
 	for i, b := range branches {
 		bs := c.Statements().Sub(b)
 		if nullBranch(c, bs) {
 			continue
 		}
 		if kinds, inferred := lowersTo(c, bs); kinds&^kindNull != 0 || inferred {
+			live = true
 			continue
 		}
 		if dead == nil {
@@ -114,6 +118,9 @@ func pairDeadNulls(c lowering.Ctx, position, s *statement.Schema, st stand) []bo
 			dead = make([]bool, len(branches))
 		}
 		dead[i] = true
+	}
+	if !live {
+		return nil
 	}
 	return dead
 }
