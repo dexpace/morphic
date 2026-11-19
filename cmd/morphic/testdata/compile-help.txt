@@ -35,16 +35,16 @@ place, or accepts the findings at one place, which then fail the run at no
 --fail-on. docs/cli.md gives the file's form. A rule no finding matched is
 named after the findings.
 
-The findings go to stderr as text unless --diagnostics-format json asks for one JSON
-report of the verdict and every finding as rated, beside the rule each met.
-Text writes each finding one per line, but for each code and severity only the
-first --diagnostics-per-code-limit, 3 unless given and 0 for every one, and only those at or
-above --min-severity, info unless given; it then counts what it did not write, and a
-finding a rule accepted is only counted.
+The findings go to stderr as text unless --diagnostics-format json asks for one
+JSON report of the verdict and every finding as rated, beside the rule each
+met. Text writes each finding one per line, but for each code and severity only
+the first --diagnostics-per-code-limit, 3 unless given and 0 for every one, and
+only those at or above --min-severity, info unless given; it then counts what
+it did not write, and a finding a rule accepted is only counted.
 
---compiler-option passes a setting to the compiler the spec selects, which names and
-validates its own options; morphic itself knows none of them. The OpenAPI
-compiler's are listed in docs/cli.md.
+--compiler-option passes a setting to the compiler the spec selects, which
+names and validates its own options; morphic itself knows none of them. The
+OpenAPI compiler's are listed in docs/cli.md.
 
 A -- argument ends flag parsing: every argument after it is an operand, even one
 that begins with a dash, which is how a spec file named like a flag is passed.
@@ -80,7 +80,8 @@ Examples:
   morphic compile openapi.yaml --explain /components/schemas/Pet
 
   # pass settings to the compiler the spec selects
-  morphic compile openapi.yaml --compiler-option grouping=path-prefix --compiler-option overlay=patch.yaml
+  morphic compile openapi.yaml --compiler-option grouping=path-prefix \
+    --compiler-option overlay=patch.yaml
 
 Flags:
       --cache-dir string                   keep compiled documents in this directory, and reuse one while nothing it depends on has changed
