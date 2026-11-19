@@ -561,11 +561,10 @@ func isNullValue(node *yaml.Node) bool {
 // (nullAloneReading) under each reading: the union admits null where a branch
 // does, so its null rests on the policy where only a branch's lenient reading
 // admits it. A null branch counts where the union is the type itself or is
-// distributed across the structural siblings beside it, as no variant of
-// either (buildUnion), the siblings' own verdicts conjoining with it; a union
-// kept verbatim beside them says nothing. It never forbids: a union with no
-// null branch says nothing of a null a sibling admits, as in
-// `{nullable: true, oneOf: …}`.
+// distributed across the structural siblings beside it (buildUnion), their
+// verdicts conjoining with it; a union kept verbatim beside them says nothing.
+// One union never forbids; a oneOf and an anyOf together forbid null where
+// one keeps it out (pairMayAdmitNull).
 func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
 	choice := s.ChoiceKeywords()
 	out := alike(nullSilent)
@@ -587,10 +586,41 @@ func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
 	}
 	// The lenient reading admits wherever the declared one does, so a union it
 	// leaves silent is silent under both, and asks no more of its siblings.
+	if !pairMayAdmitNull(c, choice) {
+		// A oneOf and an anyOf are conjuncts: one keeping null out keeps it
+		// out of the position, as on two allOf entries (pairKeepsNullOut).
+		return alike(nullForbidden)
+	}
 	if out.lenient == nullSilent || hasUnionSiblings(c, s) && !distributesUnion(c, s) {
 		return alike(nullSilent)
 	}
 	return out
+}
+
+// pairMayAdmitNull reports whether each of a oneOf and an anyOf written
+// together may admit null, as an instance of both must, a null being shared
+// only where every conjunct may admit it, read by one walk in the reading a
+// passed-over union beside a body has (bodyAdmitsNull). One union alone asks
+// nothing more.
+func pairMayAdmitNull(c lowering.Ctx, choice statement.Choice) bool {
+	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
+		return true
+	}
+	n := newNulls(c)
+	n.variants = true
+	return !pairForbidsNull(&n, choice)
+}
+
+// pairForbidsNull reports whether n's walk, whose budget bounds this read as
+// the rest of the walk, finds the oneOf or the anyOf of choice keeping null
+// out: every branch of it does within that budget.
+func pairForbidsNull(n *nulls, choice statement.Choice) bool {
+	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
+		if n.branchesNull(branches).forbids(n.c) && !n.conjuncts.Exhausted() {
+			return true
+		}
+	}
+	return false
 }
 
 // distributesUnion reports whether s, writing a union beside structural
@@ -674,7 +704,41 @@ func (n *nulls) allOf(s *statement.Schema, site nullSite) nullReading {
 	for _, b := range allOfIn(s) {
 		out = foldNullReadings(out, n.conjunct(n.c.Statements().Sub(b), site.child("allOf", strconv.Itoa(b.Index))))
 	}
+	if pairKeepsNullOut(n, s) {
+		out = foldNullReadings(out, alike(nullForbidden))
+	}
 	return out
+}
+
+// pairKeepsNullOut reports whether s and its inline allOf entries write a
+// oneOf and an anyOf between them, no one of them writing both, of which a
+// union keeps null out, read by n's walk (pairForbidsNull): an instance of the
+// position is one of each, so that union's null is no value it admits. One
+// schema writing both is read by unionNullReading.
+func pairKeepsNullOut(n *nulls, s *statement.Schema) bool {
+	var pair statement.Choice
+	note := func(x *statement.Schema) bool {
+		choice := x.ChoiceKeywords()
+		if len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
+			return false
+		}
+		if len(choice.OneOf) > 0 {
+			pair.OneOf = choice.OneOf
+		}
+		if len(choice.AnyOf) > 0 {
+			pair.AnyOf = choice.AnyOf
+		}
+		return true
+	}
+	if !note(s) {
+		return false
+	}
+	for _, b := range allOfIn(s) {
+		if st := n.c.Statements().Sub(b); inlineBranch(st) && !note(st.Schema) {
+			return false
+		}
+	}
+	return len(pair.OneOf) > 0 && len(pair.AnyOf) > 0 && pairForbidsNull(n, pair)
 }
 
 // widenByBranch is the lenient reading of a `nullable: true` that folds: written

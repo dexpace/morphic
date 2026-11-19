@@ -341,3 +341,29 @@ func TestUnion_TwoUnionsSharingNoMemberWarnOnceWhereverWritten(t *testing.T) {
 		assert.Contains(t, warned[0], "oneOf: 1 value", name)
 	}
 }
+
+// TestUnion_APairAdmitsNullOnlyWhereBothUnionsMay pins the reference to a
+// schema writing a oneOf and an anyOf: nullable only where each union may
+// admit null, beside a $ref to an object, beside an allOf of it and on two
+// entries as on one schema, drawing no inferred-nullable info where one union
+// keeps null out; and nullable where the other's branch admits anything.
+func TestUnion_APairAdmitsNullOnlyWhereBothUnionsMay(t *testing.T) {
+	t.Parallel()
+	const unions = "oneOf: [{type: object, properties: {x: {type: string}}}], anyOf: [{type: object}, {type: 'null'}]"
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    T: {type: object, properties: {a: {type: string}}}
+    Flat: {$ref: '#/components/schemas/T', `+unions+`}
+    Beside: {allOf: [{$ref: '#/components/schemas/T'}], `+unions+`}
+    StringOrNull: {oneOf: [{type: string}, {type: 'null'}], anyOf: [{type: string}]}
+    Open: {oneOf: [{type: string}, {type: 'null'}], anyOf: [{}]}
+    C: {type: object, properties: {f: {$ref: '#/components/schemas/Flat'}, b: {$ref: '#/components/schemas/Beside'}, s: {$ref: '#/components/schemas/StringOrNull'}, o: {$ref: '#/components/schemas/Open'}}}
+`))
+	for _, d := range diags {
+		assert.NotEqual(t, "openapi/inferred-nullable", d.Code, d.Message)
+	}
+	model, ok := typeByName(doc, "C").(*ir.Model)
+	require.True(t, ok)
+	want := map[string]bool{"f": false, "b": false, "s": false, "o": true}
+	for _, p := range model.Properties {
+		assert.Equal(t, want[p.Name.Source], p.Type.Nullable, p.Name.Source)
+	}
+}

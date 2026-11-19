@@ -4510,7 +4510,11 @@ once, beside the info, whether or not it writes an `allOf`, and lowers as it wou
 Whether they share a value is read once for the position, as the election reads its conjuncts,
 value sets included, so `oneOf: [{type: string, enum: [a]}]` and `anyOf: [{type: string, enum: [b]}]`
 share none, and each is named by what it admits, `oneOf: 1 value`; the spelling beside an `allOf` of
-a scalar body still lowers such a pair as that body and draws no warning. A
+a scalar body still lowers such a pair as that body and draws no warning. The two are conjuncts for
+null too: the reference to the position admits null only where each may, so
+`{$ref: T, oneOf: [{type: object, properties: {x: {type: string}}}], anyOf: [{type: object},
+{type: 'null'}]}`, over an object `T`, is not nullable and draws no `openapi/inferred-nullable`,
+in every spelling. A
 refinement folds neither union of such a pair into its principal as said, wherever they are
 written: the one passed over is kept as one schema writing both keeps it, though its branches
 declare nothing, as `anyOf: [{}]` does. Where a *structural* sibling is written as well, beside the two or on another entry
@@ -4553,6 +4557,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_AnEntryWritingBothElectsAgainstThePosition`,
   `e2e.TestElection_AUnionPairLowersAlikeInEverySpelling`,
   `schema.TestUnion_TwoUnionsSharingNoMemberWarnOnceWhereverWritten`,
+  `schema.TestUnion_APairAdmitsNullOnlyWhereBothUnionsMay`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `schema.TestUnion_TwoUnionEntriesBesideABodyElectByCompetingKeywords`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
