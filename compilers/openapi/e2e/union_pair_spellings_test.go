@@ -27,7 +27,8 @@ var pairBranches = map[string]string{
 // unionPairs are a oneOf and an anyOf each, by the branches they write: both
 // declaring shape, one of them, neither; null alone; sharing null alone, no
 // kind, or no value of one kind; a null branch passed over or written beside
-// another kind.
+// another kind, or through a $ref beside an inline one; and an object both
+// share, which a scalar body does not.
 var unionPairs = []struct{ name, oneOf, anyOf string }{
 	{"both declare shape", "objp objq", "obj"},
 	{"the anyOf declares shape", "str", "objp str"},
@@ -41,6 +42,8 @@ var unionPairs = []struct{ name, oneOf, anyOf string }{
 	{"a null branch passed over", "obj", "objp rnul"},
 	{"shapeless sharing no value", "nul", "str"},
 	{"a branch admitting null", "strnul objp", "any"},
+	{"null through a ref and inline", "objp rnul", "obj nul"},
+	{"sharing a kind the body does not", "objp str", "obj nul"},
 }
 
 // pairBodies are the bodies the pairs are written beside, none among them.
@@ -161,12 +164,15 @@ var pairExcused = map[string]string{
 }
 
 // pairOpen are the groups, by body and pair, whose spellings split where
-// neither union alone does: a pair beside a scalar body, whose node #2108
-// decides as it does one union's. Each cites it and must still split.
+// neither union alone does, each by a mechanism an open issue holds for one
+// union too: a pair beside a scalar body, whose node #2108 decides, and a
+// pair's null beside a $ref, which the nullable-inference policy widens
+// beside the $ref alone (#2109). Each cites its issue and must still split.
 var pairOpen = map[[2]string]string{
-	{"string", "refs on both"}:           "#2108: the flat spelling is the body's Scalar, the others a Union of the oneOf",
-	{"string or null", "refs on both"}:   "#2108: the flat spelling is the body's Scalar, the others a Union of the oneOf",
-	{"string or null", "null and a ref"}: "#2108: the flat spelling is the body's Scalar, the others a Union of the $ref",
+	{"ref to an object", "null through a ref and inline"}: "#2109: the flat spelling's $ref is widened to admit null, the others' not",
+	{"string", "refs on both"}:                            "#2108: the flat spelling is the body's Scalar, the others a Union of the oneOf",
+	{"string or null", "refs on both"}:                    "#2108: the flat spelling is the body's Scalar, the others a Union of the oneOf",
+	{"string or null", "null and a ref"}:                  "#2108: the flat spelling is the body's Scalar, the others a Union of the $ref",
 }
 
 // singleSpellings are the spellings a union written alone has.
@@ -237,8 +243,8 @@ func singleExplains(view func(int, string) pairView, i int) bool {
 func TestElection_AUnionPairLowersAlikeInEverySpelling(t *testing.T) {
 	t.Parallel()
 	for group, why := range pairOpen {
-		if !strings.Contains(why, "#2108") {
-			t.Errorf("%v is open for no question #2108 holds: %s", group, why)
+		if !strings.HasPrefix(why, "#2108: ") && !strings.HasPrefix(why, "#2109: ") {
+			t.Errorf("%v is open for no question #2108 or #2109 holds: %s", group, why)
 		}
 	}
 	for _, body := range pairBodies {
