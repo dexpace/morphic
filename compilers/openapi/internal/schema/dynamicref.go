@@ -33,14 +33,14 @@ type dynamicRef struct {
 // where the rows of the dialect schema is read in define it, as 2019-09's do
 // (docs/compilers/openapi.md#dynamic-ref).
 func dynamicRefOf(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (dynamicRef, bool) {
-	if n := keyNode(schema, "$dynamicRef"); n != nil {
-		return dynamicRef{keyword: "$dynamicRef", node: n}, true
+	if node := keyNode(schema, "$dynamicRef"); node != nil {
+		return dynamicRef{keyword: "$dynamicRef", node: node}, true
 	}
-	n := keyNode(schema, "$recursiveRef")
-	if n == nil || !loweringContext.Rules().At(loweringContext.Position(pointer)).Defines("$recursiveRef") {
+	nodeValue := keyNode(schema, "$recursiveRef")
+	if nodeValue == nil || !loweringContext.Rules().At(loweringContext.Position(pointer)).Defines("$recursiveRef") {
 		return dynamicRef{}, false
 	}
-	return dynamicRef{keyword: "$recursiveRef", node: n}, true
+	return dynamicRef{keyword: "$recursiveRef", node: nodeValue}, true
 }
 
 // dynamicTarget is the position the dynamic reference schema writes at pointer

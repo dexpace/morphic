@@ -81,8 +81,8 @@ func TestSequence_RefusesASelectionPastTheNodelistsBound(t *testing.T) {
 // a merge's members are made the mapping's own.
 func TestLocator_ChargesAnIndexBeforeBuildingIt(t *testing.T) {
 	t.Parallel()
-	m := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2"))
-	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{m}}
+	node := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2"))
+	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{node}}
 	var merged yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("m: &m {a: 1, b: 2}\nx: {<<: *m, c: 3}\n"), &merged))
 	merging := merged.Content[0].Content[3]
@@ -92,11 +92,11 @@ func TestLocator_ChargesAnIndexBeforeBuildingIt(t *testing.T) {
 	require.ErrorIs(t, err, jsonpath.ErrSteps, "the index rebuilt once the merge is flattened is charged too")
 
 	short := budget.New(budget.AtMost(1))
-	_, err = newLocator(newGrafter(v11, root), &short).slot(t.Context(), m, jsonpath.Step{Name: "b", IsObjectMemberStep: true}, false)
+	_, err = newLocator(newGrafter(v11, root), &short).slot(t.Context(), node, jsonpath.Step{Name: "b", IsObjectMemberStep: true}, false)
 	require.ErrorIs(t, err, jsonpath.ErrSteps)
 
 	enough := budget.New(budget.AtMost(2))
-	slot, err := newLocator(newGrafter(v11, root), &enough).slot(t.Context(), m, jsonpath.Step{Name: "b", IsObjectMemberStep: true}, false)
+	slot, err := newLocator(newGrafter(v11, root), &enough).slot(t.Context(), node, jsonpath.Step{Name: "b", IsObjectMemberStep: true}, false)
 	require.NoError(t, err)
 	assert.Equal(t, 3, slot)
 }

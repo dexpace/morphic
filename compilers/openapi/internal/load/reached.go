@@ -160,10 +160,10 @@ func isTupleRest(landing reftable.Landing) bool {
 	return landing.At.Doc == landing.Site.Doc && landing.At.Pointer == landing.Site.Pointer.AppendToken("additionalItems")
 }
 
-// isBoolean reports whether n is a boolean scalar, a schema JSON Schema reads
+// isBoolean reports whether node is a boolean scalar, a schema JSON Schema reads
 // as true or false.
-func isBoolean(n *yaml.Node) bool {
-	return n.Kind == yaml.ScalarNode && n.Tag == "!!bool"
+func isBoolean(node *yaml.Node) bool {
+	return node.Kind == yaml.ScalarNode && node.Tag == "!!bool"
 }
 
 // checkReached checks targets, each object once, at the least site reaching

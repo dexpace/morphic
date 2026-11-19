@@ -57,15 +57,15 @@ func readTree(t testing.TB, text string) *yaml.Node {
 	return doc
 }
 
-// scalars lists the scalars under n in document order, each as its value at
+// scalars lists the scalars under node in document order, each as its value at
 // line:column, so a row states what it reads and where without a whole tree.
-func scalars(n *yaml.Node) []string {
+func scalars(node *yaml.Node) []string {
 	var out []string
-	if n.Kind == yaml.ScalarNode {
-		out = append(out, fmt.Sprintf("%s@%d:%d", n.Value, n.Line, n.Column))
+	if node.Kind == yaml.ScalarNode {
+		out = append(out, fmt.Sprintf("%s@%d:%d", node.Value, node.Line, node.Column))
 	}
-	for _, c := range n.Content {
-		out = append(out, scalars(c)...)
+	for _, nodeValue := range node.Content {
+		out = append(out, scalars(nodeValue)...)
 	}
 	return out
 }
@@ -83,9 +83,9 @@ func firstDifference(a, b *yaml.Node) string {
 	for len(stack) > 0 {
 		stepValue := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		x, y := *stepValue.a, *stepValue.b
-		x.Content, y.Content = nil, nil
-		if diff := cmp.Diff(x, y); diff != "" {
+		node, nodeValue := *stepValue.a, *stepValue.b
+		node.Content, nodeValue.Content = nil, nil
+		if diff := cmp.Diff(node, nodeValue); diff != "" {
 			return fmt.Sprintf("at %q (-yaml.v3 +Read):\n%s", stepValue.path, diff)
 		}
 		if len(stepValue.a.Content) != len(stepValue.b.Content) {
@@ -397,9 +397,9 @@ func TestReadJSON_ReadsNestingAtTheDecoderBound(t *testing.T) {
 	const depth = 10000
 	doc := readTree(t, strings.Repeat("[", depth)+strings.Repeat("]", depth))
 
-	n, levels := doc, 0
-	for len(n.Content) > 0 {
-		n, levels = n.Content[0], levels+1
+	node, levels := doc, 0
+	for len(node.Content) > 0 {
+		node, levels = node.Content[0], levels+1
 	}
 	assert.Equal(t, depth, levels, "one step from the document to the outer array, and one into each inner")
 }

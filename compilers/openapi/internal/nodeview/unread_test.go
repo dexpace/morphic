@@ -35,16 +35,16 @@ func TestUnread_ReadsAsNullAndWrittenReturnsWhatTheSourceWrote(t *testing.T) {
 	root := readMapping(t, "a: {x: [1, hello], y: !local z}\nb: !local t\n")
 	for _, key := range []string{"a", "b"} {
 		t.Run(key, func(t *testing.T) {
-			n := nodeview.Child(root, key)
-			require.NotNil(t, n)
-			was := *n
-			wasContent := append([]*yaml.Node(nil), n.Content...)
+			node := nodeview.Child(root, key)
+			require.NotNil(t, node)
+			was := *node
+			wasContent := append([]*yaml.Node(nil), node.Content...)
 
-			nodeview.Unread(n)
+			nodeview.Unread(node)
 
-			assert.Equal(t, yaml.ScalarNode, n.Kind)
-			assert.Equal(t, "!!null", n.ShortTag(), "every reader takes it for a null")
-			written := nodeview.Written(n)
+			assert.Equal(t, yaml.ScalarNode, node.Kind)
+			assert.Equal(t, "!!null", node.ShortTag(), "every reader takes it for a null")
+			written := nodeview.Written(node)
 			require.NotNil(t, written)
 			assert.Equal(t, was.Kind, written.Kind, "kind as written")
 			assert.Equal(t, was.Tag, written.Tag, "tag as written")
@@ -61,9 +61,9 @@ func TestUnread_ReadsAsNullAndWrittenReturnsWhatTheSourceWrote(t *testing.T) {
 func TestWritten_ANodeNobodyUnreadIsItself(t *testing.T) {
 	t.Parallel()
 	root := readMapping(t, "a: hello\n")
-	n := nodeview.Child(root, "a")
+	node := nodeview.Child(root, "a")
 
-	assert.Same(t, n, nodeview.Written(n))
+	assert.Same(t, node, nodeview.Written(node))
 	assert.Nil(t, nodeview.Written(nil))
 }
 
@@ -98,15 +98,15 @@ func TestUnread_TheDecoderAndEncoderReadNull(t *testing.T) {
 func TestUnread_AWalkVisitsTheNullAndNothingBehindIt(t *testing.T) {
 	t.Parallel()
 	turned := readMapping(t, "a: {x: [1, hello]}\nb: keep\n")
-	n := nodeview.Child(turned, "a")
-	nodeview.Unread(n)
+	node := nodeview.Child(turned, "a")
+	nodeview.Unread(node)
 	plain := readMapping(t, "a: ~\nb: keep\n")
 
 	for _, mode := range []nodeview.Aliases{nodeview.AliasLeaf, nodeview.AliasTarget} {
 		var seen, want []string
 		collect := func(into *[]string) func(*yaml.Node, int) nodeview.Step {
-			return func(n *yaml.Node, _ int) nodeview.Step {
-				*into = append(*into, n.Value)
+			return func(nodeValue *yaml.Node, _ int) nodeview.Step {
+				*into = append(*into, nodeValue.Value)
 				return nodeview.Descend
 			}
 		}
@@ -118,7 +118,7 @@ func TestUnread_AWalkVisitsTheNullAndNothingBehindIt(t *testing.T) {
 		assert.NotContains(t, seen, "hello")
 		assert.NotContains(t, seen, "x")
 	}
-	assert.Same(t, n, nodeview.Deref(n), "an Alias field on a scalar is no alias")
+	assert.Same(t, node, nodeview.Deref(node), "an Alias field on a scalar is no alias")
 }
 
 // TestAliasField_OnlyNodeviewReadsItOnAScalar holds every read of a node's
@@ -236,16 +236,16 @@ func TestMergeSources_NamesTheMappingsAMergeKeyNames(t *testing.T) {
 func TestUnread_LeavesAnAbsentNodeAndATurnedNodeAsTheyAre(t *testing.T) {
 	t.Parallel()
 	root := readMapping(t, "a: !local t\n")
-	n := nodeview.Child(root, "a")
-	require.NotNil(t, n)
+	node := nodeview.Child(root, "a")
+	require.NotNil(t, node)
 
 	assert.NotPanics(t, func() { nodeview.Unread(nil) })
-	nodeview.Unread(n)
-	once := *n
-	nodeview.Unread(n)
+	nodeview.Unread(node)
+	once := *node
+	nodeview.Unread(node)
 
-	assert.Equal(t, once, *n, "a second turn changes nothing")
-	assert.Equal(t, "t", nodeview.Written(n).Value, "and what was written is still the first")
+	assert.Equal(t, once, *node, "a second turn changes nothing")
+	assert.Equal(t, "t", nodeview.Written(node).Value, "and what was written is still the first")
 }
 
 // TestNoString_IsTrueForANodeThatIsAMappingAListOrANull holds a Reference
@@ -263,13 +263,13 @@ func TestNoString_IsTrueForANodeThatIsAMappingAListOrANull(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.key, func(t *testing.T) {
 			t.Parallel()
-			var v *yaml.Node
+			var node *yaml.Node
 			for i := 0; i+1 < len(root.Content); i += 2 {
 				if root.Content[i].Value == tc.key {
-					v = root.Content[i+1]
+					node = root.Content[i+1]
 				}
 			}
-			assert.Equal(t, tc.want, nodeview.NoString(v))
+			assert.Equal(t, tc.want, nodeview.NoString(node))
 		})
 	}
 }

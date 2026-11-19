@@ -176,9 +176,9 @@ func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string)
 			finds = append(finds, scan.Pointers(ctx, tree))
 		}
 	}
-	return func(n *yaml.Node) (jsontext.Pointer, bool) {
+	return func(node *yaml.Node) (jsontext.Pointer, bool) {
 		for _, find := range finds {
-			if pointer, held := find(n); held {
+			if pointer, held := find(node); held {
 				return pointer, true
 			}
 		}

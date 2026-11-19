@@ -57,9 +57,9 @@ func findingAtPointer(code, pointer string) finding { return finding{Code: code,
 // returns the diagnostics.
 func run(t *testing.T, version string, kind specrules.Kind, doc string) []ir.Diagnostic {
 	t.Helper()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
-	return specrules.NewChecker().Check(t.Context(), &n, version, specrules.Options{
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &node))
+	return specrules.NewChecker().Check(t.Context(), &node, version, specrules.Options{
 		Start:  kind,
 		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 	})

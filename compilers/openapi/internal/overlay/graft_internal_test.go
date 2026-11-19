@@ -16,11 +16,11 @@ import (
 // nested returns a sequence nesting depth sequences beneath it, the last
 // empty: deeper than a parse of a document the loader admits holds.
 func nested(depth int) *yaml.Node {
-	n := ynode.Seq()
+	node := ynode.Seq()
 	for range depth {
-		n = ynode.Seq(n)
+		node = ynode.Seq(node)
 	}
-	return n
+	return node
 }
 
 // TestGrafter_RefusesWhatItCannotCopy pins the shapes the grafter refuses to
@@ -67,11 +67,11 @@ func TestGrafter_RefusesWhatItCannotCopy(t *testing.T) {
 // deepMapping returns a mapping nesting depth mappings beneath it under the
 // key k, so merging one into another descends that deep.
 func deepMapping(depth int) *yaml.Node {
-	n := ynode.Map()
+	node := ynode.Map()
 	for range depth {
-		n = ynode.Map(ynode.Scalar("k"), n)
+		node = ynode.Map(ynode.Scalar("k"), node)
 	}
-	return n
+	return node
 }
 
 // TestShape_NamesEveryShape pins the words a finding names a shape by, and
@@ -148,7 +148,9 @@ func TestRemove_TakesTheTargetsOfEachHolderTogether(t *testing.T) {
 	inner := ynode.Seq(ynode.Scalar("0"), ynode.Scalar("1"), ynode.Scalar("2"))
 	holder := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), inner, ynode.Scalar("c"), ynode.Scalar("3"))
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{holder}}
-	at := func(h *yaml.Node, slot int) position { return position{holder: h, slot: slot, raw: h.Content[slot]} }
+	at := func(node *yaml.Node, slot int) position {
+		return position{holder: node, slot: slot, raw: node.Content[slot]}
+	}
 	grafter := newGrafter(v11, root)
 
 	require.NoError(t, grafter.remove([]position{at(holder, 1), at(inner, 0), at(inner, 2), at(holder, 5)}))

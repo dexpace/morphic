@@ -169,20 +169,20 @@ func TestValueFromNode_SequenceChildError(t *testing.T) {
 
 func TestValueFromNode_MappingValueError(t *testing.T) {
 	t.Parallel()
-	m := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
+	node := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
 		openapitest.ScalarNode("!!str", "k"), openapitest.ScalarNode("!custom", "x"),
 	}}
-	_, err := value.FromNode(m)
+	_, err := value.FromNode(node)
 	require.Error(t, err)
 }
 
 func TestValueFromNode_DepthCapExceeded(t *testing.T) {
 	t.Parallel()
-	n := openapitest.ScalarNode("!!int", "1")
+	node := openapitest.ScalarNode("!!int", "1")
 	for range value.MaxValueDepth + 2 {
-		n = &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{n}}
+		node = &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{node}}
 	}
-	_, err := value.FromNode(n)
+	_, err := value.FromNode(node)
 	require.Error(t, err)
 }
 

@@ -151,18 +151,18 @@ func (w *named) shapeOf(ctx context.Context, top namedKey) namedShape {
 // references namedKeyValue writes. A scalar read raw holds none, so a raw value costs a
 // step for each mapping and list it holds.
 func (w *named) below(namedKeyValue namedKey) []namedFrame {
-	n := namedKeyValue.n
-	if n == nil {
+	node := namedKeyValue.n
+	if node == nil {
 		return nil
 	}
 	w.noteRefs(namedKeyValue)
 	var out []namedFrame
-	w.eachNamedChild(n, namedKeyValue.s, func(c *yaml.Node, stateValue state, _ int) {
-		if stateValue == sRaw && (c == nil || c.Kind == yaml.ScalarNode) {
+	w.eachNamedChild(node, namedKeyValue.s, func(nodeValue *yaml.Node, stateValue state, _ int) {
+		if stateValue == sRaw && (nodeValue == nil || nodeValue.Kind == yaml.ScalarNode) {
 			return
 		}
-		if _, done := w.memo[namedKey{n: c, s: stateValue}]; !done {
-			out = append(out, namedFrame{key: namedKey{n: c, s: stateValue}})
+		if _, done := w.memo[namedKey{n: nodeValue, s: stateValue}]; !done {
+			out = append(out, namedFrame{key: namedKey{n: nodeValue, s: stateValue}})
 		}
 	})
 	return out
@@ -172,17 +172,17 @@ func (w *named) below(namedKeyValue namedKey) []namedFrame {
 // names what a compile names inside it and not itself, which the node holding
 // it adds (rawNamed).
 func (w *named) measured(namedKeyValue namedKey) namedShape {
-	n := namedKeyValue.n
-	if n == nil {
+	node := namedKeyValue.n
+	if node == nil {
 		return namedShape{}
 	}
 	out := namedShape{nodes: 1}
 	if namedKeyValue.s == sRaw {
-		out = rawNamed(n)
+		out = rawNamed(node)
 	}
-	member := n.Kind == yaml.MappingNode && namedKeyValue.s != sRaw
-	w.eachNamedChild(n, namedKeyValue.s, func(c *yaml.Node, stateValue state, edge int) {
-		got := w.memo[namedKey{n: c, s: stateValue}]
+	member := node.Kind == yaml.MappingNode && namedKeyValue.s != sRaw
+	w.eachNamedChild(node, namedKeyValue.s, func(nodeValue *yaml.Node, stateValue state, edge int) {
+		got := w.memo[namedKey{n: nodeValue, s: stateValue}]
 		if stateValue == sRaw && namedKeyValue.s != sRaw {
 			// A raw value's root, which a compile names alone.
 			got.nodes = sat(got.nodes, 1)
@@ -197,36 +197,36 @@ func (w *named) measured(namedKeyValue namedKey) namedShape {
 	return out
 }
 
-// rawNamed is what a compile names at n itself, a node inside a value the
+// rawNamed is what a compile names at node itself, a node inside a value the
 // grammar keeps raw: each key a mapping writes more than once, where the rule
 // table places a finding at that key's pointer (nodeview.RepeatedKeys, as
 // oas's check of a raw value asks), and nothing else.
-func rawNamed(n *yaml.Node) namedShape {
+func rawNamed(node *yaml.Node) namedShape {
 	var out namedShape
-	if n.Kind != yaml.MappingNode {
+	if node.Kind != yaml.MappingNode {
 		return out
 	}
-	for _, key := range nodeview.RepeatedKeys(n) {
+	for _, key := range nodeview.RepeatedKeys(node) {
 		out.nodes = sat(out.nodes, 1)
 		out.pointers = sat(out.pointers, len(key)+1)
 	}
 	return out
 }
 
-// eachNamedChild hands visit each child of n read at stateValue, what an alias names in
+// eachNamedChild hands visit each child of node read at stateValue, what an alias names in
 // its place, with the state it is read at and the bytes its step adds to a
 // pointer: a key or an index, and a '/'. A mapping's are its members' values
 // as the binder reads them (nodeview.View.MappingPairs): those a `<<` merge key
 // brings in among its own, which a compile names at the mapping, and a key
 // written twice at its last copy.
-func (w *named) eachNamedChild(n *yaml.Node, stateValue state, visit func(c *yaml.Node, otherState state, edge int)) {
-	switch n.Kind {
+func (w *named) eachNamedChild(node *yaml.Node, stateValue state, visit func(nodeValue *yaml.Node, otherState state, edge int)) {
+	switch node.Kind {
 	case yaml.MappingNode:
-		for _, pair := range w.view.MappingPairs(n) {
+		for _, pair := range w.view.MappingPairs(node) {
 			visit(pair.Val, step(stateValue, pair.Key), len(pair.Key)+1)
 		}
 	case yaml.SequenceNode:
-		for i, item := range n.Content {
+		for i, item := range node.Content {
 			token := strconv.Itoa(i)
 			visit(nodeview.Deref(item), step(stateValue, token), len(token)+1)
 		}
@@ -265,19 +265,19 @@ func (w *named) noteRefs(namedKeyValue namedKey) {
 		w.complete = false
 		return
 	}
-	for _, v := range mappingValues(w.view, namedKeyValue.n) {
-		if !w.components[v.Value] {
-			w.refs = append(w.refs, namedRef{ref: v.Value, s: sSchema})
+	for _, node := range mappingValues(w.view, namedKeyValue.n) {
+		if !w.components[node.Value] {
+			w.refs = append(w.refs, namedRef{ref: node.Value, s: sSchema})
 		}
 	}
 }
 
-// noteKeys notes each key of the Security Requirement Object n that names no
+// noteKeys notes each key of the Security Requirement Object node that names no
 // security scheme component as a reference to a Security Scheme Object, the
 // key its URI, where the document's minor reads a key so, as the binder reads
 // one (finder.requirementKeys).
-func (w *named) noteKeys(n *yaml.Node) {
-	for _, pair := range w.view.MappingPairs(n) {
+func (w *named) noteKeys(node *yaml.Node) {
+	for _, pair := range w.view.MappingPairs(node) {
 		if w.keysByURI && !w.schemes[pair.Key] {
 			w.refs = append(w.refs, namedRef{ref: pair.Key, s: sSecurityScheme})
 		}
@@ -320,14 +320,14 @@ func (w *named) passesReference(path []*yaml.Node, pointer jsontext.Pointer) boo
 	return false
 }
 
-// scalarText is the text of n, its alias followed, when it is a scalar that
+// scalarText is the text of node, its alias followed, when it is a scalar that
 // is no null.
-func scalarText(n *yaml.Node) (string, bool) {
-	n = nodeview.Deref(n)
-	if n == nil || n.Kind != yaml.ScalarNode || n.ShortTag() == "!!null" {
+func scalarText(node *yaml.Node) (string, bool) {
+	node = nodeview.Deref(node)
+	if node == nil || node.Kind != yaml.ScalarNode || node.ShortTag() == "!!null" {
 		return "", false
 	}
-	return n.Value, true
+	return node.Value, true
 }
 
 // sat is a+b for counts that are not negative, held at math.MaxInt.

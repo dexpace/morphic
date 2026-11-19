@@ -84,8 +84,8 @@ func writesRef(schema *statement.Schema) bool {
 	if schema != nil {
 		schema = cmp.Or(schema.BesideRef, schema.WrittenBeside, schema)
 	}
-	n := nodeview.Deref(keyNode(schema, "$ref"))
-	return n != nil && n.Kind == yaml.ScalarNode
+	node := nodeview.Deref(keyNode(schema, "$ref"))
+	return node != nil && node.Kind == yaml.ScalarNode
 }
 
 // Default returns the default the nearest schema of u's chain writes for the
@@ -96,11 +96,11 @@ func (u Use) Default(loweringContext lowering.Ctx, schema *statement.Schema, poi
 	chain := u.Site(schema).Chain()
 	own := len(chain) - len(u.Referents) + u.narrowedFrom
 	for i, statementSchema := range chain {
-		d := statementSchema.Default()
-		if d == nil || u.narrowed != nil && i >= own && !u.takes(d) {
+		node := statementSchema.Default()
+		if node == nil || u.narrowed != nil && i >= own && !u.takes(node) {
 			continue
 		}
-		irValue, err := value.FromNode(d)
+		irValue, err := value.FromNode(node)
 		if err != nil {
 			return nil, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.UnloweredConstruct, u.defaultAt(loweringContext, i, pointer),
 				"default is no value the IR holds, so no property, header or parameter reading it takes one: %s",
@@ -130,10 +130,10 @@ func (u Use) defaultAt(loweringContext lowering.Ctx, i int, pointer jsontext.Poi
 	return at.doc.At(at.pointer.AppendToken("default"))
 }
 
-// takes reports whether the position admits v: the narrowing does, or v is the
+// takes reports whether the position admits node: the narrowing does, or node is the
 // null its reference admits.
-func (u Use) takes(v *yaml.Node) bool {
-	return u.narrowed.takes(v) || (u.nullable && isNullValue(v))
+func (u Use) takes(node *yaml.Node) bool {
+	return u.narrowed.takes(node) || (u.nullable && isNullValue(node))
 }
 
 // fallbackKeys returns what the mapped keys of what u falls back to lend its
@@ -421,8 +421,8 @@ func (u *Use) appendFallbackBranches(loweringContext lowering.Ctx, schema *state
 // writesMoreThanRef reports whether schema, a schema writing a $ref, writes anything
 // else, which a use reads; one writing its $ref alone lends nothing.
 func writesMoreThanRef(schema *statement.Schema) bool {
-	n := schema.Node
-	return schema.Truth != statement.Stated || n == nil || n.Kind != yaml.MappingNode || len(n.Content) > 2
+	node := schema.Node
+	return schema.Truth != statement.Stated || node == nil || node.Kind != yaml.MappingNode || len(node.Content) > 2
 }
 
 // referentPlace is where a referent is written: the document placing it and the

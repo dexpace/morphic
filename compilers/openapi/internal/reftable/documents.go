@@ -305,18 +305,18 @@ func (d *docs) stateAt(documentPointer DocumentPointer) state {
 	return stateOf(d.rootState(documentPointer.Doc), slices.Collect(documentPointer.Pointer.Tokens()))
 }
 
-// refOf is the $ref n carries, read through id's view as the model reads the
+// refOf is the $ref node carries, read through id's view as the model reads the
 // mapping, a `<<` merging one in included, and whether it carries a string one:
 // a null $ref is none, as the parser reads it.
-func (d *docs) refOf(id DocID, n *yaml.Node) (string, bool) {
-	if n = nodeview.Deref(n); n == nil || n.Kind != yaml.MappingNode {
+func (d *docs) refOf(id DocID, node *yaml.Node) (string, bool) {
+	if node = nodeview.Deref(node); node == nil || node.Kind != yaml.MappingNode {
 		return "", false
 	}
-	v := nodeview.Deref(d.list[id].view.ChildByToken(n, "$ref"))
-	if v == nil || v.Kind != yaml.ScalarNode || v.Tag == "!!null" {
+	nodeValue := nodeview.Deref(d.list[id].view.ChildByToken(node, "$ref"))
+	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || nodeValue.Tag == "!!null" {
 		return "", false
 	}
-	return v.Value, true
+	return nodeValue.Value, true
 }
 
 // reading is where a read of a pointer stands: the position, the node there,
@@ -333,22 +333,22 @@ func (r reading) spelledAs(b []byte) reading {
 	return r
 }
 
-// child is the node token names below n in document id, read as RFC 6901
+// child is the node token names below node in document id, read as RFC 6901
 // reads a token (section 4): a key of a mapping, or an index of a sequence,
 // written as a decimal with no leading zero. nodeview reads any integer
 // strconv.Atoi does, "00" and "+0" too, which would place one node at two
 // positions (GitHub #843).
-func (d *docs) child(id DocID, n *yaml.Node, token string) *yaml.Node {
-	if n = nodeview.Deref(n); n != nil && n.Kind == yaml.SequenceNode && !isIndex(token) {
+func (d *docs) child(id DocID, node *yaml.Node, token string) *yaml.Node {
+	if node = nodeview.Deref(node); node != nil && node.Kind == yaml.SequenceNode && !isIndex(token) {
 		return nil
 	}
-	return nodeview.Deref(d.list[id].view.ChildByToken(n, token))
+	return nodeview.Deref(d.list[id].view.ChildByToken(node, token))
 }
 
-// absent is why no child of n in document id answers a token: n merges deeper
+// absent is why no child of node in document id answers a token: node merges deeper
 // than its view expands, so the child may lie past the bound, or it holds none.
-func (d *docs) absent(id DocID, n *yaml.Node) Reason {
-	if !d.list[id].view.Expanded(n) {
+func (d *docs) absent(id DocID, node *yaml.Node) Reason {
+	if !d.list[id].view.Expanded(node) {
 		return MergeBound
 	}
 	return NoTarget
@@ -363,9 +363,9 @@ func isIndex(token string) bool {
 	return strings.Trim(token, "0123456789") == ""
 }
 
-// schemaShaped reports whether n can be read as a schema: a mapping, or a
+// schemaShaped reports whether node can be read as a schema: a mapping, or a
 // boolean.
-func schemaShaped(n *yaml.Node) bool {
-	n = nodeview.Deref(n)
-	return n != nil && (n.Kind == yaml.MappingNode || n.Kind == yaml.ScalarNode && n.Tag == "!!bool")
+func schemaShaped(node *yaml.Node) bool {
+	node = nodeview.Deref(node)
+	return node != nil && (node.Kind == yaml.MappingNode || node.Kind == yaml.ScalarNode && node.Tag == "!!bool")
 }

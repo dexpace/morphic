@@ -37,11 +37,11 @@ func declaration() *yaml.Node {
 // so on levels deep, down to one scalar: a few nodes written that the model
 // builds as 2^levels copies of the scalar.
 func doubling(levels int) *yaml.Node {
-	n := ynode.Scalar("x")
+	node := ynode.Scalar("x")
 	for range levels {
-		n = ynode.Seq(ynode.Alias(n), ynode.Alias(n))
+		node = ynode.Seq(ynode.Alias(node), ynode.Alias(node))
 	}
-	return n
+	return node
 }
 
 // reading returns how the grammar reads the source position pointer, which

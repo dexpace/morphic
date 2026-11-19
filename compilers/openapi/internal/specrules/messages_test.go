@@ -22,16 +22,16 @@ import (
 // placed, under Root, where the root is read. The locator stands in for the
 // source's, placing both tags at the node an anchor writes.
 func TestCheck_AFindingIsMadeOnceWhereItIsPlaced(t *testing.T) {
-	var n yaml.Node
+	var node yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(
-		"openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents: {}\ntags: [{name: [x]}, {name: [x]}]\n"), &n))
+		"openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents: {}\ntags: [{name: [x]}, {name: [x]}]\n"), &node))
 	anchor := strings.NewReplacer("/tags/0", "/x-tag", "/tags/1", "/x-tag")
 	for _, root := range []jsontext.Pointer{"", "/x-doc"} {
 		locate := func(pointer jsontext.Pointer) ir.Provenance {
 			return ir.Provenance{Pointer: root + jsontext.Pointer(anchor.Replace(string(pointer)))}
 		}
 		for _, readAt := range []bool{false, true} {
-			diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{Locate: locate, ReadAt: readAt, Root: root})
+			diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{Locate: locate, ReadAt: readAt, Root: root})
 			require.Len(t, diags, 1, "one node, one finding: %+v", diags)
 			assert.Equal(t, root+"/x-tag/name", diags[0].Provenance.Pointer)
 			want := `Tag Object field "name" must be a string in OpenAPI 3.1 (Tag Object)`
@@ -49,13 +49,13 @@ func TestCheck_AFindingIsMadeOnceWhereItIsPlaced(t *testing.T) {
 // where it is placed, under the root's own pointer, or placed nowhere, names
 // no position.
 func TestCheck_ReadAtNamesNoPositionAFindingIsPlacedAt(t *testing.T) {
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents: {}\ntags: [{name: [x]}]\n"), &n))
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents: {}\ntags: [{name: [x]}]\n"), &node))
 	for _, locate := range []specrules.Locator{
 		func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/x-doc" + pointer} },
 		func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} },
 	} {
-		diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{Locate: locate, ReadAt: true, Root: "/x-doc"})
+		diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{Locate: locate, ReadAt: true, Root: "/x-doc"})
 		require.Len(t, diags, 1)
 		assert.NotContains(t, diags[0].Message, "read at")
 		assert.Equal(t, diags[0], specrules.AsPlaced(diags[0]))

@@ -49,8 +49,8 @@ func (t SchemaDialectRows) RootAt(documentPointer reftable.DocumentPointer) (spe
 // places at several positions reads at all of them the rows of the first root
 // to govern it (Builder.Root), so a reading asks Of of a schema the bindings
 // place nowhere, and asks At of one they place.
-func (t SchemaDialectRows) Of(n *yaml.Node) specrules.SchemaRules {
-	if schemaRules, ok := t.byNode[nodeview.Deref(n)]; ok {
+func (t SchemaDialectRows) Of(node *yaml.Node) specrules.SchemaRules {
+	if schemaRules, ok := t.byNode[nodeview.Deref(node)]; ok {
 		return schemaRules
 	}
 	return t.byDoc[reftable.Source]
@@ -102,16 +102,16 @@ func (b *Builder) Root(at reftable.DocumentPointer, node *yaml.Node, rules specr
 func (b *Builder) Govern(root *yaml.Node, rules specrules.SchemaRules) {
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
-		n := nodeview.Deref(stack[len(stack)-1])
+		node := nodeview.Deref(stack[len(stack)-1])
 		stack = stack[:len(stack)-1]
-		if n == nil || n.Kind == yaml.ScalarNode {
+		if node == nil || node.Kind == yaml.ScalarNode {
 			continue
 		}
-		if _, governed := b.t.byNode[n]; governed {
+		if _, governed := b.t.byNode[node]; governed {
 			continue
 		}
-		b.t.byNode[n] = rules
-		stack = append(stack, n.Content...)
+		b.t.byNode[node] = rules
+		stack = append(stack, node.Content...)
 	}
 }
 

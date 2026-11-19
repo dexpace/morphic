@@ -99,35 +99,35 @@ func (n number) compare(numberValue number) int {
 	return n.d.Cmp(numberValue.d)
 }
 
-// scalarOf returns the scalar node n as the compiler reads it, read once an
+// scalarOf returns the scalar node node as the compiler reads it, read once an
 // evaluation and charged by its bytes before it is read.
-func (r *reader) scalarOf(ctx context.Context, n *yaml.Node) (scalar, error) {
-	if scalar, read := r.scalars[n]; read {
+func (r *reader) scalarOf(ctx context.Context, node *yaml.Node) (scalar, error) {
+	if scalar, read := r.scalars[node]; read {
 		return scalar, nil
 	}
-	if err := r.spend(ctx, len(n.Value)/readBytes); err != nil {
+	if err := r.spend(ctx, len(node.Value)/readBytes); err != nil {
 		return scalar{}, err
 	}
-	scalarValue := readScalar(n)
+	scalarValue := readScalar(node)
 	if r.scalars == nil {
 		r.scalars = map[*yaml.Node]scalar{}
 	}
-	r.scalars[n] = scalarValue
+	r.scalars[node] = scalarValue
 	return scalarValue, nil
 }
 
-// readScalar reads the scalar node n as the JSON value the compiler reads it
+// readScalar reads the scalar node node as the JSON value the compiler reads it
 // as (value.Scalar.JSONKind), the reading an extension's payload is lowered
 // by: null, a boolean, a number or a string, a timestamp, a !!binary and a
 // scalar under a document's own tag the string the source wrote. A scalar
 // value.Classify refuses is opaque.
-func readScalar(n *yaml.Node) scalar {
-	valueScalar, err := value.Classify(n)
+func readScalar(node *yaml.Node) scalar {
+	valueScalar, err := value.Classify(node)
 	if err != nil {
 		if past, ok := errors.AsType[*ir.ExponentRangeError](err); ok {
-			return scalar{kind: kindNumber, num: outOfRange(past), size: len(n.Value)}
+			return scalar{kind: kindNumber, num: outOfRange(past), size: len(node.Value)}
 		}
-		return scalar{kind: kindOpaque, node: n}
+		return scalar{kind: kindOpaque, node: node}
 	}
 	switch valueScalar.JSONKind() {
 	case value.ScalarNull:
@@ -136,7 +136,7 @@ func readScalar(n *yaml.Node) scalar {
 		return scalar{kind: kindBool, b: valueScalar.Bool}
 	case value.ScalarNumber:
 		num, _ := newNumber(string(valueScalar.Num)) // a BigVal is a decimal in range
-		return scalar{kind: kindNumber, num: num, size: len(n.Value)}
+		return scalar{kind: kindNumber, num: num, size: len(node.Value)}
 	default:
 		return scalar{kind: kindString, text: valueScalar.Text, size: len(valueScalar.Text)}
 	}
@@ -350,11 +350,11 @@ func (r *reader) sameMembers(ctx context.Context, a, b *yaml.Node) (bool, []node
 	}
 	pairs := make([]nodePair, 0, len(am))
 	for _, pair := range am {
-		v, found := byKey[pair.Key]
+		node, found := byKey[pair.Key]
 		if !found {
 			return false, nil, nil
 		}
-		pairs = append(pairs, nodePair{pair.Val, v})
+		pairs = append(pairs, nodePair{pair.Val, node})
 	}
 	return true, pairs, nil
 }

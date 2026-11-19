@@ -109,8 +109,8 @@ func TestChildByToken_MappingResolvesThroughAliasKey(t *testing.T) {
 	t.Parallel()
 	keyTarget := ynode.Scalar("k")
 	val := ynode.Scalar("v")
-	n := ynode.Map(ynode.Alias(keyTarget), val)
-	assert.Same(t, val, New().ChildByToken(n, "k"))
+	node := ynode.Map(ynode.Alias(keyTarget), val)
+	assert.Same(t, val, New().ChildByToken(node, "k"))
 }
 
 func TestChildByToken_ScalarNodeHasNoChild(t *testing.T) {
@@ -124,12 +124,12 @@ func TestNodeView_CachesOnlyReproducibleExpansions(t *testing.T) {
 	t.Run("complete expansion is cached", func(t *testing.T) {
 		t.Parallel()
 		base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
-		n := ynode.Map(ynode.Merge(), ynode.Alias(base), ynode.Scalar("b"), ynode.Scalar("2"))
+		node := ynode.Map(ynode.Merge(), ynode.Alias(base), ynode.Scalar("b"), ynode.Scalar("2"))
 		view := New()
-		first := view.MappingPairs(n)
-		require.Contains(t, view.pairs, n, "a complete expansion is memoized")
+		first := view.MappingPairs(node)
+		require.Contains(t, view.pairs, node, "a complete expansion is memoized")
 		require.Contains(t, view.pairs, base, "so is every complete sub-expansion")
-		assert.Equal(t, pairMap(first), pairMap(view.MappingPairs(n)), "the cached read matches")
+		assert.Equal(t, pairMap(first), pairMap(view.MappingPairs(node)), "the cached read matches")
 	})
 
 	// outer -> shared -> deep -> outer, all by `<<`. Reaching deep through outer
@@ -210,9 +210,9 @@ func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 	t.Run("within budget: retained and counted", func(t *testing.T) {
 		t.Parallel()
 		view := New()
-		n := ynode.Map()
-		view.memoize(n, expansionValue)
-		assert.Contains(t, view.pairs, n)
+		node := ynode.Map()
+		view.memoize(node, expansionValue)
+		assert.Contains(t, view.pairs, node)
 		assert.Equal(t, len(pairs), view.cached.Spent())
 	})
 
@@ -220,9 +220,9 @@ func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 		t.Parallel()
 		view := New()
 		holding(view, maxCachedPairs-1)
-		n := ynode.Map()
-		view.memoize(n, expansionValue)
-		assert.NotContains(t, view.pairs, n, "an entry that would overrun the budget is not kept")
+		node := ynode.Map()
+		view.memoize(node, expansionValue)
+		assert.NotContains(t, view.pairs, node, "an entry that would overrun the budget is not kept")
 		assert.Equal(t, maxCachedPairs-1, view.cached.Spent(), "and does not count against it")
 
 		one := ynode.Map()
@@ -234,12 +234,12 @@ func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 	t.Run("a dropped entry still reads correctly", func(t *testing.T) {
 		t.Parallel()
 		base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
-		n := ynode.Map(ynode.Merge(), ynode.Alias(base), ynode.Scalar("b"), ynode.Scalar("2"))
+		node := ynode.Map(ynode.Merge(), ynode.Alias(base), ynode.Scalar("b"), ynode.Scalar("2"))
 		view := New()
 		holding(view, maxCachedPairs)
 		want := map[string]string{"a": "1", "b": "2"}
-		assert.Equal(t, want, pairMap(view.MappingPairs(n)), "an uncached read is a full read")
-		assert.Equal(t, want, pairMap(view.MappingPairs(n)), "and repeats identically")
+		assert.Equal(t, want, pairMap(view.MappingPairs(node)), "an uncached read is a full read")
+		assert.Equal(t, want, pairMap(view.MappingPairs(node)), "and repeats identically")
 		assert.Empty(t, view.pairs, "nothing was retained")
 	})
 }
@@ -351,12 +351,12 @@ func TestMappingPairs_Cases(t *testing.T) {
 
 	t.Run("duplicate explicit key keeps the last occurrence's position", func(t *testing.T) {
 		t.Parallel()
-		n := ynode.Map(
+		node := ynode.Map(
 			ynode.Scalar("k"), ynode.Scalar("first"),
 			ynode.Scalar("other"), ynode.Scalar("o"),
 			ynode.Scalar("k"), ynode.Scalar("second"),
 		)
-		got := New().MappingPairs(n)
+		got := New().MappingPairs(node)
 		require.Len(t, got, 2)
 		assert.Equal(t, "other", got[0].Key)
 		assert.Equal(t, "k", got[1].Key)
@@ -374,9 +374,9 @@ func TestMappingPairs_Cases(t *testing.T) {
 }
 
 func trailingKeyNode() *yaml.Node {
-	n := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
-	n.Content = append(n.Content, ynode.Scalar("dangling"))
-	return n
+	node := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
+	node.Content = append(node.Content, ynode.Scalar("dangling"))
+	return node
 }
 
 func mergeSeqReuseNode() *yaml.Node {
@@ -385,9 +385,9 @@ func mergeSeqReuseNode() *yaml.Node {
 }
 
 func selfReferentialMergeNode() *yaml.Node {
-	n := &yaml.Node{Kind: yaml.MappingNode}
-	n.Content = []*yaml.Node{ynode.Merge(), ynode.Alias(n)}
-	return n
+	node := &yaml.Node{Kind: yaml.MappingNode}
+	node.Content = []*yaml.Node{ynode.Merge(), ynode.Alias(node)}
+	return node
 }
 
 // TestMappingPairs_MergeKeySources covers the `<<` expansion, which is the half
@@ -487,10 +487,10 @@ func TestMappingPairs_MergeKeySpellings(t *testing.T) {
 	}
 }
 
-// libraryKeys returns the keys of mapping n as the unmarshaller reads them,
+// libraryKeys returns the keys of mapping node as the unmarshaller reads them,
 // sorted: expanded by yml.ResolveMergeKeys, each key resolved through an alias.
-func libraryKeys(n *yaml.Node) []string {
-	content := yml.ResolveMergeKeys(n.Content)
+func libraryKeys(node *yaml.Node) []string {
+	content := yml.ResolveMergeKeys(node.Content)
 	keys := make([]string, 0, len(content)/2)
 	for i := 0; i+1 < len(content); i += 2 {
 		keys = append(keys, yml.ResolveAlias(content[i]).Value)
@@ -690,20 +690,20 @@ func TestChildByToken_IndexAgreesWithTheScanItReplaces(t *testing.T) {
 // the index, because a mapping the memo declined is never indexed at all.
 func TestKeyIndex_IsBoundedByThePairsMemoRatherThanCharged(t *testing.T) {
 	t.Parallel()
-	n := wideMap()
+	node := wideMap()
 	view := New()
 
-	pairs := view.MappingPairs(n)
+	pairs := view.MappingPairs(node)
 	require.Len(t, pairs, minIndexedPairs)
 	require.Equal(t, minIndexedPairs, view.cached.Spent(), "the expansion is charged")
 
-	require.Same(t, n.Content[1], view.ChildByToken(n, "k0"))
-	require.Nil(t, view.keys[n], "one read records the mapping without indexing it")
-	require.Same(t, n.Content[3], view.ChildByToken(n, "k1"), "a second read is what builds one")
+	require.Same(t, node.Content[1], view.ChildByToken(node, "k0"))
+	require.Nil(t, view.keys[node], "one read records the mapping without indexing it")
+	require.Same(t, node.Content[3], view.ChildByToken(node, "k1"), "a second read is what builds one")
 
-	require.NotNil(t, view.keys[n], "and indexed")
+	require.NotNil(t, view.keys[node], "and indexed")
 	assert.Equal(t, minIndexedPairs, view.cached.Spent(), "the index charges the pair budget nothing")
-	assert.Len(t, view.keys[n], len(pairs), "one entry per pair, so the memo bounds it")
+	assert.Len(t, view.keys[node], len(pairs), "one entry per pair, so the memo bounds it")
 }
 
 // TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep covers the gate that makes
@@ -719,34 +719,34 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 	t.Parallel()
 	t.Run("past the budget the scan still answers", func(t *testing.T) {
 		t.Parallel()
-		n := wideMap()
+		node := wideMap()
 		view := New()
 		holding(view, maxCachedPairs)
-		require.NotContains(t, view.pairs, n, "the pairs were declined")
+		require.NotContains(t, view.pairs, node, "the pairs were declined")
 
-		assert.Same(t, n.Content[1], view.ChildByToken(n, "k0"), "the scan still answers")
-		assert.Nil(t, view.ChildByToken(n, "absent"))
+		assert.Same(t, node.Content[1], view.ChildByToken(node, "k0"), "the scan still answers")
+		assert.Nil(t, view.ChildByToken(node, "absent"))
 		assert.Empty(t, view.keys, "and nothing was indexed, not even a marker")
 	})
 
 	t.Run("a merge cycle expands to nothing, so nothing is indexed", func(t *testing.T) {
 		t.Parallel()
-		n := wideMap()
+		node := wideMap()
 		view := New()
-		view.inFlight[n] = true // expand refuses a mapping already being expanded
+		view.inFlight[node] = true // expand refuses a mapping already being expanded
 
-		assert.Nil(t, view.ChildByToken(n, "k0"), "an in-flight mapping expands to nothing")
-		assert.NotContains(t, view.pairs, n, "and is never memoized")
+		assert.Nil(t, view.ChildByToken(node, "k0"), "an in-flight mapping expands to nothing")
+		assert.NotContains(t, view.pairs, node, "and is never memoized")
 		assert.Empty(t, view.keys, "so there is no expansion to index")
 	})
 
 	t.Run("a mapping too narrow to repay an index is scanned", func(t *testing.T) {
 		t.Parallel()
-		n := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
+		node := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
 		view := New()
 
-		assert.Same(t, n.Content[1], view.ChildByToken(n, "a"), "the scan answers")
-		assert.Nil(t, view.ChildByToken(n, "absent"))
+		assert.Same(t, node.Content[1], view.ChildByToken(node, "a"), "the scan answers")
+		assert.Nil(t, view.ChildByToken(node, "absent"))
 		assert.Empty(t, view.keys, "and nothing was indexed")
 	})
 }
@@ -868,13 +868,13 @@ func TestNodeView_SharedViewAnswersAsAFreshOne(t *testing.T) {
 	})
 }
 
-// linksAbove returns a mapping that reaches n through the given number of `<<`
+// linksAbove returns a mapping that reaches node through the given number of `<<`
 // merges, one mapping per link.
-func linksAbove(n *yaml.Node, links int) *yaml.Node {
+func linksAbove(node *yaml.Node, links int) *yaml.Node {
 	for range links {
-		n = ynode.Map(ynode.Merge(), ynode.Alias(n))
+		node = ynode.Map(ynode.Merge(), ynode.Alias(node))
 	}
-	return n
+	return node
 }
 
 // pairSource is a document whose components/responses section holds the one

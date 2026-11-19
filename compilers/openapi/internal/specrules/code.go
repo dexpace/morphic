@@ -245,12 +245,12 @@ func (l paramList) answers(name string) bool {
 // pathParams reads the path parameters a parameter list writes, a $ref into
 // the components read there.
 func pathParams(rulerValue ruler, list *yaml.Node, ptr jsontext.Pointer) paramList {
-	l := nodeview.Deref(list)
-	if l == nil || l.Kind != yaml.SequenceNode {
+	node := nodeview.Deref(list)
+	if node == nil || node.Kind != yaml.SequenceNode {
 		return paramList{}
 	}
 	var out paramList
-	for i, entry := range l.Content {
+	for i, entry := range node.Content {
 		kv := rulerValue.keysOf(entry)
 		if ref, ok := textOf(kv["$ref"]); ok {
 			kv = rulerValue.keysOf(localParameter(rulerValue, ref))
@@ -464,8 +464,8 @@ func encodingApplies(rulerValue ruler, rule Rule) {
 // minor's construct, warned of as one (walker.reference), so it is left alone
 // there.
 func nullableApplies(rulerValue ruler, rule Rule) {
-	n := nodeview.Deref(rulerValue.f.byKey["nullable"])
-	if n == nil || !matches(Boolean, n) || !strings.EqualFold(n.Value, "true") ||
+	node := nodeview.Deref(rulerValue.f.byKey["nullable"])
+	if node == nil || !matches(Boolean, node) || !strings.EqualFold(node.Value, "true") ||
 		rulerValue.f.writes("type", rulerValue.w.minor) || rulerValue.f.writes("$ref", rulerValue.w.minor) {
 		return
 	}
@@ -501,7 +501,7 @@ func vocabulary(rulerValue ruler, rule Rule) {
 		if !ValidFormat(AbsoluteURI, pair.Key) {
 			rulerValue.fail(rule, classFormat, ptr, "field \"$vocabulary\" has the key "+quote(pair.Key)+", which must be "+describeFormat(AbsoluteURI))
 		}
-		if v := nodeview.Deref(pair.Val); v == nil || !matches(Boolean, v) {
+		if node := nodeview.Deref(pair.Val); node == nil || !matches(Boolean, node) {
 			rulerValue.fail(rule, classType, ptr, "field \"$vocabulary\" entry "+quote(pair.Key)+" must be a boolean")
 		}
 	}

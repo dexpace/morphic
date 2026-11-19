@@ -52,7 +52,7 @@ type Scalar struct {
 	Bool  bool
 }
 
-// Classify reads the scalar node n by its resolved tag, never by the schema
+// Classify reads the scalar node node by its resolved tag, never by the schema
 // around it: the one classification a value lowered into the IR and a payload
 // kept verbatim both render, so the two never read one scalar as two kinds
 // (GitHub #783, #784). The tag is the parser's
@@ -62,31 +62,31 @@ type Scalar struct {
 // A scalar whose text its tag does not admit, as `!!bool maybe` or `.inf`, is
 // an error, as yaml.v3's decoding refuses it, never text of a kind the source
 // did not write (docs/compilers/openapi.md#values).
-func Classify(n *yaml.Node) (Scalar, error) {
-	if n == nil || n.Kind != yaml.ScalarNode {
+func Classify(node *yaml.Node) (Scalar, error) {
+	if node == nil || node.Kind != yaml.ScalarNode {
 		return Scalar{}, errors.New("openapi: not a scalar")
 	}
-	scalar := Scalar{Text: n.Value}
-	switch tag := n.ShortTag(); tag {
+	scalar := Scalar{Text: node.Value}
+	switch tag := node.ShortTag(); tag {
 	case "!!null":
-		return scalar, decodes(n, new(any), "null")
+		return scalar, decodes(node, new(any), "null")
 	case "!!bool":
 		scalar.Kind = ScalarBool
-		return scalar, decodes(n, &scalar.Bool, "bool")
+		return scalar, decodes(node, &scalar.Bool, "bool")
 	case "!!int", "!!float":
-		num, err := NumericLiteral(n)
+		num, err := NumericLiteral(node)
 		if err != nil {
-			return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", n.Value, err)
+			return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", node.Value, err)
 		}
 		scalar.Kind, scalar.Num = ScalarNumber, num
 		return scalar, nil
 	case "!!str", "!!merge":
-		return text(n, scalar)
+		return text(node, scalar)
 	case "!!timestamp":
 		scalar.Kind = ScalarTimestamp
-		return scalar, decodes(n, new(time.Time), "timestamp")
+		return scalar, decodes(node, new(time.Time), "timestamp")
 	case "!!binary":
-		return binary(n, scalar)
+		return binary(node, scalar)
 	default:
 		scalar.Kind = ScalarTagged
 		return scalar, nil
@@ -117,18 +117,18 @@ func (s Scalar) JSONKind() ScalarKind {
 //
 // `<<` written as a value, which yaml.v3 tags !!merge wherever it stands, is
 // the text it spells: only a key merges.
-func text(n *yaml.Node, scalar Scalar) (Scalar, error) {
+func text(node *yaml.Node, scalar Scalar) (Scalar, error) {
 	scalar.Kind = ScalarString
-	if n.Style != 0 || n.ShortTag() != "!!str" {
+	if node.Style != 0 || node.ShortTag() != "!!str" {
 		return scalar, nil
 	}
-	num, err := ir.NewBigVal(n.Value)
+	num, err := ir.NewBigVal(node.Value)
 	switch {
 	case err == nil:
 		scalar.Kind, scalar.Num = ScalarNumber, num
 		return scalar, nil
 	case errors.Is(err, ir.ErrExponentRange):
-		return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", n.Value, err)
+		return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", node.Value, err)
 	default:
 		return scalar, nil
 	}
@@ -138,20 +138,20 @@ func text(n *yaml.Node, scalar Scalar) (Scalar, error) {
 // holds. yaml.v3 base64-decodes a !!binary node into a string (it rejects a
 // []byte target), so the decode goes through one. The error names no text,
 // which may be any length of bytes.
-func binary(n *yaml.Node, scalar Scalar) (Scalar, error) {
+func binary(node *yaml.Node, scalar Scalar) (Scalar, error) {
 	var raw string
-	if err := n.Decode(&raw); err != nil {
+	if err := node.Decode(&raw); err != nil {
 		return Scalar{}, fmt.Errorf("openapi: binary literal: %w", err)
 	}
 	scalar.Kind, scalar.Bytes = ScalarBinary, []byte(raw)
 	return scalar, nil
 }
 
-// decodes reports whether yaml.v3 decodes n into target, which is the check
-// that n's text is one its tag admits.
-func decodes(n *yaml.Node, target any, what string) error {
-	if err := n.Decode(target); err != nil {
-		return fmt.Errorf("openapi: %s literal %q: %w", what, n.Value, err)
+// decodes reports whether yaml.v3 decodes node into target, which is the check
+// that node's text is one its tag admits.
+func decodes(node *yaml.Node, target any, what string) error {
+	if err := node.Decode(target); err != nil {
+		return fmt.Errorf("openapi: %s literal %q: %w", what, node.Value, err)
 	}
 	return nil
 }

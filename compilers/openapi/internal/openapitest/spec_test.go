@@ -179,12 +179,12 @@ func TestClearAnchors_EmptiesEveryAnchorBeneathTheRoot(t *testing.T) {
 		var out []string
 		stack := []*yaml.Node{doc}
 		for len(stack) > 0 {
-			n := stack[len(stack)-1]
+			node := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
-			if n.Anchor != "" {
-				out = append(out, n.Anchor)
+			if node.Anchor != "" {
+				out = append(out, node.Anchor)
 			}
-			stack = append(stack, n.Content...)
+			stack = append(stack, node.Content...)
 		}
 		return out
 	}
@@ -242,6 +242,6 @@ func TestNestedMerges_WritesOneMergePerLevel(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "{k: v}", openapitest.NestedMerges(0, "{k: v}"))
 	assert.Equal(t, "{<<: {<<: {k: v}}}", openapitest.NestedMerges(2, "{k: v}"))
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(openapitest.NestedMerges(3, "{k: v}")), &n), "it parses")
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(openapitest.NestedMerges(3, "{k: v}")), &node), "it parses")
 }

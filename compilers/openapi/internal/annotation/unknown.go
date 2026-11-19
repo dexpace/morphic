@@ -136,8 +136,8 @@ func WritesEmptyDependencyMap(schema *statement.Schema, key string) bool {
 	default:
 		return false
 	}
-	n := keyNode(schema, key)
-	return n != nil && n.Kind == yaml.MappingNode && len(n.Content) == 0
+	node := keyNode(schema, key)
+	return node != nil && node.Kind == yaml.MappingNode && len(node.Content) == 0
 }
 
 // WritesKeywordLeftOut reports whether schema writes key as a null that reads as the
@@ -273,14 +273,14 @@ func TakeString(unmodeled *ir.Unmodeled, root *yaml.Node, key string, valid func
 // read as the empty string. ok is false for any other node, which the parser
 // would report as a type mismatch.
 func stringValue(node *yaml.Node) (string, bool) {
-	n := yml.ResolveAlias(node)
-	if n == nil || n.Kind != yaml.ScalarNode {
+	nodeValue := yml.ResolveAlias(node)
+	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode {
 		return "", false
 	}
-	if n.Tag == "!!null" {
+	if nodeValue.Tag == "!!null" {
 		return "", true
 	}
-	return n.Value, slices.Contains(yml.TypeToYamlTags(reflect.TypeFor[string]()), n.Tag)
+	return nodeValue.Value, slices.Contains(yml.TypeToYamlTags(reflect.TypeFor[string]()), nodeValue.Tag)
 }
 
 // keyClass is how a key the model does not name is graded: which diagnostic

@@ -28,9 +28,9 @@ import (
 
 // rawNodes is a tree's own node count, before any alias is substituted, as the
 // source index derives it.
-func rawNodes(t testing.TB, n *yaml.Node) int {
+func rawNodes(t testing.TB, node *yaml.Node) int {
 	t.Helper()
-	return sourcetreestats.Build(t.Context(), n, sourcetreestats.MaxIndexedNodes).Nodes()
+	return sourcetreestats.Build(t.Context(), node, sourcetreestats.MaxIndexedNodes).Nodes()
 }
 
 const amplificationBombFixture = "../../../../testdata/openapi/amplification_alias_bomb.yaml"

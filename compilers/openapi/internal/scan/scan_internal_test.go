@@ -415,8 +415,8 @@ func TestAliases_AnchorsThroughTheTree(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			var seen *yaml.Node
-			tree := provenance.Tree{Doc: provenance.Doc{Source: 9}, Pointers: func(n *yaml.Node) (jsontext.Pointer, bool) {
-				seen = n
+			tree := provenance.Tree{Doc: provenance.Doc{Source: 9}, Pointers: func(node *yaml.Node) (jsontext.Pointer, bool) {
+				seen = node
 				return "/somewhere/the/tree/decided", true
 			}}
 
@@ -511,14 +511,14 @@ func decodeTree(t *testing.T) *yaml.Node {
 	return &doc
 }
 
-// memberOf returns the key and value nodes of the member of mapping m named
+// memberOf returns the key and value nodes of the member of mapping node named
 // key, read straight off Content so the lookup shares nothing with Pointers.
-func memberOf(t *testing.T, m *yaml.Node, key string) (k, v *yaml.Node) {
+func memberOf(t *testing.T, node *yaml.Node, key string) (nodeValue, otherNode *yaml.Node) {
 	t.Helper()
-	require.Equal(t, yaml.MappingNode, m.Kind, "looking up %q in a non-mapping", key)
-	for i := 0; i+1 < len(m.Content); i += 2 {
-		if m.Content[i].Value == key {
-			return m.Content[i], m.Content[i+1]
+	require.Equal(t, yaml.MappingNode, node.Kind, "looking up %q in a non-mapping", key)
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i], node.Content[i+1]
 		}
 	}
 	require.Failf(t, "no such member", "%q", key)
@@ -529,24 +529,24 @@ func memberOf(t *testing.T, m *yaml.Node, key string) (k, v *yaml.Node) {
 // index into a sequence. It does not follow an alias.
 func valueAt(t *testing.T, doc *yaml.Node, path ...string) *yaml.Node {
 	t.Helper()
-	n := doc.Content[0]
+	node := doc.Content[0]
 	for _, step := range path {
-		if n.Kind == yaml.SequenceNode {
+		if node.Kind == yaml.SequenceNode {
 			i, err := strconv.Atoi(step)
 			require.NoError(t, err)
-			n = n.Content[i]
+			node = node.Content[i]
 			continue
 		}
-		_, n = memberOf(t, n, step)
+		_, node = memberOf(t, node, step)
 	}
-	return n
+	return node
 }
 
 // keyAt is valueAt for the key of the last member on path.
 func keyAt(t *testing.T, doc *yaml.Node, path ...string) *yaml.Node {
 	t.Helper()
-	k, _ := memberOf(t, valueAt(t, doc, path[:len(path)-1]...), path[len(path)-1])
-	return k
+	node, _ := memberOf(t, valueAt(t, doc, path[:len(path)-1]...), path[len(path)-1])
+	return node
 }
 
 // TestPointers_PlaceEachKindOfNode pins the pointer a finding on each kind of
@@ -745,8 +745,8 @@ func TestStepsIn_IndexesEachNodeOnce(t *testing.T) {
 		steps := stepsWithin(t, root, 4)
 
 		assert.Equal(t, jsontext.Pointer("/a"), pointerOf(steps, shared), "indexed where it is first written")
-		for name, n := range map[string]*yaml.Node{"the root": root, "a key": first, "the other key": second} {
-			_, indexed := steps[n]
+		for name, node := range map[string]*yaml.Node{"the root": root, "a key": first, "the other key": second} {
+			_, indexed := steps[node]
 			assert.True(t, indexed, name)
 		}
 		assert.Len(t, steps, 4, "the root, two keys and the shared value")
@@ -916,8 +916,8 @@ func TestPointers_SaysWhetherTheTreeHoldsTheNode(t *testing.T) {
 		pointer jsontext.Pointer
 		held    bool
 	}
-	ask := func(f func(*yaml.Node) (jsontext.Pointer, bool), n *yaml.Node) answer {
-		pointer, held := f(n)
+	ask := func(f func(*yaml.Node) (jsontext.Pointer, bool), node *yaml.Node) answer {
+		pointer, held := f(node)
 		return answer{pointer, held}
 	}
 	assert.Equal(t, answer{"/k", true}, ask(pointer, value))

@@ -134,14 +134,14 @@ func truthOf(js *model) SchemaValueForm {
 	if js == nil {
 		return Unwritten
 	}
-	n := nodeview.Deref(js.GetCore().GetRootNode())
-	if n != nil && n.Kind != yaml.MappingNode && (n.Kind != yaml.ScalarNode || n.ShortTag() != "!!bool") {
+	node := nodeview.Deref(js.GetCore().GetRootNode())
+	if node != nil && node.Kind != yaml.MappingNode && (node.Kind != yaml.ScalarNode || node.ShortTag() != "!!bool") {
 		return Unwritten
 	}
 	switch {
 	case !js.IsBool():
 		return Stated
-	case n != nil && n.Kind == yaml.MappingNode:
+	case node != nil && node.Kind == yaml.MappingNode:
 		return Unread
 	case js.GetBool() != nil && !*js.GetBool():
 		return Nothing
@@ -215,10 +215,10 @@ var fillKeywords = []fillKeyword{
 		clear: func(m *oas3.Schema) { m.Nullable = nil }},
 	{name: "exclusiveMinimum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ExclusiveMinimum.ValueNode },
 		clear: func(m *oas3.Schema) { m.ExclusiveMinimum = nil },
-		set:   func(schema *Schema, n *yaml.Node) { schema.Number.ExclusiveMinimum = n }},
+		set:   func(schema *Schema, node *yaml.Node) { schema.Number.ExclusiveMinimum = node }},
 	{name: "exclusiveMaximum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ExclusiveMaximum.ValueNode },
 		clear: func(m *oas3.Schema) { m.ExclusiveMaximum = nil },
-		set:   func(schema *Schema, n *yaml.Node) { schema.Number.ExclusiveMaximum = n }},
+		set:   func(schema *Schema, node *yaml.Node) { schema.Number.ExclusiveMaximum = node }},
 	{name: "enum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Enum.ValueNode },
 		clear: func(m *oas3.Schema) { m.Enum = nil }},
 	{name: "const", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Const.ValueNode },
@@ -308,15 +308,15 @@ var fillKeywords = []fillKeyword{
 	{name: "externalDocs", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ExternalDocs.ValueNode },
 		clear: func(m *oas3.Schema) { m.ExternalDocs = nil }},
 	{name: "minimum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Minimum.ValueNode },
-		set: func(schema *Schema, n *yaml.Node) { schema.Number.Minimum = n }},
+		set: func(schema *Schema, node *yaml.Node) { schema.Number.Minimum = node }},
 	{name: "maximum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Maximum.ValueNode },
-		set: func(schema *Schema, n *yaml.Node) { schema.Number.Maximum = n }},
+		set: func(schema *Schema, node *yaml.Node) { schema.Number.Maximum = node }},
 	{name: "multipleOf", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MultipleOf.ValueNode },
-		set: func(schema *Schema, n *yaml.Node) { schema.Number.MultipleOf = n }},
-	{name: "additionalItems", set: func(schema *Schema, n *yaml.Node) { schema.Array.AdditionalItems = n }},
-	{name: "dependentRequired", set: func(schema *Schema, n *yaml.Node) { schema.Object.DependentRequired = n }},
-	{name: "dependencies", set: func(schema *Schema, n *yaml.Node) { schema.Logic.Dependencies = n }},
-	{name: "$comment", set: func(schema *Schema, n *yaml.Node) { schema.Notes.Comment = n }},
+		set: func(schema *Schema, node *yaml.Node) { schema.Number.MultipleOf = node }},
+	{name: "additionalItems", set: func(schema *Schema, node *yaml.Node) { schema.Array.AdditionalItems = node }},
+	{name: "dependentRequired", set: func(schema *Schema, node *yaml.Node) { schema.Object.DependentRequired = node }},
+	{name: "dependencies", set: func(schema *Schema, node *yaml.Node) { schema.Logic.Dependencies = node }},
+	{name: "$comment", set: func(schema *Schema, node *yaml.Node) { schema.Notes.Comment = node }},
 }
 
 // keywordRow returns the row of fillKeywords naming name, and false for a key

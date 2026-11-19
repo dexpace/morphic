@@ -297,11 +297,11 @@ func tree(text []byte) (*yaml.Node, string) {
 	return &doc, ""
 }
 
-// walk calls f on every node under n.
-func walk(n *yaml.Node, f func(*yaml.Node)) {
-	f(n)
-	for _, c := range n.Content {
-		walk(c, f)
+// walk calls f on every node under node.
+func walk(node *yaml.Node, f func(*yaml.Node)) {
+	f(node)
+	for _, nodeValue := range node.Content {
+		walk(nodeValue, f)
 	}
 }
 
@@ -320,18 +320,18 @@ func restored(text []byte, respellingValue respelling) (*yaml.Node, string) {
 // and the three comments.
 func strs(doc *yaml.Node) []string {
 	var out []string
-	walk(doc, func(n *yaml.Node) {
-		out = append(out, n.Value, n.Tag, n.Anchor, n.HeadComment, n.LineComment, n.FootComment)
+	walk(doc, func(node *yaml.Node) {
+		out = append(out, node.Value, node.Tag, node.Anchor, node.HeadComment, node.LineComment, node.FootComment)
 	})
 	return out
 }
 
 // shape lists each node's kind, value and position, which a tag change of the
 // core schema leaves alone.
-func shape(n *yaml.Node) []string {
+func shape(node *yaml.Node) []string {
 	var out []string
-	walk(n, func(n *yaml.Node) {
-		out = append(out, fmt.Sprintf("%d %q @%d:%d", n.Kind, n.Value, n.Line, n.Column))
+	walk(node, func(nodeValue *yaml.Node) {
+		out = append(out, fmt.Sprintf("%d %q @%d:%d", nodeValue.Kind, nodeValue.Value, nodeValue.Line, nodeValue.Column))
 	})
 	return out
 }

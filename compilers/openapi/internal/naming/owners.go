@@ -170,17 +170,17 @@ func (n *Namer) text(doc reftable.DocID, at jsontext.Pointer, field string) stri
 	return scalarText(nodeview.Child(n.node(doc, at), field))
 }
 
-// scalarText returns the text of v as the parser's model reads a string field:
+// scalarText returns the text of node as the parser's model reads a string field:
 // a string, a number or a boolean as written, and nothing for null, a node
 // that is no scalar, or a scalar under any other tag, such as !!binary or a
 // local one (docs/parser-library.md#undecoded-scalar).
-func scalarText(v *yaml.Node) string {
-	if v == nil || v.Kind != yaml.ScalarNode {
+func scalarText(node *yaml.Node) string {
+	if node == nil || node.Kind != yaml.ScalarNode {
 		return ""
 	}
-	switch v.ShortTag() {
+	switch node.ShortTag() {
 	case "!!str", "!!int", "!!float", "!!bool":
-		return v.Value
+		return node.Value
 	default:
 		return ""
 	}

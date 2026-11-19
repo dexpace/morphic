@@ -102,9 +102,9 @@ func (o *objects) readRef(id DocID, ref string) (objectHop, objectKey) {
 	default:
 		hop.Status, hop.Target, hop.Role = Resolved, reading.at, reading.role()
 	}
-	n := nodeview.Deref(reading.node)
-	_, refs := o.b.docs.refOf(reading.at.Doc, n)
-	return objectHop{hop: hop, target: reading.state, mapping: n != nil && n.Kind == yaml.MappingNode, refs: refs}, objectKey{}
+	node := nodeview.Deref(reading.node)
+	_, refs := o.b.docs.refOf(reading.at.Doc, node)
+	return objectHop{hop: hop, target: reading.state, mapping: node != nil && node.Kind == yaml.MappingNode, refs: refs}, objectKey{}
 }
 
 // ofKind is objectHopValue read as a hop of a reference object of kind: objectHopValue itself where it

@@ -198,15 +198,15 @@ func jsonTree(t testing.TB, doc []byte) *yaml.Node {
 			stack = stack[:len(stack)-1]
 			continue
 		}
-		n := tokenNode(tok)
+		node := tokenNode(tok)
 		if len(stack) == 0 {
-			root = n
+			root = node
 		} else {
 			top := stack[len(stack)-1]
-			top.Content = append(top.Content, n)
+			top.Content = append(top.Content, node)
 		}
-		if n.Kind != yaml.ScalarNode {
-			stack = append(stack, n)
+		if node.Kind != yaml.ScalarNode {
+			stack = append(stack, node)
 		}
 	}
 	require.NotNil(t, root, "the document holds a value")
@@ -235,50 +235,50 @@ func tokenNode(tok jsontext.Token) *yaml.Node {
 	}
 }
 
-// renderJSON writes the tree under n as JSON, by its tags alone: the second
+// renderJSON writes the tree under node as JSON, by its tags alone: the second
 // reading of a tree the suite's comparison rests on, which shares nothing with
 // the evaluator's own. A mapping's members are written as the tree holds them.
-func renderJSON(t testing.TB, n *yaml.Node) jsontext.Value {
+func renderJSON(t testing.TB, node *yaml.Node) jsontext.Value {
 	t.Helper()
 	var out bytes.Buffer
-	writeJSON(t, &out, n)
+	writeJSON(t, &out, node)
 	return jsontext.Value(out.Bytes())
 }
 
-// writeJSON appends the JSON of the tree under n to out.
-func writeJSON(t testing.TB, out *bytes.Buffer, n *yaml.Node) {
+// writeJSON appends the JSON of the tree under node to out.
+func writeJSON(t testing.TB, out *bytes.Buffer, node *yaml.Node) {
 	t.Helper()
-	switch n.Kind {
+	switch node.Kind {
 	case yaml.MappingNode:
 		out.WriteByte('{')
-		for i := 0; i+1 < len(n.Content); i += 2 {
+		for i := 0; i+1 < len(node.Content); i += 2 {
 			if i > 0 {
 				out.WriteByte(',')
 			}
-			writeJSON(t, out, n.Content[i])
+			writeJSON(t, out, node.Content[i])
 			out.WriteByte(':')
-			writeJSON(t, out, n.Content[i+1])
+			writeJSON(t, out, node.Content[i+1])
 		}
 		out.WriteByte('}')
 	case yaml.SequenceNode:
 		out.WriteByte('[')
-		for i, c := range n.Content {
+		for i, nodeValue := range node.Content {
 			if i > 0 {
 				out.WriteByte(',')
 			}
-			writeJSON(t, out, c)
+			writeJSON(t, out, nodeValue)
 		}
 		out.WriteByte(']')
 	case yaml.ScalarNode:
-		if n.Tag == "!!str" {
-			enc, err := json.Marshal(n.Value)
+		if node.Tag == "!!str" {
+			enc, err := json.Marshal(node.Value)
 			require.NoError(t, err)
 			out.Write(enc)
 			return
 		}
-		out.WriteString(n.Value)
+		out.WriteString(node.Value)
 	default:
-		t.Fatalf("a result node of kind %d: the evaluator returns values, never aliases or documents", n.Kind)
+		t.Fatalf("a result node of kind %d: the evaluator returns values, never aliases or documents", node.Kind)
 	}
 }
 

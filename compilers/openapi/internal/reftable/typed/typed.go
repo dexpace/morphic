@@ -182,7 +182,7 @@ type Builder struct {
 	view *nodeview.View
 	// decode builds a schema from YAML: the parser's own decoder, which a test
 	// replaces to reach its failure.
-	decode func(ctx context.Context, n *yaml.Node, js *schemaRef) error
+	decode func(ctx context.Context, node *yaml.Node, js *schemaRef) error
 	// bools are the boolean schemas recorded and not yet mended (mend).
 	bools []recorded
 }
@@ -208,11 +208,11 @@ func NewBuilder(table *reftable.ReferenceTargetTable) *Builder {
 		objectSites: map[any]objectSite{}, objects: map[objectSite]any{}}}
 }
 
-// decodeSchema decodes n into js as the parser decodes a schema of its model.
+// decodeSchema decodes node into js as the parser decodes a schema of its model.
 // What decoding finds wrong with the schema is not kept: the load phase's rule
 // table judges the source, and what a reference reaches, itself.
-func decodeSchema(ctx context.Context, n *yaml.Node, js *schemaRef) error {
-	_, err := marshaller.UnmarshalNode(ctx, "", n, js)
+func decodeSchema(ctx context.Context, node *yaml.Node, js *schemaRef) error {
+	_, err := marshaller.UnmarshalNode(ctx, "", node, js)
 	return err
 }
 
@@ -220,9 +220,9 @@ func decodeSchema(ctx context.Context, n *yaml.Node, js *schemaRef) error {
 // an error quoting what the parser panicked with: the decoder reads YAML no one
 // checked was a schema, and the parser panics on some shapes it accepts
 // (docs/parser-library.md#recoverable-panic).
-func (bd *Builder) decodeRecovered(ctx context.Context, n *yaml.Node, js *schemaRef) error {
+func (bd *Builder) decodeRecovered(ctx context.Context, node *yaml.Node, js *schemaRef) error {
 	var err error
-	if text, panicked := diag.Catch(func() { err = bd.decode(ctx, n, js) }); panicked {
+	if text, panicked := diag.Catch(func() { err = bd.decode(ctx, node, js) }); panicked {
 		return fmt.Errorf("the parser panicked: %s", text)
 	}
 	return err
@@ -256,12 +256,12 @@ func (bd *Builder) mend(ctx context.Context) {
 	for len(bd.bools) > 0 && ctx.Err() == nil {
 		recorded := bd.bools[len(bd.bools)-1]
 		bd.bools = bd.bools[:len(bd.bools)-1]
-		n := nodeview.Deref(recorded.js.GetCore().GetRootNode())
-		if n == nil || n.Kind != yaml.MappingNode || recorded.mends >= MaxMends {
+		node := nodeview.Deref(recorded.js.GetCore().GetRootNode())
+		if node == nil || node.Kind != yaml.MappingNode || recorded.mends >= MaxMends {
 			continue
 		}
 		fresh := &schemaRef{}
-		if err := bd.decodeRecovered(ctx, n, fresh); err != nil || fresh.IsBool() {
+		if err := bd.decodeRecovered(ctx, node, fresh); err != nil || fresh.IsBool() {
 			continue
 		}
 		*recorded.js = *fresh

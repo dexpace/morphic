@@ -63,11 +63,11 @@ func listedTuple(loweringContext lowering.Ctx, schema *statement.Schema) (int, b
 // as the drafts before 2020-12 spell one, and false where it writes no list.
 // The parser's model has no form for such a list, so only its node tells.
 func listedItems(schema *statement.Schema) (int, bool) {
-	n := keyNode(schema, "items")
-	if n == nil || n.Kind != yaml.SequenceNode {
+	node := keyNode(schema, "items")
+	if node == nil || node.Kind != yaml.SequenceNode {
 		return 0, false
 	}
-	return len(n.Content), true
+	return len(node.Content), true
 }
 
 // itemsSchema returns the one schema schema writes `items` as, and the zero Sub,

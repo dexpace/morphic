@@ -192,14 +192,14 @@ func reversed(t *testing.T, src string) []byte {
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 	stack := []*yaml.Node{&root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if n.Kind == yaml.MappingNode {
-			pairs := slices.Collect(slices.Chunk(n.Content, 2))
+		if node.Kind == yaml.MappingNode {
+			pairs := slices.Collect(slices.Chunk(node.Content, 2))
 			slices.Reverse(pairs)
-			n.Content = slices.Concat(pairs...)
+			node.Content = slices.Concat(pairs...)
 		}
-		stack = append(stack, n.Content...)
+		stack = append(stack, node.Content...)
 	}
 	out, err := yaml.Marshal(&root)
 	require.NoError(t, err)

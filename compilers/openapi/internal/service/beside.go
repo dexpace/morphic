@@ -33,18 +33,18 @@ func Beside[T, S any, R chainable[T, S]](serviceContext Ctx, ref R, usePtr jsont
 	return out, diags
 }
 
-// keepBeside keeps on out every key the mapping n, written at at in serviceContext's
+// keepBeside keeps on out every key the mapping node, written at at in serviceContext's
 // document, writes beside its $ref, as the model reads the mapping, under
 // openapi:reference/<i>/: summary and description only where the use does not
 // fold them, as documentation with no home, each reported; any other as a key
 // OpenAPI gives no effect, which the rule table reports.
-func keepBeside(out *ir.Unmodeled, serviceContext Ctx, n *yaml.Node, at jsontext.Pointer, i int, folds bool) []ir.Diagnostic {
-	if !writesBeside(nodeview.Deref(n)) {
+func keepBeside(out *ir.Unmodeled, serviceContext Ctx, node *yaml.Node, at jsontext.Pointer, i int, folds bool) []ir.Diagnostic {
+	if !writesBeside(nodeview.Deref(node)) {
 		return nil
 	}
 	scope := "reference/" + strconv.Itoa(i)
 	var diags []ir.Diagnostic
-	for _, pair := range nodeview.Pairs(n) {
+	for _, pair := range nodeview.Pairs(node) {
 		docs := pair.Key == "summary" || pair.Key == "description"
 		if pair.Key == "$ref" || (docs && folds) {
 			continue
@@ -65,15 +65,15 @@ func keepBeside(out *ir.Unmodeled, serviceContext Ctx, n *yaml.Node, at jsontext
 	return diags
 }
 
-// writesBeside reports whether the mapping n writes a key other than $ref, a
+// writesBeside reports whether the mapping node writes a key other than $ref, a
 // merge key among them, read off its own pairs: a bare reference, the common
 // case, is answered without building a view.
-func writesBeside(n *yaml.Node) bool {
-	if n == nil || n.Kind != yaml.MappingNode {
+func writesBeside(node *yaml.Node) bool {
+	if node == nil || node.Kind != yaml.MappingNode {
 		return false
 	}
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		if k := expanded(n.Content[i]); k == nil || k.Value != "$ref" {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if nodeValue := expanded(node.Content[i]); nodeValue == nil || nodeValue.Value != "$ref" {
 			return true
 		}
 	}

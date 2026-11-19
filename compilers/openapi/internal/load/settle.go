@@ -30,9 +30,9 @@ func settle(judgmentValue judgment, a *aside) {
 // turned any.
 func turnRefused(judgmentValue judgment) bool {
 	turned := false
-	for n := range judgmentValue.refused {
-		if !judgmentValue.accepted[n] {
-			nodeview.Unread(n)
+	for node := range judgmentValue.refused {
+		if !judgmentValue.accepted[node] {
+			nodeview.Unread(node)
 			turned = true
 		}
 	}
@@ -47,11 +47,11 @@ func turnRefused(judgmentValue judgment) bool {
 // turn left so.
 func setAside(judgmentValue judgment, a *aside) {
 	for _, ref := range judgmentValue.referenced {
-		v := nodeview.Child(ref, "$ref")
+		node := nodeview.Child(ref, "$ref")
 		switch {
-		case v == nil || !isNullNode(v):
+		case node == nil || !isNullNode(node):
 		case writesRef(ref):
-			a.spoil(v)
+			a.spoil(node)
 		default:
 			// The model reads a Reference Object by the keys the mapping writes
 			// itself, so one whose $ref a `<<` merges in stands in its place.
@@ -72,8 +72,8 @@ func setAside(judgmentValue judgment, a *aside) {
 func asidePathItem(item *yaml.Node, a *aside) {
 	a.hide(item, func(key, val *yaml.Node) bool {
 		name, own := nodeview.KeyOf(key)
-		v := nodeview.Deref(val)
-		return own && name == "$ref" && (v == nil || v.Kind != yaml.ScalarNode || isNullNode(v))
+		node := nodeview.Deref(val)
+		return own && name == "$ref" && (node == nil || node.Kind != yaml.ScalarNode || isNullNode(node))
 	})
 	ops := nodeview.Child(item, "additionalOperations")
 	if ops == nil || ops.Kind != yaml.MappingNode {
@@ -90,16 +90,16 @@ func asidePathItem(item *yaml.Node, a *aside) {
 	}
 }
 
-// isNullNode reports whether n is a null scalar.
-func isNullNode(n *yaml.Node) bool {
-	return n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null"
+// isNullNode reports whether node is a null scalar.
+func isNullNode(node *yaml.Node) bool {
+	return node.Kind == yaml.ScalarNode && node.ShortTag() == "!!null"
 }
 
-// writesRef reports whether the mapping m writes the key $ref itself, rather
+// writesRef reports whether the mapping node writes the key $ref itself, rather
 // than through a `<<` merge.
-func writesRef(m *yaml.Node) bool {
-	for i := 0; i+1 < len(m.Content); i += 2 {
-		if key, own := nodeview.KeyOf(m.Content[i]); own && key == "$ref" {
+func writesRef(node *yaml.Node) bool {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if key, own := nodeview.KeyOf(node.Content[i]); own && key == "$ref" {
 			return true
 		}
 	}

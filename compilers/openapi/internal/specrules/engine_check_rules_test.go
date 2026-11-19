@@ -380,10 +380,10 @@ func TestCheck_ARepeatedEntryNamesItsFirstCopyWhereItIsPlaced(t *testing.T) {
 		"placed at no pointer": {nil, "/x-raw/T/required/0"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			var n yaml.Node
-			require.NoError(t, yaml.Unmarshal([]byte(`{required: [a, a]}`), &n))
+			var node yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(`{required: [a, a]}`), &node))
 
-			diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0",
+			diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0",
 				specrules.Options{Start: specrules.Schema, Locate: c.locate, Root: "/x-raw/T"})
 
 			require.Len(t, diags, 1)

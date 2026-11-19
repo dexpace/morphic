@@ -31,9 +31,9 @@ func TestApply_KeepsTheAliasesACopyHolds(t *testing.T) {
 	sameCodes(t, nil, diags)
 	sameValue(t, "x-b: {q: 1}\nx-a: {p: {q: 1}, r: 1}\nx-c: {p: {q: 1}}\n", root)
 	_, anchored := member(t, root, "x-b")
-	_, p := member(t, root, "x-a", "p")
-	require.Equal(t, yaml.AliasNode, p.Kind, "the copy's member is still an alias")
-	assert.Same(t, anchored, p.Alias, "and names what the source anchors")
+	_, node := member(t, root, "x-a", "p")
+	require.Equal(t, yaml.AliasNode, node.Kind, "the copy's member is still an alias")
+	assert.Same(t, anchored, node.Alias, "and names what the source anchors")
 }
 
 // TestApply_KeepsTheWriterOfAMergedMemberItWrote pins a merge the overlay
@@ -197,12 +197,12 @@ func TestApply_KeepsAKeyThatIsNoScalarWhereItFlattensAMerge(t *testing.T) {
 			require.True(t, origin.Applied(), "%+v", diags)
 			doc := nodeview.DocumentRoot(root)
 			require.Equal(t, "x-m", doc.Content[8].Value)
-			m := doc.Content[9]
+			node := doc.Content[9]
 			var sequences int
-			for i := 0; i+1 < len(m.Content); i += 2 {
-				if m.Content[i].Kind == yaml.SequenceNode {
+			for i := 0; i+1 < len(node.Content); i += 2 {
+				if node.Content[i].Kind == yaml.SequenceNode {
 					sequences++
-					assert.Equal(t, "v", m.Content[i+1].Value)
+					assert.Equal(t, "v", node.Content[i+1].Value)
 				}
 			}
 			assert.Equal(t, 1, sequences, "the key that is no scalar stays in x-m")
@@ -234,10 +234,10 @@ func TestApply_KeepsAMergeTheSourceRefusesWhereItFlattensOne(t *testing.T) {
 			require.True(t, origin.Applied(), "%+v", diags)
 			doc := nodeview.DocumentRoot(root)
 			require.Equal(t, "x-m", doc.Content[6].Value)
-			m := doc.Content[7]
+			node := doc.Content[7]
 			merges := 0
-			for i := 0; i+1 < len(m.Content); i += 2 {
-				if nodeview.IsMergeKey(m.Content[i]) {
+			for i := 0; i+1 < len(node.Content); i += 2 {
+				if nodeview.IsMergeKey(node.Content[i]) {
 					merges++
 				}
 			}

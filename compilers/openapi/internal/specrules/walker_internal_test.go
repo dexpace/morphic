@@ -86,13 +86,13 @@ func TestCheck_ASharedRootTellsEveryAcceptance(t *testing.T) {
 	} {
 		var got []string
 		NewChecker().Check(t.Context(), &doc, "3.1.0", Options{Start: Parameter, Shared: shared,
-			Judged: func(n *yaml.Node, refused bool) {
-				verdict, text := "accepted", n.Value
+			Judged: func(node *yaml.Node, refused bool) {
+				verdict, text := "accepted", node.Value
 				if refused {
 					verdict = "refused"
 				}
-				if n.Kind == yaml.MappingNode {
-					text = "{" + n.Content[0].Value + "}"
+				if node.Kind == yaml.MappingNode {
+					text = "{" + node.Content[0].Value + "}"
 				}
 				got = append(got, verdict+" "+text)
 			}})

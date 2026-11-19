@@ -381,8 +381,8 @@ func TestCheck_AnAliasedUnknownKeyIsPlacedAtItsKey(t *testing.T) {
 	diags := specrules.NewChecker().Check(t.Context(), &doc, "3.1.0", specrules.Options{
 		Locate: func(pointer jsontext.Pointer) ir.Provenance {
 			path, _ := view.DocumentPath(root, pointer)
-			n := path[len(path)-1]
-			return ir.Provenance{Pointer: pointer, Position: ir.Position{Line: n.Line, Column: n.Column}}
+			node := path[len(path)-1]
+			return ir.Provenance{Pointer: pointer, Position: ir.Position{Line: node.Line, Column: node.Column}}
 		},
 	})
 	var places []ir.Provenance

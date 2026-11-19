@@ -105,13 +105,13 @@ type Options struct {
 func readyForModel(ctx context.Context, root *yaml.Node, a *aside) []anchor {
 	var cleared []anchor
 	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
-	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if n.Anchor != "" {
-			cleared = append(cleared, anchor{node: n, name: n.Anchor})
-			n.Anchor = ""
+	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(node *yaml.Node, _ int) nodeview.Step {
+		if node.Anchor != "" {
+			cleared = append(cleared, anchor{node: node, name: node.Anchor})
+			node.Anchor = ""
 		}
-		if n.Kind == yaml.MappingNode {
-			a.hide(n, noKey)
+		if node.Kind == yaml.MappingNode {
+			a.hide(node, noKey)
 		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
@@ -372,10 +372,10 @@ func namedWithin(ctx context.Context, idx sourcetreestats.Measurements) bool {
 // tree places the mapping — the way the alias refusals are anchored. The parser
 // panics on such a mapping at a reference object, where no recover reaches
 // (docs/parser-library.md#tagged-mapping-panic).
-func taggedMappingRefusal(tree provenance.Tree, n *yaml.Node) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.TaggedMapping, tree.Node(n),
+func taggedMappingRefusal(tree provenance.Tree, node *yaml.Node) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.TaggedMapping, tree.Node(node),
 		"mapping is tagged %q; an OpenAPI document limits YAML tags to YAML 1.2's JSON schema ruleset, which tags a mapping %s",
-		n.Tag, sourcetreestats.MapTag)
+		node.Tag, sourcetreestats.MapTag)
 }
 
 // unmarshal builds a speakeasy document from an already-decoded node tree,

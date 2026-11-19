@@ -45,8 +45,8 @@ func repairAliases(ctx context.Context, root *yaml.Node, grafterValue *grafter, 
 // each of which a repair replaces with a copy.
 func detachedAliases(reachable map[*yaml.Node]bool) int {
 	count := 0
-	for n := range reachable {
-		if n.Kind == yaml.AliasNode && !reachable[n.Alias] {
+	for node := range reachable {
+		if node.Kind == yaml.AliasNode && !reachable[node.Alias] {
 			count++
 		}
 	}
@@ -59,11 +59,11 @@ func detachedAliases(reachable map[*yaml.Node]bool) int {
 // the loader's refusals bound.
 func reachableNodes(ctx context.Context, root *yaml.Node) (map[*yaml.Node]bool, bool) {
 	reachable := make(map[*yaml.Node]bool)
-	out := nodeview.Walk{Nodes: math.MaxInt, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if reachable[n] {
+	out := nodeview.Walk{Nodes: math.MaxInt, Visit: func(node *yaml.Node, _ int) nodeview.Step {
+		if reachable[node] {
 			return nodeview.Prune
 		}
-		reachable[n] = true
+		reachable[node] = true
 		return nodeview.Descend
 	}}.Run(ctx, root)
 	return reachable, !out.Cut
@@ -77,23 +77,23 @@ func reachableNodes(ctx context.Context, root *yaml.Node) (map[*yaml.Node]bool, 
 // A node is replaced in its parent's Content, which is why the walk reads
 // children rather than the node it is at: no action replaces the tree's own
 // root, so no alias can sit there. A copy holds no alias and is not walked.
-func substituteDetached(ctx context.Context, n *yaml.Node, reachable map[*yaml.Node]bool, work *budget.Budget,
+func substituteDetached(ctx context.Context, node *yaml.Node, reachable map[*yaml.Node]bool, work *budget.Budget,
 ) (done, safe bool) {
 	safe = true
 	copies := map[*yaml.Node]bool{}
-	out := nodeview.Walk{Nodes: math.MaxInt, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if copies[n] {
+	out := nodeview.Walk{Nodes: math.MaxInt, Visit: func(nodeValue *yaml.Node, _ int) nodeview.Step {
+		if copies[nodeValue] {
 			return nodeview.Prune
 		}
-		if safe = substituteChildren(n, reachable, work, copies); !safe {
+		if safe = substituteChildren(nodeValue, reachable, work, copies); !safe {
 			return nodeview.Stop
 		}
 		return nodeview.Descend
-	}}.Run(ctx, n)
+	}}.Run(ctx, node)
 	return !out.Cut, safe
 }
 
-// substituteChildren replaces each child of n that is a detached alias (see
+// substituteChildren replaces each child of node that is a detached alias (see
 // substituteDetached), recording each copy made in copies, and reports whether
 // work held for all of them.
 //
@@ -101,8 +101,8 @@ func substituteDetached(ctx context.Context, n *yaml.Node, reachable map[*yaml.N
 // the source declares is the source's, keeping the line and column the source
 // writes it at: it stands at the alias's position for what the source wrote
 // at the anchor.
-func substituteChildren(n *yaml.Node, reachable map[*yaml.Node]bool, work *budget.Budget, copies map[*yaml.Node]bool) bool {
-	for i, child := range n.Content {
+func substituteChildren(node *yaml.Node, reachable map[*yaml.Node]bool, work *budget.Budget, copies map[*yaml.Node]bool) bool {
+	for i, child := range node.Content {
 		if child == nil || child.Kind != yaml.AliasNode || reachable[child.Alias] {
 			continue
 		}
@@ -115,7 +115,7 @@ func substituteChildren(n *yaml.Node, reachable map[*yaml.Node]bool, work *budge
 		if err != nil {
 			return false
 		}
-		n.Content[i], copies[expanded] = expanded, true
+		node.Content[i], copies[expanded] = expanded, true
 	}
 	return true
 }

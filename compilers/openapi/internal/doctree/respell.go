@@ -345,22 +345,22 @@ func percentAt(text []byte, i int) rune {
 	return placeholderAt(enc[:], 0, 1)
 }
 
-// restore writes back in n what respell put in place: each line-break
-// placeholder as its character, in every string of n, and an escaped slash's
+// restore writes back in node what respell put in place: each line-break
+// placeholder as its character, in every string of node, and an escaped slash's
 // doubled placeholder and a pair of escapes as the character they name in the
 // value of a double-quoted scalar, the one style where a backslash is an
 // escape, and as the characters written in every other string.
-func (r respelling) restore(n *yaml.Node) {
+func (r respelling) restore(node *yaml.Node) {
 	if r == (respelling{}) {
 		return
 	}
-	quoted := n.Kind == yaml.ScalarNode && n.Style&yaml.DoubleQuotedStyle != 0
-	n.Value = r.restored(n.Value, quoted)
-	n.Tag = r.restored(n.Tag, false)
-	n.Anchor = r.restored(n.Anchor, false)
-	n.HeadComment = r.restored(n.HeadComment, false)
-	n.LineComment = r.restored(n.LineComment, false)
-	n.FootComment = r.restored(n.FootComment, false)
+	quoted := node.Kind == yaml.ScalarNode && node.Style&yaml.DoubleQuotedStyle != 0
+	node.Value = r.restored(node.Value, quoted)
+	node.Tag = r.restored(node.Tag, false)
+	node.Anchor = r.restored(node.Anchor, false)
+	node.HeadComment = r.restored(node.HeadComment, false)
+	node.LineComment = r.restored(node.LineComment, false)
+	node.FootComment = r.restored(node.FootComment, false)
 }
 
 // restored is s with what respell put in place written back, the escaped slash

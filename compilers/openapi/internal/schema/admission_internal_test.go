@@ -107,22 +107,22 @@ func loweredOrNot(t *testing.T, src []byte) *Lowerer {
 // statementsOfDocument calls visit with the statement of each schema the
 // root document of lowerer writes, wherever it is written.
 func statementsOfDocument(lowerer *Lowerer, visit func(at jsontext.Pointer, st *statement.Statement)) {
-	var walk func(n *yaml.Node, at jsontext.Pointer, depth int)
-	walk = func(n *yaml.Node, at jsontext.Pointer, depth int) {
-		if n == nil || depth > 512 {
+	var walk func(node *yaml.Node, at jsontext.Pointer, depth int)
+	walk = func(node *yaml.Node, at jsontext.Pointer, depth int) {
+		if node == nil || depth > 512 {
 			return
 		}
 		if st := lowerer.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: at}); st.Held() {
 			visit(at, st)
 		}
-		switch n.Kind {
+		switch node.Kind {
 		case yaml.MappingNode:
-			for i := 0; i+1 < len(n.Content); i += 2 {
-				walk(n.Content[i+1], at.AppendToken(n.Content[i].Value), depth+1)
+			for i := 0; i+1 < len(node.Content); i += 2 {
+				walk(node.Content[i+1], at.AppendToken(node.Content[i].Value), depth+1)
 			}
 		case yaml.SequenceNode:
-			for i, c := range n.Content {
-				walk(c, at.AppendToken(strconv.Itoa(i)), depth+1)
+			for i, nodeValue := range node.Content {
+				walk(nodeValue, at.AppendToken(strconv.Itoa(i)), depth+1)
 			}
 		default:
 		}

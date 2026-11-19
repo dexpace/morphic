@@ -26,8 +26,8 @@ import (
 func compileConfig(doc *yaml.Node) reftable.Config {
 	view, root := nodeview.New(), nodeview.DocumentRoot(doc)
 	version := ""
-	if v := nodeview.Deref(view.ChildByToken(root, "openapi")); v != nil {
-		version = v.Value
+	if node := nodeview.Deref(view.ChildByToken(root, "openapi")); node != nil {
+		version = node.Value
 	}
 	keys := func(kind string) []string {
 		components := nodeview.Deref(view.ChildByToken(root, "components"))

@@ -139,15 +139,15 @@ func (t *titles) componentNames() map[string]bool {
 	return t.components
 }
 
-// items returns the items of the sequence n stands for, none where it is no
+// items returns the items of the sequence node stands for, none where it is no
 // sequence: a oneOf or an allOf written as a mapping, which load reports, has
 // no branches to read.
-func items(n *yaml.Node) []*yaml.Node {
-	n = nodeview.Deref(n)
-	if n == nil || n.Kind != yaml.SequenceNode {
+func items(node *yaml.Node) []*yaml.Node {
+	node = nodeview.Deref(node)
+	if node == nil || node.Kind != yaml.SequenceNode {
 		return nil
 	}
-	return n.Content
+	return node.Content
 }
 
 // words returns titleWords of node, read once per node.

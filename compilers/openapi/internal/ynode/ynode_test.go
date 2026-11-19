@@ -17,39 +17,39 @@ import (
 
 func TestScalar_IsUntagged(t *testing.T) {
 	t.Parallel()
-	n := ynode.Scalar("x")
-	assert.Equal(t, yaml.ScalarNode, n.Kind)
-	assert.Equal(t, "x", n.Value)
-	assert.Empty(t, n.Tag, "an untagged scalar is what distinguishes a plain key from a merge key")
+	node := ynode.Scalar("x")
+	assert.Equal(t, yaml.ScalarNode, node.Kind)
+	assert.Equal(t, "x", node.Value)
+	assert.Empty(t, node.Tag, "an untagged scalar is what distinguishes a plain key from a merge key")
 }
 
 func TestMap_HoldsPairsAsAlternatingContent(t *testing.T) {
 	t.Parallel()
 	key, val := ynode.Scalar("k"), ynode.Scalar("v")
-	n := ynode.Map(key, val)
-	assert.Equal(t, yaml.MappingNode, n.Kind)
-	require.Len(t, n.Content, 2)
-	assert.Same(t, key, n.Content[0])
-	assert.Same(t, val, n.Content[1])
+	node := ynode.Map(key, val)
+	assert.Equal(t, yaml.MappingNode, node.Kind)
+	require.Len(t, node.Content, 2)
+	assert.Same(t, key, node.Content[0])
+	assert.Same(t, val, node.Content[1])
 	assert.Empty(t, ynode.Map().Content, "a mapping with no pairs holds nothing")
 }
 
 func TestSeq_HoldsItemsInOrder(t *testing.T) {
 	t.Parallel()
 	first, second := ynode.Scalar("a"), ynode.Scalar("b")
-	n := ynode.Seq(first, second)
-	assert.Equal(t, yaml.SequenceNode, n.Kind)
-	require.Len(t, n.Content, 2)
-	assert.Same(t, first, n.Content[0])
-	assert.Same(t, second, n.Content[1])
+	node := ynode.Seq(first, second)
+	assert.Equal(t, yaml.SequenceNode, node.Kind)
+	require.Len(t, node.Content, 2)
+	assert.Same(t, first, node.Content[0])
+	assert.Same(t, second, node.Content[1])
 }
 
 func TestAlias_ResolvesToItsTarget(t *testing.T) {
 	t.Parallel()
 	target := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
-	n := ynode.Alias(target)
-	assert.Equal(t, yaml.AliasNode, n.Kind)
-	assert.Same(t, target, n.Alias, "yaml.v3 resolves an alias to the node its anchor names")
+	node := ynode.Alias(target)
+	assert.Equal(t, yaml.AliasNode, node.Kind)
+	assert.Same(t, target, node.Alias, "yaml.v3 resolves an alias to the node its anchor names")
 }
 
 // TestMerge_MatchesTheParsedMergeKey pins the built key against yaml.v3 and the
@@ -71,12 +71,12 @@ func TestMerge_MatchesTheParsedMergeKey(t *testing.T) {
 	assert.False(t, yml.IsMergeKey(ynode.Scalar(built.Value)), "and reads it untagged as an ordinary key")
 }
 
-func findScalar(n *yaml.Node, value string) *yaml.Node {
-	if n.Kind == yaml.ScalarNode && n.Value == value {
-		return n
+func findScalar(node *yaml.Node, value string) *yaml.Node {
+	if node.Kind == yaml.ScalarNode && node.Value == value {
+		return node
 	}
-	for _, c := range n.Content {
-		if found := findScalar(c, value); found != nil {
+	for _, nodeValue := range node.Content {
+		if found := findScalar(nodeValue, value); found != nil {
 			return found
 		}
 	}
@@ -86,17 +86,17 @@ func findScalar(n *yaml.Node, value string) *yaml.Node {
 func TestMergeChain_NestsOneMergePerLevelOverALeaf(t *testing.T) {
 	t.Parallel()
 	const levels = 3
-	n := ynode.MergeChain(levels)
+	node := ynode.MergeChain(levels)
 
 	for i := range levels {
-		require.Equal(t, yaml.MappingNode, n.Kind, "level %d is a mapping", i)
-		require.Len(t, n.Content, 2, "level %d holds one merge pair", i)
-		assert.True(t, yml.IsMergeKey(n.Content[0]), "level %d merges rather than naming a key", i)
-		require.Equal(t, yaml.AliasNode, n.Content[1].Kind, "level %d merges through an alias", i)
-		n = n.Content[1].Alias
+		require.Equal(t, yaml.MappingNode, node.Kind, "level %d is a mapping", i)
+		require.Len(t, node.Content, 2, "level %d holds one merge pair", i)
+		assert.True(t, yml.IsMergeKey(node.Content[0]), "level %d merges rather than naming a key", i)
+		require.Equal(t, yaml.AliasNode, node.Content[1].Kind, "level %d merges through an alias", i)
+		node = node.Content[1].Alias
 	}
 
-	assert.Equal(t, []string{"leaf", "v"}, []string{n.Content[0].Value, n.Content[1].Value},
+	assert.Equal(t, []string{"leaf", "v"}, []string{node.Content[0].Value, node.Content[1].Value},
 		"the chain bottoms out in one ordinary pair")
 
 	bare := ynode.MergeChain(0)

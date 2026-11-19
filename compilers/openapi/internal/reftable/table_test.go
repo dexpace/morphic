@@ -433,11 +433,11 @@ func withDocuments(docs map[string]string) reftable.Config {
 		if !ok {
 			return nil, errors.New("no such document")
 		}
-		var n yaml.Node
-		if err := yaml.Unmarshal([]byte(src), &n); err != nil {
+		var node yaml.Node
+		if err := yaml.Unmarshal([]byte(src), &node); err != nil {
 			return nil, err
 		}
-		return &n, nil
+		return &node, nil
 	}
 	return cfg
 }

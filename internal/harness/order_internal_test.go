@@ -239,10 +239,10 @@ func TestReverseNode_DepthBound(t *testing.T) {
 // holds key/value pairs, so this guards the helper rather than a reachable input.
 func TestReversedPairs_OddTrailingElementIsKept(t *testing.T) {
 	t.Parallel()
-	a, b, c := scalarNode("a"), scalarNode("b"), scalarNode("c")
-	got := reversedPairs([]*yaml.Node{a, b, c})
+	a, b, node := scalarNode("a"), scalarNode("b"), scalarNode("c")
+	got := reversedPairs([]*yaml.Node{a, b, node})
 	require.Len(t, got, 3)
-	assert.Equal(t, []*yaml.Node{a, b, c}, got, "one pair, reversed onto itself, then the odd tail")
+	assert.Equal(t, []*yaml.Node{a, b, node}, got, "one pair, reversed onto itself, then the odd tail")
 }
 
 // TestOrderInvariant_DeclinesWhatItCannotPermute pins each way the oracle

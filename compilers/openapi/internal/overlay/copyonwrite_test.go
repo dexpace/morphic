@@ -55,25 +55,25 @@ const (
 // each position it stands at.
 func holders(root *yaml.Node, key, value string) []string {
 	var out []string
-	var walk func(n *yaml.Node, at string)
-	walk = func(n *yaml.Node, at string) {
-		switch n.Kind {
+	var walk func(node *yaml.Node, at string)
+	walk = func(node *yaml.Node, at string) {
+		switch node.Kind {
 		case yaml.DocumentNode:
-			for _, c := range n.Content {
-				walk(c, at)
+			for _, nodeValue := range node.Content {
+				walk(nodeValue, at)
 			}
 		case yaml.AliasNode:
-			walk(n.Alias, at)
+			walk(node.Alias, at)
 		case yaml.MappingNode:
-			for i := 0; i+1 < len(n.Content); i += 2 {
-				if n.Content[i].Value == key && n.Content[i+1].Value == value {
+			for i := 0; i+1 < len(node.Content); i += 2 {
+				if node.Content[i].Value == key && node.Content[i+1].Value == value {
 					out = append(out, at)
 				}
-				walk(n.Content[i+1], at+"/"+n.Content[i].Value)
+				walk(node.Content[i+1], at+"/"+node.Content[i].Value)
 			}
 		case yaml.SequenceNode:
-			for i, c := range n.Content {
-				walk(c, fmt.Sprintf("%s/%d", at, i))
+			for i, nodeValue := range node.Content {
+				walk(nodeValue, fmt.Sprintf("%s/%d", at, i))
 			}
 		case yaml.ScalarNode:
 		}
@@ -89,10 +89,10 @@ func nodesIn(root *yaml.Node) int {
 	count := 0
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		count++
-		stack = append(stack, n.Content...)
+		stack = append(stack, node.Content...)
 	}
 	return count
 }
@@ -101,10 +101,10 @@ func nodesIn(root *yaml.Node) int {
 // own content, a merge key's members not among them.
 func ownKeys(t *testing.T, root *yaml.Node, key string, path ...string) int {
 	t.Helper()
-	_, n := member(t, root, path...)
+	_, node := member(t, root, path...)
 	count := 0
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		if n.Content[i].Value == key {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
 			count++
 		}
 	}

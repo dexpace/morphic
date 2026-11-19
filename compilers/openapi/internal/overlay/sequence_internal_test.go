@@ -281,9 +281,9 @@ func TestSequence_AppliesWithoutABudget(t *testing.T) {
 func TestWeigher_CountsWhatTheCloneBuilds(t *testing.T) {
 	t.Parallel()
 	decode := func(src string) *yaml.Node {
-		var n yaml.Node
-		require.NoError(t, yaml.Unmarshal([]byte(src), &n))
-		return n.Content[0]
+		var node yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(src), &node))
+		return node.Content[0]
 	}
 
 	plain := decode("{a: 1, b: 2}")

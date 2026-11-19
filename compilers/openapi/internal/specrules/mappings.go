@@ -72,22 +72,22 @@ type formatCheck struct {
 	reporter
 }
 
-// visit checks n, a mapping's pairs or a merged list's elements, and notes
+// visit checks node, a mapping's pairs or a merged list's elements, and notes
 // where each of its children is.
-func (f *formatCheck) visit(n *yaml.Node, _ int) nodeview.Step {
-	ptr := f.at[n]
-	delete(f.at, n)
-	switch n.Kind {
+func (f *formatCheck) visit(node *yaml.Node, _ int) nodeview.Step {
+	ptr := f.at[node]
+	delete(f.at, node)
+	switch node.Kind {
 	case yaml.MappingNode:
-		f.mapping(n, ptr)
+		f.mapping(node, ptr)
 	case yaml.SequenceNode:
-		for i, item := range n.Content {
+		for i, item := range node.Content {
 			f.at[item] = ptr.AppendToken(strconv.Itoa(i))
-			if f.merged[n] {
+			if f.merged[node] {
 				f.at[item] = ptr
 			}
 		}
-		delete(f.merged, n)
+		delete(f.merged, node)
 	default:
 	}
 	return nodeview.Descend
@@ -95,9 +95,9 @@ func (f *formatCheck) visit(n *yaml.Node, _ int) nodeview.Step {
 
 // lookForBreak stops a walk at the first mapping that breaks either rule
 // CheckFormat holds it to.
-func lookForBreak(n *yaml.Node, _ int) nodeview.Step {
-	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-		key, val := n.Content[i], n.Content[i+1]
+func lookForBreak(node *yaml.Node, _ int) nodeview.Step {
+	for i := 0; node.Kind == yaml.MappingNode && i+1 < len(node.Content); i += 2 {
+		key, val := node.Content[i], node.Content[i+1]
 		if nodeview.IsMergeKey(key) {
 			if slices.ContainsFunc(nodeview.MergeSources(val), nodeview.NotMapping) {
 				return nodeview.Stop
@@ -112,14 +112,14 @@ func lookForBreak(n *yaml.Node, _ int) nodeview.Step {
 // scalarKey reports whether key, followed through its alias, is a scalar, as
 // the Format section requires a key to be.
 func scalarKey(key *yaml.Node) bool {
-	k := nodeview.Deref(key)
-	return k == nil || k.Kind == yaml.ScalarNode
+	node := nodeview.Deref(key)
+	return node == nil || node.Kind == yaml.ScalarNode
 }
 
-// mapping checks the pairs mapping n, at ptr, writes itself.
-func (f *formatCheck) mapping(n *yaml.Node, ptr jsontext.Pointer) {
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		key, val := n.Content[i], n.Content[i+1]
+// mapping checks the pairs mapping node, at ptr, writes itself.
+func (f *formatCheck) mapping(node *yaml.Node, ptr jsontext.Pointer) {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key, val := node.Content[i], node.Content[i+1]
 		if nodeview.IsMergeKey(key) {
 			f.merge(val, ptr)
 			continue
@@ -152,19 +152,19 @@ func (f *formatCheck) merge(val *yaml.Node, ptr jsontext.Pointer) {
 				kindName(nodeview.Deref(src)))
 		}
 	}
-	if v := nodeview.Deref(val); v != nil && v == val && v.Kind == yaml.SequenceNode {
+	if node := nodeview.Deref(val); node != nil && node == val && node.Kind == yaml.SequenceNode {
 		f.merged[val] = true
 	}
 }
 
 // kindName names the kind of a node with its article.
-func kindName(n *yaml.Node) string {
+func kindName(node *yaml.Node) string {
 	switch {
-	case n == nil:
+	case node == nil:
 		return "nothing"
-	case n.Kind == yaml.MappingNode:
+	case node.Kind == yaml.MappingNode:
 		return "a mapping"
-	case n.Kind == yaml.SequenceNode:
+	case node.Kind == yaml.SequenceNode:
 		return "a list"
 	default:
 		return "a scalar"
@@ -188,14 +188,14 @@ func CheckRepeatedKeys(ctx context.Context, root *yaml.Node, declared string, op
 	}
 	at := map[*yaml.Node]jsontext.Pointer{}
 	var diags []ir.Diagnostic
-	nodeview.Walk{Nodes: opts.Budget.Cap(), Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		ptr := at[n]
-		delete(at, n)
-		switch n.Kind {
+	nodeview.Walk{Nodes: opts.Budget.Cap(), Visit: func(node *yaml.Node, _ int) nodeview.Step {
+		ptr := at[node]
+		delete(at, node)
+		switch node.Kind {
 		case yaml.MappingNode:
-			diags = append(diags, repeatedIn(n, ptr, at, locate, minor)...)
+			diags = append(diags, repeatedIn(node, ptr, at, locate, minor)...)
 		case yaml.SequenceNode:
-			for i, item := range n.Content {
+			for i, item := range node.Content {
 				at[item] = itemPointer(ptr, i)
 			}
 		default:
@@ -208,24 +208,24 @@ func CheckRepeatedKeys(ctx context.Context, root *yaml.Node, declared string, op
 	return diags
 }
 
-// repeatedIn notes where each child of the mapping n at ptr is, and reports
-// each key n writes a second time, at that copy.
-func repeatedIn(n *yaml.Node, ptr jsontext.Pointer, at map[*yaml.Node]jsontext.Pointer, locate Locator, minor Minor,
+// repeatedIn notes where each child of the mapping node at ptr is, and reports
+// each key node writes a second time, at that copy.
+func repeatedIn(node *yaml.Node, ptr jsontext.Pointer, at map[*yaml.Node]jsontext.Pointer, locate Locator, minor Minor,
 ) []ir.Diagnostic {
 	copies := map[string]int{}
 	var diags []ir.Diagnostic
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		key, own := nodeview.KeyOf(n.Content[i])
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key, own := nodeview.KeyOf(node.Content[i])
 		if !own {
 			continue
 		}
-		at[n.Content[i+1]] = ptr.AppendToken(key)
+		at[node.Content[i+1]] = ptr.AppendToken(key)
 		if copies[key]++; copies[key] != 2 {
 			continue
 		}
 		diagnostic := diag.Newf(ir.SeverityWarning, diag.Validation+"/"+classDuplicate, locate(ptr.AppendToken(key)),
 			"a mapping writes the key %q more than once, and only the last copy is read in OpenAPI %s (Format)", key, minor)
-		diagnostic.Provenance.Position = ir.Position{Line: n.Content[i].Line, Column: n.Content[i].Column}
+		diagnostic.Provenance.Position = ir.Position{Line: node.Content[i].Line, Column: node.Content[i].Column}
 		diags = append(diags, diagnostic)
 	}
 	return diags

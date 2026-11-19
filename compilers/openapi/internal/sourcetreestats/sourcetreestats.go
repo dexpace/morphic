@@ -166,43 +166,43 @@ type openNode struct {
 // finding, or one answer would hide another.
 func (x *Measurements) walk(ctx context.Context, maxNodes int) {
 	walkerValue := walker{x: x, ancestors: map[*yaml.Node]bool{}, measure: NewMeasure(maxNodes)}
-	visit := func(n *yaml.Node, depth int) nodeview.Step { return walkerValue.visit(ctx, n, depth) }
+	visit := func(node *yaml.Node, depth int) nodeview.Step { return walkerValue.visit(ctx, node, depth) }
 	out := nodeview.Walk{Nodes: maxNodes, Visit: visit, Leave: walkerValue.leave}.Run(ctx, x.root)
 	x.nodes = out.Visited
 	x.truncated = out.Cut || walkerValue.measure.Truncated()
 }
 
-// visit records what n answers, at depth below the root. An alias is a leaf:
+// visit records what node answers, at depth below the root. An alias is a leaf:
 // yaml.v3 gives it empty Content, and its target is not its child, so it is
 // finished here as the nesting of what it names, measured under ctx. Any other
 // node is opened, for leave to close once its children are measured.
-func (w *walker) visit(ctx context.Context, n *yaml.Node, depth int) nodeview.Step {
-	w.x.recordTag(n)
-	w.x.written = sum(w.x.written, len(n.Value)+1)
-	w.x.text = sum(w.x.text, scalarText(n))
+func (w *walker) visit(ctx context.Context, node *yaml.Node, depth int) nodeview.Step {
+	w.x.recordTag(node)
+	w.x.written = sum(w.x.written, len(node.Value)+1)
+	w.x.text = sum(w.x.text, scalarText(node))
 	tracked := depth <= maxTrackedDepth
-	if n.Kind == yaml.AliasNode {
+	if node.Kind == yaml.AliasNode {
 		if tracked {
-			w.x.recordAlias(n, w.ancestors)
+			w.x.recordAlias(node, w.ancestors)
 		}
-		w.finish(w.measure.shapeOf(ctx, n))
+		w.finish(w.measure.shapeOf(ctx, node))
 		return nodeview.Prune
 	}
 	if tracked {
-		w.ancestors[n] = true
+		w.ancestors[node] = true
 	}
-	w.open = append(w.open, openNode{n: n, shape: shape{nodes: 1, text: scalarText(n)}})
+	w.open = append(w.open, openNode{n: node, shape: shape{nodes: 1, text: scalarText(node)}})
 	return nodeview.Descend
 }
 
-// leave closes n once its children are measured.
-func (w *walker) leave(n *yaml.Node, depth int) {
+// leave closes node once its children are measured.
+func (w *walker) leave(node *yaml.Node, depth int) {
 	if depth <= maxTrackedDepth {
-		delete(w.ancestors, n)
+		delete(w.ancestors, node)
 	}
 	done := w.open[len(w.open)-1].shape
 	w.open = w.open[:len(w.open)-1]
-	done.nesting += Level(n)
+	done.nesting += Level(node)
 	w.finish(done)
 }
 
@@ -226,9 +226,9 @@ func (w *walker) finish(shapeValue shape) {
 // parser's own — the raw tag against the one spelling — rather than yaml.v3's
 // ShortTag, which would read an empty tag as MapTag and pass a node the parser
 // would still fault on.
-func (x *Measurements) recordTag(n *yaml.Node) {
-	if n.Kind == yaml.MappingNode && n.Tag != MapTag {
-		x.taggedMappings = append(x.taggedMappings, n)
+func (x *Measurements) recordTag(node *yaml.Node) {
+	if node.Kind == yaml.MappingNode && node.Tag != MapTag {
+		x.taggedMappings = append(x.taggedMappings, node)
 	}
 }
 

@@ -440,8 +440,8 @@ func twinAnswers(t *testing.T, twinPlaceValue twinPlace, twinDocValue twinDoc, n
 		if !ok {
 			return nil, errors.New("no such document")
 		}
-		var n yaml.Node
-		return &n, yaml.Unmarshal([]byte(text), &n)
+		var node yaml.Node
+		return &node, yaml.Unmarshal([]byte(text), &node)
 	}}
 	root := openapitest.YAMLDocument(t, src)
 	table := reftable.Bind(t.Context(), root, cfg)

@@ -86,8 +86,8 @@ func deepSites(ctx context.Context, root *yaml.Node, limit int) []*yaml.Node {
 		at := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		passed := false
-		eachChild(at.n, func(c *yaml.Node, _ string, held bool) {
-			if c == nil || at.level+measure.Of(ctx, c) <= limit {
+		eachChild(at.n, func(node *yaml.Node, _ string, held bool) {
+			if node == nil || at.level+measure.Of(ctx, node) <= limit {
 				return
 			}
 			passed = true
@@ -95,9 +95,9 @@ func deepSites(ctx context.Context, root *yaml.Node, limit int) []*yaml.Node {
 			case !held:
 				sites = append(sites, at.n)
 			case at.level == limit:
-				sites = append(sites, c)
+				sites = append(sites, node)
 			default:
-				stack = append(stack, placed{n: c, level: at.level + sourcetreestats.Level(c)})
+				stack = append(stack, placed{n: node, level: at.level + sourcetreestats.Level(node)})
 			}
 		})
 		if !passed {

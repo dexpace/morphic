@@ -306,8 +306,8 @@ func TestGrafter_WritesOnePositionOfAnAlias(t *testing.T) {
 
 		sameCodes(t, nil, diags)
 		sameValue(t, tc.want, root)
-		_, k := member(t, root, "x-a", "k")
-		assert.Equal(t, "v", k.Value, "%s: the anchor is as the source wrote it", name)
+		_, node := member(t, root, "x-a", "k")
+		assert.Equal(t, "v", node.Value, "%s: the anchor is as the source wrote it", name)
 	}
 }
 
@@ -322,8 +322,8 @@ func TestGrafter_WritesWhatAnAliasInTheUpdateNames(t *testing.T) {
 	require.Empty(t, diags)
 
 	sameValue(t, "{x: 1, p: {a: {deep: 1}}, q: [{deep: 1}]}", root)
-	_, p := member(t, root, "p")
-	assert.Empty(t, p.Anchor, "the copy does not answer to the name of the node it came from")
+	_, node := member(t, root, "p")
+	assert.Empty(t, node.Anchor, "the copy does not answer to the name of the node it came from")
 	assert.Zero(t, aliasNodes(root), "and no node of the tree is an alias")
 }
 
@@ -346,12 +346,12 @@ func aliasNodes(root *yaml.Node) int {
 	count := 0
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if n.Kind == yaml.AliasNode {
+		if node.Kind == yaml.AliasNode {
 			count++
 		}
-		stack = append(stack, n.Content...)
+		stack = append(stack, node.Content...)
 	}
 	return count
 }
@@ -401,23 +401,23 @@ func aliasNodesNaming(root *yaml.Node, names func(*yaml.Node) bool) int {
 	count := 0
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if n.Kind == yaml.AliasNode && names(n.Alias) {
+		if node.Kind == yaml.AliasNode && names(node.Alias) {
 			count++
 		}
-		stack = append(stack, n.Content...)
+		stack = append(stack, node.Content...)
 	}
 	return count
 }
 
-// reaches reports whether a Content walk from root reaches n.
-func reaches(root, n *yaml.Node) bool {
+// reaches reports whether a Content walk from root reaches node.
+func reaches(root, node *yaml.Node) bool {
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
 		top := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if top == n {
+		if top == node {
 			return true
 		}
 		stack = append(stack, top.Content...)

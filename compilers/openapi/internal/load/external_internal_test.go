@@ -387,14 +387,14 @@ func assertAnchorsReleasedAliasesStand(t *testing.T, root *yaml.Node) {
 	var sawAlias bool
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		assert.Empty(t, n.Anchor, "anchors are released before the tree is recorded")
-		if n.Kind == yaml.AliasNode {
+		assert.Empty(t, node.Anchor, "anchors are released before the tree is recorded")
+		if node.Kind == yaml.AliasNode {
 			sawAlias = true
-			assert.NotNil(t, n.Alias, "an alias still stands for its target")
+			assert.NotNil(t, node.Alias, "an alias still stands for its target")
 		}
-		stack = append(stack, n.Content...)
+		stack = append(stack, node.Content...)
 	}
 	assert.True(t, sawAlias, "sanity: the fixture carries an alias")
 }

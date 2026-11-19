@@ -89,8 +89,8 @@ func (d definitions) ancestorDefinition(site DocumentPointer, path []*yaml.Node,
 		if !places[i].below("$defs").held() {
 			continue
 		}
-		n, past := d.below(site.Doc, path[i], rest)
-		if readingValue := (reading{node: n, place: places[i].along(rest)}); n != nil && answers(readingValue.role(), n) {
+		node, past := d.below(site.Doc, path[i], rest)
+		if readingValue := (reading{node: node, place: places[i].along(rest)}); node != nil && answers(readingValue.role(), node) {
 			readingValue.at = DocumentPointer{Doc: site.Doc, Pointer: jsontext.Pointer(prefix(site.Pointer, i)) + pointer}
 			return readingValue, NoReason
 		}
@@ -101,38 +101,38 @@ func (d definitions) ancestorDefinition(site DocumentPointer, path []*yaml.Node,
 	return reading{}, why
 }
 
-// below is the node tokens name from n in document id, or nil, and whether the
+// below is the node tokens name from node in document id, or nil, and whether the
 // read stopped at a mapping merging past the view's bound (see absent).
-func (d definitions) below(id DocID, n *yaml.Node, tokens []string) (*yaml.Node, bool) {
+func (d definitions) below(id DocID, node *yaml.Node, tokens []string) (*yaml.Node, bool) {
 	for _, t := range tokens {
 		if !d.work.spend(1) {
 			return nil, false
 		}
-		next := d.docs.child(id, n, t)
+		next := d.docs.child(id, node, t)
 		if next == nil {
-			return nil, d.docs.absent(id, n) == MergeBound
+			return nil, d.docs.absent(id, node) == MergeBound
 		}
-		n = next
+		node = next
 	}
-	return n, false
+	return node, false
 }
 
-// holds reports whether tokens name a node read as a schema below n in
+// holds reports whether tokens name a node read as a schema below node in
 // document id.
-func (d definitions) holds(id DocID, n *yaml.Node, tokens []string) bool {
-	held, _ := d.below(id, n, tokens)
+func (d definitions) holds(id DocID, node *yaml.Node, tokens []string) bool {
+	held, _ := d.below(id, node, tokens)
 	return schemaShaped(held)
 }
 
-// answers reports whether n, a node a pointer reads, answers it at role: a
+// answers reports whether node, a node a pointer reads, answers it at role: a
 // schema of the model, which the parser builds whatever the YAML there holds,
 // or raw YAML shaped as one.
-func answers(role Role, n *yaml.Node) bool {
+func answers(role Role, node *yaml.Node) bool {
 	switch role {
 	case Schema:
-		return n != nil
+		return node != nil
 	case Raw:
-		return schemaShaped(n)
+		return schemaShaped(node)
 	default:
 		return false
 	}

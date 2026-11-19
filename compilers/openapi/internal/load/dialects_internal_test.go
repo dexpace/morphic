@@ -60,9 +60,9 @@ func TestDialects_ReadADocumentAtTheMinorItDeclares(t *testing.T) {
 func TestDeclaredDialect_ReadsAnOpenAPIDocumentsOwn(t *testing.T) {
 	t.Parallel()
 	tree := func(src string) *yaml.Node {
-		var n yaml.Node
-		require.NoError(t, yaml.Unmarshal([]byte(src), &n))
-		return &n
+		var node yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(src), &node))
+		return &node
 	}
 	assert.Equal(t, draft04, declaredDialect(tree("openapi: 3.1.0\njsonSchemaDialect: '"+draft04+"'\n")))
 	assert.Empty(t, declaredDialect(tree("jsonSchemaDialect: '"+draft04+"'\n")), "no OpenAPI Object")
@@ -131,8 +131,8 @@ func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *test
 		}
 		return s.GetRootNode()
 	}
-	governed := func(n *yaml.Node) bool {
-		return doc.Dialects.Of(n).Takes("exclusiveMinimum", specrules.Boolean)
+	governed := func(node *yaml.Node) bool {
+		return doc.Dialects.Of(node).Takes("exclusiveMinimum", specrules.Boolean)
 	}
 	assert.True(t, governed(node("T")))
 	assert.True(t, governed(node("T", "a")), "a subschema reads its root's")

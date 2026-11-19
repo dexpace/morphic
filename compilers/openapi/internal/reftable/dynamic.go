@@ -30,17 +30,17 @@ func newDynamicRefs() *dynamicRefs {
 	return &dynamicRefs{named: map[DocumentPointer]bool{}, spelled: map[DocumentPointer]bool{}, waiting: map[DocumentPointer]string{}}
 }
 
-// dynamicRefValue is the $dynamicRef the schema n of document id writes, read
+// dynamicRefValue is the $dynamicRef the schema node of document id writes, read
 // as refOf reads a $ref, and whether it writes a string one.
-func dynamicRefValue(docsValue *docs, id DocID, n *yaml.Node) (string, bool) {
-	if n = nodeview.Deref(n); n == nil || n.Kind != yaml.MappingNode {
+func dynamicRefValue(docsValue *docs, id DocID, node *yaml.Node) (string, bool) {
+	if node = nodeview.Deref(node); node == nil || node.Kind != yaml.MappingNode {
 		return "", false
 	}
-	v := nodeview.Deref(docsValue.list[id].view.ChildByToken(n, "$dynamicRef"))
-	if v == nil || v.Kind != yaml.ScalarNode || v.Tag == "!!null" {
+	nodeValue := nodeview.Deref(docsValue.list[id].view.ChildByToken(node, "$dynamicRef"))
+	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || nodeValue.Tag == "!!null" {
 		return "", false
 	}
-	return v.Value, true
+	return nodeValue.Value, true
 }
 
 // namesDynamic reports whether the $dynamicRef value, written at documentPointer and reached

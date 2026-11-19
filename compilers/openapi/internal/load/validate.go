@@ -53,8 +53,8 @@ type judgment struct {
 // document writes it rather than the model.
 func declaredVersion(root *yaml.Node) string {
 	for _, pair := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
-		if v := nodeview.Deref(pair.Val); pair.Key == "openapi" && v != nil && v.Kind == yaml.ScalarNode && v.Tag != "!!null" {
-			return v.Value
+		if node := nodeview.Deref(pair.Val); pair.Key == "openapi" && node != nil && node.Kind == yaml.ScalarNode && node.Tag != "!!null" {
+			return node.Value
 		}
 	}
 	return ""
@@ -68,8 +68,8 @@ func declaredDialect(root *yaml.Node) string {
 		return ""
 	}
 	for _, pair := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
-		if v := nodeview.Deref(pair.Val); pair.Key == "jsonSchemaDialect" && v != nil && v.Kind == yaml.ScalarNode && v.Tag != "!!null" {
-			return v.Value
+		if node := nodeview.Deref(pair.Val); pair.Key == "jsonSchemaDialect" && node != nil && node.Kind == yaml.ScalarNode && node.Tag != "!!null" {
+			return node.Value
 		}
 	}
 	return ""
@@ -130,8 +130,8 @@ func namesDialect(ctx context.Context, root *yaml.Node, version string) bool {
 	if declaredDialect(root) != "" {
 		return true
 	}
-	walk := nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if n.Kind == yaml.MappingNode && slices.ContainsFunc(nodeview.Pairs(n), func(pair nodeview.Pair) bool {
+	walk := nodeview.Walk{Nodes: maxTreeNodes, Visit: func(node *yaml.Node, _ int) nodeview.Step {
+		if node.Kind == yaml.MappingNode && slices.ContainsFunc(nodeview.Pairs(node), func(pair nodeview.Pair) bool {
 			return pair.Key == "$schema"
 		}) {
 			return nodeview.Stop
@@ -202,11 +202,11 @@ const foreign = -1
 // that of the node in the document it is in, which no entry lists.
 func reachedLocator(tree provenance.Tree, node *yaml.Node) specrules.Locator {
 	elsewhere := provenance.Tree{Doc: provenance.Doc{Source: foreign}}
-	return walkedFrom(node, func(n *yaml.Node) ir.Provenance {
-		if treeHolds(tree, n) {
-			return tree.Node(n)
+	return walkedFrom(node, func(node *yaml.Node) ir.Provenance {
+		if treeHolds(tree, node) {
+			return tree.Node(node)
 		}
-		return elsewhere.Node(n)
+		return elsewhere.Node(node)
 	})
 }
 

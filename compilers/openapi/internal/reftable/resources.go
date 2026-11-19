@@ -154,14 +154,14 @@ func (ix *identifiers) document(doc DocID, resourceValue resource) int32 {
 	return i
 }
 
-// declare notes what the schema n, read at at in the resource indexed in and
+// declare notes what the schema node, read at at in the resource indexed in and
 // with its parent in the dialect enclosing, declares, the dialect its
-// `$schema` names among it where n roots a resource (enterIn), and returns the
+// `$schema` names among it where node roots a resource (enterIn), and returns the
 // index of the resource its content is in, its own where it writes an
 // identifier naming another URI, and the dialect that content is read in.
-func (ix *identifiers) declare(resourcesValue resources, in int32, at DocumentPointer, n *yaml.Node, enclosing string) (int32, string) {
+func (ix *identifiers) declare(resourcesValue resources, in int32, at DocumentPointer, node *yaml.Node, enclosing string) (int32, string) {
 	held := ix.resources[in]
-	entering := resourcesValue.enterIn(held, at, n, enclosing, func() bool { return heldAt(resourcesValue.docs, at) })
+	entering := resourcesValue.enterIn(held, at, node, enclosing, func() bool { return heldAt(resourcesValue.docs, at) })
 	res := entering.res
 	ix.truncated[at.Doc] = ix.truncated[at.Doc] || !entering.known
 	switch {
@@ -176,15 +176,15 @@ func (ix *identifiers) declare(resourcesValue resources, in int32, at DocumentPo
 	}
 	view := resourcesValue.docs.list[at.Doc].view
 	if entering.names {
-		ix.dialects[at] = DialectRoot{At: at, URI: entering.dialect, Node: nodeview.Deref(n)}
+		ix.dialects[at] = DialectRoot{At: at, URI: entering.dialect, Node: nodeview.Deref(node)}
 		ix.named[at.Doc] = true
 	}
 	rule := dialectRule(resourcesValue.docs, at.Doc, entering.dialect)
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor", rule.Keyword} {
-		name, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), keyword))
+		name, ok := scalarOf(view.ChildByToken(nodeview.Deref(node), keyword))
 		switch {
 		case keyword == rule.Keyword:
-			name, ok = fragmentName(rule, name, ok && rule.Fragments && !resourcesValue.ignoresIdentifier(at.Doc, n, rule))
+			name, ok = fragmentName(rule, name, ok && rule.Fragments && !resourcesValue.ignoresIdentifier(at.Doc, node, rule))
 		case ok:
 			ok = anchorNamed(rule, keyword, name)
 		}
@@ -198,7 +198,7 @@ func (ix *identifiers) declare(resourcesValue resources, in int32, at DocumentPo
 			ix.dynamic[dynamicKeyValue] = append(ix.dynamic[dynamicKeyValue], at)
 		}
 	}
-	if rule.Recursive && recursiveAnchored(view, n) {
+	if rule.Recursive && recursiveAnchored(view, node) {
 		ix.recursive[at.Doc] = append(ix.recursive[at.Doc], at)
 	}
 	return in, entering.dialect
@@ -233,12 +233,12 @@ func sameOrigin(a, b string) bool {
 	return errU == nil && errV == nil && u.Host != "" && u.Scheme == v.Scheme && u.Host == v.Host
 }
 
-// recursiveAnchored reports whether the schema n writes `$recursiveAnchor` as
+// recursiveAnchored reports whether the schema node writes `$recursiveAnchor` as
 // the boolean true, which marks its resource for a `$recursiveRef`; false, the
 // default, and any other value mark none.
-func recursiveAnchored(view *nodeview.View, n *yaml.Node) bool {
-	v := nodeview.Deref(view.ChildByToken(nodeview.Deref(n), "$recursiveAnchor"))
-	return v != nil && v.Kind == yaml.ScalarNode && v.Tag == "!!bool" && strings.EqualFold(v.Value, "true")
+func recursiveAnchored(view *nodeview.View, node *yaml.Node) bool {
+	nodeValue := nodeview.Deref(view.ChildByToken(nodeview.Deref(node), "$recursiveAnchor"))
+	return nodeValue != nil && nodeValue.Kind == yaml.ScalarNode && nodeValue.Tag == "!!bool" && strings.EqualFold(nodeValue.Value, "true")
 }
 
 // commit makes the URIs the documents counted declare answer, and reports
@@ -394,21 +394,21 @@ func (ix *identifiers) lookupAnchor(root DocumentPointer, name string) (Document
 	}
 }
 
-// enter is the resource the content of the schema n, held in the resource in
+// enter is the resource the content of the schema node, held in the resource in
 // and read as rule says, is in: a new one, named by its identifier, where it
 // writes one naming another URI than in's; the document's own where its
 // identifier names its document; else in. An identifier naming in's own URI
 // starts none, and so does one beside a `$ref` rule ignores (ignoresIdentifier).
-// rooted reports that n roots the resource returned, whose root the caller
-// sets. known is false where n writes no identifier and merges past the view's
+// rooted reports that node roots the resource returned, whose root the caller
+// sets. known is false where node writes no identifier and merges past the view's
 // bound, which may hide one.
-func (r resources) enter(in resource, n *yaml.Node, rule DialectRule) (res resource, rooted, known bool) {
-	if r.ignoresIdentifier(in.root.Doc, n, rule) {
+func (r resources) enter(in resource, node *yaml.Node, rule DialectRule) (res resource, rooted, known bool) {
+	if r.ignoresIdentifier(in.root.Doc, node, rule) {
 		return in, false, true
 	}
-	id, written := r.idOf(in.root.Doc, n, rule.Keyword)
+	id, written := r.idOf(in.root.Doc, node, rule.Keyword)
 	if !written {
-		return in, false, r.docs.list[in.root.Doc].view.Expanded(nodeview.Deref(n))
+		return in, false, r.docs.list[in.root.Doc].view.Expanded(nodeview.Deref(node))
 	}
 	uri, part, ok := r.identify(id, in.uri)
 	switch {
@@ -593,22 +593,22 @@ func unreserved(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("-._~", c) >= 0
 }
 
-// idOf is the identifier n writes in document id under keyword, and whether it
+// idOf is the identifier node writes in document id under keyword, and whether it
 // writes a non-empty string one: a null one is none, as refOf reads a null
 // $ref.
-func (r resources) idOf(id DocID, n *yaml.Node, keyword string) (string, bool) {
-	return scalarOf(r.docs.list[id].view.ChildByToken(nodeview.Deref(n), keyword))
+func (r resources) idOf(id DocID, node *yaml.Node, keyword string) (string, bool) {
+	return scalarOf(r.docs.list[id].view.ChildByToken(nodeview.Deref(node), keyword))
 }
 
-// ignoresIdentifier reports whether the schema n of document id, read as rule
+// ignoresIdentifier reports whether the schema node of document id, read as rule
 // says, writes a $ref whose siblings rule ignores (DialectRule.IgnoresRefFields),
 // so that its identifier names no resource, gives no base and declares no name,
 // as the JSON Schema drafts before 2019-09 have it.
-func (r resources) ignoresIdentifier(id DocID, n *yaml.Node, rule DialectRule) bool {
+func (r resources) ignoresIdentifier(id DocID, node *yaml.Node, rule DialectRule) bool {
 	if !rule.IgnoresRefFields {
 		return false
 	}
-	_, ref := r.docs.refOf(id, n)
+	_, ref := r.docs.refOf(id, node)
 	return ref
 }
 
@@ -631,14 +631,14 @@ func fragmentName(rule DialectRule, id string, written bool) (string, bool) {
 	return name, name != "" && !strings.HasPrefix(name, "/") && utf8.ValidString(name)
 }
 
-// scalarOf is the string n holds, and whether it holds a non-empty one that
+// scalarOf is the string node holds, and whether it holds a non-empty one that
 // is not null.
-func scalarOf(n *yaml.Node) (string, bool) {
-	v := nodeview.Deref(n)
-	if v == nil || v.Kind != yaml.ScalarNode || v.Tag == "!!null" || v.Value == "" {
+func scalarOf(node *yaml.Node) (string, bool) {
+	nodeValue := nodeview.Deref(node)
+	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || nodeValue.Tag == "!!null" || nodeValue.Value == "" {
 		return "", false
 	}
-	return v.Value, true
+	return nodeValue.Value, true
 }
 
 // holding is the resource the position documentPointer, reached along path, is in: the one
@@ -653,7 +653,7 @@ func (r resources) holding(documentPointer DocumentPointer, path []*yaml.Node, s
 	state, tokens := r.docs.identityState(documentPointer.Doc), slices.Collect(documentPointer.Pointer.Tokens())
 	dialect, held := defaultDialect(r.docs, documentPointer.Doc), false
 	rule := dialectRule(r.docs, documentPointer.Doc, dialect)
-	for i, n := range path {
+	for i, node := range path {
 		if i > 0 {
 			held = held || state == sSchema || state == sLoose
 			state = stepIn(r.docs, documentPointer.Doc, path[i-1], state, tokens[i-1], dialect)
@@ -663,9 +663,9 @@ func (r resources) holding(documentPointer DocumentPointer, path []*yaml.Node, s
 		}
 		enteringValue := entering{dialect: dialect}
 		if named {
-			enteringValue = r.enterIn(res, DocumentPointer{Doc: documentPointer.Doc}, n, dialect, func() bool { return held })
+			enteringValue = r.enterIn(res, DocumentPointer{Doc: documentPointer.Doc}, node, dialect, func() bool { return held })
 		} else {
-			enteringValue.res, enteringValue.rooted, enteringValue.known = r.enter(res, n, rule)
+			enteringValue.res, enteringValue.rooted, enteringValue.known = r.enter(res, node, rule)
 		}
 		known = known && enteringValue.known
 		if enteringValue.rooted {

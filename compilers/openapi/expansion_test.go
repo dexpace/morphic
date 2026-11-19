@@ -59,31 +59,31 @@ func weightAt(t *testing.T, src, pointer string) int {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	n := root.Content[0]
+	node := root.Content[0]
 	for _, token := range strings.Split(pointer, "/")[1:] {
 		key := strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
-		i := slices.IndexFunc(n.Content, func(k *yaml.Node) bool { return k.Value == key })
+		i := slices.IndexFunc(node.Content, func(nodeValue *yaml.Node) bool { return nodeValue.Value == key })
 		require.True(t, i >= 0 && i%2 == 0, "%s has no %q", pointer, key)
-		n = n.Content[i+1]
+		node = node.Content[i+1]
 	}
 	var weigh func(*yaml.Node) int
-	weigh = func(n *yaml.Node) int {
-		if n.Kind == yaml.AliasNode {
-			return weigh(n.Alias)
+	weigh = func(nodeValue *yaml.Node) int {
+		if nodeValue.Kind == yaml.AliasNode {
+			return weigh(nodeValue.Alias)
 		}
-		w := 1 + len(n.Value)
-		for i, c := range n.Content {
-			schema := n.Kind == yaml.MappingNode && i%2 == 1 &&
-				(n.Content[i-1].Value == "schema" || n.Content[i-1].Value == "itemSchema")
+		w := 1 + len(nodeValue.Value)
+		for i, otherNode := range nodeValue.Content {
+			schema := nodeValue.Kind == yaml.MappingNode && i%2 == 1 &&
+				(nodeValue.Content[i-1].Value == "schema" || nodeValue.Content[i-1].Value == "itemSchema")
 			if schema {
 				w++
 				continue
 			}
-			w += weigh(c)
+			w += weigh(otherNode)
 		}
 		return w
 	}
-	return weigh(n)
+	return weigh(node)
 }
 
 // pathsWith returns a 3.1 document of the paths given, or of none, then the

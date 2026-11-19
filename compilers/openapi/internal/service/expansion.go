@@ -193,17 +193,17 @@ func referenceExpansionSize(root *yaml.Node, at reftable.Reading, within budget.
 // nothing; one merged in through `<<` is weighed as written, beneath the merge
 // key. A hop that is no mapping, or one read as a schema, is weighed whole.
 func weightBeside(hop *yaml.Node, at reftable.Reading, within budget.Limit) int {
-	n := expanded(hop)
-	if n == nil || n.Kind != yaml.MappingNode || at.Schema() {
+	node := expanded(hop)
+	if node == nil || node.Kind != yaml.MappingNode || at.Schema() {
 		return referenceExpansionSize(hop, at, within)
 	}
 	var stack []frame
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		k := expanded(n.Content[i])
-		if k != nil && k.Kind == yaml.ScalarNode && k.Value == "$ref" {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		nodeValue := expanded(node.Content[i])
+		if nodeValue != nil && nodeValue.Kind == yaml.ScalarNode && nodeValue.Value == "$ref" {
 			continue
 		}
-		stack = pair(stack, n.Content[i], n.Content[i+1], at)
+		stack = pair(stack, node.Content[i], node.Content[i+1], at)
 	}
 	return 1 + weigh(stack, within.Past()-1)
 }
@@ -215,8 +215,8 @@ func weigh(stack []frame, left int) int {
 	for len(stack) > 0 && left > 0 {
 		frame := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		n := expanded(frame.node)
-		if n == nil {
+		node := expanded(frame.node)
+		if node == nil {
 			continue
 		}
 		left--
@@ -224,35 +224,35 @@ func weigh(stack []frame, left int) int {
 		switch {
 		case frame.at.Schema():
 			// What it holds lowers once, to the type, not at each copy.
-		case n.Kind == yaml.ScalarNode:
-			weight += len(n.Value)
+		case node.Kind == yaml.ScalarNode:
+			weight += len(node.Value)
 		default:
-			stack = beneath(stack, n, frame.at)
+			stack = beneath(stack, node, frame.at)
 		}
 	}
 	return weight
 }
 
-// expanded returns what referenceExpansionSize visits for n: what an alias names, in its
-// place, or n itself, as nodeview.AliasTarget reads it.
-func expanded(n *yaml.Node) *yaml.Node {
-	if t := nodeview.Deref(n); t != nil {
-		return t
+// expanded returns what referenceExpansionSize visits for node: what an alias names, in its
+// place, or node itself, as nodeview.AliasTarget reads it.
+func expanded(node *yaml.Node) *yaml.Node {
+	if nodeValue := nodeview.Deref(node); nodeValue != nil {
+		return nodeValue
 	}
-	return n
+	return node
 }
 
 // beneath returns stack with a frame pushed onto it for each position directly
-// below n, read as at: a key as raw YAML, and its value as the grammar reads
+// below node, read as at: a key as raw YAML, and its value as the grammar reads
 // the key's position.
-func beneath(stack []frame, n *yaml.Node, at reftable.Reading) []frame {
-	switch n.Kind {
+func beneath(stack []frame, node *yaml.Node, at reftable.Reading) []frame {
+	switch node.Kind {
 	case yaml.MappingNode:
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			stack = pair(stack, n.Content[i], n.Content[i+1], at)
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			stack = pair(stack, node.Content[i], node.Content[i+1], at)
 		}
 	case yaml.SequenceNode:
-		for i, item := range n.Content {
+		for i, item := range node.Content {
 			stack = append(stack, frame{node: item, at: at.Below(strconv.Itoa(i))})
 		}
 	default:
@@ -264,8 +264,8 @@ func beneath(stack []frame, n *yaml.Node, at reftable.Reading) []frame {
 // for value, read as the grammar reads the position key names below at.
 func pair(stack []frame, key, value *yaml.Node, at reftable.Reading) []frame {
 	token := ""
-	if k := expanded(key); k != nil {
-		token = k.Value
+	if node := expanded(key); node != nil {
+		token = node.Value
 	}
 	return append(stack, frame{node: key}, frame{node: value, at: at.Below(token)})
 }

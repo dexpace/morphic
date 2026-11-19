@@ -678,9 +678,9 @@ func mergeKeyPredicate(t *testing.T) {
 		for _, tag := range tags {
 			for _, value := range values {
 				for _, style := range styles {
-					n := &yaml.Node{Kind: kind, Tag: tag, Value: value, Style: style}
-					want := yml.IsMergeKey(n)
-					assert.Equal(t, want, nodeview.IsMergeKey(n),
+					node := &yaml.Node{Kind: kind, Tag: tag, Value: value, Style: style}
+					want := yml.IsMergeKey(node)
+					assert.Equal(t, want, nodeview.IsMergeKey(node),
 						"kind %d tag %q value %q style %d: %s", kind, tag, value, style, revisit(t, result{}))
 					if want {
 						merging++
@@ -747,13 +747,13 @@ func scalarResolution(t *testing.T) {
 	for _, tc := range cases {
 		p, ok := s.GetSchema().GetProperties().Get(tc.literal)
 		require.True(t, ok, tc.literal)
-		n := p.GetSchema().GetDefault()
-		assert.Equal(t, tc.tag, n.ShortTag(), "%s: %s", tc.literal, revisit(t, result{}))
+		node := p.GetSchema().GetDefault()
+		assert.Equal(t, tc.tag, node.ShortTag(), "%s: %s", tc.literal, revisit(t, result{}))
 		if tc.tag != "!!int" {
 			continue
 		}
 		var number int64
-		require.NoError(t, n.Decode(&number), tc.literal)
+		require.NoError(t, node.Decode(&number), tc.literal)
 		assert.Equal(t, tc.number, number, "%s: %s", tc.literal, revisit(t, result{}))
 	}
 }

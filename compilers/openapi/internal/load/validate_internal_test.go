@@ -106,20 +106,20 @@ components:
     R: {$ref: '#/components/parameters/P'}
 `)
 	top := nodeAt(t, root, "components", "parameters")
-	p := nodeAt(t, top, "P")
+	node := nodeAt(t, top, "P")
 
 	got := judgeSource(t.Context(), root, treeOf(t.Context(), provenance.Doc{}, root), budget.Unbounded())
 
 	assert.Empty(t, got.diags)
-	assert.True(t, got.seen[objectKey{node: p, kind: specrules.Parameter}], "the parameter, once however it is reached")
-	assert.False(t, got.seen[objectKey{node: p, kind: specrules.Header}], "and not as another kind")
+	assert.True(t, got.seen[objectKey{node: node, kind: specrules.Parameter}], "the parameter, once however it is reached")
+	assert.False(t, got.seen[objectKey{node: node, kind: specrules.Header}], "and not as another kind")
 	assert.False(t, got.seen[objectKey{node: nodeAt(t, top, "R"), kind: specrules.Parameter}], "a reference object is no parameter")
 }
 
-// nodeAt returns the node at the keys below n, which must hold them.
-func nodeAt(t *testing.T, n *yaml.Node, keys ...string) *yaml.Node {
+// nodeAt returns the node at the keys below node, which must hold them.
+func nodeAt(t *testing.T, node *yaml.Node, keys ...string) *yaml.Node {
 	t.Helper()
-	cur := n
+	cur := node
 	if cur.Kind == yaml.DocumentNode {
 		cur = cur.Content[0]
 	}
@@ -486,11 +486,13 @@ func judgedSchemas(t *testing.T, root *yaml.Node, version string, deferred bool)
 	seen := map[objectKey]bool{}
 	var pending []specrules.Pending
 	opts := specrules.Options{
-		Locate: walkedFrom(root, func(n *yaml.Node) ir.Provenance {
-			return ir.Provenance{Position: ir.Position{Line: n.Line, Column: n.Column}}
+		Locate: walkedFrom(root, func(node *yaml.Node) ir.Provenance {
+			return ir.Provenance{Position: ir.Position{Line: node.Line, Column: node.Column}}
 		}),
 		ReadAt: true,
-		Seen:   func(kind specrules.Kind, n *yaml.Node) { seen[objectKey{node: nodeview.Deref(n), kind: kind}] = true },
+		Seen: func(kind specrules.Kind, node *yaml.Node) {
+			seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
+		},
 	}
 	checker := specrules.NewChecker()
 	if !deferred {

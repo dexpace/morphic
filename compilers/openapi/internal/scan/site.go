@@ -31,10 +31,10 @@ func Least(ctx context.Context, root *yaml.Node, nodes []*yaml.Node) *yaml.Node 
 	steps := placesIn(ctx, root)
 	top := nodeview.DocumentRoot(root)
 	want := map[*yaml.Node]int{} // each held node, and where nodes first gives it
-	for i, n := range nodes {
-		_, seen := want[n]
-		if step, held := steps[n]; held && !seen && (step.holder != nil || n == top) {
-			want[n] = i
+	for i, node := range nodes {
+		_, seen := want[node]
+		if step, held := steps[node]; held && !seen && (step.holder != nil || node == top) {
+			want[node] = i
 		}
 	}
 
@@ -54,9 +54,9 @@ func Least(ctx context.Context, root *yaml.Node, nodes []*yaml.Node) *yaml.Node 
 // less than every pointer below them, the wanted one given first.
 func firstWanted(level []*yaml.Node, want map[*yaml.Node]int) (*yaml.Node, bool) {
 	var first *yaml.Node
-	for _, n := range level {
-		if i, wanted := want[n]; wanted && (first == nil || i < want[first]) {
-			first = n
+	for _, node := range level {
+		if i, wanted := want[node]; wanted && (first == nil || i < want[first]) {
+			first = node
 		}
 	}
 	return first, first != nil
@@ -69,11 +69,11 @@ func firstWanted(level []*yaml.Node, want map[*yaml.Node]int) (*yaml.Node, bool)
 func pathsTo(steps map[*yaml.Node]step, nodes []*yaml.Node, want map[*yaml.Node]int) map[*yaml.Node][]*yaml.Node {
 	under := map[*yaml.Node][]*yaml.Node{}
 	climbed := map[*yaml.Node]bool{}
-	for _, n := range nodes {
-		if _, wanted := want[n]; !wanted {
+	for _, node := range nodes {
+		if _, wanted := want[node]; !wanted {
 			continue
 		}
-		for at := n; !climbed[at]; at = steps[at].holder {
+		for at := node; !climbed[at]; at = steps[at].holder {
 			climbed[at] = true
 			holder := steps[at].holder
 			if holder == nil {
@@ -97,15 +97,15 @@ func leastSteps(steps map[*yaml.Node]step, level []*yaml.Node, under map[*yaml.N
 	var leastToken string
 	leastWanted := false
 	for _, at := range level {
-		for _, n := range under[at] {
-			token := steps[n].token
-			_, wanted := want[n]
+		for _, node := range under[at] {
+			token := steps[node].token
+			_, wanted := want[node]
 			c := strings.Compare(token, leastToken)
 			switch {
 			case least == nil || c < 0 || c == 0 && wanted && !leastWanted:
-				least, leastToken, leastWanted = append(least[:0], n), token, wanted
+				least, leastToken, leastWanted = append(least[:0], node), token, wanted
 			case c == 0 && wanted == leastWanted:
-				least = append(least, n)
+				least = append(least, node)
 			}
 		}
 	}

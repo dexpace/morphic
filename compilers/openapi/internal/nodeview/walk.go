@@ -58,10 +58,10 @@ type Walk struct {
 	Aliases Aliases
 	// Visit is handed each node and its depth, and says whether to descend.
 	// Unset, the walk descends everywhere, which counts a tree's nodes.
-	Visit func(n *yaml.Node, depth int) Step
+	Visit func(node *yaml.Node, depth int) Step
 	// Leave, when set, is handed each node Visit descended into once its
 	// children have all been visited, or at once for a node holding none.
-	Leave func(n *yaml.Node, depth int)
+	Leave func(node *yaml.Node, depth int)
 }
 
 // Outcome is how a walk ended.
@@ -105,8 +105,8 @@ func (w Walk) Run(ctx context.Context, root *yaml.Node) Outcome {
 			w.Leave(walkFrame.n, walkFrame.depth)
 			continue
 		}
-		n := w.node(walkFrame.n)
-		if n == nil {
+		node := w.node(walkFrame.n)
+		if node == nil {
 			continue
 		}
 		if out.Visited >= w.Nodes {
@@ -118,7 +118,7 @@ func (w Walk) Run(ctx context.Context, root *yaml.Node) Outcome {
 			continue
 		}
 		out.Visited++
-		switch w.step(n, walkFrame.depth) {
+		switch w.step(node, walkFrame.depth) {
 		case Stop:
 			out.Stopped = true
 			return out
@@ -126,40 +126,40 @@ func (w Walk) Run(ctx context.Context, root *yaml.Node) Outcome {
 			continue
 		case Descend:
 		}
-		stack = w.push(stack, n, walkFrame.depth)
+		stack = w.push(stack, node, walkFrame.depth)
 	}
 	return out
 }
 
-// step asks Visit what to do with n, descending where no visitor is set.
-func (w Walk) step(n *yaml.Node, depth int) Step {
+// step asks Visit what to do with node, descending where no visitor is set.
+func (w Walk) step(node *yaml.Node, depth int) Step {
 	if w.Visit == nil {
 		return Descend
 	}
-	return w.Visit(n, depth)
+	return w.Visit(node, depth)
 }
 
-// node returns what the walk visits for n: n itself, or the node an alias
+// node returns what the walk visits for node: node itself, or the node an alias
 // names where aliases stand for their targets.
-func (w Walk) node(n *yaml.Node) *yaml.Node {
+func (w Walk) node(node *yaml.Node) *yaml.Node {
 	if w.Aliases != AliasTarget {
-		return n
+		return node
 	}
-	if target := Deref(n); target != nil {
+	if target := Deref(node); target != nil {
 		return target
 	}
-	return n
+	return node
 }
 
-// push returns stack with the leaving of n and then its children pushed, so
+// push returns stack with the leaving of node and then its children pushed, so
 // the first child is visited next. An alias visited as a leaf holds no
 // children: yaml.v3 keeps its target in Alias, not in Content.
-func (w Walk) push(stack []walkFrame, n *yaml.Node, depth int) []walkFrame {
+func (w Walk) push(stack []walkFrame, node *yaml.Node, depth int) []walkFrame {
 	if w.Leave != nil {
-		stack = append(stack, walkFrame{n: n, depth: depth, leave: true})
+		stack = append(stack, walkFrame{n: node, depth: depth, leave: true})
 	}
-	for _, c := range slices.Backward(n.Content) {
-		stack = append(stack, walkFrame{n: c, depth: depth + 1})
+	for _, nodeValue := range slices.Backward(node.Content) {
+		stack = append(stack, walkFrame{n: nodeValue, depth: depth + 1})
 	}
 	return stack
 }

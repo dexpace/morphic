@@ -51,16 +51,16 @@ func dialectsByDocument(roots map[DocumentPointer]DialectRoot) map[DocID][]Diale
 	return out
 }
 
-// stepIn is step for a token of the mapping n of document id, read at stateValue in
+// stepIn is step for a token of the mapping node of document id, read at stateValue in
 // dialect, which a dialect the drafts before 2020-12 spell reads otherwise
 // (dialectStep), at a schema or at a document of schemas' root alike. Every
 // child a walk reads asks it, so the other tokens take step without a call
 // more.
-func stepIn(docsValue *docs, id DocID, n *yaml.Node, stateValue state, token, dialect string) state {
+func stepIn(docsValue *docs, id DocID, node *yaml.Node, stateValue state, token, dialect string) state {
 	if stateValue == sSchema || stateValue == sLoose {
 		switch token {
 		case "items", "additionalItems", "definitions", "dependencies":
-			return dialectStep(docsValue, id, n, stateValue, token, dialect)
+			return dialectStep(docsValue, id, node, stateValue, token, dialect)
 		}
 	}
 	return step(stateValue, token)
@@ -71,7 +71,7 @@ func stepIn(docsValue *docs, id DocID, n *yaml.Node, stateValue state, token, di
 // holds schemas and the `additionalItems` beside it holds its rest, and where
 // it has `definitions`, or `dependencies`, hold schemas, they do, a property's
 // list of names among the latter's entries holding none.
-func dialectStep(docsValue *docs, id DocID, n *yaml.Node, stateValue state, token, dialect string) state {
+func dialectStep(docsValue *docs, id DocID, node *yaml.Node, stateValue state, token, dialect string) state {
 	switch token {
 	case "definitions":
 		if dialectRule(docsValue, id, dialect).Definitions {
@@ -82,21 +82,21 @@ func dialectStep(docsValue *docs, id DocID, n *yaml.Node, stateValue state, toke
 			return sSchemaMap
 		}
 	case "items":
-		if listsItems(docsValue, id, n) && dialectRule(docsValue, id, dialect).Tuples {
+		if listsItems(docsValue, id, node) && dialectRule(docsValue, id, dialect).Tuples {
 			return sSchemaList
 		}
 	case "additionalItems":
-		if listsItems(docsValue, id, n) && dialectRule(docsValue, id, dialect).Tuples {
+		if listsItems(docsValue, id, node) && dialectRule(docsValue, id, dialect).Tuples {
 			return sSchema
 		}
 	}
 	return step(stateValue, token)
 }
 
-// listsItems reports whether the schema mapping n writes `items` as a list, a
+// listsItems reports whether the schema mapping node writes `items` as a list, a
 // tuple, in document id.
-func listsItems(docsValue *docs, id DocID, n *yaml.Node) bool {
-	items := nodeview.Deref(docsValue.list[id].view.ChildByToken(nodeview.Deref(n), "items"))
+func listsItems(docsValue *docs, id DocID, node *yaml.Node) bool {
+	items := nodeview.Deref(docsValue.list[id].view.ChildByToken(nodeview.Deref(node), "items"))
 	return items != nil && items.Kind == yaml.SequenceNode
 }
 
@@ -109,7 +109,7 @@ type entering struct {
 	dialect              string
 }
 
-// enterIn returns what the schema n at at enters, held in the resource in, its
+// enterIn returns what the schema node at at enters, held in the resource in, its
 // parent read in enclosing and, where schemaHeld says so, held by a schema
 // (heldBySchema). A schema no other holds is read in the dialect its `$schema`
 // names, which spells its identifier. One a schema holds roots a resource
@@ -117,16 +117,16 @@ type entering struct {
 // has an embedded resource do (§9.3.1), or as its `$schema`'s dialect spells
 // one beside no $ref its embedder ignores, and only then is read in that
 // dialect. A `$schema` naming no dialect (DialectRule.NamesNone) chooses none.
-func (r resources) enterIn(in resource, at DocumentPointer, n *yaml.Node, enclosing string, schemaHeld func() bool) entering {
+func (r resources) enterIn(in resource, at DocumentPointer, node *yaml.Node, enclosing string, schemaHeld func() bool) entering {
 	doc := at.Doc
-	uri, written := scalarOf(r.docs.list[doc].view.ChildByToken(nodeview.Deref(n), "$schema"))
+	uri, written := scalarOf(r.docs.list[doc].view.ChildByToken(nodeview.Deref(node), "$schema"))
 	named := written && !dialectRule(r.docs, doc, uri).NamesNone
 	held := named && schemaHeld()
 	own := dialectRule(r.docs, doc, enclosing)
 	if named && !held {
 		own = dialectRule(r.docs, doc, uri)
 	}
-	res, rooted, known := r.enter(in, n, own)
+	res, rooted, known := r.enter(in, node, own)
 	switch {
 	case !named:
 		return entering{res: res, rooted: rooted, known: known, dialect: enclosing}
@@ -134,8 +134,8 @@ func (r resources) enterIn(in resource, at DocumentPointer, n *yaml.Node, enclos
 		return entering{res: res, rooted: rooted, known: known, names: true, dialect: uri}
 	}
 	spelled := dialectRule(r.docs, doc, uri)
-	if !rooted && spelled.Keyword != own.Keyword && !r.ignoresIdentifier(doc, n, own) {
-		res, rooted, known = r.enter(in, n, spelled)
+	if !rooted && spelled.Keyword != own.Keyword && !r.ignoresIdentifier(doc, node, own) {
+		res, rooted, known = r.enter(in, node, spelled)
 	}
 	if !rooted {
 		return entering{res: res, known: known, dialect: enclosing}
@@ -218,13 +218,13 @@ func dialectRule(docsValue *docs, id DocID, dialect string) DialectRule {
 	return rule
 }
 
-// landingRoot returns the dialect root a landing at documentPointer, holding n, is, where it
+// landingRoot returns the dialect root a landing at documentPointer, holding node, is, where it
 // is one: a schema the identity walk placed no schema at or above, content no
 // grammar reads, writing a `$schema` naming a dialect, that no other landing's
 // schema holds, so the `$schema` chooses the dialect of what it holds
 // (docs/compilers/openapi.md#dialect-keywords). Whether one holds it turns on
 // the landings alone, so no order of reading decides it.
-func landingRoot(finderValue *finder, documentPointer DocumentPointer, n *yaml.Node) (DialectRoot, bool) {
+func landingRoot(finderValue *finder, documentPointer DocumentPointer, node *yaml.Node) (DialectRoot, bool) {
 	if !finderValue.landings[documentPointer] || heldBySchema(finderValue.docs.identityState(documentPointer.Doc), slices.Collect(documentPointer.Pointer.Tokens())) {
 		return DialectRoot{}, false
 	}
@@ -234,18 +234,18 @@ func landingRoot(finderValue *finder, documentPointer DocumentPointer, n *yaml.N
 			return DialectRoot{}, false
 		}
 	}
-	n = nodeview.Deref(n)
-	uri, written := scalarOf(finderValue.docs.list[documentPointer.Doc].view.ChildByToken(n, "$schema"))
+	node = nodeview.Deref(node)
+	uri, written := scalarOf(finderValue.docs.list[documentPointer.Doc].view.ChildByToken(node, "$schema"))
 	if !written || dialectRule(finderValue.docs, documentPointer.Doc, uri).NamesNone {
 		return DialectRoot{}, false
 	}
-	return DialectRoot{At: documentPointer, URI: uri, Node: n}, true
+	return DialectRoot{At: documentPointer, URI: uri, Node: node}, true
 }
 
-// startDialect is the dialect a walk from documentPointer, holding n, starts in: the one documentPointer
+// startDialect is the dialect a walk from documentPointer, holding node, starts in: the one documentPointer
 // roots as a landing (landingRoot), else the one above it (dialectAbove).
-func startDialect(finderValue *finder, documentPointer DocumentPointer, n *yaml.Node) string {
-	if root, ok := landingRoot(finderValue, documentPointer, n); ok {
+func startDialect(finderValue *finder, documentPointer DocumentPointer, node *yaml.Node) string {
+	if root, ok := landingRoot(finderValue, documentPointer, node); ok {
 		return root.URI
 	}
 	return dialectAbove(finderValue.docs, finderValue.ids, documentPointer)

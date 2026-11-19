@@ -364,33 +364,33 @@ func newWeigher(limit budget.Limit) *weigher {
 	return &weigher{memo: map[*yaml.Node]int{}, onPath: map[*yaml.Node]bool{}, limit: limit}
 }
 
-// weigh returns how many nodes copying n builds, held at the first count past
+// weigh returns how many nodes copying node builds, held at the first count past
 // the limit, which no sum of them overflows.
-func (w *weigher) weigh(n *yaml.Node, depth int) int {
-	if n == nil {
+func (w *weigher) weigh(node *yaml.Node, depth int) int {
+	if node == nil {
 		return 0
 	}
-	if v, ok := w.memo[n]; ok {
+	if v, ok := w.memo[node]; ok {
 		return v
 	}
-	if depth > maxPayloadDepth || w.onPath[n] {
+	if depth > maxPayloadDepth || w.onPath[node] {
 		return w.limit.Past()
 	}
-	w.onPath[n] = true
-	defer delete(w.onPath, n)
+	w.onPath[node] = true
+	defer delete(w.onPath, node)
 
 	total := budget.New(w.limit)
 	total.Spend(1)
-	if n.Kind == yaml.AliasNode {
-		total.Spend(w.weigh(n.Alias, depth+1))
+	if node.Kind == yaml.AliasNode {
+		total.Spend(w.weigh(node.Alias, depth+1))
 	}
-	for _, child := range n.Content {
+	for _, child := range node.Content {
 		if total.Exhausted() {
 			break
 		}
 		total.Spend(w.weigh(child, depth+1))
 	}
 	weight := min(total.Spent(), w.limit.Past())
-	w.memo[n] = weight
+	w.memo[node] = weight
 	return weight
 }

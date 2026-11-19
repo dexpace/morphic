@@ -64,9 +64,9 @@ func (p *Positions) Child(holder *Position, token string) *Position {
 // Write records that the overlay introduced or rewrote what sits at at.
 func (at *Position) Write() { at.written = true }
 
-// Place records n as a node sitting at at, which a finding raised on n is
+// Place records node as a node sitting at at, which a finding raised on node is
 // placed at.
-func (p *Positions) Place(n *yaml.Node, at *Position) { p.nodes[n] = at }
+func (p *Positions) Place(node *yaml.Node, at *Position) { p.nodes[node] = at }
 
 // pointer spells at's JSON pointer, walking up to the root in as many steps
 // as at is deep.

@@ -14,41 +14,41 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// legacy appends to found what YAML 1.1 reads otherwise in n, a node of a
+// legacy appends to found what YAML 1.1 reads otherwise in node, a node of a
 // document declaring YAML 1.1, before its text is restored: a plain value
 // scalar YAML 1.1's types read as another JSON value than the core schema does,
 // or one tagged !!int outright that both read as two integers (taggedInteger),
 // and a line-break character written raw in its text or in a comment attached
 // to it, which YAML 1.1 ends a line at. A key is text, so its reading is none.
-func (s *settler) legacy(found []Legacy, n *yaml.Node) []Legacy {
-	if n.Kind == yaml.ScalarNode && (n.Style == 0 || taggedInteger(n)) && !s.keys[n] {
-		was, is := yaml11Reading(n.Value), coreReading(n)
-		long := len(n.Value) > maxReadText
+func (s *settler) legacy(found []Legacy, node *yaml.Node) []Legacy {
+	if node.Kind == yaml.ScalarNode && (node.Style == 0 || taggedInteger(node)) && !s.keys[node] {
+		was, is := yaml11Reading(node.Value), coreReading(node)
+		long := len(node.Value) > maxReadText
 		if long {
 			was, is = was.kindOnly(), is.kindOnly()
 		}
 		if !was.same(is) {
-			found = append(found, Legacy{Node: n, Was: was.String(), Is: is.String(), Kinds: long})
+			found = append(found, Legacy{Node: node, Was: was.String(), Is: is.String(), Kinds: long})
 		}
 	}
-	if c := s.respelling.breakIn(n.Value); c != 0 {
-		found = append(found, Legacy{Node: n, Break: c})
+	if c := s.respelling.breakIn(node.Value); c != 0 {
+		found = append(found, Legacy{Node: node, Break: c})
 	}
-	if c := s.respelling.breakIn(n.HeadComment + n.LineComment + n.FootComment); c != 0 {
-		found = append(found, Legacy{Node: n, Break: c, InComment: true})
+	if c := s.respelling.breakIn(node.HeadComment + node.LineComment + node.FootComment); c != 0 {
+		found = append(found, Legacy{Node: node, Break: c, InComment: true})
 	}
 	return found
 }
 
-// taggedInteger reports whether n is a scalar tagged !!int outright whose text
+// taggedInteger reports whether node is a scalar tagged !!int outright whose text
 // is an integer both of YAML 1.1's int and of the core schema, which may read it
 // as two numbers: !!int 0644 is 420 in YAML 1.1 and 644 in YAML 1.2, which
 // value.NumericLiteral reads.
-func taggedInteger(n *yaml.Node) bool {
-	if n.Style&yaml.TaggedStyle == 0 || n.ShortTag() != "!!int" || !coreInt(n.Value) {
+func taggedInteger(node *yaml.Node) bool {
+	if node.Style&yaml.TaggedStyle == 0 || node.ShortTag() != "!!int" || !coreInt(node.Value) {
 		return false
 	}
-	_, ok := yaml11Integer(n.Value)
+	_, ok := yaml11Integer(node.Value)
 	return ok
 }
 
@@ -156,23 +156,23 @@ func (r reading) decimal() string {
 // read as its text.
 const maxSpelledExp = 1000
 
-// coreReading reads n, a plain scalar the core schema has tagged (resolve), as
+// coreReading reads node, a plain scalar the core schema has tagged (resolve), as
 // YAML 1.2 does.
-func coreReading(n *yaml.Node) reading {
-	switch n.ShortTag() {
+func coreReading(node *yaml.Node) reading {
+	switch node.ShortTag() {
 	case "!!null":
 		return reading{kind: asNull}
 	case "!!bool":
-		return reading{kind: asBool, text: strings.ToLower(n.Value)}
+		return reading{kind: asBool, text: strings.ToLower(node.Value)}
 	case "!!int":
-		return coreInteger(n.Value)
+		return coreInteger(node.Value)
 	case "!!float":
-		return coreNumber(n.Value)
+		return coreNumber(node.Value)
 	default:
 		// The parser tags a number past float64's range a string, and the
 		// compiler reads it as the number it spells (value.Classify).
-		if coreFloat(n.Value) {
-			return coreNumber(n.Value)
+		if coreFloat(node.Value) {
+			return coreNumber(node.Value)
 		}
 		return reading{kind: asString}
 	}

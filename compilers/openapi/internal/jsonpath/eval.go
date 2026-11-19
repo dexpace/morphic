@@ -75,12 +75,12 @@ func (r *reader) hold(n int) error {
 // held.
 func (r *reader) release(n int) { r.held -= n }
 
-// members returns the members of the mapping n as the view reads them, a
+// members returns the members of the mapping node as the view reads them, a
 // step for each, spent before any is walked: a mapping's `<<` merges make its
 // members cost more than its text, and each read of them is charged. A view
 // a read has taken past its merge depth refuses, so the expansion runs once.
-func (r *reader) members(ctx context.Context, n *yaml.Node) ([]nodeview.Pair, error) {
-	pairs := r.view.MappingPairs(n)
+func (r *reader) members(ctx context.Context, node *yaml.Node) ([]nodeview.Pair, error) {
+	pairs := r.view.MappingPairs(node)
 	if r.view.Exhausted() {
 		return nil, ErrMergeBound
 	}
@@ -155,9 +155,9 @@ func (r *reader) pushChildren(ctx context.Context, at Located, stack []Located) 
 			}
 		}
 	case yaml.SequenceNode:
-		for i, c := range slices.Backward(at.Node.Content) {
-			if v := nodeview.Deref(c); v != nil {
-				stack = append(stack, Located{Path: at.Path.element(i), Node: v})
+		for i, node := range slices.Backward(at.Node.Content) {
+			if nodeValue := nodeview.Deref(node); nodeValue != nil {
+				stack = append(stack, Located{Path: at.Path.element(i), Node: nodeValue})
 			}
 		}
 	default:
@@ -213,11 +213,11 @@ func (e *evaluator) byName(ctx context.Context, name string, in Located, out []L
 	if _, err := e.members(ctx, in.Node); err != nil {
 		return nil, err
 	}
-	v := e.view.ChildByToken(in.Node, name)
-	if v == nil {
+	node := e.view.ChildByToken(in.Node, name)
+	if node == nil {
 		return out, nil
 	}
-	return e.emit(ctx, out, Located{Path: in.Path.child(name), Node: v})
+	return e.emit(ctx, out, Located{Path: in.Path.child(name), Node: node})
 }
 
 // byIndex selects the element at i of an array, counting from its end where i
@@ -233,11 +233,11 @@ func (e *evaluator) byIndex(ctx context.Context, i int, in Located, out []Locate
 	if i < 0 || i >= n {
 		return out, nil
 	}
-	v := nodeview.Deref(in.Node.Content[i])
-	if v == nil {
+	node := nodeview.Deref(in.Node.Content[i])
+	if node == nil {
 		return out, nil
 	}
-	return e.emit(ctx, out, Located{Path: in.Path.element(i), Node: v})
+	return e.emit(ctx, out, Located{Path: in.Path.element(i), Node: node})
 }
 
 // bySlice selects the elements of an array sliceValue selects, as RFC 9535 section
@@ -264,11 +264,11 @@ func (e *evaluator) bySlice(ctx context.Context, sliceValue slice, in Located, o
 
 // element selects the element at i of the array in, which holds it.
 func (e *evaluator) element(ctx context.Context, in Located, i int, out []Located) ([]Located, error) {
-	v := nodeview.Deref(in.Node.Content[i])
-	if v == nil {
+	node := nodeview.Deref(in.Node.Content[i])
+	if node == nil {
 		return out, nil
 	}
-	return e.emit(ctx, out, Located{Path: in.Path.element(i), Node: v})
+	return e.emit(ctx, out, Located{Path: in.Path.element(i), Node: node})
 }
 
 // bounds returns the lower and upper bounds s gives an array of n elements.

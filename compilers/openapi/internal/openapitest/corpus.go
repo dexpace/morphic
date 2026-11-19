@@ -110,56 +110,56 @@ func throughReference(ref written, tree []jsontext.Pointer) []jsontext.Pointer {
 	return out
 }
 
-// treePaths appends the pointer of each node in the tree under n, below at, to
+// treePaths appends the pointer of each node in the tree under node, below at, to
 // out, and each $ref it writes to refs, and reports false once past
 // MaxTreeDepth, which fails tb. A model's tree is the mapping it was built
 // from, and one built in code has none.
-func treePaths(tb TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer, refs *[]written, depth int) bool {
+func treePaths(tb TB, node *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer, refs *[]written, depth int) bool {
 	tb.Helper()
 	if depth >= MaxTreeDepth {
 		tb.Fatalf("the tree under %q nests past %d levels", at, MaxTreeDepth)
 		return false
 	}
-	if n == nil {
+	if node == nil {
 		return true
 	}
 	var children []*yaml.Node
 	var tokens []string
-	switch n.Kind {
+	switch node.Kind {
 	case yaml.MappingNode:
 		// The raw pairs: a `<<` key is a token of its own here, and the keys it
 		// merges are asked about only below it (#1188).
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			key, value := deref(n.Content[i]), n.Content[i+1]
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key, value := deref(node.Content[i]), node.Content[i+1]
 			children, tokens = append(children, value), append(tokens, key.Value)
 			if target := deref(value); key.Value == "$ref" && target.Kind == yaml.ScalarNode {
 				*refs = append(*refs, written{site: at, value: target.Value})
 			}
 		}
 	case yaml.SequenceNode:
-		for i, c := range n.Content {
-			children, tokens = append(children, c), append(tokens, strconv.Itoa(i))
+		for i, nodeValue := range node.Content {
+			children, tokens = append(children, nodeValue), append(tokens, strconv.Itoa(i))
 		}
 	default:
 		// A scalar holds no path below it, and an alias's are not asked about
 		// (#1195).
 	}
-	for i, c := range children {
+	for i, nodeValue := range children {
 		// The library's escaper keeps a byte that is no UTF-8, which AppendToken
 		// would spell as U+FFFD, a key the library never compares.
 		pointer := jsontext.Pointer(string(at) + "/" + jsonpointer.EscapeString(tokens[i]))
 		*out = append(*out, pointer)
-		if !treePaths(tb, c, pointer, out, refs, depth+1) {
+		if !treePaths(tb, nodeValue, pointer, out, refs, depth+1) {
 			return false
 		}
 	}
 	return true
 }
 
-// deref returns the node n reads as: the one it names, if it is an alias.
-func deref(n *yaml.Node) *yaml.Node {
-	if n.Kind == yaml.AliasNode {
-		return n.Alias
+// deref returns the node node reads as: the one it names, if it is an alias.
+func deref(node *yaml.Node) *yaml.Node {
+	if node.Kind == yaml.AliasNode {
+		return node.Alias
 	}
-	return n
+	return node
 }

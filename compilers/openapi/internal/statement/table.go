@@ -309,8 +309,8 @@ func open(schema *Schema, slot specrules.Slot) {
 	}
 }
 
-// isNull reports whether n, its alias followed, is a YAML null.
-func isNull(n *yaml.Node) bool {
-	n = nodeview.Deref(n)
-	return n != nil && n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null"
+// isNull reports whether node, its alias followed, is a YAML null.
+func isNull(node *yaml.Node) bool {
+	node = nodeview.Deref(node)
+	return node != nil && node.Kind == yaml.ScalarNode && node.ShortTag() == "!!null"
 }

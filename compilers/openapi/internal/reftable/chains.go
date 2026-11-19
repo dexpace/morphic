@@ -159,11 +159,11 @@ func (b *binder) holdsRef(documentPointer DocumentPointer) bool {
 	// Only a hop's target is asked, a position its document holds, so the path
 	// reaches it.
 	path, _ := b.docs.path(documentPointer)
-	n := path[len(path)-1]
-	if _, ok := b.docs.refOf(documentPointer.Doc, n); ok {
+	node := path[len(path)-1]
+	if _, ok := b.docs.refOf(documentPointer.Doc, node); ok {
 		return true
 	}
-	value, ok := dynamicRefValue(b.docs, documentPointer.Doc, n)
+	value, ok := dynamicRefValue(b.docs, documentPointer.Doc, node)
 	if !ok {
 		return false
 	}

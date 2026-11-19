@@ -32,11 +32,11 @@ func UseDocs[T, S any, R interface {
 	for _, hop := range Hops[T, S](b, ref) {
 		written = append(written, writtenAs(hop.Ref))
 	}
-	for _, n := range slices.Backward(written) {
-		if summary, ok := docText(n, "summary"); ok {
+	for _, node := range slices.Backward(written) {
+		if summary, ok := docText(node, "summary"); ok {
 			docs.Summary = summary
 		}
-		if description, ok := docText(n, "description"); ok {
+		if description, ok := docText(node, "description"); ok {
 			docs.Description = description
 		}
 	}
@@ -57,12 +57,12 @@ func writtenAs(model any) *yaml.Node {
 	return core.GetRootNode()
 }
 
-// docText returns the text the mapping n writes under key, and false where it
+// docText returns the text the mapping node writes under key, and false where it
 // writes none: no such key, or a value that is null, empty or no scalar.
-func docText(n *yaml.Node, key string) (string, bool) {
-	v := nodeview.Deref(nodeview.Child(n, key))
-	if v == nil || v.Kind != yaml.ScalarNode || v.Value == "" || v.ShortTag() == "!!null" {
+func docText(node *yaml.Node, key string) (string, bool) {
+	nodeValue := nodeview.Deref(nodeview.Child(node, key))
+	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || nodeValue.Value == "" || nodeValue.ShortTag() == "!!null" {
 		return "", false
 	}
-	return v.Value, true
+	return nodeValue.Value, true
 }

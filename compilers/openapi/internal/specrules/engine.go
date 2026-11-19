@@ -218,20 +218,20 @@ type frame struct {
 	shared bool
 }
 
-// sharedNode reports whether another place may read n: it is an alias, or the
+// sharedNode reports whether another place may read node: it is an alias, or the
 // node it names is anchored.
-func sharedNode(n *yaml.Node) bool {
-	if n == nil {
+func sharedNode(node *yaml.Node) bool {
+	if node == nil {
 		return false
 	}
-	return n.Kind == yaml.AliasNode || nodeview.Deref(n).Anchor != ""
+	return node.Kind == yaml.AliasNode || nodeview.Deref(node).Anchor != ""
 }
 
-// writesMerge reports whether the mapping n writes a `<<` key, whose sources
+// writesMerge reports whether the mapping node writes a `<<` key, whose sources
 // another mapping may merge too.
-func writesMerge(n *yaml.Node) bool {
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		if nodeview.IsMergeKey(n.Content[i]) {
+func writesMerge(node *yaml.Node) bool {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if nodeview.IsMergeKey(node.Content[i]) {
 			return true
 		}
 	}

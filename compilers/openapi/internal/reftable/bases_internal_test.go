@@ -56,8 +56,8 @@ func basesTable(t *testing.T) *ReferenceTargetTable {
 		if !ok {
 			return nil, errors.New("no such document")
 		}
-		var n yaml.Node
-		return &n, yaml.Unmarshal([]byte(src), &n)
+		var node yaml.Node
+		return &node, yaml.Unmarshal([]byte(src), &node)
 	}}
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(basesSpec), &root))
@@ -72,21 +72,21 @@ func basesTable(t *testing.T) *ReferenceTargetTable {
 func positionsOf(table *ReferenceTargetTable, id DocID) []DocumentPointer {
 	view := nodeview.New()
 	var out []DocumentPointer
-	var walk func(n *yaml.Node, at jsontext.Pointer, depth int)
-	walk = func(n *yaml.Node, at jsontext.Pointer, depth int) {
-		n = nodeview.Deref(n)
-		if n == nil || depth > 12 {
+	var walk func(node *yaml.Node, at jsontext.Pointer, depth int)
+	walk = func(node *yaml.Node, at jsontext.Pointer, depth int) {
+		node = nodeview.Deref(node)
+		if node == nil || depth > 12 {
 			return
 		}
 		out = append(out, DocumentPointer{Doc: id, Pointer: at})
-		switch n.Kind {
+		switch node.Kind {
 		case yaml.MappingNode:
-			for _, pair := range view.MappingPairs(n) {
+			for _, pair := range view.MappingPairs(node) {
 				walk(pair.Val, at.AppendToken(pair.Key), depth+1)
 			}
 		case yaml.SequenceNode:
-			for i, c := range n.Content {
-				walk(c, at.AppendToken(strconv.Itoa(i)), depth+1)
+			for i, nodeValue := range node.Content {
+				walk(nodeValue, at.AppendToken(strconv.Itoa(i)), depth+1)
 			}
 		default:
 		}

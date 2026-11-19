@@ -26,10 +26,10 @@ type judgment struct {
 // hooks were told.
 func judge(t *testing.T, kind specrules.Kind, doc string) judgment {
 	t.Helper()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
+	var nodeValue yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &nodeValue))
 	judgmentValue := judgment{referenced: map[specrules.Kind][]*yaml.Node{}}
-	judgmentValue.diags = specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
+	judgmentValue.diags = specrules.NewChecker().Check(t.Context(), &nodeValue, "3.1.0", specrules.Options{
 		Start:  kind,
 		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 		Judged: func(node *yaml.Node, refused bool) {
@@ -49,8 +49,8 @@ func judge(t *testing.T, kind specrules.Kind, doc string) judgment {
 // values returns the Value of each node, for a comparison by what was written.
 func values(nodes []*yaml.Node) []string {
 	out := make([]string, 0, len(nodes))
-	for _, n := range nodes {
-		out = append(out, n.Value)
+	for _, node := range nodes {
+		out = append(out, node.Value)
 	}
 	return out
 }
@@ -126,12 +126,12 @@ func TestCheck_JudgedTellsEachValueAFrameSharesAcceptedOrRefused(t *testing.T) {
 	assert.Contains(t, values(judgment.refused), "3", "B reads it as a schema, and refuses it")
 	assert.Contains(t, values(judgment.refused), "string")
 	acceptedNodes := map[*yaml.Node]bool{}
-	for _, n := range judgment.accepted {
-		acceptedNodes[n] = true
+	for _, node := range judgment.accepted {
+		acceptedNodes[node] = true
 	}
 	var both int
-	for _, n := range judgment.refused {
-		if acceptedNodes[n] {
+	for _, node := range judgment.refused {
+		if acceptedNodes[node] {
 			both++
 		}
 	}
@@ -186,9 +186,9 @@ func TestCheck_ReferencedTellsEachMappingReadAsAReferenceObject(t *testing.T) {
 
 	got := judgment.referenced[specrules.Parameter]
 	require.Len(t, got, 3, "a, b and c")
-	for _, n := range got {
-		assert.Equal(t, yaml.MappingNode, n.Kind, "an alias is followed")
-		assert.Equal(t, "$ref", n.Content[0].Value)
+	for _, node := range got {
+		assert.Equal(t, yaml.MappingNode, node.Kind, "an alias is followed")
+		assert.Equal(t, "$ref", node.Content[0].Value)
 	}
 	assert.Len(t, judgment.referenced, 1, "no other kind")
 }
@@ -200,9 +200,9 @@ func TestCheck_AFindingNamesTheLeastPositionThatReadIt(t *testing.T) {
 	t.Parallel()
 	messages := make([]string, 0, 4)
 	for _, doc := range []string{"{schemas: {B: &m {type: 7}, A: *m}}", "{schemas: {A: &m {type: 7}, B: *m}}"} {
-		var n yaml.Node
-		require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
-		diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
+		var node yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(doc), &node))
+		diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{
 			Start:  specrules.Components,
 			Locate: func(jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/placed"} },
 			ReadAt: true,

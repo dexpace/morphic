@@ -296,9 +296,9 @@ func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
 		return "", nil, false
 	}
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		v := root.Content[i+1]
-		if root.Content[i].Value == "openapi" && v.Kind == yaml.ScalarNode && strings.HasPrefix(v.Value, "3.") {
-			return v.Value, parsed.Root(), true
+		node := root.Content[i+1]
+		if root.Content[i].Value == "openapi" && node.Kind == yaml.ScalarNode && strings.HasPrefix(node.Value, "3.") {
+			return node.Value, parsed.Root(), true
 		}
 	}
 	return "", nil, false
@@ -423,11 +423,11 @@ func libraryFinding(err error) finding {
 }
 
 // findingAt is a finding of the rule at the node, or at no position.
-func findingAt(rule string, n *yaml.Node) finding {
-	if n == nil {
+func findingAt(rule string, node *yaml.Node) finding {
+	if node == nil {
 		return finding{class: rule}
 	}
-	return finding{class: rule, line: n.Line, column: n.Column}
+	return finding{class: rule, line: node.Line, column: node.Column}
 }
 
 // onlyOneSide returns a row for each finding of one side that the other lacks,

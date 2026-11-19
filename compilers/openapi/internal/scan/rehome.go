@@ -18,12 +18,12 @@ import (
 // at the cycle. It returns how many targets it settled.
 func rehome(steps map[*yaml.Node]step) int {
 	mounts := map[*yaml.Node][]*yaml.Node{}
-	for n := range steps {
-		if n.Kind != yaml.AliasNode || n.Alias == nil {
+	for node := range steps {
+		if node.Kind != yaml.AliasNode || node.Alias == nil {
 			continue
 		}
-		if _, held := steps[n.Alias]; held {
-			mounts[n.Alias] = append(mounts[n.Alias], n)
+		if _, held := steps[node.Alias]; held {
+			mounts[node.Alias] = append(mounts[node.Alias], node)
 		}
 	}
 	order, complete := settleOrder(steps, mounts)
@@ -53,8 +53,8 @@ func settleOrder(steps map[*yaml.Node]step, mounts map[*yaml.Node][]*yaml.Node) 
 	for target, aliases := range mounts {
 		holders := holdingTargets(steps, mounts, append([]*yaml.Node{target}, aliases...))
 		waits[target] = len(holders)
-		for h := range holders {
-			frees[h] = append(frees[h], target)
+		for node := range holders {
+			frees[node] = append(frees[node], target)
 		}
 	}
 	var ready, order []*yaml.Node
@@ -80,8 +80,8 @@ func settleOrder(steps map[*yaml.Node]step, mounts map[*yaml.Node][]*yaml.Node) 
 // steps writes the tree.
 func holdingTargets(steps map[*yaml.Node]step, mounts map[*yaml.Node][]*yaml.Node, places []*yaml.Node) map[*yaml.Node]bool {
 	holders := map[*yaml.Node]bool{}
-	for _, n := range places {
-		for at := steps[n].holder; at != nil; at = steps[at].holder {
+	for _, node := range places {
+		for at := steps[node].holder; at != nil; at = steps[at].holder {
 			if _, shared := mounts[at]; shared {
 				holders[at] = true
 			}
@@ -90,11 +90,11 @@ func holdingTargets(steps map[*yaml.Node]step, mounts map[*yaml.Node][]*yaml.Nod
 	return holders
 }
 
-// tokensOf returns the tokens of n's pointer in the tree steps indexes, from
+// tokensOf returns the tokens of node's pointer in the tree steps indexes, from
 // the top down.
-func tokensOf(steps map[*yaml.Node]step, n *yaml.Node) []string {
+func tokensOf(steps map[*yaml.Node]step, node *yaml.Node) []string {
 	var tokens []string
-	for at := n; ; {
+	for at := node; ; {
 		step, ok := steps[at]
 		if !ok || step.holder == nil {
 			break

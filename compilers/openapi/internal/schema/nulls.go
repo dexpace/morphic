@@ -693,7 +693,7 @@ func leavesOnlyNull(loweringContext lowering.Ctx, schema *statement.Schema) bool
 	if enumWritten(schema) {
 		members := schema.Enum()
 		return len(members) > 0 && loweringContext.Limits.MaxEnumMembers.Admits(len(members)) &&
-			!slices.ContainsFunc(members, func(v *yaml.Node) bool { return !isNullValue(v) })
+			!slices.ContainsFunc(members, func(node *yaml.Node) bool { return !isNullValue(node) })
 	}
 	return schema.Const() != nil || writesType(schema) && len(effectiveTypes(schema)) == 0
 }

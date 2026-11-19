@@ -105,10 +105,10 @@ func chainOf(depth int) string {
 // everything below it, at documentPointer, as the source's walk records its schemas.
 func decodedAt(t *testing.T, bd *Builder, src string, documentPointer reftable.DocumentPointer) {
 	t.Helper()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &n))
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &node))
 	js := &schemaRef{}
-	require.NoError(t, bd.decode(t.Context(), n.Content[0], js))
+	require.NoError(t, bd.decode(t.Context(), node.Content[0], js))
 	bd.Walk(t.Context(), js, documentPointer)
 }
 
@@ -130,9 +130,9 @@ func TestMend_DecodesAgainAMappingTheParserReadAsFalse(t *testing.T) {
 	decodedAt(t, bd, chainOf(MaxMends+2), at("/deep"))
 	decodes := 0
 	decode := bd.decode
-	bd.decode = func(ctx context.Context, n *yaml.Node, js *schemaRef) error {
+	bd.decode = func(ctx context.Context, node *yaml.Node, js *schemaRef) error {
 		decodes++
-		return decode(ctx, n, js)
+		return decode(ctx, node, js)
 	}
 	bd.mend(t.Context())
 	assert.Equal(t, 2+MaxMends, decodes, "a mapping is decoded, and no written false, null or list")
@@ -151,8 +151,8 @@ func TestMend_DecodesAgainAMappingTheParserReadAsFalse(t *testing.T) {
 	for name, decode := range map[string]func(context.Context, *yaml.Node, *schemaRef) error{
 		"failing":           func(context.Context, *yaml.Node, *schemaRef) error { return errors.New("planted") },
 		"reading a boolean": func(context.Context, *yaml.Node, *schemaRef) error { return nil },
-		"failing once it has read": func(ctx context.Context, n *yaml.Node, js *schemaRef) error {
-			if err := decodeSchema(ctx, n, js); err != nil {
+		"failing once it has read": func(ctx context.Context, node *yaml.Node, js *schemaRef) error {
+			if err := decodeSchema(ctx, node, js); err != nil {
 				return err
 			}
 			return errors.New("planted")

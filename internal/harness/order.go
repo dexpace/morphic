@@ -424,27 +424,27 @@ func encodeStream(w io.Writer, docs []*yaml.Node) error {
 	return enc.Close()
 }
 
-// reverseNode reverses n's entry pairs when n is a mapping, then descends. It
+// reverseNode reverses node's entry pairs when node is a mapping, then descends. It
 // declines a mapping with a duplicate key, and a tree deeper than the bound.
 //
 // An alias needs no case of its own. It holds its target in Alias rather than in
 // Content, so the descent below reaches nothing through it and the anchored
 // mapping is reversed exactly once, at the anchor's own position.
 // TestReverseMappings_AliasIsNotFollowed pins the resulting shape.
-func reverseNode(n *yaml.Node, depth int) Decline {
-	if n == nil {
+func reverseNode(node *yaml.Node, depth int) Decline {
+	if node == nil {
 		return ""
 	}
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
 	}
-	if n.Kind == yaml.MappingNode {
-		if duplicateKeys(n) {
+	if node.Kind == yaml.MappingNode {
+		if duplicateKeys(node) {
 			return DeclineDuplicateKey
 		}
-		n.Content = reversedPairs(n.Content)
+		node.Content = reversedPairs(node.Content)
 	}
-	for _, child := range n.Content {
+	for _, child := range node.Content {
 		if why := reverseNode(child, depth+1); why != "" {
 			return why
 		}
@@ -477,18 +477,18 @@ func hoistAnchors(doc *yaml.Node) Decline {
 	return hoistFirstUses(doc, 0, anchored, map[*yaml.Node]bool{})
 }
 
-// findAnchors records, below n, where each anchored node sits, and declines a
+// findAnchors records, below node, where each anchored node sits, and declines a
 // tree giving one name to two nodes or nested past the bound.
-func findAnchors(n *yaml.Node, depth int, anchored map[*yaml.Node]slot, named map[string]*yaml.Node) Decline {
+func findAnchors(node *yaml.Node, depth int, anchored map[*yaml.Node]slot, named map[string]*yaml.Node) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
 	}
-	for i, child := range n.Content {
+	for i, child := range node.Content {
 		if child.Anchor != "" {
 			if other, ok := named[child.Anchor]; ok && other != child {
 				return DeclineAnchorRedefined
 			}
-			named[child.Anchor], anchored[child] = child, slot{parent: n, index: i}
+			named[child.Anchor], anchored[child] = child, slot{parent: node, index: i}
 		}
 		if why := findAnchors(child, depth+1, anchored, named); why != "" {
 			return why
@@ -497,20 +497,20 @@ func findAnchors(n *yaml.Node, depth int, anchored map[*yaml.Node]slot, named ma
 	return ""
 }
 
-// hoistFirstUses walks below n in the order an encoder writes it. An alias met
+// hoistFirstUses walks below node in the order an encoder writes it. An alias met
 // before the node it names trades places with that node, which then sits where
 // it is first named, and the walk goes on into it there. anchored tracks where
 // each anchored node sits, and written holds those already passed.
-func hoistFirstUses(n *yaml.Node, depth int, anchored map[*yaml.Node]slot, written map[*yaml.Node]bool) Decline {
+func hoistFirstUses(node *yaml.Node, depth int, anchored map[*yaml.Node]slot, written map[*yaml.Node]bool) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
 	}
-	for i := range n.Content {
-		child := n.Content[i]
+	for i := range node.Content {
+		child := node.Content[i]
 		if child.Kind == yaml.AliasNode && !written[child.Alias] {
 			target, at := child.Alias, anchored[child.Alias]
-			at.parent.Content[at.index], n.Content[i] = child, target
-			anchored[target] = slot{parent: n, index: i}
+			at.parent.Content[at.index], node.Content[i] = child, target
+			anchored[target] = slot{parent: node, index: i}
 			child = target
 		}
 		if child.Anchor != "" {
@@ -543,10 +543,10 @@ func reversedPairs(content []*yaml.Node) []*yaml.Node {
 // differ for a reason that is not a defect. It compares text alone, so a `<<`
 // merge key beside a quoted or aliased `<<`, which the parser reads apart, is
 // declined too, leaving that source unchecked rather than misjudged.
-func duplicateKeys(n *yaml.Node) bool {
-	seen := make(map[string]bool, len(n.Content)/2)
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		key := n.Content[i]
+func duplicateKeys(node *yaml.Node) bool {
+	seen := make(map[string]bool, len(node.Content)/2)
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := node.Content[i]
 		if key.Kind == yaml.AliasNode {
 			key = key.Alias // a parsed alias names its anchor, and that is no alias
 		}

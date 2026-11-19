@@ -43,62 +43,62 @@ func read(t testing.TB, text string) doctree.ParsedYAMLDocument {
 	return doc
 }
 
-// nodeAtSteps walks from n, a document node or a root, through each step: a key of a
+// nodeAtSteps walks from node, a document node or a root, through each step: a key of a
 // mapping or an index of a sequence. It returns the value node.
-func nodeAtSteps(t testing.TB, n *yaml.Node, steps ...string) *yaml.Node {
+func nodeAtSteps(t testing.TB, node *yaml.Node, steps ...string) *yaml.Node {
 	t.Helper()
-	require.NotNil(t, n)
-	if n.Kind == yaml.DocumentNode {
-		require.Len(t, n.Content, 1)
-		n = n.Content[0]
+	require.NotNil(t, node)
+	if node.Kind == yaml.DocumentNode {
+		require.Len(t, node.Content, 1)
+		node = node.Content[0]
 	}
 	for _, step := range steps {
-		switch n.Kind {
+		switch node.Kind {
 		case yaml.MappingNode:
 			var next *yaml.Node
-			for i := 0; i+1 < len(n.Content); i += 2 {
-				if n.Content[i].Value == step {
-					next = n.Content[i+1]
+			for i := 0; i+1 < len(node.Content); i += 2 {
+				if node.Content[i].Value == step {
+					next = node.Content[i+1]
 				}
 			}
 			require.NotNil(t, next, "no key %q", step)
-			n = next
+			node = next
 		case yaml.SequenceNode:
 			i, err := strconv.Atoi(step)
 			require.NoError(t, err)
-			require.Less(t, i, len(n.Content))
-			n = n.Content[i]
+			require.Less(t, i, len(node.Content))
+			node = node.Content[i]
 		default:
-			require.Failf(t, "not a collection", "step %q of a node of kind %d", step, n.Kind)
+			require.Failf(t, "not a collection", "step %q of a node of kind %d", step, node.Kind)
 		}
 	}
-	return n
+	return node
 }
 
-// dump lists every node under n in document order as its kind, tag, value and
+// dump lists every node under node in document order as its kind, tag, value and
 // position, so two trees are equal when their dumps are.
-func dump(n *yaml.Node) []string {
-	return collect(n, func(n *yaml.Node) string {
-		return fmt.Sprintf("%d %s %q @%d:%d", n.Kind, n.Tag, n.Value, n.Line, n.Column)
+func dump(node *yaml.Node) []string {
+	return collect(node, func(nodeValue *yaml.Node) string {
+		return fmt.Sprintf("%d %s %q @%d:%d", nodeValue.Kind, nodeValue.Tag, nodeValue.Value, nodeValue.Line, nodeValue.Column)
 	})
 }
 
-// positions lists the line and column of every node under n.
-func positions(n *yaml.Node) []string {
-	return collect(n, func(n *yaml.Node) string { return fmt.Sprintf("@%d:%d", n.Line, n.Column) })
+// positions lists the line and column of every node under node.
+func positions(node *yaml.Node) []string {
+	return collect(node, func(nodeValue *yaml.Node) string { return fmt.Sprintf("@%d:%d", nodeValue.Line, nodeValue.Column) })
 }
 
-// collect lists what describe says of every node under n, in document order.
-func collect(n *yaml.Node, describe func(*yaml.Node) string) []string {
+// collect lists what describe says of every node under node, in document order.
+func collect(node *yaml.Node, describe func(*yaml.Node) string) []string {
 	var out []string
 	var visit func(*yaml.Node)
-	visit = func(n *yaml.Node) {
-		out = append(out, describe(n))
-		for _, c := range n.Content {
-			visit(c)
+	visit = func(nodeValue *yaml.Node) {
+		out = append(out, describe(nodeValue))
+		for _, otherNode := range nodeValue.Content {
+			visit(otherNode)
 		}
 	}
-	visit(n)
+	visit(node)
 	return out
 }
 
@@ -386,9 +386,9 @@ func TestRead_ACoreScalarIsRetaggedAndNeverRewritten(t *testing.T) {
 	doc := read(t, text)
 
 	for _, tc := range tests {
-		n := nodeAtSteps(t, doc.Root, append([]string{"components", "schemas", "S"}, tc.path...)...)
-		assert.Equal(t, tc.tag, n.ShortTag(), "%v", tc.path)
-		assert.Equal(t, tc.value, n.Value, "%v: the text is what the source wrote", tc.path)
+		node := nodeAtSteps(t, doc.Root, append([]string{"components", "schemas", "S"}, tc.path...)...)
+		assert.Equal(t, tc.tag, node.ShortTag(), "%v", tc.path)
+		assert.Equal(t, tc.value, node.Value, "%v: the text is what the source wrote", tc.path)
 	}
 }
 
@@ -432,10 +432,10 @@ func TestRead_AJSONTextIsNeverResolvedAgain(t *testing.T) {
 
 	doc := read(t, `{"openapi":"3.1.0","info":{"title":"t","version":"1"},"paths":{},"x-n":[1E3,-0,0.5e-2,99999999999999999999]}`)
 
-	n := nodeAtSteps(t, doc.Root, "x-n")
-	got := make([]string, 0, len(n.Content))
-	for _, c := range n.Content {
-		got = append(got, c.Value+" "+c.ShortTag())
+	node := nodeAtSteps(t, doc.Root, "x-n")
+	got := make([]string, 0, len(node.Content))
+	for _, nodeValue := range node.Content {
+		got = append(got, nodeValue.Value+" "+nodeValue.ShortTag())
 	}
 	assert.Equal(t, []string{"1E3 !!float", "-0 !!int", "0.5e-2 !!float", "99999999999999999999 !!float"}, got)
 }
@@ -528,8 +528,8 @@ func TestRead_ALineBreakYAML11EndsALineAtIsACharacter(t *testing.T) {
 	assert.Equal(t, "p"+ls+"q", nodeAtSteps(t, doc.Root, "c").Value)
 	assert.Equal(t, "p"+ps+"q\nr\n", nodeAtSteps(t, doc.Root, "d").Value)
 	assert.Equal(t, "p"+nel+"k", doc.Root.Content[0].Content[8].Value, "the key")
-	z := nodeAtSteps(t, doc.Root, "z")
-	assert.Equal(t, [2]int{8, 4}, [2]int{z.Line, z.Column}, "z's value is on line 8")
+	node := nodeAtSteps(t, doc.Root, "z")
+	assert.Equal(t, [2]int{8, 4}, [2]int{node.Line, node.Column}, "z's value is on line 8")
 	assert.Equal(t, 8, doc.Root.Content[0].Content[10].Line, "z's key is on line 8, where the text writes it")
 	assert.Equal(t, 1, doc.Root.Content[0].Content[10].Column)
 	assert.Empty(t, cmp.Diff(positions(read(t, twin).Root), positions(doc.Root)), "positions as the twin with a hyphen for each break")

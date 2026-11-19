@@ -528,8 +528,8 @@ func fieldNames(obj Object, fld Field, pairs []nodeview.Pair, minor Minor) []key
 // tagged !!bool is a Boolean, where the model reads a string as one
 // (docs/parser-library.md#string-as-boolean).
 func (s Shape) Admits(node *yaml.Node) bool {
-	n := nodeview.Deref(node)
-	return n != nil && matches(s, n)
+	nodeValue := nodeview.Deref(node)
+	return nodeValue != nil && matches(s, nodeValue)
 }
 
 // matches reports whether the node has the shape.
@@ -553,12 +553,12 @@ func matches(shape Shape, node *yaml.Node) bool {
 // allScalar reports whether every entry or item of the container is a scalar
 // that is neither null nor tagged outside the ruleset (outsideRuleset).
 func allScalar(node *yaml.Node) bool {
-	for i, n := range node.Content {
+	for i, nodeValue := range node.Content {
 		if node.Kind == yaml.MappingNode && i%2 == 0 {
 			continue
 		}
-		n = nodeview.Deref(n)
-		if n == nil || n.Kind != yaml.ScalarNode || n.Tag == "!!null" || outsideRuleset(n) {
+		nodeValue = nodeview.Deref(nodeValue)
+		if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || nodeValue.Tag == "!!null" || outsideRuleset(nodeValue) {
 			return false
 		}
 	}

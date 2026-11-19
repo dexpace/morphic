@@ -76,13 +76,13 @@ func newRawConv() rawConv {
 
 // node appends any YAML node to dst as canonical JSON. On an error what it
 // returns is no JSON, and the caller discards it.
-func (c *rawConv) node(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Value, error) {
-	if n == nil {
+func (c *rawConv) node(dst jsontext.Value, node *yaml.Node, depth int) (jsontext.Value, error) {
+	if node == nil {
 		return nil, errors.New("nil yaml node")
 	}
 	// A value the load phase read as left out is rendered as the source wrote
 	// it (nodeview.Unread).
-	n = nodeview.Written(n)
+	node = nodeview.Written(node)
 	if depth > maxRawDepth {
 		return nil, fmt.Errorf("nesting exceeds %d", maxRawDepth)
 	}
@@ -90,25 +90,25 @@ func (c *rawConv) node(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Va
 		return nil, fmt.Errorf("expands past %d nodes", c.nodes.Limit().Cap())
 	}
 
-	switch n.Kind {
+	switch node.Kind {
 	case yaml.DocumentNode:
-		if len(n.Content) != 1 {
-			return nil, fmt.Errorf("document node holds %d children", len(n.Content))
+		if len(node.Content) != 1 {
+			return nil, fmt.Errorf("document node holds %d children", len(node.Content))
 		}
-		return c.node(dst, n.Content[0], depth+1)
+		return c.node(dst, node.Content[0], depth+1)
 	case yaml.AliasNode:
-		if n.Alias == nil {
-			return nil, fmt.Errorf("alias %q resolves to nothing", n.Value)
+		if node.Alias == nil {
+			return nil, fmt.Errorf("alias %q resolves to nothing", node.Value)
 		}
-		return c.node(dst, n.Alias, depth+1)
+		return c.node(dst, node.Alias, depth+1)
 	case yaml.ScalarNode:
-		return appendScalar(dst, n)
+		return appendScalar(dst, node)
 	case yaml.SequenceNode:
-		return c.sequence(dst, n, depth)
+		return c.sequence(dst, node, depth)
 	case yaml.MappingNode:
-		return c.mapping(dst, n, depth)
+		return c.mapping(dst, node, depth)
 	default:
-		return nil, fmt.Errorf("unsupported yaml node kind %d", n.Kind)
+		return nil, fmt.Errorf("unsupported yaml node kind %d", node.Kind)
 	}
 }
 
@@ -116,8 +116,8 @@ func (c *rawConv) node(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Va
 // classification an ir.Value is lowered from too, so a scalar kept verbatim and
 // one lowered are never two kinds (GitHub #783), as the JSON kind it reads as
 // (value.Scalar.JSONKind).
-func appendScalar(dst jsontext.Value, n *yaml.Node) (jsontext.Value, error) {
-	scalar, err := value.Classify(n)
+func appendScalar(dst jsontext.Value, node *yaml.Node) (jsontext.Value, error) {
+	scalar, err := value.Classify(node)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func appendScalar(dst jsontext.Value, n *yaml.Node) (jsontext.Value, error) {
 	case value.ScalarBool:
 		return strconv.AppendBool(dst, scalar.Bool), nil
 	case value.ScalarNumber:
-		return spliceNumber(dst, n.Value, string(scalar.Num))
+		return spliceNumber(dst, node.Value, string(scalar.Num))
 	default:
 		// A string, and the kinds JSON names only as the text they were written as.
 		return appendString(dst, scalar.Text)
@@ -152,9 +152,9 @@ func spliceNumber(dst jsontext.Value, source, num string) (jsontext.Value, error
 }
 
 // sequence appends a YAML sequence to dst as a JSON array, in source order.
-func (c *rawConv) sequence(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Value, error) {
+func (c *rawConv) sequence(dst jsontext.Value, node *yaml.Node, depth int) (jsontext.Value, error) {
 	dst = append(dst, '[')
-	for i, child := range n.Content {
+	for i, child := range node.Content {
 		if i > 0 {
 			dst = append(dst, ',')
 		}
@@ -175,8 +175,8 @@ func (c *rawConv) sequence(dst jsontext.Value, n *yaml.Node, depth int) (jsontex
 // last, and a merge source's first (docs/parser-library.md#duplicate-key), so
 // a kept value agrees with the typed IR read beside it. A key written through
 // an alias is the key it names (GitHub #1072).
-func (c *rawConv) mapping(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Value, error) {
-	pairs := c.view.MappingPairs(n)
+func (c *rawConv) mapping(dst jsontext.Value, node *yaml.Node, depth int) (jsontext.Value, error) {
+	pairs := c.view.MappingPairs(node)
 	if c.view.Exhausted() {
 		return nil, fmt.Errorf("mapping merges through `<<` deeper than %d levels", nodeview.MergeDepthLimit)
 	}

@@ -160,10 +160,10 @@ func YAMLDocument(tb TB, src string) *yaml.Node {
 func ClearAnchors(root *yaml.Node) {
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		n.Anchor = ""
-		stack = append(stack, n.Content...)
+		node.Anchor = ""
+		stack = append(stack, node.Content...)
 	}
 }
 

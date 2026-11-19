@@ -90,10 +90,10 @@ func modelSiblings(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree) 
 	return siblingsFrom(ctx, walk(ctx, doc), tree, buildSibling)
 }
 
-// refBeside reports whether n is a reference writing a field beside its $ref,
+// refBeside reports whether node is a reference writing a field beside its $ref,
 // as every use site holding fields beside its $ref is (see withoutRef).
-func refBeside(n *yaml.Node) bool {
-	return isReference(n) && writesBeside(n)
+func refBeside(node *yaml.Node) bool {
+	return isReference(node) && writesBeside(node)
 }
 
 // isReference reports whether node is a reference as the bindings' table reads
@@ -228,18 +228,18 @@ func withoutRefIn(node *yaml.Node, depth int) *yaml.Node {
 // copied less its $ref (withoutRefIn), and val itself for anything else, which
 // merges nothing.
 func mergedWithoutRef(val *yaml.Node, depth int) *yaml.Node {
-	v := nodeview.Deref(val)
-	if v.Kind == yaml.MappingNode {
-		return withoutRefIn(v, depth)
+	node := nodeview.Deref(val)
+	if node.Kind == yaml.MappingNode {
+		return withoutRefIn(node, depth)
 	}
-	if v.Kind != yaml.SequenceNode {
+	if node.Kind != yaml.SequenceNode {
 		return val
 	}
-	list := *v
-	list.Content = make([]*yaml.Node, 0, len(v.Content))
-	for _, item := range v.Content {
-		if m := nodeview.Deref(item); m != nil && m.Kind == yaml.MappingNode {
-			item = withoutRefIn(m, depth)
+	list := *node
+	list.Content = make([]*yaml.Node, 0, len(node.Content))
+	for _, item := range node.Content {
+		if nodeValue := nodeview.Deref(item); nodeValue != nil && nodeValue.Kind == yaml.MappingNode {
+			item = withoutRefIn(nodeValue, depth)
 		}
 		list.Content = append(list.Content, item)
 	}

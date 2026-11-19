@@ -12,13 +12,13 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 )
 
-// nodeKeys returns the keys the mapping n writes itself, in order.
-func nodeKeys(t *testing.T, n *yaml.Node) []string {
+// nodeKeys returns the keys the mapping node writes itself, in order.
+func nodeKeys(t *testing.T, node *yaml.Node) []string {
 	t.Helper()
-	require.NotNil(t, n)
+	require.NotNil(t, node)
 	var out []string
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		out = append(out, n.Content[i].Value)
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		out = append(out, node.Content[i].Value)
 	}
 	return out
 }

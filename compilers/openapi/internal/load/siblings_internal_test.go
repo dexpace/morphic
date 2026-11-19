@@ -223,14 +223,14 @@ only: {$ref: '#/x'}
 s: scalar
 `), &root))
 	top := root.Content[0]
-	m, only, scalar := top.Content[3], top.Content[5], top.Content[7]
+	node, only, scalar := top.Content[3], top.Content[5], top.Content[7]
 
-	fields, ok := withoutRef(m)
+	fields, ok := withoutRef(node)
 	require.True(t, ok)
 	require.Len(t, fields.Content, 2, "both spellings of $ref are dropped")
 	assert.Equal(t, "summary", fields.Content[0].Value)
-	assert.Same(t, m.Content[2], fields.Content[0], "the document's own key node is kept")
-	assert.Equal(t, m.Line, fields.Line)
+	assert.Same(t, node.Content[2], fields.Content[0], "the document's own key node is kept")
+	assert.Equal(t, node.Line, fields.Line)
 
 	_, ok = withoutRef(only)
 	assert.False(t, ok, "a pure reference has no fields")
@@ -242,7 +242,7 @@ s: scalar
 	for _, tc := range []struct {
 		node            *yaml.Node
 		beside, useSite bool
-	}{{m, true, true}, {only, false, false}, {scalar, false, false}, {nil, false, false}, {top, true, false}} {
+	}{{node, true, true}, {only, false, false}, {scalar, false, false}, {nil, false, false}, {top, true, false}} {
 		assert.Equal(t, tc.beside, writesBeside(tc.node), "writesBeside")
 		if tc.node != nil {
 			assert.Equal(t, tc.useSite, refBeside(tc.node), "refBeside")

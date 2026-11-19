@@ -54,7 +54,7 @@ type measureFrame struct {
 	expanded bool
 }
 
-// Of is the nesting of the subtree under n, and 0 for nil. Past the measure's
+// Of is the nesting of the subtree under node, and 0 for nil. Past the measure's
 // limit, or once ctx is done, it stops, answers in part and reports Truncated.
 // It asks ctx every nodeview.AskEvery steps, counted across calls.
 //
@@ -62,16 +62,16 @@ type measureFrame struct {
 // while neither measured nor in flight, so each is expanded once whatever
 // shares it, and an alias cycle ends the walk rather than looping it: one
 // below the anchor-cycle check's tracked depth, or in a tree built by hand.
-func (m *Measure) Of(ctx context.Context, n *yaml.Node) int {
-	return m.shapeOf(ctx, n).nesting
+func (m *Measure) Of(ctx context.Context, node *yaml.Node) int {
+	return m.shapeOf(ctx, node).nesting
 }
 
-// shapeOf is the shape of the subtree under n, measured as Of measures it.
-func (m *Measure) shapeOf(ctx context.Context, n *yaml.Node) shape {
-	if n == nil {
+// shapeOf is the shape of the subtree under node, measured as Of measures it.
+func (m *Measure) shapeOf(ctx context.Context, node *yaml.Node) shape {
+	if node == nil {
 		return shape{}
 	}
-	stack := []*measureFrame{{n: n}}
+	stack := []*measureFrame{{n: node}}
 	for len(stack) > 0 {
 		if m.steps.Spent()%nodeview.AskEvery == 0 && ctx.Err() != nil || !m.steps.Spend(1) {
 			m.truncated = true
@@ -92,40 +92,40 @@ func (m *Measure) shapeOf(ctx context.Context, n *yaml.Node) shape {
 		m.memo[top.n] = m.measured(top.n)
 		stack = stack[:len(stack)-1]
 	}
-	return m.memo[n]
+	return m.memo[node]
 }
 
 // Truncated reports whether a call to Of stopped at the measure's limit or its
 // context, so that some answer it gave is partial.
 func (m *Measure) Truncated() bool { return m.truncated }
 
-// push adds what n nests over to the stack: an alias's target, or its
+// push adds what node nests over to the stack: an alias's target, or its
 // children. One already measured, or in flight on the walk, is left off.
-func (m *Measure) push(stack []*measureFrame, n *yaml.Node) []*measureFrame {
-	over := n.Content
-	if n.Kind == yaml.AliasNode {
-		over = []*yaml.Node{n.Alias}
+func (m *Measure) push(stack []*measureFrame, node *yaml.Node) []*measureFrame {
+	over := node.Content
+	if node.Kind == yaml.AliasNode {
+		over = []*yaml.Node{node.Alias}
 	}
-	for _, c := range over {
-		if _, done := m.memo[c]; c == nil || done || m.inFlight[c] {
+	for _, nodeValue := range over {
+		if _, done := m.memo[nodeValue]; nodeValue == nil || done || m.inFlight[nodeValue] {
 			continue
 		}
-		stack = append(stack, &measureFrame{n: c})
+		stack = append(stack, &measureFrame{n: nodeValue})
 	}
 	return stack
 }
 
-// measured is n's shape from what it nests over, every part of which is
+// measured is node's shape from what it nests over, every part of which is
 // measured already or in flight; one in flight counts as nothing, as does nil.
-func (m *Measure) measured(n *yaml.Node) shape {
-	if n.Kind == yaml.AliasNode {
-		return m.memo[n.Alias]
+func (m *Measure) measured(node *yaml.Node) shape {
+	if node.Kind == yaml.AliasNode {
+		return m.memo[node.Alias]
 	}
-	out := shape{nodes: 1, text: scalarText(n)}
-	for i, c := range n.Content {
-		out = out.holding(m.memo[c], edge(n, i))
+	out := shape{nodes: 1, text: scalarText(node)}
+	for i, nodeValue := range node.Content {
+		out = out.holding(m.memo[nodeValue], edge(node, i))
 	}
-	out.nesting += Level(n)
+	out.nesting += Level(node)
 	return out
 }
 
@@ -149,13 +149,13 @@ func (s shape) holding(child shape, edge int) shape {
 	return s
 }
 
-// edge is how many bytes a pointer grows by from n to the child at index i of
+// edge is how many bytes a pointer grows by from node to the child at index i of
 // its Content: the key of the pair that child belongs to in a mapping, its
 // index in a sequence, each with a '/', and nothing anywhere else.
-func edge(n *yaml.Node, i int) int {
-	switch n.Kind {
+func edge(node *yaml.Node, i int) int {
+	switch node.Kind {
 	case yaml.MappingNode:
-		if key := nodeview.Deref(n.Content[i&^1]); key != nil {
+		if key := nodeview.Deref(node.Content[i&^1]); key != nil {
 			return len(key.Value) + 1
 		}
 		return 1
@@ -191,20 +191,20 @@ func product(a, b int) int {
 	return a * b
 }
 
-// Level is how much n itself adds to the nesting it heads: one for a mapping
+// Level is how much node itself adds to the nesting it heads: one for a mapping
 // or sequence, none for a scalar, an alias or a node of no kind.
-func Level(n *yaml.Node) int {
-	if n.Kind == yaml.MappingNode || n.Kind == yaml.SequenceNode {
+func Level(node *yaml.Node) int {
+	if node.Kind == yaml.MappingNode || node.Kind == yaml.SequenceNode {
 		return 1
 	}
 	return 0
 }
 
-// scalarText is the bytes of text a scalar n holds, and nothing for any other
+// scalarText is the bytes of text a scalar node holds, and nothing for any other
 // node: an alias adds what it names, which the shape it stands for holds.
-func scalarText(n *yaml.Node) int {
-	if n.Kind != yaml.ScalarNode {
+func scalarText(node *yaml.Node) int {
+	if node.Kind != yaml.ScalarNode {
 		return 0
 	}
-	return len(n.Value)
+	return len(node.Value)
 }

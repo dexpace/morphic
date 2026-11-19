@@ -106,24 +106,24 @@ func TestReadSelector_SelectsWithEachKindOfSelector(t *testing.T) {
 // each step, from the document root.
 func nodeAt(t *testing.T, root *yaml.Node, path ...string) *yaml.Node {
 	t.Helper()
-	n := root.Content[0]
+	node := root.Content[0]
 	for _, token := range path {
 		next := (*yaml.Node)(nil)
-		if n.Kind == yaml.SequenceNode {
+		if node.Kind == yaml.SequenceNode {
 			i, err := strconv.Atoi(token)
 			require.NoError(t, err)
-			require.Less(t, i, len(n.Content))
-			next = n.Content[i]
+			require.Less(t, i, len(node.Content))
+			next = node.Content[i]
 		}
-		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-			if n.Content[i].Value == token {
-				next = n.Content[i+1]
+		for i := 0; node.Kind == yaml.MappingNode && i+1 < len(node.Content); i += 2 {
+			if node.Content[i].Value == token {
+				next = node.Content[i+1]
 			}
 		}
 		require.NotNil(t, next, "no %q under the path %v", token, path)
-		n = next
+		node = next
 	}
-	return n
+	return node
 }
 
 // escapeQuotes writes s for a double-quoted YAML scalar.
@@ -233,14 +233,14 @@ func hits(root *yaml.Node) int {
 	count := 0
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-			if n.Content[i].Value == "x-hit" {
+		for i := 0; node.Kind == yaml.MappingNode && i+1 < len(node.Content); i += 2 {
+			if node.Content[i].Value == "x-hit" {
 				count++
 			}
 		}
-		stack = append(stack, n.Content...)
+		stack = append(stack, node.Content...)
 	}
 	return count
 }

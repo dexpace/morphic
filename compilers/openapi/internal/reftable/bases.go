@@ -143,29 +143,29 @@ func prefixes(documentPointer DocumentPointer, most int) []DocumentPointer {
 	return at
 }
 
-// past is the walk from, gone on to n at here, which the grammar reads at stateValue:
+// past is the walk from, gone on to node at here, which the grammar reads at stateValue:
 // a schema, or a position of a document of schemas, is entered, so an
 // identifier it writes starts the resource the walk is in past it, and its
 // `$schema` the dialect (resources.holding).
-func (b *bases) past(from walked, n *yaml.Node, stateValue state, here DocumentPointer) walked {
-	out := walked{node: n, s: stateValue, in: from.in, known: from.known, dialect: from.dialect, held: heldBelow(from)}
+func (b *bases) past(from walked, node *yaml.Node, stateValue state, here DocumentPointer) walked {
+	out := walked{node: node, s: stateValue, in: from.in, known: from.known, dialect: from.dialect, held: heldBelow(from)}
 	if stateValue == sSchema || stateValue == sLoose {
-		entering := b.entered(from, n, here)
+		entering := b.entered(from, node, here)
 		out.in, out.known, out.dialect = entering.res, entering.known, entering.dialect
 	}
 	return out
 }
 
-// entered is what the walk from enters at the schema n at here: the resource
-// it is in past it, whether that is known, and the dialect what n holds is
+// entered is what the walk from enters at the schema node at here: the resource
+// it is in past it, whether that is known, and the dialect what node holds is
 // read in, as resources.holding enters each schema on its way.
-func (b *bases) entered(from walked, n *yaml.Node, here DocumentPointer) entering {
+func (b *bases) entered(from walked, node *yaml.Node, here DocumentPointer) entering {
 	enteringValue := entering{dialect: from.dialect}
 	if b.ids.readsDialects(here.Doc) {
 		held := heldBelow(from)
-		enteringValue = b.res.enterIn(from.in, here, n, from.dialect, func() bool { return held })
+		enteringValue = b.res.enterIn(from.in, here, node, from.dialect, func() bool { return held })
 	} else {
-		enteringValue.res, enteringValue.rooted, enteringValue.known = b.res.enter(from.in, n, dialectRule(b.res.docs, here.Doc, from.dialect))
+		enteringValue.res, enteringValue.rooted, enteringValue.known = b.res.enter(from.in, node, dialectRule(b.res.docs, here.Doc, from.dialect))
 	}
 	if enteringValue.rooted {
 		enteringValue.res.root = here

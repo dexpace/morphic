@@ -22,9 +22,9 @@ import (
 // each finding placed at the pointer it was read at.
 func formatFindings(t *testing.T, version, doc string, limit budget.Limit) []finding {
 	t.Helper()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
-	diags := specrules.CheckFormat(t.Context(), &n, version, specrules.Options{
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &node))
+	diags := specrules.CheckFormat(t.Context(), &node, version, specrules.Options{
 		Budget: limit,
 		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 	})
@@ -82,9 +82,9 @@ func TestCheckFormat_AKeyIsAString(t *testing.T) {
 // makes of it.
 func TestCheckFormat_SaysWhatItRead(t *testing.T) {
 	t.Parallel()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("a: {? [k] : 1, <<: 5}\n"), &n))
-	diags := specrules.CheckFormat(t.Context(), &n, "3.0.3", specrules.Options{})
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: {? [k] : 1, <<: 5}\n"), &node))
+	diags := specrules.CheckFormat(t.Context(), &node, "3.0.3", specrules.Options{})
 	require.Len(t, diags, 2)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, "a mapping key must be a string in OpenAPI 3.0 (Format), and this one is a list; "+
@@ -126,10 +126,10 @@ func TestCheckFormat_NamesEachKind(t *testing.T) {
 // mapping, which share its pointer, are told apart.
 func TestCheckFormat_PlacesEachKeyAtItsOwnLine(t *testing.T) {
 	t.Parallel()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("x-e:\n  ? [a]\n  : 1\n  ? {b: 1}\n  : 2\n"), &n))
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("x-e:\n  ? [a]\n  : 1\n  ? {b: 1}\n  : 2\n"), &node))
 
-	diags := specrules.CheckFormat(t.Context(), &n, "3.1.0", specrules.Options{
+	diags := specrules.CheckFormat(t.Context(), &node, "3.1.0", specrules.Options{
 		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 	})
 

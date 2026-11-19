@@ -27,19 +27,19 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// text returns the scalar n spells, or "<nil>".
-func text(n *yaml.Node) string {
-	if n == nil {
+// text returns the scalar node spells, or "<nil>".
+func text(node *yaml.Node) string {
+	if node == nil {
 		return "<nil>"
 	}
-	return n.Value
+	return node.Value
 }
 
 // texts returns the scalars ns spell.
 func texts(ns []*yaml.Node) []string {
 	out := make([]string, len(ns))
-	for i, n := range ns {
-		out[i] = text(n)
+	for i, node := range ns {
+		out[i] = text(node)
 	}
 	return out
 }

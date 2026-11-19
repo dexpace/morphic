@@ -101,8 +101,8 @@ func TestPointersIn_PlacesANodeInWhicheverTreeHoldsIt(t *testing.T) {
 	held := pointersIn(t.Context(), trees, []string{"./a.yaml", "/r/a.yaml", "a.yaml"})
 
 	for key, tree := range trees {
-		x := tree.Content[0].Content[3].Alias.Content[1]
-		pointer, ok := held(x)
+		node := tree.Content[0].Content[3].Alias.Content[1]
+		pointer, ok := held(node)
 		assert.True(t, ok, key)
 		assert.Equal(t, jsontext.Pointer("/A/x"), pointer, key)
 	}
@@ -197,8 +197,8 @@ func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 	table := reftable.Bind(t.Context(), &root, reftable.Config{Self: "/spec.yaml",
 		Locate: func(uri, _ string) (string, bool) { return "/" + strings.TrimPrefix(uri, "/"), true },
 		Open: func(name, _ string) (*yaml.Node, error) {
-			var n yaml.Node
-			return &n, yaml.Unmarshal([]byte(docs[name]), &n)
+			var node yaml.Node
+			return &node, yaml.Unmarshal([]byte(docs[name]), &node)
 		}})
 
 	assert.Equal(t, map[string]bool{"/a.yaml": true}, unreachedKeys(table))

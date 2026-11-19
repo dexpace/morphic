@@ -286,13 +286,13 @@ func chainAnswer(chain reftable.Chain, nodeAt func(reftable.DocumentPointer) *ya
 	}
 }
 
-// nodeAnswer is "resolved L:C", the line and column n is written at, an
+// nodeAnswer is "resolved L:C", the line and column node is written at, an
 // alias read as its anchor's node.
-func nodeAnswer(n *yaml.Node) string {
-	if n = nodeview.Deref(n); n == nil {
+func nodeAnswer(node *yaml.Node) string {
+	if node = nodeview.Deref(node); node == nil {
 		return answerUnresolved
 	}
-	return fmt.Sprintf("resolved %d:%d", n.Line, n.Column)
+	return fmt.Sprintf("resolved %d:%d", node.Line, node.Column)
 }
 
 // libraryAnswers is the oracle's child: over the JSON list of documents it
@@ -394,8 +394,8 @@ func libraryAnswer(ctx context.Context, model any, opts references.ResolveOption
 		}
 		return answerUnresolved, err.Error()
 	}
-	if n := end(); n != nil {
-		return nodeAnswer(n), ""
+	if node := end(); node != nil {
+		return nodeAnswer(node), ""
 	}
 	return answerUnresolved, "no object and no error"
 }

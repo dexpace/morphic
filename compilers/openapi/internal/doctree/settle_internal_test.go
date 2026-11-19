@@ -49,8 +49,8 @@ func TestCoreReading_ReadsTheTagResolveGave(t *testing.T) {
 		{"!!str", "1.5e400", "the number 15" + strings.Repeat("0", 399)}, {"!!str", "0x1f", "a string"},
 		{"!!str", "-1.0E+1001", "the number -1.0e+1001"}, {"!!float", "-1e-1001", "the number -1e-1001"},
 	} {
-		n := &yaml.Node{Kind: yaml.ScalarNode, Tag: tc.tag, Value: tc.text}
-		assert.Equal(t, tc.want, coreReading(n).String(), "%s %q", tc.tag, tc.text)
+		node := &yaml.Node{Kind: yaml.ScalarNode, Tag: tc.tag, Value: tc.text}
+		assert.Equal(t, tc.want, coreReading(node).String(), "%s %q", tc.tag, tc.text)
 	}
 }
 

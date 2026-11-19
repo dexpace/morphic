@@ -43,40 +43,40 @@ func ordered(t *testing.T, src string) []any {
 	var docs []any
 	dec := yaml.NewDecoder(strings.NewReader(src))
 	for {
-		var n yaml.Node
-		err := dec.Decode(&n)
+		var node yaml.Node
+		err := dec.Decode(&node)
 		if errors.Is(err, io.EOF) {
 			return docs
 		}
 		require.NoError(t, err, "%q must decode", src)
-		docs = append(docs, orderedNode(&n))
+		docs = append(docs, orderedNode(&node))
 	}
 }
 
 // orderedNode is ordered's reading of one node.
-func orderedNode(n *yaml.Node) any {
-	switch n.Kind {
+func orderedNode(node *yaml.Node) any {
+	switch node.Kind {
 	case yaml.DocumentNode:
-		if len(n.Content) == 0 {
+		if len(node.Content) == 0 {
 			return nil
 		}
-		return orderedNode(n.Content[0])
+		return orderedNode(node.Content[0])
 	case yaml.AliasNode:
-		return orderedNode(n.Alias)
+		return orderedNode(node.Alias)
 	case yaml.MappingNode:
-		pairs := make([]any, 0, len(n.Content)/2)
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			pairs = append(pairs, [2]any{orderedNode(n.Content[i]), orderedNode(n.Content[i+1])})
+		pairs := make([]any, 0, len(node.Content)/2)
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			pairs = append(pairs, [2]any{orderedNode(node.Content[i]), orderedNode(node.Content[i+1])})
 		}
 		return pairs
 	case yaml.SequenceNode:
-		items := make([]any, 0, len(n.Content))
-		for _, c := range n.Content {
-			items = append(items, orderedNode(c))
+		items := make([]any, 0, len(node.Content))
+		for _, nodeValue := range node.Content {
+			items = append(items, orderedNode(nodeValue))
 		}
 		return items
 	default:
-		return n.ShortTag() + " " + n.Value
+		return node.ShortTag() + " " + node.Value
 	}
 }
 
@@ -293,33 +293,33 @@ func TestReverseSequences_AnAnchorMovesToTheFirstUse(t *testing.T) {
 	allOf := lookup(t, &doc, "components", "schemas", "AB", "allOf")
 	require.Len(t, allOf.Content, 2)
 
-	q := lookup(t, allOf.Content[0], "properties", "q")
-	assert.Equal(t, "x", q.Anchor, "the entry that now comes first declares the anchor")
-	assert.NotEqual(t, yaml.AliasNode, q.Kind)
-	p := lookup(t, allOf.Content[1], "properties", "p")
-	assert.Equal(t, yaml.AliasNode, p.Kind, "the entry that now comes second is the alias")
-	assert.Equal(t, "x", p.Value)
+	node := lookup(t, allOf.Content[0], "properties", "q")
+	assert.Equal(t, "x", node.Anchor, "the entry that now comes first declares the anchor")
+	assert.NotEqual(t, yaml.AliasNode, node.Kind)
+	nodeValue := lookup(t, allOf.Content[1], "properties", "p")
+	assert.Equal(t, yaml.AliasNode, nodeValue.Kind, "the entry that now comes second is the alias")
+	assert.Equal(t, "x", nodeValue.Value)
 }
 
-// lookup descends from n through mapping keys, failing the test where one is
+// lookup descends from node through mapping keys, failing the test where one is
 // missing.
-func lookup(t *testing.T, n *yaml.Node, keys ...string) *yaml.Node {
+func lookup(t *testing.T, node *yaml.Node, keys ...string) *yaml.Node {
 	t.Helper()
-	if n.Kind == yaml.DocumentNode {
-		n = n.Content[0]
+	if node.Kind == yaml.DocumentNode {
+		node = node.Content[0]
 	}
 	for _, k := range keys {
-		require.Equal(t, yaml.MappingNode, n.Kind, "descending to %q", k)
+		require.Equal(t, yaml.MappingNode, node.Kind, "descending to %q", k)
 		var next *yaml.Node
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			if n.Content[i].Value == k {
-				next = n.Content[i+1]
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			if node.Content[i].Value == k {
+				next = node.Content[i+1]
 			}
 		}
 		require.NotNil(t, next, "no key %q", k)
-		n = next
+		node = next
 	}
-	return n
+	return node
 }
 
 // TestReverseSequences_DeclinesWhatItCannotPermute pins each way the rewrite

@@ -190,11 +190,11 @@ func declare(group []operationIDClaim, written *writtenTree) declaration {
 // the node it names: that is what makes an alias's reuse read as the $ref
 // form's does, one declaration mounted twice. One hop is all there is, since an
 // alias carries no anchor for another alias to name: yaml.v3 refuses `&b *a`.
-func declaringNode(n *yaml.Node) *yaml.Node {
-	if n != nil && n.Kind == yaml.AliasNode && n.Alias != nil {
-		return n.Alias
+func declaringNode(node *yaml.Node) *yaml.Node {
+	if node != nil && node.Kind == yaml.AliasNode && node.Alias != nil {
+		return node.Alias
 	}
-	return n
+	return node
 }
 
 // writtenTree reads where the document's own text writes a node. Each step
@@ -214,8 +214,8 @@ func newWrittenTree(root *yaml.Node) *writtenTree {
 	return &writtenTree{root: nodeview.DocumentRoot(root), children: map[*yaml.Node]map[string]*yaml.Node{}}
 }
 
-// holds reports whether the document's text writes n at pointer.
-func (w *writtenTree) holds(pointer jsontext.Pointer, n *yaml.Node) bool {
+// holds reports whether the document's text writes node at pointer.
+func (w *writtenTree) holds(pointer jsontext.Pointer, node *yaml.Node) bool {
 	at := w.root
 	for token := range pointer.Tokens() {
 		children, indexed := w.children[at]
@@ -227,7 +227,7 @@ func (w *writtenTree) holds(pointer jsontext.Pointer, n *yaml.Node) bool {
 			return false
 		}
 	}
-	return at == n
+	return at == node
 }
 
 // disjointSets partitions items 0..n-1 into sets that union merges.

@@ -22,9 +22,9 @@ import (
 // what it finds, ordered as findings orders them.
 func findingsIn(t *testing.T, dialect, doc string) []finding {
 	t.Helper()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
-	diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &node))
+	diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{
 		Start:  specrules.Schema,
 		Rows:   rulesOf("3.1.0", dialect),
 		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
@@ -113,9 +113,9 @@ func TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne(t *testing.T) {
 		{"a media type's in draft 6", draft06, specrules.MediaType, `{schema: true}`, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var n yaml.Node
-			require.NoError(t, yaml.Unmarshal([]byte(tc.doc), &n))
-			diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
+			var node yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.doc), &node))
+			diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{
 				Start:  tc.kind,
 				Rows:   rulesOf("3.1.0", tc.dialect),
 				Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
@@ -138,17 +138,17 @@ func TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne(t *testing.T) {
 // names the minor.
 func TestCheck_AFindingInADraftNamesItsDialect(t *testing.T) {
 	read := func(dialect string) string {
-		var n yaml.Node
-		require.NoError(t, yaml.Unmarshal([]byte(`{required: []}`), &n))
-		diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{Start: specrules.Schema, Rows: rulesOf("3.1.0", dialect)})
+		var node yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(`{required: []}`), &node))
+		diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{Start: specrules.Schema, Rows: rulesOf("3.1.0", dialect)})
 		require.Len(t, diags, 1)
 		return diags[0].Message
 	}
 	assert.Equal(t, `Schema Object field "required" must hold at least 1 entry in this schema's dialect (5.4.3.1. Valid values)`,
 		read(draft04))
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(`{prefixItems: []}`), &n))
-	diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{Start: specrules.Schema})
+	var nodeValue yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(`{prefixItems: []}`), &nodeValue))
+	diags := specrules.NewChecker().Check(t.Context(), &nodeValue, "3.1.0", specrules.Options{Start: specrules.Schema})
 	require.Len(t, diags, 1)
 	assert.Equal(t, `Schema Object field "prefixItems" must hold at least 1 entry in OpenAPI 3.1 (Schema Object)`, diags[0].Message)
 	assert.Equal(t, `keyword "prefixItems" is not defined by this schema's dialect; it is read as JSON Schema 2020-12 defines it; `+
@@ -162,9 +162,9 @@ func TestCheck_AFindingInADraftNamesItsDialect(t *testing.T) {
 // doc as a 3.1 Schema Object read in dialect draws.
 func laterMessage(t *testing.T, dialect, doc string) string {
 	t.Helper()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
-	diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{Start: specrules.Schema, Rows: rulesOf("3.1.0", dialect)})
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &node))
+	diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{Start: specrules.Schema, Rows: rulesOf("3.1.0", dialect)})
 	require.Len(t, diags, 1)
 	assert.Equal(t, later, diags[0].Code)
 	return diags[0].Message
@@ -183,9 +183,9 @@ func TestCheck_ARefsSiblingsInADraftAreWarnedOf(t *testing.T) {
 	}, findingsIn(t, draft07, doc)))
 	assert.Empty(t, findingsIn(t, draft2019, `{$ref: '#/a', description: d}`), "2019-09 applies them")
 	for _, diagnostic := range func() []ir.Diagnostic {
-		var n yaml.Node
-		require.NoError(t, yaml.Unmarshal([]byte(`{$ref: '#/a', description: d}`), &n))
-		return specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{Start: specrules.Schema, Rows: rulesOf("3.1.0", draft04)})
+		var node yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(`{$ref: '#/a', description: d}`), &node))
+		return specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{Start: specrules.Schema, Rows: rulesOf("3.1.0", draft04)})
 	}() {
 		assert.Equal(t, `keyword "description" beside a $ref is ignored by this schema's dialect, as by the JSON Schema `+
 			`drafts before 2019-09; it is applied as in 2020-12`, diagnostic.Message)
@@ -196,12 +196,12 @@ func TestCheck_ARefsSiblingsInADraftAreWarnedOf(t *testing.T) {
 // dialect root of is read with that root's rows, and so is what that schema
 // holds, while a schema beside it reads the document's.
 func TestCheck_ARootReadsItsOwnRows(t *testing.T) {
-	var n yaml.Node
+	var node yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents:\n  schemas:\n"+
-		"    S: {required: [], properties: {a: {required: []}}}\n    T: {required: [], properties: {b: {required: []}}}\n"), &n))
+		"    S: {required: [], properties: {a: {required: []}}}\n    T: {required: [], properties: {b: {required: []}}}\n"), &node))
 	root := jsontext.Pointer("/x/components/schemas/S")
 	var asked []jsontext.Pointer
-	diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
+	diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{
 		Root:   "/x",
 		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 		RootRows: func(at jsontext.Pointer) (specrules.SchemaRules, bool) {
@@ -223,10 +223,10 @@ func TestCheck_ARootReadsItsOwnRows(t *testing.T) {
 // none of it, and CheckPending reads them, in order, with the rows it is given,
 // telling Seen of each mapping it reads, and once of a node two of them mount.
 func TestCheckPending_ReadsWhatACheckHandedBack(t *testing.T) {
-	var n yaml.Node
+	var node yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {}\ncomponents:\n"+
 		"  schemas:\n    S: &s {required: [], properties: {a: {required: []}}}\n    T: *s\n"+
-		"  parameters:\n    P: {name: p, in: query, schema: {required: []}}\n"), &n))
+		"  parameters:\n    P: {name: p, in: query, schema: {required: []}}\n"), &node))
 	var pending []specrules.Pending
 	seen := map[specrules.Kind]int{}
 	alias := strings.NewReplacer("/schemas/T", "/schemas/S")
@@ -238,7 +238,7 @@ func TestCheckPending_ReadsWhatACheckHandedBack(t *testing.T) {
 		Later: func(pendingValue specrules.Pending) { pending = append(pending, pendingValue) },
 	}
 	checker := specrules.NewChecker()
-	assert.Empty(t, checker.Check(t.Context(), &n, "3.1.0", opts))
+	assert.Empty(t, checker.Check(t.Context(), &node, "3.1.0", opts))
 	require.Len(t, pending, 3)
 	assert.Zero(t, seen[specrules.Schema], "a schema handed back is not read")
 	opts.Rows = rulesOf("3.1.0", draft04)
@@ -278,10 +278,10 @@ func TestCheck_BoundsFollowTheSchemasRows(t *testing.T) {
 			assert.Empty(t, cmp.Diff(tc.want, findingsIn(t, tc.dialect, tc.doc), cmpopts.EquateEmpty()))
 		})
 	}
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("{properties: {a: &bad {exclusiveMinimum: true}, b: *bad, c: *bad}}"), &n))
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("{properties: {a: &bad {exclusiveMinimum: true}, b: *bad, c: *bad}}"), &node))
 	written := strings.NewReplacer("/properties/b/", "/properties/a/", "/properties/c/", "/properties/a/")
-	diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{Start: specrules.Schema, ReadAt: true,
+	diags := specrules.NewChecker().Check(t.Context(), &node, "3.1.0", specrules.Options{Start: specrules.Schema, ReadAt: true,
 		Locate: func(pointer jsontext.Pointer) ir.Provenance {
 			return ir.Provenance{Pointer: jsontext.Pointer(written.Replace(string(pointer)))}
 		}})

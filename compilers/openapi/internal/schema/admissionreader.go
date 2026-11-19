@@ -385,8 +385,8 @@ func valueKinds(loweringContext lowering.Ctx, schema *statement.Schema) kindSet 
 // readMembers reads each member's key with its kind.
 func readMembers(members []*yaml.Node) memberSet {
 	out := memberSet{values: make(map[string]kindSet, len(members))}
-	for _, m := range members {
-		key, kind, ok := memberOf(m)
+	for _, node := range members {
+		key, kind, ok := memberOf(node)
 		if !ok {
 			return memberSet{unread: true}
 		}

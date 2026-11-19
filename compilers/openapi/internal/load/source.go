@@ -45,13 +45,13 @@ func treeOf(ctx context.Context, doc provenance.Doc, root *yaml.Node) provenance
 	return provenance.Tree{Doc: doc, Pointers: scan.Pointers(ctx, root)}
 }
 
-// treeHolds reports whether tree holds n, so a finding about n is placed in
+// treeHolds reports whether tree holds node, so a finding about node is placed in
 // tree's document. A tree with no pointers, such as the zero Tree, holds none.
-func treeHolds(tree provenance.Tree, n *yaml.Node) bool {
+func treeHolds(tree provenance.Tree, node *yaml.Node) bool {
 	if tree.Pointers == nil {
 		return false
 	}
-	_, held := tree.Pointers(n)
+	_, held := tree.Pointers(node)
 	return held
 }
 

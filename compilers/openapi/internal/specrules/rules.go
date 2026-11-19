@@ -64,11 +64,11 @@ func (f frame) text(name string) (string, bool) {
 // textOf reads a node as a scalar. A null writes no text: a rule reading a
 // sibling reads it as unwritten, and the field's own check reports it.
 func textOf(node *yaml.Node) (string, bool) {
-	n := nodeview.Deref(node)
-	if n == nil || n.Kind != yaml.ScalarNode || isNull(n) {
+	nodeValue := nodeview.Deref(node)
+	if nodeValue == nil || nodeValue.Kind != yaml.ScalarNode || isNull(nodeValue) {
 		return "", false
 	}
-	return n.Value, true
+	return nodeValue.Value, true
 }
 
 // rules applies the object's rules that hold at the declared minor, bar those
@@ -281,7 +281,7 @@ func (r ruler) member(rule Rule) {
 		return
 	}
 	for _, item := range list.Content {
-		if n := nodeview.Deref(item); n != nil && n.Value == got {
+		if node := nodeview.Deref(item); node != nil && node.Value == got {
 			return
 		}
 	}
@@ -311,7 +311,7 @@ func (r ruler) unique(rule Rule) {
 	at := func(i int) jsontext.Pointer { return itemPointer(base, i) }
 	text, what := textOf, strconv.Quote
 	if rule.Key != "" {
-		text = func(n *yaml.Node) (string, bool) { return textOf(r.keysOf(n)[rule.Key]) }
+		text = func(node *yaml.Node) (string, bool) { return textOf(r.keysOf(node)[rule.Key]) }
 		at = func(i int) jsontext.Pointer { return itemPointer(base, i).AppendToken(rule.Key) }
 		what = func(s string) string { return "the " + rule.Key + " " + strconv.Quote(s) }
 	}

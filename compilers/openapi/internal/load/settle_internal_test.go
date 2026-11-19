@@ -27,9 +27,9 @@ func readAside(t *testing.T, text string) *yaml.Node {
 }
 
 // marshalled is what the tree encodes to.
-func marshalled(t *testing.T, n *yaml.Node) string {
+func marshalled(t *testing.T, node *yaml.Node) string {
 	t.Helper()
-	out, err := yaml.Marshal(n)
+	out, err := yaml.Marshal(node)
 	require.NoError(t, err)
 	return string(out)
 }
@@ -69,12 +69,12 @@ func TestAside_RestoreLeavesTheTreeAsWritten(t *testing.T) {
 func TestAside_AMappingHiddenTwiceIsRestoredToTheFirstReading(t *testing.T) {
 	t.Parallel()
 	root := readAside(t, "m: {a: 1, b: 2, c: 3}\n")
-	m := root.Content[1]
+	node := root.Content[1]
 	before := marshalled(t, root)
 	a := aside{}
 
-	a.hide(m, func(key, _ *yaml.Node) bool { return key.Value == "a" })
-	a.hide(m, func(key, _ *yaml.Node) bool { return key.Value == "b" })
+	a.hide(node, func(key, _ *yaml.Node) bool { return key.Value == "a" })
+	a.hide(node, func(key, _ *yaml.Node) bool { return key.Value == "b" })
 	assert.Equal(t, "m: {c: 3}\n", marshalled(t, root))
 
 	a.restore()

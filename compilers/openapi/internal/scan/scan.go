@@ -31,8 +31,8 @@ import (
 // that reports nothing never indexes it.
 func Pointers(ctx context.Context, root *yaml.Node) func(*yaml.Node) (jsontext.Pointer, bool) {
 	var steps map[*yaml.Node]step
-	return func(n *yaml.Node) (jsontext.Pointer, bool) {
-		if n == nil || root == nil {
+	return func(node *yaml.Node) (jsontext.Pointer, bool) {
+		if node == nil || root == nil {
 			return "", false
 		}
 		if steps == nil {
@@ -40,10 +40,10 @@ func Pointers(ctx context.Context, root *yaml.Node) func(*yaml.Node) (jsontext.P
 			// passed a sourceindex walk under the same bound first.
 			steps = placesIn(ctx, root)
 		}
-		if _, held := steps[n]; !held {
+		if _, held := steps[node]; !held {
 			return "", false
 		}
-		return pointerOf(steps, n), true
+		return pointerOf(steps, node), true
 	}
 }
 
@@ -82,69 +82,69 @@ func stepsIn(ctx context.Context, root *yaml.Node, limit int) (map[*yaml.Node]st
 	stack := []*yaml.Node{top}
 	entered, cut := budget.New(budget.AtMost(limit)), false
 	entered.Spend(1)
-	reach := func(n *yaml.Node, stepValue step) {
-		if _, indexed := out[n]; indexed {
+	reach := func(node *yaml.Node, stepValue step) {
+		if _, indexed := out[node]; indexed {
 			return
 		}
 		if !entered.Spend(1) {
 			cut = true
 			return
 		}
-		out[n] = stepValue
-		stack = append(stack, n)
+		out[node] = stepValue
+		stack = append(stack, node)
 	}
 	for popped := 0; len(stack) > 0; popped++ {
 		if popped%nodeview.AskEvery == 0 && ctx.Err() != nil {
 			return out, false
 		}
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		reachChildren(n, reach)
+		reachChildren(node, reach)
 	}
 	return out, !cut
 }
 
-// reachChildren hands reach each child of n a pointer reaches, with the step
+// reachChildren hands reach each child of node a pointer reaches, with the step
 // that leads to it.
-func reachChildren(n *yaml.Node, reach func(*yaml.Node, step)) {
-	eachChild(n, func(c *yaml.Node, token string, held bool) {
+func reachChildren(node *yaml.Node, reach func(*yaml.Node, step)) {
+	eachChild(node, func(nodeValue *yaml.Node, token string, held bool) {
 		if held {
-			reach(c, step{holder: n, token: token})
+			reach(nodeValue, step{holder: node, token: token})
 		}
 	})
 }
 
-// eachChild hands visit each child of a mapping or sequence n, with the token
+// eachChild hands visit each child of a mapping or sequence node, with the token
 // naming it and whether a pointer reaches it there: a pair under a `<<` merge
-// key is n's but has no pointer of its own, and an entry whose key is no
+// key is node's but has no pointer of its own, and an entry whose key is no
 // scalar, which every reader leaves out, has none either. A scalar holds
 // nothing, and an alias's target is written elsewhere.
-func eachChild(n *yaml.Node, visit func(c *yaml.Node, token string, held bool)) {
-	switch n.Kind {
+func eachChild(node *yaml.Node, visit func(nodeValue *yaml.Node, token string, held bool)) {
+	switch node.Kind {
 	case yaml.MappingNode:
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			key, value := n.Content[i], n.Content[i+1]
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key, value := node.Content[i], node.Content[i+1]
 			token, own := nodeview.KeyOf(key)
 			visit(key, token, own)
 			visit(value, token, own)
 		}
 	case yaml.SequenceNode:
-		for i, item := range n.Content {
+		for i, item := range node.Content {
 			visit(item, strconv.Itoa(i), true)
 		}
 	default:
 	}
 }
 
-// pointerOf returns n's pointer in the tree steps indexes, or "" when the tree
-// does not hold n. A holder is indexed before what it holds, so the walk up
-// ends at the top in as many steps as n is deep. The pointer is spelled into
+// pointerOf returns node's pointer in the tree steps indexes, or "" when the tree
+// does not hold node. A holder is indexed before what it holds, so the walk up
+// ends at the top in as many steps as node is deep. The pointer is spelled into
 // one buffer: appending token by token to a pointer copies it at each, half
-// n's depth in copies of the whole.
-func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
+// node's depth in copies of the whole.
+func pointerOf(steps map[*yaml.Node]step, node *yaml.Node) jsontext.Pointer {
 	var tokens []string
 	size := 0
-	for at := n; ; {
+	for at := node; ; {
 		step, ok := steps[at]
 		if !ok {
 			return ""
@@ -234,6 +234,6 @@ func anchorName(alias *yaml.Node) string {
 
 // cyclicDiag builds a diag.CyclicRef error diagnostic anchored where tree
 // places the node.
-func cyclicDiag(tree provenance.Tree, n *yaml.Node, format string, args ...any) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.CyclicRef, tree.Node(n), format, args...)
+func cyclicDiag(tree provenance.Tree, node *yaml.Node, format string, args ...any) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.CyclicRef, tree.Node(node), format, args...)
 }

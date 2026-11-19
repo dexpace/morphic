@@ -255,20 +255,20 @@ func holdsOrderFreeSequence(t *testing.T, path string) bool {
 }
 
 // holdsSequenceBelow is holdsOrderFreeSequence's reading of one node.
-func holdsSequenceBelow(n *yaml.Node) bool {
-	if n.Kind == yaml.AliasNode {
+func holdsSequenceBelow(node *yaml.Node) bool {
+	if node.Kind == yaml.AliasNode {
 		return false
 	}
-	if n.Kind == yaml.MappingNode {
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			key, value := n.Content[i], n.Content[i+1]
+	if node.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key, value := node.Content[i], node.Content[i+1]
 			if (key.Value == "allOf" || key.Value == "required") &&
 				value.Kind == yaml.SequenceNode && len(value.Content) >= 2 {
 				return true
 			}
 		}
 	}
-	return slices.ContainsFunc(n.Content, holdsSequenceBelow)
+	return slices.ContainsFunc(node.Content, holdsSequenceBelow)
 }
 
 // assertSequenceDecline holds a decline of the sequence-order oracle to its
