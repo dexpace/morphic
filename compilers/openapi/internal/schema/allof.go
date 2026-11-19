@@ -103,7 +103,7 @@ type allOfEntry struct {
 	// past statement.MaxFlattenDepth, so the diagnostic can say why it was kept.
 	capped bool
 	// split marks the reference of an entry writing one beside other keys,
-	// which the statement lists apart from the rest (statement.Entry.Split).
+	// which the statement lists apart from them (statement.Entry.Split).
 	split bool
 }
 

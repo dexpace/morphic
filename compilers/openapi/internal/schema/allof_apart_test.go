@@ -18,17 +18,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestAllOf_ASplitEntrysReferenceIsNamedWhereverItsRestFalls pins the name of
+// TestAllOf_ASplitEntrysReferenceIsNamedWhateverIsBesideIt pins the name of
 // the reference an entry writes beside other keys in the report of value sets
 // sharing no member: its path and `$ref`, where the keys beside it hold an
 // allOf whose entry the statement lists between the two, as where they hold
 // none (docs/compilers/openapi.md#allof-disjoint-conjuncts).
-func TestAllOf_ASplitEntrysReferenceIsNamedWhereverItsRestFalls(t *testing.T) {
+func TestAllOf_ASplitEntrysReferenceIsNamedWhateverIsBesideIt(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ entries, names string }{
-		"the rest follows": {"{$ref: '#/components/schemas/A', enum: [b]}, {enum: [c]}",
+		"the keywords beside it follow": {"{$ref: '#/components/schemas/A', enum: [b]}, {enum: [c]}",
 			"allOf/0/$ref: 1 value, allOf/0: 1 value, allOf/1: 1 value"},
-		"an allOf of the rest lies between": {"{$ref: '#/components/schemas/A', enum: [b], allOf: [{enum: [c]}]}",
+		"an allOf beside it lies between": {"{$ref: '#/components/schemas/A', enum: [b], allOf: [{enum: [c]}]}",
 			"allOf/0/$ref: 1 value, allOf/0/allOf/0: 1 value, allOf/0: 1 value"},
 	} {
 		t.Run(name, func(t *testing.T) {

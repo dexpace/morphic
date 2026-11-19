@@ -70,7 +70,7 @@ func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bou
 	return nodeHomes(c, s, d, takes)
 }
 
-// nodeHomes returns which bounds the node s lowers to by the election d holds,
+// nodeHomes returns which bounds the node s lowers to by the dispatch d holds,
 // as its builder reads them of the voices, takes the kinds its position
 // admits: none of a value set's, the value bounds of the types a Scalar built
 // for each type its lowering names (typingOf) takes, the collection bounds of
