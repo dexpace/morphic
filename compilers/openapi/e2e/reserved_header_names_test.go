@@ -94,9 +94,9 @@ func TestReservedHeaderNames_ReportedOnceWhereverWritten(t *testing.T) {
 			for _, p := range pointers {
 				assert.Equal(t, []string{diag.ReservedHeaderName}, codesAt(diags, p), "no second code about %s", p)
 			}
-			for _, d := range diags {
-				if d.Code == diag.ReservedHeaderName {
-					assert.Contains(t, d.Message, "SHALL be ignored", "the rule's own words: %s", d.Message)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.ReservedHeaderName {
+					assert.Contains(t, diagnostic.Message, "SHALL be ignored", "the rule's own words: %s", diagnostic.Message)
 				}
 			}
 		})

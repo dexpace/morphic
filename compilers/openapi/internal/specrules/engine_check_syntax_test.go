@@ -200,15 +200,15 @@ func TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, severity(specrules.Parameter, `{$ref: ~}`), "only in a Schema Object")
 	assert.Equal(t, ir.SeverityError, severity(specrules.Info, `{title: t, version: v, contact: x}`))
 	assert.Equal(t, ir.SeverityError, severity(specrules.Info, `{title: t, version: v, contact: []}`))
-	for _, d := range run(t, "3.1.0", specrules.Info, `{title: t, version: v, description: ~}`) {
-		assert.Contains(t, d.Message, "read as the field left out")
+	for _, diagnostic := range run(t, "3.1.0", specrules.Info, `{title: t, version: v, description: ~}`) {
+		assert.Contains(t, diagnostic.Message, "read as the field left out")
 	}
 	assert.Empty(t, run(t, "3.1.0", specrules.SecurityScheme, `{type: http, scheme: ~}`), "auth reports the missing scheme")
 	assert.Equal(t, ir.SeverityError, severity(specrules.Parameter, `{name: p, in: path, required: ~, schema: {}}`),
 		"one finding, not a second that required is not true")
 	// 3.2 requires a device flow's tokenUrl; a 3.1 document has no such rule.
-	for _, d := range run(t, "3.1.0", specrules.OAuthFlows, `{deviceAuthorization: {tokenUrl: ~, scopes: {}}}`) {
-		assert.Equal(t, ir.SeverityWarning, d.Severity, "%+v", d)
+	for _, diagnostic := range run(t, "3.1.0", specrules.OAuthFlows, `{deviceAuthorization: {tokenUrl: ~, scopes: {}}}`) {
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity, "%+v", diagnostic)
 	}
 }
 
@@ -260,11 +260,11 @@ func TestCheck_ANullReadAsLeftOutIsNoFieldToARule(t *testing.T) {
 // TestCheck_ComponentNameAndKeyFindingsAreWarnings pins the severity of a key
 // outside the pattern the specification gives, whose entry lowers as written.
 func TestCheck_ComponentNameAndKeyFindingsAreWarnings(t *testing.T) {
-	for _, d := range run(t, "3.1.0", specrules.Components, `{schemas: {"a b": {}}}`) {
-		assert.Equal(t, ir.SeverityWarning, d.Severity)
+	for _, diagnostic := range run(t, "3.1.0", specrules.Components, `{schemas: {"a b": {}}}`) {
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
 	}
-	for _, d := range run(t, "3.1.0", specrules.Callback, `{"{$bogus}": {}}`) {
-		assert.Equal(t, ir.SeverityError, d.Severity, "a malformed expression leaves the key's meaning in doubt")
+	for _, diagnostic := range run(t, "3.1.0", specrules.Callback, `{"{$bogus}": {}}`) {
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity, "a malformed expression leaves the key's meaning in doubt")
 	}
 }
 
@@ -276,9 +276,9 @@ func TestCheck_SeenReportsTheObjectsReadAsTheirKind(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte(
 		"parameters: {a: {name: n, in: query, schema: {}}, b: {$ref: '#/parameters/a'}}\nschemas: {S: {type: string}}\n"), &n))
 	seen := map[specrules.Kind]int{}
-	specrules.NewChecker().Check(t.Context(), &n, "3.0.3", specrules.Options{Start: specrules.Components, Seen: func(k specrules.Kind, node *yaml.Node) {
+	specrules.NewChecker().Check(t.Context(), &n, "3.0.3", specrules.Options{Start: specrules.Components, Seen: func(kind specrules.Kind, node *yaml.Node) {
 		require.NotNil(t, node)
-		seen[k]++
+		seen[kind]++
 	}})
 	assert.Equal(t, map[specrules.Kind]int{specrules.Components: 1, specrules.Parameter: 1, specrules.Schema: 2}, seen)
 }

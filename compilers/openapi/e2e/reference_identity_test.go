@@ -138,8 +138,8 @@ func typesJSON(t *testing.T, doc *ir.Document) string {
 // mappings are written in, which moves the lines and columns alone.
 func placedFindings(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s: %s", d.Severity, d.Code, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s: %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 	slices.Sort(out)
 	return out

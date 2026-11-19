@@ -207,15 +207,15 @@ paths:
 // kinds uncorpusedUnmodeled writes to.
 func unmodeledKeys(doc *ir.Document) []string {
 	var keys []string
-	collect := func(p ir.Unmodeled) {
-		keys = slices.AppendSeq(keys, maps.Keys(p))
+	collect := func(unmodeled ir.Unmodeled) {
+		keys = slices.AppendSeq(keys, maps.Keys(unmodeled))
 	}
 	for _, svc := range doc.Services {
-		for _, g := range svc.Groups {
-			for _, op := range g.Operations {
+		for _, operationGroup := range svc.Groups {
+			for _, op := range operationGroup.Operations {
 				collect(op.Unmodeled)
-				for _, p := range op.Params {
-					collect(p.Unmodeled)
+				for _, parameter := range op.Params {
+					collect(parameter.Unmodeled)
 				}
 				for _, ec := range op.Errors {
 					collect(ec.Unmodeled)

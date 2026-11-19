@@ -29,27 +29,27 @@ func fill(m map[string]int, n int) {
 // huge collection costs in proportion to it, at every collection after.
 func TestMap_EmptiesInPlaceUpToTheLimit(t *testing.T) {
 	t.Parallel()
-	var r scratchstate.Map[string, int]
-	first := r.Emptied()
+	var mapValue scratchstate.Map[string, int]
+	first := mapValue.Emptied()
 	require.NotNil(t, first, "the zero Map hands a map to write to")
 
 	for _, n := range []int{1, 2} {
-		fill(r.Emptied(), n)
-		assert.Empty(t, r.Emptied(), "a map left with %d entries is emptied", n)
+		fill(mapValue.Emptied(), n)
+		assert.Empty(t, mapValue.Emptied(), "a map left with %d entries is emptied", n)
 	}
 
 	fill(first, scratchstate.Limit)
-	atLimit := r.Emptied()
+	atLimit := mapValue.Emptied()
 	assert.Empty(t, atLimit)
 	assert.Equal(t, reflect.ValueOf(first).UnsafePointer(), reflect.ValueOf(atLimit).UnsafePointer(),
 		"a map left at the limit is emptied in place")
 
 	fill(atLimit, scratchstate.Limit+1)
-	past := r.Emptied()
+	past := mapValue.Emptied()
 	assert.Empty(t, past)
 	assert.NotEqual(t, reflect.ValueOf(atLimit).UnsafePointer(), reflect.ValueOf(past).UnsafePointer(),
 		"a map left past the limit is replaced")
-	assert.Equal(t, reflect.ValueOf(past).UnsafePointer(), reflect.ValueOf(r.Emptied()).UnsafePointer(),
+	assert.Equal(t, reflect.ValueOf(past).UnsafePointer(), reflect.ValueOf(mapValue.Emptied()).UnsafePointer(),
 		"the fresh map is the one reused from then on")
 }
 
@@ -64,8 +64,8 @@ func TestMap_LimitIsTheMostAMapMayHoldAndBeReused(t *testing.T) {
 // one place the limit is checked: only Emptied clears, and nothing deletes.
 func TestMap_ClearsOnlyThroughEmptied(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load(reflect.TypeFor[scratchstate.Map[string, int]]().PkgPath())
+	loadedPackage, err := decls.Load(reflect.TypeFor[scratchstate.Map[string, int]]().PkgPath())
 	require.NoError(t, err)
-	assert.Equal(t, []string{"Emptied"}, p.FuncsUsing(types.Universe.Lookup("clear")))
-	assert.Empty(t, p.FuncsUsing(types.Universe.Lookup("delete")))
+	assert.Equal(t, []string{"Emptied"}, loadedPackage.FuncsUsing(types.Universe.Lookup("clear")))
+	assert.Empty(t, loadedPackage.FuncsUsing(types.Universe.Lookup("delete")))
 }

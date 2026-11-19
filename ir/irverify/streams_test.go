@@ -71,34 +71,34 @@ func TestVerify_AStreamingContentHasItsSidesDetail(t *testing.T) {
 		edit func(*ir.Operation)
 		want []string
 	}{
-		{"a request stream summarizing its content", func(o *ir.Operation) {
-			o.Request, o.RequestStream = streams(), &ir.StreamDetail{}
+		{"a request stream summarizing its content", func(operation *ir.Operation) {
+			operation.Request, operation.RequestStream = streams(), &ir.StreamDetail{}
 		}, nil},
-		{"a request content with no request stream", func(o *ir.Operation) {
-			o.Request, o.ResponseStream = streams(), &ir.StreamDetail{}
+		{"a request content with no request stream", func(operation *ir.Operation) {
+			operation.Request, operation.ResponseStream = streams(), &ir.StreamDetail{}
 		}, []string{op + ".Request.Contents[1].Stream"}},
-		{"a response stream summarizing its content", func(o *ir.Operation) {
-			o.Responses = []ir.Response{{}, {Payload: streams()}}
-			o.ResponseStream = &ir.StreamDetail{}
+		{"a response stream summarizing its content", func(operation *ir.Operation) {
+			operation.Responses = []ir.Response{{}, {Payload: streams()}}
+			operation.ResponseStream = &ir.StreamDetail{}
 		}, nil},
-		{"a response content with no response stream", func(o *ir.Operation) {
-			o.Responses = []ir.Response{{}, {Payload: streams()}}
-			o.RequestStream = &ir.StreamDetail{}
+		{"a response content with no response stream", func(operation *ir.Operation) {
+			operation.Responses = []ir.Response{{}, {Payload: streams()}}
+			operation.RequestStream = &ir.StreamDetail{}
 		}, []string{op + ".Responses[1].Payload.Contents[1].Stream"}},
-		{"an error's and the default's contents, which no stream summarizes", func(o *ir.Operation) {
-			o.Errors = []ir.ErrorCase{{Payload: streams()}}
-			o.Default = &ir.Response{Payload: streams()}
+		{"an error's and the default's contents, which no stream summarizes", func(operation *ir.Operation) {
+			operation.Errors = []ir.ErrorCase{{Payload: streams()}}
+			operation.Default = &ir.Response{Payload: streams()}
 		}, nil},
-		{"a side streaming with no content that does", func(o *ir.Operation) {
-			o.Request = &ir.Payload{Contents: []ir.Content{{MediaType: "application/json"}}}
-			o.RequestStream, o.ResponseStream = &ir.StreamDetail{}, &ir.StreamDetail{}
+		{"a side streaming with no content that does", func(operation *ir.Operation) {
+			operation.Request = &ir.Payload{Contents: []ir.Content{{MediaType: "application/json"}}}
+			operation.RequestStream, operation.ResponseStream = &ir.StreamDetail{}, &ir.StreamDetail{}
 		}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			o := ir.Operation{ID: "operation/x/S/op"}
-			tc.edit(&o)
-			assert.Equal(t, tc.want, violationPaths(irverify.Verify(opDoc(o)), "ir/content-stream-without-detail"))
+			operation := ir.Operation{ID: "operation/x/S/op"}
+			tc.edit(&operation)
+			assert.Equal(t, tc.want, violationPaths(irverify.Verify(opDoc(operation)), "ir/content-stream-without-detail"))
 		})
 	}
 }

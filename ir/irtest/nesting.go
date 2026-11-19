@@ -27,9 +27,9 @@ func NestedOverloadDoc(depth int) (*ir.Document, ir.OperationID) {
 // NestedListValue returns a Value that is depth levels of single-element lists
 // wrapping a number, the shape a deeply nested array default lowers to.
 func NestedListValue(depth int) ir.Value {
-	v := ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("0")}
+	value := ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("0")}
 	for range depth {
-		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
+		value = ir.Value{Kind: ir.ValueList, List: []ir.Value{value}}
 	}
-	return v
+	return value
 }

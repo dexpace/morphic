@@ -85,7 +85,7 @@ func TestLandingTargets(t *testing.T) {
 		{At: reftable.DocumentPointer{Pointer: "/x-lib/U/additionalItems"}, Site: reftable.DocumentPointer{Pointer: "/x-lib/U"}, Reached: true},
 		{At: reftable.DocumentPointer{Doc: 1, Pointer: "/x-lib/T/additionalItems"}, Site: reftable.DocumentPointer{Pointer: "/x-lib/T"},
 			Reached: true},
-	}, func(p reftable.DocumentPointer) *yaml.Node { return written[p] })
+	}, func(documentPointer reftable.DocumentPointer) *yaml.Node { return written[documentPointer] })
 
 	require.Len(t, got, 6)
 	assert.Equal(t, reachedTarget{site: reftable.DocumentPointer{Pointer: "/s"}, at: reftable.DocumentPointer{Pointer: "/x-lib/A"},
@@ -118,7 +118,7 @@ func TestObjectTargets(t *testing.T) {
 			Site: reftable.DocumentPointer{Doc: 1, Pointer: "/h"}, Reached: true},
 		{At: reftable.DocumentPointer{Pointer: "/x-params/unreached"}, Kind: reftable.RefParameter, Name: "spec.yaml"},
 		{At: reftable.DocumentPointer{Pointer: "/x-params/gone"}, Kind: reftable.RefParameter, Name: "spec.yaml", Reached: true},
-	}, func(p reftable.DocumentPointer) *yaml.Node { return written[p] })
+	}, func(documentPointer reftable.DocumentPointer) *yaml.Node { return written[documentPointer] })
 
 	assert.Equal(t, []reachedTarget{
 		{site: reftable.DocumentPointer{Pointer: "/p"}, at: reftable.DocumentPointer{Pointer: "/x-params/q"}, kind: specrules.Parameter, node: param,
@@ -223,11 +223,11 @@ func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
 
 // comparePositionsForTest orders positions by document, then pointer, as a
 // table orders positions of one document.
-func comparePositionsForTest(p, q reftable.DocumentPointer) int {
-	if c := cmp.Compare(p.Doc, q.Doc); c != 0 {
+func comparePositionsForTest(documentPointer, reftableDocumentPointer reftable.DocumentPointer) int {
+	if c := cmp.Compare(documentPointer.Doc, reftableDocumentPointer.Doc); c != 0 {
 		return c
 	}
-	return cmp.Compare(p.Pointer, q.Pointer)
+	return cmp.Compare(documentPointer.Pointer, reftableDocumentPointer.Pointer)
 }
 
 // TestReached_ASchemaTheSourceWritesUnmodelledIsJudgedInItsRows pins a value
@@ -242,9 +242,9 @@ func TestReached_ASchemaTheSourceWritesUnmodelledIsJudgedInItsRows(t *testing.T)
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: []byte(src)}, Options{})
 	require.NoError(t, err)
 	var at []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == diag.ExclusiveBoundForm {
-			at = append(at, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ExclusiveBoundForm {
+			at = append(at, diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.Equal(t, []jsontext.Pointer{"/x-defs/A/exclusiveMinimum"}, at)
@@ -264,7 +264,7 @@ func TestLoad_WhatAReferenceReachesIsJudgedOnceBeforeItIsBuilt(t *testing.T) {
 	var current phase
 	inReach := 0
 	opts := Options{
-		entered: func(p phase) { current = p },
+		entered: func(phaseValue phase) { current = phaseValue },
 		judging: func(kind specrules.Kind, node *yaml.Node) {
 			reads[objectKey{node: nodeview.Deref(node), kind: kind}]++
 			if current == phaseReach {

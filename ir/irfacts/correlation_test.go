@@ -269,9 +269,9 @@ func TestCorrelation_KeysAParameterUnderAPrefixByItsPrefix(t *testing.T) {
 // and two parts of one property declaring a header each.
 func partsFixture() *ir.Document {
 	holder := func(name string) *ir.Model {
-		return irtest.ModelOf(ir.TypeID("type/test/"+name), func(m *ir.Model) {
-			m.Name = ir.Naming{Source: name}
-			m.Properties = []ir.Property{{ID: ir.PropertyID("property/test/" + name), Name: ir.Naming{Source: "part"}}}
+		return irtest.ModelOf(ir.TypeID("type/test/"+name), func(model *ir.Model) {
+			model.Name = ir.Naming{Source: name}
+			model.Properties = []ir.Property{{ID: ir.PropertyID("property/test/" + name), Name: ir.Naming{Source: "part"}}}
 		})
 	}
 	multipart := func(name string, header ir.PropertyID) *ir.Payload {
@@ -451,17 +451,17 @@ func TestCorrelation_KeysACallbackThroughTheOperationDeclaringIt(t *testing.T) {
 // typesFixture holds a namespaced model whose members reach an anonymous type
 // at each position a type names one, and a primitive.
 func typesFixture() *ir.Document {
-	holder := irtest.ModelOf("type/test/Holder", func(m *ir.Model) {
-		m.Name = ir.Naming{Source: "Holder"}
-		m.Namespace = []string{"acme", "v1"}
-		m.Properties = []ir.Property{{
+	holder := irtest.ModelOf("type/test/Holder", func(model *ir.Model) {
+		model.Name = ir.Naming{Source: "Holder"}
+		model.Namespace = []string{"acme", "v1"}
+		model.Properties = []ir.Property{{
 			ID: "property/test/a", Name: ir.Naming{Source: "a"}, WireName: "A", Type: ir.TypeRef{Target: "type/anonymous/a"},
 			Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "type/anonymous/ad"}},
 			Args:     []ir.Parameter{{ID: "parameter/test/arg", Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "type/anonymous/arg"}}},
 		}, {ID: "property/test/l", Name: ir.Naming{Source: "l"}, Type: ir.TypeRef{Target: "type/anonymous/list"}},
 			{ID: "property/test/gone", Name: ir.Naming{Source: "gone"}, Type: ir.TypeRef{Target: "type/missing"}},
 			{ID: "property/test/nil", Name: ir.Naming{Source: "nil"}, Type: ir.TypeRef{Target: "type/test/nil"}}}
-		m.AdditionalProperties = &ir.AdditionalProperties{
+		model.AdditionalProperties = &ir.AdditionalProperties{
 			Value: &ir.TypeRef{Target: "type/anonymous/av"}, Key: &ir.TypeRef{Target: "type/anonymous/ak"},
 			Patterns: []ir.PatternProperties{{Pattern: "^x-/", Value: ir.TypeRef{Target: "type/anonymous/pv"}}},
 		}
@@ -520,40 +520,40 @@ func TestCorrelation_KeysAnEnumMemberBeneathItsEnum(t *testing.T) {
 // conjunctsFixture holds a model composing anonymous models in place, one of
 // them through another, beside a named base, and one composing a single one.
 func conjunctsFixture() *ir.Document {
-	base := irtest.ModelOf("type/test/N", func(m *ir.Model) {
-		m.Name = ir.Naming{Source: "N"}
-		m.Properties = []ir.Property{{ID: "property/test/n", Name: ir.Naming{Source: "n"}}}
+	base := irtest.ModelOf("type/test/N", func(model *ir.Model) {
+		model.Name = ir.Naming{Source: "N"}
+		model.Properties = []ir.Property{{ID: "property/test/n", Name: ir.Naming{Source: "n"}}}
 	})
-	inner := irtest.ModelOf("type/anonymous/c3", func(m *ir.Model) {
-		m.Anonymous = true
-		m.Properties = []ir.Property{{ID: "property/test/z", Name: ir.Naming{Source: "z"}}}
-		m.Mixins = irtest.RefsTo("type/anonymous/c2")
+	inner := irtest.ModelOf("type/anonymous/c3", func(model *ir.Model) {
+		model.Anonymous = true
+		model.Properties = []ir.Property{{ID: "property/test/z", Name: ir.Naming{Source: "z"}}}
+		model.Mixins = irtest.RefsTo("type/anonymous/c2")
 	})
-	c1 := irtest.ModelOf("type/anonymous/c1", func(m *ir.Model) {
-		m.Anonymous = true
-		m.Properties = []ir.Property{{ID: "property/test/x", Name: ir.Naming{Source: "x"}}, {ID: "property/test/y1", Name: ir.Naming{Source: "y"}}}
+	c1 := irtest.ModelOf("type/anonymous/c1", func(model *ir.Model) {
+		model.Anonymous = true
+		model.Properties = []ir.Property{{ID: "property/test/x", Name: ir.Naming{Source: "x"}}, {ID: "property/test/y1", Name: ir.Naming{Source: "y"}}}
 	})
-	c2 := irtest.ModelOf("type/anonymous/c2", func(m *ir.Model) {
-		m.Anonymous = true
-		m.Mixins = irtest.RefsTo("type/anonymous/c3", "type/missing", "type/anonymous/c3")
-		m.AdditionalProperties = &ir.AdditionalProperties{Value: &ir.TypeRef{Target: "type/anonymous/extra"}}
+	c2 := irtest.ModelOf("type/anonymous/c2", func(model *ir.Model) {
+		model.Anonymous = true
+		model.Mixins = irtest.RefsTo("type/anonymous/c3", "type/missing", "type/anonymous/c3")
+		model.AdditionalProperties = &ir.AdditionalProperties{Value: &ir.TypeRef{Target: "type/anonymous/extra"}}
 	})
-	solo := irtest.ModelOf("type/anonymous/solo", func(m *ir.Model) {
-		m.Anonymous = true
-		m.Properties = []ir.Property{{ID: "property/test/q", Name: ir.Naming{Source: "q"}}}
+	solo := irtest.ModelOf("type/anonymous/solo", func(model *ir.Model) {
+		model.Anonymous = true
+		model.Properties = []ir.Property{{ID: "property/test/q", Name: ir.Naming{Source: "q"}}}
 	})
-	m := irtest.ModelOf("type/test/M", func(m *ir.Model) {
-		m.Name = ir.Naming{Source: "M"}
-		m.Base = &ir.TypeRef{Target: "type/test/N"}
-		m.Mixins = irtest.RefsTo("type/anonymous/c1", "type/anonymous/c2")
-		m.Properties = []ir.Property{{ID: "property/test/y2", Name: ir.Naming{Source: "y"}}}
+	irModel := irtest.ModelOf("type/test/M", func(model *ir.Model) {
+		model.Name = ir.Naming{Source: "M"}
+		model.Base = &ir.TypeRef{Target: "type/test/N"}
+		model.Mixins = irtest.RefsTo("type/anonymous/c1", "type/anonymous/c2")
+		model.Properties = []ir.Property{{ID: "property/test/y2", Name: ir.Naming{Source: "y"}}}
 	})
-	single := irtest.ModelOf("type/test/S", func(m *ir.Model) {
-		m.Name = ir.Naming{Source: "S"}
-		m.Mixins = irtest.RefsTo("type/anonymous/solo")
+	single := irtest.ModelOf("type/test/S", func(model *ir.Model) {
+		model.Name = ir.Naming{Source: "S"}
+		model.Mixins = irtest.RefsTo("type/anonymous/solo")
 	})
 	var typedNil *ir.Model
-	doc := irtest.DocOf(base, inner, c1, c2, solo, m, single, anonAny("type/anonymous/extra"))
+	doc := irtest.DocOf(base, inner, c1, c2, solo, irModel, single, anonAny("type/anonymous/extra"))
 	doc.Types["type/test/nil"] = typedNil
 	return doc
 }
@@ -588,7 +588,7 @@ func variantsFixture() *ir.Document {
 		Variants: []ir.Variant{
 			{Name: ir.Naming{Source: "v"}, Type: ir.TypeRef{Target: "type/anonymous/v"}}, {Type: ir.TypeRef{Target: "type/anonymous/bare"}},
 		}}
-	named := irtest.ModelOf("type/test/Named", func(m *ir.Model) { m.Name = ir.Naming{Source: "Named"} })
+	named := irtest.ModelOf("type/test/Named", func(model *ir.Model) { model.Name = ir.Naming{Source: "Named"} })
 	return irtest.DocOf(withAnonymous([]ir.TypeDef{mapped, keyed, untagged, named},
 		"type/anonymous/a", "type/anonymous/b", "type/anonymous/c", "type/anonymous/w", "type/anonymous/n", "type/anonymous/none", "type/anonymous/v", "type/anonymous/bare")...)
 }
@@ -606,9 +606,9 @@ func TestCorrelation_KeysAVariantsTypeByWhatNamesTheVariant(t *testing.T) {
 // model with no name.
 func sharedFixture() *ir.Document {
 	pet := func(id ir.TypeID, prop ir.PropertyID, held ir.TypeID) *ir.Model {
-		return irtest.ModelOf(id, func(m *ir.Model) {
-			m.Name = ir.Naming{Source: "Pet"}
-			m.Properties = []ir.Property{{ID: prop, Name: ir.Naming{Source: string(prop)}, Type: ir.TypeRef{Target: held}}}
+		return irtest.ModelOf(id, func(model *ir.Model) {
+			model.Name = ir.Naming{Source: "Pet"}
+			model.Properties = []ir.Property{{ID: prop, Name: ir.Naming{Source: string(prop)}, Type: ir.TypeRef{Target: held}}}
 		})
 	}
 	return irtest.DocOf(pet("type/one/Pet", "property/one/id", "type/anonymous/one"), pet("type/two/Pet", "property/two/tag", "type/anonymous/two"),
@@ -668,8 +668,8 @@ func TestCorrelation_ADocumentWithNothingNamedKeysNothing(t *testing.T) {
 	_, fromZero := zero.Correlation("type/anonymous/x")
 	_, fromNil := irfacts.New(nil).Correlated("type:X")
 	var typedNil *ir.Model
-	doc := irtest.DocOf(irtest.ModelOf("type/test/M", func(m *ir.Model) {
-		m.Properties = []ir.Property{{ID: "property/test/a", Type: ir.TypeRef{Target: "type/test/nil"}}}
+	doc := irtest.DocOf(irtest.ModelOf("type/test/M", func(model *ir.Model) {
+		model.Properties = []ir.Property{{ID: "property/test/a", Type: ir.TypeRef{Target: "type/test/nil"}}}
 	}))
 	doc.Types["type/test/nil"] = typedNil
 	doc.Services = []ir.Service{{Groups: []ir.OperationGroup{{}}}}

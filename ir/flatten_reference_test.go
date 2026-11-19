@@ -34,11 +34,11 @@ func TestFlattenedProperties_MatchesTheRulesOnAcyclicCompositions(t *testing.T) 
 				}
 				compared++
 				what := fmt.Sprintf("%s seed %d, root %q", name, seed, root)
-				f := ir.FlattenedProperties(doc.Types, root)
+				flattening := ir.FlattenedProperties(doc.Types, root)
 				lines, undeclared, unflattened := reference(t, doc.Types, root)
-				assert.Equal(t, lines, flatLines(f), "%s: members", what)
-				assert.Equal(t, undeclared, f.Undeclared, "%s: undeclared", what)
-				assert.Equal(t, unflattened, f.Unflattened, "%s: unflattened", what)
+				assert.Equal(t, lines, flatLines(flattening), "%s: members", what)
+				assert.Equal(t, undeclared, flattening.Undeclared, "%s: undeclared", what)
+				assert.Equal(t, unflattened, flattening.Unflattened, "%s: unflattened", what)
 			}
 		}
 	}
@@ -65,12 +65,12 @@ func cyclic(types ir.TypeRegistry, models map[ir.TypeID]*ir.Model) bool {
 // stating a deprecation is.
 func reference(t *testing.T, types ir.TypeRegistry, root ir.TypeID) (lines, undeclared []string, unflattened []ir.TypeID) {
 	t.Helper()
-	r := referenceWalk{t: t, types: types, seen: map[ir.TypeID]bool{}, marked: map[ir.TypeID]bool{}}
-	if m, ok := types[standsFor(types, root)].(*ir.Model); !ok || m == nil {
+	referenceWalkValue := referenceWalk{t: t, types: types, seen: map[ir.TypeID]bool{}, marked: map[ir.TypeID]bool{}}
+	if model, ok := types[standsFor(types, root)].(*ir.Model); !ok || model == nil {
 		return []string{}, nil, nil
 	}
-	r.visit(standsFor(types, root), 0)
-	return r.result()
+	referenceWalkValue.visit(standsFor(types, root), 0)
+	return referenceWalkValue.result()
 }
 
 // referenceWalk is one reference walk: the models in the order it read them,
@@ -92,7 +92,7 @@ func (r *referenceWalk) visit(id ir.TypeID, depth int) {
 	r.seen[id] = true
 	for _, target := range entries(r.types[id].(*ir.Model)) {
 		end := standsFor(r.types, target)
-		if m, ok := r.types[end].(*ir.Model); !ok || m == nil {
+		if model, ok := r.types[end].(*ir.Model); !ok || model == nil {
 			if !r.marked[target] {
 				r.marked[target] = true
 				r.unflattened = append(r.unflattened, target)
@@ -117,15 +117,15 @@ func (r *referenceWalk) result() (lines, undeclared []string, unflattened []ir.T
 	var requires []string
 	listed := map[string]bool{}
 	for _, id := range r.order {
-		m := r.types[id].(*ir.Model)
-		for i := range m.Properties {
-			wire := m.Properties[i].EffectiveWireName()
+		model := r.types[id].(*ir.Model)
+		for i := range model.Properties {
+			wire := model.Properties[i].EffectiveWireName()
 			if _, known := reads[wire]; !known {
 				names = append(names, wire)
 			}
-			reads[wire] = append(reads[wire], reading{id, &m.Properties[i]})
+			reads[wire] = append(reads[wire], reading{id, &model.Properties[i]})
 		}
-		for _, name := range m.Requires {
+		for _, name := range model.Requires {
 			if !listed[name] {
 				listed[name] = true
 				requires = append(requires, name)
@@ -195,25 +195,25 @@ func dagRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 			doc.Types[id] = irtest.ScalarOf(id, pick(i))
 			continue
 		}
-		doc.Types[id] = irtest.ModelOf(id, func(m *ir.Model) {
+		doc.Types[id] = irtest.ModelOf(id, func(model *ir.Model) {
 			for range rng.IntN(4) {
 				digit := rng.IntN(8)
-				m.Properties = append(m.Properties, ir.Property{
+				model.Properties = append(model.Properties, ir.Property{
 					ID: ir.PropertyID(fmt.Sprintf("p%d", digit)), WireName: fmt.Sprintf("w%d", digit%3),
 					Required: digit == 1 || digit == 4,
 				})
 			}
 			if rng.IntN(2) == 0 {
-				m.Base = &ir.TypeRef{Target: pick(i)}
+				model.Base = &ir.TypeRef{Target: pick(i)}
 			}
 			for range rng.IntN(3) {
-				m.Implements = append(m.Implements, ir.TypeRef{Target: pick(i)})
+				model.Implements = append(model.Implements, ir.TypeRef{Target: pick(i)})
 			}
 			for range rng.IntN(3) {
-				m.Mixins = append(m.Mixins, ir.TypeRef{Target: pick(i)})
+				model.Mixins = append(model.Mixins, ir.TypeRef{Target: pick(i)})
 			}
 			if rng.IntN(3) == 0 {
-				m.Requires = []string{fmt.Sprintf("w%d", rng.IntN(4))}
+				model.Requires = []string{fmt.Sprintf("w%d", rng.IntN(4))}
 			}
 		})
 	}

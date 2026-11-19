@@ -86,8 +86,8 @@ func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 			return
 		}
 		own := make(map[ir.ParameterID]bool, len(op.Params))
-		for _, p := range op.Params {
-			own[p.ID] = true
+		for _, parameter := range op.Params {
+			own[parameter.ID] = true
 		}
 		targets[op.ID] = own
 	})

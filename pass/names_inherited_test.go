@@ -23,11 +23,11 @@ func spelled(id, source, wire string) ir.Property {
 
 // extending is the model id named after itself, extending base, with props.
 func extending(id string, base string, props ...ir.Property) *ir.Model {
-	m := &ir.Model{ID: ir.TypeID(id), Name: named(id), Properties: props}
+	model := &ir.Model{ID: ir.TypeID(id), Name: named(id), Properties: props}
 	if base != "" {
-		m.Base = &ir.TypeRef{Target: ir.TypeID(base)}
+		model.Base = &ir.TypeRef{Target: ir.TypeID(base)}
 	}
-	return m
+	return model
 }
 
 // exposed is the warning at the model id about the exposed properties it

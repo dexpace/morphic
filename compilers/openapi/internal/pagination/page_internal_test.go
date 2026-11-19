@@ -29,19 +29,19 @@ func TestReader_ReadsEachBodyAndModelOnce(t *testing.T) {
 			{ID: ir.PropertyID(id + "/b"), Name: ir.Naming{Source: "b", Canonical: "b"}, Type: ir.TypeRef{Target: "type/info"}},
 		}}
 	}
-	r := newReader(compileddoc.New(&ir.Document{Types: ir.TypeRegistry{
+	reader := newReader(compileddoc.New(&ir.Document{Types: ir.TypeRegistry{
 		"type/list": &ir.List{ID: "type/list"}, "type/info": info, "type/one": body("type/one"), "type/two": body("type/two"),
 		"type/primitive/integer": &ir.Primitive{ID: "type/primitive/integer", PrimitiveKind: ir.PrimitiveInteger},
 	}}))
 	for range 3 {
 		for _, id := range []ir.TypeID{"type/one", "type/two"} {
-			pg := r.page(pageKey{body: id})
+			pg := reader.page(pageKey{body: id})
 			assert.Equal(t, []ir.PropertyID{ir.PropertyID(id + "/result")}, pg.items)
 			assert.Nil(t, pg.totalCount, "a total two members hold counts neither")
 		}
 	}
-	assert.Len(t, r.pages, 2, "a page per body")
-	assert.Len(t, r.models.read, 3, "a reading per model: the two bodies and the one their members hold")
+	assert.Len(t, reader.pages, 2, "a page per body")
+	assert.Len(t, reader.models.read, 3, "a reading per model: the two bodies and the one their members hold")
 }
 
 // TestPageContents_ListsWhatCanBeAPage pins the contents a walk reads its page

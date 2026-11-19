@@ -81,8 +81,8 @@ func positionsOf(table *ReferenceTargetTable, id DocID) []DocumentPointer {
 		out = append(out, DocumentPointer{Doc: id, Pointer: at})
 		switch n.Kind {
 		case yaml.MappingNode:
-			for _, p := range view.MappingPairs(n) {
-				walk(p.Val, at.AppendToken(p.Key), depth+1)
+			for _, pair := range view.MappingPairs(n) {
+				walk(pair.Val, at.AppendToken(pair.Key), depth+1)
 			}
 		case yaml.SequenceNode:
 			for i, c := range n.Content {
@@ -92,9 +92,9 @@ func positionsOf(table *ReferenceTargetTable, id DocID) []DocumentPointer {
 		}
 	}
 	walk(table.docs[id].Root, "", 0)
-	for _, p := range slices.Clone(out[:min(len(out), 12)]) {
-		out = append(out, DocumentPointer{Doc: id, Pointer: p.Pointer.AppendToken("missing").AppendToken("deeper")},
-			DocumentPointer{Doc: id, Pointer: jsontext.Pointer(strings.TrimPrefix(string(p.Pointer), "/"))})
+	for _, documentPointer := range slices.Clone(out[:min(len(out), 12)]) {
+		out = append(out, DocumentPointer{Doc: id, Pointer: documentPointer.Pointer.AppendToken("missing").AppendToken("deeper")},
+			DocumentPointer{Doc: id, Pointer: jsontext.Pointer(strings.TrimPrefix(string(documentPointer.Pointer), "/"))})
 	}
 	return out
 }
@@ -206,12 +206,12 @@ func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 			}
 			for _, order := range orders {
 				table, _ := fixture(t)
-				for _, p := range order {
-					path, _ := table.bases.res.docs.path(p)
-					want, wantKnown := table.bases.res.holding(p, path, true, table.bases.ids.readsDialects(p.Doc))
-					got, known := table.bases.holding(p)
-					assert.Equal(t, want, got, p)
-					assert.Equal(t, wantKnown, known, p)
+				for _, documentPointer := range order {
+					path, _ := table.bases.res.docs.path(documentPointer)
+					want, wantKnown := table.bases.res.holding(documentPointer, path, true, table.bases.ids.readsDialects(documentPointer.Doc))
+					got, known := table.bases.holding(documentPointer)
+					assert.Equal(t, want, got, documentPointer)
+					assert.Equal(t, wantKnown, known, documentPointer)
 				}
 			}
 		})
@@ -233,8 +233,8 @@ func TestBases_TheFixturesReachWhatTheyName(t *testing.T) {
 	t.Parallel()
 	table := basesTable(t)
 	var owned int
-	for _, p := range append(positionsOf(table, Source), positionsOf(table, 1)...) {
-		if res, _ := table.bases.holding(p); res.namedByDollarID {
+	for _, documentPointer := range append(positionsOf(table, Source), positionsOf(table, 1)...) {
+		if res, _ := table.bases.holding(documentPointer); res.namedByDollarID {
 			owned++
 		}
 	}
@@ -276,8 +276,8 @@ func TestBases_WalkEachPositionOnce(t *testing.T) {
 		require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 		table := Bind(t.Context(), &root, Config{Self: "spec.yaml"})
 		before := table.bases.res.docs.work.steps.Spent()
-		for _, p := range order {
-			_, known := table.bases.holding(p)
+		for _, documentPointer := range order {
+			_, known := table.bases.holding(documentPointer)
 			require.True(t, known)
 		}
 		assert.Equal(t, len(spine), table.bases.res.docs.work.steps.Spent()-before, name)

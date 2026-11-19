@@ -20,11 +20,11 @@ func sensitiveKey(value string) ir.Unmodeled {
 	return ir.Unmodeled{"openapi:x-sensitive": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(value)}}
 }
 
-// memberOf is a document holding one model, whose one property is p, over the
+// memberOf is a document holding one model, whose one property is property, over the
 // types of reg.
-func memberOf(p ir.Property, reg ir.TypeRegistry) *ir.Document {
+func memberOf(property ir.Property, reg ir.TypeRegistry) *ir.Document {
 	types := registry(reg)
-	types["type/model"] = &ir.Model{ID: "type/model", Properties: []ir.Property{p}}
+	types["type/model"] = &ir.Model{ID: "type/model", Properties: []ir.Property{property}}
 	return &ir.Document{Types: types}
 }
 
@@ -45,10 +45,10 @@ func scalars(n int) ir.TypeRegistry {
 // propertyOf returns the one property memberOf built doc around.
 func propertyOf(t *testing.T, doc *ir.Document) ir.Property {
 	t.Helper()
-	m, ok := doc.Types["type/model"].(*ir.Model)
+	model, ok := doc.Types["type/model"].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, m.Properties, 1)
-	return m.Properties[0]
+	require.Len(t, model.Properties, 1)
+	return model.Properties[0]
 }
 
 // TestRedact_ReadsTheNamesTail pins which names say a value is a credential:
@@ -76,9 +76,9 @@ func TestRedact_ReadsTheNamesTail(t *testing.T) {
 			t.Parallel()
 			doc := memberOf(ir.Property{ID: "property/a", Name: ir.NamingFor(name), Type: prim(ir.PrimitiveString)}, nil)
 			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(doc)))
-			p := propertyOf(t, doc)
-			assert.Equal(t, secret, p.Secret)
-			assert.Equal(t, secret, p.Provenance.Inferred == convention.SecretInferenceHeuristic, "marked where set")
+			property := propertyOf(t, doc)
+			assert.Equal(t, secret, property.Secret)
+			assert.Equal(t, secret, property.Provenance.Inferred == convention.SecretInferenceHeuristic, "marked where set")
 		})
 	}
 }
@@ -156,9 +156,9 @@ func TestRedact_LeavesWhatTheDocumentSays(t *testing.T) {
 			tc.p.ID, tc.p.Name = "property/a", ir.NamingFor("password")
 			doc := memberOf(tc.p, tc.reg)
 			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(doc)))
-			p := propertyOf(t, doc)
-			assert.Equal(t, tc.secret, p.Secret)
-			assert.Equal(t, tc.marker, p.Provenance.Inferred)
+			property := propertyOf(t, doc)
+			assert.Equal(t, tc.secret, property.Secret)
+			assert.Equal(t, tc.marker, property.Provenance.Inferred)
 		})
 	}
 }
@@ -217,21 +217,21 @@ func redacted(doc *ir.Document) []string {
 		}
 	}
 	headers := func(hs []ir.Header) {
-		for _, h := range hs {
-			mark(string(h.ID), h.Secret, h.Provenance)
+		for _, header := range hs {
+			mark(string(header.ID), header.Secret, header.Provenance)
 		}
 	}
-	payload := func(p *ir.Payload) {
-		for _, c := range p.Contents {
-			headers(c.ItemEncoding.Headers)
-			for _, e := range c.Encoding {
-				headers(e.Headers)
+	payload := func(payload *ir.Payload) {
+		for _, content := range payload.Contents {
+			headers(content.ItemEncoding.Headers)
+			for _, partEncoding := range content.Encoding {
+				headers(partEncoding.Headers)
 			}
 		}
 	}
 	op := operationOf(doc)
-	for _, p := range op.Params {
-		mark(string(p.ID), p.Secret, p.Provenance)
+	for _, parameter := range op.Params {
+		mark(string(parameter.ID), parameter.Secret, parameter.Provenance)
 	}
 	payload(op.Request)
 	headers(op.Responses[0].Headers)
@@ -240,9 +240,9 @@ func redacted(doc *ir.Document) []string {
 	payload(op.Errors[0].Payload)
 	headers(op.Default.Headers)
 	payload(op.Default.Payload)
-	if m, ok := doc.Types["type/model"].(*ir.Model); ok {
-		for _, p := range m.Properties {
-			mark(string(p.ID), p.Secret, p.Provenance)
+	if model, ok := doc.Types["type/model"].(*ir.Model); ok {
+		for _, property := range model.Properties {
+			mark(string(property.ID), property.Secret, property.Provenance)
 		}
 	}
 	return ids

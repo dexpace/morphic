@@ -33,7 +33,7 @@ func Least(ctx context.Context, root *yaml.Node, nodes []*yaml.Node) *yaml.Node 
 	want := map[*yaml.Node]int{} // each held node, and where nodes first gives it
 	for i, n := range nodes {
 		_, seen := want[n]
-		if s, held := steps[n]; held && !seen && (s.holder != nil || n == top) {
+		if step, held := steps[n]; held && !seen && (step.holder != nil || n == top) {
 			want[n] = i
 		}
 	}

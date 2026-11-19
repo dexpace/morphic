@@ -69,16 +69,16 @@ func (in inputs) readsNextCursor() bool {
 // for, two places naming a continuation or a page size, a POST failing a
 // condition that tells it from a create, one of a type a walk cannot send, or
 // a page sent as a string no number shows it counts.
-func requestInputs(w *compileddoc.CompiledDocumentView, op *ir.Operation) (in inputs, why string, named bool) {
+func requestInputs(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation) (in inputs, why string, named bool) {
 	name, kind := methodOf(op)
-	continuations, limits := places(w, op, kind)
+	continuations, limits := places(compiledDocumentView, op, kind)
 	switch {
 	case len(continuations) == 0:
 		return inputs{}, "", false
 	case kind == methodOther:
 		return inputs{}, fmt.Sprintf("the operation is a %s, and only a GET or a QUERY is safe to send again for "+
 			"each page", name), true
-	case kind == methodPost && !slices.ContainsFunc(continuations, func(p place) bool { return p.kind == inBody }):
+	case kind == methodPost && !slices.ContainsFunc(continuations, func(placeValue place) bool { return placeValue.kind == inBody }):
 		return inputs{}, postOutsideBody(continuations), true
 	case len(continuations) > 1:
 		return inputs{}, twoPlaces(continuations, "where a walk continues"), true
@@ -95,7 +95,7 @@ func requestInputs(w *compileddoc.CompiledDocumentView, op *ir.Operation) (in in
 			return inputs{}, why, true
 		}
 	}
-	if why := sendsItsInputs(w, &in); why != "" {
+	if why := sendsItsInputs(compiledDocumentView, &in); why != "" {
 		return inputs{}, why, true
 	}
 	if in.strict {
@@ -109,8 +109,8 @@ func requestInputs(w *compileddoc.CompiledDocumentView, op *ir.Operation) (in in
 // sendsItsInputs reads the primitive of in's cursor into in, and returns why
 // in's places are no values a walk sends: a type it cannot send, or a page
 // sent as a string no number shows it counts.
-func sendsItsInputs(w *compileddoc.CompiledDocumentView, in *inputs) string {
-	prim, ok := sendable(w, in.cursor.typeID())
+func sendsItsInputs(compiledDocumentView *compileddoc.CompiledDocumentView, in *inputs) string {
+	prim, ok := sendable(compiledDocumentView, in.cursor.typeID())
 	if !ok {
 		return notSendable(in.cursor, "where a walk continues")
 	}
@@ -120,7 +120,7 @@ func sendsItsInputs(w *compileddoc.CompiledDocumentView, in *inputs) string {
 			"so it may be a token", in.cursor)
 	}
 	if in.limit != nil {
-		if _, ok := sendable(w, in.limit.typeID()); !ok {
+		if _, ok := sendable(compiledDocumentView, in.limit.typeID()); !ok {
 			return notSendable(*in.limit, "the page size")
 		}
 	}
@@ -141,21 +141,21 @@ func queryPlaced(placements []compileddoc.Placement) (ir.HTTPLocation, bool) {
 
 // sendable returns the primitive the type id stands for, read through alias
 // scalars, when a walk can send it or count with it (sendableAs).
-func sendable(w *compileddoc.CompiledDocumentView, id ir.TypeID) (ir.PrimitiveKind, bool) {
-	return sendableAs(w.Stands(id))
+func sendable(compiledDocumentView *compileddoc.CompiledDocumentView, id ir.TypeID) (ir.PrimitiveKind, bool) {
+	return sendableAs(compiledDocumentView.Stands(id))
 }
 
 // sendableAs returns td's primitive when a walk can send it or count with it:
 // a number of any kind, which a value of it holding no integer leaves none to
 // count with, or a string, which carries a number as its decimal text.
 func sendableAs(td ir.TypeDef) (ir.PrimitiveKind, bool) {
-	p, ok := td.(*ir.Primitive)
+	primitive, ok := td.(*ir.Primitive)
 	if !ok {
 		return "", false
 	}
-	k := p.PrimitiveKind
-	if k == ir.PrimitiveString || k == ir.PrimitiveNumber || k.StrictlyWithin(ir.PrimitiveNumber) {
-		return k, true
+	primitiveKind := primitive.PrimitiveKind
+	if primitiveKind == ir.PrimitiveString || primitiveKind == ir.PrimitiveNumber || primitiveKind.StrictlyWithin(ir.PrimitiveNumber) {
+		return primitiveKind, true
 	}
 	return "", false
 }
@@ -167,26 +167,26 @@ func numbered(def *ir.Value, examples []ir.Example) bool {
 	if def != nil && wholeNumber(*def) {
 		return true
 	}
-	return slices.ContainsFunc(examples, func(e ir.Example) bool { return e.Value != nil && wholeNumber(*e.Value) })
+	return slices.ContainsFunc(examples, func(example ir.Example) bool { return example.Value != nil && wholeNumber(*example.Value) })
 }
 
-// wholeNumber reports whether v is a whole number, or a string holding one.
-func wholeNumber(v ir.Value) bool {
-	text := v.String
-	if v.Kind == ir.ValueNumber {
-		text = string(v.Number)
-	} else if v.Kind != ir.ValueString {
+// wholeNumber reports whether value is a whole number, or a string holding one.
+func wholeNumber(value ir.Value) bool {
+	text := value.String
+	if value.Kind == ir.ValueNumber {
+		text = string(value.Number)
+	} else if value.Kind != ir.ValueString {
 		return false
 	}
-	d, err := ir.ParseDecimal(text)
-	return err == nil && d.IsInt()
+	decimal, err := ir.ParseDecimal(text)
+	return err == nil && decimal.IsInt()
 }
 
-// notSendable says that p names what a walk sends as what, and is of a type it
+// notSendable says that placeValue names what a walk sends as what, and is of a type it
 // cannot send: not a plain number or string, as an enum, a constant or an
 // encoded string is not, whatever values it holds.
-func notSendable(p place, what string) string {
-	return fmt.Sprintf("%s names %s, and its type is no plain number or string", p, what)
+func notSendable(placeValue place, what string) string {
+	return fmt.Sprintf("%s names %s, and its type is no plain number or string", placeValue, what)
 }
 
 // placeKind is where in a request a place sits, in the order a finding lists
@@ -298,25 +298,25 @@ func methodOf(op *ir.Operation) (string, methodKind) {
 // parameters and members of object query parameters, and, but for a method
 // that is no GET, QUERY or POST, the request body's members. A POST's body
 // offset is no place: a body offset is often an identifier a create takes.
-func places(w *compileddoc.CompiledDocumentView, op *ir.Operation, kind methodKind) (continuations, limits []place) {
-	continuations, limits = paramPlaces(w, op)
+func places(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation, kind methodKind) (continuations, limits []place) {
+	continuations, limits = paramPlaces(compiledDocumentView, op)
 	if kind == methodOther || op.Request == nil || len(op.Request.Contents) == 0 {
 		return continuations, limits
 	}
-	for _, m := range w.Members(op.Request.Contents[0].Type.Target) {
-		r := roleOf(m.Name.Canonical)
-		if r == (role{}) || kind == methodPost && r.strategy == ir.PageStrategyOffset {
+	for _, property := range compiledDocumentView.Members(op.Request.Contents[0].Type.Target) {
+		roleValue := roleOf(property.Name.Canonical)
+		if roleValue == (role{}) || kind == methodPost && roleValue.strategy == ir.PageStrategyOffset {
 			continue
 		}
-		segments, _, ok := runtimeexpr.BodyPath(w, op.Request, []string{m.EffectiveWireName()}, "request")
+		segments, _, ok := runtimeexpr.BodyPath(compiledDocumentView, op.Request, []string{property.EffectiveWireName()}, "request")
 		if !ok {
 			continue // a member some content does not hold is no value every request sends
 		}
-		p := place{kind: inBody, member: m, segments: segments}
-		if r.carriesPageSize {
-			limits = append(limits, p)
+		placeValue := place{kind: inBody, member: property, segments: segments}
+		if roleValue.carriesPageSize {
+			limits = append(limits, placeValue)
 		} else {
-			continuations = append(continuations, p)
+			continuations = append(continuations, placeValue)
 		}
 	}
 	return continuations, limits
@@ -327,44 +327,44 @@ func places(w *compileddoc.CompiledDocumentView, op *ir.Operation, kind methodKi
 // model, is read through its members, one level down, where one of them
 // names a role, a continuation or a page size, its own name then giving it
 // none; otherwise a parameter bound in the query is read by its own name.
-func paramPlaces(w *compileddoc.CompiledDocumentView, op *ir.Operation) (continuations, limits []place) {
+func paramPlaces(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation) (continuations, limits []place) {
 	if len(op.Params) == 0 {
 		return nil, nil
 	}
-	ix := w.Params(op)
+	ix := compiledDocumentView.Params(op)
 	for i := range op.Params {
-		p := &op.Params[i]
-		location, ok := queryPlaced(ix.Placements(p.ID))
+		parameter := &op.Params[i]
+		location, ok := queryPlaced(ix.Placements(parameter.ID))
 		if !ok {
 			continue
 		}
-		mc, ml := memberPlaces(w, p)
+		mc, ml := memberPlaces(compiledDocumentView, parameter)
 		if len(mc)+len(ml) > 0 {
 			continuations, limits = append(continuations, mc...), append(limits, ml...)
 			continue
 		}
-		r := roleOf(p.Name.Canonical)
+		roleValue := roleOf(parameter.Name.Canonical)
 		switch {
-		case r == (role{}) || location != ir.HTTPLocationQuery:
-		case r.carriesPageSize:
-			limits = append(limits, place{kind: inQuery, param: p})
+		case roleValue == (role{}) || location != ir.HTTPLocationQuery:
+		case roleValue.carriesPageSize:
+			limits = append(limits, place{kind: inQuery, param: parameter})
 		default:
-			continuations = append(continuations, place{kind: inQuery, param: p})
+			continuations = append(continuations, place{kind: inQuery, param: parameter})
 		}
 	}
 	return continuations, limits
 }
 
-// memberPlaces returns the places the members of p name, where p's type
+// memberPlaces returns the places the members of parameter name, where parameter's type
 // stands for a model, and none otherwise.
-func memberPlaces(w *compileddoc.CompiledDocumentView, p *ir.Parameter) (continuations, limits []place) {
-	for _, m := range w.Members(p.Type.Target) {
-		switch r := roleOf(m.Name.Canonical); {
-		case r == (role{}):
-		case r.carriesPageSize:
-			limits = append(limits, place{kind: inParamMember, param: p, member: m})
+func memberPlaces(compiledDocumentView *compileddoc.CompiledDocumentView, parameter *ir.Parameter) (continuations, limits []place) {
+	for _, property := range compiledDocumentView.Members(parameter.Type.Target) {
+		switch roleValue := roleOf(property.Name.Canonical); {
+		case roleValue == (role{}):
+		case roleValue.carriesPageSize:
+			limits = append(limits, place{kind: inParamMember, param: parameter, member: property})
 		default:
-			continuations = append(continuations, place{kind: inParamMember, param: p, member: m})
+			continuations = append(continuations, place{kind: inParamMember, param: parameter, member: property})
 		}
 	}
 	return continuations, limits
@@ -382,10 +382,10 @@ func placesNamed(places []place) string {
 	if len(places) == 1 {
 		return places[0].String()
 	}
-	if !slices.ContainsFunc(places, func(p place) bool { return p.kind != inQuery }) {
+	if !slices.ContainsFunc(places, func(placeValue place) bool { return placeValue.kind != inQuery }) {
 		names := make([]string, len(places))
-		for i, p := range places {
-			names[i] = strconv.Quote(p.param.Name.Source)
+		for i, place := range places {
+			names[i] = strconv.Quote(place.param.Name.Source)
 		}
 		return "query parameters " + listed(names)
 	}
@@ -393,8 +393,8 @@ func placesNamed(places []place) string {
 		return cmp.Or(cmp.Compare(a.kind, b.kind), cmp.Compare(a.String(), b.String()))
 	})
 	names := make([]string, len(places))
-	for i, p := range places {
-		names[i] = p.String()
+	for i, place := range places {
+		names[i] = place.String()
 	}
 	return joined(names)
 }
@@ -430,9 +430,9 @@ func postRequest(in inputs) string {
 func postAnswers(op *ir.Operation) string {
 	var other []string
 	for i := range op.Responses {
-		r := &op.Responses[i]
-		if pageBody(r.Payload) != nil && !okOnly(r.Conditions) {
-			other = append(other, statusOf(r.Conditions))
+		response := &op.Responses[i]
+		if pageBody(response.Payload) != nil && !okOnly(response.Conditions) {
+			other = append(other, statusOf(response.Conditions))
 		}
 	}
 	if len(other) == 0 {
@@ -442,19 +442,19 @@ func postAnswers(op *ir.Operation) string {
 		"every success response declaring one is a 200, as a 201 says a resource was created", slices.Min(other))
 }
 
-// okOnly reports whether c selects the status 200 alone.
-func okOnly(c ir.ResponseConditions) bool {
-	return len(c.StatusCodes) == 1 && c.StatusCodes[0] == ir.StatusRange{From: http.StatusOK, To: http.StatusOK}
+// okOnly reports whether responseConditions selects the status 200 alone.
+func okOnly(responseConditions ir.ResponseConditions) bool {
+	return len(responseConditions.StatusCodes) == 1 && responseConditions.StatusCodes[0] == ir.StatusRange{From: http.StatusOK, To: http.StatusOK}
 }
 
-// statusOf spells the statuses c selects as a finding names them: a code, or
+// statusOf spells the statuses responseConditions selects as a finding names them: a code, or
 // a range from its bounds.
-func statusOf(c ir.ResponseConditions) string {
-	spelled := make([]string, len(c.StatusCodes))
-	for i, r := range c.StatusCodes {
-		spelled[i] = strconv.Itoa(r.From)
-		if r.To != r.From {
-			spelled[i] += "-" + strconv.Itoa(r.To)
+func statusOf(responseConditions ir.ResponseConditions) string {
+	spelled := make([]string, len(responseConditions.StatusCodes))
+	for i, statusRange := range responseConditions.StatusCodes {
+		spelled[i] = strconv.Itoa(statusRange.From)
+		if statusRange.To != statusRange.From {
+			spelled[i] += "-" + strconv.Itoa(statusRange.To)
 		}
 	}
 	return strings.Join(spelled, ", ")

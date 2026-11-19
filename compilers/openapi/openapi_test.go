@@ -48,8 +48,8 @@ func parsePetstore(t *testing.T) (*ir.Document, []ir.Diagnostic) {
 func TestCompile_EndToEnd(t *testing.T) {
 	t.Parallel()
 	doc, diags := parsePetstore(t)
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "diag: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "diag: %+v", diagnostic)
 	}
 	assert.Equal(t, ir.IRVersion, doc.IRVersion)
 	assert.Equal(t, "Petstore", doc.Name)
@@ -79,8 +79,8 @@ func TestCompile_EndToEnd(t *testing.T) {
 	// Auth scheme registry: the oauth2 scheme lowered with its implicit flow.
 	require.Len(t, doc.Auth, 1)
 	var oauth ir.AuthScheme
-	for _, s := range doc.Auth {
-		oauth = s
+	for _, authScheme := range doc.Auth {
+		oauth = authScheme
 	}
 	assert.Equal(t, ir.AuthKindOAuth2, oauth.Kind)
 	require.Len(t, oauth.Flows, 1)
@@ -142,8 +142,8 @@ func TestCompile_RecordsSelfURI(t *testing.T) {
 			require.Len(t, doc.Sources, 1)
 			assert.Equal(t, tt.want, doc.Sources[0].SelfURI)
 			assert.Equal(t, tt.self != "" && tt.version != "3.2.0",
-				slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-					return d.Code == diag.LaterVersionConstruct && d.Provenance.Pointer == "/$self"
+				slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+					return diagnostic.Code == diag.LaterVersionConstruct && diagnostic.Provenance.Pointer == "/$self"
 				}))
 		})
 	}
@@ -152,15 +152,15 @@ func TestCompile_RecordsSelfURI(t *testing.T) {
 func TestCompile_RegistersInRegistry(t *testing.T) {
 	t.Parallel()
 	reg := compilers.NewRegistry()
-	c := openapi.New()
-	require.NoError(t, reg.Register(c))
-	assert.Equal(t, c.Formats(), reg.Formats())
+	compiler := openapi.New()
+	require.NoError(t, reg.Register(compiler))
+	assert.Equal(t, compiler.Formats(), reg.Formats())
 
 	src := compilers.Source{Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\n")}
 	det, ok, err := reg.Detect(t.Context(), src, compilers.Configuration{})
 	require.NoError(t, err)
 	require.True(t, ok, "the registry hands it the documents it reads")
-	assert.Same(t, compilers.Compiler(c), det.Compiler)
+	assert.Same(t, compilers.Compiler(compiler), det.Compiler)
 }
 
 func TestCompile_JSONRoundTrip(t *testing.T) {
@@ -262,8 +262,8 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 		openapi.InferencesOf(openapi.Options{}), types, compileddoc.New)
 	require.NoError(t, err)
 
-	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Code == compile.RegistryRefused && strings.Contains(d.Message, "register rejected: empty type id")
+	assert.True(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+		return diagnostic.Code == compile.RegistryRefused && strings.Contains(diagnostic.Message, "register rejected: empty type id")
 	}), "the compile reports the refusal Finish carries: %v", diags)
 }
 

@@ -39,21 +39,21 @@ func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Ranged:\n      allOf:\n"+
 				branch+tc.first+branch+tc.second))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[componentID("Ranged")].(*ir.Model)
+			model, ok := doc.Types[componentID("Ranged")].(*ir.Model)
 			require.True(t, ok, "Ranged should be a model")
-			require.Len(t, m.Properties, 1)
+			require.Len(t, model.Properties, 1)
 
-			p := m.Properties[0]
-			assert.Equal(t, ir.TypeID("type/primitive/integer"), p.Type.Target)
-			assert.Nil(t, p.Default, "the refused default does not land")
+			property := model.Properties[0]
+			assert.Equal(t, ir.TypeID("type/primitive/integer"), property.Type.Target)
+			assert.Nil(t, property.Default, "the refused default does not land")
 			require.Len(t, diags, 1, "one info and nothing else")
 			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
 			assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
 			assert.Equal(t, jsontext.Pointer(tc.broadPtr), diags[0].Provenance.Pointer)
-			entry, ok := p.Unmodeled["openapi:conflicting-redeclaration"+tc.broadPtr]
-			require.True(t, ok, "the broad branch is kept at its own pointer; got %v", p.Unmodeled)
+			entry, ok := property.Unmodeled["openapi:conflicting-redeclaration"+tc.broadPtr]
+			require.True(t, ok, "the broad branch is kept at its own pointer; got %v", property.Unmodeled)
 			assert.JSONEq(t, `{"type":"number","default":1.5}`, string(entry.Value))
-			assert.Len(t, p.Unmodeled, 1)
+			assert.Len(t, property.Unmodeled, 1)
 		})
 	}
 }
@@ -76,13 +76,13 @@ func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Y: {description: free}\n    Held:\n      allOf:\n"+
 				branch+tc.first+branch+tc.second))
 			assert.Empty(t, diags, "nothing is refused")
-			m, ok := doc.Types[componentID("Held")].(*ir.Model)
+			model, ok := doc.Types[componentID("Held")].(*ir.Model)
 			require.True(t, ok, "Held should be a model")
-			require.Len(t, m.Properties, 1)
-			p := m.Properties[0]
-			require.NotNil(t, p.Default, "the null default lands")
-			assert.Equal(t, ir.ValueNull, p.Default.Kind)
-			assert.Empty(t, p.Unmodeled)
+			require.Len(t, model.Properties, 1)
+			property := model.Properties[0]
+			require.NotNil(t, property.Default, "the null default lands")
+			assert.Equal(t, ir.ValueNull, property.Default.Kind)
+			assert.Empty(t, property.Unmodeled)
 		})
 	}
 }
@@ -114,15 +114,15 @@ func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 			for _, order := range [][2]string{{tc.narrow, tc.broad}, {tc.broad, tc.narrow}} {
 				doc, diags := schema.LowerSpec(t, nonBareSpec(tc.extra, order[0], order[1]))
 				openapitest.RequireNoErrorDiags(t, diags)
-				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok)
-				require.Len(t, m.Properties, 1)
-				p := m.Properties[0]
-				types = append(types, doc.Types[p.Type.Target])
-				assert.Equal(t, tc.kind, doc.Types[p.Type.Target].Kind(), "the narrower declaration's type wins")
-				assert.Empty(t, p.Unmodeled, "nothing is kept")
-				for _, d := range diags {
-					assert.NotContains(t, []string{diag.ConflictingRedecl, diag.DegradedConstruct}, d.Code, d.Message)
+				require.Len(t, model.Properties, 1)
+				property := model.Properties[0]
+				types = append(types, doc.Types[property.Type.Target])
+				assert.Equal(t, tc.kind, doc.Types[property.Type.Target].Kind(), "the narrower declaration's type wins")
+				assert.Empty(t, property.Unmodeled, "nothing is kept")
+				for _, diagnostic := range diags {
+					assert.NotContains(t, []string{diag.ConflictingRedecl, diag.DegradedConstruct}, diagnostic.Code, diagnostic.Message)
 				}
 			}
 			assert.Empty(t, cmp.Diff(types[0], types[1],
@@ -144,22 +144,22 @@ func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
 	for i, order := range [][2]string{{plain, formatted}, {formatted, plain}} {
 		doc, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
-		require.Len(t, m.Properties, 1)
-		p := m.Properties[0]
+		require.Len(t, model.Properties, 1)
+		property := model.Properties[0]
 
-		assert.Equal(t, ir.KindScalar, doc.Types[p.Type.Target].Kind(), "the format's scalar types the field (order %d)", i)
-		require.NotNil(t, p.Default, "order %d", i)
-		assert.Equal(t, "x", p.Default.String, "order %d", i)
-		assert.Nil(t, p.Constraints, "order %d", i)
-		sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
+		assert.Equal(t, ir.KindScalar, doc.Types[property.Type.Target].Kind(), "the format's scalar types the field (order %d)", i)
+		require.NotNil(t, property.Default, "order %d", i)
+		assert.Equal(t, "x", property.Default.String, "order %d", i)
+		assert.Nil(t, property.Constraints, "order %d", i)
+		sc, ok := doc.Types[property.Type.Target].(*ir.Scalar)
 		require.True(t, ok, "order %d", i)
 		require.NotNil(t, sc.Constraints, "order %d", i)
 		require.NotNil(t, sc.Constraints.MinLength, "order %d", i)
 		assert.Equal(t, int64(8), *sc.Constraints.MinLength, "order %d", i)
 		assert.Equal(t, "the token", sc.Docs.Description, "the description stays on the scalar that wrote it (order %d)", i)
-		assert.Empty(t, p.Unmodeled, "nothing is parked (order %d)", i)
+		assert.Empty(t, property.Unmodeled, "nothing is parked (order %d)", i)
 		assert.Empty(t, diags, "order %d", i)
 	}
 }
@@ -172,13 +172,13 @@ func TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder(t *testing.
 	for i, order := range [][2]string{{top, nullable}, {nullable, top}} {
 		doc, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
-		require.Len(t, m.Properties, 1)
-		p := m.Properties[0]
+		require.Len(t, model.Properties, 1)
+		property := model.Properties[0]
 
-		assert.Equal(t, ir.TypeRef{Target: "type/primitive/integer", Nullable: true}, p.Type, "order %d", i)
-		assert.Empty(t, p.Unmodeled, "order %d", i)
+		assert.Equal(t, ir.TypeRef{Target: "type/primitive/integer", Nullable: true}, property.Type, "order %d", i)
+		assert.Empty(t, property.Unmodeled, "order %d", i)
 		assert.Empty(t, diags, "order %d", i)
 	}
 }
@@ -199,15 +199,15 @@ func TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder(t *testing.T) {
 	} {
 		doc, diags := schema.LowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
-		require.Len(t, m.Properties, 1)
-		p := m.Properties[0]
+		require.Len(t, model.Properties, 1)
+		property := model.Properties[0]
 
-		assert.Equal(t, ir.KindEnum, doc.Types[p.Type.Target].Kind(), "the enum wins (order %d)", i)
-		assert.Nil(t, p.Default, "the refused default is not adopted (order %d)", i)
-		require.Len(t, p.Unmodeled, 1, "order %d", i)
-		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+tc.kept, "order %d", i)
+		assert.Equal(t, ir.KindEnum, doc.Types[property.Type.Target].Kind(), "the enum wins (order %d)", i)
+		assert.Nil(t, property.Default, "the refused default is not adopted (order %d)", i)
+		require.Len(t, property.Unmodeled, 1, "order %d", i)
+		assert.Contains(t, property.Unmodeled, "openapi:conflicting-redeclaration"+tc.kept, "order %d", i)
 		require.Len(t, diags, 1, "order %d", i)
 		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
 		assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "order %d", i)
@@ -241,15 +241,15 @@ func TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder(t *testing.T) {
 				doc, diags := lower(tc.component, order.a, order.b)
 				at := tc.name + ", " + where + ", kept " + order.kept
 				openapitest.RequireNoErrorDiags(t, diags)
-				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, at)
-				require.Len(t, m.Properties, 1, at)
-				p := m.Properties[0]
+				require.Len(t, model.Properties, 1, at)
+				property := model.Properties[0]
 
-				assert.Equal(t, componentID("C"), p.Type.Target, "the component wins: %s", at)
-				assert.Nil(t, p.Default, "the refused default is not adopted: %s", at)
-				require.Len(t, p.Unmodeled, 1, at)
-				assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+order.kept, at)
+				assert.Equal(t, componentID("C"), property.Type.Target, "the component wins: %s", at)
+				assert.Nil(t, property.Default, "the refused default is not adopted: %s", at)
+				require.Len(t, property.Unmodeled, 1, at)
+				assert.Contains(t, property.Unmodeled, "openapi:conflicting-redeclaration"+order.kept, at)
 				require.Len(t, diags, 1, at)
 				assert.Equal(t, diag.DegradedConstruct, diags[0].Code, at)
 				assert.Equal(t, jsontext.Pointer(order.kept), diags[0].Provenance.Pointer, at)
@@ -275,16 +275,16 @@ func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
 	} {
 		doc, diags := schema.LowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
-		require.Len(t, m.Properties, 1)
-		p := m.Properties[0]
+		require.Len(t, model.Properties, 1)
+		property := model.Properties[0]
 
-		require.Equal(t, ir.KindList, doc.Types[p.Type.Target].Kind(), "order %d", i)
-		assert.False(t, p.Type.Nullable, "order %d", i)
-		assert.Nil(t, p.Default, "the refused null is not adopted (order %d)", i)
-		require.Len(t, p.Unmodeled, 1, "order %d", i)
-		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+tc.kept, "order %d", i)
+		require.Equal(t, ir.KindList, doc.Types[property.Type.Target].Kind(), "order %d", i)
+		assert.False(t, property.Type.Nullable, "order %d", i)
+		assert.Nil(t, property.Default, "the refused null is not adopted (order %d)", i)
+		require.Len(t, property.Unmodeled, 1, "order %d", i)
+		assert.Contains(t, property.Unmodeled, "openapi:conflicting-redeclaration"+tc.kept, "order %d", i)
 		require.Len(t, diags, 1, "order %d", i)
 		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
 		assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "order %d", i)
@@ -323,10 +323,10 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 				{[2]string{q, p}, componentID("P"), false},
 			} {
 				doc, diags := schema.LowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
-				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, "order %d", i)
-				require.Len(t, m.Properties, 1, "order %d", i)
-				prop := m.Properties[0]
+				require.Len(t, model.Properties, 1, "order %d", i)
+				prop := model.Properties[0]
 				assert.Equal(t, tc.win, prop.Type.Target, "order %d", i)
 				if tc.same {
 					assert.Empty(t, diags, "order %d", i)
@@ -339,9 +339,9 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 				for _, name := range []string{"P", "Q"} {
 					td, ok := doc.Types[componentID(name)]
 					require.True(t, ok, "%s (order %d)", name, i)
-					for key, e := range td.Common().Unmodeled {
-						assert.True(t, strings.HasPrefix(string(e.Provenance.Pointer), "/components/schemas/"+name+"/"),
-							"%s keeps where its %s came from, got %q (order %d)", name, key, e.Provenance.Pointer, i)
+					for key, unmodeledEntry := range td.Common().Unmodeled {
+						assert.True(t, strings.HasPrefix(string(unmodeledEntry.Provenance.Pointer), "/components/schemas/"+name+"/"),
+							"%s keeps where its %s came from, got %q (order %d)", name, key, unmodeledEntry.Provenance.Pointer, i)
 					}
 				}
 			}
@@ -371,10 +371,10 @@ func TestAllOf_ARefToAnInlineNodeIsDeclaredApart(t *testing.T) {
 		{[2]string{d, c}, at("c"), false},
 	} {
 		doc, diags := schema.LowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
-		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok, "order %d", i)
-		require.Len(t, m.Properties, 1, "order %d", i)
-		prop := m.Properties[0]
+		require.Len(t, model.Properties, 1, "order %d", i)
+		prop := model.Properties[0]
 		assert.Equal(t, tc.win, prop.Type.Target, "order %d", i)
 		if tc.same {
 			assert.Empty(t, diags, "order %d", i)
@@ -409,12 +409,12 @@ func TestAllOf_ACopyANarrowingKeptIsStillACopy(t *testing.T) {
 				schemas = composed + color
 			}
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(schemas))
-			m, ok := doc.Types[componentID("T")].(*ir.Model)
+			model, ok := doc.Types[componentID("T")].(*ir.Model)
 			require.True(t, ok, "order %v, Color last %t", order, colorLast)
-			require.Len(t, m.Properties, 1, "order %v, Color last %t", order, colorLast)
-			assert.Equal(t, componentID("Color"), m.Properties[0].Type.Target, "order %v, Color last %t", order, colorLast)
+			require.Len(t, model.Properties, 1, "order %v, Color last %t", order, colorLast)
+			assert.Equal(t, componentID("Color"), model.Properties[0].Type.Target, "order %v, Color last %t", order, colorLast)
 			assert.Empty(t, diags, "order %v, Color last %t", order, colorLast)
-			assert.Empty(t, m.Properties[0].Unmodeled, "order %v, Color last %t", order, colorLast)
+			assert.Empty(t, model.Properties[0].Unmodeled, "order %v, Color last %t", order, colorLast)
 		}
 	}
 }
@@ -429,20 +429,20 @@ func TestAllOf_AListOfAComponentWinsOverAListOfItsCopy(t *testing.T) {
 	ofRef, ofCopy := "{type: array, items: {$ref: '#/components/schemas/Color'}}", "{type: array, items: "+enum+"}"
 	for i, order := range [][2]string{{ofRef, ofCopy}, {ofCopy, ofRef}} {
 		doc, diags := schema.LowerSpec(t, nonBareSpec("    Color: "+enum+"\n", order[0], order[1]))
-		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok, "order %d", i)
-		require.Len(t, m.Properties, 1, "order %d", i)
-		list, ok := doc.Types[m.Properties[0].Type.Target].(*ir.List)
+		require.Len(t, model.Properties, 1, "order %d", i)
+		list, ok := doc.Types[model.Properties[0].Type.Target].(*ir.List)
 		require.True(t, ok, "the field is a list (order %d)", i)
 		assert.Equal(t, componentID("Color"), list.ElementType.Target, "order %d", i)
 		assert.Empty(t, diags, "order %d", i)
-		assert.Empty(t, m.Properties[0].Unmodeled, "order %d", i)
+		assert.Empty(t, model.Properties[0].Unmodeled, "order %d", i)
 	}
 }
 
-// TestAllOf_ARefToASiblingFieldIsDeclaredApart compiles a field v redeclared as
+// TestAllOf_ARefToASiblingFieldIsDeclaredApart compiles a field property redeclared as
 // a $ref to its branch's sibling field vx and as an inline copy of vx, in either
-// order. vx's pointer begins with v's but is not under it, so vx was declared
+// order. vx's pointer begins with property's but is not under it, so vx was declared
 // apart and wins in both orders with nothing reported or kept.
 func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 	t.Parallel()
@@ -457,18 +457,18 @@ func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 			branches[0], branches[1] = branches[1], branches[0]
 		}
 		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    T:\n      allOf:\n"+branches[0]+branches[1]))
-		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok, "order %d", i)
-		var v *ir.Property
-		for k := range m.Properties {
-			if m.Properties[k].WireName == "v" {
-				v = &m.Properties[k]
+		var property *ir.Property
+		for k := range model.Properties {
+			if model.Properties[k].WireName == "v" {
+				property = &model.Properties[k]
 			}
 		}
-		require.NotNil(t, v, "order %d", i)
-		assert.Equal(t, ir.TypeID("type/anonymous"+vx), v.Type.Target, "order %d", i)
+		require.NotNil(t, property, "order %d", i)
+		assert.Equal(t, ir.TypeID("type/anonymous"+vx), property.Type.Target, "order %d", i)
 		assert.Empty(t, diags, "order %d", i)
-		assert.Empty(t, v.Unmodeled, "order %d", i)
+		assert.Empty(t, property.Unmodeled, "order %d", i)
 	}
 }
 
@@ -502,10 +502,10 @@ func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
 			t.Parallel()
 			for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				doc, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
-				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, "%v", order)
-				require.Len(t, m.Properties, 1, "%v", order)
-				prop := m.Properties[0]
+				require.Len(t, model.Properties, 1, "%v", order)
+				prop := model.Properties[0]
 
 				if tc.kind != "" {
 					assert.Equal(t, tc.kind, doc.Types[prop.Type.Target].Kind(), "%v", order)
@@ -562,10 +562,10 @@ func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) 
 				func() (*ir.Document, []ir.Diagnostic) { return settledSpec(t, qp, a, b) },
 			} {
 				doc, diags := lower()
-				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, "order %d", i)
-				require.Len(t, m.Properties, 1, "order %d", i)
-				prop := m.Properties[0]
+				require.Len(t, model.Properties, 1, "order %d", i)
+				prop := model.Properties[0]
 
 				assert.Equal(t, tc.kind, doc.Types[prop.Type.Target].Kind(), "order %d", i)
 				if tc.code == "" {
@@ -593,24 +593,24 @@ func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
 	b := "{type: number, default: 1.0, x-foo: 2, x-same: s, deprecated: true, x-deprecated-reason: use q}"
 	for _, order := range [][2]string{{a, b}, {b, a}} {
 		doc, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
-		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
-		require.Len(t, m.Properties, 1)
-		p := m.Properties[0]
+		require.Len(t, model.Properties, 1)
+		property := model.Properties[0]
 		later := "2"
 		if order[1] == a {
 			later = "1"
 		}
 
-		require.Contains(t, p.Unmodeled, "openapi:x-foo", "order %v", order)
-		assert.Equal(t, ir.RawValue(later), p.Unmodeled["openapi:x-foo"].Value, "the later value stands")
-		assert.Contains(t, p.Unmodeled, "openapi:x-same")
-		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v",
+		require.Contains(t, property.Unmodeled, "openapi:x-foo", "order %v", order)
+		assert.Equal(t, ir.RawValue(later), property.Unmodeled["openapi:x-foo"].Value, "the later value stands")
+		assert.Contains(t, property.Unmodeled, "openapi:x-same")
+		assert.Contains(t, property.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v",
 			"the other declaration is kept verbatim")
-		require.NotNil(t, p.Deprecation)
-		assert.Equal(t, "use q", p.Deprecation.Message)
-		assert.Equal(t, ir.Inferred("extension-promotion"), p.Provenance.Inferred, "the promoted deprecation stays marked")
-		require.NotNil(t, p.Default)
+		require.NotNil(t, property.Deprecation)
+		assert.Equal(t, "use q", property.Deprecation.Message)
+		assert.Equal(t, ir.Inferred("extension-promotion"), property.Provenance.Inferred, "the promoted deprecation stays marked")
+		require.NotNil(t, property.Default)
 		require.Len(t, diags, 1, "only the extension given differently is reported: %+v", diags)
 		assert.Contains(t, diags[0].Message, "openapi:x-foo differently")
 	}
@@ -711,46 +711,46 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 		{"an enum within another", "{type: string, enum: [a, b]}", "{type: string, enum: [a]}",
 			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
 				t.Helper()
-				e, ok := doc.Types[target].(*ir.Enum)
+				enum, ok := doc.Types[target].(*ir.Enum)
 				require.True(t, ok)
-				require.Len(t, e.Members, 1)
-				assert.Equal(t, "a", e.Members[0].Value.String)
+				require.Len(t, enum.Members, 1)
+				assert.Equal(t, "a", enum.Members[0].Value.String)
 			}},
 		{"a described list", "{type: array, description: d, items: {type: integer}}",
 			"{type: array, items: {type: integer, format: int32}}",
 			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
 				t.Helper()
-				l, ok := doc.Types[target].(*ir.List)
+				list, ok := doc.Types[target].(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, ir.TypeID("type/primitive/int32"), l.ElementType.Target)
-				assert.Equal(t, "d", l.Docs.Description)
+				assert.Equal(t, ir.TypeID("type/primitive/int32"), list.ElementType.Target)
+				assert.Equal(t, "d", list.Docs.Description)
 			}},
 		{"a bounded list", "{type: array, minItems: 1, items: {type: integer}}",
 			"{type: array, items: {type: integer, format: int32}}",
 			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
 				t.Helper()
-				l, ok := doc.Types[target].(*ir.List)
+				list, ok := doc.Types[target].(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, ir.TypeID("type/primitive/int32"), l.ElementType.Target)
-				assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, l.Constraints)
+				assert.Equal(t, ir.TypeID("type/primitive/int32"), list.ElementType.Target)
+				assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, list.Constraints)
 			}},
 		{"an extended list", "{type: array, x-kept: 1, items: {type: integer}}",
 			"{type: array, items: {type: integer, format: int32}}",
 			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
 				t.Helper()
-				l, ok := doc.Types[target].(*ir.List)
+				list, ok := doc.Types[target].(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, ir.TypeID("type/primitive/int32"), l.ElementType.Target)
-				assert.Contains(t, l.Unmodeled, "openapi:x-kept")
+				assert.Equal(t, ir.TypeID("type/primitive/int32"), list.ElementType.Target)
+				assert.Contains(t, list.Unmodeled, "openapi:x-kept")
 			}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, order := range [][2]string{{tc.broad, tc.narrow}, {tc.narrow, tc.broad}} {
-				p, doc, diags := redeclared(t, order[0], order[1])
+				property, doc, diags := redeclared(t, order[0], order[1])
 				assert.Empty(t, diags, "%v", order)
-				assert.Empty(t, p.Unmodeled, "%v", order)
-				tc.check(t, doc, p.Type.Target)
+				assert.Empty(t, property.Unmodeled, "%v", order)
+				tc.check(t, doc, property.Type.Target)
 			}
 		})
 	}
@@ -761,15 +761,15 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 // it in the composed namespace, where irverify holds a member's ID.
 func TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem(t *testing.T) {
 	t.Parallel()
-	p, doc, diags := redeclared(t, "{type: string, enum: [a, b]}", "{type: string, enum: [b, c]}")
+	property, doc, diags := redeclared(t, "{type: string, enum: [a, b]}", "{type: string, enum: [b, c]}")
 
 	assert.Empty(t, diags)
-	require.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
-	e, ok := doc.Types[p.Type.Target].(*ir.Enum)
+	require.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), property.Type.Target)
+	enum, ok := doc.Types[property.Type.Target].(*ir.Enum)
 	require.True(t, ok)
-	require.Len(t, e.Members, 1)
-	assert.Equal(t, "b", e.Members[0].Value.String)
-	assert.Equal(t, ir.EnumMemberID("enum-member/composed/components/schemas/T/allOf/1/properties/v/string:b"), e.Members[0].ID)
+	require.Len(t, enum.Members, 1)
+	assert.Equal(t, "b", enum.Members[0].Value.String)
+	assert.Equal(t, ir.EnumMemberID("enum-member/composed/components/schemas/T/allOf/1/properties/v/string:b"), enum.Members[0].ID)
 	assert.Empty(t, validated(t, doc), "the minted enum's members live where irverify holds them")
 	declared, ok := doc.Types["type/anonymous/components/schemas/T/allOf/0/properties/v"].(*ir.Enum)
 	require.True(t, ok)
@@ -788,8 +788,8 @@ func TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
 		{"{type: string, enum: [a, b], default: a}", "{type: string, enum: [b, c]}"},
 	} {
 		for i, order := range [][2]string{{pair[0], pair[1]}, {pair[1], pair[0]}} {
-			p, _, diags := redeclared(t, order[0], order[1])
-			assert.Nil(t, p.Default, "%v", order)
+			property, _, diags := redeclared(t, order[0], order[1])
+			assert.Nil(t, property.Default, "%v", order)
 			require.Len(t, diags, 1, "%v", order)
 			assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "%v", order)
 			assert.Equal(t, fmt.Sprintf("/components/schemas/T/allOf/%d/properties/v", i), string(diags[0].Provenance.Pointer), "%v", order)
@@ -809,10 +809,10 @@ func TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies(t *testing
 	const items = "items: {type: string, enum: [x, y]}"
 	valued, bare := "{type: array, maxItems: 5, default: [q, q, q], "+items+"}", "{type: array, minItems: 3, "+items+"}"
 	for _, order := range [][2]string{{valued, bare}, {bare, valued}} {
-		p, _, diags := redeclared(t, order[0], order[1])
+		property, _, diags := redeclared(t, order[0], order[1])
 		assert.Empty(t, diags, "%v", order)
-		require.NotNil(t, p.Default, "%v", order)
-		assert.Len(t, p.Default.List, 3, "%v", order)
+		require.NotNil(t, property.Default, "%v", order)
+		assert.Len(t, property.Default.List, 3, "%v", order)
 	}
 }
 
@@ -824,25 +824,25 @@ func TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues(t *testing.T) {
 	t.Parallel()
 	const within = "{type: integer, enum: [1]}"
 	for i, order := range [][2]string{{"{type: number, enum: [1, 2]}", within}, {within, "{type: number, enum: [1, 2]}"}} {
-		p, _, diags := redeclared(t, order[0], order[1])
+		property, _, diags := redeclared(t, order[0], order[1])
 		assert.Empty(t, diags, "%v", order)
-		assert.Empty(t, p.Unmodeled, "%v", order)
+		assert.Empty(t, property.Unmodeled, "%v", order)
 		want := fmt.Sprintf("type/anonymous/components/schemas/T/allOf/%d/properties/v", 1-i)
-		assert.Equal(t, ir.TypeID(want), p.Type.Target, "%v: the enum of integer", order)
+		assert.Equal(t, ir.TypeID(want), property.Type.Target, "%v: the enum of integer", order)
 	}
 
 	for _, order := range [][2]string{
 		{"{type: number, enum: [1, 2.5]}", "{type: integer, enum: [1, 3]}"},
 		{"{type: integer, enum: [1, 3]}", "{type: number, enum: [1, 2.5]}"},
 	} {
-		p, doc, diags := redeclared(t, order[0], order[1])
+		property, doc, diags := redeclared(t, order[0], order[1])
 		assert.Empty(t, diags, "%v", order)
-		require.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
-		e, ok := doc.Types[p.Type.Target].(*ir.Enum)
+		require.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), property.Type.Target, "%v", order)
+		enum, ok := doc.Types[property.Type.Target].(*ir.Enum)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, ir.PrimitiveInteger, e.ValueType, "%v", order)
-		require.Len(t, e.Members, 1, "%v", order)
-		assert.Equal(t, ir.BigVal("1"), e.Members[0].Value.Number, "%v", order)
+		assert.Equal(t, ir.PrimitiveInteger, enum.ValueType, "%v", order)
+		require.Len(t, enum.Members, 1, "%v", order)
+		assert.Equal(t, ir.BigVal("1"), enum.Members[0].Value.Number, "%v", order)
 		assert.Empty(t, validated(t, doc), "%v", order)
 	}
 }
@@ -877,19 +877,19 @@ func TestAllOf_AnAliasMeetsAsTheNodeItStandsFor(t *testing.T) {
 			doc, diags := settledSpec(t, components, order[0], order[1])
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, diags, "%v", order)
-			p := propertyOf(t, doc, "T", "v")
-			assert.Empty(t, p.Unmodeled, "%v", order)
-			require.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
-			target := p.Type.Target
+			property := propertyOf(t, doc, "T", "v")
+			assert.Empty(t, property.Unmodeled, "%v", order)
+			require.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), property.Type.Target, "%v", order)
+			target := property.Type.Target
 			if tc.list {
-				l, ok := doc.Types[target].(*ir.List)
+				list, ok := doc.Types[target].(*ir.List)
 				require.True(t, ok, "%v", order)
-				target = l.ElementType.Target
+				target = list.ElementType.Target
 			}
-			e, ok := doc.Types[target].(*ir.Enum)
+			enum, ok := doc.Types[target].(*ir.Enum)
 			require.True(t, ok, "%v", order)
-			assert.Equal(t, []string{"b", "c"}, []string{e.Members[0].Value.String, e.Members[1].Value.String}, "%v", order)
-			assert.Equal(t, tc.docs, doc.Types[p.Type.Target].Common().Docs.Description, "%v", order)
+			assert.Equal(t, []string{"b", "c"}, []string{enum.Members[0].Value.String, enum.Members[1].Value.String}, "%v", order)
+			assert.Equal(t, tc.docs, doc.Types[property.Type.Target].Common().Docs.Description, "%v", order)
 			assert.Empty(t, validated(t, doc), "%v", order)
 		}
 	}
@@ -945,24 +945,24 @@ func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
 		for _, order := range [][2]string{{ref(tc.alias), ref(tc.other)}, {ref(tc.other), ref(tc.alias)}} {
 			doc, diags := settledSpec(t, components, order[0], order[1])
 			openapitest.RequireNoErrorDiags(t, diags)
-			p := propertyOf(t, doc, "T", "v")
+			property := propertyOf(t, doc, "T", "v")
 			later := componentID(strings.TrimSuffix(strings.TrimPrefix(order[1], "{$ref: '#/components/schemas/"), "'}"))
 			if tc.kept {
 				assert.Len(t, diags, 1+tc.reports, "%v: the declaration the field refuses is reported", order)
-				assert.Len(t, p.Unmodeled, 1, "%v: and kept", order)
-				assert.Equal(t, later, p.Type.Target, "%v: the field keeps the later", order)
+				assert.Len(t, property.Unmodeled, 1, "%v: and kept", order)
+				assert.Equal(t, later, property.Type.Target, "%v: the field keeps the later", order)
 				continue
 			}
 			assert.Empty(t, diags, "%v", order)
-			assert.Empty(t, p.Unmodeled, "%v", order)
-			assert.False(t, p.Type.Nullable, "%v: one declaration refuses null", order)
+			assert.Empty(t, property.Unmodeled, "%v", order)
+			assert.False(t, property.Type.Nullable, "%v: one declaration refuses null", order)
 			if tc.want != "" {
-				assert.Equal(t, tc.want, p.Type.Target, "%v", order)
+				assert.Equal(t, tc.want, property.Type.Target, "%v", order)
 			} else {
-				assert.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
+				assert.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), property.Type.Target, "%v", order)
 			}
 			if tc.docs.Summary != "" || tc.docs.Description != "" {
-				assert.Equal(t, tc.docs, doc.Types[p.Type.Target].Common().Docs, "%v", order)
+				assert.Equal(t, tc.docs, doc.Types[property.Type.Target].Common().Docs, "%v", order)
 			}
 			assert.Empty(t, validated(t, doc), "%v", order)
 		}

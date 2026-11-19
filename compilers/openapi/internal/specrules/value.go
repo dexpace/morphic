@@ -23,18 +23,18 @@ import (
 // shape allows, then the objects it holds. A value of a Schema Object field
 // whose reading its dialect decides beyond its shape is judged as read
 // instead (dialectShape).
-func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
+func (w *walker) value(frameValue frame, fld Field, val *yaml.Node, depth int) {
 	node := nodeview.Deref(val)
-	ptr := f.at.ptr.AppendToken(fld.Name)
-	shared := f.shared || sharedNode(val)
-	if f.rows.rows != nil && dialectShape(w, f, fld, node, ptr) {
+	ptr := frameValue.at.ptr.AppendToken(fld.Name)
+	shared := frameValue.shared || sharedNode(val)
+	if frameValue.rows.rows != nil && dialectShape(w, frameValue, fld, node, ptr) {
 		w.accept(shared, node)
 		return
 	}
-	shape, ok := shapeOf(f, fld, node, w.minor)
+	shape, ok := shapeOf(frameValue, fld, node, w.minor)
 	if !ok {
 		w.refuse(node)
-		w.mismatch(f, fld, node, ptr)
+		w.mismatch(frameValue, fld, node, ptr)
 		return
 	}
 	// A field of any shape reads no type: its value is the values' to render as
@@ -44,43 +44,43 @@ func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 		w.accept(shared, node)
 	}
 	if shape == String {
-		w.text(f, fmt.Sprintf("field %q", fld.Name), fld, node, ptr)
+		w.text(frameValue, fmt.Sprintf("field %q", fld.Name), fld, node, ptr)
 	}
-	w.scalar(f, fld, node, ptr)
-	w.entries(f, fld, shape, node, ptr, depth)
+	w.scalar(frameValue, fld, node, ptr)
+	w.entries(frameValue, fld, shape, node, ptr, depth)
 }
 
 // dialectShape judges a value of a Schema Object field that the schema
-// lowering reads otherwise than its shape says, read with f's rows, and
+// lowering reads otherwise than its shape says, read with frameValue's rows, and
 // reports whether it did: a numeric bound, read as the decimal it spells,
 // quoted or not (decimalBound), bar a null, read as left out, and a number
 // its range refuses, such as a multipleOf of 0; and an `items` written as a
 // list where the rows read no tuple, which a JSON Schema draft reads as one,
 // an error saying what the document's version writes instead.
-func dialectShape(w *walker, f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) bool {
+func dialectShape(walkerValue *walker, frameValue frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) bool {
 	switch {
 	case fld.Decimal && !isNull(node) && !outsideRuleset(node) && (matches(fld.Shape, node) || !outOfRange(fld.Shape, node)):
-		decimalBound(w, f, fld, node, ptr)
+		decimalBound(walkerValue, frameValue, fld, node, ptr)
 		return true
-	case fld.Name == "items" && node.Kind == yaml.SequenceNode && !f.rows.Takes("items", List):
-		w.add(diag.Newf(ir.SeverityError, diag.InvalidItemsList, w.locate(ptr),
-			"items must be a schema in this schema's dialect, not a list; %s", itemsListRemedy(f.rows)), ptr)
+	case fld.Name == "items" && node.Kind == yaml.SequenceNode && !frameValue.rows.Takes("items", List):
+		walkerValue.add(diag.Newf(ir.SeverityError, diag.InvalidItemsList, walkerValue.locate(ptr),
+			"items must be a schema in this schema's dialect, not a list; %s", itemsListRemedy(frameValue.rows)), ptr)
 		return true
 	default:
 		return false
 	}
 }
 
-// decimalBound reports an exclusive bound written in the other form than f's
+// decimalBound reports an exclusive bound written in the other form than frameValue's
 // rows give it, a boolean modifying the bound beside it or a number of its
 // own, and a bound, a boolean exclusive bound aside, no decimal spells, quoted
 // or not (value.NumericLiteral), each an error at the value.
-func decimalBound(w *walker, f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
+func decimalBound(walkerValue *walker, frameValue frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
 	if fld.Name == "exclusiveMinimum" || fld.Name == "exclusiveMaximum" {
-		boolean := f.rows.Takes(fld.Name, Boolean)
+		boolean := frameValue.rows.Takes(fld.Name, Boolean)
 		if written := matches(Boolean, node); written != boolean {
 			want := map[bool]string{true: "a boolean", false: "a number"}[boolean]
-			w.add(diag.Newf(ir.SeverityError, diag.ExclusiveBoundForm, w.locate(ptr),
+			walkerValue.add(diag.Newf(ir.SeverityError, diag.ExclusiveBoundForm, walkerValue.locate(ptr),
 				"%s must be %s in this schema's dialect", fld.Name, want), ptr)
 			return
 		}
@@ -89,7 +89,7 @@ func decimalBound(w *walker, f frame, fld Field, node *yaml.Node, ptr jsontext.P
 		}
 	}
 	if _, err := value.NumericLiteral(node); err != nil {
-		w.add(diag.Newf(ir.SeverityError, diag.NumericPrecision, w.locate(ptr),
+		walkerValue.add(diag.Newf(ir.SeverityError, diag.NumericPrecision, walkerValue.locate(ptr),
 			"%s literal %q: %s", fld.Name, node.Value, err.Error()), ptr)
 	}
 }
@@ -109,21 +109,21 @@ func itemsListRemedy(rules SchemaRules) string {
 // document breaks its version's typing, which is JSON's, while the text it
 // writes says what it means, which a string field reads. label names the
 // value: a field, or an item or entry of one.
-func (w *walker) text(f frame, label string, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
+func (w *walker) text(frameValue frame, label string, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
 	what := map[string]string{"!!int": "the number", "!!float": "the number", "!!bool": "the boolean"}[node.Tag]
 	if what == "" {
 		return
 	}
 	w.report(ir.SeverityWarning, classType, ptr, "%s %s must be a string in %s (%s); it is %s %s",
-		f.obj.Name, label, f.in(w.minor), citeFor(fld.Cites, w.minor).Section, what, node.Value)
+		frameValue.obj.Name, label, frameValue.in(w.minor), citeFor(fld.Cites, w.minor).Section, what, node.Value)
 }
 
 // mismatch reports a value that has none of the shapes its field admits, an
 // error unless it is a null read otherwise (frame.nullRead).
-func (w *walker) mismatch(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
+func (w *walker) mismatch(frameValue frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
 	sev, null := ir.SeverityError, ""
 	if isNull(node) {
-		switch f.nullRead(fld, w.minor) {
+		switch frameValue.nullRead(fld, w.minor) {
 		case leftOut:
 			sev, null = ir.SeverityWarning, "; it is null, which is read as the field left out"
 		case noScopes:
@@ -137,7 +137,7 @@ func (w *walker) mismatch(f frame, fld Field, node *yaml.Node, ptr jsontext.Poin
 			tagged.Tag, w.minor)
 	}
 	w.report(sev, classType, ptr, "%s field %q must be %s in %s (%s)%s",
-		f.obj.Name, fld.Name, describeShape(fld), f.in(w.minor), citeFor(fld.Cites, w.minor).Section, null)
+		frameValue.obj.Name, fld.Name, describeShape(fld), frameValue.in(w.minor), citeFor(fld.Cites, w.minor).Section, null)
 }
 
 // taggedOutside returns node, or for a list the first item, that is tagged
@@ -194,23 +194,23 @@ const (
 	noScopes
 )
 
-// nullRead says how a null written for the field is read at minor m. The schema
+// nullRead says how a null written for the field is read at minor minor. The schema
 // lowering reads one for another object's schema as the empty schema, a value
 // of the wrong shape, and one for any keyword of a Schema Object as left out. A
 // null for an optional field is otherwise left out; for a required field it is
 // the value that is missing, reported by whichever package owns the rule.
-func (f frame) nullRead(fld Field, m Minor) nullReading {
+func (f frame) nullRead(fld Field, minor Minor) nullReading {
 	if fld.Shape == Nested && fld.Of == Schema && f.obj.Kind != Schema {
 		return wrongValue
 	}
-	if fld.Required.Holds(m) {
+	if fld.Required.Holds(minor) {
 		return wrongValue
 	}
-	for _, r := range f.obj.Rules {
-		if r.Kind != RuleRequiredWhen || r.Field != fld.Name || !r.Span.Holds(m) || f.test(r.When) != answerYes {
+	for _, rule := range f.obj.Rules {
+		if rule.Kind != RuleRequiredWhen || rule.Field != fld.Name || !rule.Span.Holds(minor) || f.test(rule.When) != answerYes {
 			continue
 		}
-		if r.Owner != "" {
+		if rule.Owner != "" {
 			return missingElsewhere
 		}
 		return wrongValue
@@ -222,12 +222,12 @@ func (f frame) nullRead(fld Field, m Minor) nullReading {
 	return leftOut
 }
 
-// writes reports whether the object writes the field name at minor m. A null
+// writes reports whether the object writes the field name at minor minor. A null
 // the field's own check reads as left out, or as a field missing (nullRead),
 // writes nothing, so no rule holds it against the object either; one the field
 // takes as its value, as only a field of any shape does, or as a value of the
 // wrong shape, is written.
-func (f frame) writes(name string, m Minor) bool {
+func (f frame) writes(name string, minor Minor) bool {
 	node := nodeview.Deref(f.byKey[name])
 	switch {
 	case node == nil:
@@ -235,15 +235,15 @@ func (f frame) writes(name string, m Minor) bool {
 	case !isNull(node):
 		return true
 	}
-	fld := f.fieldAt(name, m)
-	return matches(fld.Shape, node) || f.nullRead(fld, m) == wrongValue
+	fld := f.fieldAt(name, minor)
+	return matches(fld.Shape, node) || f.nullRead(fld, minor) == wrongValue
 }
 
-// fieldAt returns the field named name f's object defines at minor m, else a
+// fieldAt returns the field named name f's object defines at minor minor, else a
 // later minor's, or for a Schema Object the dialect the compiler reads
 // natively (SchemaRules.Later), else the zero Field (Object.fieldAt).
-func (f frame) fieldAt(name string, m Minor) Field {
-	if fld := f.obj.fieldAt(name, m); fld.Name != "" || f.rows.rows == nil {
+func (f frame) fieldAt(name string, minor Minor) Field {
+	if fld := f.obj.fieldAt(name, minor); fld.Name != "" || f.rows.rows == nil {
 		return fld
 	}
 	return f.rows.rows.later[name]
@@ -257,7 +257,7 @@ func isNull(node *yaml.Node) bool {
 // shapeOf finds the shape, among the field's own and the alternatives that hold
 // at the declared minor, that the node has. A node tagged outside the ruleset
 // has none, but where the field takes any value (outsideRuleset).
-func shapeOf(f frame, fld Field, node *yaml.Node, minor Minor) (Shape, bool) {
+func shapeOf(frameValue frame, fld Field, node *yaml.Node, minor Minor) (Shape, bool) {
 	if fld.Shape != AnyShapeUnchecked && outsideRuleset(node) {
 		return fld.Shape, false
 	}
@@ -274,8 +274,8 @@ func shapeOf(f frame, fld Field, node *yaml.Node, minor Minor) (Shape, bool) {
 	// map of them (frame.holdsBoolean), and one no schema holds is read as the
 	// object it is, so the rows it is read with decide (walker.notMapping),
 	// where the minor admits one at all.
-	if fld.Shape == Nested && fld.Of == Schema && f.booleans && matches(Boolean, node) {
-		if f.rows.rows != nil {
+	if fld.Shape == Nested && fld.Of == Schema && frameValue.booleans && matches(Boolean, node) {
+		if frameValue.rows.rows != nil {
 			return Boolean, true
 		}
 		return Nested, true
@@ -292,17 +292,17 @@ func (f frame) holdsBoolean(fld Field, node *yaml.Node) bool {
 }
 
 // booleanHeld reports whether the kind admits a boolean in its place at minor
-// m.
-func (s Spec) booleanHeld(k Kind, m Minor) bool {
-	obj, ok := s.Object(k)
-	return ok && obj.Boolean.Holds(m)
+// minor.
+func (s Spec) booleanHeld(kind Kind, minor Minor) bool {
+	obj, ok := s.Object(kind)
+	return ok && obj.Boolean.Holds(minor)
 }
 
 // scalar checks a scalar value: that it is not empty where the grammar refuses
 // that, that it is one the field enumerates, and that it has its syntax. The
 // empty string is judged as any text is, so a format it breaks, as an absolute
 // URI's, refuses it, and one admitting it says so in ValidFormat.
-func (w *walker) scalar(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
+func (w *walker) scalar(frameValue frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
 	if node.Kind != yaml.ScalarNode {
 		return
 	}
@@ -310,44 +310,44 @@ func (w *walker) scalar(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointe
 	switch {
 	case fld.NonEmpty.Holds(w.minor) && node.Value == "":
 		w.report(ir.SeverityError, classEmpty, ptr, "%s field %q must not be empty in %s (%s)",
-			f.obj.Name, fld.Name, f.in(w.minor), section)
+			frameValue.obj.Name, fld.Name, frameValue.in(w.minor), section)
 	case len(fld.Values) > 0:
-		w.enumerated(f, fld, node.Value, ptr)
+		w.enumerated(frameValue, fld, node.Value, ptr)
 	case fld.Format != FormatNone && !ValidFormat(fld.Format, node.Value):
 		w.report(ir.SeverityError, classFormat, ptr, "%s field %q must be %s in %s (%s)",
-			f.obj.Name, fld.Name, describeFormat(fld.Format), f.in(w.minor), section)
+			frameValue.obj.Name, fld.Name, describeFormat(fld.Format), frameValue.in(w.minor), section)
 	}
 }
 
 // enumerated checks text against the values the field admits.
-func (w *walker) enumerated(f frame, fld Field, text string, ptr jsontext.Pointer) {
-	for _, v := range fld.Values {
-		if v.Name != text || f.test(v.When) == answerNo {
+func (w *walker) enumerated(frameValue frame, fld Field, text string, ptr jsontext.Pointer) {
+	for _, valueValue := range fld.Values {
+		if valueValue.Name != text || frameValue.test(valueValue.When) == answerNo {
 			continue
 		}
-		if v.Span.Holds(w.minor) {
+		if valueValue.Span.Holds(w.minor) {
 			return
 		}
-		if v.Span.Later(w.minor) {
-			w.laterField(f.obj, fld.Name, text, v.Span.Since, ptr)
+		if valueValue.Span.Later(w.minor) {
+			w.laterField(frameValue.obj, fld.Name, text, valueValue.Span.Since, ptr)
 			return
 		}
 	}
-	admitted := f.admitted(fld, w.minor)
+	admitted := frameValue.admitted(fld, w.minor)
 	if admitted == "" {
 		return // the sibling the values depend on names none, which it reports itself
 	}
 	w.report(ir.SeverityError, classValues, ptr, "%s field %q must be one of %s in %s (%s)",
-		f.obj.Name, fld.Name, admitted, f.in(w.minor), citeFor(fld.Cites, w.minor).Section)
+		frameValue.obj.Name, fld.Name, admitted, frameValue.in(w.minor), citeFor(fld.Cites, w.minor).Section)
 }
 
-// admitted lists the values the field admits at minor m, as the object's own
+// admitted lists the values the field admits at minor minor, as the object's own
 // fields stand.
-func (f frame) admitted(fld Field, m Minor) string {
+func (f frame) admitted(fld Field, minor Minor) string {
 	var names []string
-	for _, v := range fld.Values {
-		if v.Span.Holds(m) && f.test(v.When) != answerNo {
-			names = append(names, strconv.Quote(v.Name))
+	for _, valueValue := range fld.Values {
+		if valueValue.Span.Holds(minor) && f.test(valueValue.When) != answerNo {
+			names = append(names, strconv.Quote(valueValue.Name))
 		}
 	}
 	return strings.Join(names, ", ")
@@ -355,43 +355,43 @@ func (f frame) admitted(fld Field, m Minor) string {
 
 // entries checks what a container value holds: the object, or the objects of a
 // map or list, each read as the kind the field names.
-func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr jsontext.Pointer, depth int) {
+func (w *walker) entries(frameValue frame, fld Field, shape Shape, node *yaml.Node, ptr jsontext.Pointer, depth int) {
 	switch shape {
 	case Nested:
-		w.object(objectToCheck{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, rows: f.rows, in: f.obj.Kind,
-			shared: f.shared}, depth+1)
+		w.object(objectToCheck{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, rows: frameValue.rows, in: frameValue.obj.Kind,
+			shared: frameValue.shared}, depth+1)
 	case Map:
-		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+f.obj.Name)
+		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+frameValue.obj.Name)
 		pairs := w.view.MappingPairs(node)
 		places := newKeyPlacer(w, node, ptr)
-		for _, k := range keyFindings(f.obj, fld, pairs, w.minor) {
-			w.add(diag.Newf(k.sev, diag.Validation+"/"+k.class, places.place(k.key), "%s", k.message),
-				ptr.AppendToken(k.key))
+		for _, keyFinding := range keyFindings(frameValue.obj, fld, pairs, w.minor) {
+			w.add(diag.Newf(keyFinding.sev, diag.Validation+"/"+keyFinding.class, places.place(keyFinding.key), "%s", keyFinding.message),
+				ptr.AppendToken(keyFinding.key))
 		}
-		for _, p := range pairs {
-			if !f.holdsBoolean(fld, p.Val) {
-				w.object(objectToCheck{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, rows: f.rows,
-					in: f.obj.Kind, shared: f.shared}, depth+1)
+		for _, pair := range pairs {
+			if !frameValue.holdsBoolean(fld, pair.Val) {
+				w.object(objectToCheck{kind: fld.Of, node: pair.Val, ptr: ptr.AppendToken(pair.Key), held: pair.Key, rows: frameValue.rows,
+					in: frameValue.obj.Kind, shared: frameValue.shared}, depth+1)
 			}
 		}
 	case List:
 		for i, item := range node.Content {
-			if !f.holdsBoolean(fld, item) {
-				w.object(objectToCheck{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind,
-					shared: f.shared}, depth+1)
+			if !frameValue.holdsBoolean(fld, item) {
+				w.object(objectToCheck{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: frameValue.rows, in: frameValue.obj.Kind,
+					shared: frameValue.shared}, depth+1)
 			}
 		}
 	case StringList:
 		for i, item := range node.Content {
 			item = nodeview.Deref(item)
-			w.text(f, fmt.Sprintf("field %q item %d", fld.Name, i), fld, item, itemPointer(ptr, i))
+			w.text(frameValue, fmt.Sprintf("field %q item %d", fld.Name, i), fld, item, itemPointer(ptr, i))
 			if len(fld.Values) > 0 {
-				w.enumerated(f, fld, item.Value, itemPointer(ptr, i))
+				w.enumerated(frameValue, fld, item.Value, itemPointer(ptr, i))
 			}
 		}
 	case StringMap:
-		for _, p := range w.view.MappingPairs(node) {
-			w.text(f, fmt.Sprintf("field %q entry %q", fld.Name, p.Key), fld, nodeview.Deref(p.Val), ptr.AppendToken(p.Key))
+		for _, pair := range w.view.MappingPairs(node) {
+			w.text(frameValue, fmt.Sprintf("field %q entry %q", fld.Name, pair.Key), fld, nodeview.Deref(pair.Val), ptr.AppendToken(pair.Key))
 		}
 	default:
 		// A scalar, or a container of values the table leaves unread, which the
@@ -407,33 +407,33 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 // where the value is, and the one pointer the walk spells unless it places a
 // finding below (rawPointer): the pointer bound counts such a value by its
 // root alone (docs/compilers/openapi.md#source-budgets).
-func rawRepeats(w *walker, val *yaml.Node, ptr jsontext.Pointer, depth int) {
+func rawRepeats(walkerValue *walker, val *yaml.Node, ptr jsontext.Pointer, depth int) {
 	node := nodeview.Deref(val)
 	if node == nil || node.Kind != yaml.MappingNode && node.Kind != yaml.SequenceNode {
 		return
 	}
-	ok, stops := w.charge(depth)
+	ok, stops := walkerValue.charge(depth)
 	if stops {
-		reportStop(w, rawPointer(ptr, w.raw))
+		reportStop(walkerValue, rawPointer(ptr, walkerValue.raw))
 	}
 	if !ok {
 		return
 	}
 	if node.Kind == yaml.SequenceNode {
 		for i, item := range node.Content {
-			w.raw = append(w.raw, rawStep{index: i, item: true})
-			rawRepeats(w, item, ptr, depth+1)
-			w.raw = w.raw[:len(w.raw)-1]
+			walkerValue.raw = append(walkerValue.raw, rawStep{index: i, item: true})
+			rawRepeats(walkerValue, item, ptr, depth+1)
+			walkerValue.raw = walkerValue.raw[:len(walkerValue.raw)-1]
 		}
 		return
 	}
 	if len(nodeview.RepeatedKeys(node)) > 0 {
-		w.repeated(node, rawPointer(ptr, w.raw), "a mapping")
+		walkerValue.repeated(node, rawPointer(ptr, walkerValue.raw), "a mapping")
 	}
-	for _, p := range w.view.MappingPairs(node) {
-		w.raw = append(w.raw, rawStep{key: p.Key})
-		rawRepeats(w, p.Val, ptr, depth+1)
-		w.raw = w.raw[:len(w.raw)-1]
+	for _, pair := range walkerValue.view.MappingPairs(node) {
+		walkerValue.raw = append(walkerValue.raw, rawStep{key: pair.Key})
+		rawRepeats(walkerValue, pair.Val, ptr, depth+1)
+		walkerValue.raw = walkerValue.raw[:len(walkerValue.raw)-1]
 	}
 }
 
@@ -449,12 +449,12 @@ type rawStep struct {
 // one keeps its steps (walker.raw) in place of a pointer a node, which costs
 // the bytes of every key above a node at each.
 func rawPointer(ptr jsontext.Pointer, steps []rawStep) jsontext.Pointer {
-	for _, s := range steps {
-		if s.item {
-			ptr = itemPointer(ptr, s.index)
+	for _, rawStep := range steps {
+		if rawStep.item {
+			ptr = itemPointer(ptr, rawStep.index)
 			continue
 		}
-		ptr = ptr.AppendToken(s.key)
+		ptr = ptr.AppendToken(rawStep.key)
 	}
 	return ptr
 }
@@ -484,11 +484,11 @@ func keyFindings(obj Object, fld Field, pairs []nodeview.Pair, minor Minor) []ke
 	if fld.Keys == FieldName {
 		sev, class = ir.SeverityError, classFormat
 	}
-	for _, p := range pairs {
-		if !ValidFormat(fld.Keys, p.Key) {
-			found = append(found, keyFinding{sev: sev, class: class, key: p.Key,
+	for _, pair := range pairs {
+		if !ValidFormat(fld.Keys, pair.Key) {
+			found = append(found, keyFinding{sev: sev, class: class, key: pair.Key,
 				message: fmt.Sprintf("%s field %q has the key %q, which must be %s in OpenAPI %s (%s)", obj.Name,
-					fld.Name, p.Key, describeFormat(fld.Keys), minor, citeFor(fld.Cites, minor).Section)})
+					fld.Name, pair.Key, describeFormat(fld.Keys), minor, citeFor(fld.Cites, minor).Section)})
 		}
 	}
 	if fld.Keys == FieldName {
@@ -504,18 +504,18 @@ func keyFindings(obj Object, fld Field, pairs []nodeview.Pair, minor Minor) []ke
 // them in.
 func fieldNames(obj Object, fld Field, pairs []nodeview.Pair, minor Minor) []keyFinding {
 	lowest := make(map[string]string, len(pairs))
-	for _, p := range pairs {
-		folded := strings.ToLower(p.Key)
-		if spelled, ok := lowest[folded]; !ok || p.Key < spelled {
-			lowest[folded] = p.Key
+	for _, pair := range pairs {
+		folded := strings.ToLower(pair.Key)
+		if spelled, ok := lowest[folded]; !ok || pair.Key < spelled {
+			lowest[folded] = pair.Key
 		}
 	}
 	var found []keyFinding
-	for _, p := range pairs {
-		if first := lowest[strings.ToLower(p.Key)]; first != p.Key {
-			found = append(found, keyFinding{sev: ir.SeverityWarning, class: classDuplicate, key: p.Key,
+	for _, pair := range pairs {
+		if first := lowest[strings.ToLower(pair.Key)]; first != pair.Key {
+			found = append(found, keyFinding{sev: ir.SeverityWarning, class: classDuplicate, key: pair.Key,
 				message: fmt.Sprintf("%s field %q has the keys %q and %q, which name one header, as HTTP compares "+
-					"field names in any case, and both are read in OpenAPI %s (%s)", obj.Name, fld.Name, first, p.Key,
+					"field names in any case, and both are read in OpenAPI %s (%s)", obj.Name, fld.Name, first, pair.Key,
 					minor, citeFor(fld.Cites, minor).Section)})
 		}
 	}
@@ -612,15 +612,15 @@ func inRange(shape Shape, sign int, integral bool) bool {
 // schema's, 0o17 or 0x10 (docs/parser-library.md#scalar-resolution): 0b1010,
 // 1_000 and +0x10 are text, as a fraction such as 4/2 or a binary exponent is.
 func parseNumber(text string) (sign int, integral, ok bool) {
-	d, err := ir.ParseDecimal(text)
+	decimal, err := ir.ParseDecimal(text)
 	if err == nil {
-		return d.Sign(), d.IsInt(), true
+		return decimal.Sign(), decimal.IsInt(), true
 	}
 	if past, isPast := errors.AsType[*ir.ExponentRangeError](err); isPast {
 		return past.Sign(), past.IsInt(), true
 	}
-	if c, isCore := nodeview.ParseCoreInteger(text); isCore {
-		return c.Sign(), true, true
+	if coreInteger, isCore := nodeview.ParseCoreInteger(text); isCore {
+		return coreInteger.Sign(), true, true
 	}
 	return 0, false, false
 }

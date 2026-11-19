@@ -31,16 +31,16 @@ func TestFold_TwoEnumsCostTheirWidth(t *testing.T) {
 	}
 	cost := func(n int) float64 {
 		reg := map[ir.TypeID]ir.TypeDef{"type/x": enum("type/x", 0, n), "type/y": enum("type/y", n/2, n)}
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 		decls := declsOf("type/x", "type/y")
-		got := g.fold(decls)
-		e, ok := reg[got.Type.Target].(*ir.Enum)
+		got := stubbed.fold(decls)
+		irEnum, ok := reg[got.Type.Target].(*ir.Enum)
 		require.True(t, ok)
-		require.Len(t, e.Members, n/2, "the two meet in the values they share")
+		require.Len(t, irEnum.Members, n/2, "the two meet in the values they share")
 		require.Empty(t, *recorded)
-		least := testing.AllocsPerRun(1, func() { g.fold(decls) })
+		least := testing.AllocsPerRun(1, func() { stubbed.fold(decls) })
 		for range 4 {
-			least = min(least, testing.AllocsPerRun(1, func() { g.fold(decls) }))
+			least = min(least, testing.AllocsPerRun(1, func() { stubbed.fold(decls) }))
 		}
 		return least
 	}
@@ -59,7 +59,7 @@ func TestFold_TwoEnumsCostTheirWidth(t *testing.T) {
 func TestMemberIndex_FindsTheFirstMemberHoldingAValue(t *testing.T) {
 	t.Parallel()
 	raw := ir.Value{Kind: ir.ValueBytes, Bytes: []byte("x")}
-	x := indexMembers([]ir.EnumMember{{Value: num("1")}, {Value: raw}, {Value: num("1.0")}, {Value: str("a")}})
+	memberIndex := indexMembers([]ir.EnumMember{{Value: num("1")}, {Value: raw}, {Value: num("1.0")}, {Value: str("a")}})
 	for _, tc := range []struct {
 		name  string
 		v     ir.Value
@@ -72,7 +72,7 @@ func TestMemberIndex_FindsTheFirstMemberHoldingAValue(t *testing.T) {
 		{"other bytes", ir.Value{Kind: ir.ValueBytes, Bytes: []byte("y")}, 0, false},
 		{"a string no member holds", str("b"), 0, false},
 	} {
-		at, found := x.find(tc.v)
+		at, found := memberIndex.find(tc.v)
 		assert.Equal(t, tc.found, found, tc.name)
 		assert.Equal(t, tc.at, at, tc.name)
 	}
@@ -122,22 +122,22 @@ func TestFold_EnumsOfDifferentValueTypesAreJudgedByTheirValues(t *testing.T) {
 	} {
 		for _, order := range [][]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
 			reg := valueTypedRegistry()
-			g, recorded := stubMerger(reg)
+			stubbed, recorded := stubMerger(reg)
 
-			got := g.fold(declsOf(order...))
+			got := stubbed.fold(declsOf(order...))
 
 			assert.Empty(t, *recorded, "%v", order)
 			assert.Empty(t, got.Unmodeled, "%v", order)
 			if tc.within != "" {
 				assert.Equal(t, tc.within, got.Type.Target, "%v", order)
-				assert.Zero(t, g.walk.minted, "%v: nothing is minted", order)
+				assert.Zero(t, stubbed.walk.minted, "%v: nothing is minted", order)
 				continue
 			}
-			e, ok := reg[got.Type.Target].(*ir.Enum)
+			enum, ok := reg[got.Type.Target].(*ir.Enum)
 			require.True(t, ok, "%v", order)
 			assert.Equal(t, composedAt(declaredAt(1)), got.Type.Target, "%v", order)
-			assert.Equal(t, ir.PrimitiveInteger, e.ValueType, "%v: of the narrower value type", order)
-			assert.Equal(t, tc.values, valuesOf(e), "%v", order)
+			assert.Equal(t, ir.PrimitiveInteger, enum.ValueType, "%v: of the narrower value type", order)
+			assert.Equal(t, tc.values, valuesOf(enum), "%v", order)
 		}
 	}
 }
@@ -163,34 +163,34 @@ func TestFold_ThreeEnumsMeetInTheNarrowestValueType(t *testing.T) {
 				order[k] = tc.enums[i]
 			}
 			reg := valueTypedRegistry()
-			g, recorded := stubMerger(reg)
+			stubbed, recorded := stubMerger(reg)
 
-			got := g.fold(declsOf(order...))
+			got := stubbed.fold(declsOf(order...))
 
 			if tc.kept != "" {
 				assert.Equal(t, tc.kept, got.Type.Target, "%s: %v", tc.name, order)
-				assert.Zero(t, g.walk.minted, "%s: %v: nothing is minted", tc.name, order)
+				assert.Zero(t, stubbed.walk.minted, "%s: %v: nothing is minted", tc.name, order)
 				require.Len(t, *recorded, 2, "%s: %v", tc.name, order)
-				for _, d := range *recorded {
-					assert.NotEqual(t, declaredAt(slices.Index(order, tc.kept)), d.Provenance.Pointer, "%s: %v", tc.name, order)
+				for _, diagnostic := range *recorded {
+					assert.NotEqual(t, declaredAt(slices.Index(order, tc.kept)), diagnostic.Provenance.Pointer, "%s: %v", tc.name, order)
 				}
 				assert.Len(t, got.Unmodeled, 2, "%s: %v: each other is kept", tc.name, order)
 				continue
 			}
-			e, ok := reg[got.Type.Target].(*ir.Enum)
+			enum, ok := reg[got.Type.Target].(*ir.Enum)
 			require.True(t, ok, "%s: %v", tc.name, order)
-			assert.Equal(t, ir.PrimitiveInt32, e.ValueType, "%s: %v", tc.name, order)
-			assert.Equal(t, []ir.Value{num("2")}, valuesOf(e), "%s: %v", tc.name, order)
+			assert.Equal(t, ir.PrimitiveInt32, enum.ValueType, "%s: %v", tc.name, order)
+			assert.Equal(t, []ir.Value{num("2")}, valuesOf(enum), "%s: %v", tc.name, order)
 			assert.Empty(t, *recorded, "%s: %v", tc.name, order)
 		}
 	}
 }
 
-// valuesOf returns the values e lists, in order.
-func valuesOf(e *ir.Enum) []ir.Value {
-	out := make([]ir.Value, len(e.Members))
-	for k, m := range e.Members {
-		out[k] = m.Value
+// valuesOf returns the values enum lists, in order.
+func valuesOf(enum *ir.Enum) []ir.Value {
+	out := make([]ir.Value, len(enum.Members))
+	for k, enumMember := range enum.Members {
+		out[k] = enumMember.Value
 	}
 	return out
 }

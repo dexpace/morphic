@@ -91,8 +91,8 @@ func TestValidate_ACatchAllKeyNamingNoTypeDrawsOneCode(t *testing.T) {
 	value := &ir.PartEncoding{ContentTypes: []string{"text/plain"}}
 	diags := validated(t, catchAllDoc("type/map", map[ir.TypeID]ir.CatchAllParts{"type/ghost": {Value: value}}))
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	assert.Equal(t, []string{"ir/dangling-type-ref"}, codes)
 }

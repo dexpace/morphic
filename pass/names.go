@@ -49,8 +49,8 @@ func checkNames(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) 
 	if doc == nil {
 		return nil, nil
 	}
-	var r nameReader
-	for _, family := range r.families() {
+	var nameReaderValue nameReader
+	for _, family := range nameReaderValue.families() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -59,7 +59,7 @@ func checkNames(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return r.diags, nil
+	return nameReaderValue.diags, nil
 }
 
 // families returns the families of scopes r reads, in the order they report.
@@ -85,11 +85,11 @@ func (r *nameReader) groups(doc *ir.Document) {
 	for _, svc := range doc.Services {
 		r.groupList("service", string(svc.ID), svc.Groups)
 	}
-	ir.ForEachGroup(doc, func(g ir.OperationGroup) {
-		r.groupList("operation group", string(g.ID), g.Groups)
-		ops := g.Operations
+	ir.ForEachGroup(doc, func(operationGroup ir.OperationGroup) {
+		r.groupList("operation group", string(operationGroup.ID), operationGroup.Groups)
+		ops := operationGroup.Operations
 		if r.readScope(byWords, len(ops), func(i int) ir.Naming { return ops[i].Name }) {
-			r.report(scope{in: "operation group", id: string(g.ID), one: "operation", many: "operations",
+			r.report(scope{in: "operation group", id: string(operationGroup.ID), one: "operation", many: "operations",
 				ids: idsOf(len(ops), func(i int) string { return string(ops[i].ID) })})
 		}
 		for i := range ops {

@@ -27,10 +27,10 @@ type typeGraph struct {
 }
 
 // newTypeGraph builds the graph over types, reading subtypes and alias targets
-// from h, which indexes the same registry.
-func newTypeGraph(types ir.TypeRegistry, h *hierarchy) *typeGraph {
+// from hierarchyValue, which indexes the same registry.
+func newTypeGraph(types ir.TypeRegistry, hierarchyValue *hierarchy) *typeGraph {
 	ids := slices.Sorted(maps.Keys(types))
-	g := &typeGraph{
+	typeGraphValue := &typeGraph{
 		ids:   ids,
 		index: make(map[ir.TypeID]int, len(ids)),
 		poly:  make([]bool, len(ids)),
@@ -39,43 +39,43 @@ func newTypeGraph(types ir.TypeRegistry, h *hierarchy) *typeGraph {
 		loops: make([]bool, 2*len(ids)),
 	}
 	for i, id := range ids {
-		g.index[id] = i
-		g.poly[i] = polymorphic(types, h.aliases.target(id))
+		typeGraphValue.index[id] = i
+		typeGraphValue.poly[i] = polymorphic(types, hierarchyValue.aliases.target(id))
 	}
-	var p typeParts
+	var typePartsValue typeParts
 	for i, id := range ids {
-		p.read(types[id])
-		g.addType(i, &p, h.childrenOf(id))
+		typePartsValue.read(types[id])
+		typeGraphValue.addType(i, &typePartsValue, hierarchyValue.childrenOf(id))
 	}
-	return g
+	return typeGraphValue
 }
 
 // polymorphic reports whether a value declared as the type id names may hold
 // any of its subtypes: id names a model with a discriminator, or an abstract
 // one. A plain model names values of exactly its own shape.
 func polymorphic(types ir.TypeRegistry, id ir.TypeID) bool {
-	m, ok := types[id].(*ir.Model)
-	return id != "" && ok && m != nil && (m.Discriminator != nil || m.Abstract)
+	model, ok := types[id].(*ir.Model)
+	return id != "" && ok && model != nil && (model.Discriminator != nil || model.Abstract)
 }
 
 // addType adds the edges out of type i's two vertices. Its shape reaches what
 // it holds, the shapes it composes and the shape it aliases; its range reaches
 // its own shape, the range it aliases and its direct subtypes' ranges.
-func (g *typeGraph) addType(i int, p *typeParts, children []ir.TypeID) {
+func (g *typeGraph) addType(i int, typePartsValue *typeParts, children []ir.TypeID) {
 	shape, whole := 2*i, 2*i+1
-	for _, id := range p.held {
+	for _, id := range typePartsValue.held {
 		g.linkReference(shape, id)
 	}
-	for _, id := range p.composed {
+	for _, id := range typePartsValue.composed {
 		g.linkTo(shape, id, false)
 	}
-	g.linkTo(shape, p.alias, false)
-	g.linkTo(whole, p.alias, true)
+	g.linkTo(shape, typePartsValue.alias, false)
+	g.linkTo(whole, typePartsValue.alias, true)
 	g.link(whole, shape)
 	for _, id := range children {
 		g.linkTo(whole, id, true)
 	}
-	for _, id := range p.args {
+	for _, id := range typePartsValue.args {
 		if v, ok := g.reference(id); ok {
 			g.args[shape] = append(g.args[shape], v)
 		}

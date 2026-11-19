@@ -96,11 +96,11 @@ func assertComposedPartEncoding(t *testing.T, doc *ir.Document) {
 // given ID.
 func propIDExists(doc *ir.Document, id ir.PropertyID) bool {
 	for _, td := range doc.Types {
-		m, ok := td.(*ir.Model)
+		model, ok := td.(*ir.Model)
 		if !ok {
 			continue
 		}
-		if slices.ContainsFunc(m.Properties, func(p ir.Property) bool { return p.ID == id }) {
+		if slices.ContainsFunc(model.Properties, func(property ir.Property) bool { return property.ID == id }) {
 			return true
 		}
 	}
@@ -193,9 +193,9 @@ func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, render.Responses[0].Payload)
 	out := render.Responses[0].Payload.Contents
 	require.Len(t, out, 3)
-	for _, c := range out[:2] {
-		assert.Equal(t, &ir.FileInfo{ContentTypes: []string{c.MediaType}, Inferred: "binary-inference"}, c.File,
-			c.MediaType)
+	for _, content := range out[:2] {
+		assert.Equal(t, &ir.FileInfo{ContentTypes: []string{content.MediaType}, Inferred: "binary-inference"}, content.File,
+			content.MediaType)
 	}
 	assert.Equal(t, ir.TypeID("type/primitive/any"), out[0].Type.Target, "a file the policy reads keeps its type")
 	assert.Nil(t, out[2].File, "an SVG is text")
@@ -290,8 +290,8 @@ func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Header) {
 	t.Helper()
 	require.Len(t, headers, 2, "the file part declares two per-part headers")
 	byWire := make(map[string]ir.Header, len(headers))
-	for _, h := range headers {
-		byWire[h.WireName] = h
+	for _, header := range headers {
+		byWire[header.WireName] = header
 	}
 
 	id, ok := byWire["X-Part-Id"]
@@ -304,8 +304,8 @@ func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Header) {
 	require.True(t, ok, "$ref'd part header lowered; got %v", byWire)
 	assert.Equal(t, componentID("Digest"), sum.Type.Target, "a $ref'd header takes the referent's schema")
 	assert.Equal(t, "sha-256 digest of this part", sum.Docs.Description)
-	for _, h := range headers {
-		assert.Contains(t, doc.Types, h.Type.Target, "part header %q must reference a live node", h.WireName)
+	for _, header := range headers {
+		assert.Contains(t, doc.Types, header.Type.Target, "part header %q must reference a live node", header.WireName)
 	}
 }
 
@@ -322,18 +322,18 @@ func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Header) {
 func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	events, ok := opByName(doc, "streamEvents")
 	require.True(t, ok)
-	c := firstContent(t, events)
-	require.NotNil(t, c.Item, "itemSchema becomes the element type")
-	assert.Equal(t, &ir.ContentStream{}, c.Stream, "and declares the content a stream, no heuristic marking it")
-	require.NotNil(t, c.ItemEncoding, "an encoding governing every item lowers structurally")
-	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
-	assert.True(t, c.ItemEncoding.RepeatsPerArrayItem, "the construct describes a repeated tail")
-	assert.Empty(t, c.Unmodeled, "nothing is left over once it lowers")
+	content := firstContent(t, events)
+	require.NotNil(t, content.Item, "itemSchema becomes the element type")
+	assert.Equal(t, &ir.ContentStream{}, content.Stream, "and declares the content a stream, no heuristic marking it")
+	require.NotNil(t, content.ItemEncoding, "an encoding governing every item lowers structurally")
+	assert.Equal(t, []string{"application/json"}, content.ItemEncoding.ContentTypes)
+	assert.True(t, content.ItemEncoding.RepeatsPerArrayItem, "the construct describes a repeated tail")
+	assert.Empty(t, content.Unmodeled, "nothing is left over once it lowers")
 
 	assert.Equal(t, ir.StreamingServer, events.Streaming)
 	require.NotNil(t, events.ResponseStream)
 	require.NotNil(t, events.ResponseStream.Events)
-	assert.Empty(t, cmp.Diff(*c.Item, *events.ResponseStream.Events),
+	assert.Empty(t, cmp.Diff(*content.Item, *events.ResponseStream.Events),
 		"the declared item schema is the stream element type")
 	assert.Empty(t, events.Provenance.Inferred, "a declared sequence is not a heuristic")
 

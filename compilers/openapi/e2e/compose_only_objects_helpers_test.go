@@ -95,9 +95,9 @@ func degradedKept(keys ...string) map[string]ir.UnmodeledReason {
 // for, at or under pointer.
 func degradedInfosUnder(diags []ir.Diagnostic, pointer string) int {
 	n := 0
-	for _, d := range diags {
-		at := string(d.Provenance.Pointer)
-		if d.Severity == ir.SeverityInfo && d.Code == diag.DegradedConstruct &&
+	for _, diagnostic := range diags {
+		at := string(diagnostic.Provenance.Pointer)
+		if diagnostic.Severity == ir.SeverityInfo && diagnostic.Code == diag.DegradedConstruct &&
 			(at == pointer || strings.HasPrefix(at, pointer+"/")) {
 			n++
 		}

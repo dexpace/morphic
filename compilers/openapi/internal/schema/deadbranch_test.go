@@ -31,10 +31,10 @@ func TestOneOf_AnUnpreservableDeadBranchIsNotAnnounced(t *testing.T) {
       oneOf: [{$ref: '#/components/schemas/A'}, {type: string, x-t: `+unpreservableValue+`}]
 `))
 
-	u, ok := typeByName(doc, "Combo").(*ir.Union)
+	union, ok := typeByName(doc, "Combo").(*ir.Union)
 	require.True(t, ok)
-	require.Len(t, u.Variants, 1)
-	assert.NotContains(t, u.Unmodeled, "openapi:oneOf/1", "the conversion failed, so nothing was kept")
+	require.Len(t, union.Variants, 1)
+	assert.NotContains(t, union.Unmodeled, "openapi:oneOf/1", "the conversion failed, so nothing was kept")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
 	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")

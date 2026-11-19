@@ -59,8 +59,8 @@ func describeDerivation() string {
 		var declared ir.IDDeclarations
 		ir.WalkValues(doc, ir.DocumentPath, &declared)
 		ids := make([]string, 0, len(declared.List()))
-		for _, d := range declared.List() {
-			ids = append(ids, d.ID)
+		for _, idDeclaration := range declared.List() {
+			ids = append(ids, idDeclaration.ID)
 		}
 		facts := irfacts.New(doc)
 		for _, id := range slices.Compact(slices.Sorted(slices.Values(ids))) {

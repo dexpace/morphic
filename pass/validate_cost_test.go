@@ -142,8 +142,8 @@ func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operati
 // one encoding per property.
 func multipartBody(model *ir.Model) *ir.Payload {
 	content := ir.Content{MediaType: "multipart/form-data", Type: ir.TypeRef{Target: model.ID}, Encoding: map[ir.PropertyID]ir.PartEncoding{}}
-	for _, p := range model.Properties {
-		content.Encoding[p.ID] = ir.PartEncoding{}
+	for _, property := range model.Properties {
+		content.Encoding[property.ID] = ir.PartEncoding{}
 	}
 	return &ir.Payload{Contents: []ir.Content{content}}
 }

@@ -306,8 +306,8 @@ func TestPathItemRefSiblings_ASharedCallbackMountsPerParent(t *testing.T) {
 
 	const expr = "/callbacks/cb/{$request.body#~1url}/put"
 	puts := map[ir.OperationID]jsontext.Pointer{}
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, op := range operationGroup.Operations {
 			if strings.HasSuffix(string(op.ID), expr) {
 				puts[op.ID] = op.Provenance.Pointer
 			}
@@ -370,8 +370,8 @@ func TestPathItemRefSiblings_MountsInTheOrderAnInlineItemDoes(t *testing.T) {
 // the document's groups list them.
 func methodsAt(doc *ir.Document, uri string) []string {
 	var methods []string
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, op := range operationGroup.Operations {
 			if hb := op.Bindings.HTTP[0]; hb.URITemplate == uri {
 				methods = append(methods, hb.Method)
 			}

@@ -41,11 +41,11 @@ const danglingDir = "../../../testdata/dangling/openapi"
 // empty result is the referential-closure property issue #14 restores.
 func danglingRefs(doc *ir.Document) []string {
 	var out []string
-	for _, v := range irverify.Verify(doc) {
-		if !strings.HasPrefix(v.Code, "ir/dangling-") {
+	for _, violation := range irverify.Verify(doc) {
+		if !strings.HasPrefix(violation.Code, "ir/dangling-") {
 			continue
 		}
-		out = append(out, fmt.Sprintf("%s: %s", v.Path, v.Message))
+		out = append(out, fmt.Sprintf("%s: %s", violation.Path, violation.Message))
 	}
 	slices.Sort(out)
 	return out
@@ -168,8 +168,8 @@ func TestDanglingRefs_Reproducers(t *testing.T) {
 // hasErrorNamingNoMechanism reports whether diags hold the error a requirement
 // draws for a name that reaches no mechanism.
 func hasErrorNamingNoMechanism(diags []ir.Diagnostic) bool {
-	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Severity == ir.SeverityError && d.Code == diag.UnresolvedSecurityScheme
+	return slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+		return diagnostic.Severity == ir.SeverityError && diagnostic.Code == diag.UnresolvedSecurityScheme
 	})
 }
 
@@ -216,10 +216,10 @@ func TestDanglingRefs_f10(t *testing.T) {
 	doc, _ := compileFile(t, danglingDir, "f10-refs.yaml", "f10.yaml")
 	foo, ok := doc.Types[componentID("Foo")].(*ir.Model)
 	require.True(t, ok)
-	x, ok := propByWire(foo, "x")
+	property, ok := propByWire(foo, "x")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Foo/properties/bar"), x.Type.Target)
-	_, ok = doc.Types[x.Type.Target]
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Foo/properties/bar"), property.Type.Target)
+	_, ok = doc.Types[property.Type.Target]
 	assert.True(t, ok, "the referenced sub-schema is interned under its pointer-derived ID")
 }
 

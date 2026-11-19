@@ -105,18 +105,18 @@ func Apply(ctx context.Context, index int, root, doc *yaml.Node, opts Options) (
 func applyWithLimits(ctx context.Context, index int, root, doc *yaml.Node, opts Options, walks, steps budget.Limit,
 ) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
-	p, diags := read(at, doc)
+	plan, diags := read(at, doc)
 	if diag.HasError(diags) {
 		return Origin{}, diags
 	}
 
-	var g *grafter
+	var grafterValue *grafter
 	reported, applied := applyRecovered(at, func() ([]ir.Diagnostic, bool) {
 		var (
 			out []ir.Diagnostic
 			ok  bool
 		)
-		g, out, ok = runSequence(ctx, p, root, opts.Lax, opts.MaxNodes, steps)
+		grafterValue, out, ok = runSequence(ctx, plan, root, opts.Lax, opts.MaxNodes, steps)
 		return out, ok
 	})
 	diags = append(diags, reported...)
@@ -126,7 +126,7 @@ func applyWithLimits(ctx context.Context, index int, root, doc *yaml.Node, opts 
 
 	// A repair a cancel cut short refuses as a cancelled sequence does, with
 	// nothing reported, since the caller reads its context next.
-	switch done, safe, budgeted := repairAliases(ctx, root, g, walks, opts.MaxNodes); {
+	switch done, safe, budgeted := repairAliases(ctx, root, grafterValue, walks, opts.MaxNodes); {
 	case !done:
 		return Origin{}, diags
 	case budgeted:
@@ -137,9 +137,9 @@ func applyWithLimits(ctx context.Context, index int, root, doc *yaml.Node, opts 
 		return Origin{}, append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
 			"overlay applied, but the aliases a remove left naming what it removed expand past %d nodes", walks.Cap()))
 	}
-	source := ir.SourceInfo{Format: ir.OverlayFormat + "@" + p.declared, Path: opts.Path, Hash: ir.SourceHash(opts.Data),
-		SelfURI: p.selfURI}
-	positions, attributed := attribute(ctx, root, g.written, walks)
+	source := ir.SourceInfo{Format: ir.OverlayFormat + "@" + plan.declared, Path: opts.Path, Hash: ir.SourceHash(opts.Data),
+		SelfURI: plan.selfURI}
+	positions, attributed := attribute(ctx, root, grafterValue.written, walks)
 	if !attributed {
 		// Applied without attribution: the source keeps every position, but the
 		// overlay stays in Document.Sources, since the warning below names it.

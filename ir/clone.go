@@ -15,12 +15,12 @@ import "reflect"
 // of one length node reaches twice is copied once, and a cycle comes out as the
 // same cycle.
 func cloneNode[N any](node N, ranging *entryStack) (N, bool) {
-	c := cloner{copies: map[refKey]reflect.Value{}, ranging: ranging}
+	clonerValue := cloner{copies: map[refKey]reflect.Value{}, ranging: ranging}
 	v := reflect.ValueOf(node)
 	out := reflect.New(v.Type()).Elem()
-	c.fill(out, v, 0)
+	clonerValue.fill(out, v, 0)
 	var cloned N
-	if c.truncated {
+	if clonerValue.truncated {
 		return cloned, false
 	}
 	reflect.ValueOf(&cloned).Elem().Set(out) // out has node's concrete type
@@ -140,15 +140,15 @@ func (c *cloner) entries(dst, v reflect.Value, depth int) {
 	out := reflect.MakeMapWithSize(v.Type(), v.Len())
 	c.copies[key] = out
 	dst.Set(out)
-	f := c.ranging.push(v)
+	entryFrame := c.ranging.push(v)
 	value := reflect.New(v.Type().Elem()).Elem()
-	for i := f.base; i < f.end; i++ {
+	for i := entryFrame.base; i < entryFrame.end; i++ {
 		// Indexed afresh: a nested map can move the stack while stacking its own.
-		e := c.ranging.entries[i]
-		c.fill(value, e.value, depth+1)
-		out.SetMapIndex(e.key, value)
+		mapEntry := c.ranging.entries[i]
+		c.fill(value, mapEntry.value, depth+1)
+		out.SetMapIndex(mapEntry.key, value)
 	}
-	c.ranging.pop(f)
+	c.ranging.pop(entryFrame)
 }
 
 // holdsReference reports whether a value of kind k can hold a pointer, slice or

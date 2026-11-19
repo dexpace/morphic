@@ -36,8 +36,8 @@ func spacedClasses() []spacedClass {
 		spacedClass{
 			name: "type", prefix: ir.IDKindType,
 			doc: func(id string) *ir.Document {
-				m := &ir.Model{ID: ir.TypeID(id), Name: ir.Naming{Source: "M", Canonical: "m"}}
-				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+				model := &ir.Model{ID: ir.TypeID(id), Name: ir.Naming{Source: "M", Canonical: "m"}}
+				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 			},
 			path: func(id string) string { return "document.Types[" + id + "]" },
 		},
@@ -60,8 +60,8 @@ func spacedClasses() []spacedClass {
 		spacedClass{
 			name: "message", prefix: ir.IDKindMessage,
 			doc: func(id string) *ir.Document {
-				m := ir.Message{ID: ir.MessageID(id), Name: ir.Naming{Source: "m", Canonical: "m"}}
-				return &ir.Document{IRVersion: ir.IRVersion, Messages: map[ir.MessageID]ir.Message{m.ID: m}}
+				message := ir.Message{ID: ir.MessageID(id), Name: ir.Naming{Source: "m", Canonical: "m"}}
+				return &ir.Document{IRVersion: ir.IRVersion, Messages: map[ir.MessageID]ir.Message{message.ID: message}}
 			},
 			path: func(id string) string { return "document.Messages[" + id + "]" },
 		},

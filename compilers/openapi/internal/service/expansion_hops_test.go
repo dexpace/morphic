@@ -42,11 +42,11 @@ components:
 // resolves with its $refs' copies held to limit.
 func admittedUnder(t *testing.T, src string, limit int) bool {
 	t.Helper()
-	c := loaded(t, src, budget.AtMost(limit))
-	a, ok := c.Doc.Paths.Get("/a")
+	serviceContext := loaded(t, src, budget.AtMost(limit))
+	a, ok := serviceContext.Doc.Paths.Get("/a")
 	require.True(t, ok)
-	p, _, _ := service.Declared[soa.Parameter](c, a.GetObject().Get().GetParameters()[0], "/paths/~1a/get/parameters/0")
-	_, refused := c.ExpansionRefusal()
+	p, _, _ := service.Declared[soa.Parameter](serviceContext, a.GetObject().Get().GetParameters()[0], "/paths/~1a/get/parameters/0")
+	_, refused := serviceContext.ExpansionRefusal()
 	require.Equal(t, p == nil, refused, "a copy resolves exactly when it is not refused, under %d", limit)
 	return p != nil
 }

@@ -353,8 +353,8 @@ func TestRun_UnknownPassIsMisuse(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	known := make([]string, 0, len(engine.Passes()))
-	for _, p := range engine.Passes() {
-		known = append(known, p.Name())
+	for _, pass := range engine.Passes() {
+		known = append(known, pass.Name())
 	}
 
 	for _, cmd := range []string{"compile", "validate"} {

@@ -108,9 +108,9 @@ func enumCases() map[string]enumCase {
 		},
 		"RelatedRole": {
 			place: func(doc *ir.Document, v string) {
-				d := severityDiagnostic(string(ir.SeverityWarning))
-				d.Related = []ir.Related{{Role: ir.RelatedRole(v), Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/a"}}}
-				doc.Diagnostics = []ir.Diagnostic{d}
+				diagnostic := severityDiagnostic(string(ir.SeverityWarning))
+				diagnostic.Related = []ir.Related{{Role: ir.RelatedRole(v), Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/a"}}}
+				doc.Diagnostics = []ir.Diagnostic{diagnostic}
 			},
 			code:    "ir/unknown-related-role",
 			path:    "document.Diagnostics[0].Related[0].Role",
@@ -186,9 +186,9 @@ func TestVerify_UndeclaredEnumValueCarriesItsMessage(t *testing.T) {
 			doc := scenarioBase()
 			tc.place(doc, "bogus")
 			var got []string
-			for _, v := range verifyDeclared(doc) {
-				if v.Code == tc.code {
-					got = append(got, v.Message)
+			for _, violation := range verifyDeclared(doc) {
+				if violation.Code == tc.code {
+					got = append(got, violation.Message)
 				}
 			}
 			assert.Equal(t, []string{want}, got)
@@ -203,8 +203,8 @@ func TestVerify_UndeclaredEnumValueCarriesItsMessage(t *testing.T) {
 func TestVerify_ModelEnumsAreReadOnEveryPropertyAndType(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
-	m := doc.Types["type/x/M"].(*ir.Model)
-	m.Properties = append(m.Properties, ir.Property{
+	model := doc.Types["type/x/M"].(*ir.Model)
+	model.Properties = append(model.Properties, ir.Property{
 		ID: "property/x/M/b", Name: named("b"), Type: ir.TypeRef{Target: "type/primitive/string"}, Presence: "bogus",
 	})
 	doc.Types["type/x/N"] = &ir.Model{ID: "type/x/N", Name: named("n"), Additional: "bogus"}

@@ -111,14 +111,14 @@ func TestValidate_ADefaultIsHeldToTheShapeOfItsType(t *testing.T) {
 		"a number": {Target: ir.PrimitiveTypeID(ir.PrimitiveFloat64)}, "an integer": intT,
 		"a list": {Target: "type/list"}, "an object": {Target: "type/obj"},
 	}
-	for kindWords, v := range kinds {
+	for kindWords, value := range kinds {
 		for shapeWords, typ := range holds {
 			t.Run(kindWords+" for "+shapeWords, func(t *testing.T) {
 				t.Parallel()
-				got := found(t, shapesDoc(prop("property/a/x", typ, defaulted(v))), defaultCode)
+				got := found(t, shapesDoc(prop("property/a/x", typ, defaulted(value))), defaultCode)
 				if kindWords == shapeWords || (kindWords == "a string" && shapeWords == "bytes") ||
-					(kindWords == "a symbol" && shapeWords == "a string") || (shapeWords == "a number" && v.Kind != ir.ValueNumber &&
-					(v.Kind == ir.ValueInfinity || v.Kind == ir.ValueNegativeInfinity || v.Kind == ir.ValueNaN)) ||
+					(kindWords == "a symbol" && shapeWords == "a string") || (shapeWords == "a number" && value.Kind != ir.ValueNumber &&
+					(value.Kind == ir.ValueInfinity || value.Kind == ir.ValueNegativeInfinity || value.Kind == ir.ValueNaN)) ||
 					(kindWords == "a number" && shapeWords == "an integer") {
 					assert.Empty(t, got)
 					return
@@ -158,7 +158,7 @@ func TestValidate_ADefaultIsHeldToTheBoundsOfItsShape(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := found(t, shapesDoc(prop("property/a/x", tc.typ, func(p *ir.Property) { p.Default = tc.def; p.Constraints = tc.c })), defaultCode)
+			got := found(t, shapesDoc(prop("property/a/x", tc.typ, func(property *ir.Property) { property.Default = tc.def; property.Constraints = tc.c })), defaultCode)
 			assert.Len(t, got, tc.want, "%v", got)
 		})
 	}

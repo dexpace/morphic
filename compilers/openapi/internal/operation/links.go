@@ -79,12 +79,12 @@ type draftParam struct {
 	value *yaml.Node
 }
 
-// draftLinks drafts each link the response r, declared at rptr in c's
+// draftLinks drafts each link the response r, declared at rptr in serviceContext's
 // document, names. A $ref the bindings could not follow is the load phase's
 // finding, and drafts nothing. The summary and description written beside a link's $ref
 // describe that use of it, so they fold over the declaration's docs
 // (docs/compilers/openapi.md#reference-object-siblings).
-func draftLinks(c service.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkDraft, []ir.Diagnostic) {
+func draftLinks(serviceContext service.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkDraft, []ir.Diagnostic) {
 	links := r.GetLinks()
 	if links == nil {
 		return nil, nil
@@ -93,47 +93,47 @@ func draftLinks(c service.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkDr
 	var diags []ir.Diagnostic
 	for name, rl := range links.All() {
 		use := rptr + ids.Ptr("links", name)
-		l, lc, lptr := service.Declared[soa.Link](c, rl, use)
+		l, lc, lptr := service.Declared[soa.Link](serviceContext, rl, use)
 		if l == nil {
 			continue
 		}
-		d, draftDiags := draftLink(lc, l, lptr, name)
-		d.docs = componentlookup.UseDocs[soa.Link](c.Bindings(), rl, d.docs)
-		beside, besideDiags := service.Beside[soa.Link](c, rl, use, true)
-		d.extra = annotation.MergeUnmodeled(d.extra, beside)
+		linkDraft, draftDiags := draftLink(lc, l, lptr, name)
+		linkDraft.docs = componentlookup.UseDocs[soa.Link](serviceContext.Bindings(), rl, linkDraft.docs)
+		beside, besideDiags := service.Beside[soa.Link](serviceContext, rl, use, true)
+		linkDraft.extra = annotation.MergeUnmodeled(linkDraft.extra, beside)
 		diags = append(diags, besideDiags...)
-		d.at, d.use = c, use
-		drafts = append(drafts, d)
+		linkDraft.at, linkDraft.use = serviceContext, use
+		drafts = append(drafts, linkDraft)
 		diags = append(diags, draftDiags...)
 	}
 	return drafts, diags
 }
 
-// draftLink drafts the link l named name, declared at ptr in c's document. It
+// draftLink drafts the link l named name, declared at ptr in serviceContext's document. It
 // holds l whole, as it resolved, for keep.
-func draftLink(c service.Ctx, l *soa.Link, ptr jsontext.Pointer, name string) (linkDraft, []ir.Diagnostic) {
-	d := linkDraft{
-		c: c, ptr: ptr, name: name,
+func draftLink(serviceContext service.Ctx, l *soa.Link, ptr jsontext.Pointer, name string) (linkDraft, []ir.Diagnostic) {
+	linkDraftValue := linkDraft{
+		c: serviceContext, ptr: ptr, name: name,
 		operationID: l.OperationID, operationRef: l.OperationRef,
 		body: l.GetRequestBody(), server: l.GetServer(),
 		docs: ir.Docs{Description: l.GetDescription()}, node: l.GetRootNode(),
 	}
 	if params := l.GetParameters(); params != nil {
 		for key, value := range params.All() {
-			d.params = append(d.params, draftParam{key: key, value: value})
+			linkDraftValue.params = append(linkDraftValue.params, draftParam{key: key, value: value})
 		}
 	}
-	extra, diags := annotation.ExtensionsFrom(l.GetExtensions(), c.Place(), ptr)
-	d.extra = extra
-	return d, append(diags, annotation.UnknownKeysIn(&d.extra, l, c.Place(), ptr)...)
+	extra, diags := annotation.ExtensionsFrom(l.GetExtensions(), serviceContext.Place(), ptr)
+	linkDraftValue.extra = extra
+	return linkDraftValue, append(diags, annotation.UnknownKeysIn(&linkDraftValue.extra, l, serviceContext.Place(), ptr)...)
 }
 
-// keep records d verbatim in p, under openapi:links/<name>, reporting whether
+// keep records d verbatim in unmodeled, under openapi:links/<name>, reporting whether
 // it wrote the entry and what preserving it reports. A link that does not
 // lower is kept whole, as it resolved, so nothing of it is lost, a $ref'd one
 // included; one that lowers is not converted at all, so nothing about its
 // verbatim form is reported.
-func (d *linkDraft) keep(p *ir.Unmodeled) (bool, []ir.Diagnostic) {
-	return annotation.PreserveNodeInto(p, "openapi:"+ids.Scope("links", d.name),
+func (d *linkDraft) keep(unmodeled *ir.Unmodeled) (bool, []ir.Diagnostic) {
+	return annotation.PreserveNodeInto(unmodeled, "openapi:"+ids.Scope("links", d.name),
 		d.node, ir.ReasonNoIRHome, d.c.Place().At(d.ptr))
 }

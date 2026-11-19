@@ -45,8 +45,8 @@ func TestVerify_VersionListIsHeldToItsLabels(t *testing.T) {
 	assert.Equal(t, []string{"document.Versions[0]"}, scenarioCodes(first, labelBlank), "the first entry is read too")
 
 	messages := map[string]string{}
-	for _, v := range verifyDeclared(doc) {
-		messages[v.Code] = v.Message
+	for _, violation := range verifyDeclared(doc) {
+		messages[violation.Code] = violation.Message
 	}
 	assert.Equal(t, `version label "v1" is listed here and at index 0`, messages[labelRepeated])
 	assert.Equal(t, "version label is blank, so no order places it", messages[labelBlank])
@@ -100,9 +100,9 @@ func TestVerify_AvailabilityLabelMessage(t *testing.T) {
 	t.Parallel()
 	doc := versionedModel(&ir.Availability{Added: []string{"v9"}})
 	var got []string
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == labelUndeclared {
-			got = append(got, v.Message)
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == labelUndeclared {
+			got = append(got, violation.Message)
 		}
 	}
 	assert.Equal(t, []string{`version label "v9" is not one Document.Versions declares`}, got)
@@ -180,22 +180,24 @@ func TestVerify_EveryAvailabilityCarrierIsHeldToTheLabels(t *testing.T) {
 		place func(doc *ir.Document)
 		path  string
 	}{
-		{"type", func(d *ir.Document) { d.Types["type/x/M"].Common().Availability = avail() },
+		{"type", func(document *ir.Document) { document.Types["type/x/M"].Common().Availability = avail() },
 			"document.Types[type/x/M].Availability.Added[0]"},
-		{"property", func(d *ir.Document) { d.Types["type/x/M"].(*ir.Model).Properties[0].Availability = avail() },
+		{"property", func(document *ir.Document) {
+			document.Types["type/x/M"].(*ir.Model).Properties[0].Availability = avail()
+		},
 			"document.Types[type/x/M].Properties[0].Availability.Added[0]"},
-		{"operation", func(d *ir.Document) { scenarioOperation(d).Availability = avail() },
+		{"operation", func(document *ir.Document) { scenarioOperation(document).Availability = avail() },
 			scenarioOp + ".Availability.Added[0]"},
-		{"parameter", func(d *ir.Document) { scenarioOperation(d).Params[0].Availability = avail() },
+		{"parameter", func(document *ir.Document) { scenarioOperation(document).Params[0].Availability = avail() },
 			scenarioOp + ".Params[0].Availability.Added[0]"},
-		{"enum member", func(d *ir.Document) { d.Types["type/x/E"].(*ir.Enum).Members[0].Availability = avail() },
+		{"enum member", func(document *ir.Document) { document.Types["type/x/E"].(*ir.Enum).Members[0].Availability = avail() },
 			"document.Types[type/x/E].Members[0].Availability.Added[0]"},
-		{"variant", func(d *ir.Document) {
-			d.Types["type/x/U"] = &ir.Union{ID: "type/x/U", Name: named("u"), Variants: []ir.Variant{{
+		{"variant", func(document *ir.Document) {
+			document.Types["type/x/U"] = &ir.Union{ID: "type/x/U", Name: named("u"), Variants: []ir.Variant{{
 				Name: named("a"), Type: ir.TypeRef{Target: "type/primitive/string"}, Availability: avail(),
 			}}}
 		}, "document.Types[type/x/U].Variants[0].Availability.Added[0]"},
-		{"group", func(d *ir.Document) { d.Services[0].Groups[0].Availability = avail() },
+		{"group", func(document *ir.Document) { document.Services[0].Groups[0].Availability = avail() },
 			"document.Services[0].Groups[0].Availability.Added[0]"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

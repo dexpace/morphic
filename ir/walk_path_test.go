@@ -73,9 +73,9 @@ func TestWalkPath_StringAndAppendToRenderAlike(t *testing.T) {
 // it renders nothing, rather than dereferencing a walk that is not there.
 func TestWalkPath_ZeroValueIsEmpty(t *testing.T) {
 	t.Parallel()
-	var p ir.WalkPath
-	assert.Empty(t, p.String())
-	assert.Equal(t, []byte("kept"), p.AppendTo([]byte("kept")))
+	var walkPath ir.WalkPath
+	assert.Empty(t, walkPath.String())
+	assert.Equal(t, []byte("kept"), walkPath.AppendTo([]byte("kept")))
 }
 
 // Roots that embed a primitive: Outer through Middle, so a primitive's Name is

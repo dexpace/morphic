@@ -104,11 +104,11 @@ func TestUnionCombinators_PassedOverBranchSetIsKept(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	u, ok := typeByName(doc, "S").(*ir.Union)
+	union, ok := typeByName(doc, "S").(*ir.Union)
 	require.True(t, ok, "the elected branch set still becomes the union")
-	assert.Len(t, u.Variants, 2, "one variant per oneOf branch")
-	entry, ok := u.Unmodeled["openapi:anyOf"]
-	require.True(t, ok, "the set unionBranches passed over is kept; got %v", u.Unmodeled)
+	assert.Len(t, union.Variants, 2, "one variant per oneOf branch")
+	entry, ok := union.Unmodeled["openapi:anyOf"]
+	require.True(t, ok, "the set unionBranches passed over is kept; got %v", union.Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `[{"type":"number"},{"type":"boolean"}]`, string(entry.Value))
 	assert.Contains(t,
@@ -130,11 +130,11 @@ func TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	u, ok := typeByName(doc, "S").(*ir.Union)
+	union, ok := typeByName(doc, "S").(*ir.Union)
 	require.True(t, ok, "the collapse is declined; got %v", typeByName(doc, "S"))
-	require.Len(t, u.Variants, 1, "the null branch still lifts off the variant list")
-	assert.Equal(t, ir.TypeID("type/primitive/string"), u.Variants[0].Type.Target)
-	assert.Contains(t, u.Unmodeled, "openapi:anyOf",
+	require.Len(t, union.Variants, 1, "the null branch still lifts off the variant list")
+	assert.Equal(t, ir.TypeID("type/primitive/string"), union.Variants[0].Type.Target)
+	assert.Contains(t, union.Unmodeled, "openapi:anyOf",
 		"and the node the position now owns carries the set passed over")
 }
 
@@ -149,9 +149,9 @@ func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
       anyOf: [{type: number, x-t: `+unpreservableValue+`}]
 `))
 
-	u, ok := typeByName(doc, "S").(*ir.Union)
+	union, ok := typeByName(doc, "S").(*ir.Union)
 	require.True(t, ok)
-	assert.NotContains(t, u.Unmodeled, "openapi:anyOf", "the conversion failed, so nothing was kept")
+	assert.NotContains(t, union.Unmodeled, "openapi:anyOf", "the conversion failed, so nothing was kept")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
 	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
@@ -182,10 +182,10 @@ func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, doc := range []*ir.Document{first, last} {
-		u, ok := typeByName(doc, "S").(*ir.Union)
+		union, ok := typeByName(doc, "S").(*ir.Union)
 		require.True(t, ok, "the position is the Union that keeps the passed-over set")
-		require.Len(t, u.Variants, 1, "the null branch still lifts off the variant list")
-		require.Equal(t, ir.TypeID("type/anonymous/components/schemas/S/oneOf/0"), u.Variants[0].Type.Target,
+		require.Len(t, union.Variants, 1, "the null branch still lifts off the variant list")
+		require.Equal(t, ir.TypeID("type/anonymous/components/schemas/S/oneOf/0"), union.Variants[0].Type.Target,
 			"the union reaches the branch's own node, or the $ref is the only lowering that does")
 	}
 	assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
@@ -206,10 +206,10 @@ func TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition(t *testing.T) {
 	assert.Empty(t, validated(t, doc))
 	cat := componentID("Cat")
 
-	w, ok := typeByName(doc, "W").(*ir.Scalar)
+	scalar, ok := typeByName(doc, "W").(*ir.Scalar)
 	require.True(t, ok, "the component is an alias over the nullable reference")
-	assert.Equal(t, ir.TypeRef{Target: cat, Nullable: true}, *w.Base, "the reference is unchanged")
-	entry, ok := w.Unmodeled["openapi:discriminator"]
+	assert.Equal(t, ir.TypeRef{Target: cat, Nullable: true}, *scalar.Base, "the reference is unchanged")
+	entry, ok := scalar.Unmodeled["openapi:discriminator"]
 	require.True(t, ok, "the component keeps its discriminator")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.Contains(t, string(entry.Value), "defaultMapping", "the whole object is kept, not just the property name")

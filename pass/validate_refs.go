@@ -136,14 +136,14 @@ func (p *propIDSites) Visit(v reflect.Value, at ir.WalkPath) bool {
 // property refs declares now the walk is over, each with its path. Only these
 // have their paths spelled.
 func (p *propIDSites) dangling(refs *ir.IDReferences) []ir.IDReference {
-	if !slices.ContainsFunc(p.sites, func(s ir.IDReference) bool { return !refs.Declares(propIDType, s.ID) }) {
+	if !slices.ContainsFunc(p.sites, func(idReference ir.IDReference) bool { return !refs.Declares(propIDType, idReference.ID) }) {
 		return nil
 	}
 	var out []ir.IDReference
 	for i, at := range p.paths.All() {
-		if s := p.sites[i]; !refs.Declares(propIDType, s.ID) {
-			s.Path = at.String()
-			out = append(out, s)
+		if idReference := p.sites[i]; !refs.Declares(propIDType, idReference.ID) {
+			idReference.Path = at.String()
+			out = append(out, idReference)
 		}
 	}
 	return out

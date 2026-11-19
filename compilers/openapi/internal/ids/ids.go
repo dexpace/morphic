@@ -23,11 +23,11 @@ import (
 // keys differing only there one pointer. No token read from a document can carry
 // one: a source that is not UTF-8 is refused before anything lowers.
 func Ptr(tokens ...string) jsontext.Pointer {
-	var p jsontext.Pointer
+	var pointer jsontext.Pointer
 	for _, tok := range tokens {
-		p = p.AppendToken(tok)
+		pointer = pointer.AppendToken(tok)
 	}
-	return p
+	return pointer
 }
 
 // Scope joins segments into an Unmodeled key scope: Ptr's escaping without the
@@ -138,13 +138,13 @@ func Namespaces(others ...DocumentIDNamespace) compile.Namespaces {
 		ir.IDKindEnumMember: {OpenAPISpace, AnonymousSpace, ComposedSpace},
 		ir.IDKindServer:     {OpenAPISpace, DefaultServerSpace},
 	}
-	for _, d := range others {
-		ns[ir.IDKindType] = append(ns[ir.IDKindType], d.space(OpenAPISpace), d.space(AnonymousSpace), d.space(ComposedSpace))
-		ns[ir.IDKindProperty] = append(ns[ir.IDKindProperty], d.space(OpenAPISpace), d.space(ComposedSpace))
-		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonymousSpace),
-			d.space(ComposedSpace))
-		ns[ir.IDKindServer] = append(ns[ir.IDKindServer], d.space(OpenAPISpace))
-		ns[ir.IDKindAuth] = append(ns[ir.IDKindAuth], d.space(OpenAPISpace))
+	for _, documentIDNamespace := range others {
+		ns[ir.IDKindType] = append(ns[ir.IDKindType], documentIDNamespace.space(OpenAPISpace), documentIDNamespace.space(AnonymousSpace), documentIDNamespace.space(ComposedSpace))
+		ns[ir.IDKindProperty] = append(ns[ir.IDKindProperty], documentIDNamespace.space(OpenAPISpace), documentIDNamespace.space(ComposedSpace))
+		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], documentIDNamespace.space(OpenAPISpace), documentIDNamespace.space(AnonymousSpace),
+			documentIDNamespace.space(ComposedSpace))
+		ns[ir.IDKindServer] = append(ns[ir.IDKindServer], documentIDNamespace.space(OpenAPISpace))
+		ns[ir.IDKindAuth] = append(ns[ir.IDKindAuth], documentIDNamespace.space(OpenAPISpace))
 	}
 	return ns
 }
@@ -165,12 +165,12 @@ type DocumentIDNamespace struct {
 // directory reaches it. The empty label is the source's.
 func In(label string) DocumentIDNamespace { return DocumentIDNamespace{label: label} }
 
-// space returns s as d names it: s itself for the source, else qualified by d.
-func (d DocumentIDNamespace) space(s compile.Space) compile.Space {
+// space returns space as d names it: space itself for the source, else qualified by d.
+func (d DocumentIDNamespace) space(space compile.Space) compile.Space {
 	if d.label == "" {
-		return s
+		return space
 	}
-	return s.Qualified(d.label)
+	return space.Qualified(d.label)
 }
 
 // Coordinate returns the key the type registry interns the schema at pointer

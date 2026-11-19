@@ -57,22 +57,22 @@ func firstWithContent(dec *yaml.Decoder) (*yaml.Node, error) {
 // produces, and skipping it drops nothing, on the reading firstWithContent
 // skips a leading one by.
 func readTail(dec *yaml.Decoder) Tail {
-	var t Tail
+	var tail Tail
 	for range MaxStreamDocuments {
 		var doc yaml.Node
 		err := dec.Decode(&doc)
 		if errors.Is(err, io.EOF) {
-			return t
+			return tail
 		}
 		if err != nil {
-			t.Unparsed = true
-			return t
+			tail.Unparsed = true
+			return tail
 		}
 		if holdsContent(&doc) {
-			if t.Line == 0 {
-				t.Line, t.Column = doc.Content[0].Line, doc.Content[0].Column
+			if tail.Line == 0 {
+				tail.Line, tail.Column = doc.Content[0].Line, doc.Content[0].Column
 			}
-			t.Dropped++
+			tail.Dropped++
 		}
 	}
 	var past yaml.Node
@@ -80,11 +80,11 @@ func readTail(dec *yaml.Decoder) Tail {
 	switch {
 	case errors.Is(err, io.EOF):
 	case err != nil:
-		t.Unparsed = true
+		tail.Unparsed = true
 	default:
-		t.Capped = true
+		tail.Capped = true
 	}
-	return t
+	return tail
 }
 
 // holdsContent reports whether a decoded document wraps a root that is not the

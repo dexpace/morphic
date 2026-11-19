@@ -37,7 +37,7 @@ func AliasTargetsOf(types ir.TypeRegistry) map[ir.TypeID]ir.TypeID { return newA
 // Parts exposes how the type graph reads td: the types it holds, composes,
 // aliases and names as field arguments.
 func Parts(td ir.TypeDef) (held, composed []ir.TypeID, alias ir.TypeID, args []ir.TypeID) {
-	var p typeParts
-	p.read(td)
-	return p.held, p.composed, p.alias, p.args
+	var typePartsValue typeParts
+	typePartsValue.read(td)
+	return typePartsValue.held, typePartsValue.composed, typePartsValue.alias, typePartsValue.args
 }

@@ -220,8 +220,8 @@ func commentCitationProblems(root, path, rel string, headings headingIndex) ([]s
 		return nil, err
 	}
 	var problems []string
-	for _, c := range comments {
-		found, err := citationProblems(root, rel, c.Line, c.Text, docPath, headings)
+	for _, comment := range comments {
+		found, err := citationProblems(root, rel, comment.Line, comment.Text, docPath, headings)
 		if err != nil {
 			return nil, err
 		}

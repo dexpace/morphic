@@ -109,9 +109,9 @@ func keysOtherThan(doc *ir.Document, id string) []string {
 // enum with members, an external type, a channel, a message and a server.
 func keyedDocument(t *testing.T) *ir.Document {
 	t.Helper()
-	p, err := decls.Load(reflect.TypeFor[ir.AuthKind]().PkgPath())
+	loadedPackage, err := decls.Load(reflect.TypeFor[ir.AuthKind]().PkgPath())
 	require.NoError(t, err)
-	kinds, err := p.StringConsts("AuthKind")
+	kinds, err := loadedPackage.StringConsts("AuthKind")
 	require.NoError(t, err)
 	at := func(path string) ir.Provenance { return ir.Provenance{Pointer: jsontext.Pointer("/" + path)} }
 	pid := &ir.External{Identity: "erlang:pid"}
@@ -133,12 +133,12 @@ func keyedDocument(t *testing.T) *ir.Document {
 		Messages: map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m", Name: named("m")}},
 		Servers:  map[ir.ServerID]ir.Server{"server/x/s": {ID: "server/x/s", Name: named("s"), URLTemplate: "https://s.example", Provenance: at("s")}},
 	}
-	for _, k := range kinds {
-		id, from := ir.AuthID("auth/x/"+k.Value), at(k.Value)
-		if ir.AuthKind(k.Value) == ir.AuthKindUnresolved {
-			id, from = ir.AuthID("auth/"+ir.IDSpaceUnresolved+"/"+k.Value), ir.Provenance{Source: ir.NoSource}
+	for _, declaredConst := range kinds {
+		id, from := ir.AuthID("auth/x/"+declaredConst.Value), at(declaredConst.Value)
+		if ir.AuthKind(declaredConst.Value) == ir.AuthKindUnresolved {
+			id, from = ir.AuthID("auth/"+ir.IDSpaceUnresolved+"/"+declaredConst.Value), ir.Provenance{Source: ir.NoSource}
 		}
-		doc.Auth[id] = ir.AuthScheme{ID: id, Name: named("token"), Kind: ir.AuthKind(k.Value), Provenance: from}
+		doc.Auth[id] = ir.AuthScheme{ID: id, Name: named("token"), Kind: ir.AuthKind(declaredConst.Value), Provenance: from}
 	}
 	spaces, cut := irtest.SpacesUsed(doc)
 	require.False(t, cut)
@@ -151,8 +151,8 @@ func keyedDocument(t *testing.T) *ir.Document {
 // spelledDiagnostics spells each diagnostic as its code, node and message.
 func spelledDiagnostics(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Code+" @ "+d.Provenance.Node+": "+d.Message)
+	for _, diagnostic := range diags {
+		out = append(out, diagnostic.Code+" @ "+diagnostic.Provenance.Node+": "+diagnostic.Message)
 	}
 	return out
 }
@@ -160,8 +160,8 @@ func spelledDiagnostics(diags []ir.Diagnostic) []string {
 // spelledViolations spells each violation as its code, path and message.
 func spelledViolations(vs []irverify.Violation) []string {
 	out := make([]string, 0, len(vs))
-	for _, v := range vs {
-		out = append(out, v.Code+" @ "+v.Path+": "+v.Message)
+	for _, violation := range vs {
+		out = append(out, violation.Code+" @ "+violation.Path+": "+violation.Message)
 	}
 	return out
 }

@@ -28,12 +28,12 @@ type stand struct {
 	held bool
 }
 
-// position returns the schema a union s writes is elected at
-// (docs/compilers/openapi.md#competing-keywords): the position s is the
-// principal of, whose branches declare shape against all it conjoins, else s.
-func (st stand) position(s *statement.Schema) *statement.Schema {
+// position returns the schema a union schema writes is elected at
+// (docs/compilers/openapi.md#competing-keywords): the position schema is the
+// principal of, whose branches declare shape against all it conjoins, else schema.
+func (st stand) position(schema *statement.Schema) *statement.Schema {
 	if st.of == nil {
-		return s
+		return schema
 	}
 	return st.of
 }
@@ -46,40 +46,40 @@ func (st stand) pointer(written jsontext.Pointer) jsontext.Pointer {
 	return st.at
 }
 
-// foldedBranches returns what the node of s, written at written, reads beside s: the
+// foldedBranches returns what the node of schema, written at written, reads beside schema: the
 // foldedBranches of its position (positionFoldedBranches), where it stands at another, that
-// position's own keywords and each folded branch of its allOf but s, whose keywords the
+// position's own keywords and each folded branch of its allOf but schema, whose keywords the
 // node reads as its own.
-func (st stand) foldedBranches(c lowering.Ctx, s *statement.Schema, written jsontext.Pointer) []annotation.FoldedAllOfBranch {
+func (st stand) foldedBranches(loweringContext lowering.Ctx, schema *statement.Schema, written jsontext.Pointer) []annotation.FoldedAllOfBranch {
 	if st.of == nil {
-		return positionFoldedBranches(c, s, written, ir.TypeRef{})
+		return positionFoldedBranches(loweringContext, schema, written, ir.TypeRef{})
 	}
-	foldedBranches := positionFoldedBranches(c, st.of, st.at, ir.TypeRef{})
+	foldedBranches := positionFoldedBranches(loweringContext, st.of, st.at, ir.TypeRef{})
 	out := make([]annotation.FoldedAllOfBranch, 0, len(foldedBranches)+1)
-	beside := foldedBranchAt(c, st.of, st.at)
+	beside := foldedBranchAt(loweringContext, st.of, st.at)
 	beside.Beside = true
 	out = append(out, beside)
-	for _, v := range foldedBranches {
-		if v.Node != s || v.At != written {
-			out = append(out, v)
+	for _, foldedAllOfBranch := range foldedBranches {
+		if foldedAllOfBranch.Node != schema || foldedAllOfBranch.At != written {
+			out = append(out, foldedAllOfBranch)
 		}
 	}
 	return out
 }
 
-// takes returns the kinds whose value bounds the node of s takes (boundKinds):
+// takes returns the kinds whose value bounds the node of schema takes (boundKinds):
 // those its position admits.
-func (st stand) takes(c lowering.Ctx, s *statement.Schema) kindSet {
+func (st stand) takes(loweringContext lowering.Ctx, schema *statement.Schema) kindSet {
 	if st.of == nil {
-		return boundKinds(c, s)
+		return boundKinds(loweringContext, schema)
 	}
-	return boundKinds(c, st.of)
+	return boundKinds(loweringContext, st.of)
 }
 
-// standsAtPosition reports whether r's principal is inline and built the node
+// standsAtPosition reports whether refinementValue's principal is inline and built the node
 // the position written at pointer owns, having lowered to target: its census ran
 // on that node (keepsAtOutcome), and what that node holds is the principal's
 // (ownHomes).
-func standsAtPosition(c lowering.Ctx, r refinement, target ir.TypeRef, pointer jsontext.Pointer) bool {
-	return r.principal != nil && r.principal.schema.Ref == nil && LoweredToOwnNode(c, pointer, target)
+func standsAtPosition(loweringContext lowering.Ctx, refinementValue refinement, target ir.TypeRef, pointer jsontext.Pointer) bool {
+	return refinementValue.principal != nil && refinementValue.principal.schema.Ref == nil && LoweredToOwnNode(loweringContext, pointer, target)
 }

@@ -149,8 +149,8 @@ func TestEntryKept_FailedRefsAreKeptByTheirReferenceInEitherOrder(t *testing.T) 
 		assert.Equal(t, jsontext.Pointer("/components/schemas/S"), kept["openapi:$ref/0"].Provenance.Pointer, entries)
 		assert.Equal(t, jsontext.Pointer("/components/schemas/S"), kept["openapi:minLength"].Provenance.Pointer, entries)
 		var errs int
-		for _, d := range diags {
-			if d.Severity == ir.SeverityError {
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityError {
 				errs++
 			}
 		}

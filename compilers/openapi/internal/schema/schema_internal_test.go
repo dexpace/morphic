@@ -32,8 +32,8 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 	doc, diags := LowerSpec(t, openapitest.ComponentSpec(b.String()))
 	require.NotNil(t, doc)
 	var sawCap bool
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "nesting exceeds") {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && strings.Contains(diagnostic.Message, "nesting exceeds") {
 			sawCap = true
 		}
 	}
@@ -57,10 +57,10 @@ func TestLower_ASchemaPastTheMendsIsTheTopType(t *testing.T) {
 	assert.Equal(t, []jsontext.Pointer{jsontext.Pointer(past)}, openapitest.PointersOf(diags, diag.DegradedConstruct),
 		"the innermost schema left false")
 	assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "and no false the document writes")
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			assert.True(t, strings.HasSuffix(d.Message, "moving the schemas below it into a component reads them"),
-				"it says what the writer can do: %s", d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			assert.True(t, strings.HasSuffix(diagnostic.Message, "moving the schemas below it into a component reads them"),
+				"it says what the writer can do: %s", diagnostic.Message)
 		}
 	}
 	_, diags = LowerSpec(t, chain(typed.MaxMends+1))
@@ -98,25 +98,25 @@ func TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates(t *testing.T) {
 	t.Parallel()
 	past := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{nullable: true}")
 	word := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{nullable: 'yes'}")
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Past: {<<: "+past+", type: string}\n"+
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    Past: {<<: "+past+", type: string}\n"+
 		"    PastWord: {<<: "+word+", type: string}\n"+
 		"    Outranks: {<<: ["+past+", {nullable: false}], type: string}\n"+
 		"    OutranksWord: {<<: ["+past+", {nullable: 'yes'}], type: string}\n"+
 		"    Within: {<<: {nullable: true}, type: string}\n    Yes: {type: string, nullable: 'yes'}\n"))
 
-	s := StatedIn(l, componentSchema(t, l, "Past"))
-	_, written := s.Key("nullable")
+	schema := StatedIn(lowerer, componentSchema(t, lowerer, "Past"))
+	_, written := schema.Key("nullable")
 	require.False(t, written, "the keyword lies past the bound")
-	require.True(t, s.Truncated)
-	assert.False(t, nullableTrue(s))
-	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "PastWord"))))
-	outranks := StatedIn(l, componentSchema(t, l, "Outranks"))
+	require.True(t, schema.Truncated)
+	assert.False(t, nullableTrue(schema))
+	assert.False(t, nullableTrue(StatedIn(lowerer, componentSchema(t, lowerer, "PastWord"))))
+	outranks := StatedIn(lowerer, componentSchema(t, lowerer, "Outranks"))
 	_, listed := outranks.Key("nullable")
 	require.False(t, listed, "the key a source past the bound outranks is left out")
 	assert.False(t, nullableTrue(outranks))
-	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "OutranksWord"))))
-	assert.True(t, nullableTrue(StatedIn(l, componentSchema(t, l, "Within"))))
-	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "Yes"))))
+	assert.False(t, nullableTrue(StatedIn(lowerer, componentSchema(t, lowerer, "OutranksWord"))))
+	assert.True(t, nullableTrue(StatedIn(lowerer, componentSchema(t, lowerer, "Within"))))
+	assert.False(t, nullableTrue(StatedIn(lowerer, componentSchema(t, lowerer, "Yes"))))
 }
 
 // TestRef_ASchemaMergingPastTheBoundIsReportedOnce lowers, twice each, a
@@ -126,16 +126,16 @@ func TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates(t *testing.T) {
 func TestRef_ASchemaMergingPastTheBoundIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	past := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{minLength: 1}")
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    P: {<<: "+past+", type: string}\n"+
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    P: {<<: "+past+", type: string}\n"+
 		"    A: {allOf: [{<<: "+past+", type: string}]}\n"))
 	var reports []string
 	for range 2 {
 		for _, name := range []string{"P", "A"} {
-			st := l.Ctx.Statements().At(l.Ctx.Position(jsontext.Pointer("/components/schemas/" + name)))
-			_, diags := Ref(l.Ctx, l.Types, 0, st, jsontext.Pointer("/components/schemas/"+name))
-			for _, d := range diags {
-				if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "deeper than") {
-					reports = append(reports, string(d.Provenance.Pointer))
+			st := lowerer.Ctx.Statements().At(lowerer.Ctx.Position(jsontext.Pointer("/components/schemas/" + name)))
+			_, diags := Ref(lowerer.Ctx, lowerer.Types, 0, st, jsontext.Pointer("/components/schemas/"+name))
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.DegradedConstruct && strings.Contains(diagnostic.Message, "deeper than") {
+					reports = append(reports, string(diagnostic.Provenance.Pointer))
 				}
 			}
 		}

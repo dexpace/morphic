@@ -49,7 +49,7 @@ func checkContentStreams(*ir.Document) walkCheck {
 				}
 				return true
 			case contentType:
-				if c, ok := reflect.TypeAssert[ir.Content](v); ok && c.Item != nil && c.Stream == nil {
+				if content, ok := reflect.TypeAssert[ir.Content](v); ok && content.Item != nil && content.Stream == nil {
 					vs = append(vs, Violation{
 						Code:    "ir/content-item-without-stream",
 						Message: "content declares a stream item and is not marked as streaming",

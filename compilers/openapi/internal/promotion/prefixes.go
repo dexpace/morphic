@@ -14,18 +14,18 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// UnreadExtensions reports each vendor extension doc keeps under a prefix p's
+// UnreadExtensions reports each vendor extension doc keeps under a prefix promoter's
 // policy owns that the compiler reads no key of, naming the nearest key it
 // reads, as the likeliest one it misspells. The keys read are each reader's
 // own: the promotion mapping's (Promoter.Keys) and grouping, the keys the run's
 // grouping reads. doc is the whole document, every node's Unmodeled read once;
 // an extension inside an entry kept verbatim, such as an allOf branch, is a
 // value of that entry and is not read.
-func UnreadExtensions(p Promoter, grouping []string, doc *ir.Document) []ir.Diagnostic {
-	if len(p.prefixes) == 0 {
+func UnreadExtensions(promoter Promoter, grouping []string, doc *ir.Document) []ir.Diagnostic {
+	if len(promoter.prefixes) == 0 {
 		return nil
 	}
-	read := slices.Concat(grouping, p.keys)
+	read := slices.Concat(grouping, promoter.keys)
 	slices.Sort(read)
 	read = slices.Compact(read)
 	var diags []ir.Diagnostic
@@ -38,16 +38,16 @@ func UnreadExtensions(p Promoter, grouping []string, doc *ir.Document) []ir.Diag
 			return true
 		}
 		if entries, ok := reflect.TypeAssert[ir.Unmodeled](v); ok {
-			diags = append(diags, unreadIn(p, read, entries)...)
+			diags = append(diags, unreadIn(promoter, read, entries)...)
 		}
 		return false
 	}))
 	return diags
 }
 
-// unreadIn reports the extensions of entries UnreadExtensions reports for p,
+// unreadIn reports the extensions of entries UnreadExtensions reports for promoter,
 // read being every key the compiler reads, sorted, in key order.
-func unreadIn(p Promoter, read []string, entries ir.Unmodeled) []ir.Diagnostic {
+func unreadIn(promoter Promoter, read []string, entries ir.Unmodeled) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, key := range slices.Sorted(maps.Keys(entries)) {
 		entry := entries[key]
@@ -55,7 +55,7 @@ func unreadIn(p Promoter, read []string, entries ir.Unmodeled) []ir.Diagnostic {
 			continue
 		}
 		name := extensionName(key)
-		owner, owned := ownerOf(p.prefixes, name)
+		owner, owned := ownerOf(promoter.prefixes, name)
 		if _, isRead := slices.BinarySearch(read, name); !owned || isRead {
 			continue
 		}

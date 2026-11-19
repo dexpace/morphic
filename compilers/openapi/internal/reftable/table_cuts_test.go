@@ -31,23 +31,23 @@ func TestBind_AStaticDynamicRefAChainPassedInAnotherDocumentIsWordedAsOneAtEvery
 		cfg := withDocuments(docs)
 		cfg.Limit = budget.AtMost(limit)
 		cut := bound(t, src, cfg)
-		o, ok := cut.Find("o.yaml")
+		docID, ok := cut.Find("o.yaml")
 		if !ok {
 			continue
 		}
-		e, ok := cut.Entry(reftable.DocumentPointer{Doc: o, Pointer: "/S"})
+		referenceSite, ok := cut.Entry(reftable.DocumentPointer{Doc: docID, Pointer: "/S"})
 		if !ok {
 			continue
 		}
 		seen++
-		assert.Equal(t, "$dynamicRef", e.Keyword, "limit %d", limit)
+		assert.Equal(t, "$dynamicRef", referenceSite.Keyword, "limit %d", limit)
 	}
 	assert.Positive(t, seen, "some cut holds an entry for it")
-	o, ok := full.Find("o.yaml")
+	docIDValue, ok := full.Find("o.yaml")
 	require.True(t, ok)
-	e, ok := full.Entry(reftable.DocumentPointer{Doc: o, Pointer: "/S"})
+	referenceSiteValue, ok := full.Entry(reftable.DocumentPointer{Doc: docIDValue, Pointer: "/S"})
 	require.True(t, ok)
-	assert.Equal(t, reftable.Unresolved, e.Hop.Status)
+	assert.Equal(t, reftable.Unresolved, referenceSiteValue.Hop.Status)
 }
 
 // TestRecursiveAnchor_AWalkCutMidwayStopsAtTheBudget pins that the walk over

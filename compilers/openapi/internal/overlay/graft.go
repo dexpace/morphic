@@ -53,10 +53,10 @@ type replacement struct {
 	with         *yaml.Node
 }
 
-// newGrafter returns a grafter of the rules of version v over root, its node
+// newGrafter returns a grafter of the rules of version versionValue over root, its node
 // budget unbounded until the sequence sets it.
-func newGrafter(v version, root *yaml.Node) *grafter {
-	return &grafter{version: v, root: root, written: map[*yaml.Node]bool{}, named: map[*yaml.Node]int{},
+func newGrafter(versionValue version, root *yaml.Node) *grafter {
+	return &grafter{version: versionValue, root: root, written: map[*yaml.Node]bool{}, named: map[*yaml.Node]int{},
 		copies: map[*yaml.Node]bool{}}
 }
 
@@ -359,15 +359,15 @@ func (g *grafter) remove(positions []position) error {
 	doomed := make(map[*yaml.Node]bool, len(positions))
 	var holders []*yaml.Node
 	seen := map[*yaml.Node]bool{}
-	for _, p := range positions {
-		if p.holder == nil {
+	for _, position := range positions {
+		if position.holder == nil {
 			return errors.New("it selects the document's root, which no object or array holds")
 		}
-		if !seen[p.holder] {
-			seen[p.holder] = true
-			holders = append(holders, p.holder)
+		if !seen[position.holder] {
+			seen[position.holder] = true
+			holders = append(holders, position.holder)
 		}
-		doomed[p.raw] = true
+		doomed[position.raw] = true
 	}
 	for _, holder := range holders {
 		detach(holder, doomed)

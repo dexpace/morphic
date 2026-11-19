@@ -45,9 +45,9 @@ func TestInteractions_PageStopWithoutFlag(t *testing.T) {
 	}
 
 	vs := irverify.Verify(opDoc(ir.Operation{ID: "operation/x/S/a", Pagination: &ir.Pagination{Stop: []ir.PageStop{ir.PageStopNoMore}}}))
-	for _, v := range vs {
-		if v.Code == "ir/page-stop-without-flag" {
-			assert.Equal(t, `pagination stops on "no_more" and names no flag to read`, v.Message)
+	for _, violation := range vs {
+		if violation.Code == "ir/page-stop-without-flag" {
+			assert.Equal(t, `pagination stops on "no_more" and names no flag to read`, violation.Message)
 			return
 		}
 	}

@@ -66,8 +66,8 @@ func FuzzMappingPairs_ReadsWhatTheModelReads(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, seed uint64) {
-		g := &propsGen{rng: rand.New(rand.NewPCG(seed, 799))}
-		assertViewReadsTheModel(t, propertiesSource(g.anchors(), g.mapping(true)))
+		propsGenValue := &propsGen{rng: rand.New(rand.NewPCG(seed, 799))}
+		assertViewReadsTheModel(t, propertiesSource(propsGenValue.anchors(), propsGenValue.mapping(true)))
 	})
 }
 
@@ -80,9 +80,9 @@ func assertViewReadsTheModel(t *testing.T, src string) {
 	props := propertiesNode(t, src)
 	pairs := nodeview.New().MappingPairs(props)
 	got := make([]string, 0, len(pairs))
-	for _, p := range pairs {
-		got = append(got, p.Key+"="+titleOf(p.Val))
-		assert.Same(t, p.Val, nodeview.Child(props, p.Key), "Child(%q) answers as the pairs do\n%s", p.Key, src)
+	for _, pair := range pairs {
+		got = append(got, pair.Key+"="+titleOf(pair.Val))
+		assert.Same(t, pair.Val, nodeview.Child(props, pair.Key), "Child(%q) answers as the pairs do\n%s", pair.Key, src)
 	}
 	require.Equal(t, want, got, "the view reads the model's pairs\n%s", src)
 	assert.Nil(t, nodeview.Child(props, "absent"), "a key nothing writes holds nothing\n%s", src)

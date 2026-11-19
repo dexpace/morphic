@@ -38,9 +38,9 @@ func stringListFieldKeys(t *testing.T) map[string]bool {
 	t.Helper()
 	stringList := types.NewSlice(types.Typ[types.String])
 	found := map[string]bool{}
-	for _, f := range declaredFields(t) {
-		if types.Identical(f.field.Type(), stringList) {
-			found[f.key()] = true
+	for _, declaredField := range declaredFields(t) {
+		if types.Identical(declaredField.field.Type(), stringList) {
+			found[declaredField.key()] = true
 		}
 	}
 	return found

@@ -319,9 +319,9 @@ func TestAllOf_DiscriminatorValueUndiscriminatedChain(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, name := range []string{"Shrub", "Sapling"} {
-		m := typeByName(doc, name).(*ir.Model)
-		require.NotNil(t, m.Base, "%s composes a base", name)
-		assert.Empty(t, m.DiscriminatorValue,
+		model := typeByName(doc, name).(*ir.Model)
+		require.NotNil(t, model.Base, "%s composes a base", name)
+		assert.Empty(t, model.DiscriminatorValue,
 			"%s has no discriminated ancestor at any depth", name)
 	}
 }
@@ -353,9 +353,9 @@ func TestAllOf_DiscriminatorValueCyclicComposition(t *testing.T) {
 
 	for i := range n {
 		name := fmt.Sprintf("X%d", i)
-		m, ok := typeByName(doc, name).(*ir.Model)
+		model, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s lowers to a Model", name)
-		assert.Empty(t, m.DiscriminatorValue, "%s has no discriminated ancestor", name)
+		assert.Empty(t, model.DiscriminatorValue, "%s has no discriminated ancestor", name)
 	}
 }
 
@@ -519,9 +519,9 @@ func discriminatorValues(t *testing.T, doc *ir.Document, typeIDs ...ir.TypeID) m
 	t.Helper()
 	got := make(map[ir.TypeID]string, len(typeIDs))
 	for _, id := range typeIDs {
-		m, ok := doc.Types[id].(*ir.Model)
+		model, ok := doc.Types[id].(*ir.Model)
 		require.True(t, ok, "%s should be a model", id)
-		got[id] = m.DiscriminatorValue
+		got[id] = model.DiscriminatorValue
 	}
 	return got
 }

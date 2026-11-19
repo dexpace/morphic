@@ -20,9 +20,9 @@ import (
 // nodes of three kinds, for UnreadExtensions to find wherever they sit.
 func prefixedDoc() *ir.Document {
 	at := func(pointer string) ir.UnmodeledEntry {
-		e := vendorExtension(`"x"`)
-		e.Provenance.Pointer = jsontext.Pointer("/" + pointer)
-		return e
+		unmodeledEntry := vendorExtension(`"x"`)
+		unmodeledEntry.Provenance.Pointer = jsontext.Pointer("/" + pointer)
+		return unmodeledEntry
 	}
 	verbatim := at("allOf/0")
 	verbatim.Reason = ir.ReasonNoIRHome
@@ -48,19 +48,19 @@ func prefixedDoc() *ir.Document {
 // read unescaped.
 func TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads(t *testing.T) {
 	t.Parallel()
-	p := promotion.New(promotion.ExtensionPromotions{
+	promoter := promotion.New(promotion.ExtensionPromotions{
 		Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
 			promotion.TargetStability:              {{Key: "x-acme-stability"}},
 			promotion.TargetDeprecationRemovalDate: {{Key: "x-acme-sunset-date"}},
 		},
 		Prefixes: []string{"x-ac", "x-acme-"},
 	})
-	diags := promotion.UnreadExtensions(p, nil, prefixedDoc())
+	diags := promotion.UnreadExtensions(promoter, nil, prefixedDoc())
 	got := map[string]string{}
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityWarning, d.Severity)
-		assert.Equal(t, "openapi/unread-extension", d.Code)
-		got[string(d.Provenance.Pointer)] = d.Message
+	for _, diagnostic := range diags {
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+		assert.Equal(t, "openapi/unread-extension", diagnostic.Code)
+		got[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 	}
 	assert.Equal(t, map[string]string{
 		"/tags/0/x-acme-stabilty": `extension "x-acme-stabilty" is under prefix "x-acme-", which the promotion policy owns, ` +
@@ -111,9 +111,9 @@ func TestUnreadExtensions_TheAliasesKeyIsRead(t *testing.T) {
 	t.Parallel()
 	kept := ir.Unmodeled{}
 	for _, name := range []string{"x-forge-aliases", "x-forge-alias", "x-forge-group"} {
-		e := vendorExtension(`[]`)
-		e.Provenance.Pointer = jsontext.Pointer("/" + name)
-		kept["openapi:"+name] = e
+		unmodeledEntry := vendorExtension(`[]`)
+		unmodeledEntry.Provenance.Pointer = jsontext.Pointer("/" + name)
+		kept["openapi:"+name] = unmodeledEntry
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{"type/s": &ir.Scalar{ID: "type/s", Unmodeled: kept}}}
 	owning := promotion.New(promotion.ExtensionPromotions{
@@ -122,8 +122,8 @@ func TestUnreadExtensions_TheAliasesKeyIsRead(t *testing.T) {
 	})
 	unread := func(grouping []string) map[string]string {
 		got := map[string]string{}
-		for _, d := range promotion.UnreadExtensions(owning, grouping, doc) {
-			got[string(d.Provenance.Pointer)] = d.Message
+		for _, diagnostic := range promotion.UnreadExtensions(owning, grouping, doc) {
+			got[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 		}
 		return got
 	}

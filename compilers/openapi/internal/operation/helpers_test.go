@@ -110,17 +110,17 @@ func walkService(t *testing.T, src string, policy service.Policy, report func([]
 	require.NotNil(t, loadedDoc)
 
 	types := compile.NewTypes()
-	c := service.New(0, loadedDoc, policy)
-	report(schema.LowerComponentSchemas(t.Context(), c.Ctx, types, componentStatements(c)))
+	serviceContext := service.New(0, loadedDoc, policy)
+	report(schema.LowerComponentSchemas(t.Context(), serviceContext.Ctx, types, componentStatements(serviceContext)))
 
-	declared, schemeDiags := auth.LowerSecuritySchemes(c)
+	declared, schemeDiags := auth.LowerSecuritySchemes(serviceContext)
 	report(schemeDiags)
-	lowered, svcDiags := operation.LowerService(t.Context(), c, types, declared)
+	lowered, svcDiags := operation.LowerService(t.Context(), serviceContext, types, declared)
 	report(svcDiags)
 	reg, finished := types.Finish(t.Context())
 	report(finished)
-	w := compileddoc.New(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
-	report(lowered.Links.Resolve(c, w, servers.Reopen(lowered.Servers)))
+	compiledDocumentView := compileddoc.New(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
+	report(lowered.Links.Resolve(serviceContext, compiledDocumentView, servers.Reopen(lowered.Servers)))
 	return lowered.Service, loadDiags
 }
 
@@ -128,9 +128,9 @@ func walkService(t *testing.T, src string, policy service.Policy, report func([]
 // reported.
 func errorFindings(diags []ir.Diagnostic) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			out = append(out, d.Code+" at "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
+			out = append(out, diagnostic.Code+" at "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	return out
@@ -177,12 +177,12 @@ paths:
                 empty: {summary: no value here}
 `
 
-// componentStatements yields each component schema of c's document under its
+// componentStatements yields each component schema of serviceContext's document under its
 // name, as run hands them to schema.LowerComponentSchemas.
-func componentStatements(c service.Ctx) iter.Seq2[string, *statement.Statement] {
+func componentStatements(serviceContext service.Ctx) iter.Seq2[string, *statement.Statement] {
 	return func(yield func(string, *statement.Statement) bool) {
-		for name, js := range c.Doc.Components.GetSchemas().All() {
-			if !yield(name, c.Statements().Of(js)) {
+		for name, js := range serviceContext.Doc.Components.GetSchemas().All() {
+			if !yield(name, serviceContext.Statements().Of(js)) {
 				return
 			}
 		}

@@ -47,9 +47,9 @@ func TestBind_ASourceAtAURLWithNoReaderReadsNoOtherDocument(t *testing.T) {
 	for value, want := range map[string]reftable.Status{
 		self + "#/components/schemas/T": reftable.Resolved, id: reftable.Resolved, other: reftable.Unresolved,
 	} {
-		m, ok := table.Mapping(at, value)
+		mapping, ok := table.Mapping(at, value)
 		if assert.True(t, ok, value) {
-			assert.Equal(t, want, m.Chain.Status, value)
+			assert.Equal(t, want, mapping.Chain.Status, value)
 		}
 	}
 	assert.Equal(t, 1, table.Documents(), "no other document is read")

@@ -26,11 +26,11 @@ func formatFindings(t *testing.T, version, doc string, limit budget.Limit) []fin
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
 	diags := specrules.CheckFormat(t.Context(), &n, version, specrules.Options{
 		Budget: limit,
-		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 	})
 	out := make([]finding, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, finding{Code: d.Code, At: string(d.Provenance.Pointer)})
+	for _, diagnostic := range diags {
+		out = append(out, finding{Code: diagnostic.Code, At: string(diagnostic.Provenance.Pointer)})
 	}
 	sortFindings(out)
 	return out
@@ -130,7 +130,7 @@ func TestCheckFormat_PlacesEachKeyAtItsOwnLine(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("x-e:\n  ? [a]\n  : 1\n  ? {b: 1}\n  : 2\n"), &n))
 
 	diags := specrules.CheckFormat(t.Context(), &n, "3.1.0", specrules.Options{
-		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 	})
 
 	require.Len(t, diags, 2)

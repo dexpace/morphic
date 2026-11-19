@@ -77,8 +77,8 @@ func (a *aside) keep(n *yaml.Node, change func()) {
 func (a *aside) restore() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for _, c := range slices.Backward(a.changed) {
-		*c.node = c.was
+	for _, asWritten := range slices.Backward(a.changed) {
+		*asWritten.node = asWritten.was
 	}
 	a.changed = nil
 }
@@ -91,8 +91,8 @@ func (a *aside) restore() {
 func (a *aside) whileWritten(read func()) {
 	a.mu.Lock()
 	changes := make([]func(), len(a.changed))
-	for i, c := range a.changed {
-		changes[i] = c.change
+	for i, asWritten := range a.changed {
+		changes[i] = asWritten.change
 	}
 	a.mu.Unlock()
 	a.restore()

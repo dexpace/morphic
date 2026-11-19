@@ -77,9 +77,9 @@ func TestKindInference_AnUntypedPropertiesSchemaIsMarked(t *testing.T) {
 
 				holder := kindNode(t, doc, componentID("Holder"))
 				assert.False(t, markedKindInference(holder), "a declared object is not marked")
-				m := holderProps(t, doc)["m"]
-				assert.Equal(t, componentID("Members"), m.Type.Target)
-				assert.Empty(t, m.Type.Inferred, "the marker is on the node, not on each use of it")
+				property := holderProps(t, doc)["m"]
+				assert.Equal(t, componentID("Members"), property.Type.Target)
+				assert.Empty(t, property.Type.Inferred, "the marker is on the node, not on each use of it")
 			})
 		})
 	}
@@ -260,9 +260,9 @@ func TestKindInference_DisabledReportsEveryKeywordOfASchemaOnce(t *testing.T) {
 func diagMessageOf(t *testing.T, diags []ir.Diagnostic, pointer string) string {
 	t.Helper()
 	var messages []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && string(d.Provenance.Pointer) == pointer {
-			messages = append(messages, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && string(diagnostic.Provenance.Pointer) == pointer {
+			messages = append(messages, diagnostic.Message)
 		}
 	}
 	require.Len(t, messages, 1, "one degraded-construct finding at %s", pointer)
@@ -413,11 +413,11 @@ func assertUntypedOutcome(t *testing.T, doc *ir.Document, name string, want unty
 	assert.Equal(t, want.marked, markedKindInference(td), name)
 }
 
-// countOf counts the pointers equal to p.
-func countOf(pointers []jsontext.Pointer, p jsontext.Pointer) int {
+// countOf counts the pointers equal to pointer.
+func countOf(pointers []jsontext.Pointer, pointer jsontext.Pointer) int {
 	n := 0
-	for _, q := range pointers {
-		if q == p {
+	for _, pointerValue := range pointers {
+		if pointerValue == pointer {
 			n++
 		}
 	}

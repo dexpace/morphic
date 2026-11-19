@@ -24,11 +24,11 @@ var allReasons = []ir.UnmodeledReason{
 	ir.ReasonNoIRHome, ir.ReasonOutOfScope,
 }
 
-// docWithUnmodeled hangs p off validDoc's model, an Unmodeled site the walk
+// docWithUnmodeled hangs unmodeled off validDoc's model, an Unmodeled site the walk
 // reaches through the Types registry.
-func docWithUnmodeled(p ir.Unmodeled) *ir.Document {
+func docWithUnmodeled(unmodeled ir.Unmodeled) *ir.Document {
 	doc := validDoc()
-	doc.Types["type/x/Model"].Common().Unmodeled = p
+	doc.Types["type/x/Model"].Common().Unmodeled = unmodeled
 	return doc
 }
 
@@ -36,11 +36,11 @@ func docWithUnmodeled(p ir.Unmodeled) *ir.Document {
 // check: none of the declared values may be reported, or the check would fail
 // documents it exists to pass.
 func TestVerify_EveryDeclaredReasonIsClean(t *testing.T) {
-	p := ir.Unmodeled{}
-	for _, r := range allReasons {
-		p["openapi:"+string(r)] = ir.UnmodeledEntry{Reason: r, Value: ir.RawValue(`1`)}
+	unmodeled := ir.Unmodeled{}
+	for _, unmodeledReason := range allReasons {
+		unmodeled["openapi:"+string(unmodeledReason)] = ir.UnmodeledEntry{Reason: unmodeledReason, Value: ir.RawValue(`1`)}
 	}
-	assert.Empty(t, verifyDeclared(docWithUnmodeled(p)))
+	assert.Empty(t, verifyDeclared(docWithUnmodeled(unmodeled)))
 }
 
 // TestVerify_EmptyUnmodeledReasonIsAViolation pins the defect every other check
@@ -153,14 +153,14 @@ func TestVerify_InvalidUnmodeledValueIsAViolation(t *testing.T) {
 // value kinds a preserved construct can be, so the check cannot pass by
 // rejecting everything.
 func TestVerify_ValidUnmodeledValuesAreClean(t *testing.T) {
-	p := ir.Unmodeled{}
+	unmodeled := ir.Unmodeled{}
 	for i, raw := range []string{`null`, `true`, `12.5`, `"s"`, `[1,2]`, `{"a":{"b":[]}}`, ` 1 `} {
-		p["openapi:x-"+string(rune('a'+i))] = ir.UnmodeledEntry{
+		unmodeled["openapi:x-"+string(rune('a'+i))] = ir.UnmodeledEntry{
 			Reason: ir.ReasonVendorExtension,
 			Value:  ir.RawValue(raw),
 		}
 	}
-	assert.Empty(t, verifyDeclared(docWithUnmodeled(p)))
+	assert.Empty(t, verifyDeclared(docWithUnmodeled(unmodeled)))
 }
 
 // rawConfigCarriers builds one document per field that carries an ir.RawConfig,

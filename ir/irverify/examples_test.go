@@ -23,9 +23,9 @@ const (
 // "code path: message", in the order Verify sorts them: by code, then path.
 func exampleFindings(doc *ir.Document) []string {
 	var out []string
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == armMisplaced || v.Code == outcomeTwice {
-			out = append(out, fmt.Sprintf("%s %s: %s", v.Code, v.Path, v.Message))
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == armMisplaced || violation.Code == outcomeTwice {
+			out = append(out, fmt.Sprintf("%s %s: %s", violation.Code, violation.Path, violation.Message))
 		}
 	}
 	return out
@@ -111,30 +111,30 @@ func TestVerify_ExampleArmsAreHeldAtEveryCarrier(t *testing.T) {
 	t.Parallel()
 	example := []ir.Example{{Output: &scenarioValue}}
 	plant := map[string]func(doc *ir.Document){
-		"document.Types[type/x/M].Examples[0].Output": func(d *ir.Document) {
-			d.Types["type/x/M"].Common().Examples = example
+		"document.Types[type/x/M].Examples[0].Output": func(document *ir.Document) {
+			document.Types["type/x/M"].Common().Examples = example
 		},
-		"document.Types[type/x/M].Properties[0].Examples[0].Output": func(d *ir.Document) {
-			d.Types["type/x/M"].(*ir.Model).Properties[0].Examples = example
+		"document.Types[type/x/M].Properties[0].Examples[0].Output": func(document *ir.Document) {
+			document.Types["type/x/M"].(*ir.Model).Properties[0].Examples = example
 		},
-		"document.Types[type/x/E].Members[0].Examples[0].Output": func(d *ir.Document) {
-			d.Types["type/x/E"].(*ir.Enum).Members[0].Examples = example
+		"document.Types[type/x/E].Members[0].Examples[0].Output": func(document *ir.Document) {
+			document.Types["type/x/E"].(*ir.Enum).Members[0].Examples = example
 		},
-		"document.Types[type/x/U].Variants[0].Examples[0].Output": func(d *ir.Document) {
-			d.Types["type/x/U"] = &ir.Union{ID: "type/x/U", Name: named("u"), Variants: []ir.Variant{
+		"document.Types[type/x/U].Variants[0].Examples[0].Output": func(document *ir.Document) {
+			document.Types["type/x/U"] = &ir.Union{ID: "type/x/U", Name: named("u"), Variants: []ir.Variant{
 				{Name: named("m"), Type: ir.TypeRef{Target: "type/x/M"}, Examples: example},
 			}}
 		},
-		scenarioOp + ".Params[0].Examples[0].Output": func(d *ir.Document) {
-			scenarioOperation(d).Params[0].Examples = example
+		scenarioOp + ".Params[0].Examples[0].Output": func(document *ir.Document) {
+			scenarioOperation(document).Params[0].Examples = example
 		},
-		scenarioOp + ".Request.Contents[0].Examples[0].Output": func(d *ir.Document) {
-			scenarioOperation(d).Request = &ir.Payload{Contents: []ir.Content{{
+		scenarioOp + ".Request.Contents[0].Examples[0].Output": func(document *ir.Document) {
+			scenarioOperation(document).Request = &ir.Payload{Contents: []ir.Content{{
 				MediaType: "application/json", Type: ir.TypeRef{Target: "type/x/M"}, Examples: example,
 			}}}
 		},
-		"document.Messages[message/x/m].Examples[0].Output": func(d *ir.Document) {
-			d.Messages = map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m", Examples: example}}
+		"document.Messages[message/x/m].Examples[0].Output": func(document *ir.Document) {
+			document.Messages = map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m", Examples: example}}
 		},
 	}
 	for path, mutate := range plant {
@@ -146,9 +146,9 @@ func TestVerify_ExampleArmsAreHeldAtEveryCarrier(t *testing.T) {
 			got := verifyDeclared(doc)
 
 			require.Contains(t, violationPaths(got, armMisplaced), path)
-			for _, v := range got {
-				if v.Code == armMisplaced {
-					assert.Equal(t, path, v.Path, "one carrier is planted, so one arm is misplaced")
+			for _, violation := range got {
+				if violation.Code == armMisplaced {
+					assert.Equal(t, path, violation.Path, "one carrier is planted, so one arm is misplaced")
 				}
 			}
 		})
@@ -161,12 +161,12 @@ func exampleGrowth(n int) *ir.Document {
 	doc := scenarioBase()
 	for i := range n {
 		id := ir.TypeID(fmt.Sprintf("type/x/G%d", i))
-		m := &ir.Model{ID: id, Name: named("g"), Properties: []ir.Property{{
+		model := &ir.Model{ID: id, Name: named("g"), Properties: []ir.Property{{
 			ID: ir.PropertyID(fmt.Sprintf("property/x/G%d/a", i)), Name: named("a"), Type: ir.TypeRef{Target: "type/primitive/string"},
 			Examples: []ir.Example{{Value: &scenarioValue}},
 		}}}
-		m.Examples = []ir.Example{{Name: "a", Value: &scenarioValue}, {Name: "b", Value: &scenarioValue, Headers: &scenarioValue}}
-		doc.Types[id] = m
+		model.Examples = []ir.Example{{Name: "a", Value: &scenarioValue}, {Name: "b", Value: &scenarioValue, Headers: &scenarioValue}}
+		doc.Types[id] = model
 	}
 	return doc
 }

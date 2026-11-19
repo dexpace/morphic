@@ -22,12 +22,12 @@ const (
 // the keys the policy's sources of promotion.TargetStreamTerminator and
 // promotion.TargetStreamCondition name, marking the node whose key filled it,
 // and reports each key that fills nothing as info
-// diag.UnpromotedExtension. Every key stays as written. p is the run's
+// diag.UnpromotedExtension. Every key stays as written. promoter is the run's
 // promoter.
-func PromoteDetail(p promotion.Promoter, w *compileddoc.CompiledDocumentView) (diags []ir.Diagnostic) {
-	for _, op := range w.Ops {
-		diags = append(diags, terminator(p, op)...)
-		diags = append(diags, condition(p, w, op)...)
+func PromoteDetail(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) (diags []ir.Diagnostic) {
+	for _, op := range compiledDocumentView.Ops {
+		diags = append(diags, terminator(promoter, op)...)
+		diags = append(diags, condition(promoter, compiledDocumentView, op)...)
 	}
 	return diags
 }
@@ -43,8 +43,8 @@ type keyed struct {
 // where it states one and no streaming content states another, else from the
 // streaming contents of its success responses where every one states the same
 // text. Where they disagree, one report names the later key by pointer.
-func terminator(p promotion.Promoter, op *ir.Operation) []ir.Diagnostic {
-	own, diags := p.TextOf(promotion.TargetStreamTerminator, op.Unmodeled)
+func terminator(promoter promotion.Promoter, op *ir.Operation) []ir.Diagnostic {
+	own, diags := promoter.TextOf(promotion.TargetStreamTerminator, op.Unmodeled)
 	if op.ResponseStream == nil {
 		if own.Text != "" {
 			diags = append(diags, promotion.Unpromoted(own.Source.String(), own.At,
@@ -53,7 +53,7 @@ func terminator(p promotion.Promoter, op *ir.Operation) []ir.Diagnostic {
 		}
 		return diags
 	}
-	contents, contentDiags := streamingContents(p, op)
+	contents, contentDiags := streamingContents(promoter, op)
 	diags = append(diags, contentDiags...)
 	if own.Text != "" {
 		return append(diags, fromOperation(op, own, contents)...)
@@ -63,7 +63,7 @@ func terminator(p promotion.Promoter, op *ir.Operation) []ir.Diagnostic {
 
 // streamingContents reads the terminator each streaming content of op's
 // success responses states.
-func streamingContents(p promotion.Promoter, op *ir.Operation) ([]keyed, []ir.Diagnostic) {
+func streamingContents(promoter promotion.Promoter, op *ir.Operation) ([]keyed, []ir.Diagnostic) {
 	var out []keyed
 	var diags []ir.Diagnostic
 	for i := range op.Responses {
@@ -75,7 +75,7 @@ func streamingContents(p promotion.Promoter, op *ir.Operation) ([]keyed, []ir.Di
 			if cs[j].Stream == nil {
 				continue
 			}
-			st, readDiags := p.TextOf(promotion.TargetStreamTerminator, cs[j].Unmodeled)
+			st, readDiags := promoter.TextOf(promotion.TargetStreamTerminator, cs[j].Unmodeled)
 			out = append(out, keyed{content: &cs[j], st: st})
 			diags = append(diags, readDiags...)
 		}
@@ -88,10 +88,10 @@ func streamingContents(p promotion.Promoter, op *ir.Operation) ([]keyed, []ir.Di
 // same text is marked beside the operation.
 func fromOperation(op *ir.Operation, own promotion.TextStatement, contents []keyed) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, k := range contents {
-		if k.st.Text != "" && k.st.Text != own.Text {
-			diags = append(diags, promotion.Unpromoted(k.st.Source.String(), k.st.At,
-				"states "+strconv.Quote(k.st.Text)+" where operation "+strconv.Quote(string(op.ID))+
+	for _, keyed := range contents {
+		if keyed.st.Text != "" && keyed.st.Text != own.Text {
+			diags = append(diags, promotion.Unpromoted(keyed.st.Source.String(), keyed.st.At,
+				"states "+strconv.Quote(keyed.st.Text)+" where operation "+strconv.Quote(string(op.ID))+
 					" states "+strconv.Quote(own.Text), noTerminator))
 		}
 	}
@@ -141,9 +141,9 @@ func fromContents(op *ir.Operation, contents []keyed) []ir.Diagnostic {
 // it.
 func fillTerminator(op *ir.Operation, text string, contents []keyed) {
 	op.ResponseStream.Terminator = &text
-	for _, k := range contents {
-		if k.st.Text == text {
-			k.content.Inferred = ir.JoinInferred(k.content.Inferred, promotion.ExtensionPromotionHeuristic)
+	for _, keyed := range contents {
+		if keyed.st.Text == text {
+			keyed.content.Inferred = ir.JoinInferred(keyed.content.Inferred, promotion.ExtensionPromotionHeuristic)
 		}
 	}
 }
@@ -152,15 +152,15 @@ func fillTerminator(op *ir.Operation, text string, contents []keyed) {
 // expression naming a boolean input of the request, which asks for the stream
 // when true, where op streams a success response that also offers a content
 // that does not stream. Any other key is reported and fills nothing.
-func condition(p promotion.Promoter, w *compileddoc.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
-	st, diags := p.TextOf(promotion.TargetStreamCondition, op.Unmodeled)
+func condition(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
+	st, diags := promoter.TextOf(promotion.TargetStreamCondition, op.Unmodeled)
 	if st.Text == "" {
 		return diags
 	}
-	in, typ, why := runtimeexpr.RequestValue(w, op, st.Text)
+	in, typ, why := runtimeexpr.RequestValue(compiledDocumentView, op, st.Text)
 	switch {
 	case why != "":
-	case !namesBoolean(w, typ):
+	case !namesBoolean(compiledDocumentView, typ):
 		why = "names an input of operation " + strconv.Quote(string(op.ID)) + " that is no boolean"
 	case !choosesStream(op):
 		why = "names an input of operation " + strconv.Quote(string(op.ID)) +
@@ -174,8 +174,8 @@ func condition(p promotion.Promoter, w *compileddoc.CompiledDocumentView, op *ir
 }
 
 // namesBoolean reports whether id stands for the boolean primitive.
-func namesBoolean(w *compileddoc.CompiledDocumentView, id ir.TypeID) bool {
-	prim, ok := w.Stands(id).(*ir.Primitive)
+func namesBoolean(compiledDocumentView *compileddoc.CompiledDocumentView, id ir.TypeID) bool {
+	prim, ok := compiledDocumentView.Stands(id).(*ir.Primitive)
 	return ok && prim.PrimitiveKind == ir.PrimitiveBool
 }
 
@@ -190,9 +190,9 @@ func choosesStream(op *ir.Operation) bool {
 			continue
 		}
 		streams, single := false, false
-		for _, c := range op.Responses[i].Payload.Contents {
-			streams = streams || c.Stream != nil
-			single = single || c.Stream == nil
+		for _, content := range op.Responses[i].Payload.Contents {
+			streams = streams || content.Stream != nil
+			single = single || content.Stream == nil
 		}
 		if streams && single {
 			return true

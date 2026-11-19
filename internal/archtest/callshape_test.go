@@ -168,8 +168,8 @@ var callShapeRatchet = ratchet{
 // every type implementing them.
 func TestCallShape_HeldToTheBaseline(t *testing.T) {
 	t.Parallel()
-	p := moduleProgram(t)
-	calls, err := reversedCalls(p)
+	program := moduleProgram(t)
+	calls, err := reversedCalls(program)
 	require.NoError(t, err)
 
 	root := irtest.RepoRoot(t)
@@ -177,8 +177,8 @@ func TestCallShape_HeldToTheBaseline(t *testing.T) {
 	for caller, byCallee := range calls {
 		sites[caller] = make(map[string][]string, len(byCallee))
 		for callee, at := range byCallee {
-			for _, c := range at {
-				sites[caller][callee] = append(sites[caller][callee], relPosition(c.at, root)+" calls "+c.callee)
+			for _, reversedCall := range at {
+				sites[caller][callee] = append(sites[caller][callee], relPosition(reversedCall.at, root)+" calls "+reversedCall.callee)
 			}
 		}
 	}
@@ -194,15 +194,15 @@ type reversedCall struct {
 	callee string
 }
 
-// reversedCalls returns each call p's call graph holds from one of its packages
+// reversedCalls returns each call programValue's call graph holds from one of its packages
 // into another that the caller's does not import, directly or through others,
-// keyed by the two packages' names in p.own. A call is a call site and a
+// keyed by the two packages' names in programValue.own. A call is a call site and a
 // function it reaches, counted once however many instances of a generic
 // function hold either. Calls made by callRunner, protocol calls and the bodies
 // of range-over-func loops are left out.
-func reversedCalls(p program) (map[string]map[string][]reversedCall, error) {
-	graph := callGraph(p)
-	imports := importsOf(p.own)
+func reversedCalls(programValue program) (map[string]map[string][]reversedCall, error) {
+	graph := callGraph(programValue)
+	imports := importsOf(programValue.own)
 
 	type key struct {
 		site   token.Pos
@@ -215,25 +215,25 @@ func reversedCalls(p program) (map[string]map[string][]reversedCall, error) {
 		if e.Site == nil || caller.Pkg == nil || callee.Pkg == nil {
 			return fmt.Errorf("the call graph holds a call from %s to %s that no source makes", e.Caller.Func, e.Callee.Func)
 		}
-		from, ownCaller := p.own[caller.Pkg]
-		to, ownCallee := p.own[callee.Pkg]
+		from, ownCaller := programValue.own[caller.Pkg]
+		to, ownCallee := programValue.own[callee.Pkg]
 		reversed := ownCaller && ownCallee && caller.Pkg != callee.Pkg && !imports[caller.Pkg][callee.Pkg.Pkg]
 		if !reversed || from == callRunner || protocolCall(e.Site) || rangeBody(callee) {
 			return nil
 		}
-		k := key{callPos(e.Site), callee}
-		if !k.site.IsValid() {
+		keyValue := key{callPos(e.Site), callee}
+		if !keyValue.site.IsValid() {
 			return fmt.Errorf("%s calls %s at no position in the source, so the call cannot be counted once",
 				e.Caller.Func, e.Callee.Func)
 		}
-		if seen[k] {
+		if seen[keyValue] {
 			return nil
 		}
-		seen[k] = true
+		seen[keyValue] = true
 		if out[from] == nil {
 			out[from] = map[string][]reversedCall{}
 		}
-		out[from][to] = append(out[from][to], reversedCall{p.ssa.Fset.Position(k.site), callee.RelString(callee.Pkg.Pkg)})
+		out[from][to] = append(out[from][to], reversedCall{programValue.ssa.Fset.Position(keyValue.site), callee.RelString(callee.Pkg.Pkg)})
 		return nil
 	})
 	sortCalls(out)
@@ -270,7 +270,7 @@ func sortCalls(calls map[string]map[string][]reversedCall) {
 	}
 }
 
-// callGraph returns the call graph of what p's packages can run: variable type
+// callGraph returns the call graph of what programValue's packages can run: variable type
 // analysis over the functions rapid type analysis reaches from each function
 // they declare and each package's initializer, seeded with the graph rapid type
 // analysis builds. ssautil.AllFunctions is no basis: it answers differently from
@@ -278,14 +278,14 @@ func sortCalls(calls map[string]map[string][]reversedCall) {
 // it. Neither a generic function, which rapid type analysis cannot start from,
 // nor one of a package testSupport names, which may serve tests alone, is a
 // root: each is reached from its callers, if it has any.
-func callGraph(p program) *callgraph.Graph {
-	roots := make([]*ssa.Function, 0, len(p.funcs)+len(p.own))
-	for _, f := range p.funcs {
-		if _, forTests := testSupport[f.pkg]; !forTests && f.fn.TypeParams().Len() == 0 {
-			roots = append(roots, f.fn)
+func callGraph(programValue program) *callgraph.Graph {
+	roots := make([]*ssa.Function, 0, len(programValue.funcs)+len(programValue.own))
+	for _, sourceFunc := range programValue.funcs {
+		if _, forTests := testSupport[sourceFunc.pkg]; !forTests && sourceFunc.fn.TypeParams().Len() == 0 {
+			roots = append(roots, sourceFunc.fn)
 		}
 	}
-	for _, pkg := range slices.SortedFunc(maps.Keys(p.own), func(a, b *ssa.Package) int {
+	for _, pkg := range slices.SortedFunc(maps.Keys(programValue.own), func(a, b *ssa.Package) int {
 		return cmp.Compare(a.Pkg.Path(), b.Pkg.Path())
 	}) {
 		roots = append(roots, pkg.Func("init"))
@@ -378,7 +378,7 @@ func plantedPackages(t *testing.T, srcs ...plantedPackage) program {
 	t.Helper()
 	fset := token.NewFileSet()
 	prog := ssa.NewProgram(fset, ssa.InstantiateGenerics)
-	p := program{ssa: prog, own: map[*ssa.Package]string{}}
+	programValue := program{ssa: prog, own: map[*ssa.Package]string{}}
 	built := map[string]*types.Package{}
 	for _, src := range srcs {
 		f, err := parser.ParseFile(fset, src.path+".go", src.src, parser.SkipObjectResolution)
@@ -393,13 +393,13 @@ func plantedPackages(t *testing.T, srcs ...plantedPackage) program {
 		checked, err := conf.Check(src.path, fset, files, info)
 		require.NoError(t, err, "the plant must type-check, or it proves nothing")
 		built[src.path] = checked
-		p.own[prog.CreatePackage(checked, files, info, true /* importable */)] = src.path
+		programValue.own[prog.CreatePackage(checked, files, info, true /* importable */)] = src.path
 		funcs, err := declaredFuncs(prog, src.path, files, info)
 		require.NoError(t, err)
-		p.funcs = append(p.funcs, funcs...)
+		programValue.funcs = append(programValue.funcs, funcs...)
 	}
 	prog.Build()
-	return p
+	return programValue
 }
 
 // lowerAndUpper returns the two packages most plants are written as, lower and
@@ -537,7 +537,7 @@ func Plant() { lower.Apply[int](done) }`, 1},
 // into upper is made by the library.
 func TestCallShape_MissesACallBackThroughALibrary(t *testing.T) {
 	t.Parallel()
-	p := plantedPackages(t,
+	program := plantedPackages(t,
 		plantedPackage{"lib", `package lib
 func Once(f func()) func() { done := false; return func() { if !done { done = true; f() } } }
 func Each(xs []int, f func(int)) { for _, x := range xs { f(x) } }`},
@@ -550,12 +550,12 @@ func Sweep(f func(int)) { lib.Each([]int{1}, f) }`},
 		plantedPackage{"upper", `package upper
 import "lower"
 func Plant() { lower.Hold(func() {}); lower.Run(); lower.Sweep(func(int) {}) }`})
-	for pkg, name := range p.own {
+	for pkg, name := range program.own {
 		if name == "lib" {
-			delete(p.own, pkg) // a library, as the standard library is to the module
+			delete(program.own, pkg) // a library, as the standard library is to the module
 		}
 	}
-	calls, err := reversedCalls(p)
+	calls, err := reversedCalls(program)
 	require.NoError(t, err)
 	assert.Empty(t, calls)
 }

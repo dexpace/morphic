@@ -169,11 +169,11 @@ type walked struct {
 // ctx's error alone if the walk stopped at it.
 func walkDocument(ctx context.Context, doc *ir.Document, walk walkFunc) (walked, error) {
 	refs := ir.NewIDReferences(doc)
-	w := walked{refs: refs, props: &propIDSites{refs: refs}, empty: &ir.EmptyReferences{}}
-	truncated, err := walk(ctx, doc, ir.DocumentPath, w.refs, w.props, w.empty)
+	walkedValue := walked{refs: refs, props: &propIDSites{refs: refs}, empty: &ir.EmptyReferences{}}
+	truncated, err := walk(ctx, doc, ir.DocumentPath, walkedValue.refs, walkedValue.props, walkedValue.empty)
 	if err != nil {
 		return walked{}, err
 	}
-	w.truncated = truncated
-	return w, nil
+	walkedValue.truncated = truncated
+	return walkedValue, nil
 }

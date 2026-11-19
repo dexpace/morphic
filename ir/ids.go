@@ -99,7 +99,7 @@ const IDSpacePrimitive = "primitive"
 // the space together whichever format minted it (docs/ir/identity.md).
 const IDSpaceUnresolved = "unresolved"
 
-// PrimitiveTypeID returns the shared TypeID of the primitive of kind k.
+// PrimitiveTypeID returns the shared TypeID of the primitive of kind primitiveKind.
 //
 // It is the one ID this package derives from no other, as an enum member's
 // extends its enum's ([EnumMemberIDFor]). Every other path is the compiler's own
@@ -109,8 +109,8 @@ const IDSpaceUnresolved = "unresolved"
 //
 // That placement is what lets irverify hold every Document to this ID rather
 // than only the ones this repository's compilers produce.
-func PrimitiveTypeID(k PrimitiveKind) TypeID {
-	return TypeID(IDKindType + IDSeparator + IDSpacePrimitive + IDSeparator + string(k))
+func PrimitiveTypeID(primitiveKind PrimitiveKind) TypeID {
+	return TypeID(IDKindType + IDSeparator + IDSpacePrimitive + IDSeparator + string(primitiveKind))
 }
 
 // WellFormedID reports whether id has the shape kind requires: the kind prefix,

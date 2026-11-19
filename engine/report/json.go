@@ -20,7 +20,7 @@ type versioned struct {
 	Report  `json:",embed"`
 }
 
-// WriteJSON writes r to w as one JSON object, a newline after it: its schema
+// WriteJSON writes runReport to w as one JSON object, a newline after it: its schema
 // version, the verdict, the sources, every finding as rated with the
 // diagnostic as reported and the rule it met, the unused rules and the
 // warnings, each list present when empty. Its members come in a fixed order,
@@ -29,11 +29,11 @@ type versioned struct {
 //
 // It refuses a nil w, and a report holding a string that is not UTF-8, which
 // JSON cannot carry, before writing anything.
-func WriteJSON(w io.Writer, r Report) error {
+func WriteJSON(w io.Writer, runReport Report) error {
 	if w == nil {
 		return errNoWriter
 	}
-	data, err := json.Marshal(versioned{Version: SchemaVersion, Report: r}, json.Deterministic(true))
+	data, err := json.Marshal(versioned{Version: SchemaVersion, Report: runReport}, json.Deterministic(true))
 	if err != nil {
 		return fmt.Errorf("report: encode: %w", err)
 	}

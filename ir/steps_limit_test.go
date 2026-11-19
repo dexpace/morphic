@@ -19,14 +19,14 @@ import (
 // groups sharing the slice of the level below, so the tree the encoding writes
 // has 2^(depth+1)-2 groups.
 func forkedGroups(depth int) *ir.Document {
-	var g []ir.OperationGroup
+	var operationGroups []ir.OperationGroup
 	for i := range depth {
-		g = []ir.OperationGroup{
-			{ID: ir.GroupID(fmt.Sprintf("operation-group/x/a%d", i)), Groups: g},
-			{ID: ir.GroupID(fmt.Sprintf("operation-group/x/b%d", i)), Groups: g},
+		operationGroups = []ir.OperationGroup{
+			{ID: ir.GroupID(fmt.Sprintf("operation-group/x/a%d", i)), Groups: operationGroups},
+			{ID: ir.GroupID(fmt.Sprintf("operation-group/x/b%d", i)), Groups: operationGroups},
 		}
 	}
-	return &ir.Document{Services: []ir.Service{{ID: "service/x", Groups: g}}}
+	return &ir.Document{Services: []ir.Service{{ID: "service/x", Groups: operationGroups}}}
 }
 
 // groupsVisited returns how many groups ForEachGroupWithin calls fn for within
@@ -93,12 +93,12 @@ func TestForEachOperation_ChargesOperationsAndGroups(t *testing.T) {
 // the level below twice as arguments, so it holds 2^(depth+1)-1 constructors
 // and yields as many edges.
 func ctorFork(depth int) *ir.Literal {
-	c := &ir.ConstructorValue{Scalar: "type/s"}
+	constructorValue := &ir.ConstructorValue{Scalar: "type/s"}
 	for range depth {
-		cv := ir.Value{Kind: ir.ValueConstructor, Constructor: c}
-		c = &ir.ConstructorValue{Scalar: "type/s", Args: []ir.Value{cv, cv}}
+		cv := ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}
+		constructorValue = &ir.ConstructorValue{Scalar: "type/s", Args: []ir.Value{cv, cv}}
 	}
-	lit := &ir.Literal{Value: ir.Value{Kind: ir.ValueConstructor, Constructor: c}}
+	lit := &ir.Literal{Value: ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}}
 	lit.ID = "type/x/L"
 	return lit
 }

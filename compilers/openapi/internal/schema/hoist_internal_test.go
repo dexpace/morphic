@@ -30,15 +30,15 @@ import (
 // one it did declare.
 func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 	t.Parallel()
-	c := service.New(2, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
+	serviceContext := service.New(2, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
 
-	named := commonFor(c.Ctx, "type/x", "/components/schemas/User")
+	named := commonFor(serviceContext.Ctx, "type/x", "/components/schemas/User")
 	assert.False(t, named.Anonymous, "a component schema is a declaration")
 	assert.Equal(t, "User", named.Name.Source)
 	assert.Equal(t, "user", named.Name.Canonical, "the framework supplies the neutral words")
 	assert.Empty(t, named.Name.Hint, "a named node needs no hint")
 
-	anon := commonFor(c.Ctx, "type/y", "/components/schemas/User/properties/id")
+	anon := commonFor(serviceContext.Ctx, "type/y", "/components/schemas/User/properties/id")
 	assert.True(t, anon.Anonymous, "an inline position declares no name")
 	assert.Empty(t, anon.Name.Source)
 	assert.Equal(t, "id", anon.Name.Hint, "only the hint survives: the property's key")
@@ -49,8 +49,8 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 // traces a type back through.
 func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 	t.Parallel()
-	c := service.New(5, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
-	got := commonFor(c.Ctx, "type/x", "/components/schemas/User")
+	serviceContext := service.New(5, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
+	got := commonFor(serviceContext.Ctx, "type/x", "/components/schemas/User")
 
 	assert.Equal(t, ir.TypeID("type/x"), got.ID)
 	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components/schemas/User"}, got.Provenance)
@@ -62,7 +62,7 @@ func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 // schema would do forever.
 func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 
@@ -72,8 +72,8 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 		return &ir.Model{TypeCommon: common}, 0
 	}
 
-	first := internNode(c.Ctx, ts, at, build, nil)
-	second := internNode(c.Ctx, ts, at, build, nil)
+	first := internNode(serviceContext.Ctx, ts, at, build, nil)
+	second := internNode(serviceContext.Ctx, ts, at, build, nil)
 
 	assert.Equal(t, ids.DocumentIDNamespace{}.ForPointer(at), first, "the ID is derived from the pointer")
 	assert.Equal(t, first, second, "a second visit returns the interned ID")
@@ -89,7 +89,7 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 // holds it, and only by the visit building it, so a later visit writes nothing.
 func TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 
@@ -100,8 +100,8 @@ func TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt(t *testing.T) {
 		finished, stored = append(finished, td), append(stored, held)
 	})
 	build := func(common ir.TypeCommon) (ir.TypeDef, keySet) { return &ir.Model{TypeCommon: common}, 0 }
-	id := internNode(c.Ctx, ts, at, build, fin)
-	internNode(c.Ctx, ts, at, build, fin)
+	id := internNode(serviceContext.Ctx, ts, at, build, fin)
+	internNode(serviceContext.Ctx, ts, at, build, fin)
 
 	require.Len(t, finished, 1, "only the visit building the node finishes it")
 	assert.Equal(t, []bool{false}, stored, "before the registry holds it")

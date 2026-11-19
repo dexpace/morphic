@@ -37,23 +37,23 @@ import (
 // Unmodeled: what they hold reads the type behind body, which a $ref may have
 // promised (compile.Types.ReserveNodeAtCoordinate), so partKeys settles them and each entry's
 // records once every node exists, for every body stating a schema.
-func partEncodings(c service.Ctx, w operationLoweringState, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
+func partEncodings(serviceContext service.Ctx, loweringState operationLoweringState, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
 	map[ir.PropertyID]ir.PartEncoding, map[ir.TypeID]ir.CatchAllParts, ir.Unmodeled, []ir.Diagnostic,
 ) {
-	bodyWalk := walkBodyParts(c.Ctx, media.GetSchema())
+	bodyWalk := walkBodyParts(serviceContext.Ctx, media.GetSchema())
 	parts := bodyWalk.parts
-	unmodeled, keptDiags := keepUnkeyedEncodings(c, media, mediaPtr, bodyWalk, unkeyedFormEntry)
-	diags := append(diagPartWalkCut(c, bodyWalk, mediaPtr+ids.Ptr("schema")), keptDiags...)
+	unmodeled, keptDiags := keepUnkeyedEncodings(serviceContext, media, mediaPtr, bodyWalk, unkeyedFormEntry)
+	diags := append(diagPartWalkCut(serviceContext, bodyWalk, mediaPtr+ids.Ptr("schema")), keptDiags...)
 	if media.GetSchema() == nil {
 		return nil, nil, unmodeled, diags
 	}
 	encMap := media.GetEncoding()
 	keys := partKeys{
-		c: c, body: body, schema: mediaPtr + ids.Ptr("schema"), mediaType: service.NormalizeMediaType(mt),
+		c: serviceContext, body: body, schema: mediaPtr + ids.Ptr("schema"), mediaType: service.NormalizeMediaType(mt),
 		catchAllValues: bodyWalk.catchAllValues,
 	}
 	for _, part := range parts {
-		kp, partDiags := lowerPart(c, w, part, encMap, mediaPtr, keys.mediaType)
+		kp, partDiags := lowerPart(serviceContext, loweringState, part, encMap, mediaPtr, keys.mediaType)
 		diags = append(diags, partDiags...)
 		keys.parts = append(keys.parts, kp)
 		if kp.entry != nil && unmodeled == nil {
@@ -64,15 +64,15 @@ func partEncodings(c service.Ctx, w operationLoweringState, media *soa.MediaType
 	keys.kept = unmodeled
 	keys.out = make(map[ir.PropertyID]ir.PartEncoding, len(keys.parts))
 	keys.catchAll = map[ir.TypeID]ir.CatchAllParts{}
-	w.types.Defer(keys)
+	loweringState.types.Defer(keys)
 	return keys.out, keys.catchAll, unmodeled, diags
 }
 
 // lowerPart lowers the entry of part, a part of a form body under mt, a
 // normalized media type, and reads whether it takes its default content type
 // (keyedPart).
-func lowerPart(c service.Ctx, w operationLoweringState, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (keyedPart, []ir.Diagnostic) {
-	pe, partUnmodeled, diags := buildPartEncoding(c, w, part.name, encMap, mediaPtr, mt)
+func lowerPart(serviceContext service.Ctx, loweringState operationLoweringState, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (keyedPart, []ir.Diagnostic) {
+	pe, partUnmodeled, diags := buildPartEncoding(serviceContext, loweringState, part.name, encMap, mediaPtr, mt)
 	kp := keyedPart{
 		part:      part,
 		encoding:  pe,
@@ -82,8 +82,8 @@ func lowerPart(c service.Ctx, w operationLoweringState, part bodyPart, encMap *s
 	}
 	if enc, ok := encMap.Get(part.name); ok && enc != nil {
 		kp.entry = enc.GetRootNode()
-		kp.defaulted = takesDefault(service.EncodingRules(c), enc, mt)
-		diags = append(diags, unknownNestedKeys(c, part, kp.entry, kp.at)...)
+		kp.defaulted = takesDefault(service.EncodingRules(serviceContext), enc, mt)
+		diags = append(diags, unknownNestedKeys(serviceContext, part, kp.entry, kp.at)...)
 	}
 	return kp, diags
 }
@@ -94,28 +94,28 @@ func lowerPart(c service.Ctx, w operationLoweringState, part bodyPart, encMap *s
 // applies one as the Media Type Object's encoding is applied, to each item of
 // an array part. Where the walk of a declaration leaves a key undecided
 // (partWalk.decidesKeys), no key is judged.
-func unknownNestedKeys(c service.Ctx, part bodyPart, entry *yaml.Node, at jsontext.Pointer) []ir.Diagnostic {
+func unknownNestedKeys(serviceContext service.Ctx, part bodyPart, entry *yaml.Node, at jsontext.Pointer) []ir.Diagnostic {
 	nested := nodeview.Pairs(nodeview.Child(entry, "encoding"))
 	if len(nested) == 0 {
 		return nil
 	}
 	declared := map[string]bool{}
 	for _, js := range part.schemas {
-		if s := schemaOf(c.Bindings(), js); isArraySchema(s) {
+		if s := schemaOf(serviceContext.Bindings(), js); isArraySchema(s) {
 			js = s.GetItems()
 		}
-		w := walkBodyParts(c.Ctx, js)
-		if !w.decidesKeys() {
+		partWalk := walkBodyParts(serviceContext.Ctx, js)
+		if !partWalk.decidesKeys() {
 			return nil
 		}
-		for _, p := range w.parts {
-			declared[p.name] = true
+		for _, bodyPart := range partWalk.parts {
+			declared[bodyPart.name] = true
 		}
 	}
 	var diags []ir.Diagnostic
 	for _, pair := range nested {
 		if !declared[pair.Key] {
-			diags = append(diags, unknownEncodingKey(c, pair.Key, "part", at+ids.Ptr("encoding", pair.Key)))
+			diags = append(diags, unknownEncodingKey(serviceContext, pair.Key, "part", at+ids.Ptr("encoding", pair.Key)))
 		}
 	}
 	return diags
@@ -141,7 +141,7 @@ const (
 )
 
 // keepUnkeyedEncodings keeps whole each entry of media's encoding map whose key
-// names none of the parts w found, under Unmodeled at
+// names none of the parts partWalkValue found, under Unmodeled at
 // annotation.EntryKey("encoding", key), with one info each, which why completes
 // (docs/compilers/openapi.md#multipart-encoding). Where the walk decides the
 // key names no property it also warns (unknownEncodingKey), save outside form
@@ -149,9 +149,9 @@ const (
 // with no parts, has no effect, so is out of scope; one the walk cannot
 // decide, as a catch-all may take it, has no IR home. An entry that is no
 // object, which load reports, is skipped.
-func keepUnkeyedEncodings(c service.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, w partWalk, why string) (ir.Unmodeled, []ir.Diagnostic) {
-	walked := make(map[string]struct{}, len(w.parts))
-	for _, part := range w.parts {
+func keepUnkeyedEncodings(serviceContext service.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, partWalkValue partWalk, why string) (ir.Unmodeled, []ir.Diagnostic) {
+	walked := make(map[string]struct{}, len(partWalkValue.parts))
+	for _, part := range partWalkValue.parts {
 		walked[part.name] = struct{}{}
 	}
 	var kept ir.Unmodeled
@@ -166,33 +166,33 @@ func keepUnkeyedEncodings(c service.Ctx, media *soa.MediaType, mediaPtr jsontext
 		// may take has no IR home yet. Under a media type that is neither
 		// multipart nor form, load reports the whole field as having no effect.
 		reason := ir.ReasonNoIRHome
-		if w.decidesKeys() {
+		if partWalkValue.decidesKeys() {
 			reason = ir.ReasonOutOfScope
 		}
-		written, keepDiags := keepEntry(c, &kept, name, enc.GetRootNode(), at, why, reason)
+		written, keepDiags := keepEntry(serviceContext, &kept, name, enc.GetRootNode(), at, why, reason)
 		diags = append(diags, keepDiags...)
-		if written && w.decidesKeys() && why != unkeyedOtherEntry {
-			diags = append(diags, unknownEncodingKey(c, name, "body", at))
+		if written && partWalkValue.decidesKeys() && why != unkeyedOtherEntry {
+			diags = append(diags, unknownEncodingKey(serviceContext, name, "body", at))
 		}
 	}
 	return kept, diags
 }
 
 // keepEntry keeps entry, the encoding entry named name written at at, whole
-// under u at annotation.EntryKey("encoding", name) for reason, with one info
+// under unmodeled at annotation.EntryKey("encoding", name) for reason, with one info
 // saying, as why completes it, why Content.Encoding has no key for it. The
 // model reads an entry that is no mapping as one with no node, so nothing is
 // kept for it and load's error is its one finding. written reports whether the
 // entry was kept.
-func keepEntry(c service.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, at jsontext.Pointer, why string,
+func keepEntry(serviceContext service.Ctx, unmodeled *ir.Unmodeled, name string, entry *yaml.Node, at jsontext.Pointer, why string,
 	reason ir.UnmodeledReason,
 ) (written bool, diags []ir.Diagnostic) {
-	written, diags = annotation.PreserveNodeInto(u, annotation.EntryKey("encoding", name), entry,
-		reason, c.Place().At(at))
+	written, diags = annotation.PreserveNodeInto(unmodeled, annotation.EntryKey("encoding", name), entry,
+		reason, serviceContext.Place().At(at))
 	if !written {
 		return false, diags
 	}
-	return true, append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+	return true, append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"encoding entry %q %s, so Content.Encoding has no key for it; kept verbatim under Unmodeled", name, why))
 }
 
@@ -200,8 +200,8 @@ func keepEntry(c service.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, at
 // key names no property the schema of owner, its body or its part, declares,
 // which OpenAPI requires of every key and gives no effect where it does not
 // hold.
-func unknownEncodingKey(c service.Ctx, name, owner string, at jsontext.Pointer) ir.Diagnostic {
-	return c.DiagAt(ir.SeverityWarning, diag.UnknownEncodingKey, at,
+func unknownEncodingKey(serviceContext service.Ctx, name, owner string, at jsontext.Pointer) ir.Diagnostic {
+	return serviceContext.DiagAt(ir.SeverityWarning, diag.UnknownEncodingKey, at,
 		"encoding entry %q names no property the %s's schema declares, which OpenAPI requires of an encoding key, "+
 			"so the entry has no effect", name, owner)
 }
@@ -258,22 +258,22 @@ func (k partKeys) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic
 		diags = append(diags, k.c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, k.schema,
 			"form body's type nests past %d unions, so a part only a union below them declares has no Content.Encoding key", maxPartUnions))
 	}
-	for _, n := range unread {
+	for _, unreadNarrowing := range unread {
 		diags = append(diags, k.c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, k.schema,
 			"form body's type %q narrows a union whose shapes are not read (%s), so a part only its variants declare "+
-				"has no Content.Encoding key", n.model, n.why))
+				"has no Content.Encoding key", unreadNarrowing.model, unreadNarrowing.why))
 	}
-	for _, p := range k.parts {
-		decls := members[p.part.name]
+	for _, keyedPart := range k.parts {
+		decls := members[keyedPart.part.name]
 		if len(decls) == 0 {
-			diags = append(diags, k.keepWhole(p)...)
+			diags = append(diags, k.keepWhole(keyedPart)...)
 			continue
 		}
-		maps.Copy(k.kept, p.unmodeled)
-		schemas := declarationSchemas(k.c, p.part, decls)
-		for _, d := range decls {
-			if pe := k.declared(node, p, bodyPart{name: p.part.name, schemas: schemas[d.ID]}, d); !partEncodingEmpty(pe) {
-				k.out[d.ID] = pe
+		maps.Copy(k.kept, keyedPart.unmodeled)
+		schemas := declarationSchemas(k.c, keyedPart.part, decls)
+		for _, property := range decls {
+			if pe := k.declared(node, keyedPart, bodyPart{name: keyedPart.part.name, schemas: schemas[property.ID]}, property); !partEncodingEmpty(pe) {
+				k.out[property.ID] = pe
 			}
 		}
 	}
@@ -291,7 +291,7 @@ func (k partKeys) partless(node func(ir.TypeID) (ir.TypeDef, bool)) []ir.Diagnos
 		return nil
 	}
 	holders, complete := memberHolders(node, k.body)
-	if !complete || slices.ContainsFunc(holders, func(h ir.TypeID) bool { return mayHoldParts(bodyNode(node, h)) }) {
+	if !complete || slices.ContainsFunc(holders, func(typeID ir.TypeID) bool { return mayHoldParts(bodyNode(node, typeID)) }) {
 		return nil
 	}
 	return []ir.Diagnostic{k.c.DiagAt(ir.SeverityWarning, diag.PartlessFormBody, k.schema,
@@ -314,21 +314,21 @@ func mayHoldParts(td ir.TypeDef) bool {
 	}
 }
 
-// declared returns the encoding of p as d, one of the declarations the body's
+// declared returns the encoding of keyedPartValue as property, one of the declarations the body's
 // type holds of its name, declares it: the entry written, with the structural
-// flags and the default content type read off d and part, the schemas
+// flags and the default content type read off property and part, the schemas
 // declaring it (declarationSchemas), so a part two variants declare apart
 // reads as each declares it.
-func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart, part bodyPart, d *ir.Property) ir.PartEncoding {
-	one := []*ir.Property{d}
+func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), keyedPartValue keyedPart, part bodyPart, property *ir.Property) ir.PartEncoding {
+	one := []*ir.Property{property}
 	multipart := isMultipart(k.mediaType)
 	unions := partUnionsOf(k.c)
-	pe := partFlags(unions, node, k.c.Bindings(), one, part, p.encoding, multipart)
-	pe = readPartFile(k.c, part, p.encoding.ContentTypes, multipart).apply(pe)
-	if !p.defaulted {
+	pe := partFlags(unions, node, k.c.Bindings(), one, part, keyedPartValue.encoding, multipart)
+	pe = readPartFile(k.c, part, keyedPartValue.encoding.ContentTypes, multipart).apply(pe)
+	if !keyedPartValue.defaulted {
 		return pe
 	}
-	return withDefaultContentType(unions, node, service.EncodingRules(k.c), d, readContentEncoding(k.c, part.schemas), pe)
+	return withDefaultContentType(unions, node, service.EncodingRules(k.c), property, readContentEncoding(k.c, part.schemas), pe)
 }
 
 // declarationSchemas returns, for each of decls, the declarations the body's
@@ -337,25 +337,25 @@ func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart,
 // where none of decls is, which a declaration the merge folded into one of
 // them, an allOf branch's, is. So one variant's declaration is read apart
 // from another's, and each schema is placed once.
-func declarationSchemas(c service.Ctx, part bodyPart, decls []*ir.Property) map[ir.PropertyID][]*oas3.JSONSchema[oas3.Referenceable] {
+func declarationSchemas(serviceContext service.Ctx, part bodyPart, decls []*ir.Property) map[ir.PropertyID][]*oas3.JSONSchema[oas3.Referenceable] {
 	out := make(map[ir.PropertyID][]*oas3.JSONSchema[oas3.Referenceable], len(decls))
 	if len(decls) < 2 {
-		for _, d := range decls {
-			out[d.ID] = part.schemas
+		for _, property := range decls {
+			out[property.ID] = part.schemas
 		}
 		return out
 	}
 	held := make(map[ir.PropertyID]bool, len(decls))
-	for _, d := range decls {
-		held[d.ID] = true
+	for _, property := range decls {
+		held[property.ID] = true
 	}
 	for _, js := range part.schemas {
-		if id, ok := declaredProp(c, js); ok && held[id] {
+		if id, ok := declaredProp(serviceContext, js); ok && held[id] {
 			out[id] = append(out[id], js)
 			continue
 		}
-		for _, d := range decls {
-			out[d.ID] = append(out[d.ID], js)
+		for _, property := range decls {
+			out[property.ID] = append(out[property.ID], js)
 		}
 	}
 	return out
@@ -365,25 +365,25 @@ func declarationSchemas(c service.Ctx, part bodyPart, decls []*ir.Property) map[
 // schema lowering names one by where it is read, and false where the bindings
 // do not place js in a document the compile read. Where they place it
 // nowhere, the zero position names the source, which is read and not used.
-func declaredProp(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropertyID, bool) {
-	at, placed := c.Bindings().Site(js)
-	dc, read := service.InDocument(c, at.Doc)
+func declaredProp(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropertyID, bool) {
+	at, placed := serviceContext.Bindings().Site(js)
+	dc, read := service.InDocument(serviceContext, at.Doc)
 	return dc.IDs().Prop(at.Pointer), placed && read
 }
 
-// keepWhole keeps the entry of p, a part the body's type holds no property for,
+// keepWhole keeps the entry of keyedPartValue, a part the body's type holds no property for,
 // whole, as keepUnkeyedEncodings keeps one naming no part. Where the entry
 // cannot be kept, what its lowering kept of it stands instead, so what the
 // lowering announced holds. A part with no entry keeps nothing: the schema
 // lowering kept the properties declaring it, which say what its flags would.
-func (k partKeys) keepWhole(p keyedPart) []ir.Diagnostic {
-	if p.entry == nil {
+func (k partKeys) keepWhole(keyedPartValue keyedPart) []ir.Diagnostic {
+	if keyedPartValue.entry == nil {
 		return nil
 	}
 	kept := k.kept // the map partEncodings made, which the content holds
-	written, diags := keepEntry(k.c, &kept, p.part.name, p.entry, p.at, unkeyedPartEntry, ir.ReasonNoIRHome)
+	written, diags := keepEntry(k.c, &kept, keyedPartValue.part.name, keyedPartValue.entry, keyedPartValue.at, unkeyedPartEntry, ir.ReasonNoIRHome)
 	if !written {
-		maps.Copy(k.kept, p.unmodeled)
+		maps.Copy(k.kept, keyedPartValue.unmodeled)
 	}
 	return diags
 }
@@ -460,30 +460,30 @@ func (v partVisits) markCapped(b *oas3.Schema) {
 
 // walkBodyParts runs bodyParts over one body, whose $refs end where refs says,
 // and reports a bound only for a target that no path entered.
-func walkBodyParts(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) partWalk {
+func walkBodyParts(loweringContext lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) partWalk {
 	open := false
 	var catchAllValues []*oas3.JSONSchema[oas3.Referenceable]
-	v := partVisits{
-		c:              c,
+	partVisitsValue := partVisits{
+		c:              loweringContext,
 		entered:        map[*oas3.Schema]int{},
 		cut:            map[*oas3.Schema]bool{},
 		capped:         map[*oas3.Schema]bool{},
 		open:           &open,
 		catchAllValues: &catchAllValues,
 	}
-	w := bodyParts(js, 0, v)
-	for s := range v.cut {
-		if _, ok := v.entered[s]; !ok {
-			w.hopsSpent = true
+	partWalkValue := bodyParts(js, 0, partVisitsValue)
+	for s := range partVisitsValue.cut {
+		if _, ok := partVisitsValue.entered[s]; !ok {
+			partWalkValue.hopsSpent = true
 		}
 	}
-	for s := range v.capped {
-		if _, ok := v.entered[s]; !ok {
-			w.capped = true
+	for s := range partVisitsValue.capped {
+		if _, ok := partVisitsValue.entered[s]; !ok {
+			partWalkValue.capped = true
 		}
 	}
-	w.open, w.catchAllValues = open, catchAllValues
-	return w
+	partWalkValue.open, partWalkValue.catchAllValues = open, catchAllValues
+	return partWalkValue
 }
 
 // bodyParts returns the parts a form body declares: the properties written on
@@ -492,44 +492,44 @@ func walkBodyParts(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) part
 // part, at its first declaration's place, with every declaration kept
 // (dedupeParts). The allOf branches are the lowering's own
 // (schema.FlattenedAllOf); a $ref branch and a union branch are followed here,
-// up to maxPartRefHops. v records the fewest hops each target was entered at,
+// up to maxPartRefHops. partVisitsValue records the fewest hops each target was entered at,
 // so one met again by no shorter path yields no parts, and the bounds that cut
 // the walk.
-func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) partWalk {
-	s := schemaOf(v.c.Bindings(), js)
+func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, partVisitsValue partVisits) partWalk {
+	s := schemaOf(partVisitsValue.c.Bindings(), js)
 	if s == nil || hops > maxPartRefHops {
 		if s != nil {
-			v.cut[s] = true
+			partVisitsValue.cut[s] = true
 		}
 		return partWalk{}
 	}
-	if prev, ok := v.entered[s]; ok && prev <= hops {
+	if prev, ok := partVisitsValue.entered[s]; ok && prev <= hops {
 		return partWalk{}
 	}
-	v.entered[s] = hops
-	v.note(js, s)
-	w := partWalk{parts: propertyParts(s)}
+	partVisitsValue.entered[s] = hops
+	partVisitsValue.note(js, s)
+	partWalkValue := partWalk{parts: propertyParts(s)}
 	branches := []*oas3.Schema{s}
-	for _, br := range schema.FlattenedAllOf(v.c, statementOf(v.c, js)) {
+	for _, br := range schema.FlattenedAllOf(partVisitsValue.c, statementOf(partVisitsValue.c, js)) {
 		if br.Ref {
-			w.parts = append(w.parts, bodyParts(statement.ParsedAt(br.Schema), hops+1, v).parts...)
+			partWalkValue.parts = append(partWalkValue.parts, bodyParts(statement.ParsedAt(br.Schema), hops+1, partVisitsValue).parts...)
 			continue
 		}
-		bs := schemaOf(v.c.Bindings(), statement.ParsedAt(br.Schema))
-		v.note(statement.ParsedAt(br.Schema), bs)
-		w.parts = append(w.parts, propertyParts(bs)...)
+		bs := schemaOf(partVisitsValue.c.Bindings(), statement.ParsedAt(br.Schema))
+		partVisitsValue.note(statement.ParsedAt(br.Schema), bs)
+		partWalkValue.parts = append(partWalkValue.parts, propertyParts(bs)...)
 		branches = append(branches, bs)
 		if br.Capped {
-			v.markCapped(bs)
+			partVisitsValue.markCapped(bs)
 		}
 	}
 	for _, b := range branches {
 		for _, union := range slices.Concat(b.GetOneOf(), b.GetAnyOf()) {
-			w.parts = append(w.parts, bodyParts(union, hops+1, v).parts...)
+			partWalkValue.parts = append(partWalkValue.parts, bodyParts(union, hops+1, partVisitsValue).parts...)
 		}
 	}
-	w.parts = dedupeParts(w.parts)
-	return w
+	partWalkValue.parts = dedupeParts(partWalkValue.parts)
+	return partWalkValue
 }
 
 // note records in v.open that s, the schema js is entered as, leaves a key
@@ -547,25 +547,25 @@ func (v partVisits) note(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema
 // property for: an additionalProperties or unevaluatedProperties other than
 // false, or a patternProperties. A key such a member could have is not shown
 // to name nothing, though OpenAPI asks a key to name a declared property.
-func admitsMembers(t *statement.MemoizingSchemaReader, s *oas3.Schema) bool {
-	return admitting(t, s.GetAdditionalProperties()) || admitting(t, s.GetUnevaluatedProperties()) ||
+func admitsMembers(memoizingSchemaReader *statement.MemoizingSchemaReader, s *oas3.Schema) bool {
+	return admitting(memoizingSchemaReader, s.GetAdditionalProperties()) || admitting(memoizingSchemaReader, s.GetUnevaluatedProperties()) ||
 		s.GetPatternProperties().Len() > 0
 }
 
-// admitting reports whether js, a catch-all's schema as t reads it, admits a
+// admitting reports whether js, a catch-all's schema as memoizingSchemaReader reads it, admits a
 // member: it is written, and is not the false schema.
-func admitting(t *statement.MemoizingSchemaReader, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	truth := t.Of(js).Truth
+func admitting(memoizingSchemaReader *statement.MemoizingSchemaReader, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	truth := memoizingSchemaReader.Of(js).Truth
 	return truth != statement.Unwritten && !truth.ReadsFalse()
 }
 
 // catchAllValues returns the value schemas of the catch-alls s, which may be
 // nil, holds that admit a member (admitting), additionalProperties,
 // unevaluatedProperties and each patternProperties entry, in that order.
-func catchAllValues(t *statement.MemoizingSchemaReader, s *oas3.Schema) []*oas3.JSONSchema[oas3.Referenceable] {
+func catchAllValues(memoizingSchemaReader *statement.MemoizingSchemaReader, s *oas3.Schema) []*oas3.JSONSchema[oas3.Referenceable] {
 	var out []*oas3.JSONSchema[oas3.Referenceable]
 	for _, js := range []*oas3.JSONSchema[oas3.Referenceable]{s.GetAdditionalProperties(), s.GetUnevaluatedProperties()} {
-		if admitting(t, js) {
+		if admitting(memoizingSchemaReader, js) {
 			out = append(out, js)
 		}
 	}
@@ -580,18 +580,18 @@ func catchAllValues(t *statement.MemoizingSchemaReader, s *oas3.Schema) []*oas3.
 // of $refs js starts, writes that it does not read (writesUnread), past a $ref
 // resolving to nothing, and beside a $ref on the chain, which the walk reads
 // to its end (schemaOf).
-func declaresUnread(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
+func declaresUnread(loweringContext lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
 	if writesUnread(s, "") {
 		return true
 	}
-	refs := c.Bindings()
+	refs := loweringContext.Bindings()
 	for range maxBodyAliasHops {
 		keyword := refs.RefKeyword(js)
 		if keyword == "" {
 			return false
 		}
 		site := js.GetSchema()
-		if refs.End(js) == nil || writesUnread(site, keyword) || admitsMembers(c.Statements(), site) || len(site.GetAllOf()) > 0 ||
+		if refs.End(js) == nil || writesUnread(site, keyword) || admitsMembers(loweringContext.Statements(), site) || len(site.GetAllOf()) > 0 ||
 			len(site.GetOneOf()) > 0 || len(site.GetAnyOf()) > 0 || site.GetProperties().Len() > 0 {
 			return true
 		}
@@ -625,15 +625,15 @@ func propertyParts(s *oas3.Schema) []bodyPart {
 // part past one, which gets no Content.Encoding key and no structural flags,
 // is not lost without a word; an entry written for it is kept whole
 // (keepUnkeyedEncodings).
-func diagPartWalkCut(c service.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagnostic {
+func diagPartWalkCut(serviceContext service.Ctx, partWalkValue partWalk, at jsontext.Pointer) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	if w.capped {
-		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+	if partWalkValue.capped {
+		out = append(out, serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
 			"form body composition is nested past the flattening depth of %d, so a part reached only below it has no Content.Encoding key",
 			statement.MaxFlattenDepth))
 	}
-	if w.hopsSpent {
-		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+	if partWalkValue.hopsSpent {
+		out = append(out, serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
 			"form body composition follows $refs and union branches past %d hops, so a part reached only beyond them has no Content.Encoding key",
 			maxPartRefHops))
 	}
@@ -679,10 +679,10 @@ func partMembers(reg ir.TypeRegistry, body ir.TypeID) (members map[string][]*ir.
 		if why != nil {
 			unread = append(unread, *why)
 		}
-		for _, f := range append([]ir.Flattening{flat}, shapes...) {
-			for _, fp := range f.Properties {
+		for _, flattening := range append([]ir.Flattening{flat}, shapes...) {
+			for _, fp := range flattening.Properties {
 				name := fp.Property.EffectiveWireName()
-				if !slices.ContainsFunc(members[name], func(p *ir.Property) bool { return p.ID == fp.Property.ID }) {
+				if !slices.ContainsFunc(members[name], func(property *ir.Property) bool { return property.ID == fp.Property.ID }) {
 					members[name] = append(members[name], fp.Property)
 				}
 			}
@@ -713,15 +713,15 @@ func shapeFlattenings(reg ir.TypeRegistry, holder ir.TypeID, flat ir.Flattening,
 	if len(flat.Unflattened) == 0 {
 		return nil, nil
 	}
-	n, _, ok := ir.NarrowedShapes(reg, holder, limit)
+	narrowing, _, ok := ir.NarrowedShapes(reg, holder, limit)
 	switch {
 	case !ok:
 		return nil, &unreadNarrowing{model: holder, why: fmt.Sprintf("past %d steps", limit)}
-	case n.Undistributed != "":
-		return nil, &unreadNarrowing{model: holder, why: string(n.Undistributed)}
+	case narrowing.Undistributed != "":
+		return nil, &unreadNarrowing{model: holder, why: string(narrowing.Undistributed)}
 	}
-	out := make([]ir.Flattening, 0, len(n.Shapes))
-	for _, shape := range n.Shapes {
+	out := make([]ir.Flattening, 0, len(narrowing.Shapes))
+	for _, shape := range narrowing.Shapes {
 		out = append(out, shape.Flattening)
 	}
 	return out, nil
@@ -745,18 +745,18 @@ func memberHolders(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) (hol
 			continue
 		}
 		stack[len(stack)-1] = top[1:]
-		v := top[0].Type.Target
-		u, nested := bodyNode(node, v).(*ir.Union)
+		typeID := top[0].Type.Target
+		union, nested := bodyNode(node, typeID).(*ir.Union)
 		switch {
-		case !nested || u == nil:
-			holders = append(holders, v)
-		case seen[u]:
+		case !nested || union == nil:
+			holders = append(holders, typeID)
+		case seen[union]:
 		case read == maxPartUnions:
 			return holders, false
 		default:
-			seen[u] = true
+			seen[union] = true
 			read++
-			stack = append(stack, u.Variants)
+			stack = append(stack, union.Variants)
 		}
 	}
 	return holders, true
@@ -785,8 +785,8 @@ func partFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), refs
 // false where partTypeFlags cannot decide one of them.
 func declarationFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property, multipart bool) (multi, file, decided bool) {
 	file, decided = multipart && len(decls) > 0, true
-	for _, d := range decls {
-		declMulti, declFile, ok := partTypeFlags(unions, node, d.Type, multipart)
+	for _, property := range decls {
+		declMulti, declFile, ok := partTypeFlags(unions, node, property.Type, multipart)
 		multi, file, decided = multi || declMulti, file && declFile, decided && ok
 	}
 	return multi, file, decided
@@ -826,17 +826,17 @@ func unionMembers(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union) (mem
 		}
 		next := pending[0]
 		pending = pending[1:]
-		for _, v := range next.Variants {
-			td, found := node(v.Type.Target)
+		for _, variant := range next.Variants {
+			td, found := node(variant.Type.Target)
 			if !found {
 				return nil, false
 			}
 			nested, isUnion := td.(*ir.Union)
 			switch {
 			case !isUnion:
-				members = append(members, v.Type)
-			case !seen[v.Type.Target]:
-				seen[v.Type.Target] = true
+				members = append(members, variant.Type)
+			case !seen[variant.Type.Target]:
+				seen[variant.Type.Target] = true
 				pending = append(pending, nested)
 			}
 		}
@@ -884,12 +884,12 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 // name under mt, a normalized media type: content types, headers and the
 // arrangement. Its structural flags, Multi and Filename, are partKeys' to read
 // once every type has lowered (partFlags).
-func buildPartEncoding(c service.Ctx, w operationLoweringState, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func buildPartEncoding(serviceContext service.Ctx, loweringState operationLoweringState, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	enc, ok := encMap.Get(name)
 	if !ok {
 		return ir.PartEncoding{}, nil, nil
 	}
-	return encodingConfig(c, w, enc, mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name), mt)
+	return encodingConfig(serviceContext, loweringState, enc, mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name), mt)
 }
 
 // declaredMulti reads whether a part repeats off every schema declaring it, as
@@ -937,11 +937,11 @@ func bodyNode(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) ir.TypeDe
 		if !found {
 			return nil
 		}
-		s, alias := td.(*ir.Scalar)
-		if !alias || s == nil || s.Base == nil {
+		scalar, alias := td.(*ir.Scalar)
+		if !alias || scalar == nil || scalar.Base == nil {
 			return td
 		}
-		id = s.Base.Target
+		id = scalar.Base.Target
 	}
 	return nil
 }

@@ -26,22 +26,22 @@ type SchemaDialectRows struct {
 	byDoc map[reftable.DocID]specrules.SchemaRules
 }
 
-// At returns the rows the schema at p is read with: those of the innermost
-// root at or above it naming its dialect, else those of p's document, else
+// At returns the rows the schema at documentPointer is read with: those of the innermost
+// root at or above it naming its dialect, else those of documentPointer's document, else
 // the source's, as for a document the compile did not read beside it.
-func (t SchemaDialectRows) At(p reftable.DocumentPointer) specrules.SchemaRules {
-	if r, ok := reftable.DialectAt(t.byRoot, p); ok {
-		return r
+func (t SchemaDialectRows) At(documentPointer reftable.DocumentPointer) specrules.SchemaRules {
+	if schemaRules, ok := reftable.DialectAt(t.byRoot, documentPointer); ok {
+		return schemaRules
 	}
-	return t.In(p.Doc)
+	return t.In(documentPointer.Doc)
 }
 
-// RootAt returns the rows of the root naming its dialect at p, and false
-// where none is there, a root above p not counted: what a check entering the
-// schema at p switches to.
-func (t SchemaDialectRows) RootAt(p reftable.DocumentPointer) (specrules.SchemaRules, bool) {
-	r, ok := t.byRoot[p]
-	return r, ok
+// RootAt returns the rows of the root naming its dialect at documentPointer, and false
+// where none is there, a root above documentPointer not counted: what a check entering the
+// schema at documentPointer switches to.
+func (t SchemaDialectRows) RootAt(documentPointer reftable.DocumentPointer) (specrules.SchemaRules, bool) {
+	schemaRules, ok := t.byRoot[documentPointer]
+	return schemaRules, ok
 }
 
 // Of is At for a reading that has the schema's node and not where it is: the
@@ -50,8 +50,8 @@ func (t SchemaDialectRows) RootAt(p reftable.DocumentPointer) (specrules.SchemaR
 // to govern it (Builder.Root), so a reading asks Of of a schema the bindings
 // place nowhere, and asks At of one they place.
 func (t SchemaDialectRows) Of(n *yaml.Node) specrules.SchemaRules {
-	if r, ok := t.byNode[nodeview.Deref(n)]; ok {
-		return r
+	if schemaRules, ok := t.byNode[nodeview.Deref(n)]; ok {
+		return schemaRules
 	}
 	return t.byDoc[reftable.Source]
 }
@@ -60,8 +60,8 @@ func (t SchemaDialectRows) Of(n *yaml.Node) specrules.SchemaRules {
 // no root names a dialect: the document's own, else the source's, as for the
 // source and for a document the compile did not read beside it.
 func (t SchemaDialectRows) In(id reftable.DocID) specrules.SchemaRules {
-	if r, ok := t.byDoc[id]; ok {
-		return r
+	if schemaRules, ok := t.byDoc[id]; ok {
+		return schemaRules
 	}
 	return t.byDoc[reftable.Source]
 }

@@ -43,9 +43,9 @@ type valueCycle struct {
 // returns the cycles it was told of, in walk order, with whether the depth cap
 // truncated the walk.
 func valueCycles(root any) ([]valueCycle, bool) {
-	var r recorder
-	truncated := ir.WalkValues(root, "document", &r)
-	return r.cycles, truncated
+	var recorderValue recorder
+	truncated := ir.WalkValues(root, "document", &recorderValue)
+	return recorderValue.cycles, truncated
 }
 
 // kidTree is a struct whose slice of itself can hold the slice that holds it.
@@ -77,12 +77,12 @@ func TestWalkValues_SelfContainingSliceIsNotEnteredAgain(t *testing.T) {
 // the third kind of reference the encoder follows.
 func TestWalkValues_SelfContainingMapIsNotEnteredAgain(t *testing.T) {
 	t.Parallel()
-	m := kidMap{}
-	m["a"], m["b"] = m, m
+	kidMapValue := kidMap{}
+	kidMapValue["a"], kidMapValue["b"] = kidMapValue, kidMapValue
 
 	assert.Equal(t, []string{
 		"document", "document[a].key", "document[a]", "document[b].key", "document[b]",
-	}, walkBounded(m))
+	}, walkBounded(kidMapValue))
 }
 
 // TestWalkValues_ASliceReachedTwiceIsWalkedFromEach pins what stays as it was: a
@@ -162,8 +162,8 @@ func TestCycleVisitor_IsToldWhereAReferenceWasMetAgainAndEntered(t *testing.T) {
 	loop.Next = loop
 	kids := make([]kidTree, 1)
 	kids[0].Kids = kids
-	m := kidMap{}
-	m["a"] = m
+	kidMapValue := kidMap{}
+	kidMapValue["a"] = kidMapValue
 
 	for _, tt := range []struct {
 		name string
@@ -172,7 +172,7 @@ func TestCycleVisitor_IsToldWhereAReferenceWasMetAgainAndEntered(t *testing.T) {
 	}{
 		{"a pointer", loop, []valueCycle{{Path: "document.Next", Entered: "document", Type: "*ir_test.ptrNode"}}},
 		{"a slice", kidTree{Kids: kids}, []valueCycle{{Path: "document.Kids[0].Kids", Entered: "document.Kids", Type: "[]ir_test.kidTree"}}},
-		{"a map", m, []valueCycle{{Path: "document[a]", Entered: "document", Type: "ir_test.kidMap"}}},
+		{"a map", kidMapValue, []valueCycle{{Path: "document[a]", Entered: "document", Type: "ir_test.kidMap"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -216,9 +216,9 @@ func TestCycleVisitor_IsToldNothingOfAnAcyclicGraph(t *testing.T) {
 func TestCycleVisitor_IsToldInADeterministicOrder(t *testing.T) {
 	t.Parallel()
 	mkLoop := func() *ptrNode {
-		n := &ptrNode{}
-		n.Next = n
-		return n
+		ptrNodeValue := &ptrNode{}
+		ptrNodeValue.Next = ptrNodeValue
+		return ptrNodeValue
 	}
 	root := map[string]*ptrNode{"a": mkLoop(), "b": mkLoop(), "c": mkLoop()}
 
@@ -247,8 +247,8 @@ func TestCycleVisitor_WalkReportsTruncation(t *testing.T) {
 	t.Parallel()
 	root := irtest.NestedListValue(ir.MaxWalkDepth)
 
-	deep := walkDeepList(func(l *listVisits) bool {
-		return ir.WalkValues(root, "document", ir.CycleVisitor(deepListCycles{l}))
+	deep := walkDeepList(func(listVisitsValue *listVisits) bool {
+		return ir.WalkValues(root, "document", ir.CycleVisitor(deepListCycles{listVisitsValue}))
 	})
 
 	assert.True(t, deep.truncated, "WalkValues with a CycleVisitor must report truncation at ir.MaxWalkDepth")
@@ -280,15 +280,15 @@ func buildGraph(nodes []graphNode) []ir.Value {
 	ctors := make([]*ir.ConstructorValue, len(nodes))
 	lists := make([][]ir.Value, len(nodes))
 	objects := make([][]ir.Field, len(nodes))
-	for i, n := range nodes {
+	for i, graphNode := range nodes {
 		switch {
-		case n.kind == ctorNode:
+		case graphNode.kind == ctorNode:
 			ctors[i] = &ir.ConstructorValue{Scalar: "type/x/S", Name: "n"}
-		case len(n.out) == 0: // an empty list or object stays nil
-		case n.kind == listNode:
-			lists[i] = make([]ir.Value, len(n.out))
-		case n.kind == objectNode:
-			objects[i] = make([]ir.Field, len(n.out))
+		case len(graphNode.out) == 0: // an empty list or object stays nil
+		case graphNode.kind == listNode:
+			lists[i] = make([]ir.Value, len(graphNode.out))
+		case graphNode.kind == objectNode:
+			objects[i] = make([]ir.Field, len(graphNode.out))
 		}
 	}
 	ref := func(i int) ir.Value {
@@ -301,9 +301,9 @@ func buildGraph(nodes []graphNode) []ir.Value {
 			return ir.Value{Kind: ir.ValueObject, Object: objects[i]}
 		}
 	}
-	for i, n := range nodes {
-		for k, j := range n.out {
-			switch n.kind {
+	for i, graphNode := range nodes {
+		for k, j := range graphNode.out {
+			switch graphNode.kind {
 			case ctorNode:
 				ctors[i].Args = append(ctors[i].Args, ref(j))
 			case listNode:

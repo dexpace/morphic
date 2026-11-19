@@ -34,10 +34,10 @@ func BenchmarkDocumentPath_IntoAWideMapping(b *testing.B) {
 		b.Run(fmt.Sprintf("components%d", n), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				v := nodeview.New() // one view per pass: a view never outlives its compile
-				for _, p := range pointers {
-					if _, complete := v.DocumentPath(root, p); !complete {
-						b.Fatalf("pointer %s must resolve", p)
+				view := nodeview.New() // one view per pass: a view never outlives its compile
+				for _, pointer := range pointers {
+					if _, complete := view.DocumentPath(root, pointer); !complete {
+						b.Fatalf("pointer %s must resolve", pointer)
 					}
 				}
 			}

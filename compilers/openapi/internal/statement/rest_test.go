@@ -34,12 +34,12 @@ func TestRead_ASplitEntrysRestListsNoReference(t *testing.T) {
 	spec := document("3.1.0", "T: {type: string}",
 		"S: {allOf: [{$ref: '#/components/schemas/T', description: d, allOf: [{minLength: 1}]}]}")
 	for _, positionFirst := range []bool{false, true} {
-		table, c := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
-		at := c.Position("/components/schemas/S/allOf/0")
+		table, loweringContext := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
+		at := loweringContext.Position("/components/schemas/S/allOf/0")
 		if positionFirst {
 			table.At(at)
 		}
-		st := table.At(component(c, "S"))
+		st := table.At(component(loweringContext, "S"))
 		require.Equal(t, []string{
 			"/allOf/0 wrapper=false capped=false",
 			"/allOf/0/allOf/0 wrapper=false capped=false",
@@ -74,8 +74,8 @@ func TestRead_ARestOfAMergedReferenceWritesItsKeysAlone(t *testing.T) {
 	t.Parallel()
 	spec := strings.Replace(document("3.1.0", "T: {type: string}", "S: {allOf: [{<<: *r, description: d}]}"),
 		"paths: {}\n", "paths: {}\nx-r: &r {$ref: '#/components/schemas/T'}\n", 1)
-	table, c := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
-	st := table.At(component(c, "S"))
+	table, loweringContext := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
+	st := table.At(component(loweringContext, "S"))
 	require.Len(t, st.Entries, 2)
 	require.NotNil(t, st.Entries[0].Ref, "the merged reference conjoins")
 	rest := st.Entries[1].Schema
@@ -89,9 +89,9 @@ func TestRead_ARestOfAMergedReferenceWritesItsKeysAlone(t *testing.T) {
 // remembers of either is the same whichever statement it read it from.
 func TestRead_AnEntrysRestIsOneWhicheverListReadsIt(t *testing.T) {
 	t.Parallel()
-	table, c := tableOver(t, document("3.1.0", "T: {type: string}",
+	table, loweringContext := tableOver(t, document("3.1.0", "T: {type: string}",
 		"S: {allOf: [{allOf: [{$ref: '#/components/schemas/T', description: d}]}]}"), rulesAt(t, "3.1.0", ""))
-	st := table.At(component(c, "S"))
+	st := table.At(component(loweringContext, "S"))
 	require.Len(t, st.Entries, 3)
 	wrapper := table.Read(st.Entries[2].Schema)
 	require.Len(t, wrapper.Entries, 2)

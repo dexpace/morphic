@@ -35,7 +35,7 @@ func TestEntryClosure_APatternBesideTheAllOfIsTypedWhateverItsEntriesDeclare(t *
 					requireClosurePatterns(t, model, string(at))
 					require.NotNil(t, model.AdditionalProperties.Value, "a key no pattern matches at %s", at)
 					assert.Equal(t, prim(ir.PrimitiveAny), model.AdditionalProperties.Value.Target, "is anything at %s", at)
-					assert.True(t, slices.ContainsFunc(model.Properties, func(p ir.Property) bool { return p.WireName == "b" }), at)
+					assert.True(t, slices.ContainsFunc(model.Properties, func(property ir.Property) bool { return property.WireName == "b" }), at)
 					assert.Empty(t, keptUnder(doc, at), "nothing is kept at %s", at)
 					assert.Empty(t, degradedUnder(diags, at), "nothing is reported at %s", at)
 				}
@@ -134,10 +134,10 @@ func TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry(t *testing.T) {
 	))
 	requireErrorsAndWarnings(t, diags, nil)
 	for _, at := range conjunctionPositions {
-		m, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.MapT)
+		mapT, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.MapT)
 		require.True(t, ok, "a map of the entry's catch-all at %s", at)
-		assert.Equal(t, prim(ir.PrimitiveInteger), m.Value.Target, at)
-		assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:unevaluated": ir.ReasonValidationOnly}, keptOn(m), at)
+		assert.Equal(t, prim(ir.PrimitiveInteger), mapT.Value.Target, at)
+		assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:unevaluated": ir.ReasonValidationOnly}, keptOn(mapT), at)
 	}
 
 	doc, diags = compileAnnotationSpec(t, "patterns", conjunctionSpec("3.1.0",
@@ -223,11 +223,11 @@ func TestEntryClosure_AClosureBesideAUnionReadsTheAllOfAlike(t *testing.T) {
 			doc, diags := compileAnnotationSpec(t, "union", conjunctionSpec("3.1.0", tc.schema, components...))
 			requireErrorsAndWarnings(t, diags, nil)
 			for _, at := range conjunctionPositions {
-				u, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.Union)
+				union, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.Union)
 				require.True(t, ok, "a union at %s", at)
-				require.Len(t, u.Variants, 2, at)
-				for _, v := range u.Variants {
-					variant, ok := kindNode(t, doc, v.Type.Target).(*ir.Model)
+				require.Len(t, union.Variants, 2, at)
+				for _, irVariant := range union.Variants {
+					variant, ok := kindNode(t, doc, irVariant.Type.Target).(*ir.Model)
 					require.True(t, ok, "a composed variant at %s", at)
 					assert.Equal(t, tc.closed, variant.Additional == ir.AdditionalClosed, "closed at %s", at)
 					assert.Equal(t, tc.kept, keptOn(variant), at)

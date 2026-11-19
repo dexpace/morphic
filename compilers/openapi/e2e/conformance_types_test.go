@@ -48,8 +48,8 @@ func assertNeutralNaming(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "operation present under its source operationId")
 	assert.Equal(t, "widgets_list", op.Name.Canonical, "operationId")
 	byParam := map[string]string{}
-	for _, p := range op.Params {
-		byParam[p.Name.Source] = p.Name.Canonical
+	for _, parameter := range op.Params {
+		byParam[parameter.Name.Source] = parameter.Name.Canonical
 	}
 	assert.Equal(t, "widget_id", byParam["widget.id"], "path parameter")
 	assert.Equal(t, "filter_name", byParam["filter[name]"], "bracketed query parameter")
@@ -416,20 +416,20 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	r, ok := propByWire(m, "r")
+	property, ok := propByWire(model, "r")
 	require.True(t, ok)
-	w, ok := propByWire(m, "w")
+	irProperty, ok := propByWire(model, "w")
 	require.True(t, ok)
-	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, r.Visibility)
-	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, w.Visibility)
+	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, property.Visibility)
+	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, irProperty.Visibility)
 
 	// A declaration-site readOnly reaches the referencing property, and the
 	// declaration keeps it verbatim because the type node has no field for it.
-	viaRef, ok := propByWire(m, "viaRef")
+	viaRef, ok := propByWire(model, "viaRef")
 	require.True(t, ok)
-	assert.Equal(t, r.Visibility, viaRef.Visibility, "the referent's readOnly binds the reference site")
+	assert.Equal(t, property.Visibility, viaRef.Visibility, "the referent's readOnly binds the reference site")
 
 	decl, ok := doc.Types[componentID("DeclaredReadOnly")].(*ir.Scalar)
 	require.True(t, ok)
@@ -438,7 +438,7 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `true`, string(entry.Value))
 
-	assertBothFlagsAreVisibleNowhere(t, m, diags)
+	assertBothFlagsAreVisibleNowhere(t, model, diags)
 }
 
 // assertBothFlagsAreVisibleNowhere pins the contradictory pairing in both its
@@ -446,12 +446,12 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 // carries the other flag. Each admits no lifecycle at all and each is reported,
 // where declaring both used to lower exactly as readOnly alone did and say
 // nothing (GitHub #276).
-func assertBothFlagsAreVisibleNowhere(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
+func assertBothFlagsAreVisibleNowhere(t *testing.T, model *ir.Model, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, wire := range []string{"both", "bothViaRef"} {
-		p, ok := propByWire(m, wire)
+		property, ok := propByWire(model, wire)
 		require.True(t, ok)
-		assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, p.Visibility,
+		assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, property.Visibility,
 			"readOnly and writeOnly both in force admit no lifecycle: %s", wire)
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 			diagsAt(diags, diag.DisjointVisibility, "/components/schemas/S/properties/"+wire),
@@ -460,9 +460,9 @@ func assertBothFlagsAreVisibleNowhere(t *testing.T, m *ir.Model, diags []ir.Diag
 }
 
 func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	n, ok := doc.Types[componentID("Node")].(*ir.Model)
+	model, ok := doc.Types[componentID("Node")].(*ir.Model)
 	require.True(t, ok)
-	next, ok := propByWire(n, "next")
+	next, ok := propByWire(model, "next")
 	require.True(t, ok)
 	assert.Equal(t, componentID("Node"), next.Type.Target, "self-reference terminates on the interned ID")
 }
@@ -611,10 +611,10 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 }
 
 func assertLiteralConst(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	l, ok := doc.Types[componentID("Version")].(*ir.Literal)
+	literal, ok := doc.Types[componentID("Version")].(*ir.Literal)
 	require.True(t, ok, "const hoists a Literal")
-	assert.Equal(t, ir.ValueString, l.Value.Kind)
-	assert.Equal(t, "v1", l.Value.String)
+	assert.Equal(t, ir.ValueString, literal.Value.Kind)
+	assert.Equal(t, "v1", literal.Value.String)
 
 	// An unrepresentable const still hoists a node, and a node that admits any
 	// value is the only honest one: a Literal here would have to invent a value.
@@ -666,8 +666,8 @@ func assertTitleHints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	lookup, ok := doc.Types[componentID("Lookup")].(*ir.Union)
 	require.True(t, ok)
 	variants := make([]string, 0, len(lookup.Variants))
-	for _, v := range lookup.Variants {
-		variants = append(variants, v.Name.Hint)
+	for _, variant := range lookup.Variants {
+		variants = append(variants, variant.Name.Hint)
 	}
 	assert.Equal(t, []string{"by_name", "by_id", "variant_2", "variant_3", "variant_4", "indoor_pet", "premium_pet"},
 		variants)

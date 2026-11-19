@@ -86,12 +86,12 @@ var emptyMapRows = []emptyMapRow{
 func emptyMapSpec(dialect string, positions []emptyMapPosition, keyword, written string, reversed bool) string {
 	schemas := make([]string, 0, 1+len(positions))
 	schemas = append(schemas, "T: {type: string}")
-	for i, p := range positions {
+	for i, emptyMapPosition := range positions {
 		text := keyword + ": " + written
 		if written == "" {
 			text = ""
 		}
-		schemas = append(schemas, fmt.Sprintf(p.schema, i, text))
+		schemas = append(schemas, fmt.Sprintf(emptyMapPosition.schema, i, text))
 	}
 	if reversed {
 		slices.Reverse(schemas)
@@ -115,9 +115,9 @@ func emptyMapPositionsOf(names []string) []emptyMapPosition {
 		return emptyMapPositions
 	}
 	var out []emptyMapPosition
-	for _, p := range emptyMapPositions {
-		if slices.Contains(names, p.name) {
-			out = append(out, p)
+	for _, emptyMapPosition := range emptyMapPositions {
+		if slices.Contains(names, emptyMapPosition.name) {
+			out = append(out, emptyMapPosition)
 		}
 	}
 	return out
@@ -128,13 +128,13 @@ func emptyMapPositionsOf(names []string) []emptyMapPosition {
 func keptUnderKey(doc *ir.Document, key string) []ir.UnmodeledReason {
 	var out []ir.UnmodeledReason
 	for _, td := range doc.Types {
-		if e, ok := td.Common().Unmodeled[key]; ok {
-			out = append(out, e.Reason)
+		if unmodeledEntry, ok := td.Common().Unmodeled[key]; ok {
+			out = append(out, unmodeledEntry.Reason)
 		}
-		if m, ok := td.(*ir.Model); ok {
-			for _, p := range m.Properties {
-				if e, ok := p.Unmodeled[key]; ok {
-					out = append(out, e.Reason)
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				if unmodeledEntry, ok := property.Unmodeled[key]; ok {
+					out = append(out, unmodeledEntry.Reason)
 				}
 			}
 		}
@@ -146,8 +146,8 @@ func keptUnderKey(doc *ir.Document, key string) []ir.UnmodeledReason {
 // code and pointer, sorted, so two documents' reports compare whole.
 func findingKeys(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -193,9 +193,9 @@ func checkEmptyDependencyMap(t *testing.T, row emptyMapRow, reversed bool) {
 
 	keptFull := make([]ir.UnmodeledReason, len(positions))
 	reported := findingKeys(absentDiags)
-	for i, p := range positions {
+	for i, emptyMapPosition := range positions {
 		keptFull[i] = row.reason
-		at := fmt.Sprintf("/components/schemas/%c%d%s", p.schema[0], i, p.at)
+		at := fmt.Sprintf("/components/schemas/%c%d%s", emptyMapPosition.schema[0], i, emptyMapPosition.at)
 		if row.atKeyword {
 			at += "/" + row.keyword
 		}

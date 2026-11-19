@@ -14,29 +14,29 @@ package ir
 func CatchAllHolders(types TypeRegistry, root TypeID) []TypeID {
 	seen := map[TypeID]bool{}
 	id := throughAliases(types, root, seen)
-	if m, ok := types[id].(*MapT); ok && m != nil {
+	if mapT, ok := types[id].(*MapT); ok && mapT != nil {
 		return []TypeID{id}
 	}
 	var holders []TypeID
 	pending := []TypeID{id}
 	for len(pending) > 0 {
 		id, pending = throughAliases(types, pending[0], seen), pending[1:]
-		m, ok := types[id].(*Model)
-		if !ok || m == nil || seen[id] {
+		model, ok := types[id].(*Model)
+		if !ok || model == nil || seen[id] {
 			continue
 		}
 		seen[id] = true
-		if m.AdditionalProperties != nil {
+		if model.AdditionalProperties != nil {
 			holders = append(holders, id)
 		}
-		if m.Base != nil {
-			pending = append(pending, m.Base.Target)
+		if model.Base != nil {
+			pending = append(pending, model.Base.Target)
 		}
-		for _, r := range m.Implements {
-			pending = append(pending, r.Target)
+		for _, typeRef := range model.Implements {
+			pending = append(pending, typeRef.Target)
 		}
-		for _, r := range m.Mixins {
-			pending = append(pending, r.Target)
+		for _, typeRef := range model.Mixins {
+			pending = append(pending, typeRef.Target)
 		}
 	}
 	return holders

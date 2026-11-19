@@ -40,7 +40,7 @@ func requestOp() *ir.Operation {
 // why each spelling naming nothing resolves nothing.
 func TestRequestValue_ResolvesEachSpelling(t *testing.T) {
 	t.Parallel()
-	q := ir.ParameterID("parameter/q")
+	parameterID := ir.ParameterID("parameter/q")
 	for _, tc := range []struct {
 		text  string
 		want  *ir.InputPath
@@ -49,8 +49,8 @@ func TestRequestValue_ResolvesEachSpelling(t *testing.T) {
 	}{
 		{"$request.body#/info/next", &ir.InputPath{Segments: []ir.PropertyID{"property/info", "property/next"}}, "type/text", ""},
 		{"$request.body", &ir.InputPath{}, "", ""},
-		{"$request.query.q", &ir.InputPath{Param: &q}, "type/info", ""},
-		{"$request.q.next", &ir.InputPath{Param: &q, Segments: []ir.PropertyID{"property/next"}}, "type/text", ""},
+		{"$request.query.q", &ir.InputPath{Param: &parameterID}, "type/info", ""},
+		{"$request.q.next", &ir.InputPath{Param: &parameterID, Segments: []ir.PropertyID{"property/next"}}, "type/text", ""},
 		{"$request.items", &ir.InputPath{Segments: []ir.PropertyID{"property/items"}}, "type/text", ""},
 		{"$response.body#/items", nil, "", "names no value of the request"},
 		{"$request.query.nope", nil, "", "which the operation does not declare once"},

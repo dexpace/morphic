@@ -74,9 +74,9 @@ func TestSchemaRules_FollowsTheDeclaredVersion(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			c := servicetest.Context(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
+			serviceContext := servicetest.Context(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
 				service.Policy{})
-			rules := c.SchemaRules()
+			rules := serviceContext.SchemaRules()
 			assert.Equal(t, tc.v30, rules.Defines("nullable"))
 			assert.Equal(t, tc.v30, rules.Takes("exclusiveMinimum", specrules.Boolean))
 			assert.Equal(t, tc.v30, rules.RequiredWhen("items", "type", "array"))
@@ -90,10 +90,10 @@ func TestSchemaRules_FollowsTheDeclaredVersion(t *testing.T) {
 // resolution through any copy is visible to the compiler.
 func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, bindingsSpec, service.Policy{})
-	require.NotNil(t, c.RefScope().Reached)
-	assert.Same(t, c.RefScope().Reached, atSource(t, c.Ctx).RefScope().Reached, "copies share one record")
-	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
+	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})
+	require.NotNil(t, serviceContext.RefScope().Reached)
+	assert.Same(t, serviceContext.RefScope().Reached, atSource(t, serviceContext.Ctx).RefScope().Reached, "copies share one record")
+	assert.False(t, serviceContext.Reached("/components/parameters/P"), "nothing has been resolved yet")
 }
 
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
@@ -102,9 +102,9 @@ func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 // decides whether an internal pointer names anything.
 func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.ComponentSpec("    User: {type: object}\n"), service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.ComponentSpec("    User: {type: object}\n"), service.Policy{})
 
-	scope := c.RefScope()
+	scope := serviceContext.RefScope()
 
 	assert.Equal(t, "spec.yaml", scope.SelfPath)
 	assert.True(t, scope.Declares.Has("User"))
@@ -160,9 +160,9 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	assert.Same(t, loaded.Bindings, carrying.Bindings())
 	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
 	assert.Same(t, loaded.Bindings, atSource(t, carrying.Ctx).Bindings(), "a copy shares it")
-	e, ok := carrying.RefScope().Bindings.Entry(alias)
-	require.True(t, ok && e.Lands(), "its $ref lands where the load phase resolved it")
-	assert.Equal(t, reftable.DocumentPointer{Pointer: "/components/schemas/Target"}, e.Hop.Target)
+	referenceSite, ok := carrying.RefScope().Bindings.Entry(alias)
+	require.True(t, ok && referenceSite.Lands(), "its $ref lands where the load phase resolved it")
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/components/schemas/Target"}, referenceSite.Hop.Target)
 }
 
 // TestRefScope_ReadsAMappingTargetTheModelHoldsAsRawYAML pins that a mapping
@@ -183,15 +183,15 @@ components:
 x-lib:
   Cat: {type: object}
 `
-	c := servicetest.Context(t, spec, service.Policy{})
-	pet, ok := c.Doc.Components.Schemas.Get("Pet")
+	serviceContext := servicetest.Context(t, spec, service.Policy{})
+	pet, ok := serviceContext.Doc.Components.Schemas.Get("Pet")
 	require.True(t, ok)
 	require.NotNil(t, pet.GetSchema().GetDiscriminator())
 
-	at, ok := c.RefScope().MappingTarget(reftable.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/Cat")
+	at, ok := serviceContext.RefScope().MappingTarget(reftable.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/Cat")
 	require.True(t, ok)
 	assert.Equal(t, reftable.DocumentPointer{Pointer: "/x-lib/Cat"}, at)
-	built := c.Bindings().At(at)
+	built := serviceContext.Bindings().At(at)
 	require.NotNil(t, built, "the load phase built a schema there")
 	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
 }
@@ -206,11 +206,11 @@ func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
 		reads++
 		return reads
 	}
-	c := servicetest.Context(t, bindingsSpec, service.Policy{})
+	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})
 
-	assert.Equal(t, 1, lowering.ReadOncePerRun(c.Ctx, "k", read))
-	assert.Equal(t, 1, lowering.ReadOncePerRun(atSource(t, c.Ctx), "k", read), "a copy shares what c read")
-	assert.Equal(t, 2, lowering.ReadOncePerRun(c.Ctx, "other", read), "another key is another reading")
+	assert.Equal(t, 1, lowering.ReadOncePerRun(serviceContext.Ctx, "k", read))
+	assert.Equal(t, 1, lowering.ReadOncePerRun(atSource(t, serviceContext.Ctx), "k", read), "a copy shares what c read")
+	assert.Equal(t, 2, lowering.ReadOncePerRun(serviceContext.Ctx, "other", read), "another key is another reading")
 	other := servicetest.Context(t, bindingsSpec, service.Policy{})
 	assert.Equal(t, 3, lowering.ReadOncePerRun(other.Ctx, "k", read), "another context remembers nothing of c's")
 }
@@ -220,15 +220,15 @@ func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
 // and another context from its own.
 func TestStatements_IsOneTableForTheRun(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, bindingsSpec, service.Policy{})
-	table := c.Statements()
+	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})
+	table := serviceContext.Statements()
 
-	assert.Same(t, table, atSource(t, c.Ctx).Statements(), "a copy shares the table")
-	target := table.At(c.Position("/components/schemas/Target"))
+	assert.Same(t, table, atSource(t, serviceContext.Ctx).Statements(), "a copy shares the table")
+	target := table.At(serviceContext.Position("/components/schemas/Target"))
 	require.NotNil(t, target.Kinds)
 	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString}, target.Kinds.Types, "read off the bindings")
-	k, _ := target.Key("type")
-	assert.Equal(t, specrules.SlotKinds, k.Slot, "read in the rows the load phase read")
+	key, _ := target.Key("type")
+	assert.Equal(t, specrules.SlotKinds, key.Slot, "read in the rows the load phase read")
 	other := servicetest.Context(t, bindingsSpec, service.Policy{})
 	assert.NotSame(t, table, other.Statements(), "another run reads its own")
 }
@@ -237,7 +237,7 @@ func TestStatements_IsOneTableForTheRun(t *testing.T) {
 // types of answer: each is read once, and neither is taken for the other.
 func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, bindingsSpec, service.Policy{})
+	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})
 	reads := 0
 	number := func() int {
 		reads++
@@ -248,10 +248,10 @@ func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 		return "s"
 	}
 
-	assert.Equal(t, 1, lowering.ReadOncePerRun(c.Ctx, "k", number))
-	assert.Equal(t, "s", lowering.ReadOncePerRun(c.Ctx, "k", text))
-	assert.Equal(t, 1, lowering.ReadOncePerRun(c.Ctx, "k", number))
-	assert.Equal(t, "s", lowering.ReadOncePerRun(c.Ctx, "k", text))
+	assert.Equal(t, 1, lowering.ReadOncePerRun(serviceContext.Ctx, "k", number))
+	assert.Equal(t, "s", lowering.ReadOncePerRun(serviceContext.Ctx, "k", text))
+	assert.Equal(t, 1, lowering.ReadOncePerRun(serviceContext.Ctx, "k", number))
+	assert.Equal(t, "s", lowering.ReadOncePerRun(serviceContext.Ctx, "k", text))
 	assert.Equal(t, 2, reads, "each type of answer is read once")
 }
 
@@ -260,7 +260,7 @@ func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 // its own.
 func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, bindingsSpec, service.Policy{})
+	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})
 	reads := 0
 	inner := func() int {
 		reads++
@@ -268,11 +268,11 @@ func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
 	}
 	outer := func() int {
 		reads++
-		return lowering.ReadOncePerRun(c.Ctx, "inner", inner) + 1
+		return lowering.ReadOncePerRun(serviceContext.Ctx, "inner", inner) + 1
 	}
 
-	assert.Equal(t, 2, lowering.ReadOncePerRun(c.Ctx, "outer", outer))
-	assert.Equal(t, 1, lowering.ReadOncePerRun(c.Ctx, "inner", inner))
+	assert.Equal(t, 2, lowering.ReadOncePerRun(serviceContext.Ctx, "outer", outer))
+	assert.Equal(t, 1, lowering.ReadOncePerRun(serviceContext.Ctx, "inner", inner))
 	assert.Equal(t, 2, reads, "inner was read once, within outer")
 }
 
@@ -288,13 +288,13 @@ func TestSettled_BuildsOneStorePerRun(t *testing.T) {
 		builds++
 		return &counts{n: builds}
 	}
-	c := servicetest.Context(t, bindingsSpec, service.Policy{})
+	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})
 
-	first := lowering.Settled(c.Ctx, build)
-	assert.Same(t, first, lowering.Settled(atSource(t, c.Ctx), build), "a copy shares c's store")
-	assert.Equal(t, &names{s: "n"}, lowering.Settled(c.Ctx, func() *names { return &names{s: "n"} }),
+	first := lowering.Settled(serviceContext.Ctx, build)
+	assert.Same(t, first, lowering.Settled(atSource(t, serviceContext.Ctx), build), "a copy shares c's store")
+	assert.Equal(t, &names{s: "n"}, lowering.Settled(serviceContext.Ctx, func() *names { return &names{s: "n"} }),
 		"another type of store is another store")
-	assert.Same(t, first, lowering.Settled(c.Ctx, build), "a store of another type replaces none")
+	assert.Same(t, first, lowering.Settled(serviceContext.Ctx, build), "a store of another type replaces none")
 	other := lowering.Settled(servicetest.Context(t, bindingsSpec, service.Policy{}).Ctx, build)
 	assert.NotSame(t, first, other, "another context builds its own")
 	assert.Equal(t, 2, builds, "one store of a type per run")
@@ -306,11 +306,11 @@ func TestSettled_BuildsOneStorePerRun(t *testing.T) {
 // as silently, since nothing downstream can tell a wrong one from a right one.
 func TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
 	t.Parallel()
-	c := service.New(7, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
+	serviceContext := service.New(7, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 7, Pointer: "/components/schemas/User"},
-		c.Place().At("/components/schemas/User"))
-	assert.Equal(t, ir.Provenance{Source: 7}, c.Place().At(""),
+		serviceContext.Place().At("/components/schemas/User"))
+	assert.Equal(t, ir.Provenance{Source: 7}, serviceContext.Place().At(""),
 		"a document-level position carries the index and no pointer")
 }
 
@@ -320,9 +320,9 @@ func TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
 // converted leaves could not be while only the accumulating form existed.
 func TestDiagAt_StampsAndHandsBack(t *testing.T) {
 	t.Parallel()
-	c := service.New(3, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
+	serviceContext := service.New(3, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{})
 
-	got := c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/paths/~1x", "dropped %d of %d", 1, 2)
+	got := serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/paths/~1x", "dropped %d of %d", 1, 2)
 
 	assert.Equal(t, ir.SeverityWarning, got.Severity)
 	assert.Equal(t, diag.DegradedConstruct, got.Code)
@@ -331,25 +331,25 @@ func TestDiagAt_StampsAndHandsBack(t *testing.T) {
 }
 
 // TestDynamicAnchor_ReadsTheBindingsOfItsDocument pins that the declarations
-// are the table's for the document c reads, every one of them counted.
+// are the table's for the document serviceContext reads, every one of them counted.
 func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	t.Parallel()
 	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n    B: {$dynamicAnchor: m}\n")
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	c := service.New(0, doc, service.Policy{})
+	serviceContext := service.New(0, doc, service.Policy{})
 
 	assert.Equal(t, reftable.DynamicAnchor{Site: reftable.DocumentPointer{Pointer: "/components/schemas/A"}, Count: 2, Complete: true},
-		c.DynamicAnchor("m"))
+		serviceContext.DynamicAnchor("m"))
 }
 
 // TestPosition_PlacesAPointerInTheContextsDocument pins that a context reading
 // the source places a pointer in the source.
 func TestPosition_PlacesAPointerInTheContextsDocument(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, bindingsSpec, service.Policy{})
-	assert.Equal(t, reftable.DocumentPointer{Pointer: "/a"}, c.Position("/a"))
+	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/a"}, serviceContext.Position("/a"))
 }
 
 // TestNew_CarriesTheLimits pins that the budgets reach the walk through the
@@ -358,9 +358,9 @@ func TestNew_CarriesTheLimits(t *testing.T) {
 	t.Parallel()
 	limits := lowering.Limits{MaxEnumMembers: budget.AtMost(12)}
 
-	c := servicetest.Context(t, bindingsSpec, service.Policy{Schema: lowering.Policy{Limits: limits}, Grouping: service.GroupByTags})
+	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{Schema: lowering.Policy{Limits: limits}, Grouping: service.GroupByTags})
 
-	assert.Equal(t, limits, c.Limits)
+	assert.Equal(t, limits, serviceContext.Limits)
 }
 
 // TestNew_CarriesThePromotionPolicy pins that the promotion policy reaches the
@@ -371,8 +371,8 @@ func TestNew_CarriesThePromotionPolicy(t *testing.T) {
 	policy := promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
 		promotion.TargetRedaction: {{Key: "x-k"}},
 	}}
-	c := servicetest.Context(t, bindingsSpec, service.Policy{Schema: lowering.Policy{Promotions: policy}})
-	assert.Equal(t, []string{"x-k"}, slices.Collect(c.Promoter().Keys()))
+	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{Schema: lowering.Policy{Promotions: policy}})
+	assert.Equal(t, []string{"x-k"}, slices.Collect(serviceContext.Promoter().Keys()))
 
 	reads := 0
 	entries := func() ir.Unmodeled {
@@ -380,18 +380,18 @@ func TestNew_CarriesThePromotionPolicy(t *testing.T) {
 		return ir.Unmodeled{"openapi:x-k": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`true`)}}
 	}
 	at := reftable.DocumentPointer{Pointer: "/components/schemas/S"}
-	assert.True(t, c.Promoter().Referent(at, false, entries).Redacted)
-	assert.True(t, atSource(t, c.Ctx).Promoter().Referent(at, false, entries).Redacted)
+	assert.True(t, serviceContext.Promoter().Referent(at, false, entries).Redacted)
+	assert.True(t, atSource(t, serviceContext.Ctx).Promoter().Referent(at, false, entries).Redacted)
 	assert.Equal(t, 1, reads, "a copy of the context reads the promoter the context does")
 
 	off := servicetest.Context(t, bindingsSpec, service.Policy{Schema: lowering.Policy{Promotions: promotion.ExtensionPromotions{Disabled: true}}})
 	assert.Empty(t, slices.Collect(off.Promoter().Keys()))
 }
 
-// atSource returns the copy of c InDocument takes to the source's coordinates.
-func atSource(t *testing.T, c lowering.Ctx) lowering.Ctx {
+// atSource returns the copy of loweringContext InDocument takes to the source's coordinates.
+func atSource(t *testing.T, loweringContext lowering.Ctx) lowering.Ctx {
 	t.Helper()
-	at, ok := lowering.InDocument(c, reftable.Source)
+	at, ok := lowering.InDocument(loweringContext, reftable.Source)
 	require.True(t, ok)
 	return at
 }
@@ -408,25 +408,25 @@ func TestNew_ReadsWhatTheLoadPhaseReadAsValues(t *testing.T) {
 		reftable.Source: {Place: provenance.Doc{Source: 3}},
 		1:               {Name: "/r/ext.yaml", Place: provenance.Doc{Source: 4}, IDs: ids.In("ext.yaml")},
 	}
-	c := lowering.New(lowering.Loaded{Declares: componentlookup.NewNames("User"), Documents: documents, Sources: sources},
+	loweringContext := lowering.New(lowering.Loaded{Declares: componentlookup.NewNames("User"), Documents: documents, Sources: sources},
 		lowering.Policy{})
 
-	assert.Equal(t, ir.Provenance{Source: 3, Pointer: "/a"}, c.Place().At("/a"))
-	assert.Equal(t, reftable.DocumentPointer{Doc: reftable.Source, Pointer: "/a"}, c.Position("/a"))
-	assert.True(t, c.DeclaresSchema("User"))
-	assert.False(t, c.RefScope().Foreign)
-	there, ok := lowering.InDocument(c, 1)
+	assert.Equal(t, ir.Provenance{Source: 3, Pointer: "/a"}, loweringContext.Place().At("/a"))
+	assert.Equal(t, reftable.DocumentPointer{Doc: reftable.Source, Pointer: "/a"}, loweringContext.Position("/a"))
+	assert.True(t, loweringContext.DeclaresSchema("User"))
+	assert.False(t, loweringContext.RefScope().Foreign)
+	there, ok := lowering.InDocument(loweringContext, 1)
 	require.True(t, ok)
 	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "/a"}, there.Place().At("/a"))
 	assert.Equal(t, ids.In("ext.yaml"), there.IDs())
 	assert.True(t, there.RefScope().Foreign)
 	assert.Equal(t, "/r/ext.yaml", there.RefScope().Holder)
-	_, ok = lowering.InDocument(c, 2)
+	_, ok = lowering.InDocument(loweringContext, 2)
 	assert.False(t, ok, "a document the compile did not read")
 
 	sources[0], documents[1] = ir.SourceInfo{Path: "other.yaml"}, lowering.BoundDocument{}
-	assert.Equal(t, "spec.yaml", c.Sources()[0].Path, "the context holds a copy of the sources")
-	there, ok = lowering.InDocument(c, 1)
+	assert.Equal(t, "spec.yaml", loweringContext.Sources()[0].Path, "the context holds a copy of the sources")
+	there, ok = lowering.InDocument(loweringContext, 1)
 	require.True(t, ok, "and of the documents")
 	assert.Equal(t, 4, there.Place().Source)
 }

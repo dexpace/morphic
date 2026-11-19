@@ -64,15 +64,15 @@ func named(name string) *ir.Document {
 	return doc
 }
 
-// presenceOf returns the presence verdict of the keyword's case of product p.
-func presenceOf(t *testing.T, p fake) Verdict {
+// presenceOf returns the presence verdict of the keyword's case of product fakeValue.
+func presenceOf(t *testing.T, fakeValue fake) Verdict {
 	t.Helper()
-	res, ok := CheckCase(t.Context(), p, []int{caseWrite})
+	res, ok := CheckCase(t.Context(), fakeValue, []int{caseWrite})
 	require.True(t, ok)
 	require.Equal(t, "kw", res.Spec)
-	for _, v := range res.Verdicts {
-		if v.Oracle == OraclePresence {
-			return v
+	for _, verdict := range res.Verdicts {
+		if verdict.Oracle == OraclePresence {
+			return verdict
 		}
 	}
 	t.Fatal("no presence verdict")
@@ -120,11 +120,11 @@ func TestPresent_JudgesAKeywordAgainstItsNeighbours(t *testing.T) {
 			}
 			swapDocuments(t, docs, nil, "")
 
-			v := presenceOf(t, presenceProduct(tc.write))
+			verdict := presenceOf(t, presenceProduct(tc.write))
 
-			assert.True(t, v.Asked())
-			assert.Equal(t, tc.outcome, v.Outcome)
-			assert.Equal(t, tc.detail, v.Detail)
+			assert.True(t, verdict.Asked())
+			assert.Equal(t, tc.outcome, verdict.Outcome)
+			assert.Equal(t, tc.detail, verdict.Detail)
 		})
 	}
 }
@@ -156,10 +156,10 @@ func TestPresent_ComparesTheDocumentAlone(t *testing.T) {
 	docs["kw"].Diagnostics = announced
 	swapDocuments(t, docs, map[string][]ir.Diagnostic{"kw": announced}, "")
 
-	v := presenceOf(t, presenceProduct(carriedDocs))
+	verdict := presenceOf(t, presenceProduct(carriedDocs))
 
-	assert.Equal(t, OutcomeNotCarried, v.Outcome, "a diagnostic and a source hash are no difference")
-	assert.Equal(t, "changes nothing\nequal to none", v.Detail)
+	assert.Equal(t, OutcomeNotCarried, verdict.Outcome, "a diagnostic and a source hash are no difference")
+	assert.Equal(t, "changes nothing\nequal to none", verdict.Detail)
 }
 
 // TestPresent_LeavesTheKeptDocumentAsItWas holds the comparison to a copy: a
@@ -169,13 +169,13 @@ func TestPresent_LeavesTheKeptDocumentAsItWas(t *testing.T) {
 	diags := map[string][]ir.Diagnostic{"kw": {{Severity: ir.SeverityInfo, Code: "x/y", Message: "m"}}}
 	docs["kw"].Diagnostics = diags["kw"]
 	swapDocuments(t, docs, diags, "")
-	p := presenceProduct(carriedDocs)
-	s := newShard(p, p.axes, []int{caseWrite})
+	fake := presenceProduct(carriedDocs)
+	shard := newShard(fake, fake.axes, []int{caseWrite})
 
-	_, ok := s.check(t.Context(), []int{caseWrite})
+	_, ok := shard.check(t.Context(), []int{caseWrite})
 	require.True(t, ok)
 
-	kept, ok := s.compile(t.Context(), []int{caseWrite})
+	kept, ok := shard.compile(t.Context(), []int{caseWrite})
 	require.True(t, ok)
 	assert.NotEmpty(t, kept.doc.Sources)
 	assert.Equal(t, diags["kw"], kept.diags)
@@ -200,9 +200,9 @@ func TestPresent_DeclinesWhatItCannotCompare(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			swapDocuments(t, same, tc.diags, "")
 
-			v := presenceOf(t, presenceProduct(tc.write))
+			verdict := presenceOf(t, presenceProduct(tc.write))
 
-			assert.Equal(t, declined(OraclePresence, tc.want), v)
+			assert.Equal(t, declined(OraclePresence, tc.want), verdict)
 		})
 	}
 }
@@ -215,7 +215,7 @@ func TestPresent_AnErrorDiagnosticBesideAnUnreadNeighbourIsNotAsked(t *testing.T
 	docs := map[string]*ir.Document{"none": named("a"), "kw": named("a"), "kw~": named("c")}
 	swapDocuments(t, docs, map[string][]ir.Diagnostic{"kw~": boom}, "")
 
-	v := presenceOf(t, presenceProduct(func(i int) CaseDocument {
+	verdict := presenceOf(t, presenceProduct(func(i int) CaseDocument {
 		doc := notCarriedDocs(i)
 		if i == caseWrite {
 			doc.Other = []int{caseOther}
@@ -223,7 +223,7 @@ func TestPresent_AnErrorDiagnosticBesideAnUnreadNeighbourIsNotAsked(t *testing.T
 		return doc
 	}))
 
-	assert.Equal(t, passed(OraclePresence), v)
+	assert.Equal(t, passed(OraclePresence), verdict)
 }
 
 // TestPresent_AssertsWhatACaseMustSay holds the oracle to what a case's
@@ -302,14 +302,14 @@ func TestPresent_ANeighbourTheCasesWriteNothingForIsAPanic(t *testing.T) {
 	docs := map[string]*ir.Document{"none": named("a"), "kw": named("b"), "kw~": named("c")}
 	swapDocuments(t, docs, nil, "")
 	written := presenceProduct(carriedDocs)
-	p := fake{axes: written.axes, write: func(at []int) (CaseDocument, bool) {
+	fakeValue := fake{axes: written.axes, write: func(at []int) (CaseDocument, bool) {
 		if at[0] == caseNone {
 			return CaseDocument{}, false
 		}
 		return written.write(at)
 	}}
 
-	res, ok := CheckCase(t.Context(), p, []int{caseWrite})
+	res, ok := CheckCase(t.Context(), fakeValue, []int{caseWrite})
 
 	require.True(t, ok)
 	assert.Equal(t, OutcomePanic, res.Outcome)

@@ -144,20 +144,20 @@ func narrows(narrow, broad ir.PrimitiveKind) bool {
 	return narrow.StrictlyWithin(broad) || (broad == ir.PrimitiveString && refinesString(narrow))
 }
 
-// refinesString reports whether some string/* row of the table selects k. The
+// refinesString reports whether some string/* row of the table selects primitiveKind. The
 // edge set is read off the table rather than restated beside it.
-func refinesString(k ir.PrimitiveKind) bool {
+func refinesString(primitiveKind ir.PrimitiveKind) bool {
 	for key, prim := range formatTable {
-		if prim == k && strings.HasPrefix(key, "string/") {
+		if prim == primitiveKind && strings.HasPrefix(key, "string/") {
 			return true
 		}
 	}
 	return false
 }
 
-// numeric reports whether k is number or lies within it.
-func numeric(k ir.PrimitiveKind) bool {
-	return k == ir.PrimitiveNumber || k.StrictlyWithin(ir.PrimitiveNumber)
+// numeric reports whether primitiveKind is number or lies within it.
+func numeric(primitiveKind ir.PrimitiveKind) bool {
+	return primitiveKind == ir.PrimitiveNumber || primitiveKind.StrictlyWithin(ir.PrimitiveNumber)
 }
 
 // bytesAgainstFormat reports whether b is bytes and a is another

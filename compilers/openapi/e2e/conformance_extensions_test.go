@@ -14,15 +14,15 @@ import (
 )
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	raw, ok := m.Unmodeled["openapi:x-rate-limit"]
+	raw, ok := model.Unmodeled["openapi:x-rate-limit"]
 	require.True(t, ok, "x-* extensions are namespaced under openapi:")
 	assert.JSONEq(t, "100", string(raw.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
 	assertEveryObjectKeepsItsExtensions(t, doc)
-	assertRawPreservedBinary(t, m)
+	assertRawPreservedBinary(t, model)
 }
 
 // assertEveryObjectKeepsItsExtensions holds the whole contract, not the
@@ -131,15 +131,15 @@ func carrierNarrows(sites []unmodeledSite, carrier string) bool {
 // The block-form row carries the line breaks with it, because they are part of
 // what the source wrote; base64.StdEncoding skips them, so a consumer resolving
 // the tag reads the same bytes the decode used to store.
-func assertRawPreservedBinary(t *testing.T, m *ir.Model) {
+func assertRawPreservedBinary(t *testing.T, model *ir.Model) {
 	t.Helper()
 	for _, tc := range []struct{ key, want string }{
 		{"openapi:x-blob", `"aGVsbG8="`},
 		{"openapi:x-raw", `"/w=="`},
 		{"openapi:x-wrapped", `"aGVs\nbG8=\n"`},
 	} {
-		entry, found := m.Unmodeled[tc.key]
-		require.True(t, found, "%s is preserved; got %v", tc.key, m.Unmodeled)
+		entry, found := model.Unmodeled[tc.key]
+		require.True(t, found, "%s is preserved; got %v", tc.key, model.Unmodeled)
 		assert.Equal(t, tc.want, string(entry.Value),
 			"%s keeps its base64 text, not the bytes it names", tc.key)
 	}
@@ -169,8 +169,8 @@ func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.Len(t, op.Params, 1)
 	assertCarriedAnnotations(t, op.Params[0].Docs, op.Params[0].Constraints, op.Params[0].Unmodeled, 4)
 	require.Len(t, op.Responses[0].Headers, 1)
-	h := op.Responses[0].Headers[0]
-	assertCarriedAnnotations(t, h.Docs, h.Constraints, h.Unmodeled, 64)
+	header := op.Responses[0].Headers[0]
+	assertCarriedAnnotations(t, header.Docs, header.Constraints, header.Unmodeled, 64)
 }
 
 // assertAnnotatedScalar requires the node at id to be a Scalar carrying a
@@ -188,11 +188,11 @@ func assertAnnotatedScalar(t *testing.T, doc *ir.Document, id ir.TypeID, maxLeng
 
 // assertCarriedAnnotations requires a parameter's or header's own carrier to
 // hold what its schema declared.
-func assertCarriedAnnotations(t *testing.T, docs ir.Docs, c *ir.Constraints, p ir.Unmodeled, maxLength int64) {
+func assertCarriedAnnotations(t *testing.T, docs ir.Docs, constraints *ir.Constraints, unmodeled ir.Unmodeled, maxLength int64) {
 	t.Helper()
 	assert.NotEmpty(t, docs.Description)
-	require.NotNil(t, c)
-	require.NotNil(t, c.MaxLength)
-	assert.Equal(t, maxLength, *c.MaxLength)
-	assert.NotEmpty(t, p, "the schema's x-* rides on the carrier too")
+	require.NotNil(t, constraints)
+	require.NotNil(t, constraints.MaxLength)
+	assert.Equal(t, maxLength, *constraints.MaxLength)
+	assert.NotEmpty(t, unmodeled, "the schema's x-* rides on the carrier too")
 }

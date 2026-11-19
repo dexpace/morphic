@@ -78,15 +78,15 @@ func requestFixtures() []requestFixture {
 func requested(t *testing.T) []string {
 	t.Helper()
 	lines := make([]string, 0, 32)
-	for _, f := range requestFixtures() {
+	for _, requestFixture := range requestFixtures() {
 		var log askLog
-		bound(t, head+"components:\n  schemas:\n"+f.schemas, log.opening(t, f.cfg, f.docs))
+		bound(t, head+"components:\n  schemas:\n"+requestFixture.schemas, log.opening(t, requestFixture.cfg, requestFixture.docs))
 		count := map[string]int{}
 		for _, name := range log.names() {
 			count[name]++
 		}
 		for _, name := range slices.Sorted(maps.Keys(count)) {
-			lines = append(lines, fmt.Sprintf("%s\t%s\t%d", f.name, name, count[name]))
+			lines = append(lines, fmt.Sprintf("%s\t%s\t%d", requestFixture.name, name, count[name]))
 		}
 	}
 	return lines

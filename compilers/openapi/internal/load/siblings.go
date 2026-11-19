@@ -116,19 +116,19 @@ func isReference(node *yaml.Node) bool {
 // resolution walk meets the same fault at the same model, and reports it.
 func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], tree provenance.Tree, build siblingBuild,
 ) (Siblings, []ir.Diagnostic) {
-	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}}
+	siblings := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}}
 	var faults []ir.Diagnostic
 	met := func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
-		faults = append(faults, s.add(ctx, site, rp, build, tree)...)
+		faults = append(faults, siblings.add(ctx, site, rp, build, tree)...)
 		return nil
 	}
 	_, err := eachModel(items, "sibling search", met)
 	// The document's walk, then each model's in turn, until one panics or ctx
 	// is done.
-	for i := 0; err == nil && i < len(s.list) && i < sourcetreestats.MaxIndexedNodes && ctx.Err() == nil; i++ {
-		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", met)
+	for i := 0; err == nil && i < len(siblings.list) && i < sourcetreestats.MaxIndexedNodes && ctx.Err() == nil; i++ {
+		_, err = eachModel(siblings.modelWalk(ctx, i), "sibling search", met)
 	}
-	return s, faults
+	return siblings, faults
 }
 
 // add models the fields rp's use site writes beside its $ref, at site. It does
@@ -262,7 +262,7 @@ func writesBeside(node *yaml.Node) bool {
 			return true
 		}
 	}
-	return merges && slices.ContainsFunc(nodeview.Pairs(node), func(p nodeview.Pair) bool { return p.Key != refKey })
+	return merges && slices.ContainsFunc(nodeview.Pairs(node), func(pair nodeview.Pair) bool { return pair.Key != refKey })
 }
 
 // isRefKey reports whether key spells $ref, directly or through an alias, as

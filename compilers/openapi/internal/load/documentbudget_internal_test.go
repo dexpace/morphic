@@ -77,12 +77,12 @@ func responseRoot(ref string) string {
 func budgetFindings(diags []ir.Diagnostic) ([]ir.Diagnostic, []string) {
 	var over []ir.Diagnostic
 	var unresolved []string
-	for _, d := range diags {
-		switch d.Code {
+	for _, diagnostic := range diags {
+		switch diagnostic.Code {
 		case diag.BudgetExceeded:
-			over = append(over, d)
+			over = append(over, diagnostic)
 		case diag.UnresolvedRef:
-			unresolved = append(unresolved, d.Message)
+			unresolved = append(unresolved, diagnostic.Message)
 		}
 	}
 	return over, unresolved

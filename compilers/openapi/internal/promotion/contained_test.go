@@ -34,12 +34,12 @@ func noPromotions() promotion.Promoter {
 // source, whose value is what the other holds there, is dropped.
 func TestDropContained_DropsWhatAnotherEntryHoldsWhole(t *testing.T) {
 	t.Parallel()
-	p := ir.Unmodeled{
+	unmodeled := ir.Unmodeled{
 		"openapi:s":    held(0, "/s", `{"if":{"x":1}}`),
 		"openapi:s/if": held(0, "/s/if/x", `1`),
 	}
-	promotion.DropContained(noPromotions(), &p)
-	assert.Equal(t, []string{"openapi:s"}, keysOf(p))
+	promotion.DropContained(noPromotions(), &unmodeled)
+	assert.Equal(t, []string{"openapi:s"}, keysOf(unmodeled))
 }
 
 // TestDropContained_KeepsWhatIsNotInside holds each look-alike to its entry:
@@ -56,9 +56,9 @@ func TestDropContained_KeepsWhatIsNotInside(t *testing.T) {
 		"another source":                       held(1, "/s/if/x", `1`),
 		"the same pointer":                     held(0, "/s", `{"if":{"x":1}}`),
 	} {
-		p := ir.Unmodeled{"openapi:s": whole, "openapi:inner": lookalike}
-		promotion.DropContained(noPromotions(), &p)
-		assert.Equal(t, []string{"openapi:inner", "openapi:s"}, keysOf(p), name)
+		unmodeled := ir.Unmodeled{"openapi:s": whole, "openapi:inner": lookalike}
+		promotion.DropContained(noPromotions(), &unmodeled)
+		assert.Equal(t, []string{"openapi:inner", "openapi:s"}, keysOf(unmodeled), name)
 	}
 
 	inside := ir.Unmodeled{"openapi:s": whole, "openapi:inner": held(0, "/s/if/x", `1`), "openapi:other": held(0, "/o", `1`)}
@@ -89,9 +89,9 @@ func TestDropContained_KeepsAKeyAPromotionReads(t *testing.T) {
 		"openapi:x-sensitive": true, "openapi:schema/x-sensitive": true, "openapi:schema/x-a/b": true,
 	}
 	for key, entry := range inner {
-		p := ir.Unmodeled{"openapi:schema/allOf/1": branch, key: entry}
-		promotion.DropContained(reads, &p)
-		_, kept := p[key]
+		unmodeled := ir.Unmodeled{"openapi:schema/allOf/1": branch, key: entry}
+		promotion.DropContained(reads, &unmodeled)
+		_, kept := unmodeled[key]
 		assert.Equal(t, stays[key], kept, key)
 
 		off := ir.Unmodeled{"openapi:schema/allOf/1": branch, key: entry}
@@ -105,12 +105,12 @@ func TestDropContained_KeepsAKeyAPromotionReads(t *testing.T) {
 // beneath its own, to being kept whole beside what lies under it.
 func TestDropContained_AnAssembledEntryHoldsNothing(t *testing.T) {
 	t.Parallel()
-	p := ir.Unmodeled{
+	unmodeled := ir.Unmodeled{
 		"openapi:validationOnly": held(0, "/s", `{"not":{"type":"string"},"if":{"x":1}}`),
 		"openapi:not":            held(0, "/s/else", `{"type":"integer"}`),
 	}
-	promotion.DropContained(noPromotions(), &p)
-	assert.Len(t, p, 2)
+	promotion.DropContained(noPromotions(), &unmodeled)
+	assert.Len(t, unmodeled, 2)
 }
 
 // TestDropContained_LeavesNilAndEmptyAlone holds the degenerate maps to no
@@ -126,10 +126,10 @@ func TestDropContained_LeavesNilAndEmptyAlone(t *testing.T) {
 	promotion.DropContained(noPromotions(), nil)
 }
 
-// keysOf returns the keys of p in order.
-func keysOf(p ir.Unmodeled) []string {
-	out := make([]string, 0, len(p))
-	for k := range p {
+// keysOf returns the keys of unmodeled in order.
+func keysOf(unmodeled ir.Unmodeled) []string {
+	out := make([]string, 0, len(unmodeled))
+	for k := range unmodeled {
 		out = append(out, k)
 	}
 	slices.Sort(out)

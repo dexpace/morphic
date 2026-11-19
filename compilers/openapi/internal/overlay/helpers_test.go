@@ -70,8 +70,8 @@ func codes(diags []ir.Diagnostic) []string {
 		return nil
 	}
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, string(d.Severity)+" "+d.Code)
+	for _, diagnostic := range diags {
+		out = append(out, string(diagnostic.Severity)+" "+diagnostic.Code)
 	}
 	return out
 }

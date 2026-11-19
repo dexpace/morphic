@@ -32,18 +32,18 @@ func newDynamicRefs() *dynamicRefs {
 
 // dynamicRefValue is the $dynamicRef the schema n of document id writes, read
 // as refOf reads a $ref, and whether it writes a string one.
-func dynamicRefValue(d *docs, id DocID, n *yaml.Node) (string, bool) {
+func dynamicRefValue(docsValue *docs, id DocID, n *yaml.Node) (string, bool) {
 	if n = nodeview.Deref(n); n == nil || n.Kind != yaml.MappingNode {
 		return "", false
 	}
-	v := nodeview.Deref(d.list[id].view.ChildByToken(n, "$dynamicRef"))
+	v := nodeview.Deref(docsValue.list[id].view.ChildByToken(n, "$dynamicRef"))
 	if v == nil || v.Kind != yaml.ScalarNode || v.Tag == "!!null" {
 		return "", false
 	}
 	return v.Value, true
 }
 
-// namesDynamic reports whether the $dynamicRef value, written at p and reached
+// namesDynamic reports whether the $dynamicRef value, written at documentPointer and reached
 // along path, is dynamic: its fragment is a plain name and it resolves, as a
 // $ref, onto a $dynamicAnchor of that name. It is not shown to be the $ref it
 // spells where the resource it names declares the name more than once, one
@@ -51,39 +51,39 @@ func dynamicRefValue(d *docs, id DocID, n *yaml.Node) (string, bool) {
 // past the bound or the budget may hide the anchor: the lowering keeps those
 // (docs/compilers/openapi.md#dynamic-ref). known is false, and nothing kept,
 // while its hop waits for a document not yet read.
-func namesDynamic(b *binder, p DocumentPointer, path []*yaml.Node, value string) (dynamic, known bool) {
-	if v, ok := b.dyn.named[p]; ok {
+func namesDynamic(b *binder, documentPointer DocumentPointer, path []*yaml.Node, value string) (dynamic, known bool) {
+	if v, ok := b.dyn.named[documentPointer]; ok {
 		return v, true
 	}
 	name := string(fragment.Pointer(value))
 	if name == "" || strings.HasPrefix(name, "/") {
-		b.dyn.named[p] = false
+		b.dyn.named[documentPointer] = false
 		return false, true
 	}
-	h := b.resolve(p, path, value, true)
+	hop := b.resolve(documentPointer, path, value, true)
 	switch {
-	case h.Reason == PendingExternalDocumentRead:
+	case hop.Reason == PendingExternalDocumentRead:
 		return false, false
 	case b.work.over():
 		return true, true
-	case h.Status == Resolved:
-		dynamic = slices.Contains(b.ids.dynamic[dynamicKey{doc: h.Target.Doc, name: name}], h.Target)
-	case h.Reason == DuplicateAnchor:
-		dynamic = duplicateDynamic(b, p, path, value, name)
+	case hop.Status == Resolved:
+		dynamic = slices.Contains(b.ids.dynamic[dynamicKey{doc: hop.Target.Doc, name: name}], hop.Target)
+	case hop.Reason == DuplicateAnchor:
+		dynamic = duplicateDynamic(b, documentPointer, path, value, name)
 	default:
-		dynamic = h.Reason == MergeBound
+		dynamic = hop.Reason == MergeBound
 	}
-	b.dyn.named[p] = dynamic
+	b.dyn.named[documentPointer] = dynamic
 	return dynamic, true
 }
 
 // duplicateDynamic reports whether one of the declarations of the plain name
-// name that the resource the $dynamicRef value, written at p and reached
+// name that the resource the $dynamicRef value, written at documentPointer and reached
 // along path, names holds two or more of is a $dynamicAnchor: the resource's
 // own, as resolve read them, and no other resource's of its document. A
 // resource it cannot name again, which resolve named, reads as dynamic.
-func duplicateDynamic(b *binder, p DocumentPointer, path []*yaml.Node, value, name string) bool {
-	in, known := b.resources.holding(p, path, true, b.ids.readsDialects(p.Doc))
+func duplicateDynamic(b *binder, documentPointer DocumentPointer, path []*yaml.Node, value, name string) bool {
+	in, known := b.resources.holding(documentPointer, path, true, b.ids.readsDialects(documentPointer.Doc))
 	uri, _, _ := strings.Cut(value, "#")
 	to, reason, _ := b.named(in, uri)
 	dynamic := b.ids.dynamic[dynamicKey{doc: to.root.Doc, name: name}]
@@ -98,26 +98,26 @@ func duplicateDynamic(b *binder, p DocumentPointer, path []*yaml.Node, value, na
 // binding its context stopped reads none further.
 func staticSites(b *binder) {
 	dynamic := b.find.freshDynamic[:0]
-	for _, d := range b.find.freshDynamic {
+	for _, dynamicSite := range b.find.freshDynamic {
 		if b.work.cancelled() {
 			break
 		}
-		if d.beside {
-			dynamic = append(dynamic, d)
+		if dynamicSite.beside {
+			dynamic = append(dynamic, dynamicSite)
 			continue
 		}
-		path, _ := b.docs.path(d.at)
-		named, known := namesDynamic(b, d.at, path, d.value)
+		path, _ := b.docs.path(dynamicSite.at)
+		named, known := namesDynamic(b, dynamicSite.at, path, dynamicSite.value)
 		if named {
-			dynamic = append(dynamic, d)
+			dynamic = append(dynamic, dynamicSite)
 			continue
 		}
 		if !known {
-			b.dyn.waiting[d.at] = d.value
+			b.dyn.waiting[dynamicSite.at] = dynamicSite.value
 		}
-		if !b.find.sites[d.at] {
-			b.find.sites[d.at] = true
-			b.find.fresh = append(b.find.fresh, d.at)
+		if !b.find.sites[dynamicSite.at] {
+			b.find.sites[dynamicSite.at] = true
+			b.find.fresh = append(b.find.fresh, dynamicSite.at)
 		}
 	}
 	b.find.freshDynamic = dynamic
@@ -142,10 +142,10 @@ func resettle(b *binder, site DocumentPointer) bool {
 	return named
 }
 
-// keywordAt is the keyword the reference whose hop the pass read at p is
+// keywordAt is the keyword the reference whose hop the pass read at documentPointer is
 // written under.
-func keywordAt(b *binder, p DocumentPointer) string {
-	if b.dyn.spelled[p] {
+func keywordAt(b *binder, documentPointer DocumentPointer) string {
+	if b.dyn.spelled[documentPointer] {
 		return "$dynamicRef"
 	}
 	return "$ref"

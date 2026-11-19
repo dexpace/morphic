@@ -44,10 +44,10 @@ func instanceCase(data []byte, instances ...Instance) fake {
 	}}
 }
 
-// instanceVerdict is the instance oracle's verdict on c's one case.
-func instanceVerdict(t *testing.T, c fake) Verdict {
+// instanceVerdict is the instance oracle's verdict on fakeValue's one case.
+func instanceVerdict(t *testing.T, fakeValue fake) Verdict {
 	t.Helper()
-	res, ok := CheckCase(t.Context(), c, []int{0})
+	res, ok := CheckCase(t.Context(), fakeValue, []int{0})
 	require.True(t, ok)
 	require.False(t, res.Faulted(), "%s: %s", res.Outcome, res.Detail)
 	return res.Verdicts[2]
@@ -59,17 +59,17 @@ func instanceVerdict(t *testing.T, c fake) Verdict {
 // invalid instance is not asked.
 func TestAdmitted_FindsTheInstancesTheirTypeExcludes(t *testing.T) {
 	inside := []Instance{{Node: carriedA, Valid: true, Name: "a string"}, {Node: carriedParam, Valid: true, Name: "q"}}
-	v := instanceVerdict(t, instanceCase(instanceSpec(`"y"`), inside...))
-	assert.Equal(t, passed(OracleInstance), v)
+	verdict := instanceVerdict(t, instanceCase(instanceSpec(`"y"`), inside...))
+	assert.Equal(t, passed(OracleInstance), verdict)
 
 	outside := slices.Concat(inside, []Instance{{Node: carriedB, Valid: true, Name: "one\tnumber"}})
-	v = instanceVerdict(t, instanceCase(instanceSpec(`1`), outside...))
+	verdict = instanceVerdict(t, instanceCase(instanceSpec(`1`), outside...))
 	assert.Equal(t, found(OracleInstance, `"one\tnumber"`+"\n"+
-		`"one\tnumber": default is a number, and type/primitive/string holds a string`), v)
+		`"one\tnumber": default is a number, and type/primitive/string holds a string`), verdict)
 
 	notAsked := slices.Concat(inside, []Instance{{Node: carriedB, Valid: false, Name: "one"}})
-	v = instanceVerdict(t, instanceCase(instanceSpec(`1`), notAsked...))
-	assert.Equal(t, passed(OracleInstance), v, "an invalid instance is not asked")
+	verdict = instanceVerdict(t, instanceCase(instanceSpec(`1`), notAsked...))
+	assert.Equal(t, passed(OracleInstance), verdict, "an invalid instance is not asked")
 }
 
 // TestAdmitted_DeclinesWhatItCannotAsk pins each decline: no valid instance,
@@ -93,10 +93,10 @@ func TestAdmitted_DeclinesWhatItCannotAsk(t *testing.T) {
 	) (*ir.Document, []ir.Diagnostic, error) {
 		doc, diags, err := orig(ctx, sources, options, ps)
 		require.NoError(t, err)
-		m, ok := doc.Types["type/openapi/components/schemas/C"].(*ir.Model)
+		model, ok := doc.Types["type/openapi/components/schemas/C"].(*ir.Model)
 		require.True(t, ok)
-		for i := range m.Properties {
-			m.Properties[i].Default = nil
+		for i := range model.Properties {
+			model.Properties[i].Default = nil
 		}
 		return doc, diags, nil
 	}
@@ -186,13 +186,13 @@ func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
 				}
 				return doc, diags, err
 			}
-			v := instanceVerdict(t, instanceCase(kindSpec(tc.schemas, props), instances...))
+			verdict := instanceVerdict(t, instanceCase(kindSpec(tc.schemas, props), instances...))
 			if tc.want == "" {
-				assert.Equal(t, passed(OracleInstance), v)
+				assert.Equal(t, passed(OracleInstance), verdict)
 				return
 			}
-			assert.True(t, v.Found(), "%+v", v)
-			assert.Equal(t, tc.want, strings.SplitN(v.Detail, "\n", 2)[0])
+			assert.True(t, verdict.Found(), "%+v", verdict)
+			assert.Equal(t, tc.want, strings.SplitN(verdict.Detail, "\n", 2)[0])
 		})
 	}
 }

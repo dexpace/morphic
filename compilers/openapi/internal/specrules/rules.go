@@ -34,18 +34,18 @@ const (
 // where it does, a mapping included, which no text reads.
 func (f frame) test(terms []Term) tri {
 	answer := answerYes
-	for _, t := range terms {
-		if t.Written {
-			if _, ok := f.byKey[t.Field]; !ok {
+	for _, term := range terms {
+		if term.Written {
+			if _, ok := f.byKey[term.Field]; !ok {
 				return answerNo
 			}
 			continue
 		}
-		got, ok := f.text(t.Field)
+		got, ok := f.text(term.Field)
 		switch {
 		case !ok:
 			answer = unknown
-		case !slices.Contains(t.In, got):
+		case !slices.Contains(term.In, got):
 			return answerNo
 		}
 	}
@@ -73,11 +73,11 @@ func textOf(node *yaml.Node) (string, bool) {
 
 // rules applies the object's rules that hold at the declared minor, bar those
 // another package reports.
-func (w *walker) rules(f frame) {
-	r := ruler{w: w, f: f}
-	for _, rule := range f.obj.Rules {
+func (w *walker) rules(frameValue frame) {
+	rulerValue := ruler{w: w, f: frameValue}
+	for _, rule := range frameValue.obj.Rules {
 		if rule.Span.Holds(w.minor) && rule.Owner == "" {
-			r.apply(rule)
+			rulerValue.apply(rule)
 		}
 	}
 }
@@ -209,7 +209,7 @@ func (r ruler) named(field string) string {
 // the schema lowering reads one as the empty schema.
 func (r ruler) entryCount(field string) (int, jsontext.Pointer, bool) {
 	if field == "" {
-		return written(r.f.pairs, func(p nodeview.Pair) bool { return !strings.HasPrefix(p.Key, "x-") }), r.f.at.ptr, true
+		return written(r.f.pairs, func(pair nodeview.Pair) bool { return !strings.HasPrefix(pair.Key, "x-") }), r.f.at.ptr, true
 	}
 	node := nodeview.Deref(r.f.byKey[field])
 	ptr := r.f.at.ptr.AppendToken(field)
@@ -231,8 +231,8 @@ func (r ruler) entryCount(field string) (int, jsontext.Pointer, bool) {
 // written counts the pairs counted keeps whose value is not null.
 func written(pairs []nodeview.Pair, counted func(nodeview.Pair) bool) int {
 	n := 0
-	for _, p := range pairs {
-		if counted(p) && !isNull(nodeview.Deref(p.Val)) {
+	for _, pair := range pairs {
+		if counted(pair) && !isNull(nodeview.Deref(pair.Val)) {
 			n++
 		}
 	}
@@ -341,8 +341,8 @@ func repeats(list *yaml.Node, text func(*yaml.Node) (string, bool), repeat func(
 // keysOf reads a node as the entries of a mapping.
 func (r ruler) keysOf(node *yaml.Node) map[string]*yaml.Node {
 	out := map[string]*yaml.Node{}
-	for _, p := range r.w.view.MappingPairs(node) {
-		out[p.Key] = p.Val
+	for _, pair := range r.w.view.MappingPairs(node) {
+		out[pair.Key] = pair.Val
 	}
 	return out
 }
@@ -362,30 +362,30 @@ func (r ruler) inapplicable(rule Rule) {
 // graded by the rule's level: the value of a string field, at the field, or a
 // key of a map field, at the key. OpenAPI says a definition under it SHALL be
 // ignored; it lowers as declared, for the emitter to suppress.
-func reservedNames(r ruler, rule Rule) {
-	node := nodeview.Deref(r.f.byKey[rule.Field])
-	if node == nil || r.f.test(rule.When) != answerYes {
+func reservedNames(rulerValue ruler, rule Rule) {
+	node := nodeview.Deref(rulerValue.f.byKey[rule.Field])
+	if node == nil || rulerValue.f.test(rule.When) != answerYes {
 		return
 	}
-	ptr := r.f.at.ptr.AppendToken(rule.Field)
+	ptr := rulerValue.f.at.ptr.AppendToken(rule.Field)
 	if name, ok := textOf(node); ok {
 		if reserved, is := reservedName(name, rule.Names); is {
-			place := newKeyPlacer(r.w, r.f.at.node, r.f.at.ptr).place(rule.Field)
-			r.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, place, "header %s %q is reserved: OpenAPI "+
+			place := newKeyPlacer(rulerValue.w, rulerValue.f.at.node, rulerValue.f.at.ptr).place(rule.Field)
+			rulerValue.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, place, "header %s %q is reserved: OpenAPI "+
 				"says a definition for %s SHALL be ignored, so it is lowered as declared and left for the emitter to "+
-				"suppress", r.f.obj.noun(), name, reserved), ptr)
+				"suppress", rulerValue.f.obj.noun(), name, reserved), ptr)
 		}
 		return
 	}
 	if node.Kind != yaml.MappingNode {
 		return
 	}
-	places := newKeyPlacer(r.w, node, ptr)
-	for _, p := range r.w.view.MappingPairs(node) {
-		if reserved, is := reservedName(p.Key, rule.Names); is {
-			r.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, places.place(p.Key), "header %q is "+
+	places := newKeyPlacer(rulerValue.w, node, ptr)
+	for _, pair := range rulerValue.w.view.MappingPairs(node) {
+		if reserved, is := reservedName(pair.Key, rule.Names); is {
+			rulerValue.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, places.place(pair.Key), "header %q is "+
 				"reserved: OpenAPI says a %s entry in a headers map SHALL be ignored, so it is lowered as declared and "+
-				"left for the emitter to suppress", p.Key, reserved), ptr.AppendToken(p.Key))
+				"left for the emitter to suppress", pair.Key, reserved), ptr.AppendToken(pair.Key))
 		}
 	}
 }
@@ -422,13 +422,13 @@ func (o Object) noun() string { return strings.ToLower(strings.TrimSuffix(o.Name
 // a value among those the term lists is the only kind a rule that holds has.
 func (r ruler) place(terms []Term) string {
 	parts := make([]string, len(terms))
-	for i, t := range terms {
-		if t.Written {
-			parts[i] = "a " + r.f.obj.noun() + " that writes " + t.Field
+	for i, term := range terms {
+		if term.Written {
+			parts[i] = "a " + r.f.obj.noun() + " that writes " + term.Field
 			continue
 		}
-		got, _ := r.f.text(t.Field)
-		parts[i] = describeTerm(t.Field, got)
+		got, _ := r.f.text(term.Field)
+		parts[i] = describeTerm(term.Field, got)
 	}
 	return strings.Join(parts, " with ")
 }

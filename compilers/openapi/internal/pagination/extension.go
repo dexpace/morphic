@@ -29,26 +29,26 @@ func responseTargets() []promotion.ExtensionTarget {
 	}
 }
 
-// Promote fills the pagination each operation of w, the document, declares
+// Promote fills the pagination each operation of compiledDocumentView, the document, declares
 // through the extensions the promotion policy maps to it, where the operation
 // holds none (docs/compilers/openapi.md#extension-pagination), whole or not
 // at all: one whose values do not all resolve, or which states no way to the
-// next page, is reported at the operation. p is the run's promoter.
+// next page, is reported at the operation. promoter is the run's promoter.
 //
 // stated holds each operation it reads whose extensions speak of a pagination,
 // filled or not: those an inference leaves alone, by that rule's precedence.
 // root is the document root's Unmodeled, which an operation's key written
 // true reads (promotion.PageStatementOf).
-func Promote(p promotion.Promoter, w *compileddoc.CompiledDocumentView, root ir.Unmodeled) (stated map[ir.OperationID]bool, diags []ir.Diagnostic) {
+func Promote(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, root ir.Unmodeled) (stated map[ir.OperationID]bool, diags []ir.Diagnostic) {
 	if root == nil {
 		root = ir.Unmodeled{} // the nodes read are operations, whose root states nothing
 	}
-	pg := pager{p: p, w: w, root: root}
+	pg := pager{p: promoter, w: compiledDocumentView, root: root}
 	if !pg.maps() {
 		return nil, nil
 	}
 	stated = map[ir.OperationID]bool{}
-	for _, op := range w.Ops {
+	for _, op := range compiledDocumentView.Ops {
 		if op.Pagination != nil {
 			continue
 		}
@@ -143,18 +143,18 @@ func (pg *pager) report(op *ir.Operation, format string, args ...any) ir.Diagnos
 // which a pager counts to advance an offset and to end either walk
 // (docs/emitters/operations/pagination.md), or nothing reaching the next page
 // at all. A walk naming its flag ends by it alone (ir.PageStopNoMore).
-func assemble(f pageFields) (*ir.Pagination, string) {
+func assemble(pageFieldsValue pageFields) (*ir.Pagination, string) {
 	var continues []promotion.ExtensionTarget
-	for _, t := range []promotion.ExtensionTarget{promotion.TargetPaginationCursor, promotion.TargetPaginationOffset,
+	for _, extensionTarget := range []promotion.ExtensionTarget{promotion.TargetPaginationCursor, promotion.TargetPaginationOffset,
 		promotion.TargetPaginationPage} {
-		if f.inputs[t] != nil {
-			continues = append(continues, t)
+		if pageFieldsValue.inputs[extensionTarget] != nil {
+			continues = append(continues, extensionTarget)
 		}
 	}
-	_, cursor := f.inputs[promotion.TargetPaginationCursor]
-	_, next := f.outputs[promotion.TargetPaginationNextCursor]
-	_, link := f.outputs[promotion.TargetPaginationNextLink]
-	_, items := f.outputs[promotion.TargetPaginationItems]
+	_, cursor := pageFieldsValue.inputs[promotion.TargetPaginationCursor]
+	_, next := pageFieldsValue.outputs[promotion.TargetPaginationNextCursor]
+	_, link := pageFieldsValue.outputs[promotion.TargetPaginationNextLink]
+	_, items := pageFieldsValue.outputs[promotion.TargetPaginationItems]
 	switch {
 	case len(continues) > 1:
 		return nil, "names more than one input continuing it (" + joinTargets(continues) + ")"
@@ -170,20 +170,20 @@ func assemble(f pageFields) (*ir.Pagination, string) {
 	walk := &ir.Pagination{
 		Strategy:   ir.PageStrategyNextLink,
 		Inferred:   true,
-		InputLimit: f.inputs[promotion.TargetPaginationLimit],
-		Items:      f.outputs[promotion.TargetPaginationItems],
-		NextCursor: f.outputs[promotion.TargetPaginationNextCursor],
-		NextLink:   f.outputs[promotion.TargetPaginationNextLink],
-		TotalCount: f.outputs[promotion.TargetPaginationTotalCount],
-		TotalPages: f.outputs[promotion.TargetPaginationTotalPages],
-		HasMore:    f.outputs[promotion.TargetPaginationHasMore],
+		InputLimit: pageFieldsValue.inputs[promotion.TargetPaginationLimit],
+		Items:      pageFieldsValue.outputs[promotion.TargetPaginationItems],
+		NextCursor: pageFieldsValue.outputs[promotion.TargetPaginationNextCursor],
+		NextLink:   pageFieldsValue.outputs[promotion.TargetPaginationNextLink],
+		TotalCount: pageFieldsValue.outputs[promotion.TargetPaginationTotalCount],
+		TotalPages: pageFieldsValue.outputs[promotion.TargetPaginationTotalPages],
+		HasMore:    pageFieldsValue.outputs[promotion.TargetPaginationHasMore],
 	}
 	if walk.HasMore != nil {
 		// The source states the flag, which is where the walk ends.
 		walk.Stop = []ir.PageStop{ir.PageStopNoMore}
 	}
 	if len(continues) == 1 {
-		walk.Strategy, walk.InputCursor = strategyOf(continues[0]), f.inputs[continues[0]]
+		walk.Strategy, walk.InputCursor = strategyOf(continues[0]), pageFieldsValue.inputs[continues[0]]
 	}
 	return walk, ""
 }
@@ -203,8 +203,8 @@ func strategyOf(target promotion.ExtensionTarget) ir.PageStrategy {
 // joinTargets spells targets for a report.
 func joinTargets(targets []promotion.ExtensionTarget) string {
 	names := make([]string, len(targets))
-	for i, t := range targets {
-		names[i] = string(t)
+	for i, extensionTarget := range targets {
+		names[i] = string(extensionTarget)
 	}
 	return strings.Join(names, ", ")
 }

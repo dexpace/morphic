@@ -108,22 +108,22 @@ type Instance struct {
 	Name  string
 }
 
-// CaseCount returns how many cases c's product holds, the product of its axes'
+// CaseCount returns how many cases cases's product holds, the product of its axes'
 // lengths. It refuses a product of no axis or of more than maxCases cases, an
 // axis with no value, two axes or two values of one axis of one name, a name
 // the record or a case name cannot hold, and a Like naming no core value of its
 // axis.
-func CaseCount(c Cases) (int, error) {
-	_, n, err := product(c)
+func CaseCount(cases Cases) (int, error) {
+	_, n, err := product(cases)
 	return n, err
 }
 
-// product returns c's axes and how many cases they make, reading them once.
-func product(c Cases) ([]Axis, int, error) {
-	if c == nil {
+// product returns cases's axes and how many cases they make, reading them once.
+func product(cases Cases) ([]Axis, int, error) {
+	if cases == nil {
 		return nil, 0, errors.New("harness: no cases")
 	}
-	axes := c.Axes()
+	axes := cases.Axes()
 	n, err := countCases(axes)
 	return axes, n, err
 }
@@ -160,18 +160,18 @@ func checkAxis(a Axis) error {
 		return fmt.Errorf("harness: axis %q has no value", a.Name)
 	}
 	core := make(map[string]bool, len(a.Values))
-	for _, v := range a.Values {
-		if err := checkName("a value of axis "+a.Name, v.Name); err != nil {
+	for _, value := range a.Values {
+		if err := checkName("a value of axis "+a.Name, value.Name); err != nil {
 			return err
 		}
-		if _, dup := core[v.Name]; dup {
-			return fmt.Errorf("harness: axis %q has two values named %q", a.Name, v.Name)
+		if _, dup := core[value.Name]; dup {
+			return fmt.Errorf("harness: axis %q has two values named %q", a.Name, value.Name)
 		}
-		core[v.Name] = v.Like == ""
+		core[value.Name] = value.Like == ""
 	}
-	for _, v := range a.Values {
-		if v.Like != "" && !core[v.Like] {
-			return fmt.Errorf("harness: value %q of axis %q is like %q, no core value of it", v.Name, a.Name, v.Like)
+	for _, value := range a.Values {
+		if value.Like != "" && !core[value.Like] {
+			return fmt.Errorf("harness: value %q of axis %q is like %q, no core value of it", value.Name, a.Name, value.Like)
 		}
 	}
 	return nil
@@ -242,15 +242,15 @@ func project(axes []Axis, at []int) []int {
 		if like == "" {
 			continue
 		}
-		core[k] = slices.IndexFunc(a.Values, func(v Value) bool { return v.Name == like })
+		core[k] = slices.IndexFunc(a.Values, func(value Value) bool { return value.Name == like })
 	}
 	return core
 }
 
 // Core returns the pick admitting the cases the gate runs: those each of whose
 // values has an empty Like. Of cases CaseCount refuses it admits nothing.
-func Core(c Cases) func(at []int) bool {
-	axes, _, err := product(c)
+func Core(cases Cases) func(at []int) bool {
+	axes, _, err := product(cases)
 	if err != nil {
 		return func([]int) bool { return false }
 	}
@@ -267,11 +267,11 @@ func Core(c Cases) func(at []int) bool {
 	}
 }
 
-// Each returns every case of c, its index and its value index per axis, in
-// index order, reading c's axes once: a walk of the product calls Axes once,
+// Each returns every case of cases, its index and its value index per axis, in
+// index order, reading cases's axes once: a walk of the product calls Axes once,
 // where a Coordinates per index would rebuild them each time.
-func Each(c Cases) (iter.Seq2[int, []int], error) {
-	axes, n, err := product(c)
+func Each(cases Cases) (iter.Seq2[int, []int], error) {
+	axes, n, err := product(cases)
 	if err != nil {
 		return nil, err
 	}
@@ -284,10 +284,10 @@ func Each(c Cases) (iter.Seq2[int, []int], error) {
 	}, nil
 }
 
-// Coordinates returns the value index per axis of c's case at index i. It
-// reads c's axes, so a walk of every case takes Each.
-func Coordinates(c Cases, i int) ([]int, error) {
-	axes, n, err := product(c)
+// Coordinates returns the value index per axis of cases's case at index i. It
+// reads cases's axes, so a walk of every case takes Each.
+func Coordinates(cases Cases, i int) ([]int, error) {
+	axes, n, err := product(cases)
 	if err != nil {
 		return nil, err
 	}
@@ -297,12 +297,12 @@ func Coordinates(c Cases, i int) ([]int, error) {
 	return coordinates(axes, i), nil
 }
 
-// CheckCase writes c's case at and applies every case oracle to it, as
+// CheckCase writes cases's case at and applies every case oracle to it, as
 // CheckCases does, and returns false, with the case's name alone, where the
 // case writes nothing. A caller mistake (nil ctx, cases CaseCount refuses, at
 // outside the product) is OutcomeError with a harness-prefixed Detail.
-func CheckCase(ctx context.Context, c Cases, at []int) (Result, bool) {
-	axes, _, err := product(c)
+func CheckCase(ctx context.Context, cases Cases, at []int) (Result, bool) {
+	axes, _, err := product(cases)
 	if err != nil {
 		return faulted("", err.Error()), true
 	}
@@ -312,7 +312,7 @@ func CheckCase(ctx context.Context, c Cases, at []int) (Result, bool) {
 	if ctx == nil {
 		return faulted(caseName(axes, at), "harness: nil context"), true
 	}
-	return newShard(c, axes, at).check(ctx, at)
+	return newShard(cases, axes, at).check(ctx, at)
 }
 
 // faulted is the Result of a case a fault ended, which detail says: every case
@@ -323,24 +323,24 @@ func faulted(name, detail string) Result {
 	return res
 }
 
-// CheckCases applies every case oracle to each of c's cases, in index order,
+// CheckCases applies every case oracle to each of cases's cases, in index order,
 // whose value indices pick admits and which Write writes: a Result each, its
 // Spec the case's name. A document an oracle compiles is kept for the shard of
 // cases sharing the case's first two values, so a neighbour compiled once
 // serves every case comparing with it, and memory holds one shard's.
-func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Result, error) {
+func CheckCases(ctx context.Context, cases Cases, pick func(at []int) bool) ([]Result, error) {
 	if ctx == nil {
 		return nil, errors.New("harness: nil context")
 	}
 	if pick == nil {
 		return nil, errors.New("harness: no pick")
 	}
-	axes, n, err := product(c)
+	axes, n, err := product(cases)
 	if err != nil {
 		return nil, err
 	}
 	var results []Result
-	var s *shard
+	var shardValue *shard
 	for i := range n {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("harness: case %d: %w", i, err)
@@ -349,11 +349,11 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 		if !pick(slices.Clone(at)) {
 			continue
 		}
-		if s == nil || !s.holds(at) {
-			s = newShard(c, axes, at)
+		if shardValue == nil || !shardValue.holds(at) {
+			shardValue = newShard(cases, axes, at)
 		}
-		if r, ok := s.check(ctx, at); ok {
-			results = append(results, r)
+		if result, ok := shardValue.check(ctx, at); ok {
+			results = append(results, result)
 		}
 	}
 	return results, nil
@@ -362,7 +362,7 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 // asked holds the case oracles CheckCase applies, in CaseOracles' order, each
 // answering for the case at, which writes doc, and compiling through s what it
 // compares. A case oracle with no entry declines as having nothing to ask.
-var asked = []func(ctx context.Context, s *shard, at []int, doc CaseDocument) Verdict{
+var asked = []func(ctx context.Context, shardValue *shard, at []int, doc CaseDocument) Verdict{
 	spelled,
 	present,
 	admitted,
@@ -392,8 +392,8 @@ func (c compilation) uncompiled() bool {
 }
 
 // newShard returns the empty shard holding the case at.
-func newShard(c Cases, axes []Axis, at []int) *shard {
-	return &shard{cases: c, axes: axes, key: slices.Clone(at[:min(shardAxes, len(at))]), kept: map[int]compilation{}}
+func newShard(cases Cases, axes []Axis, at []int) *shard {
+	return &shard{cases: cases, axes: axes, key: slices.Clone(at[:min(shardAxes, len(at))]), kept: map[int]compilation{}}
 }
 
 // holds reports whether the case at belongs to s.

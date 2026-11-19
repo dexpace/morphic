@@ -55,8 +55,8 @@ func checkPrefixHeaders(doc *ir.Document) walkCheck {
 			if v.Type() != headerType {
 				return operationPath[v.Type()] || headerPath[v.Type()]
 			}
-			if h, ok := reflect.TypeAssert[ir.Header](v); ok && h.Prefix != nil {
-				vs = appendPrefixHeaderViolations(vs, doc, &h, at)
+			if header, ok := reflect.TypeAssert[ir.Header](v); ok && header.Prefix != nil {
+				vs = appendPrefixHeaderViolations(vs, doc, &header, at)
 			}
 			return false
 		},
@@ -64,20 +64,20 @@ func checkPrefixHeaders(doc *ir.Document) walkCheck {
 	}
 }
 
-// appendPrefixHeaderViolations appends what is wrong with h, a header under a
+// appendPrefixHeaderViolations appends what is wrong with header, a header under a
 // prefix, at at.
-func appendPrefixHeaderViolations(vs []Violation, doc *ir.Document, h *ir.Header, at ir.WalkPath) []Violation {
-	if !reachesMap(doc.Types, h.Type) {
+func appendPrefixHeaderViolations(vs []Violation, doc *ir.Document, header *ir.Header, at ir.WalkPath) []Violation {
+	if !reachesMap(doc.Types, header.Type) {
 		vs = append(vs, Violation{
 			Code:    "ir/prefix-header-not-map",
-			Message: "header under a prefix has type " + strconv.Quote(string(h.Type.Target)) + ", which is no map",
+			Message: "header under a prefix has type " + strconv.Quote(string(header.Type.Target)) + ", which is no map",
 			Path:    at.String() + ".Type",
 		})
 	}
-	if h.WireName != "" {
+	if header.WireName != "" {
 		vs = append(vs, Violation{
 			Code:    "ir/prefix-header-wire-name",
-			Message: "header under a prefix also names the field " + strconv.Quote(h.WireName),
+			Message: "header under a prefix also names the field " + strconv.Quote(header.WireName),
 			Path:    at.String() + ".WireName",
 		})
 	}

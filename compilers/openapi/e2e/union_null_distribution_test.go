@@ -66,10 +66,10 @@ func TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch(t *testing.T) {
 							assert.ElementsMatch(t, []ir.TypeID{componentID("A"), componentID("B")},
 								keysOf(variants), "%s: one model per branch but the null", b.name)
 							assert.Empty(t, keptUnder(doc, jsontext.Pointer("/components/schemas/"+b.name)), b.name)
-							p, ok := propByWire(holderModel, strings.ToLower(b.name))
+							property, ok := propByWire(holderModel, strings.ToLower(b.name))
 							require.True(t, ok, b.name)
-							assert.Equal(t, componentID(b.name), p.Type.Target, b.name)
-							assert.Equal(t, b.nullable, p.Type.Nullable, "%s: the reference admits null as the body does", b.name)
+							assert.Equal(t, componentID(b.name), property.Type.Target, b.name)
+							assert.Equal(t, b.nullable, property.Type.Nullable, "%s: the reference admits null as the body does", b.name)
 						}
 					})
 				}
@@ -81,8 +81,8 @@ func TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch(t *testing.T) {
 // keysOf returns the keys of m.
 func keysOf(m map[ir.TypeID]*ir.Model) []ir.TypeID {
 	out := make([]ir.TypeID, 0, len(m))
-	for k := range m {
-		out = append(out, k)
+	for typeID := range m {
+		out = append(out, typeID)
 	}
 	return out
 }
@@ -102,22 +102,22 @@ func TestUnionNullVariant_AUnionAloneOnAnEntryIsTheReferenceItsBareSpellingIs(t 
 	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 		doc, diags := compileKindInference(t, "branch", admissionSpec("3.1.0", "", schemas...), false)
 		requireErrorsAndWarnings(t, diags, nil)
-		h, ok := kindNode(t, doc, componentID("H")).(*ir.Model)
+		model, ok := kindNode(t, doc, componentID("H")).(*ir.Model)
 		require.True(t, ok)
-		p, ok := propByWire(h, "p")
+		property, ok := propByWire(model, "p")
 		require.True(t, ok)
-		q, ok := propByWire(h, "q")
+		irProperty, ok := propByWire(model, "q")
 		require.True(t, ok)
-		assert.Equal(t, ir.TypeRef{Target: componentID("X"), Nullable: true}, q.Type, "the bare union is X, nullable")
-		assert.Equal(t, q.Type, p.Type, "the union on an entry is what the bare union is")
+		assert.Equal(t, ir.TypeRef{Target: componentID("X"), Nullable: true}, irProperty.Type, "the bare union is X, nullable")
+		assert.Equal(t, irProperty.Type, property.Type, "the union on an entry is what the bare union is")
 		for id := range doc.Types {
 			assert.NotContains(t, string(id), "/properties/p", "no node stands for p or beneath it")
 		}
 		assert.Empty(t, keptUnder(doc, "/components/schemas/H/properties/p"), "nothing is kept")
-		assert.Empty(t, p.Unmodeled, "the property keeps nothing")
+		assert.Empty(t, property.Unmodeled, "the property keeps nothing")
 		assert.Empty(t, degradedUnder(diags, "/components/schemas/H/properties/p"), "nothing is reported")
-		for _, d := range diags {
-			assert.NotContains(t, string(d.Provenance.Pointer), "/properties/p", "no finding at p: %s", d.Message)
+		for _, diagnostic := range diags {
+			assert.NotContains(t, string(diagnostic.Provenance.Pointer), "/properties/p", "no finding at p: %s", diagnostic.Message)
 		}
 	})
 }

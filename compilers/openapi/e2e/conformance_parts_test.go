@@ -19,9 +19,9 @@ import (
 // content.
 func partsOf(t *testing.T, doc *ir.Document, op string) (map[string]ir.PartEncoding, ir.Content) {
 	t.Helper()
-	o, ok := opByName(doc, op)
+	operation, ok := opByName(doc, op)
 	require.True(t, ok, op)
-	content := requestContent(t, o)
+	content := requestContent(t, operation)
 	out := make(map[string]ir.PartEncoding, len(content.Encoding))
 	for id, pe := range content.Encoding {
 		name := string(id[strings.LastIndex(string(id), "/")+1:])
@@ -143,9 +143,9 @@ func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 		schema + "oneOf/0/properties/doc": partOf(octetStream, "F"),
 		schema + "oneOf/1/properties/doc": partOf(octetStream, "MF"),
 	}, requestContent(t, shared).Encoding)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "no entry draws an announcement: %s", d.Message)
-		assert.NotEqual(t, diag.UnknownEncodingKey, d.Code, "and no key names nothing: %s", d.Message)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.DegradedConstruct, diagnostic.Code, "no entry draws an announcement: %s", diagnostic.Message)
+		assert.NotEqual(t, diag.UnknownEncodingKey, diagnostic.Code, "and no key names nothing: %s", diagnostic.Message)
 	}
 }
 

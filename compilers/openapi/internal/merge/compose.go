@@ -27,17 +27,17 @@ type conjunct struct {
 func (p position) composition(reg registry) []conjunct {
 	var conjuncts []conjunct
 	model := false
-	for i, m := range p.members {
+	for i, member := range p.members {
 		if p.heldByAnother(i) {
 			continue
 		}
-		node, ok := reg.composable(m.ref)
+		node, ok := reg.composable(member.ref)
 		if !ok {
 			return nil
 		}
 		_, isModel := node.(*ir.Model)
 		model = model || isModel
-		conjuncts = append(conjuncts, conjunct{member: m, node: node})
+		conjuncts = append(conjuncts, conjunct{member: member, node: node})
 	}
 	if len(conjuncts) < 2 || !model {
 		return nil
@@ -66,23 +66,23 @@ func (p position) heldByAnother(i int) bool {
 // (GitHub #1921, #1992).
 func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 	var refs []int
-	for k, c := range cs {
-		if !hoistedAt(c.node, b.f.decls[c.decl].sites()) {
+	for k, conjunct := range cs {
+		if !hoistedAt(conjunct.node, b.f.decls[conjunct.decl].sites()) {
 			refs = append(refs, k)
 		}
 	}
 	base, hasBase := SelectBase(refs, func(k int) bool { return inHierarchy(b.f.g.Reg, cs[k].node) })
 	composed := &ir.Model{}
 	var brought []jsontext.Pointer
-	for k, c := range cs {
-		ref := ir.TypeRef{Target: c.ref.Target}
+	for k, conjunct := range cs {
+		ref := ir.TypeRef{Target: conjunct.ref.Target}
 		if hasBase && k == base {
 			composed.Base = &ref
-			brought = append([]jsontext.Pointer{b.f.decls[c.decl].reportAt()}, brought...)
+			brought = append([]jsontext.Pointer{b.f.decls[conjunct.decl].reportAt()}, brought...)
 			continue
 		}
 		composed.Mixins = append(composed.Mixins, ref)
-		brought = append(brought, b.f.decls[c.decl].reportAt())
+		brought = append(brought, b.f.decls[conjunct.decl].reportAt())
 	}
 	return b.mint(pointer, composed, brought)
 }
@@ -120,12 +120,12 @@ func inHierarchy(reg ir.TypeRegistry, node ir.TypeDef) bool {
 		if !ir.IsNilTypeDef(td) && declaresDiscriminator(td) {
 			return true
 		}
-		m, ok := td.(*ir.Model)
-		if !ok || m == nil || seen[m.ID] {
+		model, ok := td.(*ir.Model)
+		if !ok || model == nil || seen[model.ID] {
 			continue
 		}
-		seen[m.ID] = true
-		for _, id := range ir.Supertypes(doc, m.ID) {
+		seen[model.ID] = true
+		for _, id := range ir.Supertypes(doc, model.ID) {
 			queue = append(queue, reg[id])
 		}
 	}
@@ -137,16 +137,16 @@ func inHierarchy(reg ir.TypeRegistry, node ir.TypeDef) bool {
 // with structure holds the one written with it. One a policy inferred is no
 // source's, so it makes no hierarchy, as the election over the source reads none.
 func declaresDiscriminator(td ir.TypeDef) bool {
-	var d *ir.Discriminator
+	var discriminator *ir.Discriminator
 	switch n := td.(type) {
 	case *ir.Model:
-		d = n.Discriminator
+		discriminator = n.Discriminator
 	case *ir.Union:
-		d = n.Discriminator
+		discriminator = n.Discriminator
 	default:
 		return false
 	}
-	return d != nil && !d.Inferred
+	return discriminator != nil && !discriminator.Inferred
 }
 
 // composable returns the node ref names, directly or through aliases, where

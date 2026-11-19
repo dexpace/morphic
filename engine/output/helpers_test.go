@@ -70,11 +70,11 @@ func newCancellingWriter(t *testing.T, stopAt int) (context.Context, *cancelling
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
-	w := &cancellingWriter{cancel: cancel, stopAt: stopAt}
-	if w.due() {
+	cancellingWriterValue := &cancellingWriter{cancel: cancel, stopAt: stopAt}
+	if cancellingWriterValue.due() {
 		cancel()
 	}
-	return ctx, w
+	return ctx, cancellingWriterValue
 }
 
 // due reports whether the writer holds the stopAt bytes that end its context.

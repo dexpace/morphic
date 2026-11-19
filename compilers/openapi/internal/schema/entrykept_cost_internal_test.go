@@ -37,17 +37,17 @@ func keptShape(n int, top string, entry func(i int) string) string {
 // composition's entries and what each keeps.
 func keptOfShape(t *testing.T, src string) (lowering.Ctx, *statement.Schema, allOfComposition, [][]string) {
 	t.Helper()
-	l, _ := LoweredFor(t, src)
-	for name, st := range l.Schemas() {
+	lowerer, _ := LoweredFor(t, src)
+	for name, st := range lowerer.Schemas() {
 		if name != "X" {
 			continue
 		}
-		comp := allOfBranches(l.Ctx, st.Schema, "/components/schemas/X")
+		comp := allOfBranches(lowerer.Ctx, st.Schema, "/components/schemas/X")
 		kepts := make([][]string, len(comp.branches))
-		for i, e := range comp.branches {
-			kepts[i] = keptOf(l.Ctx, keptEntry{entry: e, residue: compositionResidue(l.Ctx, comp, i)})
+		for i, allOfBranch := range comp.branches {
+			kepts[i] = keptOf(lowerer.Ctx, keptEntry{entry: allOfBranch, residue: compositionResidue(lowerer.Ctx, comp, i)})
 		}
-		return l.Ctx, st.Schema, comp, kepts
+		return lowerer.Ctx, st.Schema, comp, kepts
 	}
 	require.Fail(t, "the document declares no schema X")
 	return lowering.Ctx{}, nil, allOfComposition{}, nil
@@ -85,9 +85,9 @@ func TestEntryKeeps_ReadsEachWrittenKeyOnce(t *testing.T) {
 			t.Parallel()
 			var spent [3]int
 			for i, n := range []int{100, 200, 400} {
-				c, s, comp, kepts := keptOfShape(t, keptShape(n, shape.top, shape.of))
+				loweringContext, schema, comp, kepts := keptOfShape(t, keptShape(n, shape.top, shape.of))
 				var reads budget.Budget
-				writtenApartKeys(c, s, comp, kepts, &reads)
+				writtenApartKeys(loweringContext, schema, comp, kepts, &reads)
 				spent[i] = reads.Spent()
 			}
 			assert.Positive(t, spent[0], "nothing was read: the shape reaches no key")
@@ -99,21 +99,21 @@ func TestEntryKeeps_ReadsEachWrittenKeyOnce(t *testing.T) {
 
 // writtenApartOf is the definition writtenApartKeys answers for one key, read
 // the plain way: the writers of key in order, one walk of the composition each.
-func writtenApartOf(c lowering.Ctx, s *statement.Schema, comp allOfComposition, key string, kepts [][]string) bool {
+func writtenApartOf(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, key string, kepts [][]string) bool {
 	var raws []ir.RawValue
-	if hasKey(s, key) {
-		raw, err := annotation.RawFromNode(keyNode(s, key))
+	if hasKey(schema, key) {
+		raw, err := annotation.RawFromNode(keyNode(schema, key))
 		if err != nil {
 			return true
 		}
 		raws = append(raws, raw)
 	}
-	for i, e := range comp.branches {
-		if (e.schema.Ref != nil && !failedRef(c, e)) || !stated(e.schema.Schema) || !hasKey(e.schema.Schema, key) ||
+	for i, allOfBranch := range comp.branches {
+		if (allOfBranch.schema.Ref != nil && !failedRef(loweringContext, allOfBranch)) || !stated(allOfBranch.schema.Schema) || !hasKey(allOfBranch.schema.Schema, key) ||
 			(kepts != nil && !slices.Contains(kepts[i], key)) {
 			continue
 		}
-		raw, err := annotation.RawFromNode(keyNode(e.schema.Schema, key))
+		raw, err := annotation.RawFromNode(keyNode(allOfBranch.schema.Schema, key))
 		if err != nil {
 			return true
 		}
@@ -144,16 +144,16 @@ func TestWrittenApartKeys_AnswersWhatTheirWritersWrite(t *testing.T) {
 		for _, top := range []string{"", "      ka: 1\n", "      ka: 3\n"} {
 			t.Run(fmt.Sprintf("%s beside %q", name, top), func(t *testing.T) {
 				t.Parallel()
-				c, s, comp, kepts := keptOfShape(t, keptShape(len(entries), top, func(i int) string { return entries[i] }))
+				loweringContext, schema, comp, kepts := keptOfShape(t, keptShape(len(entries), top, func(i int) string { return entries[i] }))
 				var reads budget.Budget
-				writers, keepers := writtenApartKeys(c, s, comp, kepts, &reads)
+				writers, keepers := writtenApartKeys(loweringContext, schema, comp, kepts, &reads)
 				wantKeepers := map[string]bool{}
 				wantWriters := map[string]bool{}
 				for i, kept := range kepts {
 					for _, key := range kept {
-						wantWriters[key] = writtenApartOf(c, s, comp, key, nil)
-						if failedRef(c, comp.branches[i]) {
-							wantKeepers[key] = writtenApartOf(c, s, comp, key, kepts)
+						wantWriters[key] = writtenApartOf(loweringContext, schema, comp, key, nil)
+						if failedRef(loweringContext, comp.branches[i]) {
+							wantKeepers[key] = writtenApartOf(loweringContext, schema, comp, key, kepts)
 						}
 					}
 				}
@@ -176,16 +176,16 @@ func TestEntryKeeps_KeepsTheSameKeysInEitherOrder(t *testing.T) {
 	}
 	kept := func(order []string) map[string][]string {
 		t.Helper()
-		l, _ := LoweredFor(t, keptShape(len(order), "      kz: 9\n", func(i int) string { return order[i] }))
-		for name, st := range l.Schemas() {
+		lowerer, _ := LoweredFor(t, keptShape(len(order), "      kz: 9\n", func(i int) string { return order[i] }))
+		for name, st := range lowerer.Schemas() {
 			if name != "X" {
 				continue
 			}
-			comp := readAllOf(l.Ctx, st.Schema, "/components/schemas/X")
+			comp := readAllOf(lowerer.Ctx, st.Schema, "/components/schemas/X")
 			out := map[string][]string{}
-			for i, k := range comp.kept {
+			for i, keptEntry := range comp.kept {
 				entry := strings.TrimSpace(order[i])
-				out[entry] = append(slices.Clone(k.own), fmt.Sprint(k.whole, k.reason))
+				out[entry] = append(slices.Clone(keptEntry.own), fmt.Sprint(keptEntry.whole, keptEntry.reason))
 			}
 			return out
 		}

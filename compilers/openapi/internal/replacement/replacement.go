@@ -21,24 +21,24 @@ import (
 // operationId, a parameter by `<in>.<name>` or its name within its operation,
 // a header by name among the headers beside it, a property by name within its
 // model, a schema by its components name, and a security scheme by its key
-// (docs/compilers/openapi.md#extension-promotion). p is the run's promoter,
-// and w the document, which is whole.
-func Resolve(p promotion.Promoter, w *compileddoc.CompiledDocumentView) []ir.Diagnostic {
-	r := resolver{p: p, w: w}
-	if !r.p.Maps(promotion.TargetDeprecationReplacedBy) {
+// (docs/compilers/openapi.md#extension-promotion). promoter is the run's promoter,
+// and compiledDocumentView the document, which is whole.
+func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) []ir.Diagnostic {
+	resolverValue := resolver{p: promoter, w: compiledDocumentView}
+	if !resolverValue.p.Maps(promotion.TargetDeprecationReplacedBy) {
 		return nil
 	}
-	diags := r.service()
-	for _, id := range slices.Sorted(maps.Keys(w.Types)) {
-		if td := w.Types[id]; !ir.IsNilTypeDef(td) {
-			diags = append(diags, r.typeDef(id, td)...)
+	diags := resolverValue.service()
+	for _, id := range slices.Sorted(maps.Keys(compiledDocumentView.Types)) {
+		if td := compiledDocumentView.Types[id]; !ir.IsNilTypeDef(td) {
+			diags = append(diags, resolverValue.typeDef(id, td)...)
 		}
 	}
-	for _, id := range slices.Sorted(maps.Keys(w.Auth)) {
-		scheme := w.Auth[id]
-		diags = append(diags, r.fill(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance,
-			ir.EntityRef{Auth: id}, "security scheme", r.scheme)...)
-		w.Auth[id] = scheme
+	for _, id := range slices.Sorted(maps.Keys(compiledDocumentView.Auth)) {
+		scheme := compiledDocumentView.Auth[id]
+		diags = append(diags, resolverValue.fill(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance,
+			ir.EntityRef{Auth: id}, "security scheme", resolverValue.scheme)...)
+		compiledDocumentView.Auth[id] = scheme
 	}
 	return diags
 }
@@ -95,8 +95,8 @@ func (r *resolver) fill(own ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenan
 func (r *resolver) scheme(name string) (ir.EntityRef, int) {
 	var found ir.EntityRef
 	matched := 0
-	for id, s := range r.w.Auth {
-		if s.Name.Source == name {
+	for id, authScheme := range r.w.Auth {
+		if authScheme.Name.Source == name {
 			found, matched = ir.EntityRef{Auth: id}, matched+1
 		}
 	}
@@ -116,14 +116,14 @@ func (r *resolver) schema(name string) (ir.EntityRef, int) {
 func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 	common := td.Common()
 	diags := r.fill(common.Unmodeled, common.Deprecation, &common.Provenance, ir.EntityRef{Type: id}, "schema", r.schema)
-	m, ok := td.(*ir.Model)
+	model, ok := td.(*ir.Model)
 	if !ok {
 		return diags
 	}
-	member := r.memberFinder(m.ID)
-	for i := range m.Properties {
-		p := &m.Properties[i]
-		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, ir.EntityRef{Property: p.ID}, "property", member)...)
+	member := r.memberFinder(model.ID)
+	for i := range model.Properties {
+		property := &model.Properties[i]
+		diags = append(diags, r.fill(property.Unmodeled, property.Deprecation, &property.Provenance, ir.EntityRef{Property: property.ID}, "property", member)...)
 	}
 	return diags
 }
@@ -133,8 +133,8 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 // flattening holds one member of (compileddoc.CompiledDocumentView.Member).
 func (r *resolver) memberFinder(id ir.TypeID) func(string) (ir.EntityRef, int) {
 	return func(name string) (ir.EntityRef, int) {
-		if p, found := r.w.Member(id, name); found {
-			return ir.EntityRef{Property: p.ID}, 1
+		if property, found := r.w.Member(id, name); found {
+			return ir.EntityRef{Property: property.ID}, 1
 		}
 		return ir.EntityRef{}, 0
 	}
@@ -157,8 +157,8 @@ func (r *resolver) headers(hs []ir.Header) []ir.Diagnostic {
 	}
 	diags := make([]ir.Diagnostic, 0, len(hs))
 	for i := range hs {
-		h := &hs[i].Property
-		diags = append(diags, r.fill(h.Unmodeled, h.Deprecation, &h.Provenance, ir.EntityRef{Property: h.ID}, "header", sibling)...)
+		property := &hs[i].Property
+		diags = append(diags, r.fill(property.Unmodeled, property.Deprecation, &property.Provenance, ir.EntityRef{Property: property.ID}, "header", sibling)...)
 	}
 	return diags
 }

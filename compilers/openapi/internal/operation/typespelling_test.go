@@ -536,13 +536,13 @@ func TestElectTypeSpelling_SoleSpellingReportsNothing(t *testing.T) {
 
 	op := openapitest.FindOp(t, doc, "getX")
 	require.Len(t, op.Params, 2)
-	for _, p := range op.Params {
-		assertNoPassedOverSpelling(t, p.Unmodeled, p.Name.Source)
+	for _, parameter := range op.Params {
+		assertNoPassedOverSpelling(t, parameter.Unmodeled, parameter.Name.Source)
 	}
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 2)
-	for _, h := range op.Responses[0].Headers {
-		assertNoPassedOverSpelling(t, h.Unmodeled, h.WireName)
+	for _, header := range op.Responses[0].Headers {
+		assertNoPassedOverSpelling(t, header.Unmodeled, header.WireName)
 	}
 }
 
@@ -798,8 +798,8 @@ func electedHeader(t *testing.T, doc *ir.Document) (ir.TypeID, string, ir.Unmode
 
 // assertNoPassedOverSpelling requires that neither spelling was kept verbatim at
 // a position that declared only one of them.
-func assertNoPassedOverSpelling(t *testing.T, u ir.Unmodeled, at string) {
+func assertNoPassedOverSpelling(t *testing.T, unmodeled ir.Unmodeled, at string) {
 	t.Helper()
-	assert.NotContains(t, u, "openapi:schema", "%s kept a schema it never passed over", at)
-	assert.NotContains(t, u, "openapi:content", "%s kept a content map it never passed over", at)
+	assert.NotContains(t, unmodeled, "openapi:schema", "%s kept a schema it never passed over", at)
+	assert.NotContains(t, unmodeled, "openapi:content", "%s kept a content map it never passed over", at)
 }

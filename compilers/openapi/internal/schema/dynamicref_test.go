@@ -294,13 +294,13 @@ func TestDynamicRef_NamingNoDynamicAnchorIsTheRefItSpells(t *testing.T) {
 				at = "/components/schemas/A"
 			}
 			var errs []string
-			for _, d := range diags {
-				if d.Severity == ir.SeverityError {
-					errs = append(errs, d.Code+" at "+string(d.Provenance.Pointer))
+			for _, diagnostic := range diags {
+				if diagnostic.Severity == ir.SeverityError {
+					errs = append(errs, diagnostic.Code+" at "+string(diagnostic.Provenance.Pointer))
 				}
-				assert.NotEqual(t, diag.DynamicRefExpanded, d.Code, "%+v", d)
-				if d.Severity == ir.SeverityInfo {
-					assert.False(t, strings.HasSuffix(string(d.Provenance.Pointer), "/$dynamicRef"), "nothing is kept: %+v", d)
+				assert.NotEqual(t, diag.DynamicRefExpanded, diagnostic.Code, "%+v", diagnostic)
+				if diagnostic.Severity == ir.SeverityInfo {
+					assert.False(t, strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/$dynamicRef"), "nothing is kept: %+v", diagnostic)
 				}
 			}
 			want := []string{"openapi/unresolved-ref at " + at}
@@ -355,10 +355,10 @@ func TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept(t *testing.T) 
 	require.True(t, ok)
 	assert.Equal(t, ir.ReasonDegradedLowering, items.Unmodeled["openapi:$dynamicRef"].Reason)
 	assert.Empty(t, openapitest.PointersOf(diags, diag.DynamicRefExpanded))
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/List/items/$dynamicRef" {
-			assert.Equal(t, 1, d.Provenance.Source)
-			assert.Contains(t, d.Message, `$dynamicAnchor "items" is also declared in a schema resource of another `+
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/List/items/$dynamicRef" {
+			assert.Equal(t, 1, diagnostic.Provenance.Source)
+			assert.Contains(t, diagnostic.Message, `$dynamicAnchor "items" is also declared in a schema resource of another `+
 				"document that reaches this one")
 		}
 	}
@@ -441,8 +441,8 @@ func TestDynamicRef_RestsOnNoReadTheMergeBoundCut(t *testing.T) {
 	assert.Equal(t, ir.ReasonDegradedLowering, sc.Unmodeled["openapi:$dynamicRef"].Reason)
 	assert.NotContains(t, irtest.DiagCodes(diags), "openapi/dynamic-ref-expanded")
 	messages := make([]string, 0, len(diags))
-	for _, d := range diags {
-		messages = append(messages, d.Message)
+	for _, diagnostic := range diags {
+		messages = append(messages, diagnostic.Message)
 	}
 	joined := strings.Join(messages, "\n")
 	assert.Contains(t, joined, "not read whole")
@@ -579,8 +579,8 @@ func mergeBoundOrderSpec(pFirst bool) string {
 // diagnostics of two orders of one document.
 func diagnosticSet(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s\x00%s\x00%s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s\x00%s\x00%s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -591,8 +591,8 @@ func diagnosticSet(diags []ir.Diagnostic) []string {
 // reported.
 func assertDiagContains(t *testing.T, diags []ir.Diagnostic, pointer, substr string) {
 	t.Helper()
-	for _, d := range diags {
-		if d.Provenance.Pointer == jsontext.Pointer(pointer) && strings.Contains(d.Message, substr) {
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) && strings.Contains(diagnostic.Message, substr) {
 			return
 		}
 	}
@@ -640,13 +640,13 @@ func TestDynamicRef_ExpandsToAnyPositionARefNames(t *testing.T) {
 			docs := make([]*ir.Document, 0, 2)
 			for _, first := range []bool{false, true} {
 				doc, diags := parseFull(t, dynamicAtSpec(tc.holder, uses, first))
-				for _, d := range diags {
-					assert.NotEqual(t, ir.SeverityError, d.Severity, "%+v", d)
+				for _, diagnostic := range diags {
+					assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "%+v", diagnostic)
 				}
-				m, r := propertyOf(t, doc, "Uses", "m"), propertyOf(t, doc, "Uses", "r")
-				assert.Equal(t, r.Type.Target, m.Type.Target, "the expansion names what the $ref names")
-				assert.Equal(t, ids.In("").ForPointer(jsontext.Pointer(tc.pointer)), m.Type.Target)
-				assert.NotContains(t, m.Unmodeled, "openapi:$dynamicRef")
+				property, irProperty := propertyOf(t, doc, "Uses", "m"), propertyOf(t, doc, "Uses", "r")
+				assert.Equal(t, irProperty.Type.Target, property.Type.Target, "the expansion names what the $ref names")
+				assert.Equal(t, ids.In("").ForPointer(jsontext.Pointer(tc.pointer)), property.Type.Target)
+				assert.NotContains(t, property.Unmodeled, "openapi:$dynamicRef")
 				assert.Equal(t, []jsontext.Pointer{"/components/schemas/Uses/properties/m/$dynamicRef"},
 					openapitest.PointersOf(diags, diag.DynamicRefExpanded))
 				docs = append(docs, doc)
@@ -676,9 +676,9 @@ func TestDynamicRef_ExpandsWithinOneResource(t *testing.T) {
 	require.NotNil(t, items.Base)
 	assert.Equal(t, componentID("Dyn"), items.Base.Target)
 	var errs []string
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			errs = append(errs, d.Code+" at "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
+			errs = append(errs, diagnostic.Code+" at "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"openapi/unresolved-ref at /components/schemas/Split/properties/c/items"}, errs,
@@ -815,10 +815,10 @@ func TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces(t *testing.T) {
 	inner := ir.TypeID("type/anonymous/components/schemas/Outer/definitions/Inner")
 	_, built := doc.Types[inner].(*ir.Model)
 	assert.True(t, built)
-	d, ok := doc.Types[componentID("D")].(*ir.Scalar)
+	scalar, ok := doc.Types[componentID("D")].(*ir.Scalar)
 	require.True(t, ok)
-	require.NotNil(t, d.Base)
-	assert.Equal(t, inner, d.Base.Target)
+	require.NotNil(t, scalar.Base)
+	assert.Equal(t, inner, scalar.Base.Target)
 
 	doc, diags = parseFull(t, openapitest.ComponentSpec(outer+"    Twin: {$anchor: n, type: string}\n"))
 	assert.NotContains(t, doc.Types, inner)

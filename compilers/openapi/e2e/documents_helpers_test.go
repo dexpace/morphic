@@ -37,12 +37,12 @@ type servedDocs struct {
 // served at, such as "/c.yaml". It is closed when the test ends.
 func serveDocs(t *testing.T, docs map[string]string) *servedDocs {
 	t.Helper()
-	s := &servedDocs{docs: docs}
-	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.mu.Lock()
-		s.hits = append(s.hits, r.RequestURI)
-		s.mu.Unlock()
-		body, ok := s.docs[r.URL.Path]
+	servedDocsValue := &servedDocs{docs: docs}
+	servedDocsValue.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		servedDocsValue.mu.Lock()
+		servedDocsValue.hits = append(servedDocsValue.hits, r.RequestURI)
+		servedDocsValue.mu.Unlock()
+		body, ok := servedDocsValue.docs[r.URL.Path]
 		if !ok {
 			http.NotFound(w, r)
 			return
@@ -50,8 +50,8 @@ func serveDocs(t *testing.T, docs map[string]string) *servedDocs {
 		_, err := w.Write([]byte(body))
 		assert.NoError(t, err)
 	}))
-	t.Cleanup(s.Close)
-	return s
+	t.Cleanup(servedDocsValue.Close)
+	return servedDocsValue
 }
 
 // requests lists the request lines the server was sent, in order.
@@ -122,8 +122,8 @@ func useOf(t *testing.T, td ir.TypeDef, name string) ir.TypeID {
 // sourcePaths lists the path of each Document.Sources entry, in order.
 func sourcePaths(doc *ir.Document) []string {
 	out := make([]string, 0, len(doc.Sources))
-	for _, s := range doc.Sources {
-		out = append(out, s.Path)
+	for _, sourceInfo := range doc.Sources {
+		out = append(out, sourceInfo.Path)
 	}
 	return out
 }

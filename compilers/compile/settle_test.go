@@ -80,8 +80,8 @@ func TestTypes_SettleTakesEveryCompletionFirst(t *testing.T) {
 
 	assert.Equal(t, []string{"c1", "c2", "r1 read c1c2", "r2 read c1c2"}, runs)
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	assert.Equal(t, []string{"c1", "c2", "r1", "r2"}, codes, "diagnostics follow the order settled")
 	assert.Empty(t, types.Settle(t.Context()), "a settlement taken is not taken again")
@@ -164,16 +164,16 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name  string
-		queue func(types *compile.Types, s compile.Settlement)
+		queue func(types *compile.Types, settlement compile.Settlement)
 	}{
-		{"after settling", func(types *compile.Types, s compile.Settlement) {
+		{"after settling", func(types *compile.Types, settlement compile.Settlement) {
 			types.Settle(t.Context())
-			types.Defer(s)
+			types.Defer(settlement)
 		}},
 		{"nil", func(types *compile.Types, _ compile.Settlement) { types.Defer(nil) }},
-		{"completion after settling", func(types *compile.Types, s compile.Settlement) {
+		{"completion after settling", func(types *compile.Types, settlement compile.Settlement) {
 			types.Settle(t.Context())
-			types.QueueSettlementBeforeDeferredOnes(s)
+			types.QueueSettlementBeforeDeferredOnes(settlement)
 		}},
 		{"nil completion", func(types *compile.Types, _ compile.Settlement) { types.QueueSettlementBeforeDeferredOnes(nil) }},
 	}

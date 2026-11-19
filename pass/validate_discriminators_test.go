@@ -345,16 +345,16 @@ func TestValidate_DanglingDiscriminatorDefaultIsReportedTwice(t *testing.T) {
 func TestValidate_MappingDiagnosticsAreDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := discriminatedUnion("type/m")
-	u, ok := doc.Types["type/u"].(*ir.Union)
+	union, ok := doc.Types["type/u"].(*ir.Union)
 	require.True(t, ok)
 	for _, key := range []string{"z", "b", "q", "c", "m"} {
-		u.Discriminator.Mapping[key] = "type/none"
+		union.Discriminator.Mapping[key] = "type/none"
 	}
 	messages := func() []string {
 		found := withCode(validated(t, doc), "pass/discriminator-missing-variant")
 		out := make([]string, 0, len(found))
-		for _, d := range found {
-			out = append(out, d.Message)
+		for _, diagnostic := range found {
+			out = append(out, diagnostic.Message)
 		}
 		return out
 	}
@@ -397,12 +397,12 @@ func TestValidate_UnionDiscriminatorAsksNothingOfAVariantsTag(t *testing.T) {
 	doc := validDoc()
 	doc.Types["type/primitive/int64"] = &ir.Primitive{ID: "type/primitive/int64", PrimitiveKind: ir.PrimitiveInt64}
 	variant := func(id ir.TypeID, tag *ir.Property) *ir.Model {
-		m := &ir.Model{ID: id}
+		model := &ir.Model{ID: id}
 		if tag != nil {
 			tag.ID = ir.PropertyID("property/" + id + "/kind")
-			m.Properties = []ir.Property{*tag}
+			model.Properties = []ir.Property{*tag}
 		}
-		return m
+		return model
 	}
 	variants := map[ir.TypeID]*ir.Model{
 		"type/has":      variant("type/has", &ir.Property{WireName: "kind", Required: true, Type: ir.TypeRef{Target: "type/primitive/string"}}),
@@ -410,15 +410,15 @@ func TestValidate_UnionDiscriminatorAsksNothingOfAVariantsTag(t *testing.T) {
 		"type/optional": variant("type/optional", &ir.Property{WireName: "kind", Type: ir.TypeRef{Target: "type/primitive/string"}}),
 		"type/number":   variant("type/number", &ir.Property{WireName: "kind", Required: true, Type: ir.TypeRef{Target: "type/primitive/int64"}}),
 	}
-	u := &ir.Union{ID: "type/pet", Exclusive: true, WireTagged: true, Closed: true, Discriminator: &ir.Discriminator{
+	union := &ir.Union{ID: "type/pet", Exclusive: true, WireTagged: true, Closed: true, Discriminator: &ir.Discriminator{
 		PropertyName: "kind", Mapping: map[string]ir.TypeID{},
 	}}
 	for _, id := range []ir.TypeID{"type/has", "type/lacks", "type/optional", "type/number"} {
 		doc.Types[id] = variants[id]
-		u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: id}})
-		u.Discriminator.Mapping[string(id)] = id
+		union.Variants = append(union.Variants, ir.Variant{Type: ir.TypeRef{Target: id}})
+		union.Discriminator.Mapping[string(id)] = id
 	}
-	doc.Types[u.ID] = u
+	doc.Types[union.ID] = union
 
 	assert.Empty(t, validated(t, doc))
 }

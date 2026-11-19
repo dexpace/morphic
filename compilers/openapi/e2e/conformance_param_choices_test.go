@@ -73,8 +73,8 @@ func declaredChoiceParams() []ir.ParameterID {
 // opParamIDs lists the IDs of op's parameters in order.
 func opParamIDs(op ir.Operation) []ir.ParameterID {
 	ids := make([]ir.ParameterID, 0, len(op.Params))
-	for _, p := range op.Params {
-		ids = append(ids, p.ID)
+	for _, parameter := range op.Params {
+		ids = append(ids, parameter.ID)
 	}
 	return ids
 }

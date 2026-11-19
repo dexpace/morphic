@@ -19,31 +19,31 @@ import (
 
 func TestCheck_ValidSpecIsOK(t *testing.T) {
 	t.Parallel()
-	r := harness.Check(context.Background(), "minimal", []byte(testspec.Minimal))
-	assert.Equal(t, harness.OutcomeOK, r.Outcome, r.Detail)
+	result := harness.Check(context.Background(), "minimal", []byte(testspec.Minimal))
+	assert.Equal(t, harness.OutcomeOK, result.Outcome, result.Detail)
 }
 
 func TestCheck_GarbageBytesDoNotPanic(t *testing.T) {
 	t.Parallel()
-	r := harness.Check(context.Background(), "garbage", []byte("\x00not a spec:::"))
+	result := harness.Check(context.Background(), "garbage", []byte("\x00not a spec:::"))
 	// A parse failure is an Error/ErrorDiag outcome, never a panic escaping Check.
-	assert.NotEqual(t, harness.OutcomePanic, r.Outcome, r.Detail)
+	assert.NotEqual(t, harness.OutcomePanic, result.Outcome, result.Detail)
 }
 
 func TestCheck_NilContextIsErrorNotPanic(t *testing.T) {
 	t.Parallel()
 	var noContext context.Context // deliberately nil, to exercise the boundary guard
-	r := harness.Check(noContext, "minimal", []byte(testspec.Minimal))
+	result := harness.Check(noContext, "minimal", []byte(testspec.Minimal))
 	// A caller mistake is a harness error, never a spec-attributed compiler panic.
-	assert.Equal(t, harness.OutcomeError, r.Outcome, r.Detail)
-	assert.Contains(t, r.Detail, "nil context")
+	assert.Equal(t, harness.OutcomeError, result.Outcome, result.Detail)
+	assert.Contains(t, result.Detail, "nil context")
 }
 
 func TestCheck_EmptySpecIsErrorNotPanic(t *testing.T) {
 	t.Parallel()
-	r := harness.Check(context.Background(), "", []byte(testspec.Minimal))
-	assert.Equal(t, harness.OutcomeError, r.Outcome, r.Detail)
-	assert.Contains(t, r.Detail, "empty spec")
+	result := harness.Check(context.Background(), "", []byte(testspec.Minimal))
+	assert.Equal(t, harness.OutcomeError, result.Outcome, result.Detail)
+	assert.Contains(t, result.Detail, "empty spec")
 }
 
 // TestCheck_SourceNoRegisteredCompilerTakesIsUnrecognized pins the outcome of a
@@ -62,9 +62,9 @@ func TestCheck_SourceNoRegisteredCompilerTakesIsUnrecognized(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			r := harness.Check(context.Background(), "spec", []byte(tc.data))
-			assert.Equal(t, harness.OutcomeUnrecognized, r.Outcome, r.Detail)
-			assert.Contains(t, r.Detail, tc.want)
+			result := harness.Check(context.Background(), "spec", []byte(tc.data))
+			assert.Equal(t, harness.OutcomeUnrecognized, result.Outcome, result.Detail)
+			assert.Contains(t, result.Detail, tc.want)
 		})
 	}
 }
@@ -81,8 +81,8 @@ func TestCheck_SpecOfACompilerThatDeclinesItIsAnErrorDiagnostic(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			r := harness.Check(context.Background(), "spec", []byte(tc.data))
-			assert.Equal(t, harness.OutcomeErrorDiag, r.Outcome, r.Detail)
+			result := harness.Check(context.Background(), "spec", []byte(tc.data))
+			assert.Equal(t, harness.OutcomeErrorDiag, result.Outcome, result.Detail)
 		})
 	}
 }
@@ -118,10 +118,10 @@ components:
 func TestCheck_AFindingOnlyAPassReportsIsAnErrorDiagnostic(t *testing.T) {
 	t.Parallel()
 
-	r := harness.Check(context.Background(), "spec.yaml", []byte(missingVariant))
+	result := harness.Check(context.Background(), "spec.yaml", []byte(missingVariant))
 
-	assert.Equal(t, harness.OutcomeErrorDiag, r.Outcome, r.Detail)
-	assert.True(t, strings.HasPrefix(r.Detail, "pass/discriminator-missing-variant: "), r.Detail)
+	assert.Equal(t, harness.OutcomeErrorDiag, result.Outcome, result.Detail)
+	assert.True(t, strings.HasPrefix(result.Detail, "pass/discriminator-missing-variant: "), result.Detail)
 }
 
 func TestReport_IsStableAndSorted(t *testing.T) {

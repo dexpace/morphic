@@ -87,10 +87,10 @@ func (r reading) kindOnly() reading {
 	return reading{kind: asNumber, integer: r.integer && r.kind == asNumber, exp: valueless}
 }
 
-// same reports whether r and o are one JSON value, however each was read.
-func (r reading) same(o reading) bool {
-	r.integer, o.integer = false, false
-	return r == o
+// same reports whether r and readingValue are one JSON value, however each was read.
+func (r reading) same(readingValue reading) bool {
+	r.integer, readingValue.integer = false, false
+	return r == readingValue
 }
 
 // String words r as a finding names a reading: "a string", "the integer 420".
@@ -189,13 +189,13 @@ func coreNumber(text string) reading {
 
 // coreInteger reads text, an integer of the core schema (coreInt).
 func coreInteger(text string) reading {
-	c, _ := nodeview.ParseCoreInteger(text)
-	if c.Base == 10 {
-		r, _ := decimalOf(c.Negative, c.Digits)
-		r.integer = true
-		return r
+	nodeviewCoreInteger, _ := nodeview.ParseCoreInteger(text)
+	if nodeviewCoreInteger.Base == 10 {
+		reading, _ := decimalOf(nodeviewCoreInteger.Negative, nodeviewCoreInteger.Digits)
+		reading.integer = true
+		return reading
 	}
-	return integerOf(false, c.Digits, c.Base)
+	return integerOf(false, nodeviewCoreInteger.Digits, nodeviewCoreInteger.Base)
 }
 
 // yaml11Reading reads text, a plain scalar, by YAML 1.1's types: null, bool,
@@ -210,11 +210,11 @@ func yaml11Reading(text string) reading {
 	case "n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF":
 		return reading{kind: asBool, text: "false"}
 	}
-	if r, ok := yaml11Integer(text); ok {
-		return r
+	if reading, ok := yaml11Integer(text); ok {
+		return reading
 	}
-	if r, ok := yaml11Float(text); ok {
-		return r
+	if reading, ok := yaml11Float(text); ok {
+		return reading
 	}
 	return reading{kind: asString}
 }
@@ -244,8 +244,8 @@ func yaml11Integer(text string) (reading, bool) {
 // yaml11Float reads text as YAML 1.1's float: a decimal holding a point and a
 // digit, its exponent signed, a base-60 one, an infinity or NaN.
 func yaml11Float(text string) (reading, bool) {
-	if r, ok := special(text); ok {
-		return r, true
+	if reading, ok := special(text); ok {
+		return reading, true
 	}
 	neg, s := strings.HasPrefix(text, "-"), unsigned(text)
 	mantissa, exp, exponent := strings.Cut(strings.ReplaceAll(s, "e", "E"), "E")
@@ -293,11 +293,11 @@ func special(text string) (reading, bool) {
 
 // floatReading reads text, a float of the core schema (coreFloat).
 func floatReading(text string) reading {
-	if r, ok := special(text); ok {
-		return r
+	if reading, ok := special(text); ok {
+		return reading
 	}
-	r, _ := decimalOf(strings.HasPrefix(text, "-"), unsigned(text))
-	return r
+	readingValue, _ := decimalOf(strings.HasPrefix(text, "-"), unsigned(text))
+	return readingValue
 }
 
 // sexagesimal reads whole, colon-separated base-60 digits, and, for a float,
@@ -352,9 +352,9 @@ func integerOf(neg bool, text string, base int) reading {
 	if !ok {
 		v = new(big.Int)
 	}
-	r, _ := decimalOf(neg, v.String())
-	r.integer = true
-	return r
+	readingValue, _ := decimalOf(neg, v.String())
+	readingValue.integer = true
+	return readingValue
 }
 
 // decimalOf reads text, digits holding at most one point and then an exponent,

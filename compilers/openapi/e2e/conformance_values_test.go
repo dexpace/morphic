@@ -17,17 +17,17 @@ import (
 )
 
 func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	n, ok := propByWire(m, "n")
+	property, ok := propByWire(model, "n")
 	require.True(t, ok)
-	require.NotNil(t, n.Default)
-	assert.Equal(t, ir.ValueNumber, n.Default.Kind)
-	assert.Equal(t, ir.BigVal("9007199254740993"), n.Default.Number)
+	require.NotNil(t, property.Default)
+	assert.Equal(t, ir.ValueNumber, property.Default.Kind)
+	assert.Equal(t, ir.BigVal("9007199254740993"), property.Default.Number)
 
 	// A declaration-site default reaches the referencing property, and the
 	// declaration keeps it verbatim because the type node has no field for it.
-	viaRef, ok := propByWire(m, "viaRef")
+	viaRef, ok := propByWire(model, "viaRef")
 	require.True(t, ok)
 	require.NotNil(t, viaRef.Default, "the referent's default binds the reference site")
 	assert.Equal(t, ir.BigVal("41"), viaRef.Default.Number)
@@ -39,33 +39,33 @@ func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `41`, string(entry.Value))
 
-	assertNonScalarDefaults(t, m)
+	assertNonScalarDefaults(t, model)
 }
 
 // assertNonScalarDefaults pins the Value payloads a default reaches beyond string
 // and number: a boolean, a null, a base64 !!binary scalar, and a sequence. Each
 // but the null, which has none, selects a different payload field, and Kind is
 // what says which one carries meaning.
-func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
+func assertNonScalarDefaults(t *testing.T, model *ir.Model) {
 	t.Helper()
-	flag, ok := propByWire(m, "flag")
+	flag, ok := propByWire(model, "flag")
 	require.True(t, ok)
 	require.NotNil(t, flag.Default)
 	assert.Equal(t, ir.Value{Kind: ir.ValueBool, Bool: true}, *flag.Default)
 
-	cleared, ok := propByWire(m, "cleared")
+	cleared, ok := propByWire(model, "cleared")
 	require.True(t, ok)
 	require.NotNil(t, cleared.Default, "a written null is a default, not the absence of one")
 	assert.Equal(t, ir.Value{Kind: ir.ValueNull}, *cleared.Default)
 	assert.True(t, cleared.Type.Nullable, "and the type admits it")
 
-	blob, ok := propByWire(m, "blob")
+	blob, ok := propByWire(model, "blob")
 	require.True(t, ok)
 	require.NotNil(t, blob.Default)
 	assert.Equal(t, ir.ValueBytes, blob.Default.Kind)
 	assert.Equal(t, []byte("hi"), blob.Default.Bytes, "a !!binary default is decoded, not kept as text")
 
-	list, ok := propByWire(m, "list")
+	list, ok := propByWire(model, "list")
 	require.True(t, ok)
 	require.NotNil(t, list.Default)
 	assert.Equal(t, ir.ValueList, list.Default.Kind)
@@ -88,28 +88,28 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	// any site here is allowed to say, and it is not about a date: one that was
 	// dropped or degraded reports itself as a warning, which is what this fixture
 	// exists to catch.
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityInfo, d.Severity,
-			"every unquoted date converts cleanly; nothing is dropped or degraded: %+v", d)
-		assert.Equal(t, "openapi/validation-only-keyword", d.Code,
-			"the validation-only carve-out is the only other notice this fixture expects: %+v", d)
+	for _, diagnostic := range diags {
+		assert.Equal(t, ir.SeverityInfo, diagnostic.Severity,
+			"every unquoted date converts cleanly; nothing is dropped or degraded: %+v", diagnostic)
+		assert.Equal(t, "openapi/validation-only-keyword", diagnostic.Code,
+			"the validation-only carve-out is the only other notice this fixture expects: %+v", diagnostic)
 	}
 
-	d, ok := doc.Types[componentID("D")].(*ir.Enum)
+	enum, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum of the real dates, not a union of null literals")
-	assert.Equal(t, ir.PrimitiveDate, d.ValueType)
-	require.Len(t, d.Members, 2)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, d.Members[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2022-02-02"}, d.Members[1].Value)
+	assert.Equal(t, ir.PrimitiveDate, enum.ValueType)
+	require.Len(t, enum.Members, 2)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, enum.Members[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2022-02-02"}, enum.Members[1].Value)
 
-	k, ok := doc.Types[componentID("K")].(*ir.Literal)
+	literal, ok := doc.Types[componentID("K")].(*ir.Literal)
 	require.True(t, ok, "K's const hoists a real Literal, not the schemaless top type")
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, k.Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, literal.Value)
 
-	s, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, s.Properties, 1)
-	prop := s.Properties[0]
+	require.Len(t, model.Properties, 1)
+	prop := model.Properties[0]
 	require.NotNil(t, prop.Default, "the property default is preserved")
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, *prop.Default)
 	require.Len(t, prop.Examples, 1, "the schema-level example is preserved")
@@ -138,9 +138,9 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 // nobody asked for, and the resolved form cannot be read back to the spelling.
 func assertRawPreservedDates(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	r, ok := doc.Types[componentID("R")].(*ir.Model)
+	model, ok := doc.Types[componentID("R")].(*ir.Model)
 	require.True(t, ok)
-	kept := r.Unmodeled
+	kept := model.Unmodeled
 
 	for _, tc := range []struct{ key, want string }{
 		{"openapi:x-effective", `"2021-1-1"`},
@@ -163,10 +163,10 @@ func assertRefCollectionBounds(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	minOne, maxThree := &ir.Constraints{MinItems: new(int64(1))}, &ir.Constraints{MaxItems: new(int64(3))}
 
 	for wire, want := range map[string]*ir.Constraints{"plain": nil, "beside": minOne, "nullable": maxThree} {
-		p, found := propByWire(holder, wire)
+		property, found := propByWire(holder, wire)
 		require.True(t, found, wire)
-		assert.Equal(t, want, p.Constraints, wire)
-		assert.Empty(t, p.Unmodeled, wire)
+		assert.Equal(t, want, property.Constraints, wire)
+		assert.Empty(t, property.Unmodeled, wire)
 	}
 	unstated, found := propByWire(holder, "unstated")
 	require.True(t, found)
@@ -198,33 +198,33 @@ func assertRefCollectionBounds(t *testing.T, doc *ir.Document, diags []ir.Diagno
 }
 
 func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	ratio, ok := propByWire(m, "ratio")
+	ratio, ok := propByWire(model, "ratio")
 	require.True(t, ok)
-	c := ratio.Constraints
-	require.NotNil(t, c)
+	constraints := ratio.Constraints
+	require.NotNil(t, constraints)
 	// Exact decimal strings — a float64 path would corrupt all three.
-	require.NotNil(t, c.Min)
-	require.NotNil(t, c.Max)
-	require.NotNil(t, c.MultipleOf)
-	assert.Equal(t, ir.BigVal("0.30000000000000004"), *c.Min)
-	assert.Equal(t, ir.BigVal("9007199254740993"), *c.Max)
-	assert.Equal(t, ir.BigVal("0.1"), *c.MultipleOf)
+	require.NotNil(t, constraints.Min)
+	require.NotNil(t, constraints.Max)
+	require.NotNil(t, constraints.MultipleOf)
+	assert.Equal(t, ir.BigVal("0.30000000000000004"), *constraints.Min)
+	assert.Equal(t, ir.BigVal("9007199254740993"), *constraints.Max)
+	assert.Equal(t, ir.BigVal("0.1"), *constraints.MultipleOf)
 
 	// The object's own cardinality bound lands on the Model, not on a property
 	// and not nowhere (GitHub #129).
-	require.NotNil(t, m.Constraints)
-	require.NotNil(t, m.Constraints.MinProperties)
-	require.NotNil(t, m.Constraints.MaxProperties)
-	assert.Equal(t, int64(1), *m.Constraints.MinProperties)
-	assert.Equal(t, int64(4), *m.Constraints.MaxProperties)
+	require.NotNil(t, model.Constraints)
+	require.NotNil(t, model.Constraints.MinProperties)
+	require.NotNil(t, model.Constraints.MaxProperties)
+	assert.Equal(t, int64(1), *model.Constraints.MinProperties)
+	assert.Equal(t, int64(4), *model.Constraints.MaxProperties)
 
-	assertLengthAndCollectionBounds(t, doc, m)
-	assertCoDeclaredBounds(t, m, diags)
-	assertCoDeclaredBoundKept(t, doc, m)
+	assertLengthAndCollectionBounds(t, doc, model)
+	assertCoDeclaredBounds(t, model, diags)
+	assertCoDeclaredBoundKept(t, doc, model)
 	assertHugeCountKept(t, doc, diags)
-	assertBoundsATypeCannotTake(t, doc, m, diags)
+	assertBoundsATypeCannotTake(t, doc, model, diags)
 }
 
 // assertBoundsATypeCannotTake pins a value bound beside a type it does not
@@ -232,7 +232,7 @@ func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // verbatim once, with one info, on the node the position owns, an alias where
 // it lowered to a shared primitive, while a bound the type takes beside it
 // lands on that node, the property holding none.
-func assertBoundsATypeCannotTake(t *testing.T, doc *ir.Document, m *ir.Model, diags []ir.Diagnostic) {
+func assertBoundsATypeCannotTake(t *testing.T, doc *ir.Document, model *ir.Model, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, tc := range []struct {
 		wire, at string
@@ -243,11 +243,11 @@ func assertBoundsATypeCannotTake(t *testing.T, doc *ir.Document, m *ir.Model, di
 		{"meta", "/components/schemas/S/properties/meta", nil, []string{"openapi:minLength"}},
 		{"list", "/components/schemas/S/properties/list", nil, []string{"openapi:maxLength"}},
 	} {
-		p, ok := propByWire(m, tc.wire)
+		property, ok := propByWire(model, tc.wire)
 		require.True(t, ok, tc.wire)
-		assert.Nil(t, p.Constraints, tc.wire)
-		assert.Empty(t, p.Unmodeled, tc.wire)
-		node, ok := doc.Types[p.Type.Target]
+		assert.Nil(t, property.Constraints, tc.wire)
+		assert.Empty(t, property.Unmodeled, tc.wire)
+		node, ok := doc.Types[property.Type.Target]
 		require.True(t, ok, tc.wire)
 		if sc, isScalar := node.(*ir.Scalar); isScalar {
 			assert.Equal(t, tc.held, sc.Constraints, tc.wire)
@@ -270,11 +270,11 @@ func assertBoundsATypeCannotTake(t *testing.T, doc *ir.Document, m *ir.Model, di
 // the count the field does state.
 func assertHugeCountKept(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	s, ok := doc.Types[componentID("HugeCount")].(*ir.Scalar)
+	scalar, ok := doc.Types[componentID("HugeCount")].(*ir.Scalar)
 	require.True(t, ok)
-	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, s.Constraints)
-	require.Contains(t, s.Unmodeled, "openapi:maxLength")
-	assert.Equal(t, ir.RawValue("99999999999999999999"), s.Unmodeled["openapi:maxLength"].Value)
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, scalar.Constraints)
+	require.Contains(t, scalar.Unmodeled, "openapi:maxLength")
+	assert.Equal(t, ir.RawValue("99999999999999999999"), scalar.Unmodeled["openapi:maxLength"].Value)
 	assert.Len(t, diagsUnder(diags, "/components/schemas/HugeCount"), 1)
 }
 
@@ -288,9 +288,9 @@ func assertHugeCountKept(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 // exclusive one, so a reader that kept the tighter alone answers the two
 // differently — and a reader that always kept the exclusive keyword passes the
 // second on its own.
-func assertCoDeclaredBounds(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
+func assertCoDeclaredBounds(t *testing.T, model *ir.Model, diags []ir.Diagnostic) {
 	t.Helper()
-	low, ok := propByWire(m, "atLeastTen")
+	low, ok := propByWire(model, "atLeastTen")
 	require.True(t, ok)
 	require.NotNil(t, low.Constraints)
 	require.NotNil(t, low.Constraints.Min)
@@ -299,7 +299,7 @@ func assertCoDeclaredBounds(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("0"), *low.Constraints.ExclusiveMin,
 		"and the looser exclusiveMinimum beside it, not dropped for being implied")
 
-	high, ok := propByWire(m, "underTen")
+	high, ok := propByWire(model, "underTen")
 	require.True(t, ok)
 	require.NotNil(t, high.Constraints)
 	require.NotNil(t, high.Constraints.Max)
@@ -307,8 +307,8 @@ func assertCoDeclaredBounds(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("100"), *high.Constraints.Max, "maximum as written")
 	assert.Equal(t, ir.BigVal("10"), *high.Constraints.ExclusiveMax, "and exclusiveMaximum beside it")
 
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "exclusiveMinimum",
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "exclusiveMinimum",
 			"a pair that reaches two fields is not a degradation to report")
 	}
 }
@@ -318,13 +318,13 @@ func assertCoDeclaredBounds(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
 // verbatim. Nothing is restated beside constraints that hold it all — an entry
 // there would give one bound two homes, and {minimum: 10, exclusiveMinimum: 0}
 // is told from {minimum: 10} by the fields themselves (GitHub #286).
-func assertCoDeclaredBoundKept(t *testing.T, doc *ir.Document, m *ir.Model) {
+func assertCoDeclaredBoundKept(t *testing.T, doc *ir.Document, model *ir.Model) {
 	t.Helper()
-	low, ok := propByWire(m, "atLeastTen")
+	low, ok := propByWire(model, "atLeastTen")
 	require.True(t, ok)
 	assert.Empty(t, low.Unmodeled, "the property keeps nothing beside its constraints")
 
-	high, ok := propByWire(m, "underTen")
+	high, ok := propByWire(model, "underTen")
 	require.True(t, ok)
 	assert.Empty(t, high.Unmodeled, "and neither does the side settled the other way")
 
@@ -341,9 +341,9 @@ func assertCoDeclaredBoundKept(t *testing.T, doc *ir.Document, m *ir.Model) {
 // assertLengthAndCollectionBounds pins the non-numeric bounds: a string length
 // pair on the declaring property, and a collection bound on the List the array
 // position hoisted, which is the node that describes the collection.
-func assertLengthAndCollectionBounds(t *testing.T, doc *ir.Document, m *ir.Model) {
+func assertLengthAndCollectionBounds(t *testing.T, doc *ir.Document, model *ir.Model) {
 	t.Helper()
-	label, ok := propByWire(m, "label")
+	label, ok := propByWire(model, "label")
 	require.True(t, ok)
 	require.NotNil(t, label.Constraints)
 	require.NotNil(t, label.Constraints.MinLength)
@@ -351,7 +351,7 @@ func assertLengthAndCollectionBounds(t *testing.T, doc *ir.Document, m *ir.Model
 	assert.Equal(t, int64(2), *label.Constraints.MinLength)
 	assert.Equal(t, int64(8), *label.Constraints.MaxLength)
 
-	tags, ok := propByWire(m, "tags")
+	tags, ok := propByWire(model, "tags")
 	require.True(t, ok)
 	list, ok := doc.Types[tags.Type.Target].(*ir.List)
 	require.True(t, ok, "an array position hoists a List")
@@ -364,11 +364,11 @@ func assertLengthAndCollectionBounds(t *testing.T, doc *ir.Document, m *ir.Model
 }
 
 func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 
 	// Bounds beyond float64 range and a huge integer beyond int64, exact.
-	bounded, ok := propByWire(m, "bounded")
+	bounded, ok := propByWire(model, "bounded")
 	require.True(t, ok)
 	require.NotNil(t, bounded.Constraints)
 	require.NotNil(t, bounded.Constraints.Min)
@@ -380,7 +380,7 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 	// A leading-dot spelling is canonicalized to JSON form; a high-precision
 	// decimal is kept to the last digit.
-	exclusive, ok := propByWire(m, "exclusive")
+	exclusive, ok := propByWire(model, "exclusive")
 	require.True(t, ok)
 	require.NotNil(t, exclusive.Constraints)
 	require.NotNil(t, exclusive.Constraints.ExclusiveMin)
@@ -389,14 +389,14 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("0.12345678901234567890123456789"), *exclusive.Constraints.ExclusiveMax)
 
 	// A default beyond float64 range is captured as a number, not a string.
-	withDefault, ok := propByWire(m, "withDefault")
+	withDefault, ok := propByWire(model, "withDefault")
 	require.True(t, ok)
 	require.NotNil(t, withDefault.Default)
 	assert.Equal(t, ir.ValueNumber, withDefault.Default.Kind)
 	assert.Equal(t, ir.BigVal("1.8e308"), withDefault.Default.Number)
 
 	// A const beyond float64 range hoists a Literal over the exact number.
-	pinned, ok := propByWire(m, "pinned")
+	pinned, ok := propByWire(model, "pinned")
 	require.True(t, ok)
 	lit, ok := doc.Types[pinned.Type.Target].(*ir.Literal)
 	require.True(t, ok)
@@ -404,7 +404,7 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("1.8e308"), lit.Value.Number)
 
 	// Numeric enum members keep their exact value past int64 range.
-	choice, ok := propByWire(m, "choice")
+	choice, ok := propByWire(model, "choice")
 	require.True(t, ok)
 	enum, ok := doc.Types[choice.Type.Target].(*ir.Enum)
 	require.True(t, ok)
@@ -412,14 +412,14 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("123456789012345678901234567890"), enum.Members[1].Value.Number)
 
 	// A leading-dot example is canonicalized losslessly.
-	sampled, ok := propByWire(m, "sampled")
+	sampled, ok := propByWire(model, "sampled")
 	require.True(t, ok)
 	require.Len(t, sampled.Examples, 1)
 	require.NotNil(t, sampled.Examples[0].Value)
 	assert.Equal(t, ir.BigVal("0.5"), sampled.Examples[0].Value.Number)
 
-	assertYAMLIntegerBases(t, doc, m)
-	assertRawPreservedNumbers(t, m)
+	assertYAMLIntegerBases(t, doc, model)
+	assertRawPreservedNumbers(t, model)
 }
 
 // assertRawPreservedNumbers pins the second numeric channel: the constructs kept
@@ -427,9 +427,9 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // these through float64 until GitHub #32 — a 30-digit extension came back as
 // 1.2345678901234568e+29 — which no case in this corpus could see, because none
 // of them carried a number a float64 cannot hold.
-func assertRawPreservedNumbers(t *testing.T, m *ir.Model) {
+func assertRawPreservedNumbers(t *testing.T, model *ir.Model) {
 	t.Helper()
-	preserved, ok := propByWire(m, "preserved")
+	preserved, ok := propByWire(model, "preserved")
 	require.True(t, ok)
 	kept := preserved.Unmodeled
 
@@ -450,9 +450,9 @@ func assertRawPreservedNumbers(t *testing.T, m *ir.Model) {
 // whose base comes from its prefix in YAML 1.2's core schema, 0o or 0x. Reading
 // the source spelling as base 10 would store 644 where the document said 420,
 // and would do it silently.
-func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
+func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, model *ir.Model) {
 	t.Helper()
-	mode, ok := propByWire(m, "mode")
+	mode, ok := propByWire(model, "mode")
 	require.True(t, ok)
 	require.NotNil(t, mode.Default)
 	assert.Equal(t, ir.BigVal("420"), mode.Default.Number, "0o644 is octal in YAML 1.2")
@@ -463,7 +463,7 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	assert.Equal(t, ir.BigVal("420"), enum.Members[0].Value.Number)
 	assert.Equal(t, ir.BigVal("493"), enum.Members[1].Value.Number)
 
-	bounds, ok := propByWire(m, "bounds")
+	bounds, ok := propByWire(model, "bounds")
 	require.True(t, ok)
 	require.NotNil(t, bounds.Constraints)
 	require.NotNil(t, bounds.Constraints.Min)
@@ -478,11 +478,11 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 
 	// A plain digit string is the integer it spells, and a leading zero is a
 	// base ten integer that still has to come out as a JSON-valid literal.
-	counted, ok := propByWire(m, "counted")
+	counted, ok := propByWire(model, "counted")
 	require.True(t, ok)
 	require.NotNil(t, counted.Default)
 	assert.Equal(t, ir.BigVal("1000000"), counted.Default.Number)
-	loose, ok := propByWire(m, "loose")
+	loose, ok := propByWire(model, "loose")
 	require.True(t, ok)
 	require.NotNil(t, loose.Default)
 	assert.Equal(t, ir.BigVal("9"), loose.Default.Number)
@@ -503,10 +503,10 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"/paths/~1names~1{name}/get/responses/200/headers/X-Tags/schema",
 	}
 	got := make([]string, 0, len(diags))
-	for _, d := range diags {
-		assert.Equal(t, diag.DegradedConstruct, d.Code, "%+v", d)
-		assert.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
-		got = append(got, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		assert.Equal(t, diag.DegradedConstruct, diagnostic.Code, "%+v", diagnostic)
+		assert.Equal(t, ir.SeverityInfo, diagnostic.Severity, "%+v", diagnostic)
+		got = append(got, string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, reported, got)
 
@@ -516,10 +516,10 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"refined": "openapi:minLength", "site": "openapi:minLength", "nullable": "openapi:minLength",
 		"voiced": "openapi:minLength", "chained": "openapi:minLength", "counted": "openapi:minItems",
 	} {
-		p, found := propByWire(holder, wire)
+		property, found := propByWire(holder, wire)
 		require.True(t, found, wire)
-		assert.Nil(t, p.Constraints, wire)
-		assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, p.Unmodeled, key).Reason, wire)
+		assert.Nil(t, property.Constraints, wire)
+		assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, property.Unmodeled, key).Reason, wire)
 	}
 	inline, found := propByWire(holder, "inline")
 	require.True(t, found)
@@ -577,10 +577,10 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // within what the union admits is the position's, and the union is kept; one
 // that does not leaves the union the position's node, with the set kept.
 func assertUnionJoinedValueSets(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	memberStrings := func(e *ir.Enum) []string {
-		out := make([]string, 0, len(e.Members))
-		for _, m := range e.Members {
-			out = append(out, m.Value.String)
+	memberStrings := func(enum *ir.Enum) []string {
+		out := make([]string, 0, len(enum.Members))
+		for _, enumMember := range enum.Members {
+			out = append(out, enumMember.Value.String)
 		}
 		return out
 	}

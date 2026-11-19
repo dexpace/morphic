@@ -87,8 +87,8 @@ func TestDefaultStreamingMediaTypes_AreAllRecognized(t *testing.T) {
 	t.Parallel()
 	defaults := service.DefaultStreamingMediaTypes()
 	require.NotEmpty(t, defaults, "an empty default list would make every case below vacuous")
-	c := streamingCtx(service.StreamingInference{})
+	serviceContext := streamingCtx(service.StreamingInference{})
 	for _, mediaType := range defaults {
-		assert.True(t, c.MediaTypeStreams(mediaType), "default media type %q is not recognized", mediaType)
+		assert.True(t, serviceContext.MediaTypeStreams(mediaType), "default media type %q is not recognized", mediaType)
 	}
 }

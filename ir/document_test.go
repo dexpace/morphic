@@ -79,10 +79,10 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 // literal left behind once asserted that a build rejects its own documents.
 func TestCompatibleVersion(t *testing.T) {
 	t.Parallel()
-	v, ok := parseVersion(ir.IRVersion)
+	semverValue, ok := parseVersion(ir.IRVersion)
 	require.True(t, ok, "IRVersion %q is not MAJOR.MINOR.PATCH", ir.IRVersion)
-	require.NotEqual(t, semver{}, v, "IRVersion 0.0.0 has no earlier version to refuse")
-	earlier := v
+	require.NotEqual(t, semver{}, semverValue, "IRVersion 0.0.0 has no earlier version to refuse")
+	earlier := semverValue
 	for i := len(earlier) - 1; i >= 0; i-- {
 		if earlier[i] > 0 {
 			earlier[i]--
@@ -99,7 +99,7 @@ func TestCompatibleVersion(t *testing.T) {
 		{"absent", "", false},
 		{"an earlier version", earlier.String(), false},
 		{"the next generation", nextGeneration(ir.IRVersion), false},
-		{"a differing patch", semver{v[0], v[1], v[2] + 1}.String(), false},
+		{"a differing patch", semver{semverValue[0], semverValue[1], semverValue[2] + 1}.String(), false},
 		{"a prerelease of this version", ir.IRVersion + "-rc.1", false},
 		{"padded with whitespace", " " + ir.IRVersion + " ", false},
 		{"not a version at all", "99.99.99-bogus", false},

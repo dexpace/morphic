@@ -74,17 +74,17 @@ func TestCases_WritePositionsOfTheRuleTable(t *testing.T) {
 	axes := openapicases.New().Axes()
 	var names []string
 	for _, a := range axes[4:] {
-		for _, v := range a.Values {
-			names = append(names, v.Name)
+		for _, value := range a.Values {
+			names = append(names, value.Name)
 		}
 	}
 	var fields []string
 	for _, kind := range schemaHolders() {
 		object, ok := specrules.Table().Object(kind)
 		require.True(t, ok)
-		for _, f := range object.Fields {
-			if f.Of == specrules.Schema && slices.Contains([]specrules.Shape{specrules.Nested, specrules.Map, specrules.List}, f.Shape) {
-				fields = append(fields, object.Name+"."+f.Name)
+		for _, field := range object.Fields {
+			if field.Of == specrules.Schema && slices.Contains([]specrules.Shape{specrules.Nested, specrules.Map, specrules.List}, field.Shape) {
+				fields = append(fields, object.Name+"."+field.Name)
 			}
 		}
 	}
@@ -129,8 +129,8 @@ func TestCases_AKeywordKeptWholeLowersNoNodeForItsSchema(t *testing.T) {
 			}
 			var kept []string
 			for key, entries := range keptKeywordsOf(doc, "K") {
-				for _, e := range entries {
-					if e.reason == ir.ReasonValidationOnly && strings.Contains(e.value, `"minLength"`) {
+				for _, keptKeywordEntry := range entries {
+					if keptKeywordEntry.reason == ir.ReasonValidationOnly && strings.Contains(keptKeywordEntry.value, `"minLength"`) {
 						kept = append(kept, key)
 					}
 				}

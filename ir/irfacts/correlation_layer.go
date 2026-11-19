@@ -17,9 +17,9 @@ func (c *correlator) seedLayer() {
 	ops := c.seedGroups()
 	for i := range c.doc.Services {
 		svc := &c.doc.Services[i]
-		c.offer(named("service", svc.Name), string(svc.ID), func(c *correlator, key string) {
-			c.errorCases(key, svc.CommonErrors)
-			c.servers(key, svc.Servers)
+		c.offer(named("service", svc.Name), string(svc.ID), func(correlatorValue *correlator, key string) {
+			correlatorValue.errorCases(key, svc.CommonErrors)
+			correlatorValue.servers(key, svc.Servers)
 		})
 	}
 	c.partHeaders = indexPartHeaders(c.doc.Services, ops)
@@ -37,19 +37,19 @@ func (c *correlator) seedLayer() {
 	}
 	for id, scheme := range c.doc.Auth {
 		credentials := scheme.Credentials
-		c.offer(named("auth", scheme.Name), string(id), func(c *correlator, key string) {
-			c.ref(part(key, "credentials"), credentials)
+		c.offer(named("auth", scheme.Name), string(id), func(correlatorValue *correlator, key string) {
+			correlatorValue.ref(part(key, "credentials"), credentials)
 		})
 	}
 }
 
-// named is the segment of kind naming what n's source declares, and "" when
+// named is the segment of kind naming what naming's source declares, and "" when
 // the source declares no name, which keys nothing.
-func named(kind string, n ir.Naming) string {
-	if n.Source == "" {
+func named(kind string, naming ir.Naming) string {
+	if naming.Source == "" {
 		return ""
 	}
-	return segment(kind, n.Source)
+	return segment(kind, naming.Source)
 }
 
 // seedGroups offers each group's key, its ID, which a rule mints from a name
@@ -58,10 +58,10 @@ func named(kind string, n ir.Naming) string {
 // DocumentFacts.Partial says when that is not all of them.
 func (c *correlator) seedGroups() []*ir.Operation {
 	var ops []*ir.Operation
-	ir.ForEachGroup(c.doc, func(g ir.OperationGroup) {
-		c.offer(segment("group", string(g.ID)), string(g.ID), nil)
-		for i := range g.Operations {
-			op := &g.Operations[i]
+	ir.ForEachGroup(c.doc, func(operationGroup ir.OperationGroup) {
+		c.offer(segment("group", string(operationGroup.ID)), string(operationGroup.ID), nil)
+		for i := range operationGroup.Operations {
+			op := &operationGroup.Operations[i]
 			if _, seen := c.ops[op.ID]; !seen {
 				c.ops[op.ID] = op
 				ops = append(ops, op)
@@ -117,7 +117,7 @@ func eraseVariables(template string) string {
 
 // offerOperation offers key to op, and, when op takes it, keys what op names.
 func (c *correlator) offerOperation(key string, op *ir.Operation) {
-	c.offer(key, string(op.ID), func(c *correlator, key string) { c.operation(key, op) })
+	c.offer(key, string(op.ID), func(correlatorValue *correlator, key string) { correlatorValue.operation(key, op) })
 }
 
 // operation offers the keys of what op names: its parameters, request,
@@ -131,11 +131,11 @@ func (c *correlator) operation(key string, op *ir.Operation) {
 		c.ref(part(key, "input"), rpc.InputType)
 	}
 	for i := range op.Responses {
-		r := &op.Responses[i]
-		at := child(key, "response", conditions(r.Conditions))
-		c.payload(at, r.Payload)
-		c.headers(at, r.Headers)
-		c.linkServers(at, r.Links)
+		response := &op.Responses[i]
+		at := child(key, "response", conditions(response.Conditions))
+		c.payload(at, response.Payload)
+		c.headers(at, response.Headers)
+		c.linkServers(at, response.Links)
 	}
 	if def := op.Default; def != nil {
 		c.payload(part(key, "default"), def.Payload)
@@ -160,15 +160,15 @@ func (c *correlator) operation(key string, op *ir.Operation) {
 func (c *correlator) callbacks(key string, op *ir.Operation) {
 	targets := c.callbackTargets(op)
 	shared := make(map[[2]string]int, len(targets))
-	for _, t := range targets {
-		shared[[2]string{t.name, t.method}]++
+	for _, callbackTarget := range targets {
+		shared[[2]string{callbackTarget.name, callbackTarget.method}]++
 	}
-	for _, t := range targets {
-		at := child(key, "callback", t.name)
-		if shared[[2]string{t.name, t.method}] > 1 {
-			at = child(at, "expression", t.expression)
+	for _, callbackTarget := range targets {
+		at := child(key, "callback", callbackTarget.name)
+		if shared[[2]string{callbackTarget.name, callbackTarget.method}] > 1 {
+			at = child(at, "expression", callbackTarget.expression)
 		}
-		c.offerOperation(child(at, "method", t.method), t.op)
+		c.offerOperation(child(at, "method", callbackTarget.method), callbackTarget.op)
 	}
 }
 
@@ -203,24 +203,24 @@ func (c *correlator) callbackTargets(op *ir.Operation) []callbackTarget {
 // key of its schema.
 func (c *correlator) params(key string, op *ir.Operation) {
 	for i := range op.Params {
-		p := &op.Params[i]
-		c.offer(paramKey(key, op, p), string(p.ID), func(c *correlator, key string) {
-			c.ref(part(key, "schema"), &p.Type)
-			c.decoded(key, p.Encoding)
+		parameter := &op.Params[i]
+		c.offer(paramKey(key, op, parameter), string(parameter.ID), func(correlatorValue *correlator, key string) {
+			correlatorValue.ref(part(key, "schema"), &parameter.Type)
+			correlatorValue.decoded(key, parameter.Encoding)
 		})
 	}
 }
 
-// paramKey is the key of p, a parameter of op keyed key. A host binding is
+// paramKey is the key of parameter, a parameter of op keyed key. A host binding is
 // passed over: it fills a host-prefix label in addition to the binding at the
 // parameter's modeled location (docs/ir/http-binding.md), which places it. A
 // binding under a prefix names no field of its own, so it is keyed by where it
 // travels and its prefix, in a segment of another kind than a wire name's
 // (docs/ir/http-binding.md#prefix-bindings).
-func paramKey(key string, op *ir.Operation, p *ir.Parameter) string {
+func paramKey(key string, op *ir.Operation, parameter *ir.Parameter) string {
 	for _, b := range op.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {
-			if pb.Param != p.ID || pb.Location == ir.HTTPLocationHost {
+			if pb.Param != parameter.ID || pb.Location == ir.HTTPLocationHost {
 				continue
 			}
 			if pb.Prefix != nil {
@@ -228,15 +228,15 @@ func paramKey(key string, op *ir.Operation, p *ir.Parameter) string {
 			}
 			wire := pb.WireName
 			if wire == "" {
-				wire = p.Name.Source
+				wire = parameter.Name.Source
 			}
 			return child(key, "param", string(pb.Location)+" "+wireCase(pb.Location, wire))
 		}
 	}
-	if p.Name.Source == "" {
+	if parameter.Name.Source == "" {
 		return ""
 	}
-	return child(key, "arg", p.Name.Source)
+	return child(key, "arg", parameter.Name.Source)
 }
 
 // wireCase is name as a key compares it at location: a header's in lower case,
@@ -252,12 +252,12 @@ func wireCase(location ir.HTTPLocation, name string) string {
 // or its bounds, "" when it applies whatever the status.
 func conditions(rc ir.ResponseConditions) string {
 	spelled := make([]string, 0, len(rc.StatusCodes))
-	for _, r := range rc.StatusCodes {
-		if r.From == r.To {
-			spelled = append(spelled, strconv.Itoa(r.From))
+	for _, statusRange := range rc.StatusCodes {
+		if statusRange.From == statusRange.To {
+			spelled = append(spelled, strconv.Itoa(statusRange.From))
 			continue
 		}
-		spelled = append(spelled, strconv.Itoa(r.From)+"-"+strconv.Itoa(r.To))
+		spelled = append(spelled, strconv.Itoa(statusRange.From)+"-"+strconv.Itoa(statusRange.To))
 	}
 	return strings.Join(spelled, ",")
 }
@@ -277,8 +277,8 @@ func (c *correlator) errorCases(key string, es []ir.ErrorCase) {
 // then its URL template.
 func (c *correlator) servers(key string, ids []ir.ServerID) {
 	for _, id := range ids {
-		if s, ok := c.doc.Servers[id]; ok {
-			c.offer(child(key, "server", s.URLTemplate), string(id), nil)
+		if server, ok := c.doc.Servers[id]; ok {
+			c.offer(child(key, "server", server.URLTemplate), string(id), nil)
 		}
 	}
 }
@@ -289,19 +289,19 @@ func (c *correlator) servers(key string, ids []ir.ServerID) {
 // elsewhere.
 func (c *correlator) linkServers(key string, links []ir.OperationLink) {
 	for i := range links {
-		if s := links[i].Server; s != nil {
-			c.servers(child(key, "link", links[i].Name.Source), []ir.ServerID{*s})
+		if serverID := links[i].Server; serverID != nil {
+			c.servers(child(key, "link", links[i].Name.Source), []ir.ServerID{*serverID})
 		}
 	}
 }
 
-// payload offers the keys of what each content of p names, by media type.
-func (c *correlator) payload(key string, p *ir.Payload) {
-	if p == nil {
+// payload offers the keys of what each content of payload names, by media type.
+func (c *correlator) payload(key string, payload *ir.Payload) {
+	if payload == nil {
 		return
 	}
-	for i := range p.Contents {
-		ct := &p.Contents[i]
+	for i := range payload.Contents {
+		ct := &payload.Contents[i]
 		at := child(key, "content", ct.MediaType)
 		c.ref(at, &ct.Type)
 		c.ref(part(at, "item"), ct.Item)
@@ -315,24 +315,24 @@ func (c *correlator) payload(key string, p *ir.Payload) {
 }
 
 // stream offers the keys of a stream's event and initial-message types.
-func (c *correlator) stream(key string, s *ir.StreamDetail) {
-	if s == nil {
+func (c *correlator) stream(key string, streamDetail *ir.StreamDetail) {
+	if streamDetail == nil {
 		return
 	}
-	c.ref(part(key, "events"), s.Events)
-	c.ref(part(key, "initial"), s.Initial)
+	c.ref(part(key, "events"), streamDetail.Events)
+	c.ref(part(key, "initial"), streamDetail.Initial)
 }
 
 // indexPartHeaders indexes the headers each multipart part declares by the property
 // the part encodes, over every payload of ops and services.
 func indexPartHeaders(services []ir.Service, ops []*ir.Operation) map[ir.PropertyID][]ir.Header {
 	parts := map[ir.PropertyID][]ir.Header{}
-	add := func(p *ir.Payload) {
-		if p == nil {
+	add := func(payload *ir.Payload) {
+		if payload == nil {
 			return
 		}
-		for i := range p.Contents {
-			for prop, enc := range p.Contents[i].Encoding {
+		for i := range payload.Contents {
+			for prop, enc := range payload.Contents[i].Encoding {
 				parts[prop] = append(parts[prop], enc.Headers...)
 			}
 		}
@@ -363,21 +363,21 @@ func indexPartHeaders(services []ir.Service, ops []*ir.Operation) map[ir.Propert
 // its type and what its encoding decodes to.
 func (c *correlator) headers(key string, hs []ir.Header) {
 	for i := range hs {
-		h := &hs[i].Property
-		c.offer(headerKey(key, &hs[i]), string(h.ID), func(c *correlator, key string) {
-			c.ref(part(key, "type"), &h.Type)
-			c.decoded(key, h.Encoding)
+		property := &hs[i].Property
+		c.offer(headerKey(key, &hs[i]), string(property.ID), func(correlatorValue *correlator, key string) {
+			correlatorValue.ref(part(key, "type"), &property.Type)
+			correlatorValue.decoded(key, property.Encoding)
 		})
 	}
 }
 
-// headerKey extends key by what names h on the wire, in lower case: its name,
+// headerKey extends key by what names header on the wire, in lower case: its name,
 // or the prefix of one under a prefix, which names no field of its own
 // (docs/ir/responses.md#prefix-headers). The two segments differ in kind, so a
 // prefix and a header of the same name never share a key.
-func headerKey(key string, h *ir.Header) string {
-	if h.Prefix != nil {
-		return child(key, "prefix", strings.ToLower(*h.Prefix))
+func headerKey(key string, header *ir.Header) string {
+	if header.Prefix != nil {
+		return child(key, "prefix", strings.ToLower(*header.Prefix))
 	}
-	return child(key, "header", strings.ToLower(h.EffectiveWireName()))
+	return child(key, "header", strings.ToLower(header.EffectiveWireName()))
 }

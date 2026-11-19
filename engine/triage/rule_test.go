@@ -92,11 +92,11 @@ func TestNewRuleset_TakesEveryRuleItCanApply(t *testing.T) {
 func TestNewRuleset_CopiesTheRules(t *testing.T) {
 	t.Parallel()
 	rules := []triage.Rule{rate("c", ir.SeverityInfo)}
-	s, err := triage.NewRuleset(rules)
+	ruleset, err := triage.NewRuleset(rules)
 	require.NoError(t, err)
 	rules[0].Severity = ir.SeverityError
 
-	findings, _ := s.Rate([]ir.Diagnostic{{Severity: ir.SeverityError, Code: "c"}})
+	findings, _ := ruleset.Rate([]ir.Diagnostic{{Severity: ir.SeverityError, Code: "c"}})
 	require.Len(t, findings, 1)
 	assert.Equal(t, ir.SeverityInfo, findings[0].Severity)
 }

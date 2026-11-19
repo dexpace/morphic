@@ -55,19 +55,19 @@ func partnerOf(s string) (partner, rule string, ok bool) {
 	}
 }
 
-// spelt returns the schema a case writes at its position: for inline, t's
-// body with u's members and entries merged in; otherwise the use of the target
-// saying u in spelling s. It is false where s writes no such use: the unit
+// spelt returns the schema a case writes at its position: for inline, targetValue's
+// body with writtenValue's members and entries merged in; otherwise the use of the target
+// saying writtenValue in spelling s. It is false where s writes no such use: the unit
 // stays where inline writes it, s would write a key twice, or an entry
 // spelling saying nothing writes wrap's document.
-func (c cases) spelt(u written, s string, t target) (object, bool) {
+func (c cases) spelt(writtenValue written, s string, targetValue target) (object, bool) {
 	if s == inline {
-		return t.body.with(slices.Concat(u.members, allOfOf(u.entries))), true
+		return targetValue.body.with(slices.Concat(writtenValue.members, allOfOf(writtenValue.entries))), true
 	}
-	if len(u.members) == 0 && writesWrapEmpty(s) {
+	if len(writtenValue.members) == 0 && writesWrapEmpty(s) {
 		return nil, false
 	}
-	switch u.stays {
+	switch writtenValue.stays {
 	case inlineAlone:
 		return nil, false
 	case besideToo:
@@ -76,7 +76,7 @@ func (c cases) spelt(u written, s string, t target) (object, bool) {
 		}
 	default:
 	}
-	return spell(s, object{{"$ref", "#/components/schemas/" + targetSchema}}, u.members, u.entries)
+	return spell(s, object{{"$ref", "#/components/schemas/" + targetSchema}}, writtenValue.members, writtenValue.entries)
 }
 
 // writesWrapEmpty reports whether s, given no keyword, writes wrap's document,
@@ -93,21 +93,21 @@ func (c cases) staysAt(i int) stays {
 	return c.constructs[(i-1)/2].stays
 }
 
-// spell returns the use of the target ref names saying k in spelling s, the
-// allOf entries follow right after ref, and false where s cannot write it: k
+// spell returns the use of the target ref names saying objectValue in spelling s, the
+// allOf entries follow right after ref, and false where s cannot write it: objectValue
 // names the keyword s writes the use with. Both products write their uses
 // through it.
-func spell(s string, ref, k object, follow []any) (object, bool) {
+func spell(s string, ref, objectValue object, follow []any) (object, bool) {
 	var use object
 	switch s {
 	case beside:
-		use = slices.Concat(ref, k, allOfOf(follow))
+		use = slices.Concat(ref, objectValue, allOfOf(follow))
 	case wrap:
-		use = slices.Concat(object{{"allOf", slices.Concat([]any{ref}, follow)}}, k)
+		use = slices.Concat(object{{"allOf", slices.Concat([]any{ref}, follow)}}, objectValue)
 	case entry, entryFirst, nested:
-		use = object{{"allOf", allOfEntries(s, ref, k, follow)}}
+		use = object{{"allOf", allOfEntries(s, ref, objectValue, follow)}}
 	case besideEntry:
-		first := slices.Concat(ref, k)
+		first := slices.Concat(ref, objectValue)
 		if repeats(first) {
 			return nil, false
 		}
@@ -128,16 +128,16 @@ func allOfOf(entries []any) object {
 }
 
 // allOfEntries is the allOf an entry spelling writes: the reference, then
-// follow, and, when k writes a keyword, an entry of it, last or, for
+// follow, and, when objectValue writes a keyword, an entry of it, last or, for
 // entryFirst, first; nested writes them one allOf deeper.
-func allOfEntries(s string, ref, k object, follow []any) []any {
+func allOfEntries(s string, ref, objectValue object, follow []any) []any {
 	out := slices.Concat([]any{ref}, follow)
 	switch {
-	case len(k) == 0:
+	case len(objectValue) == 0:
 	case s == entryFirst:
-		out = slices.Concat([]any{k}, out)
+		out = slices.Concat([]any{objectValue}, out)
 	default:
-		out = append(out, k)
+		out = append(out, objectValue)
 	}
 	if s == nested {
 		out = []any{object{{"allOf", out}}}
@@ -145,34 +145,34 @@ func allOfEntries(s string, ref, k object, follow []any) []any {
 	return out
 }
 
-// repeats reports whether o names one member twice.
-func repeats(o object) bool {
-	seen := make(map[string]bool, len(o))
-	for _, m := range o {
-		if seen[m.name] {
+// repeats reports whether objectValue names one member twice.
+func repeats(objectValue object) bool {
+	seen := make(map[string]bool, len(objectValue))
+	for _, member := range objectValue {
+		if seen[member.name] {
 			return true
 		}
-		seen[m.name] = true
+		seen[member.name] = true
 	}
 	return false
 }
 
-// equal is what the case at, writing u, must equal: its partner spelling, nil
+// equal is what the case at, writing writtenValue, must equal: its partner spelling, nil
 // for a spelling with none or whose partner writes nothing. Beside a $ref at
 // 3.0 each keyword states the warning it draws there.
-func (c cases) equal(at []int, u written) *harness.Equal {
+func (c cases) equal(at []int, writtenValue written) *harness.Equal {
 	s := c.spellings[at[5]]
 	partner, rule, ok := partnerOf(s)
 	if !ok {
 		return nil
 	}
-	if partner == entry && len(u.members) == 0 {
+	if partner == entry && len(writtenValue.members) == 0 {
 		partner = wrap // an entry saying nothing is wrap's document, which wrap writes
 	}
-	if readApart(s, u.members) {
+	if readApart(s, writtenValue.members) {
 		return nil
 	}
-	if _, writes := c.spelt(u, partner, c.targets[at[1]]); !writes {
+	if _, writes := c.spelt(writtenValue, partner, c.targets[at[1]]); !writes {
 		return nil
 	}
 	to := slices.Clone(at)
@@ -184,9 +184,9 @@ func (c cases) equal(at []int, u written) *harness.Equal {
 	}
 	switch s {
 	case beside:
-		eq.Stated, eq.Replaced = besideRef(use, slices.Concat(u.members, allOfOf(u.entries)), use, u.members)
+		eq.Stated, eq.Replaced = besideRef(use, slices.Concat(writtenValue.members, allOfOf(writtenValue.entries)), use, writtenValue.members)
 	case besideEntry:
-		eq.Stated, eq.Replaced = besideRef(use+"/allOf/0", u.members, use+"/allOf/"+strconv.Itoa(1+len(u.entries)), u.members)
+		eq.Stated, eq.Replaced = besideRef(use+"/allOf/0", writtenValue.members, use+"/allOf/"+strconv.Itoa(1+len(writtenValue.entries)), writtenValue.members)
 	default:
 	}
 	return eq
@@ -198,11 +198,11 @@ func (c cases) equal(at []int, u written) *harness.Equal {
 // nullable: true, which the partner warns has no effect where no type is
 // written with it (docs/compilers/openapi.md#nullable), draws no second there.
 func besideRef(at string, members object, theirs string, unit object) (stated, replaced []harness.Stated) {
-	for _, m := range members {
-		stated = append(stated, laterVersion(jsontext.Pointer(at).AppendToken(m.name)))
-		if m.name == "nullable" && m.value == raw("true") && !typed(unit) {
+	for _, member := range members {
+		stated = append(stated, laterVersion(jsontext.Pointer(at).AppendToken(member.name)))
+		if member.name == "nullable" && member.value == raw("true") && !typed(unit) {
 			replaced = append(replaced, harness.Stated{Severity: ir.SeverityWarning,
-				Code: "openapi/validation/validation-no-effect", Pointer: jsontext.Pointer(theirs).AppendToken(m.name)})
+				Code: "openapi/validation/validation-no-effect", Pointer: jsontext.Pointer(theirs).AppendToken(member.name)})
 		}
 	}
 	return stated, replaced
@@ -235,8 +235,8 @@ func readApart(s string, members object) bool {
 // beside one a 3.0 nullable: true has an effect
 // (docs/compilers/openapi.md#nullable).
 func typed(members object) bool {
-	return slices.ContainsFunc(members, func(m member) bool {
-		return m.name == "type" && m.value != "null" && m.value != raw(`"null"`)
+	return slices.ContainsFunc(members, func(memberValue member) bool {
+		return memberValue.name == "type" && memberValue.value != "null" && memberValue.value != raw(`"null"`)
 	})
 }
 

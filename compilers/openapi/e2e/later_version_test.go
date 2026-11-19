@@ -63,11 +63,11 @@ func assertLaterVersionConstructs(t *testing.T, doc *ir.Document, diags []ir.Dia
 	assert.Contains(t, openapitest.PointersOf(diags, diag.LaterVersionConstruct),
 		jsontext.Pointer("/components/schemas/Edition/properties/number/const"), "and is a later minor's construct")
 
-	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.UnknownObjectKey }),
+	assert.False(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == diag.UnknownObjectKey }),
 		"a construct a later minor defines is not an undefined key")
-	for _, d := range diags {
-		if d.Code == diag.LaterVersionConstruct {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.LaterVersionConstruct {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
 		}
 	}
 }
@@ -89,9 +89,9 @@ func TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		var later, others []string
-		for _, d := range diags {
-			line := fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer)
-			if d.Code == diag.LaterVersionConstruct {
+		for _, diagnostic := range diags {
+			line := fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer)
+			if diagnostic.Code == diag.LaterVersionConstruct {
 				later = append(later, line)
 			} else {
 				others = append(others, line)

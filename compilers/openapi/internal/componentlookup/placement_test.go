@@ -44,17 +44,17 @@ func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
 `
 	b := loadBound(t, externalDocument(t), openapitest.ComponentSpec(schemas), load.Options{Reader: reader.Disk{}})
 	require.NotNil(t, b.component(t, "Pet").GetSchema().GetDiscriminator())
-	d := reftable.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}
+	documentPointer := reftable.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}
 
 	for value, want := range map[string]string{
 		"#/components/schemas/Cat": "/components/schemas/Cat",
 		"#/$defs/dog":              "/components/schemas/Pet/$defs/dog",
 	} {
-		got, ok := b.scope.MappingTarget(d, value)
+		got, ok := b.scope.MappingTarget(documentPointer, value)
 		assert.True(t, ok, value)
 		assert.Equal(t, reftable.DocumentPointer{Pointer: jsontext.Pointer(want)}, got, value)
 	}
-	other, ok := b.scope.MappingTarget(d, "ext.yaml#/components/schemas/E")
+	other, ok := b.scope.MappingTarget(documentPointer, "ext.yaml#/components/schemas/E")
 	require.True(t, ok, "a value into another document lands there")
 	assert.NotEqual(t, reftable.Source, other.Doc)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/E"), other.Pointer)
@@ -65,13 +65,13 @@ func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
 		"Cat":                            "a bare name is a component's name, read as no $ref",
 		"#/components/schemas/Unwritten": "the table read no such value",
 	} {
-		got, ok := b.scope.MappingTarget(d, value)
+		got, ok := b.scope.MappingTarget(documentPointer, value)
 		assert.False(t, ok, "%s: %s", value, why)
 		assert.Zero(t, got, value)
 	}
 
 	_, ok = b.scope.MappingTarget(reftable.DocumentPointer{}, "#/components/schemas/Cat")
 	assert.False(t, ok, "the position of a schema the bindings do not know")
-	_, ok = componentlookup.Scope{}.MappingTarget(d, "#/components/schemas/Cat")
+	_, ok = componentlookup.Scope{}.MappingTarget(documentPointer, "#/components/schemas/Cat")
 	assert.False(t, ok, "no bindings, no target")
 }

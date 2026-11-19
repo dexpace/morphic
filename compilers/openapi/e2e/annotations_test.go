@@ -193,15 +193,15 @@ components:
           example: at-reference
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(m, "f")
+			property, ok := propByWire(model, "f")
 			require.True(t, ok)
 
 			// The example belongs to the position it is written at.
-			require.Len(t, p.Examples, 1, "example beside a $ref belongs to the reference site")
-			require.NotNil(t, p.Examples[0].Value)
-			assert.Equal(t, "at-reference", p.Examples[0].Value.String)
+			require.Len(t, property.Examples, 1, "example beside a $ref belongs to the reference site")
+			require.NotNil(t, property.Examples[0].Value)
+			assert.Equal(t, "at-reference", property.Examples[0].Value.String)
 
 			// ...and must not have leaked onto the referent.
 			target, ok := doc.Types[componentID("Target")]
@@ -233,11 +233,11 @@ components:
       minProperties: 1
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "S owns a Model node")
-			require.NotNil(t, m.Constraints, "an object component's own minProperties lands in Model.Constraints")
-			require.NotNil(t, m.Constraints.MinProperties)
-			assert.Equal(t, int64(1), *m.Constraints.MinProperties)
+			require.NotNil(t, model.Constraints, "an object component's own minProperties lands in Model.Constraints")
+			require.NotNil(t, model.Constraints.MinProperties)
+			assert.Equal(t, int64(1), *model.Constraints.MinProperties)
 		},
 	}
 }
@@ -283,13 +283,13 @@ components:
           minimum: 5
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(m, "f")
+			property, ok := propByWire(model, "f")
 			require.True(t, ok)
-			require.NotNil(t, p.Constraints, "a bound beside a $ref binds the reference site")
-			require.NotNil(t, p.Constraints.Min)
-			assert.Equal(t, "5", p.Constraints.Min.String())
+			require.NotNil(t, property.Constraints, "a bound beside a $ref binds the reference site")
+			require.NotNil(t, property.Constraints.Min)
+			assert.Equal(t, "5", property.Constraints.Min.String())
 
 			target, ok := doc.Types[componentID("Target")].(*ir.Scalar)
 			require.True(t, ok)
@@ -364,11 +364,11 @@ components:
           description: at-reference
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(m, "f")
+			property, ok := propByWire(model, "f")
 			require.True(t, ok)
-			assert.Equal(t, "at-reference", p.Docs.Description,
+			assert.Equal(t, "at-reference", property.Docs.Description,
 				"a description beside a $ref binds the reference site")
 
 			target, ok := doc.Types[componentID("Target")]
@@ -445,11 +445,11 @@ components:
           deprecated: true
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(m, "f")
+			property, ok := propByWire(model, "f")
 			require.True(t, ok)
-			assert.NotNil(t, p.Deprecation, "deprecated beside a $ref binds the reference site")
+			assert.NotNil(t, property.Deprecation, "deprecated beside a $ref binds the reference site")
 
 			target, ok := doc.Types[componentID("Target")]
 			require.True(t, ok)
@@ -480,11 +480,11 @@ components:
       default: {f: x}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "S owns a Model node")
-			assert.NotContains(t, marshalToMap(t, m), "default",
+			assert.NotContains(t, marshalToMap(t, model), "default",
 				"a default binds a use of the type, so it gets no field on the type node")
-			assertResidueKept(t, m.Unmodeled, "openapi:default", `{"f":"x"}`)
+			assertResidueKept(t, model.Unmodeled, "openapi:default", `{"f":"x"}`)
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
 			assertResidueDiag(t, diags, "/components/schemas/S/default")
@@ -535,12 +535,12 @@ components:
           default: 7
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(m, "f")
+			property, ok := propByWire(model, "f")
 			require.True(t, ok)
-			require.NotNil(t, p.Default, "a default beside a $ref binds the reference site")
-			assert.Equal(t, "7", p.Default.Number.String())
+			require.NotNil(t, property.Default, "a default beside a $ref binds the reference site")
+			assert.Equal(t, "7", property.Default.Number.String())
 
 			target, ok := doc.Types[componentID("Target")].(*ir.Scalar)
 			require.True(t, ok)
@@ -571,11 +571,11 @@ components:
       readOnly: true
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "S owns a Model node")
-			assert.NotContains(t, marshalToMap(t, m), "visibility",
+			assert.NotContains(t, marshalToMap(t, model), "visibility",
 				"readOnly binds a use of the type, so it gets no field on the type node")
-			assertResidueKept(t, m.Unmodeled, "openapi:readOnly", `true`)
+			assertResidueKept(t, model.Unmodeled, "openapi:readOnly", `true`)
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
 			assertResidueDiag(t, diags, "/components/schemas/S/readOnly")
@@ -626,13 +626,13 @@ components:
           readOnly: true
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(m, "f")
+			property, ok := propByWire(model, "f")
 			require.True(t, ok)
 			assert.Equal(t,
 				[]ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery},
-				p.Visibility.Only)
+				property.Visibility.Only)
 
 			target, ok := doc.Types[componentID("Target")].(*ir.Scalar)
 			require.True(t, ok)
@@ -714,11 +714,11 @@ components:
           x-vendor: at-reference
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(m, "f")
+			property, ok := propByWire(model, "f")
 			require.True(t, ok)
-			raw, ok := p.Unmodeled["openapi:x-vendor"]
+			raw, ok := property.Unmodeled["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor beside a $ref binds the reference site")
 			assert.JSONEq(t, `"at-reference"`, string(raw.Value))
 			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
@@ -799,12 +799,12 @@ components:
           xml: {name: Renamed}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(m, "f")
+			property, ok := propByWire(model, "f")
 			require.True(t, ok)
-			require.NotNil(t, p.XML, "an xml hint beside a $ref binds the reference site")
-			assert.Equal(t, "Renamed", p.XML.Name)
+			require.NotNil(t, property.XML, "an xml hint beside a $ref binds the reference site")
+			assert.Equal(t, "Renamed", property.XML.Name)
 
 			target, ok := doc.Types[componentID("Target")]
 			require.True(t, ok)
@@ -844,9 +844,9 @@ components:
       then: {minLength: 1}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			raw, ok := m.Unmodeled["openapi:if-then-else"]
+			raw, ok := model.Unmodeled["openapi:if-then-else"]
 			require.True(t, ok, "if/then must be kept verbatim under Unmodeled")
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
 			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
@@ -907,11 +907,11 @@ components:
           then: {minLength: 1}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(m, "f")
+			property, ok := propByWire(model, "f")
 			require.True(t, ok)
-			raw, ok := p.Unmodeled["openapi:if-then-else"]
+			raw, ok := property.Unmodeled["openapi:if-then-else"]
 			require.True(t, ok, "if/then beside a $ref binds the reference site")
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
 			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
@@ -1014,9 +1014,9 @@ func paramUnmodeled(t *testing.T, op ir.Operation) ir.Unmodeled {
 // written beside its $ref, requiring it to be an alias of the referent rather
 // than the referent itself — which is the difference between keeping the
 // keywords at the reference site and writing them onto a shared target.
-func refSiteAlias(t *testing.T, doc *ir.Document, c ir.Content) ir.TypeDef {
+func refSiteAlias(t *testing.T, doc *ir.Document, content ir.Content) ir.TypeDef {
 	t.Helper()
-	td, ok := doc.Types[c.Type.Target]
+	td, ok := doc.Types[content.Type.Target]
 	require.True(t, ok, "the content's type is registered")
 	sc, ok := td.(*ir.Scalar)
 	require.True(t, ok, "a $ref with siblings hoists an alias; got %T", td)
@@ -1140,24 +1140,24 @@ func TestAnnotationRetention_OtherDeclarationShapes(t *testing.T) {
 // in the dispatch the reading happens.
 func assertDeclaredAnnotationsKept(t *testing.T, td ir.TypeDef) {
 	t.Helper()
-	c := td.Common()
-	assert.Equal(t, "at-declaration", c.Docs.Description, "docs")
-	assert.NotNil(t, c.Deprecation, "deprecated")
-	if assert.NotNil(t, c.XML, "xmlHints") {
-		assert.Equal(t, "Renamed", c.XML.Name)
+	typeCommon := td.Common()
+	assert.Equal(t, "at-declaration", typeCommon.Docs.Description, "docs")
+	assert.NotNil(t, typeCommon.Deprecation, "deprecated")
+	if assert.NotNil(t, typeCommon.XML, "xmlHints") {
+		assert.Equal(t, "Renamed", typeCommon.XML.Name)
 	}
-	vendor, ok := c.Unmodeled["openapi:x-vendor"]
-	if assert.True(t, ok, "vendorExtension: got %v", c.Unmodeled) {
+	vendor, ok := typeCommon.Unmodeled["openapi:x-vendor"]
+	if assert.True(t, ok, "vendorExtension: got %v", typeCommon.Unmodeled) {
 		assert.JSONEq(t, `"at-declaration"`, string(vendor.Value))
 		assert.Equal(t, ir.ReasonVendorExtension, vendor.Reason)
 	}
-	ite, ok := c.Unmodeled["openapi:if-then-else"]
-	if assert.True(t, ok, "validationOnly: got %v", c.Unmodeled) {
+	ite, ok := typeCommon.Unmodeled["openapi:if-then-else"]
+	if assert.True(t, ok, "validationOnly: got %v", typeCommon.Unmodeled) {
 		assert.Equal(t, ir.ReasonValidationOnly, ite.Reason)
 	}
-	require.Len(t, c.Examples, 1, "examples")
-	require.NotNil(t, c.Examples[0].Value)
-	assert.NotEqual(t, ir.Value{}, *c.Examples[0].Value, "the example converted to a typed value")
+	require.Len(t, typeCommon.Examples, 1, "examples")
+	require.NotNil(t, typeCommon.Examples[0].Value)
+	assert.NotEqual(t, ir.Value{}, *typeCommon.Examples[0].Value, "the example converted to a typed value")
 }
 
 // assertResidueDiag requires one info diagnostic reported at the preserved
@@ -1165,9 +1165,9 @@ func assertDeclaredAnnotationsKept(t *testing.T, td ir.TypeDef) {
 // reported for, and openapi/degraded-construct is emitted for several things.
 func assertResidueDiag(t *testing.T, diags []ir.Diagnostic, pointerSuffix string) {
 	t.Helper()
-	for _, d := range diags {
-		if d.Code == "openapi/degraded-construct" && d.Severity == ir.SeverityInfo &&
-			strings.HasSuffix(string(d.Provenance.Pointer), pointerSuffix) {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/degraded-construct" && diagnostic.Severity == ir.SeverityInfo &&
+			strings.HasSuffix(string(diagnostic.Provenance.Pointer), pointerSuffix) {
 			return
 		}
 	}
@@ -1178,9 +1178,9 @@ func assertResidueDiag(t *testing.T, diags []ir.Diagnostic, pointerSuffix string
 // assertResidueKept checks that a keyword binding a use of the type — which
 // therefore gets no field on the type node — is still on the declaring node
 // verbatim, under the reason that says the IR models it nowhere else.
-func assertResidueKept(t *testing.T, p ir.Unmodeled, key, wantJSON string) {
+func assertResidueKept(t *testing.T, unmodeled ir.Unmodeled, key, wantJSON string) {
 	t.Helper()
-	entry, ok := p[key]
+	entry, ok := unmodeled[key]
 	require.True(t, ok, "%s must be kept verbatim under Unmodeled", key)
 	assert.JSONEq(t, wantJSON, string(entry.Value))
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
@@ -1196,9 +1196,9 @@ func assertDeclarationResidueKept(t *testing.T, td ir.TypeDef, shape declShape) 
 		"default has no field on a type node regardless of declaration shape")
 	assert.NotContains(t, node, "visibility",
 		"readOnly has no field on a type node regardless of declaration shape")
-	c := td.Common()
-	assertResidueKept(t, c.Unmodeled, "openapi:readOnly", `true`)
-	assertResidueKept(t, c.Unmodeled, "openapi:default", jsonLiteral(shape.value))
+	typeCommon := td.Common()
+	assertResidueKept(t, typeCommon.Unmodeled, "openapi:readOnly", `true`)
+	assertResidueKept(t, typeCommon.Unmodeled, "openapi:default", jsonLiteral(shape.value))
 
 	if shape.constraintKept {
 		assert.Contains(t, node, "constraints",
@@ -1279,9 +1279,9 @@ components:
 
 // underSchema returns what a parameter or a header keeps of what its schema
 // writes, beneath openapi:schema/, keyed as a node of the schema's own keeps it.
-func underSchema(u ir.Unmodeled) ir.Unmodeled {
+func underSchema(unmodeled ir.Unmodeled) ir.Unmodeled {
 	out := ir.Unmodeled{}
-	for key, entry := range u {
+	for key, entry := range unmodeled {
 		if rest, ok := strings.CutPrefix(key, "openapi:schema/"); ok {
 			out["openapi:"+rest] = entry
 		}

@@ -149,15 +149,15 @@ components:
 
 	assert.Empty(t, diags)
 	assert.Equal(t, filepath.Join(dir, "other.yaml"), doc.Sources[1].Path)
-	x, ok := doc.Types[ids.In("other.yaml").AnonType("/X")].(*ir.Scalar)
+	scalar, ok := doc.Types[ids.In("other.yaml").AnonType("/X")].(*ir.Scalar)
 	require.True(t, ok, "other.yaml's X is lowered")
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, x.Provenance)
-	require.NotNil(t, x.Base)
-	assert.Equal(t, ir.TypeID("type/primitive/string"), x.Base.Target)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, scalar.Provenance)
+	require.NotNil(t, scalar.Base)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), scalar.Base.Target)
 	a, ok := doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/A")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, a.Base)
-	assert.Equal(t, x.ID, a.Base.Target, "A names the schema other.yaml declares")
+	assert.Equal(t, scalar.ID, a.Base.Target, "A names the schema other.yaml declares")
 }
 
 // TestRef_IntoADocumentTheCompileDoesNotListIsUnresolved pins what a lowering
@@ -198,9 +198,9 @@ components:
 	unlisted := *loaded
 	unlisted.Others = load.Others{}
 
-	l := schema.LowererOver(service.New(0, &unlisted, service.Policy{Grouping: service.GroupByTags}))
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
-	doc := l.Document(t)
+	lowerer := schema.LowererOver(service.New(0, &unlisted, service.Policy{Grouping: service.GroupByTags}))
+	lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	doc := lowerer.Document(t)
 
 	unresolved := func(pointer jsontext.Pointer, message string) ir.Diagnostic {
 		return ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref", Message: message,
@@ -215,7 +215,7 @@ components:
 			`discriminator mapping "x" references unresolved schema "./ext.yaml#/components/schemas/Sub"`),
 		unresolved("/components/schemas/Mixed/oneOf/0",
 			`union branch $ref "./ext.yaml#/components/schemas/Sub" is unresolved; the branch is kept verbatim`),
-	}, withCode(l.Diags.List(), "openapi/unresolved-ref")))
+	}, withCode(lowerer.Diags.List(), "openapi/unresolved-ref")))
 	sub, ok := doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/Sub")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, "Sub", sub.DiscriminatorValue, "the mapping tags no subtype, which takes its own name")
@@ -333,9 +333,9 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	assert.GreaterOrEqual(t, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError), 2, "both empty refs are unresolved")
-	u, ok := typeByName(doc, "U").(*ir.Union)
+	union, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
-	assert.Contains(t, []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}, "variant_0")
+	assert.Contains(t, []string{union.Variants[0].Name.Hint, union.Variants[1].Name.Hint}, "variant_0")
 }
 
 // TestSchema_AnEmptyRefBesideKeywordsIsAConjunctAsInAnAllOf pins a schema
@@ -365,11 +365,11 @@ func TestSchema_AnEmptyRefBesideKeywordsIsAConjunctAsInAnAllOf(t *testing.T) {
 		return &owner.Properties[0], sub
 	}
 	const base = "type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}"
-	p, sub := read("{$ref: '', description: from-empty, default: e}", "{$ref: '', "+base+"}")
+	property, sub := read("{$ref: '', description: from-empty, default: e}", "{$ref: '', "+base+"}")
 	wp, wsub := read("{allOf: [{$ref: ''}], description: from-empty, default: e}", "{allOf: [{$ref: ''}], "+base+"}")
-	assert.Equal(t, "from-empty", p.Docs.Description, "the keywords beside the $ref say what the schema is")
-	assert.Equal(t, wp.Docs, p.Docs)
-	assert.Equal(t, wp.Default, p.Default)
+	assert.Equal(t, "from-empty", property.Docs.Description, "the keywords beside the $ref say what the schema is")
+	assert.Equal(t, wp.Docs, property.Docs)
+	assert.Equal(t, wp.Default, property.Default)
 	assert.Equal(t, wsub.DiscriminatorValue, sub.DiscriminatorValue)
 }
 
@@ -400,8 +400,8 @@ components:
 
 	base, ok := doc.Types["type/openapi/components/schemas/Base"]
 	require.True(t, ok)
-	if s, isScalar := base.(*ir.Scalar); isScalar {
-		assert.Nil(t, s.Constraints, "the referent stays unbounded")
+	if scalar, isScalar := base.(*ir.Scalar); isScalar {
+		assert.Nil(t, scalar.Constraints, "the referent stays unbounded")
 	}
 }
 
@@ -763,12 +763,12 @@ func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
 
 	holder, ok := typeByName(doc, "Holder").(*ir.Model)
 	require.True(t, ok)
-	p, ok := openapitest.PropsByWire(holder.Properties)["p"]
+	property, ok := openapitest.PropsByWire(holder.Properties)["p"]
 	require.True(t, ok)
-	require.NotNil(t, p.Constraints)
-	assert.Equal(t, int64(3), *p.Constraints.MinLength)
-	assert.Equal(t, "kept", p.Docs.Description)
-	assert.Empty(t, unmodeledKeys(p.Unmodeled))
+	require.NotNil(t, property.Constraints)
+	assert.Equal(t, int64(3), *property.Constraints.MinLength)
+	assert.Equal(t, "kept", property.Docs.Description)
+	assert.Empty(t, unmodeledKeys(property.Unmodeled))
 }
 
 // TestRefSiteKeywords_AnEntrysKeywordsBesideItsRefAreConjuncts pins what an
@@ -794,16 +794,16 @@ func TestRefSiteKeywords_AnEntrysKeywordsBesideItsRefAreConjuncts(t *testing.T) 
 			doc, diags := schema.LowerSpec(t, keywordCensusSpec(
 				"    S: {allOf: [{$ref: '#/components/schemas/BaseObj', "+tc.sibling+"}]}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
+			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			require.NotNil(t, m.Base, "the entry still composes")
-			assert.Equal(t, componentID("BaseObj"), m.Base.Target, "its $ref is the Base itself")
-			assert.Equal(t, tc.requires, m.Requires)
+			require.NotNil(t, model.Base, "the entry still composes")
+			assert.Equal(t, componentID("BaseObj"), model.Base.Target, "its $ref is the Base itself")
+			assert.Equal(t, tc.requires, model.Requires)
 			// Each keyword the entry writes beside its $ref is kept on its own,
 			// as an inline entry's is, at the keyword.
-			assert.Equal(t, []string{tc.kept}, unmodeledKeys(m.Unmodeled))
-			assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled[tc.kept].Reason)
-			assert.Equal(t, jsontext.Pointer("/components/schemas/S/"+tc.at), m.Unmodeled[tc.kept].Provenance.Pointer)
+			assert.Equal(t, []string{tc.kept}, unmodeledKeys(model.Unmodeled))
+			assert.Equal(t, ir.ReasonDegradedLowering, model.Unmodeled[tc.kept].Reason)
+			assert.Equal(t, jsontext.Pointer("/components/schemas/S/"+tc.at), model.Unmodeled[tc.kept].Provenance.Pointer)
 			assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/S/allOf/0"), "no node at the entry")
 			assert.Equal(t, tc.disjoint, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S") &&
 				openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) == 1)
@@ -939,8 +939,8 @@ func subtreeAt(doc *ir.Document, pointer string) map[ir.TypeID]ir.TypeDef {
 // order two different lowering walks happened to append it in.
 func sortedDiagStrings(diags []ir.Diagnostic) []string {
 	out := make([]string, len(diags))
-	for i, d := range diags {
-		out[i] = fmt.Sprintf("%s\t%s\t%s\t%+v", d.Severity, d.Code, d.Message, d.Provenance)
+	for i, diagnostic := range diags {
+		out[i] = fmt.Sprintf("%s\t%s\t%s\t%+v", diagnostic.Severity, diagnostic.Code, diagnostic.Message, diagnostic.Provenance)
 	}
 	slices.Sort(out)
 	return out
@@ -969,8 +969,8 @@ func TestRef_ToANullOrTrueValueIsHoisted(t *testing.T) {
 		require.True(t, ok, "%s: the node hoisted at %s", name, at)
 		assert.Equal(t, &top, hoisted.Base, name)
 	}
-	u, ok := typeByName(doc, "U").(*ir.Union)
+	union, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok, "a branch naming the null value resolves")
-	require.Len(t, u.Variants, 2)
-	assert.Equal(t, ids.DocumentIDNamespace{}.AnonType("/components/schemas/H/properties/q"), u.Variants[0].Type.Target)
+	require.Len(t, union.Variants, 2)
+	assert.Equal(t, ids.DocumentIDNamespace{}.AnonType("/components/schemas/H/properties/q"), union.Variants[0].Type.Target)
 }

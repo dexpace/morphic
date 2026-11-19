@@ -44,9 +44,9 @@ func ParseMinor(version string) (Minor, bool) {
 	}
 	minor, _, _ := strings.Cut(rest, ".")
 	prefix := version[:len(major)+1+len(minor)]
-	for _, m := range minors() {
-		if prefix == m.String() {
-			return m, true
+	for _, minor := range minors() {
+		if prefix == minor.String() {
+			return minor, true
 		}
 	}
 	return 0, false
@@ -60,20 +60,20 @@ type MinorVersionRange struct{ Since, Until Minor }
 // Always is every minor.
 func Always() MinorVersionRange { return MinorVersionRange{Since: V30} }
 
-// From is the minor m and every later one.
-func From(m Minor) MinorVersionRange { return MinorVersionRange{Since: m} }
+// From is the minor minor and every later one.
+func From(minor Minor) MinorVersionRange { return MinorVersionRange{Since: minor} }
 
-// Only is the minor m alone.
-func Only(m Minor) MinorVersionRange { return MinorVersionRange{Since: m, Until: m} }
+// Only is the minor minor alone.
+func Only(minor Minor) MinorVersionRange { return MinorVersionRange{Since: minor, Until: minor} }
 
-// Through is every minor up to and including m.
-func Through(m Minor) MinorVersionRange { return MinorVersionRange{Since: V30, Until: m} }
+// Through is every minor up to and including minor.
+func Through(minor Minor) MinorVersionRange { return MinorVersionRange{Since: V30, Until: minor} }
 
-// Holds reports whether minor m falls in the span.
-func (s MinorVersionRange) Holds(m Minor) bool {
-	return s.Since != 0 && m >= s.Since && (s.Until == 0 || m <= s.Until)
+// Holds reports whether minor minor falls in the span.
+func (s MinorVersionRange) Holds(minor Minor) bool {
+	return s.Since != 0 && minor >= s.Since && (s.Until == 0 || minor <= s.Until)
 }
 
-// Later reports whether the span starts after minor m: a construct it
+// Later reports whether the span starts after minor minor: a construct it
 // describes was added by a later minor than the one declared.
-func (s MinorVersionRange) Later(m Minor) bool { return s.Since > m }
+func (s MinorVersionRange) Later(minor Minor) bool { return s.Since > minor }

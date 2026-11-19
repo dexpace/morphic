@@ -51,10 +51,10 @@ func TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead(t *testing.T) {
       items: {type: string}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	l, ok := typeByName(doc, "Tags").(*ir.List)
+	list, ok := typeByName(doc, "Tags").(*ir.List)
 	require.True(t, ok, "it is a list")
-	assert.Contains(t, l.Unmodeled, "openapi:format", "the format has no home on a list, so it is kept")
-	assert.True(t, l.Constraints == nil || !l.Constraints.UniqueItems, "and nothing reads it as uniqueItems")
+	assert.Contains(t, list.Unmodeled, "openapi:format", "the format has no home on a list, so it is kept")
+	assert.True(t, list.Constraints == nil || !list.Constraints.UniqueItems, "and nothing reads it as uniqueItems")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Tags"))
 }
 
@@ -71,10 +71,10 @@ func TestUnhomedApplicator_ObjectCarriesNoItemKeyword(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	m, ok := typeByName(doc, "Odd").(*ir.Model)
+	model, ok := typeByName(doc, "Odd").(*ir.Model)
 	require.True(t, ok, "it is still a model")
-	assert.Contains(t, m.Unmodeled, "openapi:items", "a model has no home for items")
-	assert.Len(t, m.Properties, 1, "and the applicators it does have a home for still land")
+	assert.Contains(t, model.Unmodeled, "openapi:items", "a model has no home for items")
+	assert.Len(t, model.Properties, 1, "and the applicators it does have a home for still land")
 }
 
 // TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced pins the pairing
@@ -90,9 +90,9 @@ func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
       items: {type: string, x-t: `+unpreservableValue+`}
 `))
 
-	m, ok := typeByName(doc, "Odd").(*ir.Model)
+	model, ok := typeByName(doc, "Odd").(*ir.Model)
 	require.True(t, ok)
-	assert.NotContains(t, m.Unmodeled, "openapi:items", "the conversion failed, so nothing was kept")
+	assert.NotContains(t, model.Unmodeled, "openapi:items", "the conversion failed, so nothing was kept")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
 	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
@@ -220,11 +220,11 @@ func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *
 		"    S: {type: array, items: {type: string}, minItems: 1, minLength: 3}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	l, ok := typeByName(doc, "S").(*ir.List)
+	list, ok := typeByName(doc, "S").(*ir.List)
 	require.True(t, ok)
-	require.NotNil(t, l.Constraints)
-	assert.Equal(t, int64(1), *l.Constraints.MinItems, "the collection bound lowers as it always did")
-	assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(l.Unmodeled),
+	require.NotNil(t, list.Constraints)
+	assert.Equal(t, int64(1), *list.Constraints.MinItems, "the collection bound lowers as it always did")
+	assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(list.Unmodeled),
 		"and only the bound collectionConstraints does not read is kept")
 }
 
@@ -250,10 +250,10 @@ func TestUnplacedDiscriminator_IsKeptAtEveryUnionSite(t *testing.T) {
 	// Beside a $ref to an object a union distributes as beside an allOf of it,
 	// its variants routed by the discriminator (#2010).
 	for _, id := range []ir.TypeID{componentID("RefSite"), "type/anonymous/components/schemas/Holder/properties/r"} {
-		u, ok := doc.Types[id].(*ir.Union)
+		union, ok := doc.Types[id].(*ir.Union)
 		require.True(t, ok, "%s distributes", id)
-		require.NotNil(t, u.Discriminator, id)
-		assert.NotContains(t, u.Unmodeled, "openapi:discriminator", id)
+		require.NotNil(t, union.Discriminator, id)
+		assert.NotContains(t, union.Unmodeled, "openapi:discriminator", id)
 	}
 	assert.Equal(t, 6, strings.Count(marshalForTest(t, doc), `"openapi:discriminator"`),
 		"one entry per position kept, none duplicated")
@@ -281,9 +281,9 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 	}
 	for pointer, unmodeled := range owners {
 		assertKeptDiscriminator(t, unmodeled, pointer)
-		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-			return d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityInfo &&
-				string(d.Provenance.Pointer) == pointer && strings.Contains(d.Message, "which has no home for discriminator")
+		assert.True(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityInfo &&
+				string(diagnostic.Provenance.Pointer) == pointer && strings.Contains(diagnostic.Message, "which has no home for discriminator")
 		}), "%s reports what it kept", pointer)
 	}
 
@@ -292,12 +292,12 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 	op := doc.Services[0].Groups[0].Operations[0]
 	require.Len(t, op.Params, 1)
 	for _, id := range []ir.TypeID{componentID("RefD"), holder.Properties[0].Type.Target, op.Params[0].Type.Target} {
-		m, isModel := doc.Types[id].(*ir.Model)
+		model, isModel := doc.Types[id].(*ir.Model)
 		require.True(t, isModel, "%s is the model over the object", id)
-		require.NotNil(t, m.Discriminator, id)
-		assert.Equal(t, "kind", m.Discriminator.PropertyName, id)
-		require.NotNil(t, m.Base, id)
-		assert.Equal(t, componentID("Cat"), m.Base.Target, id)
+		require.NotNil(t, model.Discriminator, id)
+		assert.Equal(t, "kind", model.Discriminator.PropertyName, id)
+		require.NotNil(t, model.Base, id)
+		assert.Equal(t, componentID("Cat"), model.Base.Target, id)
 	}
 	// A discriminator an entry writes beside its $ref is kept on the
 	// composition under its own key, as on an entry of its own.
@@ -325,13 +325,13 @@ func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, validated(t, doc))
 
-	u, ok := typeByName(doc, "U").(*ir.Union)
+	union, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
-	assert.NotNil(t, u.Discriminator)
+	assert.NotNil(t, union.Discriminator)
 	for _, name := range []string{"Base", "Untyped"} {
-		m, ok := typeByName(doc, name).(*ir.Model)
+		model, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, name)
-		assert.NotNil(t, m.Discriminator, name)
+		assert.NotNil(t, model.Discriminator, name)
 	}
 	assert.NotContains(t, marshalForTest(t, doc), "openapi:discriminator")
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo), "%+v", diags)
@@ -383,8 +383,8 @@ func TestKeptDiscriminator_ResolvesItsValuesAtEverySite(t *testing.T) {
 			for _, src := range []string{spec, last} {
 				doc, diags := parseFull(t, src)
 				var unresolved []string
-				for _, d := range withCode(diags, diag.UnresolvedRef) {
-					unresolved = append(unresolved, string(d.Provenance.Pointer))
+				for _, diagnostic := range withCode(diags, diag.UnresolvedRef) {
+					unresolved = append(unresolved, string(diagnostic.Provenance.Pointer))
 				}
 				slices.Sort(unresolved)
 				var want []string
@@ -524,8 +524,8 @@ func assertKeptDiscriminator(t *testing.T, unmodeled ir.Unmodeled, where string)
 // pointer mentions a discriminator. A site also reports its union, so the count
 // at a pointer is not one.
 func namesDiscriminatorAt(diags []ir.Diagnostic, pointer string) bool {
-	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityInfo &&
-			string(d.Provenance.Pointer) == pointer && strings.Contains(d.Message, "discriminator")
+	return slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+		return diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityInfo &&
+			string(diagnostic.Provenance.Pointer) == pointer && strings.Contains(diagnostic.Message, "discriminator")
 	})
 }

@@ -119,10 +119,10 @@ func TestVerify_BlankListEntryIsAViolation(t *testing.T) {
 
 			got := verifyDeclared(doc)
 			require.Len(t, got, 4, "one violation per blank entry, none for a visible format character")
-			for i, v := range got {
-				assert.Equal(t, code, v.Code)
-				assert.Equal(t, fmt.Sprintf("%s[%d]", list.path, i), v.Path)
-				assert.Equal(t, message, v.Message)
+			for i, violation := range got {
+				assert.Equal(t, code, violation.Code)
+				assert.Equal(t, fmt.Sprintf("%s[%d]", list.path, i), violation.Path)
+				assert.Equal(t, message, violation.Message)
 			}
 		})
 	}
@@ -197,8 +197,8 @@ func TestVerify_ListEntryIsSpelledAsTheWalkWould(t *testing.T) {
 			require.Len(t, got, size)
 			reported := make([]string, 0, size) // Verify sorts [10] before [2]
 			want := make([]string, 0, size)
-			for i, v := range got {
-				reported = append(reported, v.Path)
+			for i, violation := range got {
+				reported = append(reported, violation.Path)
 				want = append(want, walked[entries[i]])
 			}
 			assert.ElementsMatch(t, want, reported)

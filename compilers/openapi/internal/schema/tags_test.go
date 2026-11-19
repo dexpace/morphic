@@ -95,17 +95,17 @@ func TestDiscriminatorInference_MapsAnUnmappedDiscriminator(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			for _, doc := range taggedOrders(t, "    U:\n"+disc+c.union, taggedVariants+c.rest) {
-				u := taggedUnion(t, doc)
-				require.NotNil(t, u.Discriminator)
-				assert.False(t, u.Discriminator.Inferred, "the discriminator is declared")
+				union := taggedUnion(t, doc)
+				require.NotNil(t, union.Discriminator)
+				assert.False(t, union.Discriminator.Inferred, "the discriminator is declared")
 				if c.want == nil {
-					assert.Nil(t, u.Discriminator.Mapping, "the implicit mapping stands")
-					assert.Empty(t, u.Provenance.Inferred)
+					assert.Nil(t, union.Discriminator.Mapping, "the implicit mapping stands")
+					assert.Empty(t, union.Provenance.Inferred)
 					assert.False(t, openapitest.HasDiagCodeAt(doc.Diagnostics, diag.InferredDiscriminator, unionAt+"/discriminator"))
 					continue
 				}
-				assert.Equal(t, mappingOf(c.want), u.Discriminator.Mapping)
-				assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, u.Provenance.Inferred)
+				assert.Equal(t, mappingOf(c.want), union.Discriminator.Mapping)
+				assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, union.Provenance.Inferred)
 				assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.InferredDiscriminator, ir.SeverityInfo,
 					unionAt+"/discriminator"), c.report)
 			}
@@ -121,10 +121,10 @@ func TestDiscriminatorInference_LeavesADeclaredMapping(t *testing.T) {
 	union := "    U:\n      discriminator: {propertyName: type, mapping: {j: Json, t: '#/components/schemas/Text'}}\n" +
 		"      oneOf: [{$ref: '#/components/schemas/Json'}, {$ref: '#/components/schemas/Text'}]\n"
 	for _, doc := range taggedOrders(t, union, taggedVariants) {
-		u := taggedUnion(t, doc)
-		require.NotNil(t, u.Discriminator)
-		assert.Equal(t, mappingOf(map[string]string{"j": "Json", "t": "Text"}), u.Discriminator.Mapping)
-		assert.Empty(t, u.Provenance.Inferred)
+		union := taggedUnion(t, doc)
+		require.NotNil(t, union.Discriminator)
+		assert.Equal(t, mappingOf(map[string]string{"j": "Json", "t": "Text"}), union.Discriminator.Mapping)
+		assert.Empty(t, union.Provenance.Inferred)
 		assert.Zero(t, openapitest.CountDiagsAt(doc.Diagnostics, diag.InferredDiscriminator, ir.SeverityInfo))
 	}
 }
@@ -192,16 +192,16 @@ func TestDiscriminatorInference_InfersAnUndeclaredDiscriminator(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			for _, doc := range taggedOrders(t, union, c.rest) {
-				u := taggedUnion(t, doc)
+				union := taggedUnion(t, doc)
 				if c.want == nil {
-					assert.Nil(t, u.Discriminator)
-					assert.False(t, u.WireTagged)
-					assert.Empty(t, u.Provenance.Inferred)
+					assert.Nil(t, union.Discriminator)
+					assert.False(t, union.WireTagged)
+					assert.Empty(t, union.Provenance.Inferred)
 					continue
 				}
-				assert.True(t, u.WireTagged)
-				assert.Equal(t, &ir.Discriminator{PropertyName: c.tag, Mapping: mappingOf(c.want), Inferred: true}, u.Discriminator)
-				assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, u.Provenance.Inferred)
+				assert.True(t, union.WireTagged)
+				assert.Equal(t, &ir.Discriminator{PropertyName: c.tag, Mapping: mappingOf(c.want), Inferred: true}, union.Discriminator)
+				assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, union.Provenance.Inferred)
 				assert.False(t, openapitest.HasDiagCodeAt(doc.Diagnostics, diag.InferredDiscriminator, unionAt),
 					"an undeclared discriminator departs from nothing the document says, so it is not reported")
 			}
@@ -226,8 +226,8 @@ func TestDiscriminatorInference_LeavesALoneOrNullableVariant(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", rest))
 			openapitest.RequireNoErrorDiags(t, diags)
-			u := taggedUnion(t, doc)
-			assert.Nil(t, u.Discriminator, "got %+v", u.Variants)
+			union := taggedUnion(t, doc)
+			assert.Nil(t, union.Discriminator, "got %+v", union.Variants)
 		})
 	}
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    U: {oneOf: [{$ref: '#/components/schemas/A'}]}\n"+a))
@@ -250,14 +250,14 @@ func TestDiscriminatorInference_DisabledReadsNothing(t *testing.T) {
 		compilers.Options{FormatOptions: openapi.Options{DiscriminatorInference: openapi.DiscriminatorInference{Disabled: true}}})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	u := taggedUnion(t, doc)
-	require.NotNil(t, u.Discriminator)
-	assert.Nil(t, u.Discriminator.Mapping)
-	v, ok := typeByName(doc, "V").(*ir.Union)
+	union := taggedUnion(t, doc)
+	require.NotNil(t, union.Discriminator)
+	assert.Nil(t, union.Discriminator.Mapping)
+	irUnion, ok := typeByName(doc, "V").(*ir.Union)
 	require.True(t, ok)
-	assert.Nil(t, v.Discriminator)
-	for _, n := range []*ir.Union{u, v} {
-		assert.Empty(t, n.Provenance.Inferred)
+	assert.Nil(t, irUnion.Discriminator)
+	for _, unionValue := range []*ir.Union{union, irUnion} {
+		assert.Empty(t, unionValue.Provenance.Inferred)
 	}
 	sub, ok := typeByName(doc, "Sub").(*ir.Model)
 	require.True(t, ok)
@@ -283,11 +283,11 @@ func TestDiscriminatorInference_JoinsTheMarksANodeCarries(t *testing.T) {
 	for _, doc := range taggedOrders(t, union, rest) {
 		assert.Equal(t, mappingOf(map[string]string{"json": "Json", "text": "Text"}), taggedUnion(t, doc).Discriminator.Mapping)
 		assert.Equal(t, want, taggedUnion(t, doc).Provenance.Inferred)
-		v, ok := typeByName(doc, "V").(*ir.Union)
+		union, ok := typeByName(doc, "V").(*ir.Union)
 		require.True(t, ok, "V lowers to a union; got %T", typeByName(doc, "V"))
-		require.NotNil(t, v.Discriminator)
-		assert.True(t, v.Discriminator.Inferred, "V's discriminator is read in")
-		assert.Equal(t, want, v.Provenance.Inferred)
+		require.NotNil(t, union.Discriminator)
+		assert.True(t, union.Discriminator.Inferred, "V's discriminator is read in")
+		assert.Equal(t, want, union.Provenance.Inferred)
 		sub, ok := typeByName(doc, "Sub").(*ir.Model)
 		require.True(t, ok, "Sub lowers to a model; got %T", typeByName(doc, "Sub"))
 		assert.Equal(t, "sub", sub.DiscriminatorValue)
@@ -317,14 +317,14 @@ func TestDiscriminatorInference_ReadsADistributedUnion(t *testing.T) {
 			union := "    U:\n      type: object\n      properties: " + c.body + "\n" + c.disc +
 				"      oneOf: [{$ref: '#/components/schemas/Json'}, {$ref: '#/components/schemas/Text'}]\n"
 			for _, doc := range taggedOrders(t, union, taggedVariants) {
-				u := taggedUnion(t, doc)
-				require.Len(t, u.Variants, 2)
-				require.NotNil(t, u.Discriminator)
-				assert.Equal(t, c.disc == "", u.Discriminator.Inferred, "only an undeclared discriminator is inferred")
-				assert.Equal(t, "type", u.Discriminator.PropertyName)
-				assert.Equal(t, map[string]ir.TypeID{"json": u.Variants[0].Type.Target, "text": u.Variants[1].Type.Target},
-					u.Discriminator.Mapping)
-				assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, u.Provenance.Inferred)
+				union := taggedUnion(t, doc)
+				require.Len(t, union.Variants, 2)
+				require.NotNil(t, union.Discriminator)
+				assert.Equal(t, c.disc == "", union.Discriminator.Inferred, "only an undeclared discriminator is inferred")
+				assert.Equal(t, "type", union.Discriminator.PropertyName)
+				assert.Equal(t, map[string]ir.TypeID{"json": union.Variants[0].Type.Target, "text": union.Variants[1].Type.Target},
+					union.Discriminator.Mapping)
+				assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, union.Provenance.Inferred)
 			}
 		})
 	}
@@ -361,9 +361,9 @@ func taggedOrders(t *testing.T, union, rest string) []*ir.Document {
 // taggedUnion returns the union U lowers to.
 func taggedUnion(t *testing.T, doc *ir.Document) *ir.Union {
 	t.Helper()
-	u, ok := typeByName(doc, "U").(*ir.Union)
+	union, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok, "U lowers to a union; got %T", typeByName(doc, "U"))
-	return u
+	return union
 }
 
 // mappingOf spells a mapping by the component names, or the positions under

@@ -68,14 +68,14 @@ func describe(doc *ir.Document, op ir.Operation) string {
 		return "-"
 	}
 	params := map[ir.ParameterID]string{}
-	for _, p := range op.Params {
-		params[p.ID] = p.Name.Source
+	for _, parameter := range op.Params {
+		params[parameter.ID] = parameter.Name.Source
 	}
 	members := map[ir.PropertyID]string{}
 	for _, td := range doc.Types {
-		if m, ok := td.(*ir.Model); ok {
-			for _, p := range m.Properties {
-				members[p.ID] = p.EffectiveWireName()
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				members[property.ID] = property.EffectiveWireName()
 			}
 		}
 	}
@@ -85,13 +85,13 @@ func describe(doc *ir.Document, op ir.Operation) string {
 		}
 		return params[*in.Param]
 	}
-	path := func(p *ir.PropPath) string {
-		if p == nil {
+	path := func(propPath *ir.PropPath) string {
+		if propPath == nil {
 			return "-"
 		}
-		names := make([]string, len(p.Segments))
-		for i, s := range p.Segments {
-			names[i] = members[s]
+		names := make([]string, len(propPath.Segments))
+		for i, propertyID := range propPath.Segments {
+			names[i] = members[propertyID]
 		}
 		return "/" + strings.Join(names, "/")
 	}
@@ -104,9 +104,9 @@ func describe(doc *ir.Document, op ir.Operation) string {
 // among diags.
 func undecided(diags []ir.Diagnostic) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.UndecidedPagination {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UndecidedPagination {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out

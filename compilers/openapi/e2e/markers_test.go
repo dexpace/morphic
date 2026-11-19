@@ -91,9 +91,9 @@ func TestMarkers_NameTheirOptions(t *testing.T) {
 	counts, diags := compileMarkers(t, nil)
 	assert.Equal(t, all, counts)
 	var infos []ir.Diagnostic
-	for _, d := range diags {
-		if d.Severity == ir.SeverityInfo {
-			infos = append(infos, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityInfo {
+			infos = append(infos, diagnostic)
 		}
 	}
 	require.Len(t, infos, 1, "the one info; the spec's own warning is a validation finding: %+v", diags)

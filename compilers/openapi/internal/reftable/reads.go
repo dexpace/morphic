@@ -53,9 +53,9 @@ func (r *reads) hold(name string, from DocID) {
 
 // unread reports whether a read of name asked for by from would be the
 // first: neither the document's read nor this asker's refusal is known.
-func (r *reads) unread(d *docs, name, from string) bool {
+func (r *reads) unread(docsValue *docs, name, from string) bool {
 	_, barred := r.barred[ask{name, from}]
-	return !barred && d.unread(name)
+	return !barred && docsValue.unread(name)
 }
 
 // open returns the document named name, as the document from may read it:
@@ -64,24 +64,24 @@ func (r *reads) unread(d *docs, name, from string) bool {
 // first, or failed to, since what such a document may reach turns on where
 // both were read from, and a failure says what lies at an address. A refusal
 // to from alone is kept for from alone.
-func (r *reads) open(d *docs, name, from string) (DocID, error) {
-	k := ask{name, from}
-	if err, ok := r.barred[k]; ok {
+func (r *reads) open(docsValue *docs, name, from string) (DocID, error) {
+	askValue := ask{name, from}
+	if err, ok := r.barred[askValue]; ok {
 		return 0, err
 	}
-	_, opened := d.byName[name]
-	_, failed := d.failed[name]
-	if (opened || failed) && OverNetwork(from) && !r.judged[k] {
-		r.judged[k] = true
-		if err := d.judge(name, from); err != nil {
-			r.barred[k] = err
+	_, opened := docsValue.byName[name]
+	_, failed := docsValue.failed[name]
+	if (opened || failed) && OverNetwork(from) && !r.judged[askValue] {
+		r.judged[askValue] = true
+		if err := docsValue.judge(name, from); err != nil {
+			r.barred[askValue] = err
 			return 0, err
 		}
 	}
-	r.judged[k] = true
-	id, err := d.open(name, from)
+	r.judged[askValue] = true
+	id, err := docsValue.open(name, from)
 	if barred := (*BarredError)(nil); errors.As(err, &barred) {
-		r.barred[k] = err
+		r.barred[askValue] = err
 	}
 	return id, err
 }
@@ -90,11 +90,11 @@ func (r *reads) open(d *docs, name, from string) (DocID, error) {
 // which declares a URI from asks for: the source and from itself always,
 // any other where from is not read from the network or Config.Open judges
 // that it may, as a declaration answers only an asker that could read it.
-func (r *reads) admits(d *docs, decl, from DocID) bool {
-	if decl == Source || decl == from || !OverNetwork(d.name(from)) {
+func (r *reads) admits(docsValue *docs, decl, from DocID) bool {
+	if decl == Source || decl == from || !OverNetwork(docsValue.name(from)) {
 		return true
 	}
-	_, err := r.open(d, d.name(decl), d.name(from))
+	_, err := r.open(docsValue, docsValue.name(decl), docsValue.name(from))
 	return err == nil
 }
 
@@ -105,28 +105,28 @@ func (r *reads) admits(d *docs, decl, from DocID) bool {
 // location to request. Each is read for each document that asked, in one
 // order. A failure is kept for the hop that asks again (docs.open,
 // reads.open).
-func (r *reads) drain(d *docs, identifyAll func(), declares func(uri string, from DocID) bool) {
+func (r *reads) drain(docsValue *docs, identifyAll func(), declares func(uri string, from DocID) bool) {
 	var urls []string
 	for _, name := range slices.Sorted(maps.Keys(r.held)) {
 		if OverNetwork(name) {
 			urls = append(urls, name)
 			continue
 		}
-		r.readFor(d, name, func(DocID) bool { return true })
+		r.readFor(docsValue, name, func(DocID) bool { return true })
 	}
 	identifyAll()
 	for _, name := range urls {
-		r.readFor(d, name, func(from DocID) bool { return !declares(name, from) })
+		r.readFor(docsValue, name, func(from DocID) bool { return !declares(name, from) })
 	}
 	identifyAll()
 	clear(r.held)
 }
 
 // readFor reads name for each document that held it and wants says reads it.
-func (r *reads) readFor(d *docs, name string, wants func(from DocID) bool) {
+func (r *reads) readFor(docsValue *docs, name string, wants func(from DocID) bool) {
 	for _, from := range slices.Sorted(maps.Keys(r.held[name])) {
 		if wants(from) {
-			_, _ = r.open(d, name, d.name(from))
+			_, _ = r.open(docsValue, name, docsValue.name(from))
 		}
 	}
 }

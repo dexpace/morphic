@@ -18,14 +18,14 @@ import (
 // pointer a component schema's walk is rooted at.
 const componentSchemaTokens = 3
 
-// owner returns the hint of the object p belongs to and how many of p's
-// tokens lead to its schema, kinds being how the grammar reads the way to p
-// (reftable.ReferenceTargetTable.Kinds): the schema whose structure holds p
+// owner returns the hint of the object documentPointer belongs to and how many of documentPointer's
+// tokens lead to its schema, kinds being how the grammar reads the way to documentPointer
+// (reftable.ReferenceTargetTable.Kinds): the schema whose structure holds documentPointer
 // (structureRoot), named for what holds it there (ownerOf) or, where that
 // schema is a document's root, for the document (Document). A structure
 // nothing names an owner of, such as one only a $ref reaches under an x- key,
 // is named from its pointer alone (pointerOwner).
-func (n *Namer) owner(p reftable.DocumentPointer, tokens []string, kinds []reftable.Kind) (int, string) {
+func (n *Namer) owner(documentPointer reftable.DocumentPointer, tokens []string, kinds []reftable.Kind) (int, string) {
 	if n.table == nil {
 		return pointerOwner(tokens)
 	}
@@ -34,9 +34,9 @@ func (n *Namer) owner(p reftable.DocumentPointer, tokens []string, kinds []refta
 	case !ok:
 		return pointerOwner(tokens)
 	case root == 0:
-		return 0, n.Document(p.Doc)
+		return 0, n.Document(documentPointer.Doc)
 	}
-	if hint, ok := n.ownerOf(p.Doc, tokens, kinds, root-1); ok {
+	if hint, ok := n.ownerOf(documentPointer.Doc, tokens, kinds, root-1); ok {
 		return root, hint
 	}
 	return pointerOwner(tokens)
@@ -51,8 +51,8 @@ func (n *Namer) owner(p reftable.DocumentPointer, tokens []string, kinds []refta
 // schema is on the way.
 func structureRoot(kinds []reftable.Kind) (int, bool) {
 	root := -1
-	for i, k := range kinds {
-		if k == reftable.KindSchema {
+	for i, kind := range kinds {
+		if kind == reftable.KindSchema {
 			root = i
 		}
 	}
@@ -67,13 +67,13 @@ func structureRoot(kinds []reftable.Kind) (int, bool) {
 	return root, true
 }
 
-// inStructure reports whether a position of kind k can lie inside a schema's
+// inStructure reports whether a position of kind kind can lie inside a schema's
 // structure: a schema, or a map or a list of them, a list being
 // reftable.KindOther. That kind covers objects such as a path item too, but each
 // holds a schema only through an owner, which ends a structure as raw YAML
 // does.
-func inStructure(k reftable.Kind) bool {
-	return k == reftable.KindSchema || k == reftable.KindSchemaMap || k == reftable.KindOther
+func inStructure(kind reftable.Kind) bool {
+	return kind == reftable.KindSchema || kind == reftable.KindSchemaMap || kind == reftable.KindOther
 }
 
 // Document is the hint what is declared at the root of the document doc is
@@ -125,12 +125,12 @@ func (n *Namer) mediaTypeOwner(doc reftable.DocID, holder jsontext.Pointer, kind
 	return n.contentOwner(doc, holder.Parent().Parent(), kinds[len(kinds)-2])
 }
 
-// contentOwner returns the hint of the object at at, of kind k, whose content
+// contentOwner returns the hint of the object at at, of kind kind, whose content
 // a media type's schema is: a request body (requestBodyName), a response by
 // its component key, else "response", a parameter by its name and a header by
 // its key.
-func (n *Namer) contentOwner(doc reftable.DocID, at jsontext.Pointer, k reftable.Kind) (string, bool) {
-	switch k {
+func (n *Namer) contentOwner(doc reftable.DocID, at jsontext.Pointer, kind reftable.Kind) (string, bool) {
+	switch kind {
 	case reftable.KindRequestBody:
 		return n.requestBodyName(doc, at), true
 	case reftable.KindResponse:

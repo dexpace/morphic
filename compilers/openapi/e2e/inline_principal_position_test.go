@@ -47,30 +47,30 @@ var inlinePrincipals = []inlinePrincipal{
 	{name: "map", keywords: "type: object, additionalProperties: {type: string}", other: "description: d", kind: ir.KindMap},
 }
 
-// principalSpellings writes the principal p beside other in the four ways a
+// principalSpellings writes the principal inlinePrincipalValue beside other in the four ways a
 // conjunction spells it, the first the keywords beside each other, each beside
 // an entry ref, a $ref to T, where one is given.
-func principalSpellings(p inlinePrincipal, ref string) map[string]string {
-	k, o := "{"+p.keywords+"}", "{"+p.other+"}"
+func principalSpellings(inlinePrincipalValue inlinePrincipal, ref string) map[string]string {
+	k, o := "{"+inlinePrincipalValue.keywords+"}", "{"+inlinePrincipalValue.other+"}"
 	refs := ""
 	if ref != "" {
 		refs = ref + ", "
 	}
-	beside := "{" + p.other + ", " + p.keywords + "}"
+	beside := "{" + inlinePrincipalValue.other + ", " + inlinePrincipalValue.keywords + "}"
 	if ref != "" {
-		beside = "{allOf: [" + ref + "], " + p.other + ", " + p.keywords + "}"
+		beside = "{allOf: [" + ref + "], " + inlinePrincipalValue.other + ", " + inlinePrincipalValue.keywords + "}"
 	}
 	return map[string]string{
 		"beside":      beside,
 		"entry last":  "{allOf: [" + refs + o + ", " + k + "]}",
 		"entry first": "{allOf: [" + k + ", " + refs + o + "]}",
-		"entry alone": "{allOf: [" + refs + k + "], " + p.other + "}",
+		"entry alone": "{allOf: [" + refs + k + "], " + inlinePrincipalValue.other + "}",
 	}
 }
 
 // principalVersions are the versions a principal is written in.
-func principalVersions(p inlinePrincipal) []string {
-	if p.only31 {
+func principalVersions(inlinePrincipalValue inlinePrincipal) []string {
+	if inlinePrincipalValue.only31 {
 		return []string{"3.1.0", "3.2.0"}
 	}
 	return []string{"3.0.3", "3.1.0", "3.2.0"}
@@ -93,8 +93,8 @@ func writtenStanding(t *testing.T, spec string) (standingWritten, *ir.Document) 
 	delete(tree, "sources")
 	delete(tree, "diagnostics")
 	got := standingWritten{doc: fmt.Sprint(entryIndexless(tree))}
-	for _, d := range diags {
-		got.findings = append(got.findings, fmt.Sprintf("%s %s %s", d.Severity, d.Code, entryIndexless(string(d.Provenance.Pointer))))
+	for _, diagnostic := range diags {
+		got.findings = append(got.findings, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, entryIndexless(string(diagnostic.Provenance.Pointer))))
 	}
 	slices.Sort(got.findings)
 	return got, doc
@@ -111,14 +111,14 @@ var atAnEntry = regexp.MustCompile(`/allOf/[0-9]+$`)
 // the position's ID, of the principal's kind, and no type at an entry.
 func TestInlinePrincipal_TheNodeStandsAtThePositionInEverySpelling(t *testing.T) {
 	t.Parallel()
-	for _, p := range inlinePrincipals {
-		t.Run(p.name, func(t *testing.T) {
+	for _, inlinePrincipal := range inlinePrincipals {
+		t.Run(inlinePrincipal.name, func(t *testing.T) {
 			t.Parallel()
-			for _, version := range principalVersions(p) {
+			for _, version := range principalVersions(inlinePrincipal) {
 				for _, ref := range []string{"", "{" + refTo("T") + "}"} {
-					spellings := principalSpellings(p, ref)
+					spellings := principalSpellings(inlinePrincipal, ref)
 					for _, site := range conjSites {
-						requireStandsAtPosition(t, p, version, site, spellings)
+						requireStandsAtPosition(t, inlinePrincipal, version, site, spellings)
 					}
 				}
 			}
@@ -128,15 +128,15 @@ func TestInlinePrincipal_TheNodeStandsAtThePositionInEverySpelling(t *testing.T)
 
 // requireStandsAtPosition is one site and version of
 // TestInlinePrincipal_TheNodeStandsAtThePositionInEverySpelling.
-func requireStandsAtPosition(t *testing.T, p inlinePrincipal, version string, site conjSite, spellings map[string]string) {
+func requireStandsAtPosition(t *testing.T, inlinePrincipalValue inlinePrincipal, version string, site conjSite, spellings map[string]string) {
 	t.Helper()
 	others := []string{"S: {type: string}", "T: {}"}
 	want, _ := writtenStanding(t, site.write(version, spellings["beside"], others...))
 	for name, schema := range spellings {
 		got, doc := writtenStanding(t, site.write(version, schema, others...))
-		at := fmt.Sprintf("%s at the %s in %s, %s", p.name, site.name, version, schema)
+		at := fmt.Sprintf("%s at the %s in %s, %s", inlinePrincipalValue.name, site.name, version, schema)
 		node := kindNode(t, doc, entryPositionID(jsontext.Pointer(site.pointer)))
-		assert.Equal(t, p.kind, node.Kind(), "%s: the node at the position", at)
+		assert.Equal(t, inlinePrincipalValue.kind, node.Kind(), "%s: the node at the position", at)
 		for id := range doc.Types {
 			assert.False(t, atAnEntry.MatchString(string(id)), "%s: %s stands at an entry", at, id)
 		}
@@ -161,29 +161,29 @@ var boundedPrincipals = []boundedPrincipal{
 	{name: "union", principal: "{oneOf: [{$ref: '#/components/schemas/S'}]}", bound: "{type: string, minLength: 1}",
 		check: func(t *testing.T, _ *ir.Document, node ir.TypeDef) {
 			t.Helper()
-			u, ok := node.(*ir.Union)
+			union, ok := node.(*ir.Union)
 			require.True(t, ok, "a union")
-			require.NotNil(t, u.Constraints)
-			require.NotNil(t, u.Constraints.MinLength)
-			assert.EqualValues(t, 1, *u.Constraints.MinLength)
+			require.NotNil(t, union.Constraints)
+			require.NotNil(t, union.Constraints.MinLength)
+			assert.EqualValues(t, 1, *union.Constraints.MinLength)
 		}},
 	{name: "list", principal: "{type: array, items: {type: string}}", bound: "{minItems: 1}",
 		check: func(t *testing.T, _ *ir.Document, node ir.TypeDef) {
 			t.Helper()
-			l, ok := node.(*ir.List)
+			list, ok := node.(*ir.List)
 			require.True(t, ok, "a list")
-			require.NotNil(t, l.Constraints)
-			require.NotNil(t, l.Constraints.MinItems)
-			assert.EqualValues(t, 1, *l.Constraints.MinItems)
+			require.NotNil(t, list.Constraints)
+			require.NotNil(t, list.Constraints.MinItems)
+			assert.EqualValues(t, 1, *list.Constraints.MinItems)
 		}},
 	{name: "type list", principal: "{type: [string, integer]}", bound: "{minLength: 2}",
 		check: func(t *testing.T, doc *ir.Document, node ir.TypeDef) {
 			t.Helper()
-			u, ok := node.(*ir.Union)
+			union, ok := node.(*ir.Union)
 			require.True(t, ok, "a union")
-			assert.Nil(t, u.Constraints, "the union holds no bound its variants hold")
-			require.Len(t, u.Variants, 2)
-			str, ok := kindNode(t, doc, u.Variants[0].Type.Target).(*ir.Scalar)
+			assert.Nil(t, union.Constraints, "the union holds no bound its variants hold")
+			require.Len(t, union.Variants, 2)
+			str, ok := kindNode(t, doc, union.Variants[0].Type.Target).(*ir.Scalar)
 			require.True(t, ok, "the string variant is a scalar of its own")
 			require.NotNil(t, str.Constraints)
 			require.NotNil(t, str.Constraints.MinLength)
@@ -289,10 +289,10 @@ func TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt(t *testing.T) {
 	require.Len(t, tl.Variants, 2)
 	assert.Equal(t, ir.TypeID(at+"Tl/type/0"), tl.Variants[0].Type.Target)
 
-	u, ok := kindNode(t, doc, componentID("U")).(*ir.Union)
+	union, ok := kindNode(t, doc, componentID("U")).(*ir.Union)
 	require.True(t, ok, "U is the union")
-	require.Len(t, u.Variants, 2)
-	assert.Equal(t, ir.TypeID(at+"U/allOf/1/oneOf/0"), u.Variants[0].Type.Target)
+	require.Len(t, union.Variants, 2)
+	assert.Equal(t, ir.TypeID(at+"U/allOf/1/oneOf/0"), union.Variants[0].Type.Target)
 }
 
 // TestInlinePrincipal_AWrapperHoldsEachBoundOnce holds a principal written as
@@ -313,8 +313,8 @@ func TestInlinePrincipal_AWrapperHoldsEachBoundOnce(t *testing.T) {
 			require.NotNil(t, list.Constraints.MinItems)
 			assert.EqualValues(t, 1, *list.Constraints.MinItems)
 		}
-		p := requireModelOf(t, doc, "H").Properties[0]
-		assert.Nil(t, p.Constraints, "%s: the carrier holds no bound", schema)
+		property := requireModelOf(t, doc, "H").Properties[0]
+		assert.Nil(t, property.Constraints, "%s: the carrier holds no bound", schema)
 		for id := range doc.Types {
 			assert.NotContains(t, string(id), "/allOf/", "%s: %s stands at an entry", schema, id)
 		}

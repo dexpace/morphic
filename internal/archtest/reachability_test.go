@@ -100,10 +100,10 @@ var testSupport = map[string]string{
 // reached, since reflection could call it.
 func TestReachability_OnlyTestsReachNoFunction(t *testing.T) {
 	t.Parallel()
-	p := moduleProgram(t)
-	require.NotEmpty(t, p.mains, "found no binary, so nothing is reached")
-	require.NotEmpty(t, p.funcs, "found no function, so this proves nothing")
-	for _, problem := range unreached(p, apiRoots, testSupport) {
+	program := moduleProgram(t)
+	require.NotEmpty(t, program.mains, "found no binary, so nothing is reached")
+	require.NotEmpty(t, program.funcs, "found no function, so this proves nothing")
+	for _, problem := range unreached(program, apiRoots, testSupport) {
 		t.Error(problem)
 	}
 }
@@ -134,9 +134,9 @@ type sourceFunc struct {
 // as safe for concurrent use.
 func moduleProgram(t *testing.T) program {
 	t.Helper()
-	p, err := moduleBuild()
+	programValue, err := moduleBuild()
 	require.NoError(t, err)
-	return p
+	return programValue
 }
 
 // moduleBuild builds the program moduleProgram returns, once.
@@ -175,23 +175,23 @@ func buildModule() (program, error) {
 // their path below the module, the functions they declare, and each binary's
 // entries.
 func programOf(prog *ssa.Program, roots []*packages.Package, built map[*packages.Package]builtPackage) (program, error) {
-	p := program{ssa: prog, own: make(map[*ssa.Package]string, len(roots))}
+	programValue := program{ssa: prog, own: make(map[*ssa.Package]string, len(roots))}
 	rootPkgs := make([]*ssa.Package, 0, len(roots))
 	for _, root := range roots {
 		b := built[root]
 		rootPkgs = append(rootPkgs, b.ssa)
 		rel := strings.TrimPrefix(root.PkgPath, module+"/")
-		p.own[b.ssa] = rel
+		programValue.own[b.ssa] = rel
 		funcs, err := declaredFuncs(prog, rel, b.files, b.info)
 		if err != nil {
 			return program{}, err
 		}
-		p.funcs = append(p.funcs, funcs...)
+		programValue.funcs = append(programValue.funcs, funcs...)
 	}
 	for _, m := range ssautil.MainPackages(rootPkgs) {
-		p.mains = append(p.mains, m.Func("init"), m.Func("main"))
+		programValue.mains = append(programValue.mains, m.Func("init"), m.Func("main"))
 	}
-	return p, nil
+	return programValue, nil
 }
 
 // builtPackage is one package as buildPackage leaves it: its syntax, what the
@@ -302,17 +302,17 @@ func marker(fd *ast.FuncDecl, fn *types.Func) bool {
 	})
 }
 
-// unreached returns what the check finds in p: each function neither a binary
+// unreached returns what the check finds in programValue: each function neither a binary
 // nor an entry of roots reaches, outside the packages spared names; each entry
-// of roots a binary reaches, or naming no function of p; and each entry of
+// of roots a binary reaches, or naming no function of programValue; and each entry of
 // spared that spares no function.
-func unreached(p program, roots, spared map[string]string) []string {
-	byName := make(map[string]*ssa.Function, len(p.funcs))
-	for _, f := range p.funcs {
-		byName[f.name] = f.fn
+func unreached(programValue program, roots, spared map[string]string) []string {
+	byName := make(map[string]*ssa.Function, len(programValue.funcs))
+	for _, sourceFunc := range programValue.funcs {
+		byName[sourceFunc.name] = sourceFunc.fn
 	}
 	var problems []string
-	starts := slices.Clone(p.mains)
+	starts := slices.Clone(programValue.mains)
 	for _, name := range slices.Sorted(maps.Keys(roots)) {
 		fn, ok := byName[name]
 		if !ok {
@@ -321,20 +321,20 @@ func unreached(p program, roots, spared map[string]string) []string {
 		}
 		starts = append(starts, fn)
 	}
-	fromMains, fromAll := reachedFrom(p.ssa.Fset, p.mains), reachedFrom(p.ssa.Fset, starts)
+	fromMains, fromAll := reachedFrom(programValue.ssa.Fset, programValue.mains), reachedFrom(programValue.ssa.Fset, starts)
 	sparing := map[string]bool{}
-	for _, f := range p.funcs {
-		at := p.ssa.Fset.Position(f.fn.Pos())
-		_, isRoot := roots[f.name]
-		_, isSpared := spared[f.pkg]
+	for _, sourceFunc := range programValue.funcs {
+		at := programValue.ssa.Fset.Position(sourceFunc.fn.Pos())
+		_, isRoot := roots[sourceFunc.name]
+		_, isSpared := spared[sourceFunc.pkg]
 		switch {
 		case isRoot && fromMains[at]:
-			problems = append(problems, reachedRoot(f.name))
+			problems = append(problems, reachedRoot(sourceFunc.name))
 		case fromAll[at]:
 		case isSpared:
-			sparing[f.pkg] = true
+			sparing[sourceFunc.pkg] = true
 		default:
-			problems = append(problems, onlyTests(f.name))
+			problems = append(problems, onlyTests(sourceFunc.name))
 		}
 	}
 	for _, pkg := range slices.Sorted(maps.Keys(spared)) {

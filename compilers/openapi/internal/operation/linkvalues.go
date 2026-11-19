@@ -26,35 +26,35 @@ type exchange struct {
 // written alone or anywhere within a list or an object: a constant holding one
 // would pass on its braces as written.
 func (ex exchange) value(node *yaml.Node) (ir.LinkValue, *linkFailure) {
-	v, err := value.FromNode(node)
+	irValue, err := value.FromNode(node)
 	if err != nil {
 		return ir.LinkValue{}, untyped("passes a value the IR has no constant for: %v", err)
 	}
-	if v.Kind != ir.ValueString {
-		if s, ok := substitutedString(&v); ok {
+	if irValue.Kind != ir.ValueString {
+		if s, ok := substitutedString(&irValue); ok {
 			return ir.LinkValue{}, untyped("passes a value holding %q, a string an expression is substituted into", s)
 		}
-		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}, nil
+		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &irValue}, nil
 	}
-	e, isExpression, err := runtimeexpr.Parse(v.String)
+	expression, isExpression, err := runtimeexpr.Parse(irValue.String)
 	switch {
 	case err != nil:
-		return ir.LinkValue{}, invalid("passes %q, which breaks the runtime expression grammar", v.String)
+		return ir.LinkValue{}, invalid("passes %q, which breaks the runtime expression grammar", irValue.String)
 	case isExpression:
-		return ex.read(e)
-	case runtimeexpr.Embeds(v.String):
-		return ir.LinkValue{}, untyped("passes %q, a string an expression is substituted into", v.String)
+		return ex.read(expression)
+	case runtimeexpr.Embeds(irValue.String):
+		return ir.LinkValue{}, untyped("passes %q, a string an expression is substituted into", irValue.String)
 	default:
-		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}, nil
+		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &irValue}, nil
 	}
 }
 
-// substitutedString returns the first string within v, in source order, that
+// substitutedString returns the first string within irValue, in source order, that
 // an expression is substituted into, and false for none. It walks with a
-// stack of its own rather than recursing, so v's depth, which value.FromNode
+// stack of its own rather than recursing, so irValue's depth, which value.FromNode
 // bounds, bounds no call stack here.
-func substitutedString(v *ir.Value) (string, bool) {
-	stack := []*ir.Value{v}
+func substitutedString(irValue *ir.Value) (string, bool) {
+	stack := []*ir.Value{irValue}
 	for len(stack) > 0 {
 		top := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
@@ -81,9 +81,9 @@ func substitutedString(v *ir.Value) (string, bool) {
 	return "", false
 }
 
-// read lowers the value e reads of the exchange.
-func (ex exchange) read(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
-	switch e.Source {
+// read lowers the value expression reads of the exchange.
+func (ex exchange) read(expression runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
+	switch expression.Source {
 	case runtimeexpr.SourceURL:
 		return ir.LinkValue{Kind: ir.LinkURL}, nil
 	case runtimeexpr.SourceMethod:
@@ -91,56 +91,56 @@ func (ex exchange) read(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
 	case runtimeexpr.SourceStatusCode:
 		return ir.LinkValue{Kind: ir.LinkStatus}, nil
 	case runtimeexpr.SourceRequest:
-		return ex.request(e)
+		return ex.request(expression)
 	default:
-		return ex.response(e)
+		return ex.response(expression)
 	}
 }
 
-// request lowers what e reads of the request: its body or a member of it, or
+// request lowers what expression reads of the request: its body or a member of it, or
 // a parameter of from.
-func (ex exchange) request(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
-	if e.Part == runtimeexpr.PartBody {
-		segments, why, ok := runtimeexpr.BodyPath(ex.w, ex.from.Request, e.Tokens, "request")
+func (ex exchange) request(expression runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
+	if expression.Part == runtimeexpr.PartBody {
+		segments, why, ok := runtimeexpr.BodyPath(ex.w, ex.from.Request, expression.Tokens, "request")
 		if !ok {
 			return ir.LinkValue{}, untyped("%s", why)
 		}
 		return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Segments: segments}}, nil
 	}
-	found := ex.w.Params(ex.from).Bound(ir.HTTPLocation(e.Part), e.Name)
+	found := ex.w.Params(ex.from).Bound(ir.HTTPLocation(expression.Part), expression.Name)
 	if len(found) != 1 {
 		return ir.LinkValue{}, untyped("reads %s parameter %q, which operation %q does not declare once",
-			e.Part, e.Name, ex.from.ID)
+			expression.Part, expression.Name, ex.from.ID)
 	}
 	return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Param: &found[0]}}, nil
 }
 
-// response lowers what e reads of the response: its body or a member of it, or
+// response lowers what expression reads of the response: its body or a member of it, or
 // one of its headers. A header the response declares twice, in two cases, is
 // no one header: either would be a choice the source does not make.
-func (ex exchange) response(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
-	switch e.Part {
+func (ex exchange) response(expression runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
+	switch expression.Part {
 	case runtimeexpr.PartBody:
-		segments, why, ok := runtimeexpr.BodyPath(ex.w, ex.at.payload, e.Tokens, "response")
+		segments, why, ok := runtimeexpr.BodyPath(ex.w, ex.at.payload, expression.Tokens, "response")
 		if !ok {
 			return ir.LinkValue{}, untyped("%s", why)
 		}
 		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Segments: segments}}, nil
 	case runtimeexpr.PartHeader:
-		found := ex.w.Header(ex.at.key, ex.at.headers, e.Name)
+		found := ex.w.Header(ex.at.key, ex.at.headers, expression.Name)
 		if len(found) != 1 {
-			return ir.LinkValue{}, untyped("reads response header %q, which the response does not declare once", e.Name)
+			return ir.LinkValue{}, untyped("reads response header %q, which the response does not declare once", expression.Name)
 		}
 		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: found}}, nil
 	default:
-		return ir.LinkValue{}, invalid("reads the response's %s parameter %q, which no response carries", e.Part, e.Name)
+		return ir.LinkValue{}, invalid("reads the response's %s parameter %q, which no response carries", expression.Part, expression.Name)
 	}
 }
 
 // targetParam returns the parameter of op that a link's parameters key names
 // (compileddoc.ParamIndex.Named), which must name one parameter only.
-func targetParam(w *compileddoc.CompiledDocumentView, op *ir.Operation, key string) (ir.ParameterID, *linkFailure) {
-	id, matched := w.Params(op).Named(key)
+func targetParam(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation, key string) (ir.ParameterID, *linkFailure) {
+	id, matched := compiledDocumentView.Params(op).Named(key)
 	switch matched {
 	case 1:
 		return id, nil

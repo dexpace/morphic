@@ -237,8 +237,8 @@ func TestGrafter_ReportsAValueTheSourceDeclaresReplaced(t *testing.T) {
 			"  - target: $.info\n    update: {x-a: 2}\n",
 	} {
 		_, _, diags := applied(t, src, ov, false)
-		for _, d := range diags {
-			assert.NotEqual(t, diag.OverlayReplacedValue, d.Code, "%s: %+v", name, d)
+		for _, diagnostic := range diags {
+			assert.NotEqual(t, diag.OverlayReplacedValue, diagnostic.Code, "%s: %+v", name, diagnostic)
 		}
 	}
 }

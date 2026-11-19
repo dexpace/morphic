@@ -184,14 +184,14 @@ func TestParameter_RedactionIsSingleSided(t *testing.T) {
 
 	var found bool
 	for _, td := range doc.Types {
-		m, ok := td.(*ir.Model)
+		model, ok := td.(*ir.Model)
 		if !ok {
 			continue
 		}
-		for _, p := range m.Properties {
-			if p.WireName == "s" {
+		for _, property := range model.Properties {
+			if property.WireName == "s" {
 				found = true
-				assert.True(t, p.Secret, "the property's false withdraws nothing its $ref target states")
+				assert.True(t, property.Secret, "the property's false withdraws nothing its $ref target states")
 			}
 		}
 	}

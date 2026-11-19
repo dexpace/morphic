@@ -37,7 +37,7 @@ func Constraints(dst, src *ir.Constraints) *ir.Constraints {
 // declarations.
 type constraintKeyword struct {
 	// set reports whether a constraint set states the keyword.
-	set func(c *ir.Constraints) bool
+	set func(constraints *ir.Constraints) bool
 	// same reports whether two sets say one thing of it: neither states it, or
 	// both state one value.
 	same func(a, b *ir.Constraints) bool
@@ -48,7 +48,7 @@ type constraintKeyword struct {
 	// ("a" and "b")".
 	differ func(a, b *ir.Constraints) (string, bool)
 	// clear removes the keyword from a set.
-	clear func(c *ir.Constraints)
+	clear func(constraints *ir.Constraints)
 }
 
 // constraintKeywords lists the keywords the merge folds, in the fixed order
@@ -59,26 +59,26 @@ type constraintKeyword struct {
 // unset, and under intersection a true from either side always holds. It is
 // built once, as every judgment of two nodes' bounds reads it several times.
 var constraintKeywords = []constraintKeyword{
-	numberKeyword("minimum", func(c *ir.Constraints) **ir.BigVal { return &c.Min }, largerNumber),
-	numberKeyword("exclusiveMinimum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMin }, largerNumber),
-	numberKeyword("maximum", func(c *ir.Constraints) **ir.BigVal { return &c.Max }, smallerNumber),
-	numberKeyword("exclusiveMaximum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMax }, smallerNumber),
-	numberKeyword("multipleOf", func(c *ir.Constraints) **ir.BigVal { return &c.MultipleOf }, commonStep),
-	intKeyword("precision", func(c *ir.Constraints) **int64 { return &c.Precision }, onlyEqual),
-	intKeyword("scale", func(c *ir.Constraints) **int64 { return &c.Scale }, onlyEqual),
-	intKeyword("minLength", func(c *ir.Constraints) **int64 { return &c.MinLength }, largerCount),
-	intKeyword("maxLength", func(c *ir.Constraints) **int64 { return &c.MaxLength }, smallerCount),
-	intKeyword("minItems", func(c *ir.Constraints) **int64 { return &c.MinItems }, largerCount),
-	intKeyword("maxItems", func(c *ir.Constraints) **int64 { return &c.MaxItems }, smallerCount),
-	intKeyword("minProperties", func(c *ir.Constraints) **int64 { return &c.MinProperties }, largerCount),
-	intKeyword("maxProperties", func(c *ir.Constraints) **int64 { return &c.MaxProperties }, smallerCount),
-	strKeyword("pattern", func(c *ir.Constraints) *string { return &c.Pattern }),
-	strKeyword("patternMessage", func(c *ir.Constraints) *string { return &c.PatternMessage }),
+	numberKeyword("minimum", func(constraints *ir.Constraints) **ir.BigVal { return &constraints.Min }, largerNumber),
+	numberKeyword("exclusiveMinimum", func(constraints *ir.Constraints) **ir.BigVal { return &constraints.ExclusiveMin }, largerNumber),
+	numberKeyword("maximum", func(constraints *ir.Constraints) **ir.BigVal { return &constraints.Max }, smallerNumber),
+	numberKeyword("exclusiveMaximum", func(constraints *ir.Constraints) **ir.BigVal { return &constraints.ExclusiveMax }, smallerNumber),
+	numberKeyword("multipleOf", func(constraints *ir.Constraints) **ir.BigVal { return &constraints.MultipleOf }, commonStep),
+	intKeyword("precision", func(constraints *ir.Constraints) **int64 { return &constraints.Precision }, onlyEqual),
+	intKeyword("scale", func(constraints *ir.Constraints) **int64 { return &constraints.Scale }, onlyEqual),
+	intKeyword("minLength", func(constraints *ir.Constraints) **int64 { return &constraints.MinLength }, largerCount),
+	intKeyword("maxLength", func(constraints *ir.Constraints) **int64 { return &constraints.MaxLength }, smallerCount),
+	intKeyword("minItems", func(constraints *ir.Constraints) **int64 { return &constraints.MinItems }, largerCount),
+	intKeyword("maxItems", func(constraints *ir.Constraints) **int64 { return &constraints.MaxItems }, smallerCount),
+	intKeyword("minProperties", func(constraints *ir.Constraints) **int64 { return &constraints.MinProperties }, largerCount),
+	intKeyword("maxProperties", func(constraints *ir.Constraints) **int64 { return &constraints.MaxProperties }, smallerCount),
+	strKeyword("pattern", func(constraints *ir.Constraints) *string { return &constraints.Pattern }),
+	strKeyword("patternMessage", func(constraints *ir.Constraints) *string { return &constraints.PatternMessage }),
 }
 
 // numberKeyword is the arbitrary-precision keyword name, stored at slot, which
 // meet folds. Two spellings of one number are one value (sameNumber).
-func numberKeyword(name string, slot func(*ir.Constraints) **ir.BigVal, meet func(x, y ir.BigVal) (ir.BigVal, bool)) constraintKeyword {
+func numberKeyword(name string, slot func(*ir.Constraints) **ir.BigVal, meet func(bigVal, irBigVal ir.BigVal) (ir.BigVal, bool)) constraintKeyword {
 	return slotKeyword(name, slot, sameNumber, meet)
 }
 
@@ -92,7 +92,7 @@ func intKeyword(name string, slot func(*ir.Constraints) **int64, meet func(x, y 
 // two say, and false where no one value does.
 func slotKeyword[T any](name string, slot func(*ir.Constraints) **T, same func(x, y T) bool, meet func(x, y T) (T, bool)) constraintKeyword {
 	return constraintKeyword{
-		set: func(c *ir.Constraints) bool { return *slot(c) != nil },
+		set: func(constraints *ir.Constraints) bool { return *slot(constraints) != nil },
 		same: func(a, b *ir.Constraints) bool {
 			x, y := *slot(a), *slot(b)
 			if x == nil || y == nil {
@@ -123,7 +123,7 @@ func slotKeyword[T any](name string, slot func(*ir.Constraints) **T, same func(x
 			}
 			return fmt.Sprintf("conflicting %s (%v and %v)", name, *x, *y), true
 		},
-		clear: func(c *ir.Constraints) { *slot(c) = nil },
+		clear: func(constraints *ir.Constraints) { *slot(constraints) = nil },
 	}
 }
 
@@ -131,7 +131,7 @@ func slotKeyword[T any](name string, slot func(*ir.Constraints) **T, same func(x
 // values of it have no order and no form saying both, so it keeps the first.
 func strKeyword(name string, slot func(*ir.Constraints) *string) constraintKeyword {
 	return constraintKeyword{
-		set:  func(c *ir.Constraints) bool { return *slot(c) != "" },
+		set:  func(constraints *ir.Constraints) bool { return *slot(constraints) != "" },
 		same: func(a, b *ir.Constraints) bool { return *slot(a) == *slot(b) },
 		meet: func(dst, src *ir.Constraints) { *slot(dst) = cmp.Or(*slot(dst), *slot(src)) },
 		differ: func(a, b *ir.Constraints) (string, bool) {
@@ -141,7 +141,7 @@ func strKeyword(name string, slot func(*ir.Constraints) *string) constraintKeywo
 			}
 			return fmt.Sprintf("conflicting %s (%q and %q)", name, x, y), true
 		},
-		clear: func(c *ir.Constraints) { *slot(c) = "" },
+		clear: func(constraints *ir.Constraints) { *slot(constraints) = "" },
 	}
 }
 
@@ -179,24 +179,24 @@ func smallerCount(x, y int64) (int64, bool) { return min(x, y), true }
 // no order.
 func onlyEqual(x, y int64) (int64, bool) { return x, x == y }
 
-// largerNumber returns the larger of x and y, and false where they have no
-// order (compareNumbers). It keeps x's spelling of one number written twice.
-func largerNumber(x, y ir.BigVal) (ir.BigVal, bool) {
-	order, ok := compareNumbers(x, y)
+// largerNumber returns the larger of bigVal and irBigVal, and false where they have no
+// order (compareNumbers). It keeps bigVal's spelling of one number written twice.
+func largerNumber(bigVal, irBigVal ir.BigVal) (ir.BigVal, bool) {
+	order, ok := compareNumbers(bigVal, irBigVal)
 	if order < 0 {
-		return y, ok
+		return irBigVal, ok
 	}
-	return x, ok
+	return bigVal, ok
 }
 
-// smallerNumber returns the smaller of x and y, and false where they have no
-// order (compareNumbers). It keeps x's spelling of one number written twice.
-func smallerNumber(x, y ir.BigVal) (ir.BigVal, bool) {
-	order, ok := compareNumbers(x, y)
+// smallerNumber returns the smaller of bigVal and irBigVal, and false where they have no
+// order (compareNumbers). It keeps bigVal's spelling of one number written twice.
+func smallerNumber(bigVal, irBigVal ir.BigVal) (ir.BigVal, bool) {
+	order, ok := compareNumbers(bigVal, irBigVal)
 	if order > 0 {
-		return y, ok
+		return irBigVal, ok
 	}
-	return x, ok
+	return bigVal, ok
 }
 
 // compareNumbers orders a and b by magnitude, and returns false where either is

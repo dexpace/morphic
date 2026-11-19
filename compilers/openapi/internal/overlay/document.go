@@ -106,18 +106,18 @@ func (a action) label() string {
 // openapi/invalid-overlay error at the field it is about, and nothing of it
 // applies; what reads but has no effect is a warning.
 func read(at ir.Provenance, doc *yaml.Node) (plan, []ir.Diagnostic) {
-	r := &reader{at: at, view: nodeview.New()}
-	p := r.overlay(nodeview.Deref(nodeview.DocumentRoot(doc)))
-	if diag.HasError(r.diags) {
+	readerValue := &reader{at: at, view: nodeview.New()}
+	planValue := readerValue.overlay(nodeview.Deref(nodeview.DocumentRoot(doc)))
+	if diag.HasError(readerValue.diags) {
 		var refused []ir.Diagnostic
-		for _, d := range r.diags {
-			if d.Severity == ir.SeverityError {
-				refused = append(refused, d)
+		for _, diagnostic := range readerValue.diags {
+			if diagnostic.Severity == ir.SeverityError {
+				refused = append(refused, diagnostic)
 			}
 		}
 		return plan{}, refused
 	}
-	return p, r.diags
+	return planValue, readerValue.diags
 }
 
 // versionOf reads a declared version as the minor it names: 1.0, 1.1 or 1.2,

@@ -59,17 +59,17 @@ func TestUnion_APassedOverUnionSharingNoKindWithTheBodyKeepsBoth(t *testing.T) {
 			ir.ReasonDegradedLowering},
 	} {
 		var warned []string
-		for _, d := range diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/"+name) {
-			if d.Severity == ir.SeverityWarning {
-				warned = append(warned, d.Message)
+		for _, diagnostic := range diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/"+name) {
+			if diagnostic.Severity == ir.SeverityWarning {
+				warned = append(warned, diagnostic.Message)
 			}
 		}
 		require.Len(t, warned, 1, name)
 		assert.Contains(t, warned[0], want.words, name)
-		m, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/"+name)].(*ir.Model)
+		model, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/"+name)].(*ir.Model)
 		require.True(t, ok, "%s is the Model its body gives", name)
 		for _, key := range []string{"openapi:oneOf", "openapi:anyOf"} {
-			assert.Equal(t, want.reason, m.Unmodeled[key].Reason, "%s keeps %s", name, key)
+			assert.Equal(t, want.reason, model.Unmodeled[key].Reason, "%s keeps %s", name, key)
 		}
 	}
 }
@@ -89,9 +89,9 @@ func TestAllOf_ANullReadPastItsBudgetIsDecidedByEachConjunct(t *testing.T) {
 	b.WriteString("    P: {type: object, properties: {u: {type: string}}, allOf: [{$ref: '#/components/schemas/T'}]}\n")
 	_, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", b.String()))
 	var warned []string
-	for _, d := range diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/P") {
-		if d.Severity == ir.SeverityWarning {
-			warned = append(warned, d.Message)
+	for _, diagnostic := range diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/P") {
+		if diagnostic.Severity == ir.SeverityWarning {
+			warned = append(warned, diagnostic.Message)
 		}
 	}
 	require.Len(t, warned, 1)

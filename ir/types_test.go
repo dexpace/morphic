@@ -310,9 +310,9 @@ func TestPrimitiveKind_TiesToConstBlock(t *testing.T) {
 	require.NotEmpty(t, declared, "the ir sources must declare PrimitiveKind constants")
 
 	values := make([]string, 0, len(declared))
-	for _, c := range declared {
-		values = append(values, c.Value)
-		assert.True(t, ir.PrimitiveKind(c.Value).Valid(), "declared kind %q must be Valid", c.Value)
+	for _, declaredConst := range declared {
+		values = append(values, declaredConst.Value)
+		assert.True(t, ir.PrimitiveKind(declaredConst.Value).Valid(), "declared kind %q must be Valid", declaredConst.Value)
 	}
 
 	spelled := slices.Collect(maps.Values(primKindSpellings))
@@ -362,8 +362,8 @@ func declaredPrimKinds(t *testing.T) []ir.PrimitiveKind {
 	t.Helper()
 	consts := declaredConstsOfType(t, "PrimitiveKind")
 	kinds := make([]ir.PrimitiveKind, 0, len(consts))
-	for _, c := range consts {
-		kinds = append(kinds, ir.PrimitiveKind(c.Value))
+	for _, declaredConst := range consts {
+		kinds = append(kinds, ir.PrimitiveKind(declaredConst.Value))
 	}
 	require.NotEmpty(t, kinds)
 	return kinds
@@ -373,8 +373,8 @@ func declaredPrimKinds(t *testing.T) []ir.PrimitiveKind {
 // strictly in both directions: every edge listed is returned, and nothing else.
 func TestPrimitiveKind_DomainParentsAreTheContainmentEdges(t *testing.T) {
 	t.Parallel()
-	for _, k := range declaredPrimKinds(t) {
-		assert.ElementsMatch(t, domainEdges[k], k.DomainParents(), "parents of %s", k)
+	for _, primitiveKind := range declaredPrimKinds(t) {
+		assert.ElementsMatch(t, domainEdges[primitiveKind], primitiveKind.DomainParents(), "parents of %s", primitiveKind)
 	}
 	assert.Empty(t, ir.PrimitiveKind("flt").DomainParents())
 	got := ir.PrimitiveInt16.DomainParents()
@@ -396,17 +396,17 @@ func TestPrimitiveKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
 			if a.StrictlyWithin(b) {
 				assert.False(t, b.StrictlyWithin(a), "%s and %s within each other", a, b)
 			}
-			for _, c := range kinds {
-				if a.StrictlyWithin(b) && b.StrictlyWithin(c) {
-					assert.True(t, a.StrictlyWithin(c), "%s within %s within %s", a, b, c)
+			for _, primitiveKind := range kinds {
+				if a.StrictlyWithin(b) && b.StrictlyWithin(primitiveKind) {
+					assert.True(t, a.StrictlyWithin(primitiveKind), "%s within %s within %s", a, b, primitiveKind)
 				}
 			}
 		}
 	}
 	assert.True(t, ir.PrimitiveInt8.StrictlyWithin(ir.PrimitiveNumber))
 	assert.True(t, ir.PrimitiveUint8.StrictlyWithin(ir.PrimitiveInt16))
-	for _, k := range []ir.PrimitiveKind{ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveInteger} {
-		assert.True(t, k.StrictlyWithin(ir.PrimitiveDecimal), "%s within decimal", k)
+	for _, primitiveKind := range []ir.PrimitiveKind{ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveInteger} {
+		assert.True(t, primitiveKind.StrictlyWithin(ir.PrimitiveDecimal), "%s within decimal", primitiveKind)
 	}
 	assert.True(t, ir.PrimitiveFloat.StrictlyWithin(ir.PrimitiveNumber))
 	assert.False(t, ir.PrimitiveNumber.StrictlyWithin(ir.PrimitiveFloat32))
@@ -422,12 +422,12 @@ func TestPrimitiveKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
 // the declared set, so a kind added without an edge reddens here.
 func TestPrimitiveKind_EveryDeclaredKindHasADomainParentOrIsARoot(t *testing.T) {
 	t.Parallel()
-	for _, k := range declaredPrimKinds(t) {
-		isRoot := slices.Contains(domainRoots, k)
-		assert.Equal(t, !isRoot, len(k.DomainParents()) > 0, "%s must be a root or have a parent, not both", k)
+	for _, primitiveKind := range declaredPrimKinds(t) {
+		isRoot := slices.Contains(domainRoots, primitiveKind)
+		assert.Equal(t, !isRoot, len(primitiveKind.DomainParents()) > 0, "%s must be a root or have a parent, not both", primitiveKind)
 	}
-	for _, r := range domainRoots {
-		assert.True(t, r.Valid(), "root %q must be a declared kind", r)
+	for _, primitiveKind := range domainRoots {
+		assert.True(t, primitiveKind.Valid(), "root %q must be a declared kind", primitiveKind)
 	}
 }
 
@@ -438,18 +438,18 @@ func TestPrimitiveKind_LongestDomainChainFitsTheCap(t *testing.T) {
 	limit, err := irDecls(t).IntConst("maxDomainDepth")
 	require.NoError(t, err)
 
-	var longest func(k ir.PrimitiveKind, depth int) int
-	longest = func(k ir.PrimitiveKind, depth int) int {
+	var longest func(primitiveKind ir.PrimitiveKind, depth int) int
+	longest = func(primitiveKind ir.PrimitiveKind, depth int) int {
 		require.LessOrEqual(t, int64(depth), limit, "a chain past maxDomainDepth: a cycle or a cap too low")
 		best := 0
-		for _, p := range k.DomainParents() {
-			best = max(best, 1+longest(p, depth+1))
+		for _, primitiveKindValue := range primitiveKind.DomainParents() {
+			best = max(best, 1+longest(primitiveKindValue, depth+1))
 		}
 		return best
 	}
 	chain := 0
-	for _, k := range declaredPrimKinds(t) {
-		chain = max(chain, longest(k, 0))
+	for _, primitiveKind := range declaredPrimKinds(t) {
+		chain = max(chain, longest(primitiveKind, 0))
 	}
 	assert.LessOrEqual(t, int64(chain), limit)
 	assert.Equal(t, 7, chain, "int8 up to number through float and decimal")
@@ -523,12 +523,12 @@ func TestDiscriminator_JSONContract(t *testing.T) {
 // field: Mapping must marshal with keys in sorted order on every run.
 func TestDiscriminator_MappingDeterministic(t *testing.T) {
 	t.Parallel()
-	d := ir.Discriminator{
+	discriminator := ir.Discriminator{
 		Mapping: map[string]ir.TypeID{
 			"z-tag": "type/Z", "m-tag": "type/M", "a-tag": "type/A", "q-tag": "type/Q", "b-tag": "type/B",
 		},
 	}
-	got := assertDeterministicMarshal(t, d)
+	got := assertDeterministicMarshal(t, discriminator)
 	assert.Contains(t, got,
 		`"mapping":{"a-tag":"type/A","b-tag":"type/B","m-tag":"type/M","q-tag":"type/Q","z-tag":"type/Z"}`)
 }

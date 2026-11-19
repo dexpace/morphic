@@ -137,9 +137,9 @@ func TestPathItemRefSiblings_EachSideReadsInItsOwnDocument(t *testing.T) {
 // paramNamed returns op's parameter whose source name is name.
 func paramNamed(t *testing.T, op ir.Operation, name string) ir.Parameter {
 	t.Helper()
-	for _, p := range op.Params {
-		if p.Name.Source == name {
-			return p
+	for _, parameter := range op.Params {
+		if parameter.Name.Source == name {
+			return parameter
 		}
 	}
 	require.Failf(t, "parameter not found", "%s has no parameter %q", op.Name.Source, name)
@@ -197,10 +197,10 @@ func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 // response would have made ambiguous.
 func responseByStatus(t *testing.T, op ir.Operation, code int) ir.Response {
 	t.Helper()
-	for _, r := range op.Responses {
-		for _, sc := range r.Conditions.StatusCodes {
+	for _, response := range op.Responses {
+		for _, sc := range response.Conditions.StatusCodes {
 			if sc.From == code && sc.To == code {
-				return r
+				return response
 			}
 		}
 	}
@@ -328,9 +328,9 @@ func TestPathItemRefSiblings_UnresolvedIsReported(t *testing.T) {
 // order they were reported.
 func unresolvedAt(diags []ir.Diagnostic) []string {
 	var at []string
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			at = append(at, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnresolvedRef {
+			at = append(at, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	return at
@@ -634,8 +634,8 @@ components:
     X: {$ref: '#/paths/~1a/get/requestBody/content/application~1json/schema'}
 `, "near", func(doc *ir.Document) string {
 			var base *ir.TypeRef // the use X owns: the Model over an object
-			if x, ok := doc.Types["type/openapi/components/schemas/X"].(*ir.Model); ok {
-				base = x.Base
+			if model, ok := doc.Types["type/openapi/components/schemas/X"].(*ir.Model); ok {
+				base = model.Base
 			}
 			if base == nil {
 				return ""
@@ -726,28 +726,28 @@ components:
 
 	const at = "/paths/~1a/get/requestBody/content/application~1json/schema"
 	assert.Empty(t, errorsAt(diags))
-	y, ok := doc.Types[ir.TypeID("type/anonymous"+at+"/$defs/Y")].(*ir.Model)
+	model, ok := doc.Types[ir.TypeID("type/anonymous"+at+"/$defs/Y")].(*ir.Model)
 	require.True(t, ok, "/a's own definition is hoisted where /a writes it")
-	assert.Equal(t, "near", y.Properties[1].WireName)
+	assert.Equal(t, "near", model.Properties[1].WireName)
 	assert.True(t, mapsTag(doc, "y"))
 }
 
 // mapsTag reports whether a discriminator anywhere in doc maps tag.
 func mapsTag(doc *ir.Document, tag string) bool {
 	for _, td := range doc.Types {
-		var d *ir.Discriminator
+		var discriminator *ir.Discriminator
 		switch n := td.(type) {
 		case *ir.Union:
-			d = n.Discriminator
+			discriminator = n.Discriminator
 		case *ir.Model:
-			d = n.Discriminator
+			discriminator = n.Discriminator
 		default:
 			continue
 		}
-		if d == nil {
+		if discriminator == nil {
 			continue
 		}
-		if _, mapped := d.Mapping[tag]; mapped {
+		if _, mapped := discriminator.Mapping[tag]; mapped {
 			return true
 		}
 	}
@@ -758,9 +758,9 @@ func mapsTag(doc *ir.Document, tag string) bool {
 // position.
 func errorsAt(diags []ir.Diagnostic) map[jsontext.Pointer][]string {
 	out := map[jsontext.Pointer][]string{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError && d.Code == diag.UnresolvedRef {
-			out[d.Provenance.Pointer] = append(out[d.Provenance.Pointer], d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError && diagnostic.Code == diag.UnresolvedRef {
+			out[diagnostic.Provenance.Pointer] = append(out[diagnostic.Provenance.Pointer], diagnostic.Message)
 		}
 	}
 	return out

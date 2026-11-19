@@ -34,12 +34,12 @@ func TestPromoter_ReadsReplacementNames(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := promotion.New(promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+			promoter := promotion.New(promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
 				promotion.TargetDeprecationReplacedBy: {{Key: "x-gone"}, {Key: "x-replaced-by"}},
 			}})
 			entry := vendorExtension(tc.value)
 			entry.Provenance.Pointer = "/paths/~1a/get/x-replaced-by"
-			names, at, diags := p.Replacements(ir.Unmodeled{"openapi:x-replaced-by": entry})
+			names, at, diags := promoter.Replacements(ir.Unmodeled{"openapi:x-replaced-by": entry})
 			assert.Equal(t, tc.want, names)
 			assert.Equal(t, tc.misfit, len(diags) == 1, "a misfit is reported; got %v", diags)
 			if tc.want != nil {
@@ -75,7 +75,7 @@ func TestPromoter_MapsTellsAMappedTarget(t *testing.T) {
 // `false` and a misfit among them, and never a key mapped to another target.
 func TestPromoter_WritesSeesAKeyWhateverItSays(t *testing.T) {
 	t.Parallel()
-	p := promotion.New(promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+	promoter := promotion.New(promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
 		promotion.TargetRedaction:             {{Key: "x-a"}, {Key: "x-b"}},
 		promotion.TargetDeprecationReplacedBy: {{Key: "x-c"}},
 	}})
@@ -91,7 +91,7 @@ func TestPromoter_WritesSeesAKeyWhateverItSays(t *testing.T) {
 		{"an unmapped key", ir.Unmodeled{"openapi:x-d": vendorExtension(`true`)}, false},
 		{"none", nil, false},
 	} {
-		assert.Equal(t, tc.wants, p.Writes(tc.own, promotion.TargetRedaction), tc.name)
+		assert.Equal(t, tc.wants, promoter.Writes(tc.own, promotion.TargetRedaction), tc.name)
 	}
 	assert.False(t, promotion.New(promotion.ExtensionPromotions{Disabled: true}).Writes(
 		ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, promotion.TargetRedaction),
@@ -108,9 +108,9 @@ func TestPromoter_WritesKnowsEveryTarget(t *testing.T) {
 	for _, target := range promotion.Targets() {
 		t.Run(string(target), func(t *testing.T) {
 			t.Parallel()
-			p := promotion.New(mapping(target, promotion.ExtensionSource{Key: "x-k", Member: "m"}))
+			promoter := promotion.New(mapping(target, promotion.ExtensionSource{Key: "x-k", Member: "m"}))
 			for _, other := range promotion.Targets() {
-				assert.Equal(t, other == target, p.Writes(own, other), "asked of %s", other)
+				assert.Equal(t, other == target, promoter.Writes(own, other), "asked of %s", other)
 			}
 		})
 	}
@@ -121,11 +121,11 @@ func TestPromoter_WritesKnowsEveryTarget(t *testing.T) {
 // conventions' among them, is the document speaking to that target.
 func TestPromoter_WritesSeesEveryDefaultKey(t *testing.T) {
 	t.Parallel()
-	p := promotion.New(promotion.ExtensionPromotions{})
+	promoter := promotion.New(promotion.ExtensionPromotions{})
 	for target, sources := range promotion.DefaultExtensionPromotions() {
 		for _, src := range sources {
 			own := ir.Unmodeled{"openapi:" + src.Key: vendorExtension(`{}`)}
-			assert.True(t, p.Writes(own, target), "%s read for %s", src.Key, target)
+			assert.True(t, promoter.Writes(own, target), "%s read for %s", src.Key, target)
 		}
 	}
 }
@@ -146,9 +146,9 @@ func TestPromoter_ReplacementSourcesCompareTheirNames(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := promotion.New(mapping(promotion.TargetDeprecationReplacedBy, promotion.ExtensionSource{Key: "x-a"},
+			promoter := promotion.New(mapping(promotion.TargetDeprecationReplacedBy, promotion.ExtensionSource{Key: "x-a"},
 				promotion.ExtensionSource{Key: "x-b"}))
-			names, _, diags := p.Replacements(ir.Unmodeled{
+			names, _, diags := promoter.Replacements(ir.Unmodeled{
 				"openapi:x-a": vendorExtension(tc.first), "openapi:x-b": vendorExtension(tc.second),
 			})
 			assert.Equal(t, []string{"v2"}, names, "the first source is read")

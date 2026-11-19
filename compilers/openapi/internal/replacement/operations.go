@@ -48,26 +48,26 @@ func (r *resolver) service() []ir.Diagnostic {
 }
 
 // response fills the replacements of a response's headers, hs, and of those its
-// body, p, declares.
-func (r *resolver) response(hs []ir.Header, p *ir.Payload) []ir.Diagnostic {
-	return append(r.headers(hs), r.payload(p)...)
+// body, payload, declares.
+func (r *resolver) response(hs []ir.Header, payload *ir.Payload) []ir.Diagnostic {
+	return append(r.headers(hs), r.payload(payload)...)
 }
 
-// payload fills the replacements of the headers each media type of p declares
+// payload fills the replacements of the headers each media type of payload declares
 // for a part or a stream's items, each among the headers beside it. A part's
-// encoding is a map value, whose Headers still share their array with p.
-func (r *resolver) payload(p *ir.Payload) []ir.Diagnostic {
-	if p == nil {
+// encoding is a map value, whose Headers still share their array with payload.
+func (r *resolver) payload(payload *ir.Payload) []ir.Diagnostic {
+	if payload == nil {
 		return nil
 	}
 	var diags []ir.Diagnostic
-	for i := range p.Contents {
-		c := &p.Contents[i]
-		if c.ItemEncoding != nil {
-			diags = append(diags, r.headers(c.ItemEncoding.Headers)...)
+	for i := range payload.Contents {
+		content := &payload.Contents[i]
+		if content.ItemEncoding != nil {
+			diags = append(diags, r.headers(content.ItemEncoding.Headers)...)
 		}
-		for _, part := range slices.Sorted(maps.Keys(c.Encoding)) {
-			diags = append(diags, r.headers(c.Encoding[part].Headers)...)
+		for _, part := range slices.Sorted(maps.Keys(content.Encoding)) {
+			diags = append(diags, r.headers(content.Encoding[part].Headers)...)
 		}
 	}
 	return diags
@@ -78,8 +78,8 @@ func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
 	param := r.paramFinder(op)
 	diags := make([]ir.Diagnostic, 0, len(op.Params))
 	for i := range op.Params {
-		p := &op.Params[i]
-		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, ir.EntityRef{Param: p.ID}, "parameter", param)...)
+		parameter := &op.Params[i]
+		diags = append(diags, r.fill(parameter.Unmodeled, parameter.Deprecation, &parameter.Provenance, ir.EntityRef{Param: parameter.ID}, "parameter", param)...)
 	}
 	return diags
 }

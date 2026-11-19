@@ -41,9 +41,9 @@ func idSpaceViolations(doc *ir.Document, decls declarations) []Violation {
 	list := decls.list()
 	var carried int
 	var outside []int
-	for i, d := range list {
-		prefix := kindPrefixes[d.Class]
-		space, wellFormed := ir.IDSpace(prefix, d.ID)
+	for i, idDeclaration := range list {
+		prefix := kindPrefixes[idDeclaration.Class]
+		space, wellFormed := ir.IDSpace(prefix, idDeclaration.ID)
 		if prefix == "" || !wellFormed || (prefix == ir.IDKindType && space == ir.IDSpacePrimitive) {
 			continue // a class with no prefix and a malformed ID are reported where the shape is checked; prim is ir's
 		}
@@ -75,12 +75,12 @@ func appendUndeclaredSpaces(vs []Violation, list []ir.IDDeclaration, outside []i
 	}
 	paths := decls.pathsAt(at)
 	for _, i := range outside {
-		d := list[i]
-		prefix := kindPrefixes[d.Class]
-		space, _ := ir.IDSpace(prefix, d.ID)
+		idDeclaration := list[i]
+		prefix := kindPrefixes[idDeclaration.Class]
+		space, _ := ir.IDSpace(prefix, idDeclaration.ID)
 		vs = append(vs, Violation{
 			Code: "ir/id-space-undeclared",
-			Message: "id " + strconv.Quote(d.ID) + " lives in namespace " + strconv.Quote(space) +
+			Message: "id " + strconv.Quote(idDeclaration.ID) + " lives in namespace " + strconv.Quote(space) +
 				", which the document does not declare for kind " + strconv.Quote(prefix),
 			Path: paths[i],
 		})

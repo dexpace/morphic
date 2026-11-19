@@ -140,8 +140,8 @@ func TestStreamingMode_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := declaredConstsOfType(t, "StreamingMode")
 	require.NotEmpty(t, declared, "the ir sources must declare StreamingMode constants")
-	for _, c := range declared {
-		assert.True(t, ir.StreamingMode(c.Value).Valid(), "declared mode %q must be Valid", c.Value)
+	for _, declaredConst := range declared {
+		assert.True(t, ir.StreamingMode(declaredConst.Value).Valid(), "declared mode %q must be Valid", declaredConst.Value)
 	}
 }
 
@@ -161,8 +161,8 @@ func TestPageStop_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := declaredConstsOfType(t, "PageStop")
 	require.NotEmpty(t, declared, "the ir sources must declare PageStop constants")
-	for _, c := range declared {
-		assert.True(t, ir.PageStop(c.Value).Valid(), "declared condition %q must be Valid", c.Value)
+	for _, declaredConst := range declared {
+		assert.True(t, ir.PageStop(declaredConst.Value).Valid(), "declared condition %q must be Valid", declaredConst.Value)
 	}
 }
 
@@ -195,8 +195,8 @@ func TestStability_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := declaredConstsOfType(t, "Stability")
 	require.NotEmpty(t, declared, "the ir sources must declare Stability constants")
-	for _, c := range declared {
-		assert.True(t, ir.Stability(c.Value).Valid(), "declared tier %q must be Valid", c.Value)
+	for _, declaredConst := range declared {
+		assert.True(t, ir.Stability(declaredConst.Value).Valid(), "declared tier %q must be Valid", declaredConst.Value)
 	}
 }
 

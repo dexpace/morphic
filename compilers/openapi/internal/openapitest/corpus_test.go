@@ -44,9 +44,9 @@ func TestSpecFiles_ListsTheSpecsUnderRoot(t *testing.T) {
 func TestSpecFiles_FailsWhereItFindsNoSpec(t *testing.T) {
 	t.Parallel()
 	for _, root := range []string{t.TempDir(), filepath.Join(t.TempDir(), "missing")} {
-		r := &recorder{}
-		assert.Empty(t, openapitest.SpecFiles(r, root), root)
-		assert.True(t, r.failed(), root)
+		recorderValue := &recorder{}
+		assert.Empty(t, openapitest.SpecFiles(recorderValue, root), root)
+		assert.True(t, recorderValue.failed(), root)
 	}
 }
 
@@ -84,15 +84,15 @@ func TestPositions_ReadsTheWalkTheTreeAndAStrayToken(t *testing.T) {
 	} {
 		assert.Contains(t, got, want)
 	}
-	for _, p := range got {
+	for _, pointer := range got {
 		for _, unread := range []string{"/paths/~1a/get/responses/202/", "/paths/~1a/get/responses/203/"} {
-			assert.False(t, strings.HasPrefix(string(p), unread+"description"), "%q: no target is read there", p)
+			assert.False(t, strings.HasPrefix(string(pointer), unread+"description"), "%q: no target is read there", pointer)
 		}
 	}
 	seen := map[jsontext.Pointer]bool{}
-	for _, p := range got {
-		assert.False(t, seen[p], "%q is asked once", p)
-		seen[p] = true
+	for _, pointer := range got {
+		assert.False(t, seen[pointer], "%q is asked once", pointer)
+		seen[pointer] = true
 	}
 }
 
@@ -128,23 +128,23 @@ func TestPositions_FailsPastMaxTreeDepth(t *testing.T) {
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(positionsDoc+"x-deep: "+deep+"\n"))
 	require.NoError(t, err)
 
-	r := &recorder{}
-	assert.Nil(t, openapitest.Positions(t.Context(), r, doc))
-	assert.True(t, r.failed())
+	recorderValue := &recorder{}
+	assert.Nil(t, openapitest.Positions(t.Context(), recorderValue, doc))
+	assert.True(t, recorderValue.failed())
 
 	shallow, _, err := soa.Unmarshal(t.Context(), strings.NewReader(positionsDoc))
 	require.NoError(t, err)
-	r = &recorder{}
-	assert.NotEmpty(t, openapitest.Positions(t.Context(), r, shallow))
-	assert.False(t, r.failed())
+	recorderValue = &recorder{}
+	assert.NotEmpty(t, openapitest.Positions(t.Context(), recorderValue, shallow))
+	assert.False(t, recorderValue.failed())
 }
 
 // TestPositions_ReadsAModelWithNoTree pins a model built in code, which has no
 // tree to read: its walk's places are asked about all the same.
 func TestPositions_ReadsAModelWithNoTree(t *testing.T) {
 	t.Parallel()
-	r := &recorder{}
-	got := openapitest.Positions(t.Context(), r, openapitest.DocDeclaring("A"))
+	recorderValue := &recorder{}
+	got := openapitest.Positions(t.Context(), recorderValue, openapitest.DocDeclaring("A"))
 	assert.Contains(t, got, jsontext.Pointer("/components/schemas/A"))
-	assert.False(t, r.failed())
+	assert.False(t, recorderValue.failed())
 }

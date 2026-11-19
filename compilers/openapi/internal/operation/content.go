@@ -29,7 +29,7 @@ import (
 // (the response or requestBody); each Content's schema hoists under
 // <pointer>/content/<mt>/schema, or under the components/mediaTypes entry an
 // entry written as a $ref names (declaredMedia).
-func lowerPayload(c service.Ctx, w operationLoweringState, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
+func lowerPayload(serviceContext service.Ctx, loweringState operationLoweringState, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
 		return nil, nil
 	}
@@ -39,11 +39,11 @@ func lowerPayload(c service.Ctx, w operationLoweringState, content *sequencedmap
 		if media == nil {
 			continue
 		}
-		decl, ok := declaredMedia(c, media, pointer+ids.Ptr("content", mt))
+		decl, ok := declaredMedia(serviceContext, media, pointer+ids.Ptr("content", mt))
 		if !ok {
 			continue
 		}
-		one, contentDiags := lowerContent(decl, w, mt)
+		one, contentDiags := lowerContent(decl, loweringState, mt)
 		diags = append(diags, contentDiags...)
 		payload.Contents = append(payload.Contents, one)
 	}
@@ -67,40 +67,40 @@ type mediaDecl struct {
 }
 
 // declaredMedia returns what the content entry media, written at mediaPtr in
-// c's document, stands for (mediaDecl), and false for one written as a $ref
+// serviceContext's document, stands for (mediaDecl), and false for one written as a $ref
 // resolving to nothing, which lowers nothing, as any reference object does
 // (docs/compilers/openapi.md#references), where the load phase reported why.
 // The keys beside each $ref of use's chain are the Content's (lowerContent).
 //
 // One declaration lowers at its own pointer however many entries name it, so
 // it interns one type (GitHub #856).
-func declaredMedia(c service.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer) (mediaDecl, bool) {
-	use, isUse := c.MediaTypeUse(media)
+func declaredMedia(serviceContext service.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer) (mediaDecl, bool) {
+	use, isUse := serviceContext.MediaTypeUse(media)
 	if !isUse {
-		return mediaDecl{ctx: c, media: media, pointer: mediaPtr, entryCtx: c, entryPtr: mediaPtr}, true
+		return mediaDecl{ctx: serviceContext, media: media, pointer: mediaPtr, entryCtx: serviceContext, entryPtr: mediaPtr}, true
 	}
 	if use == nil {
 		return mediaDecl{}, false
 	}
-	obj, dc, decl := service.Declared[soa.MediaType](c, use, mediaPtr)
+	obj, dc, decl := service.Declared[soa.MediaType](serviceContext, use, mediaPtr)
 	if obj == nil {
 		return mediaDecl{}, false
 	}
-	return mediaDecl{ctx: dc, media: obj, pointer: decl, use: use, entryCtx: c, entryPtr: mediaPtr}, true
+	return mediaDecl{ctx: dc, media: obj, pointer: decl, use: use, entryCtx: serviceContext, entryPtr: mediaPtr}, true
 }
 
-// mediaTypeDocs returns the docs of the media type d declares: its own
+// mediaTypeDocs returns the docs of the media type mediaDeclValue declares: its own
 // description, which OpenAPI 3.2 adds and the parser's model names no field
-// for, with the summary and description beside each $ref of d's use folded
+// for, with the summary and description beside each $ref of mediaDeclValue's use folded
 // over it (docs/compilers/openapi.md#reference-object-siblings), and the keys
 // it read for the census to leave alone. It reads the description at every
 // version, as load reports the key below 3.2 (diag.LaterVersionConstruct).
-func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagnostic) {
-	description, read, diags := annotation.TakeString(u, d.media.GetRootNode(), "description", nil,
-		d.ctx.Place(), d.pointer, "")
+func mediaTypeDocs(mediaDeclValue mediaDecl, unmodeled *ir.Unmodeled) (ir.Docs, []string, []ir.Diagnostic) {
+	description, read, diags := annotation.TakeString(unmodeled, mediaDeclValue.media.GetRootNode(), "description", nil,
+		mediaDeclValue.ctx.Place(), mediaDeclValue.pointer, "")
 	docs := ir.Docs{Description: description}
-	if d.use != nil {
-		docs = componentlookup.UseDocs[soa.MediaType](d.entryCtx.Bindings(), d.use, docs)
+	if mediaDeclValue.use != nil {
+		docs = componentlookup.UseDocs[soa.MediaType](mediaDeclValue.entryCtx.Bindings(), mediaDeclValue.use, docs)
 	}
 	if !read {
 		return docs, nil, diags
@@ -110,66 +110,66 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, whether it streams, docs and
-// extensions, as d declares them, under mt, the key it is written under.
-func lowerContent(d mediaDecl, w operationLoweringState, mt string) (ir.Content, []ir.Diagnostic) {
-	c, media, mediaPtr := d.ctx, d.media, d.pointer
-	mediaType, diags := schema.Ref(c.Ctx, w.types, schema.TopLevelDepth, d.ctx.Statements().Of(media.GetSchema()), mediaPtr+ids.Ptr("schema"))
+// extensions, as mediaDeclValue declares them, under mt, the key it is written under.
+func lowerContent(mediaDeclValue mediaDecl, loweringState operationLoweringState, mt string) (ir.Content, []ir.Diagnostic) {
+	serviceContext, media, mediaPtr := mediaDeclValue.ctx, mediaDeclValue.media, mediaDeclValue.pointer
+	mediaType, diags := schema.Ref(serviceContext.Ctx, loweringState.types, schema.TopLevelDepth, mediaDeclValue.ctx.Statements().Of(media.GetSchema()), mediaPtr+ids.Ptr("schema"))
 	content := ir.Content{
 		MediaType: mt,
 		Type:      mediaType,
 	}
-	ex, exDiags := exampleList(c, media.GetExample(), media.GetExamples(), mediaPtr)
+	ex, exDiags := exampleList(serviceContext, media.GetExample(), media.GetExamples(), mediaPtr)
 	diags = append(diags, exDiags...)
 	if len(ex) > 0 {
 		content.Examples = ex
 	}
-	file := bodyFile(c, mt, readFile(c, media.GetSchema()))
+	file := bodyFile(serviceContext, mt, readFile(serviceContext, media.GetSchema()))
 	if file != nil {
 		content.File = file
-		content.Type = fileBodyType(w.types, file, content.Type)
+		content.Type = fileBodyType(loweringState.types, file, content.Type)
 	}
 	if file == nil && isFormContent(mt) {
-		enc, catchAll, encUnmodeled, encDiags := partEncodings(c, w, media, mt, mediaPtr, content.Type.Target)
+		enc, catchAll, encUnmodeled, encDiags := partEncodings(serviceContext, loweringState, media, mt, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
 		content.Encoding, content.CatchAllEncoding = enc, catchAll
 		// Assigned, not merged: the parts' settlement writes into this map.
 		content.Unmodeled = encUnmodeled
 	} else {
-		kept, keptDiags := keepBodyEncodings(c, media, mediaPtr, mt)
+		kept, keptDiags := keepBodyEncodings(serviceContext, media, mediaPtr, mt)
 		diags = append(diags, keptDiags...)
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, kept)
 	}
-	diags = append(diags, fillSequential(c, w, &content, media, mediaPtr)...)
-	content.Stream = contentStream(c, mt, content.Item)
-	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), c.Place(), mediaPtr)
+	diags = append(diags, fillSequential(serviceContext, loweringState, &content, media, mediaPtr)...)
+	content.Stream = contentStream(serviceContext, mt, content.Item)
+	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), serviceContext.Place(), mediaPtr)
 	diags = append(diags, extDiags...)
 	if len(ext) > 0 {
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
 	}
-	docs, taken, docDiags := mediaTypeDocs(d, &content.Unmodeled)
+	docs, taken, docDiags := mediaTypeDocs(mediaDeclValue, &content.Unmodeled)
 	content.Docs = docs
 	diags = append(diags, docDiags...)
-	if d.use != nil {
+	if mediaDeclValue.use != nil {
 		// What the entry's chain writes beside each $ref rides on the Content the
 		// use lowers to, its summary and description folded into Docs above.
-		beside, besideDiags := service.Beside[soa.MediaType](d.entryCtx, d.use, d.entryPtr, true)
+		beside, besideDiags := service.Beside[soa.MediaType](mediaDeclValue.entryCtx, mediaDeclValue.use, mediaDeclValue.entryPtr, true)
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, beside)
 		diags = append(diags, besideDiags...)
 	}
 	return content, append(diags,
-		annotation.UnknownKeysIn(&content.Unmodeled, media, c.Place(), mediaPtr, taken...)...)
+		annotation.UnknownKeysIn(&content.Unmodeled, media, serviceContext.Place(), mediaPtr, taken...)...)
 }
 
 // keepBodyEncodings keeps whole the encoding entries of a body with no parts
 // for any of them to name (docs/compilers/openapi.md#multipart-encoding): a
 // file body under a form media type, and any body under a media type that is
 // neither multipart nor form, where OpenAPI gives the field no effect.
-func keepBodyEncodings(c service.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, mt string) (ir.Unmodeled, []ir.Diagnostic) {
+func keepBodyEncodings(serviceContext service.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, mt string) (ir.Unmodeled, []ir.Diagnostic) {
 	why := unkeyedFileEntry
 	if !isFormContent(mt) {
 		why = unkeyedOtherEntry
 	}
-	return keepUnkeyedEncodings(c, media, mediaPtr, partWalk{}, why)
+	return keepUnkeyedEncodings(serviceContext, media, mediaPtr, partWalk{}, why)
 }
 
 // fileBodyType is the type of the file body file whose schema lowered to
@@ -218,14 +218,14 @@ func schemaOf(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oa
 
 // statementOf is schemaOf read as a statement: the schema whose object
 // schemaOf returns (statement.Parsed), and nil where it returns nil.
-func statementOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) *statement.Schema {
-	if schemaOf(c.Bindings(), js) == nil {
+func statementOf(loweringContext lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) *statement.Schema {
+	if schemaOf(loweringContext.Bindings(), js) == nil {
 		return nil
 	}
-	if c.Bindings().RefSite(js) {
-		if end := c.Bindings().End(js); end != nil {
-			return c.Statements().Of(end).Schema
+	if loweringContext.Bindings().RefSite(js) {
+		if end := loweringContext.Bindings().End(js); end != nil {
+			return loweringContext.Statements().Of(end).Schema
 		}
 	}
-	return c.Statements().Of(js).Schema
+	return loweringContext.Statements().Of(js).Schema
 }

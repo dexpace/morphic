@@ -105,7 +105,7 @@ func (c Checker) Spec() Spec { return c.spec }
 // object after another, its fields as the table lists them, then its patterned
 // keys, then its rules.
 func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, opts Options) []ir.Diagnostic {
-	w, ok := c.walker(ctx, declared, opts)
+	walker, ok := c.walker(ctx, declared, opts)
 	if !ok {
 		return nil
 	}
@@ -113,9 +113,9 @@ func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, op
 	if start == 0 {
 		start = Document
 	}
-	w.root = nodeview.DocumentRoot(root)
-	w.object(objectToCheck{kind: start, node: w.root, shared: opts.Shared}, 0)
-	return w.diags
+	walker.root = nodeview.DocumentRoot(root)
+	walker.object(objectToCheck{kind: start, node: walker.root, shared: opts.Shared}, 0)
+	return walker.diags
 }
 
 // CheckPending judges each Schema Object a check handed back unread
@@ -124,14 +124,14 @@ func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, op
 // finding and one budget bounds them.
 func (c Checker) CheckPending(ctx context.Context, pending []Pending, declared string, opts Options) []ir.Diagnostic {
 	opts.Later = nil
-	w, ok := c.walker(ctx, declared, opts)
+	walker, ok := c.walker(ctx, declared, opts)
 	if !ok {
 		return nil
 	}
-	for _, p := range pending {
-		w.object(p.at, p.depth)
+	for _, pendingValue := range pending {
+		walker.object(pendingValue.at, pendingValue.depth)
 	}
-	return w.diags
+	return walker.diags
 }
 
 // walker starts a check of a document declaring declared under opts, and is
@@ -141,18 +141,18 @@ func (c Checker) walker(ctx context.Context, declared string, opts Options) (*wa
 	if !ok {
 		return nil, false
 	}
-	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
-	w.locate, w.declared, w.seen, w.rows = opts.Locate, declared, opts.Seen, opts.Rows
-	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.DiagnosticKey]saying{}
-	w.rootRows, w.later, w.judged, w.referenced = opts.RootRows, opts.Later, opts.Judged, opts.Referenced
-	w.skip = opts.Skip
-	if w.rows.rows == nil {
-		w.rows, _ = c.spec.SchemaRules(declared, "")
+	walkerValue := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
+	walkerValue.locate, walkerValue.declared, walkerValue.seen, walkerValue.rows = opts.Locate, declared, opts.Seen, opts.Rows
+	walkerValue.readAt, walkerValue.rootAt, walkerValue.said = opts.ReadAt, opts.Root, map[ir.DiagnosticKey]saying{}
+	walkerValue.rootRows, walkerValue.later, walkerValue.judged, walkerValue.referenced = opts.RootRows, opts.Later, opts.Judged, opts.Referenced
+	walkerValue.skip = opts.Skip
+	if walkerValue.rows.rows == nil {
+		walkerValue.rows, _ = c.spec.SchemaRules(declared, "")
 	}
-	if w.locate == nil {
-		w.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
+	if walkerValue.locate == nil {
+		walkerValue.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
 	}
-	return w, true
+	return walkerValue, true
 }
 
 // walker is one check in progress. It holds the context the check runs under
@@ -257,12 +257,12 @@ func (w *walker) accept(shared bool, node *yaml.Node) {
 }
 
 // in names what a finding about f holds it to: the dialect a JSON Schema
-// draft's rows read, else the minor m, or what where names.
-func (f frame) in(m Minor) string {
+// draft's rows read, else the minor minor, or what where names.
+func (f frame) in(minor Minor) string {
 	if f.where != "" {
 		return f.where
 	}
-	return "OpenAPI " + m.String()
+	return "OpenAPI " + minor.String()
 }
 
 // spend charges one unit of work and reports whether the walk may go on. The
@@ -295,141 +295,141 @@ func (w *walker) charge(depth int) (ok, stops bool) {
 	return false, true
 }
 
-// reportStop reports that w's check stopped at ptr.
-func reportStop(w *walker, ptr jsontext.Pointer) {
-	w.diags = append(w.diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, w.locate(ptr),
-		"the OpenAPI %s check stopped at this depth or work budget; what lies below is unchecked", w.minor))
+// reportStop reports that walkerValue's check stopped at ptr.
+func reportStop(walkerValue *walker, ptr jsontext.Pointer) {
+	walkerValue.diags = append(walkerValue.diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, walkerValue.locate(ptr),
+		"the OpenAPI %s check stopped at this depth or work budget; what lies below is unchecked", walkerValue.minor))
 }
 
-// object checks the mapping s holds as an object of its kind, and what lies
+// object checks the mapping objectToCheckValue holds as an object of its kind, and what lies
 // below it.
-func (w *walker) object(s objectToCheck, depth int) {
-	obj, ok := w.spec.Object(s.kind)
-	node := nodeview.Deref(s.node)
+func (w *walker) object(objectToCheckValue objectToCheck, depth int) {
+	obj, ok := w.spec.Object(objectToCheckValue.kind)
+	node := nodeview.Deref(objectToCheckValue.node)
 	if !ok || node == nil {
 		return
 	}
-	if s.kind == Schema && s.in != Schema && w.later != nil {
-		w.later(Pending{at: s, depth: depth})
+	if objectToCheckValue.kind == Schema && objectToCheckValue.in != Schema && w.later != nil {
+		w.later(Pending{at: objectToCheckValue, depth: depth})
 		return
 	}
-	if w.skip != nil && node.Kind == yaml.MappingNode && w.skip(s.kind, node) {
+	if w.skip != nil && node.Kind == yaml.MappingNode && w.skip(objectToCheckValue.kind, node) {
 		return
 	}
-	if !w.spend(depth, s.ptr) {
+	if !w.spend(depth, objectToCheckValue.ptr) {
 		return
 	}
-	f := frame{obj: obj, at: s, depth: depth, booleans: w.spec.booleanHeld(Schema, w.minor),
-		shared: s.shared || sharedNode(s.node)}
-	if s.kind == Schema {
-		f.rows = w.rowsAt(s)
-		f.obj, f.booleans = f.rows.rows.object, f.rows.Booleans()
-		if f.rows.rows.draft {
-			f.where = "this schema's dialect"
+	frameValue := frame{obj: obj, at: objectToCheckValue, depth: depth, booleans: w.spec.booleanHeld(Schema, w.minor),
+		shared: objectToCheckValue.shared || sharedNode(objectToCheckValue.node)}
+	if objectToCheckValue.kind == Schema {
+		frameValue.rows = w.rowsAt(objectToCheckValue)
+		frameValue.obj, frameValue.booleans = frameValue.rows.rows.object, frameValue.rows.Booleans()
+		if frameValue.rows.rows.draft {
+			frameValue.where = "this schema's dialect"
 		}
 	}
 	if node.Kind != yaml.MappingNode {
-		w.notMapping(f, node)
+		w.notMapping(frameValue, node)
 		return
 	}
-	f = frameOf(f, node, w.view)
-	f.shared = f.shared || writesMerge(node)
-	w.accept(f.shared, node)
-	w.repeated(node, s.ptr, obj.Name)
-	if w.reference(f, depth) {
+	frameValue = frameOf(frameValue, node, w.view)
+	frameValue.shared = frameValue.shared || writesMerge(node)
+	w.accept(frameValue.shared, node)
+	w.repeated(node, objectToCheckValue.ptr, obj.Name)
+	if w.reference(frameValue, depth) {
 		return
 	}
 	if w.seen != nil {
-		w.seen(s.kind, node)
+		w.seen(objectToCheckValue.kind, node)
 	}
-	w.fields(f, depth)
-	w.patterned(f, depth)
-	w.unknown(f)
-	rawKeys(w, f, depth)
-	w.rules(f)
+	w.fields(frameValue, depth)
+	w.patterned(frameValue, depth)
+	w.unknown(frameValue)
+	rawKeys(w, frameValue, depth)
+	w.rules(frameValue)
 }
 
-// rawKeys reads for repeated keys the value of each key f's object reads as no
+// rawKeys reads for repeated keys the value of each key frameValue's object reads as no
 // field and the lowering keeps verbatim: an extension, and a key the object
 // defines at no minor, which unknown reports. An object taking patterned keys
 // reads each other key as an entry, as a schema reads a keyword its dialect
 // added later as a field.
-func rawKeys(w *walker, f frame, depth int) {
-	_, patterned := f.obj.patternAt(w.minor)
-	for _, p := range f.pairs {
-		extension := strings.HasPrefix(p.Key, "x-") && f.obj.Extensible
-		if !extension && (patterned || f.defines(p.Key)) {
+func rawKeys(walkerValue *walker, frameValue frame, depth int) {
+	_, patterned := frameValue.obj.patternAt(walkerValue.minor)
+	for _, pair := range frameValue.pairs {
+		extension := strings.HasPrefix(pair.Key, "x-") && frameValue.obj.Extensible
+		if !extension && (patterned || frameValue.defines(pair.Key)) {
 			continue
 		}
-		if _, later := f.addedLater(p.Key, w.minor); later {
+		if _, later := frameValue.addedLater(pair.Key, walkerValue.minor); later {
 			continue
 		}
-		rawRepeats(w, p.Val, f.at.ptr.AppendToken(p.Key), depth+1)
+		rawRepeats(walkerValue, pair.Val, frameValue.at.ptr.AppendToken(pair.Key), depth+1)
 	}
 }
 
-// unknown reports each key f's mapping writes that its object neither defines
+// unknown reports each key frameValue's mapping writes that its object neither defines
 // at any minor nor admits: no field, no patterned key, no x- extension. A
 // Schema Object's keywords are its dialect's, and an object taking patterned
 // keys at the declared minor admits every key, so neither is judged here. A key
 // merged through `<<` is placed where it is written, as every field is.
-func (w *walker) unknown(f frame) {
-	if f.rows.rows != nil {
+func (w *walker) unknown(frameValue frame) {
+	if frameValue.rows.rows != nil {
 		return
 	}
-	if _, patterned := f.obj.patternAt(w.minor); patterned {
+	if _, patterned := frameValue.obj.patternAt(w.minor); patterned {
 		return
 	}
-	places := newKeyPlacer(w, f.at.node, f.at.ptr)
-	for _, p := range f.pairs {
-		if f.defines(p.Key) || (f.obj.Extensible && strings.HasPrefix(p.Key, "x-")) {
+	places := newKeyPlacer(w, frameValue.at.node, frameValue.at.ptr)
+	for _, pair := range frameValue.pairs {
+		if frameValue.defines(pair.Key) || (frameValue.obj.Extensible && strings.HasPrefix(pair.Key, "x-")) {
 			continue
 		}
 		message := fmt.Sprintf("key %q is not defined by the %s it is written on and is not an x- extension",
-			p.Key, f.obj.Name)
-		if f.obj.Kind == Reference {
+			pair.Key, frameValue.obj.Name)
+		if frameValue.obj.Kind == Reference {
 			message = fmt.Sprintf("key %q is written beside a $ref, where the Reference Object defines only $ref, "+
-				"summary and description, so OpenAPI ignores it", p.Key)
+				"summary and description, so OpenAPI ignores it", pair.Key)
 		}
-		w.add(diag.Newf(ir.SeverityWarning, diag.UnknownObjectKey, places.place(p.Key), "%s", message),
-			f.at.ptr.AppendToken(p.Key))
+		w.add(diag.Newf(ir.SeverityWarning, diag.UnknownObjectKey, places.place(pair.Key), "%s", message),
+			frameValue.at.ptr.AppendToken(pair.Key))
 	}
 }
 
-// rowsAt returns the rows the Schema Object s names is read with: a dialect
+// rowsAt returns the rows the Schema Object objectToCheckValue names is read with: a dialect
 // root's own (Options.RootRows), else those of the schema holding it, else its
 // document's (Options.Rows).
-func (w *walker) rowsAt(s objectToCheck) SchemaRules {
+func (w *walker) rowsAt(objectToCheckValue objectToCheck) SchemaRules {
 	if w.rootRows != nil {
-		if rows, root := w.rootRows(w.rootAt + s.ptr); root && rows.rows != nil {
+		if rows, root := w.rootRows(w.rootAt + objectToCheckValue.ptr); root && rows.rows != nil {
 			return rows
 		}
 	}
-	if s.in == Schema && s.rows.rows != nil {
-		return s.rows
+	if objectToCheckValue.in == Schema && objectToCheckValue.rows.rows != nil {
+		return objectToCheckValue.rows
 	}
 	return w.rows
 }
 
-// frameOf reads node, a mapping, as the object f is.
-func frameOf(f frame, node *yaml.Node, view *nodeview.View) frame {
-	f.pairs = view.MappingPairs(node)
-	f.byKey = make(map[string]*yaml.Node, len(f.pairs))
-	for _, p := range f.pairs {
-		f.byKey[p.Key] = p.Val
+// frameOf reads node, a mapping, as the object frameValue is.
+func frameOf(frameValue frame, node *yaml.Node, view *nodeview.View) frame {
+	frameValue.pairs = view.MappingPairs(node)
+	frameValue.byKey = make(map[string]*yaml.Node, len(frameValue.pairs))
+	for _, pair := range frameValue.pairs {
+		frameValue.byKey[pair.Key] = pair.Val
 	}
-	return f
+	return frameValue
 }
 
-// notMapping reports a node that is no mapping where f's kind needs one,
+// notMapping reports a node that is no mapping where frameValue's kind needs one,
 // unless the kind admits a boolean there, and tells Options.Judged which.
-func (w *walker) notMapping(f frame, node *yaml.Node) {
-	if f.obj.Boolean.Holds(w.minor) && matches(Boolean, node) {
-		w.accept(f.shared, node)
+func (w *walker) notMapping(frameValue frame, node *yaml.Node) {
+	if frameValue.obj.Boolean.Holds(w.minor) && matches(Boolean, node) {
+		w.accept(frameValue.shared, node)
 		return
 	}
 	w.refuse(node)
-	w.report(ir.SeverityError, classType, f.at.ptr, "%s must be an object in %s (%s)", f.obj.Name, f.in(w.minor), f.obj.Name)
+	w.report(ir.SeverityError, classType, frameValue.at.ptr, "%s must be an object in %s (%s)", frameValue.obj.Name, frameValue.in(w.minor), frameValue.obj.Name)
 }
 
 // reference reads a mapping that writes $ref as a Reference Object where the
@@ -439,38 +439,38 @@ func (w *walker) notMapping(f frame, node *yaml.Node) {
 // $ref takes siblings only from a later minor (RefSiblings) draws it for each
 // key beside the $ref, which the declared minor ignores and the later one
 // applies. Options.Referenced is told of each it reads.
-func (w *walker) reference(f frame, depth int) bool {
-	if !f.refers() {
+func (w *walker) reference(frameValue frame, depth int) bool {
+	if !frameValue.refers() {
 		return false
 	}
 	switch {
-	case f.obj.Referenceable.Holds(w.minor):
-	case f.obj.Referenceable.Later(w.minor):
-		w.laterField(f.obj, "$ref", "", f.obj.Referenceable.Since, f.at.ptr.AppendToken("$ref"))
-	case f.obj.RefSiblings.Later(w.minor):
-		for _, p := range f.pairs {
-			if p.Key != "$ref" {
-				w.laterSibling(f.obj, p.Key, w.minor, f.obj.RefSiblings.Since, f.at.ptr.AppendToken(p.Key))
+	case frameValue.obj.Referenceable.Holds(w.minor):
+	case frameValue.obj.Referenceable.Later(w.minor):
+		w.laterField(frameValue.obj, "$ref", "", frameValue.obj.Referenceable.Since, frameValue.at.ptr.AppendToken("$ref"))
+	case frameValue.obj.RefSiblings.Later(w.minor):
+		for _, pair := range frameValue.pairs {
+			if pair.Key != "$ref" {
+				w.laterSibling(frameValue.obj, pair.Key, w.minor, frameValue.obj.RefSiblings.Since, frameValue.at.ptr.AppendToken(pair.Key))
 			}
 		}
 		return false
-	case f.rows.IgnoresRefFields():
-		for _, p := range f.pairs {
-			if readsBesideRef(f.rows, p.Key) {
-				w.ignoredBesideRef(p.Key, f.at.ptr.AppendToken(p.Key))
+	case frameValue.rows.IgnoresRefFields():
+		for _, pair := range frameValue.pairs {
+			if readsBesideRef(frameValue.rows, pair.Key) {
+				w.ignoredBesideRef(pair.Key, frameValue.at.ptr.AppendToken(pair.Key))
 			}
 		}
 		return false
 	default:
 		return false
 	}
-	rf := f
+	rf := frameValue
 	rf.obj = w.spec.must(Reference)
 	w.fields(rf, depth)
 	w.unknown(rf)
 	rawKeys(w, rf, depth)
 	if w.referenced != nil {
-		w.referenced(f.at.kind, nodeview.Deref(f.at.node))
+		w.referenced(frameValue.at.kind, nodeview.Deref(frameValue.at.node))
 	}
 	return true
 }
@@ -486,42 +486,42 @@ func (f frame) refers() bool {
 // a Schema Object the dialect the compiler reads natively, added: warned of
 // once, bar a key beside a 3.0 schema's $ref, which reference warned of, and
 // read as that minor or dialect reads it.
-func (w *walker) fields(f frame, depth int) {
-	for _, fld := range f.obj.Fields {
+func (w *walker) fields(frameValue frame, depth int) {
+	for _, fld := range frameValue.obj.Fields {
 		if !fld.Defined.Holds(w.minor) {
 			continue
 		}
-		val, present := f.byKey[fld.Name]
+		val, present := frameValue.byKey[fld.Name]
 		if !present {
-			w.missing(f, fld)
+			w.missing(frameValue, fld)
 			continue
 		}
-		w.value(f, fld, val, depth)
+		w.value(frameValue, fld, val, depth)
 	}
-	for _, p := range f.pairs {
-		fld, ok := f.addedLater(p.Key, w.minor)
+	for _, pair := range frameValue.pairs {
+		fld, ok := frameValue.addedLater(pair.Key, w.minor)
 		if !ok {
 			continue
 		}
-		ptr := f.at.ptr.AppendToken(p.Key)
-		if f.rows.rows == nil {
-			w.laterField(f.obj, p.Key, "", fld.Defined.Since, ptr)
-			w.value(f, fld, p.Val, depth)
+		ptr := frameValue.at.ptr.AppendToken(pair.Key)
+		if frameValue.rows.rows == nil {
+			w.laterField(frameValue.obj, pair.Key, "", fld.Defined.Since, ptr)
+			w.value(frameValue, fld, pair.Val, depth)
 			continue
 		}
-		if !f.refers() || !f.obj.RefSiblings.Later(w.minor) {
-			w.laterKeyword(f.rows, p.Key, f.writesTuple(), ptr)
+		if !frameValue.refers() || !frameValue.obj.RefSiblings.Later(w.minor) {
+			w.laterKeyword(frameValue.rows, pair.Key, frameValue.writesTuple(), ptr)
 		}
-		w.value(f.asLater(fld, w.minor), fld, p.Val, depth)
+		w.value(frameValue.asLater(fld, w.minor), fld, pair.Val, depth)
 	}
 }
 
 // addedLater finds the field named key that f's object does not define and a
 // later minor's does, or for a Schema Object, the dialect the compiler reads
 // natively (SchemaRules.Later).
-func (f frame) addedLater(key string, m Minor) (Field, bool) {
+func (f frame) addedLater(key string, minor Minor) (Field, bool) {
 	if f.rows.rows == nil {
-		return f.obj.addedLater(key, m)
+		return f.obj.addedLater(key, minor)
 	}
 	fld, ok := f.rows.rows.later[key]
 	return fld, ok
@@ -532,8 +532,8 @@ func (f frame) addedLater(key string, m Minor) (Field, bool) {
 // finding holds it to that dialect's minor. Only fld's row is that dialect's:
 // the rules run at the declared minor, so at 3.0 none 3.1 states over the
 // field holds, such as prefixItems holding an entry.
-func (f frame) asLater(fld Field, m Minor) frame {
-	f.booleans, f.where = true, "OpenAPI "+max(fld.Defined.Since, m).String()
+func (f frame) asLater(fld Field, minor Minor) frame {
+	f.booleans, f.where = true, "OpenAPI "+max(fld.Defined.Since, minor).String()
 	return f
 }
 
@@ -545,19 +545,19 @@ func (f frame) writesTuple() bool {
 	return items != nil && items.Kind == yaml.SequenceNode && f.rows.Takes("items", List)
 }
 
-// addedLater finds the field of o named key that only a later minor than m
+// addedLater finds the field of o named key that only a later minor than minor
 // defines, unless a JSON Schema keyword, which the schema lowering reads as it
 // finds it.
-func (o Object) addedLater(key string, m Minor) (Field, bool) {
+func (o Object) addedLater(key string, minor Minor) (Field, bool) {
 	var found Field
 	for _, fld := range o.Fields {
 		if fld.Name != key {
 			continue
 		}
-		if fld.Defined.Holds(m) {
+		if fld.Defined.Holds(minor) {
 			return Field{}, false
 		}
-		if fld.Defined.Later(m) && found.Name == "" {
+		if fld.Defined.Later(minor) && found.Name == "" {
 			found = fld
 		}
 	}
@@ -565,56 +565,56 @@ func (o Object) addedLater(key string, m Minor) (Field, bool) {
 }
 
 // missing reports a required field the object does not write.
-func (w *walker) missing(f frame, fld Field) {
+func (w *walker) missing(frameValue frame, fld Field) {
 	if !fld.Required.Holds(w.minor) || fld.Owner != "" {
 		return
 	}
-	c := citeFor(fld.Cites, w.minor)
-	w.report(ir.SeverityError, classRequired, f.at.ptr, "%s field %q is REQUIRED in %s (%s)",
-		f.obj.Name, fld.Name, f.in(w.minor), c.Section)
+	cite := citeFor(fld.Cites, w.minor)
+	w.report(ir.SeverityError, classRequired, frameValue.at.ptr, "%s field %q is REQUIRED in %s (%s)",
+		frameValue.obj.Name, fld.Name, frameValue.in(w.minor), cite.Section)
 }
 
 // patterned checks the keys the object admits beside its fixed fields: every
 // key that is neither a field nor, where the object takes them, an extension.
-func (w *walker) patterned(f frame, depth int) {
-	pat, ok := f.obj.patternAt(w.minor)
+func (w *walker) patterned(frameValue frame, depth int) {
+	pat, ok := frameValue.obj.patternAt(w.minor)
 	if !ok {
 		return
 	}
-	for _, p := range f.pairs {
-		if f.defines(p.Key) || (f.obj.Extensible && strings.HasPrefix(p.Key, "x-")) {
+	for _, pair := range frameValue.pairs {
+		if frameValue.defines(pair.Key) || (frameValue.obj.Extensible && strings.HasPrefix(pair.Key, "x-")) {
 			continue
 		}
-		if pat.Keys != FormatNone && !ValidFormat(pat.Keys, p.Key) {
-			w.report(ir.SeverityError, classFormat, f.at.ptr.AppendToken(p.Key),
+		if pat.Keys != FormatNone && !ValidFormat(pat.Keys, pair.Key) {
+			w.report(ir.SeverityError, classFormat, frameValue.at.ptr.AppendToken(pair.Key),
 				"%s has the key %q, which must be %s in %s (%s)",
-				f.obj.Name, p.Key, describeFormat(pat.Keys), f.in(w.minor), citeFor(pat.Cites, w.minor).Section)
+				frameValue.obj.Name, pair.Key, describeFormat(pat.Keys), frameValue.in(w.minor), citeFor(pat.Cites, w.minor).Section)
 		}
-		fld := Field{Name: p.Key, Shape: pat.Shape, Of: pat.Of, Defined: Always(), Cites: pat.Cites}
-		w.value(f, fld, p.Val, depth)
+		fld := Field{Name: pair.Key, Shape: pat.Shape, Of: pat.Of, Defined: Always(), Cites: pat.Cites}
+		w.value(frameValue, fld, pair.Val, depth)
 	}
 }
 
-// patternAt returns the pattern of o that holds at minor m.
-func (o Object) patternAt(m Minor) (Pattern, bool) {
-	for _, p := range o.Patterned {
-		if p.Span.Holds(m) {
-			return p, true
+// patternAt returns the pattern of o that holds at minor minor.
+func (o Object) patternAt(minor Minor) (Pattern, bool) {
+	for _, pattern := range o.Patterned {
+		if pattern.Span.Holds(minor) {
+			return pattern, true
 		}
 	}
 	return Pattern{}, false
 }
 
-// fieldAt returns the field of o named name that minor m defines, else the
+// fieldAt returns the field of o named name that minor minor defines, else the
 // first so named, which a later minor added, else the zero Field, whose Any
 // shape admits every value.
-func (o Object) fieldAt(name string, m Minor) Field {
+func (o Object) fieldAt(name string, minor Minor) Field {
 	var found Field
 	for _, fld := range o.Fields {
 		if fld.Name != name {
 			continue
 		}
-		if fld.Defined.Holds(m) {
+		if fld.Defined.Holds(minor) {
 			return fld
 		}
 		if found.Name == "" {
@@ -639,13 +639,13 @@ func itemPointer(ptr jsontext.Pointer, i int) jsontext.Pointer {
 	return ptr.AppendToken(strconv.Itoa(i))
 }
 
-// citeFor picks the citation to name for a finding at minor m: the latest one
+// citeFor picks the citation to name for a finding at minor minor: the latest one
 // the minor has reached, else the first.
-func citeFor(cites []Cite, m Minor) Cite {
+func citeFor(cites []Cite, minor Minor) Cite {
 	var best Cite
-	for _, c := range cites {
-		if c.Minor <= m && c.Minor >= best.Minor {
-			best = c
+	for _, cite := range cites {
+		if cite.Minor <= minor && cite.Minor >= best.Minor {
+			best = cite
 		}
 	}
 	if best.Minor == 0 && len(cites) > 0 {

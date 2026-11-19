@@ -59,9 +59,9 @@ type wantFinding struct {
 func requireErrorsAndWarnings(t *testing.T, diags []ir.Diagnostic, want []wantFinding) {
 	t.Helper()
 	var got []ir.Diagnostic
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError || d.Severity == ir.SeverityWarning {
-			got = append(got, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError || diagnostic.Severity == ir.SeverityWarning {
+			got = append(got, diagnostic)
 		}
 	}
 	key := func(code, pointer string) string { return pointer + " " + code }
@@ -70,16 +70,16 @@ func requireErrorsAndWarnings(t *testing.T, diags []ir.Diagnostic, want []wantFi
 	})
 	sort.Slice(want, func(i, j int) bool { return key(want[i].code, want[i].pointer) < key(want[j].code, want[j].pointer) })
 	gotKeys, wantKeys := make([]string, 0, len(got)), make([]string, 0, len(want))
-	for _, d := range got {
-		gotKeys = append(gotKeys, key(d.Code, string(d.Provenance.Pointer)))
+	for _, diagnostic := range got {
+		gotKeys = append(gotKeys, key(diagnostic.Code, string(diagnostic.Provenance.Pointer)))
 	}
-	for _, w := range want {
-		wantKeys = append(wantKeys, key(w.code, w.pointer))
+	for _, wantFinding := range want {
+		wantKeys = append(wantKeys, key(wantFinding.code, wantFinding.pointer))
 	}
 	require.Equal(t, wantKeys, gotKeys, "the errors and warnings of the document")
-	for i, w := range want {
-		for _, word := range w.contains {
-			assert.Contains(t, got[i].Message, word, "the message at %s", w.pointer)
+	for i, wantFinding := range want {
+		for _, word := range wantFinding.contains {
+			assert.Contains(t, got[i].Message, word, "the message at %s", wantFinding.pointer)
 		}
 	}
 }
@@ -190,10 +190,10 @@ func TestCompile_AnAllOfCycleBesideABoundIsReadAlikeFromEveryEntry(t *testing.T)
 // whose message holds word.
 func infosAt(diags []ir.Diagnostic, code, pointer, word string) int {
 	n := 0
-	for _, d := range diags {
-		at := string(d.Provenance.Pointer)
-		if d.Severity == ir.SeverityInfo && d.Code == code &&
-			(at == pointer || strings.HasPrefix(at, pointer+"/")) && strings.Contains(d.Message, word) {
+	for _, diagnostic := range diags {
+		at := string(diagnostic.Provenance.Pointer)
+		if diagnostic.Severity == ir.SeverityInfo && diagnostic.Code == code &&
+			(at == pointer || strings.HasPrefix(at, pointer+"/")) && strings.Contains(diagnostic.Message, word) {
 			n++
 		}
 	}
@@ -405,9 +405,9 @@ func TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases(t *testing.T) {
 			{code: diag.DegradedConstruct, pointer: "/components/schemas/NullAliasAndString", contains: []string{disjoint, "null", "string"}},
 		})
 		var texts []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityWarning {
-				texts = append(texts, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityWarning {
+				texts = append(texts, diagnostic.Message)
 			}
 		}
 		require.Len(t, texts, 2)
@@ -475,17 +475,17 @@ func TestCompile_AKeywordBesideARefIsReadByTheDisjointReportAtEveryVersion(t *te
 // number of conflicting-redeclaration findings drawn under pointer.
 func redeclaredField(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, id, wire, pointer string) (ir.TypeID, int) {
 	t.Helper()
-	m, ok := doc.Types[ir.TypeID(id)].(*ir.Model)
+	model, ok := doc.Types[ir.TypeID(id)].(*ir.Model)
 	require.True(t, ok, "%s lowers to a model", id)
 	conflicts := 0
-	for _, d := range diags {
-		if d.Code == diag.ConflictingRedecl && strings.HasPrefix(string(d.Provenance.Pointer), pointer+"/") {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ConflictingRedecl && strings.HasPrefix(string(diagnostic.Provenance.Pointer), pointer+"/") {
 			conflicts++
 		}
 	}
-	for _, p := range m.Properties {
-		if p.WireName == wire {
-			return p.Type.Target, conflicts
+	for _, property := range model.Properties {
+		if property.WireName == wire {
+			return property.Type.Target, conflicts
 		}
 	}
 	require.Failf(t, "no such property", "%s has no property %q", id, wire)
@@ -598,9 +598,9 @@ func TestCompile_ANullNotOnAStructuresEntryIsTheKeywordLeftOut(t *testing.T) {
 				assert.Equal(t, ir.TypeID("type/primitive/integer"), target)
 				assert.Zero(t, conflicts)
 				var found []string
-				for _, d := range diags {
-					if d.Severity == ir.SeverityWarning {
-						found = append(found, d.Code)
+				for _, diagnostic := range diags {
+					if diagnostic.Severity == ir.SeverityWarning {
+						found = append(found, diagnostic.Code)
 					}
 				}
 				assert.Equal(t, []string{"openapi/validation/validation-type-mismatch"}, found,

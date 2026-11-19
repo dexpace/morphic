@@ -102,15 +102,15 @@ func compileRecursiveRef(t *testing.T, file, body string) (*ir.Document, []ir.Di
 // what became of it: the target it expanded to, or "kept" with the reason.
 func recursiveRefsOf(diags []ir.Diagnostic) map[string]string {
 	out := map[string]string{}
-	for _, d := range diags {
-		at, ok := strings.CutSuffix(string(d.Provenance.Pointer), "/$recursiveRef")
+	for _, diagnostic := range diags {
+		at, ok := strings.CutSuffix(string(diagnostic.Provenance.Pointer), "/$recursiveRef")
 		switch {
 		case !ok:
-		case d.Code == diag.DynamicRefExpanded:
-			target, _, _ := strings.Cut(strings.TrimPrefix(d.Message, `$recursiveRef expanded to "`), `"`)
+		case diagnostic.Code == diag.DynamicRefExpanded:
+			target, _, _ := strings.Cut(strings.TrimPrefix(diagnostic.Message, `$recursiveRef expanded to "`), `"`)
 			out[at] = target
-		case d.Code == diag.DegradedConstruct:
-			out[at] = "kept: " + d.Message
+		case diagnostic.Code == diag.DegradedConstruct:
+			out[at] = "kept: " + diagnostic.Message
 		}
 	}
 	return out
@@ -228,10 +228,10 @@ func TestOlderDrafts_ARecursiveRefReadsAsItsDynamicTwin(t *testing.T) {
 			_, dynamic := compileRecursiveRef(t, file, dynamicTwin(t, recursiveRefGroups[group], target))
 			expanded := func(diags []ir.Diagnostic, keyword string) []string {
 				var out []string
-				for _, d := range diags {
-					if d.Code == diag.DynamicRefExpanded {
-						at, _ := strings.CutSuffix(string(d.Provenance.Pointer), "/"+keyword)
-						target, _, _ := strings.Cut(strings.TrimPrefix(d.Message, keyword+` expanded to "`), `"`)
+				for _, diagnostic := range diags {
+					if diagnostic.Code == diag.DynamicRefExpanded {
+						at, _ := strings.CutSuffix(string(diagnostic.Provenance.Pointer), "/"+keyword)
+						target, _, _ := strings.Cut(strings.TrimPrefix(diagnostic.Message, keyword+` expanded to "`), `"`)
 						out = append(out, at+" "+target)
 					}
 				}

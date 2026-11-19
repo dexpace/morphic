@@ -204,8 +204,8 @@ func TestElection_TwoUnionsBesideABodyDistributeTheOneOf(t *testing.T) {
 			require.True(t, ok, "the oneOf distributes")
 			assert.True(t, union.Exclusive)
 			require.Len(t, union.Variants, 2)
-			for _, v := range union.Variants {
-				variant := kindNode(t, doc, v.Type.Target)
+			for _, irVariant := range union.Variants {
+				variant := kindNode(t, doc, irVariant.Type.Target)
 				assert.Equal(t, ir.KindModel, variant.Kind())
 				assert.Equal(t, degradedKept("openapi:anyOf"), keptOn(variant), "the anyOf, written first, on each variant")
 			}
@@ -291,8 +291,8 @@ func electedUnion(doc *ir.Document, name string) *ir.Union {
 // variantTargets lists the types a union's variants name, in order.
 func variantTargets(union *ir.Union) []ir.TypeID {
 	targets := make([]ir.TypeID, 0, len(union.Variants))
-	for _, v := range union.Variants {
-		targets = append(targets, v.Type.Target)
+	for _, variant := range union.Variants {
+		targets = append(targets, variant.Type.Target)
 	}
 	return targets
 }

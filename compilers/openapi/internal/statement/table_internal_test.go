@@ -18,20 +18,20 @@ import (
 // key it lacks.
 func TestReference_AReferenceNoKeyNamesIsReadFromItsText(t *testing.T) {
 	t.Parallel()
-	s := &Schema{
+	schema := &Schema{
 		Ref:  &Reference{Keyword: "$ref", Text: "#/components/schemas/T"},
 		Keys: []Key{{Name: "description", Node: &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "d"}}},
 	}
-	_, named := refKey(s)
+	_, named := refKey(schema)
 	require.False(t, named)
-	assert.True(t, conjoins(s), "the description is beside the reference wherever it was merged from")
+	assert.True(t, conjoins(schema), "the description is beside the reference wherever it was merged from")
 	table := NewTable(Source{})
-	var r *Schema
-	require.NotPanics(t, func() { r = table.reference(s) })
-	assert.Empty(t, r.Keys)
-	assert.Same(t, s.Ref, r.Ref)
-	require.Len(t, r.Node.Content, 2)
-	assert.Equal(t, "$ref", r.Node.Content[0].Value)
-	assert.Equal(t, "#/components/schemas/T", r.Node.Content[1].Value)
-	assert.Same(t, r, table.reference(s), "read once")
+	var schemaValue *Schema
+	require.NotPanics(t, func() { schemaValue = table.reference(schema) })
+	assert.Empty(t, schemaValue.Keys)
+	assert.Same(t, schema.Ref, schemaValue.Ref)
+	require.Len(t, schemaValue.Node.Content, 2)
+	assert.Equal(t, "$ref", schemaValue.Node.Content[0].Value)
+	assert.Equal(t, "#/components/schemas/T", schemaValue.Node.Content[1].Value)
+	assert.Same(t, schemaValue, table.reference(schema), "read once")
 }

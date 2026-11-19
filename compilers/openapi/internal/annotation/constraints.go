@@ -45,7 +45,7 @@ const (
 	AllBounds = NumberBounds | StringBounds | ObjectBounds
 )
 
-// Constraints reads the value constraints of the groups take names that s
+// Constraints reads the value constraints of the groups take names that schema
 // writes, nil when none is, and nothing of a group not taken. Numeric bounds
 // come from the raw YAML nodes, never the *float64 model fields. A literal no
 // BigVal holds, an exclusive bound in the other form than exclusiveBoolean
@@ -53,42 +53,42 @@ const (
 // table's check to report (docs/compilers/openapi.md#constraints) or the caller
 // to keep. The second return holds a 3.0 exclusive modifier with no bound
 // beside it (applyExclusiveFlag), placed by pointer and doc.
-func Constraints(s *statement.Schema, take Bounds, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
-	if s == nil || s.Truth != statement.Stated {
+func Constraints(schema *statement.Schema, take Bounds, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
+	if schema == nil || schema.Truth != statement.Stated {
 		return nil, nil, nil
 	}
-	c := &ir.Constraints{}
+	constraints := &ir.Constraints{}
 	residue := boundResidue{pointer: pointer, doc: doc}
 	var diags []ir.Diagnostic
 	if take&NumberBounds != 0 {
-		numericBounds(c, s)
-		diags = applyExclusive(c, s, minBound, &residue, exclusiveBoolean)
-		diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
+		numericBounds(constraints, schema)
+		diags = applyExclusive(constraints, schema, minBound, &residue, exclusiveBoolean)
+		diags = append(diags, applyExclusive(constraints, schema, maxBound, &residue, exclusiveBoolean)...)
 	}
-	if take&StringBounds != 0 && s.Text != nil {
-		c.MinLength = ExactCount(s, "minLength", s.Text.MinLength)
-		c.MaxLength = ExactCount(s, "maxLength", s.Text.MaxLength)
-		c.Pattern = s.Text.Pattern
+	if take&StringBounds != 0 && schema.Text != nil {
+		constraints.MinLength = ExactCount(schema, "minLength", schema.Text.MinLength)
+		constraints.MaxLength = ExactCount(schema, "maxLength", schema.Text.MaxLength)
+		constraints.Pattern = schema.Text.Pattern
 	}
-	if take&ObjectBounds != 0 && s.Object != nil {
-		c.MinProperties = ExactCount(s, "minProperties", s.Object.MinProperties)
-		c.MaxProperties = ExactCount(s, "maxProperties", s.Object.MaxProperties)
+	if take&ObjectBounds != 0 && schema.Object != nil {
+		constraints.MinProperties = ExactCount(schema, "minProperties", schema.Object.MinProperties)
+		constraints.MaxProperties = ExactCount(schema, "maxProperties", schema.Object.MaxProperties)
 	}
-	if emptyConstraints(c) {
+	if emptyConstraints(constraints) {
 		return nil, residue.kept, diags
 	}
-	return c, residue.kept, diags
+	return constraints, residue.kept, diags
 }
 
-// ExactCount returns the count the integer keyword s writes states, where the
+// ExactCount returns the count the integer keyword schema writes states, where the
 // parser's model holds one, count, and nil where the literal states no count:
 // no number, or none that is a non-negative integer within int64. The count is the literal's, read as
 // YAML 1.2's core schema reads it (value.NumericLiteral,
 // docs/parser-library.md#scalar-resolution), never the model's,
 // which reads 010 as 8, holds an integer past int64 as 0 and cuts a fraction to
 // an integer. A negative one is the load phase's to report.
-func ExactCount(s *statement.Schema, keyword string, count *int64) *int64 {
-	node := keyNode(s, keyword)
+func ExactCount(schema *statement.Schema, keyword string, count *int64) *int64 {
+	node := keyNode(schema, keyword)
 	if count == nil || node == nil || (node.ShortTag() != "!!int" && node.ShortTag() != "!!float") {
 		return nil
 	}
@@ -113,10 +113,10 @@ func ExactCount(s *statement.Schema, keyword string, count *int64) *int64 {
 	return &v
 }
 
-// CountIsExact reports whether the integer keyword s writes states a count,
+// CountIsExact reports whether the integer keyword schema writes states a count,
 // the parser's model holding one, count (ExactCount).
-func CountIsExact(s *statement.Schema, keyword string, count *int64) bool {
-	return ExactCount(s, keyword, count) != nil
+func CountIsExact(schema *statement.Schema, keyword string, count *int64) bool {
+	return ExactCount(schema, keyword, count) != nil
 }
 
 // boundResidue is where a schema's bounds were written, and what became of a
@@ -150,22 +150,22 @@ func (b *boundResidue) keepUnmodifiable(inclProp, exclProp string) ir.Diagnostic
 // numericBounds fills Min, Max, and MultipleOf from the raw minimum/maximum/
 // multipleOf nodes, preserving exact decimal text, and skips one no decimal
 // spells.
-func numericBounds(c *ir.Constraints, s *statement.Schema) {
+func numericBounds(constraints *ir.Constraints, schema *statement.Schema) {
 	bounds := []struct {
 		prop string
 		dst  **ir.BigVal
 	}{
-		{"minimum", &c.Min},
-		{"maximum", &c.Max},
-		{"multipleOf", &c.MultipleOf},
+		{"minimum", &constraints.Min},
+		{"maximum", &constraints.Max},
+		{"multipleOf", &constraints.MultipleOf},
 	}
 	for _, b := range bounds {
-		node := keyNode(s, b.prop)
+		node := keyNode(schema, b.prop)
 		if node == nil {
 			continue
 		}
-		if v, err := value.NumericLiteral(node); err == nil {
-			*b.dst = &v
+		if bigVal, err := value.NumericLiteral(node); err == nil {
+			*b.dst = &bigVal
 		}
 	}
 }
@@ -178,10 +178,10 @@ func numericBounds(c *ir.Constraints, s *statement.Schema) {
 // exclusiveBoolean is true for 3.0's dialect and draft 4's. A value in the
 // wrong form for the dialect, or a literal no decimal spells, is dropped, and
 // the rule table's check reports it (Constraints).
-func applyExclusive(c *ir.Constraints, s *statement.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
-	form := exclusiveForm(s, side)
+func applyExclusive(constraints *ir.Constraints, schema *statement.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
+	form := exclusiveForm(schema, side)
 	_, prop := boundProps(side)
-	node := keyNode(s, prop)
+	node := keyNode(schema, prop)
 	if form == statement.NoExclusive || node == nil {
 		return nil
 	}
@@ -190,24 +190,24 @@ func applyExclusive(c *ir.Constraints, s *statement.Schema, side boundSide, resi
 		return nil
 	}
 	if flag {
-		return applyExclusiveFlag(c, s, side, residue, form == statement.ExclusiveTrue)
+		return applyExclusiveFlag(constraints, schema, side, residue, form == statement.ExclusiveTrue)
 	}
-	if v, err := value.NumericLiteral(node); err == nil {
-		setExclusiveBound(c, side, &v)
+	if bigVal, err := value.NumericLiteral(node); err == nil {
+		setExclusiveBound(constraints, side, &bigVal)
 	}
 	return nil
 }
 
-// exclusiveForm returns the arm s's exclusive bound on side was read as, none
-// for a nil s.
-func exclusiveForm(s *statement.Schema, side boundSide) statement.Exclusive {
-	if s == nil || s.Number == nil {
+// exclusiveForm returns the arm schema's exclusive bound on side was read as, none
+// for a nil schema.
+func exclusiveForm(schema *statement.Schema, side boundSide) statement.Exclusive {
+	if schema == nil || schema.Number == nil {
 		return statement.NoExclusive
 	}
 	if side == minBound {
-		return s.Number.ExclusiveMinimumForm
+		return schema.Number.ExclusiveMinimumForm
 	}
-	return s.Number.ExclusiveMaximumForm
+	return schema.Number.ExclusiveMaximumForm
 }
 
 // applyExclusiveFlag reads the 3.0 boolean arm, where exclusiveMinimum modifies
@@ -221,19 +221,19 @@ func exclusiveForm(s *statement.Schema, side boundSide) statement.Exclusive {
 // Absence is read off the raw node, because the parsed slot is also nil for a
 // bound numericBounds could not read. That bound has drawn its own error, and
 // its modifier is dropped silently.
-func applyExclusiveFlag(c *ir.Constraints, s *statement.Schema, side boundSide, residue *boundResidue, flag bool) []ir.Diagnostic {
+func applyExclusiveFlag(constraints *ir.Constraints, schema *statement.Schema, side boundSide, residue *boundResidue, flag bool) []ir.Diagnostic {
 	if !flag {
 		return nil
 	}
 	inclProp, exclProp := boundProps(side)
-	if keyNode(s, inclProp) == nil {
+	if keyNode(schema, inclProp) == nil {
 		return []ir.Diagnostic{residue.keepUnmodifiable(inclProp, exclProp)}
 	}
-	incl := inclusiveBound(c, side)
+	incl := inclusiveBound(constraints, side)
 	if *incl == nil {
 		return nil
 	}
-	setExclusiveBound(c, side, *incl)
+	setExclusiveBound(constraints, side, *incl)
 	*incl = nil
 	return nil
 }
@@ -246,13 +246,13 @@ func boundProps(side boundSide) (inclProp, exclProp string) {
 	return "maximum", "exclusiveMaximum"
 }
 
-// inclusiveBound addresses the Min or Max slot of c, so that a caller reading
+// inclusiveBound addresses the Min or Max slot of constraints, so that a caller reading
 // one side can both read and clear it without repeating the side branch.
-func inclusiveBound(c *ir.Constraints, side boundSide) **ir.BigVal {
+func inclusiveBound(constraints *ir.Constraints, side boundSide) **ir.BigVal {
 	if side == minBound {
-		return &c.Min
+		return &constraints.Min
 	}
-	return &c.Max
+	return &constraints.Max
 }
 
 // unmodifiableExclusiveDiag reports a 3.0 exclusive-bound modifier written
@@ -273,22 +273,22 @@ func unmodifiableExclusiveDiag(inclProp, exclProp string) ir.Diagnostic {
 // are declared, and overwriting one with the other published a bound the source
 // never wrote (GitHub #33) and hid a change to the overwritten one (GitHub
 // #425).
-func setExclusiveBound(c *ir.Constraints, side boundSide, v *ir.BigVal) {
+func setExclusiveBound(constraints *ir.Constraints, side boundSide, bigVal *ir.BigVal) {
 	if side == minBound {
-		c.ExclusiveMin = v
+		constraints.ExclusiveMin = bigVal
 		return
 	}
-	c.ExclusiveMax = v
+	constraints.ExclusiveMax = bigVal
 }
 
-// emptyConstraints reports whether c carries no scalar constraint set by
+// emptyConstraints reports whether constraints carries no scalar constraint set by
 // Constraints (collection bounds are not read here). Every scalar field that
 // Constraints populates must appear in this check; a
 // missing field silently leaks a non-nil *Constraints when it should be nil.
-func emptyConstraints(c *ir.Constraints) bool {
-	return c.Min == nil && c.Max == nil && c.ExclusiveMin == nil && c.ExclusiveMax == nil &&
-		c.MultipleOf == nil && c.Precision == nil && c.Scale == nil &&
-		c.MinLength == nil && c.MaxLength == nil &&
-		c.Pattern == "" && c.PatternMessage == "" &&
-		c.MinProperties == nil && c.MaxProperties == nil
+func emptyConstraints(constraints *ir.Constraints) bool {
+	return constraints.Min == nil && constraints.Max == nil && constraints.ExclusiveMin == nil && constraints.ExclusiveMax == nil &&
+		constraints.MultipleOf == nil && constraints.Precision == nil && constraints.Scale == nil &&
+		constraints.MinLength == nil && constraints.MaxLength == nil &&
+		constraints.Pattern == "" && constraints.PatternMessage == "" &&
+		constraints.MinProperties == nil && constraints.MaxProperties == nil
 }

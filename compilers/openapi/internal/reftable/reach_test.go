@@ -280,15 +280,15 @@ func TestBind_AReferenceToADynamicRefThatReadsAsARefEndsWhereItEnds(t *testing.T
 	pet := documentPointerAt("/components/schemas/Pet")
 
 	for site, keyword := range map[string]string{"ByPointer": "$dynamicRef", "ByAnchor": "$dynamicRef", "ByRef": "$ref"} {
-		e := entryAt(t, table, jsontext.Pointer("/components/schemas/"+site))
-		assert.Equal(t, keyword, e.Keyword, site)
-		assert.Equal(t, reftable.Resolved, e.Chain.Status, site)
-		assert.Equal(t, pet, e.Chain.End, site)
+		referenceSite := entryAt(t, table, jsontext.Pointer("/components/schemas/"+site))
+		assert.Equal(t, keyword, referenceSite.Keyword, site)
+		assert.Equal(t, reftable.Resolved, referenceSite.Chain.Status, site)
+		assert.Equal(t, pet, referenceSite.Chain.End, site)
 	}
-	s := entryAt(t, table, "/components/schemas/S")
-	assert.Equal(t, "$ref", s.Keyword)
-	assert.Equal(t, pet, s.Chain.End, "the chain of a $ref onto the static $dynamicRef runs through it")
-	assert.Equal(t, 2, s.Chain.Hops)
+	referenceSiteValue := entryAt(t, table, "/components/schemas/S")
+	assert.Equal(t, "$ref", referenceSiteValue.Keyword)
+	assert.Equal(t, pet, referenceSiteValue.Chain.End, "the chain of a $ref onto the static $dynamicRef runs through it")
+	assert.Equal(t, 2, referenceSiteValue.Chain.Hops)
 
 	// A truly dynamic reference is no entry.
 	dyn := bound(t, head+"components:\n  schemas:\n    Pet: {$dynamicAnchor: pet}\n    D: {$dynamicRef: '#pet'}\n", self)

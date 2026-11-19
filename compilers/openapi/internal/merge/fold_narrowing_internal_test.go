@@ -38,11 +38,11 @@ func TestFold_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 			t.Parallel()
 			var merged [2]ir.TypeRef
 			for i, order := range [][2]ir.PrimitiveKind{{tc.broad, tc.narrow}, {tc.narrow, tc.broad}} {
-				g, recorded := stubMerger(narrowingRegistry())
+				stubbed, recorded := stubMerger(narrowingRegistry())
 				dst := ir.Property{WireName: "x", Type: primRef(order[0])}
 				src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-				dst = foldTwo(g, dst, src, unread(t))
+				dst = foldTwo(stubbed, dst, src, unread(t))
 
 				assert.Equal(t, primRef(tc.narrow).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
 				assert.Empty(t, *recorded, "a refinement is not a conflict (order %d)", i)
@@ -61,11 +61,11 @@ func TestFold_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
 	t.Parallel()
 	var merged [2]ir.TypeRef
 	for i, order := range [][2]ir.PrimitiveKind{{ir.PrimitiveInt16, ir.PrimitiveUint8}, {ir.PrimitiveUint8, ir.PrimitiveInt16}} {
-		g, recorded := stubMerger(narrowingRegistry())
+		stubbed, recorded := stubMerger(narrowingRegistry())
 		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
 		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-		dst = foldTwo(g, dst, src, unread(t))
+		dst = foldTwo(stubbed, dst, src, unread(t))
 
 		assert.Equal(t, primRef(ir.PrimitiveUint8).Target, dst.Type.Target, "uint8 wins (order %d)", i)
 		assert.Empty(t, *recorded, "a containment is not a conflict (order %d)", i)
@@ -87,7 +87,7 @@ func TestFold_ANarrowingIntersectsNullability(t *testing.T) {
 				name := fmt.Sprintf("broadFirst=%v/broadNullable=%v/narrowNullable=%v", broadFirst, broadNull, narrowNull)
 				t.Run(name, func(t *testing.T) {
 					t.Parallel()
-					g, recorded := stubMerger(narrowingRegistry())
+					stubbed, recorded := stubMerger(narrowingRegistry())
 					broad := primRef(ir.PrimitiveNumber)
 					broad.Nullable = broadNull
 					narrow := primRef(ir.PrimitiveInteger)
@@ -96,12 +96,12 @@ func TestFold_ANarrowingIntersectsNullability(t *testing.T) {
 					if !broadFirst {
 						dst, src = narrow, broad
 					}
-					p := ir.Property{WireName: "x", Type: dst}
+					property := ir.Property{WireName: "x", Type: dst}
 
-					p = foldTwo(g, p, ir.Property{WireName: "x", Type: src, Provenance: ptrAt("/p")}, unread(t))
+					property = foldTwo(stubbed, property, ir.Property{WireName: "x", Type: src, Provenance: ptrAt("/p")}, unread(t))
 
-					assert.Equal(t, narrow.Target, p.Type.Target)
-					assert.Equal(t, broadNull && narrowNull, p.Type.Nullable,
+					assert.Equal(t, narrow.Target, property.Type.Target)
+					assert.Equal(t, broadNull && narrowNull, property.Type.Nullable,
 						"null is admitted only where both branches admit it")
 					assert.Empty(t, *recorded)
 				})
@@ -119,13 +119,13 @@ func TestFold_ADroppedTargetKeepsTheWinnersNullAdmission(t *testing.T) {
 	for _, firstNull := range []bool{true, false} {
 		t.Run(fmt.Sprintf("firstNullable=%v", firstNull), func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(narrowingRegistry())
+			stubbed, recorded := stubMerger(narrowingRegistry())
 			dst := ir.Property{WireName: "x", Type: primRef(ir.PrimitiveString)}
 			dst.Type.Nullable = firstNull
 			src := ir.Property{WireName: "x", Type: primRef(ir.PrimitiveInteger), Provenance: ptrAt("/allOf/1/properties/x")}
 			src.Type.Nullable = !firstNull
 
-			dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
+			dst = foldTwo(stubbed, dst, src, written(`{"type":"integer"}`))
 
 			assert.Equal(t, primRef(ir.PrimitiveInteger).Target, dst.Type.Target, "the later declaration keeps the shape")
 			assert.Equal(t, !firstNull, dst.Type.Nullable, "a dropped type takes its null admission with it")
@@ -143,7 +143,7 @@ func TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
 	for _, broadFirst := range []bool{true, false} {
 		t.Run(fmt.Sprintf("broadFirst=%v", broadFirst), func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(narrowingRegistry())
+			stubbed, recorded := stubMerger(narrowingRegistry())
 			broad := ir.Property{
 				WireName:    "x",
 				Type:        primRef(ir.PrimitiveNumber),
@@ -157,7 +157,7 @@ func TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
 				dst, src = narrow, broad
 			}
 
-			dst = foldTwo(g, dst, src, unread(t))
+			dst = foldTwo(stubbed, dst, src, unread(t))
 
 			assert.Equal(t, primRef(ir.PrimitiveInteger).Target, dst.Type.Target)
 			require.NotNil(t, dst.Constraints)
@@ -175,11 +175,11 @@ func TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
 func TestFold_ANarrowingIsNoDrop(t *testing.T) {
 	t.Parallel()
 	for i, order := range [][2]ir.PrimitiveKind{{ir.PrimitiveInteger, ir.PrimitiveNumber}, {ir.PrimitiveNumber, ir.PrimitiveInteger}} {
-		g, recorded := stubMerger(narrowingRegistry())
+		stubbed, recorded := stubMerger(narrowingRegistry())
 		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
 		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-		got := foldTwo(g, dst, src, unread(t))
+		got := foldTwo(stubbed, dst, src, unread(t))
 
 		assert.Equal(t, primRef(ir.PrimitiveInteger), got.Type, "the narrower target wins (order %d)", i)
 		assert.Empty(t, *recorded, "a narrowing draws no diagnostic (order %d)", i)
@@ -193,10 +193,10 @@ func TestFold_ANarrowingIsNoDrop(t *testing.T) {
 // type, whose null bit and marker say nothing, so the winner's stand alone.
 func TestFold_ANarrowingCarriesTheNullMarkers(t *testing.T) {
 	t.Parallel()
-	nullRef := func(k ir.PrimitiveKind, nullable bool, inferred ir.Inferred) ir.TypeRef {
-		r := primRef(k)
-		r.Nullable, r.Inferred = nullable, inferred
-		return r
+	nullRef := func(primitiveKind ir.PrimitiveKind, nullable bool, inferred ir.Inferred) ir.TypeRef {
+		typeRef := primRef(primitiveKind)
+		typeRef.Nullable, typeRef.Inferred = nullable, inferred
+		return typeRef
 	}
 	for _, tc := range []struct {
 		name           string
@@ -217,8 +217,8 @@ func TestFold_ANarrowingCarriesTheNullMarkers(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(narrowingRegistry())
-			got := foldTwo(g, ir.Property{WireName: "x", Type: tc.dst},
+			stubbed, recorded := stubMerger(narrowingRegistry())
+			got := foldTwo(stubbed, ir.Property{WireName: "x", Type: tc.dst},
 				ir.Property{WireName: "x", Type: tc.src, Provenance: ptrAt("/allOf/1/properties/x")}, unread(t))
 
 			assert.Equal(t, tc.want, got.Type)
@@ -237,11 +237,11 @@ func TestFold_AScalarOverANarrowerKindWins(t *testing.T) {
 		{ref("type/scalar-int"), primRef(ir.PrimitiveNumber)},
 		{primRef(ir.PrimitiveNumber), ref("type/scalar-int")},
 	} {
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 		dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
 		src := ir.Property{WireName: "x", Type: order[1], Provenance: ptrAt("/allOf/1/properties/x")}
 
-		dst = foldTwo(g, dst, src, unread(t))
+		dst = foldTwo(stubbed, dst, src, unread(t))
 
 		assert.Equal(t, ir.TypeID("type/scalar-int"), dst.Type.Target, "order %d", i)
 		assert.Empty(t, *recorded, "order %d", i)
@@ -255,18 +255,18 @@ func TestFold_AScalarOverANarrowerKindWins(t *testing.T) {
 // non-nullable.
 func TestFold_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.T) {
 	t.Parallel()
-	nullable := func(r ir.TypeRef) ir.TypeRef { r.Nullable = true; return r }
+	nullable := func(typeRef ir.TypeRef) ir.TypeRef { typeRef.Nullable = true; return typeRef }
 	for i, order := range [][2]ir.TypeRef{
 		{primRef(ir.PrimitiveAny), nullable(primRef(ir.PrimitiveInteger))},
 		{nullable(primRef(ir.PrimitiveInteger)), primRef(ir.PrimitiveAny)},
 		{ref("type/scalar-any-doc"), nullable(primRef(ir.PrimitiveInteger))},
 		{nullable(primRef(ir.PrimitiveInteger)), ref("type/scalar-any-doc")},
 	} {
-		g, recorded := stubMerger(judgeRegistry())
+		stubbed, recorded := stubMerger(judgeRegistry())
 		dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
 		src := ir.Property{WireName: "x", Type: order[1], Provenance: ptrAt("/allOf/1/properties/x")}
 
-		dst = foldTwo(g, dst, src, unread(t))
+		dst = foldTwo(stubbed, dst, src, unread(t))
 
 		assert.Equal(t, nullable(primRef(ir.PrimitiveInteger)), dst.Type, "nullable integer (order %d)", i)
 		assert.Empty(t, *recorded, "order %d", i)

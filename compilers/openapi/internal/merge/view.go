@@ -23,8 +23,8 @@ func (r registry) view(td ir.TypeDef, stop ir.TypeID) ir.TypeDef {
 	if len(chain) == 0 || keepsReference(end) {
 		return td
 	}
-	for _, s := range chain {
-		if s.Encoding != nil || keepsReference(s) {
+	for _, scalar := range chain {
+		if scalar.Encoding != nil || keepsReference(scalar) {
 			return td
 		}
 	}
@@ -32,8 +32,8 @@ func (r registry) view(td ir.TypeDef, stop ir.TypeID) ir.TypeDef {
 	if !ok {
 		return td
 	}
-	if v, ok := viewOf(end, chain, bounds); ok {
-		return v
+	if typeDef, ok := viewOf(end, chain, bounds); ok {
+		return typeDef
 	}
 	return td
 }
@@ -46,18 +46,18 @@ func (r registry) view(td ir.TypeDef, stop ir.TypeID) ir.TypeDef {
 func (r registry) aliasedNode(td ir.TypeDef, stop ir.TypeID) ([]*ir.Scalar, ir.TypeDef) {
 	var chain []*ir.Scalar
 	for range maxTypeResolveDepth + 1 {
-		s, alias := td.(*ir.Scalar)
-		if !alias || s.Base == nil || s.Base.Target == stop {
+		scalar, alias := td.(*ir.Scalar)
+		if !alias || scalar.Base == nil || scalar.Base.Target == stop {
 			return chain, td
 		}
-		next, ok := r.resolve(s.Base.Target)
+		next, ok := r.resolve(scalar.Base.Target)
 		if !ok {
 			return nil, td
 		}
 		if _, kind := next.(*ir.Primitive); kind {
 			return chain, td
 		}
-		chain, td = append(chain, s), next
+		chain, td = append(chain, scalar), next
 	}
 	return nil, td
 }
@@ -91,8 +91,8 @@ func (r registry) sharedLink(tds ...ir.TypeDef) ir.TypeID {
 func (r registry) links(td ir.TypeDef) []ir.TypeID {
 	chain, _ := r.aliasedNode(td, "")
 	ids := make([]ir.TypeID, len(chain))
-	for k, s := range chain {
-		ids[k] = s.Base.Target
+	for k, scalar := range chain {
+		ids[k] = scalar.Base.Target
 	}
 	return ids
 }
@@ -106,23 +106,23 @@ func (r registry) links(td ir.TypeDef) []ir.TypeID {
 // holds, so false is returned for any.
 func chainBounds(chain []*ir.Scalar, end ir.TypeDef) (*ir.Constraints, bool) {
 	bounds := boundsOf(end)
-	for _, s := range chain {
-		if sameBounds(s.Constraints, nil) {
+	for _, scalar := range chain {
+		if sameBounds(scalar.Constraints, nil) {
 			continue
 		}
-		if !Meets(bounds, s.Constraints) {
+		if !Meets(bounds, scalar.Constraints) {
 			return nil, false
 		}
 		var met ir.Constraints
-		bounds = Constraints(Constraints(&met, bounds), s.Constraints)
+		bounds = Constraints(Constraints(&met, bounds), scalar.Constraints)
 	}
 	switch n := end.(type) {
 	case *ir.Enum:
 		if !n.Closed && !sameBounds(bounds, nil) {
 			return nil, false
 		}
-		return nil, !slices.ContainsFunc(n.Members, func(m ir.EnumMember) bool {
-			return !admitsConstraints(bounds, m.Value, 0)
+		return nil, !slices.ContainsFunc(n.Members, func(enumMember ir.EnumMember) bool {
+			return !admitsConstraints(bounds, enumMember.Value, 0)
 		})
 	case *ir.Literal:
 		return nil, admitsConstraints(bounds, n.Value, 0)
@@ -137,30 +137,30 @@ func chainBounds(chain []*ir.Scalar, end ir.TypeDef) (*ir.Constraints, bool) {
 // nearest keeping it giving it. It holds the first alias's site but for the ID,
 // end's, beneath which an enum's members are named, and writes to no node.
 func chainCommon(chain []*ir.Scalar, end ir.TypeDef) ir.TypeCommon {
-	c := *end.Common()
-	id := c.ID
-	c.Unmodeled = maps.Clone(c.Unmodeled)
-	out := reflect.ValueOf(&c).Elem()
-	for _, s := range slices.Backward(chain) {
-		near := s.TypeCommon
-		kept, docs := c.Unmodeled, nearerDocs(c.Docs, near.Docs)
+	typeCommon := *end.Common()
+	id := typeCommon.ID
+	typeCommon.Unmodeled = maps.Clone(typeCommon.Unmodeled)
+	out := reflect.ValueOf(&typeCommon).Elem()
+	for _, scalar := range slices.Backward(chain) {
+		near := scalar.TypeCommon
+		kept, docs := typeCommon.Unmodeled, nearerDocs(typeCommon.Docs, near.Docs)
 		said := reflect.ValueOf(near)
 		for i := range out.NumField() {
 			if f := said.Field(i); !f.IsZero() {
 				out.Field(i).Set(f)
 			}
 		}
-		c.Unmodeled, c.Docs = kept, docs
+		typeCommon.Unmodeled, typeCommon.Docs = kept, docs
 		for key, entry := range near.Unmodeled {
-			if c.Unmodeled == nil {
-				c.Unmodeled = ir.Unmodeled{}
+			if typeCommon.Unmodeled == nil {
+				typeCommon.Unmodeled = ir.Unmodeled{}
 			}
-			c.Unmodeled[key] = entry
+			typeCommon.Unmodeled[key] = entry
 		}
 	}
 	site := chain[0].TypeCommon
-	c.ID, c.Name, c.Anonymous, c.Provenance = id, site.Name, site.Anonymous, site.Provenance
-	return c
+	typeCommon.ID, typeCommon.Name, typeCommon.Anonymous, typeCommon.Provenance = id, site.Name, site.Anonymous, site.Provenance
+	return typeCommon
 }
 
 // nearerDocs returns far with each field near sets in its place, a description
@@ -224,15 +224,15 @@ func viewOf(end ir.TypeDef, chain []*ir.Scalar, bounds *ir.Constraints) (ir.Type
 func (r registry) standsFor(td ir.TypeDef, id ir.TypeID) relation {
 	null, says := false, false
 	for range maxTypeResolveDepth {
-		s, alias := td.(*ir.Scalar)
-		if !alias || s.Base == nil {
+		scalar, alias := td.(*ir.Scalar)
+		if !alias || scalar.Base == nil {
 			return relUnrelated
 		}
-		null, says = null || s.Base.Nullable, says || !aliasAddsNothingBeyondBase(s, false)
-		if s.Base.Target == id {
+		null, says = null || scalar.Base.Nullable, says || !aliasAddsNothingBeyondBase(scalar, false)
+		if scalar.Base.Target == id {
 			return addsNull(null, says)
 		}
-		next, ok := r.resolve(s.Base.Target)
+		next, ok := r.resolve(scalar.Base.Target)
 		if !ok {
 			return relUnrelated
 		}
@@ -259,5 +259,5 @@ func addsNull(null, says bool) relation {
 // td's values hold null whatever a reference to it says.
 func (r registry) nullThroughChain(td ir.TypeDef) bool {
 	chain, _ := r.aliasChain(td)
-	return slices.ContainsFunc(chain, func(s *ir.Scalar) bool { return s.Base.Nullable })
+	return slices.ContainsFunc(chain, func(scalar *ir.Scalar) bool { return scalar.Base.Nullable })
 }

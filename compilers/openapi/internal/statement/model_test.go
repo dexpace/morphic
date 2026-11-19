@@ -86,7 +86,7 @@ func bools(ps ...*bool) []string {
 // only those define, and holds each typed field to what was written.
 func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 	t.Parallel()
-	table, c := tableOver(t, document("3.1.0",
+	table, loweringContext := tableOver(t, document("3.1.0",
 		`Kinds: {type: [string, "null"]}`,
 		`Values: {enum: [a, b], const: c}`,
 		`Format: {format: int32}`,
@@ -109,7 +109,7 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 		`Reference: {$ref: '#/components/schemas/Kinds'}`,
 	), rulesAt(t, "3.1.0", ""))
 	at := func(name string) *statement.Statement {
-		st := table.At(component(c, name))
+		st := table.At(component(loweringContext, name))
 		require.Equal(t, statement.Stated, st.Truth, name)
 		return st
 	}
@@ -159,7 +159,7 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 	assert.Equal(t, "a", object.Discriminator.PropertyName)
 	assert.Equal(t, []statement.MappingEntry{{Value: "x", Target: "#/components/schemas/Kinds"}},
 		object.Discriminator.Mapping)
-	want := component(c, "Object")
+	want := component(loweringContext, "Object")
 	want.Pointer += "/discriminator"
 	assert.Equal(t, want, object.Discriminator.At)
 	assert.Equal(t, yaml.MappingNode, object.Discriminator.Node.Kind)
@@ -203,7 +203,7 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 	require.NotNil(t, ref)
 	assert.Equal(t, "$ref", ref.Keyword)
 	assert.True(t, ref.Bound)
-	assert.Equal(t, component(c, "Kinds"), ref.Entry.Hop.Target)
+	assert.Equal(t, component(loweringContext, "Kinds"), ref.Entry.Hop.Target)
 
 	at30, c30 := tableOver(t, document("3.0.3", `Nullable: {type: string, nullable: true}`), rulesAt(t, "3.0.3", ""))
 	assert.Equal(t, []string{"true"}, bools(at30.At(component(c30, "Nullable")).Kinds.Nullable))
@@ -245,12 +245,12 @@ func TestRead_AKeyTheDialectDoesNotDefineIsUnknown(t *testing.T) {
 			return st.Array != nil && len(st.Array.PrefixItems) == 1
 		}},
 	} {
-		table, c := tableOver(t, document(tc.version, "A: {"+tc.key+": "+tc.value+"}"), rulesAt(t, tc.version, ""))
-		st := table.At(component(c, "A"))
-		k, read := st.Key(tc.key)
+		table, loweringContext := tableOver(t, document(tc.version, "A: {"+tc.key+": "+tc.value+"}"), rulesAt(t, tc.version, ""))
+		st := table.At(component(loweringContext, "A"))
+		key, read := st.Key(tc.key)
 		require.True(t, read, tc.key)
-		assert.Equal(t, tc.slot, k.Slot, tc.key)
-		assert.Equal(t, tc.later, k.DefinedOnlyInLaterMinor, tc.key)
+		assert.Equal(t, tc.slot, key.Slot, tc.key)
+		assert.Equal(t, tc.later, key.DefinedOnlyInLaterMinor, tc.key)
 		assert.True(t, tc.read(st), "%s: what the slots hold", tc.key)
 	}
 }
@@ -264,17 +264,17 @@ func TestRead_ANullKeywordIsWrittenAndLeftOut(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile(filepath.Join(irtest.RepoRoot(t), "testdata", "conformance", "openapi", "null-keywords.yaml"))
 	require.NoError(t, err)
-	table, c := tableOver(t, string(src), rulesAt(t, "3.1.0", ""))
+	table, loweringContext := tableOver(t, string(src), rulesAt(t, "3.1.0", ""))
 	at := func(pointer string) *statement.Statement {
-		st := table.At(c.Position(jsontext.Pointer(pointer)))
+		st := table.At(loweringContext.Position(jsontext.Pointer(pointer)))
 		require.Equal(t, statement.Stated, st.Truth, pointer)
 		return st
 	}
 	leftOut := func(st *statement.Statement, key string) {
 		t.Helper()
-		k, read := st.Key(key)
+		keyValue, read := st.Key(key)
 		assert.False(t, read, key)
-		assert.True(t, k.Null, key)
+		assert.True(t, keyValue.Null, key)
 	}
 
 	described := at("/components/schemas/Described")
@@ -303,9 +303,9 @@ func TestRead_ANullKeywordIsWrittenAndLeftOut(t *testing.T) {
 	assert.Nil(t, identified.Notes.ReadOnly)
 
 	constant := at("/components/schemas/Values/properties/c")
-	k, read := constant.Key("const")
+	otherKey, read := constant.Key("const")
 	assert.True(t, read, "a null const is the instance it holds")
-	assert.True(t, k.Null)
+	assert.True(t, otherKey.Null)
 	require.NotNil(t, constant.Values)
 }
 
@@ -330,42 +330,42 @@ func TestRead_AKeywordMergedPastTheBoundHasNoKeyAndNoValue(t *testing.T) {
 	last := nodeview.MergeDepthLimit
 	fmt.Fprintf(&spec, "components:\n  schemas:\n    P: {<<: *c%d, title: P}\n    L: {<<: [*c%d, *s]}\n"+
 		"    N: {<<: {<<: [*c%d, *s]}}\n    W: {<<: *c%d}\n    R: {<<: [*c%d, *c1]}\n", last, last, last-1, last-1, last)
-	table, c := tableOver(t, spec.String(), rulesAt(t, "3.1.0", ""))
-	p := table.At(component(c, "P"))
-	require.Equal(t, statement.Stated, p.Truth)
-	assert.True(t, p.Truncated)
+	table, loweringContext := tableOver(t, spec.String(), rulesAt(t, "3.1.0", ""))
+	schemaStatement := table.At(component(loweringContext, "P"))
+	require.Equal(t, statement.Stated, schemaStatement.Truth)
+	assert.True(t, schemaStatement.Truncated)
 
-	names := make([]string, len(p.Keys))
-	for i, k := range p.Keys {
-		names[i] = k.Name
+	names := make([]string, len(schemaStatement.Keys))
+	for i, key := range schemaStatement.Keys {
+		names[i] = key.Name
 	}
 	assert.Equal(t, []string{"title"}, names, "the raw mapping lists nothing past the bound")
-	assert.NotNil(t, c.Bindings().At(component(c, "P")).GetSchema().Discriminator, "though the model holds it")
-	assert.Equal(t, []string{"foo"}, p.Unknown, "the model's list names a key it holds no field for")
-	assert.Nil(t, p.AllOf)
-	assert.Nil(t, p.Entries)
-	for name, slot := range map[string]bool{"Kinds": p.Kinds == nil, "Values": p.Values == nil, "Format": p.Format == nil,
-		"Number": p.Number == nil, "Text": p.Text == nil, "Array": p.Array == nil, "Object": p.Object == nil,
-		"Choice": p.Choice == nil, "Logic": p.Logic == nil} {
+	assert.NotNil(t, loweringContext.Bindings().At(component(loweringContext, "P")).GetSchema().Discriminator, "though the model holds it")
+	assert.Equal(t, []string{"foo"}, schemaStatement.Unknown, "the model's list names a key it holds no field for")
+	assert.Nil(t, schemaStatement.AllOf)
+	assert.Nil(t, schemaStatement.Entries)
+	for name, slot := range map[string]bool{"Kinds": schemaStatement.Kinds == nil, "Values": schemaStatement.Values == nil, "Format": schemaStatement.Format == nil,
+		"Number": schemaStatement.Number == nil, "Text": schemaStatement.Text == nil, "Array": schemaStatement.Array == nil, "Object": schemaStatement.Object == nil,
+		"Choice": schemaStatement.Choice == nil, "Logic": schemaStatement.Logic == nil} {
 		assert.True(t, slot, "%s holds nothing merged past the bound", name)
 	}
-	require.NotNil(t, p.Notes)
-	assert.Equal(t, []string{"P", ""}, []string{p.Notes.Title, p.Notes.Description})
-	_, found := p.Property("x")
+	require.NotNil(t, schemaStatement.Notes)
+	assert.Equal(t, []string{"P", ""}, []string{schemaStatement.Notes.Title, schemaStatement.Notes.Description})
+	_, found := schemaStatement.Property("x")
 	assert.False(t, found, "a property merged past the bound is no property")
 
 	for _, name := range []string{"L", "N"} {
-		s := table.At(component(c, name))
-		assert.True(t, s.Truncated, name)
-		require.NotNil(t, s.Notes, name)
-		assert.Equal(t, "S", s.Notes.Title, "%s: a source within the bound is read", name)
-		assert.Nil(t, s.Kinds, name)
+		schemaStatementValue := table.At(component(loweringContext, name))
+		assert.True(t, schemaStatementValue.Truncated, name)
+		require.NotNil(t, schemaStatementValue.Notes, name)
+		assert.Equal(t, "S", schemaStatementValue.Notes.Title, "%s: a source within the bound is read", name)
+		assert.Nil(t, schemaStatementValue.Kinds, name)
 	}
-	twice := table.At(component(c, "R"))
+	twice := table.At(component(loweringContext, "R"))
 	assert.True(t, twice.Truncated, "one path to the anchor runs past the bound")
 	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindObject}, twice.Kinds.Types, "the other reads it within")
 	assert.Equal(t, []int64{1, 2}, int64s(twice.Text.MinLength, twice.Array.MinItems))
-	within := table.At(component(c, "W"))
+	within := table.At(component(loweringContext, "W"))
 	assert.False(t, within.Truncated)
 	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindObject}, within.Kinds.Types)
 	assert.Equal(t, []int64{1, 2}, int64s(within.Text.MinLength, within.Array.MinItems))
@@ -380,7 +380,7 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	t.Parallel()
 	const draft07 = "http://json-schema.org/draft-07/schema#"
 	chain := strings.Repeat("{type: array, items: ", typed.MaxMends+2) + "[{}]" + strings.Repeat("}", typed.MaxMends+2)
-	table, c := tableOver(t, "jsonSchemaDialect: '"+draft07+"'\n"+document("3.1.0",
+	table, loweringContext := tableOver(t, "jsonSchemaDialect: '"+draft07+"'\n"+document("3.1.0",
 		`Truths: {allOf: [true, false], properties: {none: null}}`,
 		`Empty: {properties: {}, $comment: c, x-a: 1}`,
 		`Nulls: {nullable: null, format: null, maxLength: null, anyOf: null}`,
@@ -389,7 +389,7 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 		"Chain: "+chain,
 	), rulesAt(t, "3.1.0", draft07))
 
-	truths := table.At(component(c, "Truths"))
+	truths := table.At(component(loweringContext, "Truths"))
 	require.Len(t, truths.AllOf, 2)
 	assert.Equal(t, statement.Anything, table.Subschema(truths.AllOf[0]).Truth)
 	assert.Equal(t, statement.Nothing, table.Subschema(truths.AllOf[1]).Truth)
@@ -398,20 +398,20 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	assert.Empty(t, none.Keys)
 	assert.Equal(t, yaml.ScalarNode, none.Node.Kind)
 
-	past := c.Position(jsontext.Pointer("/components/schemas/Chain" + strings.Repeat("/items", typed.MaxMends+1)))
+	past := loweringContext.Position(jsontext.Pointer("/components/schemas/Chain" + strings.Repeat("/items", typed.MaxMends+1)))
 	unread := table.At(past)
 	assert.Equal(t, statement.Unread, unread.Truth)
 	assert.Empty(t, unread.Keys)
 	assert.Equal(t, yaml.MappingNode, unread.Node.Kind)
 
-	absent := table.At(component(c, "Nothing"))
+	absent := table.At(component(loweringContext, "Nothing"))
 	assert.Equal(t, statement.Unwritten, absent.Truth)
 	assert.Equal(t, reftable.DocumentPointer{}, absent.At)
 	assert.Same(t, absent, table.Read(nil))
 
-	empty := table.At(component(c, "Empty"))
+	empty := table.At(component(loweringContext, "Empty"))
 	assert.Nil(t, empty.Object.Properties)
-	nulls := table.At(component(c, "Nulls"))
+	nulls := table.At(component(loweringContext, "Nulls"))
 	require.NotNil(t, nulls.Kinds, "a key the model holds nothing for opens its slot")
 	assert.Nil(t, nulls.Kinds.Nullable)
 	require.NotNil(t, nulls.Format)
@@ -420,7 +420,7 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	assert.Nil(t, nulls.Text.MaxLength)
 	require.NotNil(t, nulls.Choice)
 	assert.Nil(t, nulls.Choice.AnyOf)
-	bare := table.At(component(c, "Bare"))
+	bare := table.At(component(loweringContext, "Bare"))
 	assert.Equal(t, statement.Stated, bare.Truth)
 	assert.Empty(t, bare.Keys)
 
@@ -443,7 +443,7 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	_, read = (*statement.Schema)(nil).Key("type")
 	assert.False(t, read, "a nil schema writes nothing")
 
-	js := c.Bindings().At(component(c, "Disc"))
+	js := loweringContext.Bindings().At(component(loweringContext, "Disc"))
 	unknown := statement.NewTable(statement.Source{Rules: everywhere(rulesAt(t, "3.1.0", ""))}).Of(js)
 	assert.Equal(t, reftable.DocumentPointer{}, unknown.At, "a value the bindings do not know has no position")
 	require.NotNil(t, unknown.Object.Discriminator)
@@ -451,9 +451,9 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	assert.Nil(t, unknown.Object.Discriminator.Mapping)
 	assert.Equal(t, reftable.DocumentPointer{}, unknown.Object.Discriminator.At, "nor has its discriminator")
 
-	unruled := statement.NewTable(statement.Source{Bindings: c.Bindings()}).Of(js)
-	k, _ := unruled.Key("discriminator")
-	assert.Equal(t, specrules.SlotUnknown, k.Slot, "no rows place a key")
+	unruled := statement.NewTable(statement.Source{Bindings: loweringContext.Bindings()}).Of(js)
+	key, _ := unruled.Key("discriminator")
+	assert.Equal(t, specrules.SlotUnknown, key.Slot, "no rows place a key")
 	require.NotNil(t, unruled.Object, "its value is read all the same")
 	assert.Equal(t, "a", unruled.Object.Discriminator.PropertyName)
 }
@@ -461,8 +461,8 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 // extensionNames returns the names list holds, in its order.
 func extensionNames(list []statement.Extension) []string {
 	out := make([]string, len(list))
-	for i, e := range list {
-		out[i] = e.Name
+	for i, extension := range list {
+		out[i] = extension.Name
 	}
 	return out
 }
@@ -484,24 +484,24 @@ func TestRead_ListsExtensionsAsTheModelHoldsThem(t *testing.T) {
 		nodeview.MergeDepthLimit, nodeview.MergeDepthLimit)
 	spec.WriteString("    O: {x-b: 1, x-a: 2, type: object, xml: {x-y: 1, x-w: 2}, discriminator: {propertyName: k, x-d: 1}, " +
 		"externalDocs: {url: 'https://d.example', x-e: 1}}\n")
-	table, c := tableOver(t, spec.String(), rulesAt(t, "3.1.0", ""))
+	table, loweringContext := tableOver(t, spec.String(), rulesAt(t, "3.1.0", ""))
 
-	p := table.At(component(c, "P"))
-	require.Equal(t, statement.Stated, p.Truth)
-	assert.Equal(t, []string{"x-a"}, extensionNames(p.Extensions), "the model's, past the bound")
-	_, read := p.Key("x-a")
+	schemaStatement := table.At(component(loweringContext, "P"))
+	require.Equal(t, statement.Stated, schemaStatement.Truth)
+	assert.Equal(t, []string{"x-a"}, extensionNames(schemaStatement.Extensions), "the model's, past the bound")
+	_, read := schemaStatement.Key("x-a")
 	assert.False(t, read, "the keys do not reach it")
-	require.NotNil(t, p.Notes.XML)
-	assert.Equal(t, []string{"x-x"}, extensionNames(p.Notes.XML.Extensions), "an xml object's, past the bound")
-	assert.Nil(t, nodeview.Child(p.Notes.XML.Node, "x-x"), "which its node does not reach")
+	require.NotNil(t, schemaStatement.Notes.XML)
+	assert.Equal(t, []string{"x-x"}, extensionNames(schemaStatement.Notes.XML.Extensions), "an xml object's, past the bound")
+	assert.Nil(t, nodeview.Child(schemaStatement.Notes.XML.Node, "x-x"), "which its node does not reach")
 
-	o := table.At(component(c, "O"))
-	assert.Equal(t, []string{"x-b", "x-a"}, extensionNames(o.Extensions), "in source order")
-	assert.Equal(t, "2", text(o.Extensions[1].Node))
-	assert.Equal(t, []string{"x-y", "x-w"}, extensionNames(o.Notes.XML.Extensions))
-	assert.Equal(t, []string{"x-d"}, extensionNames(o.Object.Discriminator.Extensions))
-	assert.Equal(t, []string{"x-e"}, extensionNames(o.Notes.ExternalDocs.Extensions))
-	assert.Nil(t, table.At(component(c, "Absent")).Extensions)
+	schemaStatementValue := table.At(component(loweringContext, "O"))
+	assert.Equal(t, []string{"x-b", "x-a"}, extensionNames(schemaStatementValue.Extensions), "in source order")
+	assert.Equal(t, "2", text(schemaStatementValue.Extensions[1].Node))
+	assert.Equal(t, []string{"x-y", "x-w"}, extensionNames(schemaStatementValue.Notes.XML.Extensions))
+	assert.Equal(t, []string{"x-d"}, extensionNames(schemaStatementValue.Object.Discriminator.Extensions))
+	assert.Equal(t, []string{"x-e"}, extensionNames(schemaStatementValue.Notes.ExternalDocs.Extensions))
+	assert.Nil(t, table.At(component(loweringContext, "Absent")).Extensions)
 }
 
 // TestSub_TruthTellsNoSchemaFromFalse pins what a value written where a schema
@@ -546,10 +546,10 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 	}
 	depth := typed.MaxMends + 2
 	chain := strings.Repeat("{type: array, items: ", depth) + "[{}]" + strings.Repeat("}", depth)
-	table, c := tableOver(t, openapitest.ComponentSpecVer("3.1.0",
+	table, loweringContext := tableOver(t, openapitest.ComponentSpecVer("3.1.0",
 		"    A:\n      properties:\n"+props.String()+"    Chain: "+chain+"\n"), rulesAt(t, "3.1.0", ""))
 
-	a := table.At(component(c, "A"))
+	a := table.At(component(loweringContext, "A"))
 	require.Len(t, a.Object.Properties, len(rows))
 	for i, row := range rows {
 		sub := a.Object.Properties[i]
@@ -559,10 +559,10 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 		assert.Equal(t, row.want == statement.Nothing, sub.SchemaValueForm().ReadsFalse(), "%s: read as false", row.name)
 		assert.True(t, table.Subschema(sub).Held(), "%s: the model holds a value, its statement says", row.name)
 	}
-	assert.False(t, table.At(component(c, "Absent")).Held(), "none is held where nothing is written")
+	assert.False(t, table.At(component(loweringContext, "Absent")).Held(), "none is held where nothing is written")
 	assert.False(t, (*statement.Schema)(nil).Held())
 
-	above := table.At(c.Position(jsontext.Pointer("/components/schemas/Chain" + strings.Repeat("/items", depth-2))))
+	above := table.At(loweringContext.Position(jsontext.Pointer("/components/schemas/Chain" + strings.Repeat("/items", depth-2))))
 	require.Equal(t, statement.Stated, above.Truth)
 	items := above.Array.Items
 	assert.Equal(t, statement.Unread, items.SchemaValueForm(), "a mapping read as a boolean")
@@ -582,7 +582,7 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 // naming a schema.
 func TestRead_AReferenceHoldsTheModelsText(t *testing.T) {
 	t.Parallel()
-	table, c := tableOver(t, document("3.1.0",
+	table, loweringContext := tableOver(t, document("3.1.0",
 		`E: {$ref: ''}`, `D: {$dynamicRef: '#a'}`, `R: {$ref: '#/components/schemas/E'}`,
 	), rulesAt(t, "3.1.0", ""))
 	for _, tc := range []struct {
@@ -593,7 +593,7 @@ func TestRead_AReferenceHoldsTheModelsText(t *testing.T) {
 		{"D", "$dynamicRef", "", annotation.Declaration},
 		{"R", "$ref", "#/components/schemas/E", annotation.Reference},
 	} {
-		st := table.At(component(c, tc.name))
+		st := table.At(component(loweringContext, tc.name))
 		require.NotNil(t, st.Ref, tc.name)
 		assert.Equal(t, tc.keyword, st.Ref.Keyword, tc.name)
 		assert.True(t, st.Ref.Bound, "%s: the bindings read it", tc.name)
@@ -612,14 +612,14 @@ func TestRead_AnExclusiveBoundHoldsTheArmTheModelRead(t *testing.T) {
 		`F: {type: number, minimum: 5, exclusiveMinimum: yes, maximum: 9, exclusiveMaximum: false}`,
 		`M: {type: number, minimum: 5}`,
 	), rulesAt(t, "3.0.3", ""))
-	f := flags.At(component(fc, "F"))
-	require.NotNil(t, f.Number)
-	assert.Equal(t, statement.ExclusiveTrue, f.Number.ExclusiveMinimumForm)
-	assert.Equal(t, statement.ExclusiveFalse, f.Number.ExclusiveMaximumForm)
-	assert.Equal(t, "5", text(f.Number.Minimum))
-	m := flags.At(component(fc, "M"))
-	require.NotNil(t, m.Number, "a key opens the slot")
-	assert.Equal(t, statement.NoExclusive, m.Number.ExclusiveMinimumForm)
+	schemaStatement := flags.At(component(fc, "F"))
+	require.NotNil(t, schemaStatement.Number)
+	assert.Equal(t, statement.ExclusiveTrue, schemaStatement.Number.ExclusiveMinimumForm)
+	assert.Equal(t, statement.ExclusiveFalse, schemaStatement.Number.ExclusiveMaximumForm)
+	assert.Equal(t, "5", text(schemaStatement.Number.Minimum))
+	schemaStatementValue := flags.At(component(fc, "M"))
+	require.NotNil(t, schemaStatementValue.Number, "a key opens the slot")
+	assert.Equal(t, statement.NoExclusive, schemaStatementValue.Number.ExclusiveMinimumForm)
 
 	bounds, bc := tableOver(t, document("3.1.0", `B: {exclusiveMinimum: 5}`), rulesAt(t, "3.1.0", ""))
 	b := bounds.At(component(bc, "B"))
@@ -648,30 +648,30 @@ func TestSchema_PropertyIsTheSubPropertiesLists(t *testing.T) {
 	for i := range 40 {
 		fmt.Fprintf(&props, ", p%d: {title: t%d}", i, i)
 	}
-	table, c := tableOver(t, document("3.1.0",
+	table, loweringContext := tableOver(t, document("3.1.0",
 		"W: {properties: {<<: {p7: {title: merged}}"+props.String()+"}}",
 		"B: true",
 	), rulesAt(t, "3.1.0", ""))
-	w := table.At(component(c, "W"))
-	require.Len(t, w.Object.Properties, 40)
-	for i, listed := range w.Object.Properties {
+	schemaStatement := table.At(component(loweringContext, "W"))
+	require.Len(t, schemaStatement.Object.Properties, 40)
+	for i, listed := range schemaStatement.Object.Properties {
 		name := fmt.Sprintf("p%d", i)
-		got, ok := w.Property(name)
+		got, ok := schemaStatement.Property(name)
 		require.True(t, ok, name)
 		assert.Equal(t, name, got.Name)
 		assert.Same(t, table.Subschema(listed), table.Subschema(got), "%s: the Sub the list holds", name)
 	}
-	p7, _ := w.Property("p7")
+	p7, _ := schemaStatement.Property("p7")
 	assert.Equal(t, "t7", table.Subschema(p7).Notes.Title, "a key written beside a merge is its own")
 
-	_, ok := w.Property("q")
+	_, ok := schemaStatement.Property("q")
 	assert.False(t, ok, "a name not written")
-	for name, s := range map[string]*statement.Schema{
-		"a boolean schema": table.At(component(c, "B")).Schema,
-		"no schema":        table.At(component(c, "Absent")).Schema,
+	for name, schema := range map[string]*statement.Schema{
+		"a boolean schema": table.At(component(loweringContext, "B")).Schema,
+		"no schema":        table.At(component(loweringContext, "Absent")).Schema,
 		"a nil schema":     nil,
 	} {
-		_, ok := s.Property("p0")
+		_, ok := schema.Property("p0")
 		assert.False(t, ok, name)
 	}
 }

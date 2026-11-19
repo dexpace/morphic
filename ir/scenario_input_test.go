@@ -149,7 +149,7 @@ func TestExample_ScenarioInput_TypeEdgesReadItInTheWalksOrder(t *testing.T) {
 		return ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: id, Member: "m"}}
 	}
 	body := ir.Value{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{Scalar: "type/x/C", Name: "now"}}
-	m := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "m", Canonical: "m"}, Examples: []ir.Example{{
+	model := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "m", Canonical: "m"}, Examples: []ir.Example{{
 		Name: "ex",
 		Input: &ir.ScenarioInput{
 			Params: map[ir.ParameterID]ir.Value{"parameter/b": ref("type/x/B"), "parameter/a": ref("type/x/A")},
@@ -157,10 +157,10 @@ func TestExample_ScenarioInput_TypeEdgesReadItInTheWalksOrder(t *testing.T) {
 		},
 	}}}
 
-	got := slices.Collect(ir.TypeEdges(m))
+	got := slices.Collect(ir.TypeEdges(model))
 
 	assert.Equal(t, []ir.TypeID{"type/x/A", "type/x/B", "type/x/C"}, got)
-	assert.Empty(t, edgeDiff(m), "TypeEdges must agree with the reflection walk")
+	assert.Empty(t, edgeDiff(model), "TypeEdges must agree with the reflection walk")
 }
 
 // TestExample_ScenarioInput_ParamsEncodeInKeyOrder pins that a scenario's

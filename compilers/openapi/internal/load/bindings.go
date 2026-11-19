@@ -42,10 +42,10 @@ type bound struct {
 // (docs/parser-library.md#reference-object-cycle,
 // docs/parser-library.md#trailing-empty-token,
 // docs/parser-library.md#duplicate-key). doc is the source's model, reader
-// reads other documents, or is nil, and d reads each dialect's rows
+// reads other documents, or is nil, and dialectsValue reads each dialect's rows
 // (dialectRuleOf).
 func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reader *external, refuse func(uri string) error,
-	d *dialects,
+	dialectsValue *dialects,
 ) *reftable.ReferenceTargetTable {
 	opened := map[string]*yaml.Node{}
 	cfg := reftable.Config{Self: self.path, Locate: self.locate, Map: self.mapTo, Refuse: refuse,
@@ -55,11 +55,11 @@ func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reade
 		Components:      slices.Collect(doc.Components.GetSchemas().Keys()),
 		SecuritySchemes: slices.Collect(doc.Components.GetSecuritySchemes().Keys()),
 		Dialect: func(name, dialect string) reftable.DialectRule {
-			_, _, rows := d.of(declaredIn(doc, opened, self, name), dialect)
+			_, _, rows := dialectsValue.of(declaredIn(doc, opened, self, name), dialect)
 			return dialectRuleOf(rows.Schema, dialect)
 		},
 		KeysByURI: func(name string) bool {
-			_, _, rows := d.of(declaredIn(doc, opened, self, name), "")
+			_, _, rows := dialectsValue.of(declaredIn(doc, opened, self, name), "")
 			return rows.Security.NamesByURI()
 		}}
 	if reader != nil {
@@ -108,8 +108,8 @@ func indexWalk(bd *typed.Builder, items iter.Seq[soa.WalkItem], base reftable.Do
 				if kind, ok := refKindOf(model); ok {
 					bd.Object(model, kind, at)
 				}
-				if f, ok := model.(mediaFault); ok {
-					faults.note(at, f)
+				if mediaFaultValue, ok := model.(mediaFault); ok {
+					faults.note(at, mediaFaultValue)
 				}
 				return nil
 			},
@@ -128,21 +128,23 @@ type placedFault struct {
 	err error
 }
 
-// note records f at at, unless a walk met its mapping before.
-func (m mediaFaults) note(at reftable.DocumentPointer, f mediaFault) {
-	if _, met := m[f.node]; !met {
-		m[f.node] = placedFault{at: at, err: f.err}
+// note records mediaFaultValue at at, unless a walk met its mapping before.
+func (m mediaFaults) note(at reftable.DocumentPointer, mediaFaultValue mediaFault) {
+	if _, met := m[mediaFaultValue.node]; !met {
+		m[mediaFaultValue.node] = placedFault{at: at, err: mediaFaultValue.err}
 	}
 }
 
 // diags reports each fault once, where it was first met, in order of position.
 func (m mediaFaults) diags(sites places, table *reftable.ReferenceTargetTable) []ir.Diagnostic {
 	order := reftable.PositionOrder(table)
-	faults := slices.SortedFunc(maps.Values(m), func(x, y placedFault) int { return order(x.at, y.at) })
+	faults := slices.SortedFunc(maps.Values(m), func(placedFaultValue, otherPlacedFault placedFault) int {
+		return order(placedFaultValue.at, otherPlacedFault.at)
+	})
 	diags := make([]ir.Diagnostic, 0, len(faults))
-	for _, f := range faults {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, sites.position(f.at),
-			"this media type's $ref could not be read: %s", f.err.Error()))
+	for _, placedFault := range faults {
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, sites.position(placedFault.at),
+			"this media type's $ref could not be read: %s", placedFault.err.Error()))
 	}
 	return diags
 }
@@ -194,24 +196,24 @@ func (s sourceDocument) nameOf(name string) string {
 // bound, if either stopped the reading.
 func bindingDiags(sites places, table *reftable.ReferenceTargetTable) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, r := range table.References() {
+	for _, reference := range table.References() {
 		// A requirement key that resolves to nothing is the security
 		// lowering's to report (auth.Registry.Requirements).
-		if r.Hop.Status == reftable.Unresolved && !r.IsSecurityRequirementKey {
-			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(r.Site),
-				"unresolved $ref %q: %s", r.Hop.Ref, r.Hop.Why()))
+		if reference.Hop.Status == reftable.Unresolved && !reference.IsSecurityRequirementKey {
+			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(reference.Site),
+				"unresolved $ref %q: %s", reference.Hop.Ref, reference.Hop.Why()))
 		}
 	}
-	for _, e := range table.Entries() {
-		if e.Hop.Status == reftable.Unresolved {
-			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(e.Site),
-				"unresolved %s %q: %s", e.Keyword, e.Hop.Ref, e.Hop.Why()))
+	for _, referenceSite := range table.Entries() {
+		if referenceSite.Hop.Status == reftable.Unresolved {
+			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(referenceSite.Site),
+				"unresolved %s %q: %s", referenceSite.Keyword, referenceSite.Hop.Ref, referenceSite.Hop.Why()))
 		}
 	}
-	for _, l := range table.Loops() {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.CyclicRef, sites.position(l.Site),
+	for _, loop := range table.Loops() {
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.CyclicRef, sites.position(loop.Site),
 			"cyclic $ref: the chain of $refs through %s comes back to where it started and never reaches %s",
-			spellLoop(l, table), reachesNone(l.Kind)))
+			spellLoop(loop, table), reachesNone(loop.Kind)))
 	}
 	at := sites.position(reftable.DocumentPointer{})
 	if table.Exhausted() {
@@ -247,10 +249,10 @@ func buildFailures(sites places, built []typed.Built, objects []builtObject) []i
 			diags = append(diags, buildFailure(sites, b.Landing.At, b.Landing.Site, b.Landing.Name, "schema", b.Err))
 		}
 	}
-	for _, o := range objects {
-		if o.err != nil && o.landing.Reached {
-			diags = append(diags, buildFailure(sites, o.landing.At, o.landing.Site, o.landing.Name,
-				o.landing.Kind.String(), o.err))
+	for _, builtObject := range objects {
+		if builtObject.err != nil && builtObject.landing.Reached {
+			diags = append(diags, buildFailure(sites, builtObject.landing.At, builtObject.landing.Site, builtObject.landing.Name,
+				builtObject.landing.Kind.String(), builtObject.err))
 		}
 	}
 	return diags
@@ -267,15 +269,15 @@ func buildFailure(sites places, at, site reftable.DocumentPointer, name, kind st
 		"the $ref here reaches %s, where no %s could be built: %s", where, kind, err.Error())
 }
 
-// spellLoop names l's members, in order: one in the document l is reported in
+// spellLoop names loop's members, in order: one in the document loop is reported in
 // by its pointer, and another document's by its pointer in that document's
 // name.
-func spellLoop(l reftable.Loop, table *reftable.ReferenceTargetTable) string {
-	parts := make([]string, len(l.Members))
-	for i, m := range l.Members {
-		parts[i] = "#" + string(m.Pointer)
-		if m.Doc != l.Site.Doc {
-			parts[i] += " in " + table.Document(m.Doc).Name
+func spellLoop(loop reftable.Loop, table *reftable.ReferenceTargetTable) string {
+	parts := make([]string, len(loop.Members))
+	for i, documentPointer := range loop.Members {
+		parts[i] = "#" + string(documentPointer.Pointer)
+		if documentPointer.Doc != loop.Site.Doc {
+			parts[i] += " in " + table.Document(documentPointer.Doc).Name
 		}
 	}
 	return strings.Join(parts, ", ")

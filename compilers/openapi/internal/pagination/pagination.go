@@ -20,18 +20,18 @@ import (
 // the Pagination and in the operation's Provenance. An operation whose
 // parameters name a walk it cannot settle keeps none, reported as an info
 // diagnostic. It reads no operation in stated, whose extensions speak of a
-// pagination, nor any while policy is off. w is the whole document.
-func InferWalks(policy Inference, w *compileddoc.CompiledDocumentView, stated map[ir.OperationID]bool) []ir.Diagnostic {
+// pagination, nor any while policy is off. compiledDocumentView is the whole document.
+func InferWalks(policy Inference, compiledDocumentView *compileddoc.CompiledDocumentView, stated map[ir.OperationID]bool) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}
-	r := newReader(w)
+	reader := newReader(compiledDocumentView)
 	var diags []ir.Diagnostic
-	for _, op := range w.Ops {
+	for _, op := range compiledDocumentView.Ops {
 		if stated[op.ID] {
 			continue
 		}
-		if why, undecided := r.infer(op); undecided {
+		if why, undecided := reader.infer(op); undecided {
 			diags = append(diags, undecidedAt(op, why))
 		}
 	}

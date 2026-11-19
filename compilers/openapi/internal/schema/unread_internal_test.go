@@ -17,9 +17,9 @@ import (
 // kind, which has no variants to keep beside.
 func TestKeepUnreadAcross_NeedsAUnion(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
 	var kept finished
-	keep := keepUnreadAcross(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), distributedShape, 0, "/p", stand{}, &kept, nil)
+	keep := keepUnreadAcross(lowerer.Ctx, lowerer.Types, StandaloneSchema(&oas3.Schema{}), distributedShape, 0, "/p", stand{}, &kept, nil)
 	keep(&ir.Scalar{ID: "type/anonymous/scalar"}, 0, nil)
 	assertInternalInvariant(t, kept.diags)
 }

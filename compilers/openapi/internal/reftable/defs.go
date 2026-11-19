@@ -34,27 +34,27 @@ type definitions struct {
 // definition is where a "#/$defs/..." pointer written at site, reached along
 // path, in its document's own resource, lands, by the rule
 // docs/compilers/openapi.md#references states: the position it names from the
-// document's root, which r and reason read, else the definitions of the
+// document's root, which readingValue and reason read, else the definitions of the
 // nearest object above site holding "$defs" in the model, whatever was read
 // before (docs/parser-library.md#defs-order, docs/parser-library.md#root-defs).
 // A schema's own answer only where an identifier makes it a resource, which
 // resolve reads instead; where schema says site's own hold the key, the reason
 // says so. A read the merge bound stopped answers MergeBound.
 func (d definitions) definition(site DocumentPointer, path []*yaml.Node, pointer jsontext.Pointer, schema bool,
-	r reading, reason Reason,
+	readingValue reading, reason Reason,
 ) (reading, Reason) {
 	switch {
-	case reason == NoReason && answers(r.role(), r.node):
-		return r, NoReason
+	case reason == NoReason && answers(readingValue.role(), readingValue.node):
+		return readingValue, NoReason
 	case reason == MergeBound:
 		return reading{}, MergeBound
 	}
-	r, why := d.ancestorDefinition(site, path, pointer)
+	readingValue, why := d.ancestorDefinition(site, path, pointer)
 	if key, single := singleKey(pointer); schema && single && (why == NoDefinition || why == RawDefinition) &&
 		d.holds(site.Doc, path[len(path)-1], []string{"$defs", key}) {
 		why = OwnDefinition // the nearer definition left unread
 	}
-	return r, why
+	return readingValue, why
 }
 
 // ancestorDefinition is the definition the nearest object above site that
@@ -90,9 +90,9 @@ func (d definitions) ancestorDefinition(site DocumentPointer, path []*yaml.Node,
 			continue
 		}
 		n, past := d.below(site.Doc, path[i], rest)
-		if r := (reading{node: n, place: places[i].along(rest)}); n != nil && answers(r.role(), n) {
-			r.at = DocumentPointer{Doc: site.Doc, Pointer: jsontext.Pointer(prefix(site.Pointer, i)) + pointer}
-			return r, NoReason
+		if readingValue := (reading{node: n, place: places[i].along(rest)}); n != nil && answers(readingValue.role(), n) {
+			readingValue.at = DocumentPointer{Doc: site.Doc, Pointer: jsontext.Pointer(prefix(site.Pointer, i)) + pointer}
+			return readingValue, NoReason
 		}
 		if past {
 			return reading{}, MergeBound

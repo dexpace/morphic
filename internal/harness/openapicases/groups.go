@@ -44,13 +44,13 @@ type groupCases struct {
 // panic with why when written, so no run passes without it.
 func Groups() harness.Cases {
 	groups, err := SuiteGroups()
-	groups = slices.DeleteFunc(groups, func(g Group) bool {
-		return !slices.ContainsFunc(g.Tests, func(t Test) bool { return t.Valid })
+	groups = slices.DeleteFunc(groups, func(group Group) bool {
+		return !slices.ContainsFunc(group.Tests, func(test Test) bool { return test.Valid })
 	})
 	return groupCases{
-		versions:  slices.DeleteFunc(versions(), func(v version) bool { return !v.dialect }),
+		versions:  slices.DeleteFunc(versions(), func(versionValue version) bool { return !versionValue.dialect }),
 		groups:    groups,
-		positions: slices.DeleteFunc(positions(), func(p position) bool { return p.carry == nil }),
+		positions: slices.DeleteFunc(positions(), func(positionValue position) bool { return positionValue.carry == nil }),
 		spellings: slices.DeleteFunc(spellings(), func(s string) bool { return s == inline }),
 		suite:     err,
 	}
@@ -62,19 +62,19 @@ func Groups() harness.Cases {
 // judges a default at every carrier, so each repeats its findings.
 func (c groupCases) Axes() []harness.Axis {
 	axes := []harness.Axis{{Name: versionAxis}, {Name: groupAxis}, {Name: positionAxis}, {Name: spellingAxis}}
-	for _, v := range c.versions {
-		axes[0].Values = append(axes[0].Values, harness.Value{Name: v.name, Like: v.like})
+	for _, version := range c.versions {
+		axes[0].Values = append(axes[0].Values, harness.Value{Name: version.name, Like: version.like})
 	}
 	escape := strings.NewReplacer("%", "%25", "/", "%2F")
-	for _, g := range c.groups {
-		axes[1].Values = append(axes[1].Values, harness.Value{Name: escape.Replace(g.Name)})
+	for _, group := range c.groups {
+		axes[1].Values = append(axes[1].Values, harness.Value{Name: escape.Replace(group.Name)})
 	}
-	for _, p := range c.positions {
-		v := harness.Value{Name: p.name}
-		if p.name != c.positions[0].name {
-			v.Like = c.positions[0].name
+	for _, position := range c.positions {
+		value := harness.Value{Name: position.name}
+		if position.name != c.positions[0].name {
+			value.Like = c.positions[0].name
 		}
-		axes[2].Values = append(axes[2].Values, v)
+		axes[2].Values = append(axes[2].Values, value)
 	}
 	axes[3].Values = spellingValues(c.spellings)
 	return axes
@@ -94,30 +94,30 @@ func (c groupCases) Write(at []int) (harness.CaseDocument, bool) {
 		!within(at[3], c.spellings) {
 		return harness.CaseDocument{}, false
 	}
-	v, g, p := c.versions[at[0]], &c.groups[at[1]], c.positions[at[2]]
+	version, group, position := c.versions[at[0]], &c.groups[at[1]], c.positions[at[2]]
 	var uses []object
 	var tests []Test
-	for _, t := range g.Tests {
-		if !t.Valid {
+	for _, test := range group.Tests {
+		if !test.Valid {
 			continue
 		}
-		use, ok := spell(c.spellings[at[3]], object{{"$ref", groupPath}}, object{{"default", raw(string(t.Data))}}, nil)
+		use, ok := spell(c.spellings[at[3]], object{{"$ref", groupPath}}, object{{"default", raw(string(test.Data))}}, nil)
 		if !ok {
 			return harness.CaseDocument{}, false
 		}
-		uses, tests = append(uses, use), append(tests, t)
+		uses, tests = append(uses, use), append(tests, test)
 	}
-	paths, schemas, nodes := p.carry(uses)
+	paths, schemas, nodes := position.carry(uses)
 	root, err := encode(object{
-		{"openapi", v.name},
+		{"openapi", version.name},
 		{"info", object{{"title", "cases"}, {"version", "1"}}},
 		{"paths", paths},
 		{"components", object{{"schemas", schemas}}},
 	})
 	if err == nil {
 		var schema []byte
-		if schema, err = withDialect(g.Schema); err == nil {
-			doc := groupDocument(root, schema, g, tests, nodes)
+		if schema, err = withDialect(group.Schema); err == nil {
+			doc := groupDocument(root, schema, group, tests, nodes)
 			doc.Equal = c.equal(at)
 			return doc, true
 		}
@@ -128,22 +128,22 @@ func (c groupCases) Write(at []int) (harness.CaseDocument, bool) {
 // within reports whether i indexes of.
 func within[T any](i int, of []T) bool { return i >= 0 && i < len(of) }
 
-// groupDocument returns the document of g's case: root, holding a carrier of
-// each of tests at its node, and g's schema, held as schema. It compiles with
+// groupDocument returns the document of group's case: root, holding a carrier of
+// each of tests at its node, and group's schema, held as schema. It compiles with
 // the default kind-inference policy, as every other case does. The suite's
 // instances are valid against the kind a schema declares, not the one its shape
 // keywords imply, so the instance oracle excuses an instance of another kind
 // than the node inferred for its schema, and no more (harness's admitted).
-func groupDocument(root, schema []byte, g *Group, tests []Test, nodes []string) harness.CaseDocument {
+func groupDocument(root, schema []byte, group *Group, tests []Test, nodes []string) harness.CaseDocument {
 	doc := harness.CaseDocument{
 		Sources: []compilers.Source{{Path: specPath, Data: root}, {Path: groupPath, Data: schema}},
 		Options: map[string]string{"allow-external-refs": "true"},
 	}
-	for _, uri := range slices.Sorted(maps.Keys(g.External)) {
-		doc.Sources = append(doc.Sources, compilers.Source{Path: uri, Data: g.External[uri]})
+	for _, uri := range slices.Sorted(maps.Keys(group.External)) {
+		doc.Sources = append(doc.Sources, compilers.Source{Path: uri, Data: group.External[uri]})
 	}
-	for i, t := range tests {
-		doc.Instances = append(doc.Instances, harness.Instance{Node: nodes[i], Valid: true, Name: t.Description})
+	for i, test := range tests {
+		doc.Instances = append(doc.Instances, harness.Instance{Node: nodes[i], Valid: true, Name: test.Description})
 	}
 	return doc
 }
@@ -184,9 +184,9 @@ func withDialect(schema jsontext.Value) ([]byte, error) {
 func carryProperties(uses []object) (object, object, []string) {
 	props := make(object, len(uses))
 	nodes := make([]string, len(uses))
-	for i, u := range uses {
+	for i, object := range uses {
 		name := "t" + strconv.Itoa(i)
-		props[i] = member{name, u}
+		props[i] = member{name, object}
 		nodes[i] = "property/openapi/components/schemas/" + caseSchema + "/properties/" + name
 	}
 	return nil, object{{caseSchema, object{{"type", "object"}, {"properties", props}}}}, nodes
@@ -197,9 +197,9 @@ func carryProperties(uses []object) (object, object, []string) {
 func carryParameters(uses []object) (object, object, []string) {
 	params := make([]any, len(uses))
 	nodes := make([]string, len(uses))
-	for i, u := range uses {
+	for i, objectValue := range uses {
 		name := "q" + strconv.Itoa(i)
-		params[i] = object{{"name", name}, {"in", "query"}, {"schema", u}}
+		params[i] = object{{"name", name}, {"in", "query"}, {"schema", objectValue}}
 		nodes[i] = "parameter/openapi/paths/" + casePathToken() + "/get/parameters/" + name + "/query"
 	}
 	paths, schemas := atCasePath(object{{"get", object{{"parameters", params}, {"responses", okResponses}}}})
@@ -211,9 +211,9 @@ func carryParameters(uses []object) (object, object, []string) {
 func carryHeaders(uses []object) (object, object, []string) {
 	headers := make(object, len(uses))
 	nodes := make([]string, len(uses))
-	for i, u := range uses {
+	for i, objectValue := range uses {
 		name := "H" + strconv.Itoa(i)
-		headers[i] = member{name, object{{"schema", u}}}
+		headers[i] = member{name, object{{"schema", objectValue}}}
 		nodes[i] = "property/openapi/paths/" + casePathToken() + "/get/responses/200/headers/" + name
 	}
 	paths, schemas := atCasePath(response(member{"headers", headers}))
@@ -238,9 +238,9 @@ func (c groupCases) equal(at []int) *harness.Equal {
 	return &harness.Equal{To: to, Rule: rulePrefix + rule, Relocate: relocation(carriersOf(c.positions[at[2]]))}
 }
 
-// carriersOf is the pointer every carrier p writes for a group lies beneath:
+// carriersOf is the pointer every carrier positionValue writes for a group lies beneath:
 // its own schema's pointer less that schema and the carrier's name or index.
-func carriersOf(p position) string {
-	at := strings.TrimSuffix(p.pointer, "/schema")
+func carriersOf(positionValue position) string {
+	at := strings.TrimSuffix(positionValue.pointer, "/schema")
 	return at[:strings.LastIndex(at, "/")+1]
 }

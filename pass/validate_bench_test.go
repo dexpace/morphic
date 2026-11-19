@@ -36,8 +36,8 @@ func BenchmarkValidate_Petstore(b *testing.B) {
 
 	// Measure the clean path, and say so: a document Validate rejects would take
 	// different branches and the number would not mean what the name claims.
-	for _, d := range diags {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected validate error: %+v", d)
+	for _, diagnostic := range diags {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "unexpected validate error: %+v", diagnostic)
 	}
 }
 
@@ -81,8 +81,8 @@ func BenchmarkValidate_Large(b *testing.B) {
 		diags = validatedOnce(b, doc)
 	}
 
-	for _, d := range diags {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected validate error: %+v", d)
+	for _, diagnostic := range diags {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "unexpected validate error: %+v", diagnostic)
 	}
 }
 
@@ -94,8 +94,8 @@ func compileLarge(b *testing.B) *ir.Document {
 		[]compilers.Source{{Path: "large.yaml", Data: []byte(largeSpec())}}, compilers.Options{})
 	require.NoError(b, err)
 	require.NotNil(b, doc)
-	for _, d := range diags {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected compile error: %+v", d)
+	for _, diagnostic := range diags {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "unexpected compile error: %+v", diagnostic)
 	}
 	require.GreaterOrEqual(b, len(doc.Types), largeChains*largeChainLength)
 	return doc
@@ -212,8 +212,8 @@ func BenchmarkValidate_GraphQLReachability(b *testing.B) {
 		diags = validatedOnce(b, doc)
 	}
 
-	for _, d := range diags {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected validate error: %+v", d)
+	for _, diagnostic := range diags {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "unexpected validate error: %+v", diagnostic)
 	}
 }
 
@@ -261,8 +261,8 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 	}
 	addGraphQLOperations(doc, ids)
 
-	for _, d := range validatedOnce(b, doc) {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "fixture rejected by validate: %+v", d)
+	for _, diagnostic := range validatedOnce(b, doc) {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "fixture rejected by validate: %+v", diagnostic)
 	}
 	return doc
 }
@@ -270,9 +270,9 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 // graphQLModel builds a model with three properties, an earlier model as its
 // base and another as a mixin when any exist.
 func graphQLModel(common ir.TypeCommon, pick func() ir.TypeRef, models []ir.TypeID, rng *rand.Rand) *ir.Model {
-	m := &ir.Model{TypeCommon: common}
+	model := &ir.Model{TypeCommon: common}
 	for p := range 3 {
-		m.Properties = append(m.Properties, ir.Property{
+		model.Properties = append(model.Properties, ir.Property{
 			ID:       ir.PropertyID(fmt.Sprintf("property/%s/%d", common.ID, p)),
 			Name:     ir.Naming{Source: fmt.Sprintf("f%d", p)},
 			WireName: fmt.Sprintf("f%d", p),
@@ -281,10 +281,10 @@ func graphQLModel(common ir.TypeCommon, pick func() ir.TypeRef, models []ir.Type
 	}
 	if len(models) >= 2 {
 		base := ir.TypeRef{Target: models[rng.IntN(len(models))]}
-		m.Base = &base
-		m.Mixins = []ir.TypeRef{{Target: models[rng.IntN(len(models))]}}
+		model.Base = &base
+		model.Mixins = []ir.TypeRef{{Target: models[rng.IntN(len(models))]}}
 	}
-	return m
+	return model
 }
 
 // addGraphQLOperations adds gqlOperations GraphQL-bound operations whose

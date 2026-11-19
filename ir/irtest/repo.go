@@ -20,16 +20,16 @@ func RepoRoot(t *testing.T) string {
 
 // rootFrom is RepoRoot with the working directory's lookup injected, so a test
 // can drive both of its failures.
-func rootFrom(t testingT, getwd func() (string, error)) string {
-	t.Helper()
+func rootFrom(testingTValue testingT, getwd func() (string, error)) string {
+	testingTValue.Helper()
 	dir, err := getwd()
 	if err != nil {
-		t.Fatalf("irtest: reading the working directory: %v", err)
+		testingTValue.Fatalf("irtest: reading the working directory: %v", err)
 	}
 	for !holdsGoMod(dir) {
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			t.Fatalf("irtest: no go.mod in or above the working directory")
+			testingTValue.Fatalf("irtest: no go.mod in or above the working directory")
 		}
 		dir = parent
 	}

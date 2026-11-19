@@ -71,10 +71,10 @@ func TestDiscriminatorValue_TheImplicitMappingRoutesWhatAUnionLists(t *testing.T
 			t.Parallel()
 			for _, doc := range taggedOrders(t, c.base, c.rest) {
 				for name, tag := range c.want {
-					m, ok := typeByName(doc, name).(*ir.Model)
+					model, ok := typeByName(doc, name).(*ir.Model)
 					require.True(t, ok, "%s lowers to a model; got %T", name, typeByName(doc, name))
-					assert.Equal(t, tag, m.DiscriminatorValue, name)
-					assert.Empty(t, m.Provenance.Inferred, name)
+					assert.Equal(t, tag, model.DiscriminatorValue, name)
+					assert.Empty(t, model.Provenance.Inferred, name)
 				}
 			}
 		})
@@ -98,15 +98,15 @@ func TestDiscriminatorInference_ReadsAUnionItsSubtypesCompose(t *testing.T) {
 		"    Drawn: {allOf: [{$ref: '#/components/schemas/Shape'}, {properties: {pen: {type: string}}}]}\n"
 	for _, doc := range taggedOrders(t, shape, rest) {
 		for name, tag := range map[string]string{"Circle": "circle", "Square": "square", "Drawn": ""} {
-			m, ok := typeByName(doc, name).(*ir.Model)
+			model, ok := typeByName(doc, name).(*ir.Model)
 			require.True(t, ok, "%s lowers to a model; got %T", name, typeByName(doc, name))
-			assert.Equal(t, tag, m.DiscriminatorValue, name)
+			assert.Equal(t, tag, model.DiscriminatorValue, name)
 		}
-		u, ok := typeByName(doc, "Shape").(*ir.Union)
+		union, ok := typeByName(doc, "Shape").(*ir.Union)
 		require.True(t, ok, "Shape lowers to a union; got %T", typeByName(doc, "Shape"))
-		require.NotNil(t, u.Discriminator)
+		require.NotNil(t, union.Discriminator)
 		assert.Equal(t, map[string]ir.TypeID{"circle": componentID("Circle"), "square": componentID("Square")},
-			u.Discriminator.Mapping)
+			union.Discriminator.Mapping)
 	}
 }
 
@@ -135,9 +135,9 @@ components:
 `)
 		openapitest.RequireNoErrorDiags(t, diags)
 		for name, tag := range map[string]string{"Cat": "Cat", "Bird": ""} {
-			m, ok := doc.Types[ir.TypeID("type/openapi@pets.yaml/components/schemas/"+name)].(*ir.Model)
+			model, ok := doc.Types[ir.TypeID("type/openapi@pets.yaml/components/schemas/"+name)].(*ir.Model)
 			require.True(t, ok, "%s lowers to a model", name)
-			assert.Equal(t, tag, m.DiscriminatorValue, name)
+			assert.Equal(t, tag, model.DiscriminatorValue, name)
 		}
 	}
 }
@@ -262,15 +262,15 @@ func TestDiscriminatorInference_ReadsTheTagASubtypeAdmits(t *testing.T) {
 			t.Parallel()
 			for _, doc := range taggedOrders(t, c.base, c.rest) {
 				for name, tag := range c.want {
-					m, ok := typeByName(doc, name).(*ir.Model)
+					model, ok := typeByName(doc, name).(*ir.Model)
 					require.True(t, ok, "%s lowers to a model; got %T", name, typeByName(doc, name))
-					assert.Equal(t, tag, m.DiscriminatorValue, name)
+					assert.Equal(t, tag, model.DiscriminatorValue, name)
 					if c.report == "" {
-						assert.Empty(t, m.Provenance.Inferred, name)
+						assert.Empty(t, model.Provenance.Inferred, name)
 						assert.False(t, openapitest.HasDiagCodeAt(doc.Diagnostics, diag.InferredDiscriminator, "/components/schemas/"+name))
 						continue
 					}
-					assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, m.Provenance.Inferred, name)
+					assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, model.Provenance.Inferred, name)
 				}
 				if c.report != "" {
 					assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.InferredDiscriminator, ir.SeverityInfo,

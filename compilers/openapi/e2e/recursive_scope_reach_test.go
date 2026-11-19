@@ -38,9 +38,9 @@ const (
 // unexpanded.
 func recKept(diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == "openapi/degraded-construct" && string(d.Provenance.Pointer) == pointer {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/degraded-construct" && string(diagnostic.Provenance.Pointer) == pointer {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -49,10 +49,10 @@ func recKept(diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
 // recElemBase returns the type the scalar at id, a list's element, is based on.
 func recElemBase(t *testing.T, doc *ir.Document, list ir.TypeID) ir.TypeID {
 	t.Helper()
-	l, ok := doc.Types[list].(*ir.List)
+	irList, ok := doc.Types[list].(*ir.List)
 	require.True(t, ok, "%s is a list, not %T", list, doc.Types[list])
-	elem, ok := doc.Types[l.ElementType.Target].(*ir.Scalar)
-	require.True(t, ok, "its element is a scalar, not %T", doc.Types[l.ElementType.Target])
+	elem, ok := doc.Types[irList.ElementType.Target].(*ir.Scalar)
+	require.True(t, ok, "its element is a scalar, not %T", doc.Types[irList.ElementType.Target])
 	require.NotNil(t, elem.Base)
 	return elem.Base.Target
 }

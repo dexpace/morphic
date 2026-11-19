@@ -115,10 +115,10 @@ func TestParams_SchemaConstraints(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 1)
-	c := op.Params[0].Constraints
-	require.NotNil(t, c, "param scalar constraints land via annotation.Constraints")
-	require.NotNil(t, c.Max)
-	assert.Equal(t, ir.BigVal("120"), *c.Max, "numeric bound read at full precision")
+	constraints := op.Params[0].Constraints
+	require.NotNil(t, constraints, "param scalar constraints land via annotation.Constraints")
+	require.NotNil(t, constraints.Max)
+	assert.Equal(t, ir.BigVal("120"), *constraints.Max, "numeric bound read at full precision")
 }
 
 // TestParams_SchemaAnnotationsReachTheParameter asserts a parameter schema's
@@ -133,15 +133,15 @@ func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
 			"      responses: {\"204\": {description: ok}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := openapitest.FirstOp(t, svc).Params[0]
-	openapitest.AssertProbeDocsKept(t, p.Docs)
-	assert.NotNil(t, p.Deprecation)
-	openapitest.AssertProbeExample(t, p.Examples)
-	assert.Contains(t, p.Unmodeled, "openapi:schema/x-vendor")
-	assert.Contains(t, p.Unmodeled, "openapi:schema/not")
-	require.NotNil(t, p.Constraints)
-	require.NotNil(t, p.Constraints.MaxLength)
-	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
+	parameter := openapitest.FirstOp(t, svc).Params[0]
+	openapitest.AssertProbeDocsKept(t, parameter.Docs)
+	assert.NotNil(t, parameter.Deprecation)
+	openapitest.AssertProbeExample(t, parameter.Examples)
+	assert.Contains(t, parameter.Unmodeled, "openapi:schema/x-vendor")
+	assert.Contains(t, parameter.Unmodeled, "openapi:schema/not")
+	require.NotNil(t, parameter.Constraints)
+	require.NotNil(t, parameter.Constraints.MaxLength)
+	assert.Equal(t, int64(3), *parameter.Constraints.MaxLength)
 }
 
 // TestParams_SchemaAnnotationsSurviveARefNamingTheSchema pins the parameter
@@ -161,13 +161,13 @@ func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
 			"    Outsider: {$ref: '#/paths/~1x/get/parameters/0/schema'}\n")
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := openapitest.FirstOp(t, svc).Params[0]
-	assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target,
+	parameter := openapitest.FirstOp(t, svc).Params[0]
+	assert.Equal(t, ir.TypeID("type/primitive/string"), parameter.Type.Target,
 		"the parameter's own type is unchanged by the outside reference")
-	openapitest.AssertProbeDocsKept(t, p.Docs)
-	assert.NotNil(t, p.Deprecation)
-	assert.Contains(t, p.Unmodeled, "openapi:schema/x-vendor")
-	assert.Contains(t, p.Unmodeled, "openapi:schema/not")
+	openapitest.AssertProbeDocsKept(t, parameter.Docs)
+	assert.NotNil(t, parameter.Deprecation)
+	assert.Contains(t, parameter.Unmodeled, "openapi:schema/x-vendor")
+	assert.Contains(t, parameter.Unmodeled, "openapi:schema/not")
 
 	sc, ok := doc.Types["type/anonymous/paths/~1x/get/parameters/0/schema"].(*ir.Scalar)
 	require.True(t, ok, "and the referenced pointer still names the schema written there")
@@ -203,7 +203,7 @@ components:
 // paramsOf indexes an operation's parameters by source name.
 func paramsOf(t *testing.T, svc ir.Service) map[string]ir.Parameter {
 	t.Helper()
-	return openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
+	return openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 }
 
 // TestParams_RefSchemaInheritsFromItsReferent covers the referent-fallback half
@@ -215,12 +215,12 @@ func TestParams_RefSchemaInheritsFromItsReferent(t *testing.T) {
 	_, svc, diags := compileService(t, paramRefInheritSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := paramsOf(t, svc)["bare"]
-	assert.Equal(t, "REFERENT", p.Docs.Description, "the referent's description reaches the parameter")
-	assert.NotNil(t, p.Deprecation, "and its deprecation")
-	require.NotNil(t, p.Default, "and its default")
-	assert.Equal(t, "referent", p.Default.String)
-	assert.Nil(t, p.Constraints,
+	parameter := paramsOf(t, svc)["bare"]
+	assert.Equal(t, "REFERENT", parameter.Docs.Description, "the referent's description reaches the parameter")
+	assert.NotNil(t, parameter.Deprecation, "and its deprecation")
+	require.NotNil(t, parameter.Default, "and its default")
+	assert.Equal(t, "referent", parameter.Default.String)
+	assert.Nil(t, parameter.Constraints,
 		"but never its constraints: fillPropertyConstraints keeps those use-site-only too")
 }
 
@@ -233,11 +233,11 @@ func TestParams_RefSchemaUseSiteWinsOverItsReferent(t *testing.T) {
 	_, svc, diags := compileService(t, paramRefInheritSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := paramsOf(t, svc)["override"]
-	assert.Equal(t, "USE_SITE", p.Docs.Description, "the use-site description wins")
-	require.NotNil(t, p.Default)
-	assert.Equal(t, "use-site", p.Default.String, "and the use-site default")
-	assert.NotNil(t, p.Deprecation, "but a deprecated: false beside the $ref withdraws no referent's true")
+	parameter := paramsOf(t, svc)["override"]
+	assert.Equal(t, "USE_SITE", parameter.Docs.Description, "the use-site description wins")
+	require.NotNil(t, parameter.Default)
+	assert.Equal(t, "use-site", parameter.Default.String, "and the use-site default")
+	assert.NotNil(t, parameter.Deprecation, "but a deprecated: false beside the $ref withdraws no referent's true")
 }
 
 // TestParams_RefSchemaInheritsThroughARefChain pins which resolution the
@@ -249,11 +249,11 @@ func TestParams_RefSchemaInheritsThroughARefChain(t *testing.T) {
 	_, svc, diags := compileService(t, paramRefInheritSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := paramsOf(t, svc)["chained"]
-	assert.Equal(t, "REFERENT", p.Docs.Description, "one hop reaches Hop, which declares nothing")
-	assert.NotNil(t, p.Deprecation)
-	require.NotNil(t, p.Default)
-	assert.Equal(t, "referent", p.Default.String)
+	parameter := paramsOf(t, svc)["chained"]
+	assert.Equal(t, "REFERENT", parameter.Docs.Description, "one hop reaches Hop, which declares nothing")
+	assert.NotNil(t, parameter.Deprecation)
+	require.NotNil(t, parameter.Default)
+	assert.Equal(t, "referent", parameter.Default.String)
 }
 
 const paramXMLSpec = `openapi: 3.1.0
@@ -318,12 +318,12 @@ func TestParams_SchemaXMLHintsStayOnAnOwnedNode(t *testing.T) {
 			"      responses: {\"204\": {description: ok}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := paramsOf(t, svc)["obj"]
-	node, ok := doc.Types[p.Type.Target]
+	parameter := paramsOf(t, svc)["obj"]
+	node, ok := doc.Types[parameter.Type.Target]
 	require.True(t, ok, "the object schema owns a node of its own")
 	require.NotNil(t, node.Common().XML)
 	assert.Equal(t, "XOBJ", node.Common().XML.Name)
-	assert.NotContains(t, p.Unmodeled, "openapi:schema/xml", "so the parameter keeps no second copy")
+	assert.NotContains(t, parameter.Unmodeled, "openapi:schema/xml", "so the parameter keeps no second copy")
 	assert.Equal(t, 0, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"and nothing is announced as homeless")
 }
@@ -366,10 +366,10 @@ func TestParams_SchemaRedactionReachesTheParameter(t *testing.T) {
 	for _, name := range []string{"q", "c", "beside", "ref"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			p, ok := params[name]
+			parameter, ok := params[name]
 			require.True(t, ok)
-			assert.True(t, p.Secret, "the parameter is the carrier")
-			assert.NotContains(t, p.Unmodeled, "openapi:schema/format", "the field holds it, so nothing is kept beside it")
+			assert.True(t, parameter.Secret, "the parameter is the carrier")
+			assert.NotContains(t, parameter.Unmodeled, "openapi:schema/format", "the field holds it, so nothing is kept beside it")
 		})
 	}
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
@@ -491,13 +491,13 @@ func TestParams_SchemaDefaultIsNotAlsoKeptVerbatim(t *testing.T) {
 	_, svc, diags := compileService(t, paramVisibilitySpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := paramsOf(t, svc)["ro"]
-	require.NotNil(t, p.Default, "the default lands in its own field")
-	assert.Equal(t, "dq", p.Default.String)
-	assert.NotContains(t, p.Unmodeled, "openapi:schema/default", "and is not restated verbatim beside it")
-	for _, d := range diags {
-		assert.NotEqual(t, jsontext.Pointer("/paths/~1x/get/parameters/0/schema/default"), d.Provenance.Pointer,
-			"nor announced as homeless; got %+v", d)
+	parameter := paramsOf(t, svc)["ro"]
+	require.NotNil(t, parameter.Default, "the default lands in its own field")
+	assert.Equal(t, "dq", parameter.Default.String)
+	assert.NotContains(t, parameter.Unmodeled, "openapi:schema/default", "and is not restated verbatim beside it")
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, jsontext.Pointer("/paths/~1x/get/parameters/0/schema/default"), diagnostic.Provenance.Pointer,
+			"nor announced as homeless; got %+v", diagnostic)
 	}
 }
 
@@ -513,9 +513,9 @@ func TestParams_OwnAnnotationsWinOverTheSchema(t *testing.T) {
 			"      responses: {\"204\": {description: ok}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := openapitest.FirstOp(t, svc).Params[0]
-	assert.Equal(t, "PARAM", p.Docs.Description, "the parameter's own description wins")
-	raw, ok := p.Unmodeled["openapi:x-scope"]
+	parameter := openapitest.FirstOp(t, svc).Params[0]
+	assert.Equal(t, "PARAM", parameter.Docs.Description, "the parameter's own description wins")
+	raw, ok := parameter.Unmodeled["openapi:x-scope"]
 	require.True(t, ok)
 	assert.JSONEq(t, `"param"`, string(raw.Value), "and its own extension overlays the schema's")
 }
@@ -568,20 +568,20 @@ func TestParams_RefSiteKeywordsAreKeptOnTheParameter(t *testing.T) {
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	params := openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
-	q, ok := params["q"]
+	params := openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
+	irParameter, ok := params["q"]
 	require.True(t, ok)
-	entry, ok := q.Unmodeled["openapi:schema/format"]
+	entry, ok := irParameter.Unmodeled["openapi:schema/format"]
 	require.True(t, ok, "an alias over the target has no Encoding field, so the format is kept")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `"email"`, string(entry.Value))
 	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1x/get/parameters/0/schema")
 
-	r, ok := params["r"]
+	parameterValue, ok := params["r"]
 	require.True(t, ok)
-	assert.Empty(t, r.Unmodeled, "a bound at the same position always reached ir.Parameter.Constraints")
-	require.NotNil(t, r.Constraints)
-	assert.Equal(t, int64(3), *r.Constraints.MinLength)
+	assert.Empty(t, parameterValue.Unmodeled, "a bound at the same position always reached ir.Parameter.Constraints")
+	require.NotNil(t, parameterValue.Constraints)
+	assert.Equal(t, int64(3), *parameterValue.Constraints.MinLength)
 }
 
 // TestParams_CoDeclaredBoundsReachTheParameter covers the parameter carrier for
@@ -614,12 +614,12 @@ func TestParams_CoDeclaredBoundsReachTheParameter(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.param, func(t *testing.T) {
 			t.Parallel()
-			c := params[tc.param].Constraints
-			require.NotNil(t, c, "both bounds reach the parameter's constraints")
-			require.NotNil(t, c.Min)
-			require.NotNil(t, c.ExclusiveMin)
-			assert.Equal(t, tc.wantMin, c.Min.String(), "minimum as written")
-			assert.Equal(t, tc.wantExclMin, c.ExclusiveMin.String(), "exclusiveMinimum as written, beside it")
+			constraints := params[tc.param].Constraints
+			require.NotNil(t, constraints, "both bounds reach the parameter's constraints")
+			require.NotNil(t, constraints.Min)
+			require.NotNil(t, constraints.ExclusiveMin)
+			assert.Equal(t, tc.wantMin, constraints.Min.String(), "minimum as written")
+			assert.Equal(t, tc.wantExclMin, constraints.ExclusiveMin.String(), "exclusiveMinimum as written, beside it")
 			assert.Empty(t, params[tc.param].Unmodeled, "with a field apiece there is nothing left to keep")
 		})
 	}
@@ -869,12 +869,12 @@ func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
 	t.Run("row 38: a bound a string cannot take is kept", func(t *testing.T) {
 		t.Parallel()
 		for i, name := range []string{"q", "r"} {
-			p, ok := openapitest.ParamBySource(op, name)
+			parameter, ok := openapitest.ParamBySource(op, name)
 			require.True(t, ok, name)
-			assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1a/get/parameters/"+name+"/query"), p.ID, name)
-			assert.Nil(t, p.Constraints, name)
-			entry, ok := p.Unmodeled["openapi:schema/minimum"]
-			require.True(t, ok, "%s: got %v", name, p.Unmodeled)
+			assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1a/get/parameters/"+name+"/query"), parameter.ID, name)
+			assert.Nil(t, parameter.Constraints, name)
+			entry, ok := parameter.Unmodeled["openapi:schema/minimum"]
+			require.True(t, ok, "%s: got %v", name, parameter.Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, name)
 			at := "/paths/~1a/get/parameters/" + strconv.Itoa(i) + "/schema"
 			assert.Equal(t, jsontext.Pointer(at+"/minimum"), entry.Provenance.Pointer, name)
@@ -884,11 +884,11 @@ func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
 	})
 	t.Run("row 39: the bounds a type takes are held beside the kept one", func(t *testing.T) {
 		t.Parallel()
-		h, ok := openapitest.ParamBySource(op, "h")
+		parameter, ok := openapitest.ParamBySource(op, "h")
 		require.True(t, ok)
-		assert.Equal(t, &ir.Constraints{MinLength: new(int64(2))}, h.Constraints)
-		assert.Contains(t, h.Unmodeled, "openapi:schema/minimum")
-		assert.NotContains(t, h.Unmodeled, "openapi:schema/minLength")
+		assert.Equal(t, &ir.Constraints{MinLength: new(int64(2))}, parameter.Constraints)
+		assert.Contains(t, parameter.Unmodeled, "openapi:schema/minimum")
+		assert.NotContains(t, parameter.Unmodeled, "openapi:schema/minLength")
 
 		require.Len(t, op.Responses, 1)
 		require.Len(t, op.Responses[0].Headers, 1)
@@ -917,9 +917,9 @@ func TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten(t *testing.T) {
 `))
 	assert.Nil(t, paramsOf(t, svc)["n"].Default)
 	var found []string
-	for _, d := range diags {
-		if strings.Contains(d.Message, "default") {
-			found = append(found, d.Code+" "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if strings.Contains(diagnostic.Message, "default") {
+			found = append(found, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"openapi/unlowered-construct /paths/~1x/get/parameters/0/schema/default"}, found)

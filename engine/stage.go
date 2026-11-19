@@ -126,8 +126,8 @@ func checkOutput(prev, next *ir.Document, diags []ir.Diagnostic) error {
 	if len(next.Diagnostics) > 0 && !slices.EqualFunc(prev.Diagnostics, next.Diagnostics, same) {
 		return errDiagnosticsChanged
 	}
-	if d, outside := ir.FirstOutsideTable(diags, len(next.Sources)); outside {
-		return fmt.Errorf("%s at source %d of %d: %w", d.Code, d.Provenance.Source, len(next.Sources), errSourceOutOfRange)
+	if diagnostic, outside := ir.FirstOutsideTable(diags, len(next.Sources)); outside {
+		return fmt.Errorf("%s at source %d of %d: %w", diagnostic.Code, diagnostic.Provenance.Source, len(next.Sources), errSourceOutOfRange)
 	}
 	return nil
 }

@@ -51,9 +51,9 @@ func TestLower_AListOfItemsInADraftIsATuple(t *testing.T) {
 	assert.Equal(t, ir.TypeID("type/primitive/bool"), rests["R"].Target)
 	require.NotNil(t, rests["P"])
 	assert.Equal(t, ir.TypeID("type/primitive/any"), rests["P"].Target, "a list beside prefixItems reads as no items")
-	l, ok := doc.Types[componentID("L")].(*ir.List)
+	irList, ok := doc.Types[componentID("L")].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("type/primitive/any"), l.ElementType.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), irList.ElementType.Target)
 }
 
 // TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise pins what the
@@ -80,14 +80,14 @@ func TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise(t *testing.T) {
 		return out
 	}
 	assert.NotContains(t, keys("T"), "openapi:additionalItems", "the tuple holds its rest")
-	u := doc.Types[componentID("U")].Common().Unmodeled
-	assert.Equal(t, ir.ReasonDegradedLowering, u["openapi:additionalItems"].Reason, "no tuple holds it")
-	assert.Equal(t, ir.ReasonDegradedLowering, u["openapi:items"].Reason)
+	unmodeled := doc.Types[componentID("U")].Common().Unmodeled
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeled["openapi:additionalItems"].Reason, "no tuple holds it")
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeled["openapi:items"].Reason)
 	assert.Equal(t, ir.ReasonOutOfScope, doc.Types[componentID("V")].Common().Unmodeled["openapi:additionalItems"].Reason,
 		"it is no tuple's rest beside one schema of items")
-	d := doc.Types[componentID("D")].Common().Unmodeled
-	assert.Equal(t, ir.ReasonValidationOnly, d["openapi:dependencies"].Reason)
-	assert.Equal(t, ir.ReasonOutOfScope, d["openapi:id"].Reason)
+	irUnmodeled := doc.Types[componentID("D")].Common().Unmodeled
+	assert.Equal(t, ir.ReasonValidationOnly, irUnmodeled["openapi:dependencies"].Reason)
+	assert.Equal(t, ir.ReasonOutOfScope, irUnmodeled["openapi:id"].Reason)
 	assert.NotContains(t, keys("D"), "openapi:definitions")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/D/id"))
 }
@@ -112,10 +112,10 @@ func TestLower_PrefixItemsBesideAListedTupleIsKept(t *testing.T) {
 	assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
 	assert.JSONEq(t, `[{"type": "integer"}]`, string(kept.Value))
 	var at []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/Both/prefixItems" {
-			at = append(at, d.Provenance.Pointer)
-			assert.Equal(t, "prefixItems is kept verbatim: this schema's dialect reads its items list as the tuple", d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Provenance.Pointer == "/components/schemas/Both/prefixItems" {
+			at = append(at, diagnostic.Provenance.Pointer)
+			assert.Equal(t, "prefixItems is kept verbatim: this schema's dialect reads its items list as the tuple", diagnostic.Message)
 		}
 	}
 	assert.Len(t, at, 1)
@@ -165,8 +165,8 @@ func TestAllOf_ABranchUnderADraftsIDFoldsNothing(t *testing.T) {
 		"        - {type: object, properties: {a: {type: string}}}\n"+
 		"        - {id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}, description: d}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	s := doc.Types[componentID("S")].Common()
-	assert.Contains(t, s.Unmodeled, "openapi:allOf/1", "the branch is kept whole")
-	assert.NotContains(t, s.Unmodeled, "openapi:not", "its not folds nowhere")
-	assert.Empty(t, s.Docs.Description)
+	typeCommon := doc.Types[componentID("S")].Common()
+	assert.Contains(t, typeCommon.Unmodeled, "openapi:allOf/1", "the branch is kept whole")
+	assert.NotContains(t, typeCommon.Unmodeled, "openapi:not", "its not folds nowhere")
+	assert.Empty(t, typeCommon.Docs.Description)
 }

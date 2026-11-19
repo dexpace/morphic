@@ -19,8 +19,8 @@ import (
 func (r *nameReader) headers(doc *ir.Document) {
 	for _, svc := range doc.Services {
 		for j := range svc.CommonErrors {
-			e := &svc.CommonErrors[j]
-			r.headerScope("service", string(svc.ID), e.Headers, func() string { return "common error " + nameLabel(e.Name) })
+			errorCase := &svc.CommonErrors[j]
+			r.headerScope("service", string(svc.ID), errorCase.Headers, func() string { return "common error " + nameLabel(errorCase.Name) })
 		}
 	}
 	ir.ForEachOperation(doc, func(op ir.Operation) {
@@ -33,8 +33,8 @@ func (r *nameReader) headers(doc *ir.Document) {
 			r.headerScope("operation", id, op.Default.Headers, func() string { return "the default response" })
 		}
 		for i := range op.Errors {
-			e := &op.Errors[i]
-			r.headerScope("operation", id, e.Headers, func() string { return "error " + nameLabel(e.Name) })
+			errorCase := &op.Errors[i]
+			r.headerScope("operation", id, errorCase.Headers, func() string { return "error " + nameLabel(errorCase.Name) })
 		}
 	})
 }
@@ -48,10 +48,10 @@ func (r *nameReader) headerScope(in, id string, headers []ir.Header, of func() s
 	}
 }
 
-// nameLabel quotes the first of n's source, canonical and hint spellings that
+// nameLabel quotes the first of naming's source, canonical and hint spellings that
 // is set, and the empty string where none is.
-func nameLabel(n ir.Naming) string {
-	for _, s := range []string{n.Source, n.Canonical, n.Hint} {
+func nameLabel(naming ir.Naming) string {
+	for _, s := range []string{naming.Source, naming.Canonical, naming.Hint} {
 		if s != "" {
 			return strconv.Quote(s)
 		}

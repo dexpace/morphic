@@ -141,17 +141,17 @@ func (c *idCounts) excess() (declaredID, idCount, bool) {
 	c.sorted += 2
 	i := 0
 	for j := 0; j < len(c.change); {
-		d, n := c.change[j], idCount{}
-		for ; j < len(c.change) && c.change[j] == d; j++ {
-			n.change++
+		declaredID, idCountValue := c.change[j], idCount{}
+		for ; j < len(c.change) && c.change[j] == declaredID; j++ {
+			idCountValue.change++
 		}
-		for ; i < len(c.node) && compareDeclared(c.node[i], d) < 0; i++ {
+		for ; i < len(c.node) && compareDeclared(c.node[i], declaredID) < 0; i++ {
 		}
-		for ; i < len(c.node) && c.node[i] == d; i++ {
-			n.node++
+		for ; i < len(c.node) && c.node[i] == declaredID; i++ {
+			idCountValue.node++
 		}
-		if n.change > n.node {
-			return d, n, true
+		if idCountValue.change > idCountValue.node {
+			return declaredID, idCountValue, true
 		}
 	}
 	return declaredID{}, idCount{}, false
@@ -165,13 +165,13 @@ func compareDeclared(a, b declaredID) int {
 	return cmp.Compare(a.id, b.id)
 }
 
-// clause says how often the node an update ends with declares d, against how
+// clause says how often the node an update ends with declares declaredIDValue, against how
 // often from, the node it is held to, does.
-func (n idCount) clause(d declaredID, from string) string {
+func (n idCount) clause(declaredIDValue declaredID, from string) string {
 	if n.node == 0 {
-		return fmt.Sprintf("the %s %q, which %s does not", d.class, d.id, from)
+		return fmt.Sprintf("the %s %q, which %s does not", declaredIDValue.class, declaredIDValue.id, from)
 	}
-	return fmt.Sprintf("the %s %q %d times, where %s does %d times", d.class, d.id, n.change, from, n.node)
+	return fmt.Sprintf("the %s %q %d times, where %s does %d times", declaredIDValue.class, declaredIDValue.id, n.change, from, n.node)
 }
 
 // withOwnMembers appends to list, the IDs a node is held to, the ID of each of
@@ -190,21 +190,21 @@ func (e *Editor) withOwnMembers(list []declaredID, node any) []declaredID {
 		return list
 	}
 	held := make(map[declaredID]bool, len(list))
-	for _, d := range list {
-		held[d] = true
+	for _, declaredID := range list {
+		held[declaredID] = true
 	}
 	class := reflect.TypeFor[EnumMemberID]()
 	occurrences := make(map[string]int, len(enum.Members))
-	for _, m := range enum.Members {
-		key, keyed := EnumMemberKey(m.Value)
+	for _, enumMember := range enum.Members {
+		key, keyed := EnumMemberKey(enumMember.Value)
 		if !keyed {
 			continue
 		}
 		occurrences[key]++
 		own, placed := EnumMemberIDFor(enum.ID, key, occurrences[key])
-		d := declaredID{class: class, id: string(own)}
-		if placed && own == m.ID && !held[d] {
-			list = append(list, d)
+		declaredIDValue := declaredID{class: class, id: string(own)}
+		if placed && own == enumMember.ID && !held[declaredIDValue] {
+			list = append(list, declaredIDValue)
 		}
 	}
 	return list

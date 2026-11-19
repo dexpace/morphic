@@ -19,8 +19,8 @@ import (
 // among them, elements, map keys and map values, nested and side by side.
 func loggedDoc() *ir.Document {
 	doc := declaringDoc()
-	m := &ir.Model{TypeCommon: populatedTypeCommon("type/x/P"), Properties: []ir.Property{populatedProperty(), {ID: "property/x/P/b"}}}
-	doc.Types[m.ID] = m
+	model := &ir.Model{TypeCommon: populatedTypeCommon("type/x/P"), Properties: []ir.Property{populatedProperty(), {ID: "property/x/P/b"}}}
+	doc.Types[model.ID] = model
 	doc.Unmodeled = populatedUnmodeled()
 	doc.Services[0].Renames = map[ir.TypeID]ir.Naming{"type/x/M": populatedNaming(), "type/x/P": {Source: "p"}}
 	return doc

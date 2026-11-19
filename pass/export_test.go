@@ -18,8 +18,8 @@ import (
 // runs it, for the external tests.
 func DanglingRefs(tb testing.TB, doc *ir.Document) []ir.Diagnostic {
 	tb.Helper()
-	w := walkedFor(tb, doc)
-	return checkDanglingRefs(w.refs, w.truncated)
+	walked := walkedFor(tb, doc)
+	return checkDanglingRefs(walked.refs, walked.truncated)
 }
 
 // KeptPropIDs returns where the PropertyID references one walk of doc keeps for
@@ -51,9 +51,9 @@ func WalkVisitors(tb testing.TB, doc *ir.Document) []ir.Visitor {
 // failing tb unless the walk finishes.
 func walkedFor(tb testing.TB, doc *ir.Document) walked {
 	tb.Helper()
-	w, err := walkDocument(tb.Context(), doc, ir.WalkValuesContext)
+	walkedValue, err := walkDocument(tb.Context(), doc, ir.WalkValuesContext)
 	require.NoError(tb, err)
-	return w
+	return walkedValue
 }
 
 // AppendTypeIDs is appendTypeIDs, for the external tests.
@@ -70,8 +70,8 @@ func Families() int { return len(families(&ir.Document{}, walked{}, nil)) }
 // NameFamilies is how many families of scopes Names reads, each after a check
 // of its context.
 func NameFamilies() int {
-	var r nameReader
-	return len(r.families())
+	var nameReaderValue nameReader
+	return len(nameReaderValue.families())
 }
 
 // FamilyAllocs returns the allocations one run of each rule family Validate
@@ -116,8 +116,8 @@ func WalkAllocs(tb testing.TB, doc *ir.Document) float64 {
 // validate runs it, for the external tests to measure.
 func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	tb.Helper()
-	w := walkedFor(tb, doc)
-	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs, w.truncated) }
+	walked := walkedFor(tb, doc)
+	return func() []ir.Diagnostic { return checkPropIDRefs(walked.props, walked.refs, walked.truncated) }
 }
 
 // UnionReads is how many unions pass.ConstUnions reads in doc, as it reads
@@ -130,9 +130,9 @@ func UnionReads(doc *ir.Document) int { return readingOf(doc, nil).reads }
 func ReadingWork(doc *ir.Document) int {
 	refs := refsTo(doc.Types)
 	ir.WalkValues(doc, ir.DocumentPath, refs)
-	r := readingOf(doc, refs)
-	r.rewrite()
-	return refs.membersRead + r.work
+	unionReading := readingOf(doc, refs)
+	unionReading.rewrite()
+	return refs.membersRead + unionReading.work
 }
 
 // Watched is how many types pass.ConstUnions counts the references to in doc,
@@ -141,28 +141,28 @@ func Watched(doc *ir.Document) int { return len(refsTo(doc.Types).watched) }
 
 // watching returns the typeRefs of ids alone.
 func watching(ids []ir.TypeID) *typeRefs {
-	r := refsTo(nil)
+	typeRefsValue := refsTo(nil)
 	for _, id := range ids {
-		r.watched[id] = true
+		typeRefsValue.watched[id] = true
 	}
-	return r
+	return typeRefsValue
 }
 
 // TypeReads is how many Go types a walk of doc for the references to ids
 // reads for whether a value of them can hold a TypeID.
 func TypeReads(doc *ir.Document, ids ...ir.TypeID) int {
-	r := watching(ids)
-	ir.WalkValues(doc, ir.DocumentPath, r)
-	return r.typesRead
+	typeRefs := watching(ids)
+	ir.WalkValues(doc, ir.DocumentPath, typeRefs)
+	return typeRefs.typesRead
 }
 
 // TypeRefVisits is how many values a walk of doc for the references to ids
 // shows its visitor, which pruning holds to what can hold a TypeID.
 func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {
-	r, n := watching(ids), 0
+	typeRefs, n := watching(ids), 0
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		n++
-		return r.Visit(v, at)
+		return typeRefs.Visit(v, at)
 	}))
 	return n
 }

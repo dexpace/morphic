@@ -23,10 +23,10 @@ func everySchemaRow(t *testing.T) map[string]SchemaRules {
 	rows := map[string]SchemaRules{}
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
 		for _, id := range append([]string{""}, SchemaDialectIDs()...) {
-			r, unread := Table().SchemaRules(version, id)
+			schemaRules, unread := Table().SchemaRules(version, id)
 			require.False(t, unread, "%s %s", version, id)
-			require.NotNil(t, r.rows, "%s %s", version, id)
-			rows[version+" "+id] = r
+			require.NotNil(t, schemaRules.rows, "%s %s", version, id)
+			rows[version+" "+id] = schemaRules
 		}
 	}
 	return rows
@@ -39,12 +39,12 @@ func TestSlots_EveryKeywordOfEveryDialectHasOne(t *testing.T) {
 	t.Parallel()
 	names := map[string]bool{}
 	rows := everySchemaRow(t)
-	for row, r := range rows {
-		for name := range r.rows.fields {
+	for row, schemaRules := range rows {
+		for name := range schemaRules.rows.fields {
 			names[name] = true
 			assert.NotEqual(t, SlotUnknown, SlotOf(name), "%s defines %s", row, name)
 		}
-		for name := range r.rows.later {
+		for name := range schemaRules.rows.later {
 			names[name] = true
 			assert.NotEqual(t, SlotUnknown, SlotOf(name), "%s defines %s later", row, name)
 		}
@@ -83,8 +83,8 @@ func TestSlots_EverySlotHoldsAKeyword(t *testing.T) {
 	require.NoError(t, err)
 
 	held := map[Slot]bool{}
-	for _, r := range everySchemaRow(t) {
-		for _, name := range slices.Concat(slices.Collect(maps.Keys(r.rows.fields)), slices.Collect(maps.Keys(r.rows.later))) {
+	for _, schemaRules := range everySchemaRow(t) {
+		for _, name := range slices.Concat(slices.Collect(maps.Keys(schemaRules.rows.fields)), slices.Collect(maps.Keys(schemaRules.rows.later))) {
 			held[SlotOf(name)] = true
 		}
 	}

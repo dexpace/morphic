@@ -917,8 +917,8 @@ func TestPointers_SaysWhetherTheTreeHoldsTheNode(t *testing.T) {
 		held    bool
 	}
 	ask := func(f func(*yaml.Node) (jsontext.Pointer, bool), n *yaml.Node) answer {
-		p, held := f(n)
-		return answer{p, held}
+		pointer, held := f(n)
+		return answer{pointer, held}
 	}
 	assert.Equal(t, answer{"/k", true}, ask(pointer, value))
 	assert.Equal(t, answer{"", true}, ask(pointer, root), "the root is held, at the whole document")

@@ -37,8 +37,8 @@ func TestEnumMemberPrim_ReadsWhatEnumMembersGives(t *testing.T) {
 		prim, ok := enumMemberPrim(entries)
 		assert.Equal(t, wantOK, ok, name)
 		assert.Equal(t, wantPrim, prim, name)
-		for _, p := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveInteger, ir.PrimitiveNumber, ir.PrimitiveBool} {
-			assert.Equal(t, enumMembersAre(members, p), !wantOK || entriesAre(entries, p), "%s %s", name, p)
+		for _, primitiveKind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveInteger, ir.PrimitiveNumber, ir.PrimitiveBool} {
+			assert.Equal(t, enumMembersAre(members, primitiveKind), !wantOK || entriesAre(entries, primitiveKind), "%s %s", name, primitiveKind)
 		}
 	}
 }

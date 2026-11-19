@@ -20,21 +20,21 @@ import (
 // nothing is announced as kept, and what readers before kept there stands.
 func TestKeepApart_AnObjectThatCannotRenderIsReportedAndClaimsNothing(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {allOf: [{type: string, minimum: .nan}], minimum: 2}\n"))
-	decl, ok := l.Doc.Components.Schemas.Get("S")
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {allOf: [{type: string, minimum: .nan}], minimum: 2}\n"))
+	decl, ok := lowerer.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
-	s := l.Ctx.Statements().Of(decl).Schema
-	comp := allOfBranches(l.Ctx, s, "/components/schemas/S")
+	schema := lowerer.Ctx.Statements().Of(decl).Schema
+	comp := allOfBranches(lowerer.Ctx, schema, "/components/schemas/S")
 	require.Len(t, comp.branches, 1)
-	e := comp.branches[0]
+	allOfBranch := comp.branches[0]
 	held := &principalKept{apart: []string{"type"}, apartReason: ir.ReasonNoIRHome}
-	var p ir.Unmodeled
+	var unmodeled ir.Unmodeled
 
-	diags := keepApart(l.Ctx, l.Types, comp, held, &p, e.schema.Schema, e.pointer, []string{"minimum"}, ir.ReasonDegradedLowering)
+	diags := keepApart(lowerer.Ctx, lowerer.Types, comp, held, &unmodeled, allOfBranch.schema.Schema, allOfBranch.pointer, []string{"minimum"}, ir.ReasonDegradedLowering)
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
-	assert.Empty(t, p, "nothing is kept")
+	assert.Empty(t, unmodeled, "nothing is kept")
 	assert.Equal(t, []string{"type"}, held.apart, "nor counted as kept under the entry's key")
 }
 
@@ -45,18 +45,18 @@ func TestKeepApart_AnObjectThatCannotRenderIsReportedAndClaimsNothing(t *testing
 // overwritten.
 func TestKeepBuilt_AKeyNoKeywordNamesHeldOtherwiseIsAnInvariantBroken(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {allOf: [{type: string}]}\n"))
-	decl, ok := l.Doc.Components.Schemas.Get("S")
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {allOf: [{type: string}]}\n"))
+	decl, ok := lowerer.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
-	comp := allOfBranches(l.Ctx, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/S")
-	e := comp.branches[0]
-	p := ir.Unmodeled{"openapi:oneOf/0": {Value: ir.RawValue(`1`), Reason: ir.ReasonNoIRHome}}
+	comp := allOfBranches(lowerer.Ctx, lowerer.Ctx.Statements().Of(decl).Schema, "/components/schemas/S")
+	allOfBranch := comp.branches[0]
+	unmodeled := ir.Unmodeled{"openapi:oneOf/0": {Value: ir.RawValue(`1`), Reason: ir.ReasonNoIRHome}}
 	built := ir.Unmodeled{"openapi:oneOf/0": {Value: ir.RawValue(`2`), Reason: ir.ReasonNoIRHome}}
 
-	diags := keepBuilt(l.Ctx, comp, &principalKept{}, &p, e.schema.Schema, e.pointer, built)
+	diags := keepBuilt(lowerer.Ctx, comp, &principalKept{}, &unmodeled, allOfBranch.schema.Schema, allOfBranch.pointer, built)
 
 	assertInternalInvariant(t, diags)
-	assert.Equal(t, `1`, string(p["openapi:oneOf/0"].Value), "what the position wrote stands")
+	assert.Equal(t, `1`, string(unmodeled["openapi:oneOf/0"].Value), "what the position wrote stands")
 }
 
 // TestKeptMembers_OnlyAnObjectHasMembers pins the reading of what an entry

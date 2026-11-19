@@ -18,10 +18,10 @@ import (
 func TestAdmitsConstraints_JudgesEachKeyword(t *testing.T) {
 	t.Parallel()
 	n := func(i int64) *int64 { return &i }
-	b := func(s string) *ir.BigVal { v := ir.BigVal(s); return &v }
+	b := func(s string) *ir.BigVal { bigVal := ir.BigVal(s); return &bigVal }
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(fs ...ir.Field) ir.Value { return ir.Value{Kind: ir.ValueObject, Object: fs} }
-	field := func(name string, v ir.Value) ir.Field { return ir.Field{Name: name, Value: v} }
+	field := func(name string, value ir.Value) ir.Field { return ir.Field{Name: name, Value: value} }
 	nested := list(list(list(list(list(list(list(list(list(list())))))))))
 	for _, tc := range []struct {
 		name string

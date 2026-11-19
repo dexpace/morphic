@@ -26,18 +26,18 @@ type ruled struct {
 	Reason   string
 }
 
-// rated returns what s made of each of diags, failing the test unless each
+// rated returns what ruleset made of each of diags, failing the test unless each
 // finding carries its diagnostic as it was reported.
-func rated(t *testing.T, s triage.Ruleset, diags []ir.Diagnostic) ([]ruled, []triage.Rule) {
+func rated(t *testing.T, ruleset triage.Ruleset, diags []ir.Diagnostic) ([]ruled, []triage.Rule) {
 	t.Helper()
-	findings, unused := s.Rate(diags)
+	findings, unused := ruleset.Rate(diags)
 	require.Len(t, findings, len(diags), "a finding per diagnostic")
 	got := make([]ruled, len(findings))
-	for i, f := range findings {
-		require.Equal(t, diags[i], f.Diagnostic, "finding %d carries its diagnostic as reported", i)
-		got[i] = ruled{Severity: f.Severity, Accepted: f.Accepted}
-		if f.Rule != nil {
-			got[i].Reason = f.Rule.Reason
+	for i, finding := range findings {
+		require.Equal(t, diags[i], finding.Diagnostic, "finding %d carries its diagnostic as reported", i)
+		got[i] = ruled{Severity: finding.Severity, Accepted: finding.Accepted}
+		if finding.Rule != nil {
+			got[i].Reason = finding.Rule.Reason
 		}
 	}
 	return got, unused
@@ -48,14 +48,14 @@ func rated(t *testing.T, s triage.Ruleset, diags []ir.Diagnostic) ([]ruled, []tr
 // alone, and none of another code.
 func TestRuleset_RateMatchesTheMostPlacedRule(t *testing.T) {
 	t.Parallel()
-	s, err := triage.NewRuleset([]triage.Rule{
+	ruleset, err := triage.NewRuleset([]triage.Rule{
 		{Code: "c", Severity: ir.SeverityInfo, Reason: "wide"},
 		{Code: "c", Pointer: "/a", Severity: ir.SeverityWarning, Reason: "at /a"},
 		{Code: "c", Node: "service/x", Accept: true, Reason: "on s/x"},
 	})
 	require.NoError(t, err)
 
-	got, unused := rated(t, s, []ir.Diagnostic{
+	got, unused := rated(t, ruleset, []ir.Diagnostic{
 		finding(ir.SeverityError, "c", ir.Provenance{Pointer: "/a"}),
 		finding(ir.SeverityError, "c", ir.Provenance{Pointer: "/b"}),
 		finding(ir.SeverityError, "c", ir.Provenance{Source: ir.NoSource, Node: "service/x"}),
@@ -79,19 +79,19 @@ func TestRuleset_RateMatchesTheMostPlacedRule(t *testing.T) {
 // another place, which only a rule naming the code alone rules.
 func TestRuleset_RatePlacesAPointerInTheSpecAlone(t *testing.T) {
 	t.Parallel()
-	s, err := triage.NewRuleset([]triage.Rule{
+	ruleset, err := triage.NewRuleset([]triage.Rule{
 		{Code: "c", Pointer: "/a", Accept: true, Reason: "in the spec"},
 	})
 	require.NoError(t, err)
 
-	got, unused := rated(t, s, []ir.Diagnostic{
+	got, unused := rated(t, ruleset, []ir.Diagnostic{
 		finding(ir.SeverityError, "c", ir.Provenance{Source: 1, Pointer: "/a"}),
 		finding(ir.SeverityError, "c", ir.Provenance{Source: ir.NoSource, Pointer: "/a"}),
 	})
 	assert.Equal(t, []ruled{{ir.SeverityError, false, ""}, {ir.SeverityError, false, ""}}, got)
 	assert.Len(t, unused, 1, "a rule meeting no finding in the spec is unused")
 
-	got, unused = rated(t, s, []ir.Diagnostic{
+	got, unused = rated(t, ruleset, []ir.Diagnostic{
 		finding(ir.SeverityError, "c", ir.Provenance{Pointer: "/a", WrittenBy: 1}),
 	})
 	assert.Equal(t, []ruled{{ir.SeverityError, true, "in the spec"}}, got,
@@ -103,16 +103,16 @@ func TestRuleset_RatePlacesAPointerInTheSpecAlone(t *testing.T) {
 // rule names no code beneath it, nor one it is a prefix of.
 func TestRuleset_RateMatchesTheCodeExactly(t *testing.T) {
 	t.Parallel()
-	s, err := triage.NewRuleset([]triage.Rule{rate("openapi/validation", ir.SeverityInfo)})
+	ruleset, err := triage.NewRuleset([]triage.Rule{rate("openapi/validation", ir.SeverityInfo)})
 	require.NoError(t, err)
 
-	got, unused := rated(t, s, []ir.Diagnostic{
+	got, unused := rated(t, ruleset, []ir.Diagnostic{
 		finding(ir.SeverityError, "openapi/validation/validation-required-field", ir.Provenance{}),
 		finding(ir.SeverityError, "openapi/validatio", ir.Provenance{}),
 		finding(ir.SeverityError, "OPENAPI/VALIDATION", ir.Provenance{}),
 	})
-	for i, g := range got {
-		assert.Equal(t, ruled{ir.SeverityError, false, ""}, g, "finding %d", i)
+	for i, ruledValue := range got {
+		assert.Equal(t, ruled{ir.SeverityError, false, ""}, ruledValue, "finding %d", i)
 	}
 	assert.Len(t, unused, 1)
 }
@@ -127,10 +127,10 @@ func TestRuleset_RateListsTheRulesNoFindingMet(t *testing.T) {
 		{Code: "met", Pointer: "/x", Accept: true, Reason: "unmet second"},
 		rate("unmet-third", ir.SeverityWarning),
 	}
-	s, err := triage.NewRuleset(rules)
+	ruleset, err := triage.NewRuleset(rules)
 	require.NoError(t, err)
 
-	_, unused := rated(t, s, []ir.Diagnostic{
+	_, unused := rated(t, ruleset, []ir.Diagnostic{
 		finding(ir.SeverityError, "met", ir.Provenance{Pointer: "/y"}),
 		finding(ir.SeverityError, "met", ir.Provenance{Pointer: "/z"}),
 	})
@@ -159,13 +159,13 @@ func TestRuleset_RateLeavesAnUnruledFindingAsReported(t *testing.T) {
 // of their own: writing through one call's Finding.Rule changes no other call.
 func TestRuleset_RateSharesNoRuleBetweenCalls(t *testing.T) {
 	t.Parallel()
-	s, err := triage.NewRuleset([]triage.Rule{rate("c", ir.SeverityInfo)})
+	ruleset, err := triage.NewRuleset([]triage.Rule{rate("c", ir.SeverityInfo)})
 	require.NoError(t, err)
 	diags := []ir.Diagnostic{finding(ir.SeverityError, "c", ir.Provenance{})}
 
-	first, _ := s.Rate(diags)
+	first, _ := ruleset.Rate(diags)
 	first[0].Rule.Severity = ir.SeverityError
-	second, _ := s.Rate(diags)
+	second, _ := ruleset.Rate(diags)
 	assert.Equal(t, ir.SeverityInfo, second[0].Severity)
 	assert.Equal(t, ir.SeverityInfo, second[0].Rule.Severity)
 }

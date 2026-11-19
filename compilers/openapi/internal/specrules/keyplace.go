@@ -30,8 +30,8 @@ type keyPlacer struct {
 }
 
 // newKeyPlacer returns the placer of the keys mapping, written at at, writes.
-func newKeyPlacer(w *walker, mapping *yaml.Node, at jsontext.Pointer) *keyPlacer {
-	return &keyPlacer{w: w, mapping: nodeview.Deref(mapping), at: at}
+func newKeyPlacer(walkerValue *walker, mapping *yaml.Node, at jsontext.Pointer) *keyPlacer {
+	return &keyPlacer{w: walkerValue, mapping: nodeview.Deref(mapping), at: at}
 }
 
 // place returns where a finding about key is placed. A key whose value no

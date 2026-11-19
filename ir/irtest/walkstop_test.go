@@ -18,8 +18,8 @@ import (
 // walk's depth cap, so a walk of it stops.
 func cutDoc() *ir.Document {
 	deep := irtest.NestedListValue(ir.MaxWalkDepth)
-	return irtest.DocOf(irtest.ModelOf("type/x/M", func(m *ir.Model) {
-		m.Examples = []ir.Example{{Value: &deep}}
+	return irtest.DocOf(irtest.ModelOf("type/x/M", func(model *ir.Model) {
+		model.Examples = []ir.Example{{Value: &deep}}
 	}))
 }
 

@@ -117,20 +117,20 @@ func (c *rawConv) node(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Va
 // one lowered are never two kinds (GitHub #783), as the JSON kind it reads as
 // (value.Scalar.JSONKind).
 func appendScalar(dst jsontext.Value, n *yaml.Node) (jsontext.Value, error) {
-	s, err := value.Classify(n)
+	scalar, err := value.Classify(n)
 	if err != nil {
 		return nil, err
 	}
-	switch s.JSONKind() {
+	switch scalar.JSONKind() {
 	case value.ScalarNull:
 		return append(dst, "null"...), nil
 	case value.ScalarBool:
-		return strconv.AppendBool(dst, s.Bool), nil
+		return strconv.AppendBool(dst, scalar.Bool), nil
 	case value.ScalarNumber:
-		return spliceNumber(dst, n.Value, string(s.Num))
+		return spliceNumber(dst, n.Value, string(scalar.Num))
 	default:
 		// A string, and the kinds JSON names only as the text they were written as.
-		return appendString(dst, s.Text)
+		return appendString(dst, scalar.Text)
 	}
 }
 
@@ -185,16 +185,16 @@ func (c *rawConv) mapping(dst jsontext.Value, n *yaml.Node, depth int) (jsontext
 	})
 
 	dst = append(dst, '{')
-	for i, p := range sorted {
+	for i, pair := range sorted {
 		if i > 0 {
 			dst = append(dst, ',')
 		}
 		var err error
-		if dst, err = appendString(dst, p.Key); err != nil {
+		if dst, err = appendString(dst, pair.Key); err != nil {
 			return nil, fmt.Errorf("mapping key: %w", err)
 		}
 		dst = append(dst, ':')
-		if dst, err = c.node(dst, p.Val, depth+1); err != nil {
+		if dst, err = c.node(dst, pair.Val, depth+1); err != nil {
 			return nil, err
 		}
 	}

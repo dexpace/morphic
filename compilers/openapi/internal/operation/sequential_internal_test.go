@@ -16,10 +16,10 @@ import (
 
 func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	content := &ir.Content{MediaType: "multipart/mixed"}
 	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
-	diags := fillSequential(l.ctx, l.serviceWalk(), content, media, "/mp")
+	diags := fillSequential(lowerer.ctx, lowerer.serviceWalk(), content, media, "/mp")
 	assert.Equal(t, &ir.PartEncoding{RepeatsPerArrayItem: true}, content.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
 	assert.Nil(t, content.Unmodeled, "nothing is preserved raw")
@@ -32,9 +32,9 @@ func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 // as an encoding entry with no node is, load's finding being its one.
 func TestFillSequential_AnItemEncodingWithNoNodeOutsideMultipartKeepsNothing(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	content := &ir.Content{MediaType: "application/jsonl"}
-	diags := fillSequential(l.ctx, l.serviceWalk(), content, &soa.MediaType{ItemEncoding: &soa.Encoding{}}, "/mp")
+	diags := fillSequential(lowerer.ctx, lowerer.serviceWalk(), content, &soa.MediaType{ItemEncoding: &soa.Encoding{}}, "/mp")
 	assert.Nil(t, content.ItemEncoding)
 	assert.Nil(t, content.Unmodeled)
 	assert.Empty(t, diags)
@@ -47,10 +47,10 @@ func TestFillSequential_AnItemEncodingWithNoNodeOutsideMultipartKeepsNothing(t *
 // preservation it did not make (GitHub #144).
 func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	content := &ir.Content{}
 	media := &soa.MediaType{PrefixEncoding: []*soa.Encoding{{}}, ItemEncoding: &soa.Encoding{}}
-	diags := fillSequential(l.ctx, l.serviceWalk(), content, media, "/mp")
+	diags := fillSequential(lowerer.ctx, lowerer.serviceWalk(), content, media, "/mp")
 	assert.Nil(t, content.ItemEncoding, "prefixes still block the every-item lowering")
 	assert.Nil(t, content.Unmodeled, "a media type with no source node has nothing verbatim to keep")
 	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)

@@ -71,11 +71,11 @@ func TestPathItemRefSiblings_AChainCarriesTheFieldsBesideEachRef(t *testing.T) {
 			"%s at /a is sent to the servers beside /b's $ref", method)
 	}
 	var collided []string
-	for _, d := range diags {
-		if d.Code == diag.PathItemRefCollision {
-			_, other, _ := strings.Cut(d.Message, "and again at ")
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.PathItemRefCollision {
+			_, other, _ := strings.Cut(diagnostic.Message, "and again at ")
 			other, _, _ = strings.Cut(other, " in the item")
-			collided = append(collided, string(d.Provenance.Pointer)+" "+other)
+			collided = append(collided, string(diagnostic.Provenance.Pointer)+" "+other)
 		}
 	}
 	slices.Sort(collided)
@@ -193,8 +193,8 @@ func TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored(t *testing.
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		openapitest.FindOp(t, doc, "cbPost")
-		for _, g := range doc.Services[0].Groups {
-			for _, op := range g.Operations {
+		for _, operationGroup := range doc.Services[0].Groups {
+			for _, op := range operationGroup.Operations {
 				assert.NotEqual(t, "ignoredSibling", op.Name.Source, "callback %q", at)
 			}
 		}
@@ -219,9 +219,9 @@ paths:
     get: {responses: {"200": {description: OK}}}
 `)
 	var lines []int
-	for _, d := range diags {
-		if d.Code == diag.Validation+"/validation-type-mismatch" {
-			lines = append(lines, d.Provenance.Position.Line)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.Validation+"/validation-type-mismatch" {
+			lines = append(lines, diagnostic.Provenance.Position.Line)
 		}
 	}
 	slices.Sort(lines)

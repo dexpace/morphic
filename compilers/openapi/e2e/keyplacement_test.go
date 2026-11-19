@@ -79,9 +79,9 @@ func TestKeyFindings_AReservedHeaderIsPlacedAtItsKeyInEitherOrder(t *testing.T) 
 // placesOf returns "pointer:line" for each finding of code in diags.
 func placesOf(diags []ir.Diagnostic, code string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, fmt.Sprintf("%s:%d", d.Provenance.Pointer, d.Provenance.Position.Line))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, fmt.Sprintf("%s:%d", diagnostic.Provenance.Pointer, diagnostic.Provenance.Position.Line))
 		}
 	}
 	return out
@@ -90,9 +90,9 @@ func placesOf(diags []ir.Diagnostic, code string) []string {
 // firstPointer returns the pointer of the first finding of code in diags, or
 // "" where there is none.
 func firstPointer(diags []ir.Diagnostic, code string) string {
-	for _, d := range diags {
-		if d.Code == code {
-			return string(d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			return string(diagnostic.Provenance.Pointer)
 		}
 	}
 	return ""

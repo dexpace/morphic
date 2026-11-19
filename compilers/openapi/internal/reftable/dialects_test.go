@@ -19,8 +19,8 @@ const d4 = "'http://json-schema.org/draft-04/schema#'"
 // rootsOf returns where each dialect root of table is, and the URI it names.
 func rootsOf(table *reftable.ReferenceTargetTable) map[reftable.DocumentPointer]string {
 	out := map[reftable.DocumentPointer]string{}
-	for _, r := range dialectRoots(table) {
-		out[r.At] = r.URI
+	for _, dialectRoot := range dialectRoots(table) {
+		out[dialectRoot.At] = dialectRoot.URI
 	}
 	return out
 }
@@ -56,9 +56,9 @@ func TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect(t *testing.T) {
 		documentPointerAt("/paths/~1p/get/parameters/0/schema"):                            d,
 		documentPointerAt("/paths/~1p/get/responses/200/content/application~1json/schema"): d,
 	}, rootsOf(table))
-	for _, r := range dialectRoots(table) {
-		require.NotNil(t, r.Node, r.At.Pointer)
-		assert.Equal(t, "$schema", r.Node.Content[0].Value, "%s is the schema's node", r.At.Pointer)
+	for _, dialectRoot := range dialectRoots(table) {
+		require.NotNil(t, dialectRoot.Node, dialectRoot.At.Pointer)
+		assert.Equal(t, "$schema", dialectRoot.Node.Content[0].Value, "%s is the schema's node", dialectRoot.At.Pointer)
 	}
 }
 
@@ -84,8 +84,8 @@ func TestDialectRoots_ADocumentOfSchemasNamesItAtItsRoot(t *testing.T) {
 				withDocuments(map[string]string{"o.yaml": tc.other}))
 			doc := docNamed(t, table, "o.yaml")
 			got := make([]jsontext.Pointer, 0, len(table.Document(doc).Dialects))
-			for _, r := range table.Document(doc).Dialects {
-				got = append(got, r.At.Pointer)
+			for _, dialectRoot := range table.Document(doc).Dialects {
+				got = append(got, dialectRoot.At.Pointer)
 			}
 			assert.Len(t, dialectRoots(table), len(got), "the source names none")
 			assert.Equal(t, tc.want, got)
@@ -145,8 +145,8 @@ func TestDialectRoots_ADocumentListsItsRootsInPointerOrder(t *testing.T) {
 		"    C: {$schema: "+d4+", properties: {x: {$id: 'https://example.com/x', $schema: "+d4+"}}}\n"+
 		"    B: {$schema: "+d4+"}\n    A: {$schema: "+d4+"}\n", self)
 	got := make([]jsontext.Pointer, 0, len(table.Document(reftable.Source).Dialects))
-	for _, r := range table.Document(reftable.Source).Dialects {
-		got = append(got, r.At.Pointer)
+	for _, dialectRoot := range table.Document(reftable.Source).Dialects {
+		got = append(got, dialectRoot.At.Pointer)
 	}
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A", "/components/schemas/B", "/components/schemas/C",
 		"/components/schemas/C/properties/x", "/components/schemas/D", "/components/schemas/E"}, got)

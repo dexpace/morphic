@@ -23,9 +23,9 @@ const (
 // rootErrors returns the codes of the error diagnostics.
 func rootErrors(diags []ir.Diagnostic) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			out = append(out, d.Code)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
+			out = append(out, diagnostic.Code)
 		}
 	}
 	return out

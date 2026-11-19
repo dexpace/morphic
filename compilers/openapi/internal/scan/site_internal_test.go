@@ -27,9 +27,9 @@ func nodesAt(t *testing.T, root *yaml.Node, pointers []jsontext.Pointer) []*yaml
 	t.Helper()
 	view := nodeview.New()
 	nodes := make([]*yaml.Node, 0, len(pointers))
-	for _, p := range pointers {
-		path, complete := view.DocumentPath(root, p)
-		require.True(t, complete, "%s names nothing", p)
+	for _, pointer := range pointers {
+		path, complete := view.DocumentPath(root, pointer)
+		require.True(t, complete, "%s names nothing", pointer)
 		nodes = append(nodes, path[len(path)-1])
 	}
 	return nodes
@@ -270,10 +270,10 @@ func TestAliases_NamesTheLeastRecursiveAlias(t *testing.T) {
 	for order, data := range bothOrders(members) {
 		t.Run(order, func(t *testing.T) {
 			t.Parallel()
-			d := onlyRefusal(t, data)
-			assert.Equal(t, diag.CyclicRef, d.Code)
-			assert.Equal(t, jsontext.Pointer("/a/k/0"), d.Provenance.Pointer)
-			assert.Equal(t, `recursive YAML anchor "y" references an ancestor node`, d.Message)
+			diagnostic := onlyRefusal(t, data)
+			assert.Equal(t, diag.CyclicRef, diagnostic.Code)
+			assert.Equal(t, jsontext.Pointer("/a/k/0"), diagnostic.Provenance.Pointer)
+			assert.Equal(t, `recursive YAML anchor "y" references an ancestor node`, diagnostic.Message)
 		})
 	}
 }

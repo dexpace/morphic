@@ -47,30 +47,30 @@ func (s Spec) EncodingRules(version string) EncodingRules {
 		return EncodingRules{}
 	}
 	rows := &encodingRows{defaults: map[defaultOf]string{}, limited: map[string]bool{}, within: map[withinOf]bool{}}
-	for _, d := range obj.Defaults {
-		if d.Span.Holds(minor) {
-			rows.defaults[defaultOf{field: d.Field, k: d.Case}] = d.Value
+	for _, defaultValue := range obj.Defaults {
+		if defaultValue.Span.Holds(minor) {
+			rows.defaults[defaultOf{field: defaultValue.Field, k: defaultValue.Case}] = defaultValue.Value
 		}
 	}
-	for _, f := range obj.Fields {
-		for _, w := range f.Within {
-			rows.limited[f.Name] = true
-			if w.Span.Holds(minor) {
-				rows.within[withinOf{field: f.Name, mediaType: w.MediaType}] = true
+	for _, field := range obj.Fields {
+		for _, within := range field.Within {
+			rows.limited[field.Name] = true
+			if within.Span.Holds(minor) {
+				rows.within[withinOf{field: field.Name, mediaType: within.MediaType}] = true
 			}
 		}
 	}
 	return EncodingRules{rows: rows}
 }
 
-// ContentType returns the contentType a value of case k takes where its
+// ContentType returns the contentType a value of case defaultCase takes where its
 // Encoding Object writes none, and false where the minor gives that case no
 // default.
-func (r EncodingRules) ContentType(k DefaultCase) (string, bool) {
+func (r EncodingRules) ContentType(defaultCase DefaultCase) (string, bool) {
 	if r.rows == nil {
 		return "", false
 	}
-	v, ok := r.rows.defaults[defaultOf{field: "contentType", k: k}]
+	v, ok := r.rows.defaults[defaultOf{field: "contentType", k: defaultCase}]
 	return v, ok
 }
 

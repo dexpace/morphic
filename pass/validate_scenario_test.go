@@ -30,9 +30,9 @@ func scenarioDoc(params map[ir.ParameterID]ir.Value) *ir.Document {
 // nodesOfCode returns the nodes of the diagnostics of code, in report order.
 func nodesOfCode(diags []ir.Diagnostic, code string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, d.Provenance.Node)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, diagnostic.Provenance.Node)
 		}
 	}
 	return out
@@ -71,10 +71,10 @@ func TestValidate_ScenarioKeyNamesAParameterOfItsOwnOperation(t *testing.T) {
 	diags := validated(t, scenarioDoc(map[ir.ParameterID]ir.Value{"parameter/x/p/z": {Kind: ir.ValueString, String: "v"}}))
 
 	require.Equal(t, 1, countCode(t, diags, "pass/param-binding-mismatch"))
-	for _, d := range diags {
-		if d.Code == "pass/param-binding-mismatch" {
-			assert.Equal(t, ir.SeverityError, d.Severity)
-			assert.Equal(t, "operation/x/o/examples/0/input", d.Provenance.Node)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "pass/param-binding-mismatch" {
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+			assert.Equal(t, "operation/x/o/examples/0/input", diagnostic.Provenance.Node)
 		}
 	}
 	assert.Empty(t, nodesOfCode(diags, "ir/dangling-parameter-ref"), "the parameter is declared")
@@ -114,9 +114,9 @@ func TestValidate_ScenarioKeyIsPlacedAtItsOwnExample(t *testing.T) {
 	op.Examples = append([]ir.Example{{Name: "value", Value: &ir.Value{Kind: ir.ValueString, String: "v"}}}, op.Examples...)
 
 	var at []string
-	for _, d := range validated(t, doc) {
-		if d.Code == "pass/param-binding-mismatch" && d.Severity == ir.SeverityError {
-			at = append(at, d.Provenance.Node)
+	for _, diagnostic := range validated(t, doc) {
+		if diagnostic.Code == "pass/param-binding-mismatch" && diagnostic.Severity == ir.SeverityError {
+			at = append(at, diagnostic.Provenance.Node)
 		}
 	}
 	assert.Equal(t, []string{"operation/x/o/examples/1/input"}, at)

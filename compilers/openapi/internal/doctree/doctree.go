@@ -114,7 +114,7 @@ func Read(ctx context.Context, data []byte, maxNodes budget.Limit) (ParsedYAMLDo
 // the tree settled, its text restored and its plain scalars resolved by the
 // core schema (settle). The tree is counted once parsed and held to maxNodes.
 func readYAML(ctx context.Context, data []byte, maxNodes budget.Limit) (ParsedYAMLDocument, error) {
-	text, r, dirs := respell(data)
+	text, respelling, dirs := respell(data)
 	dec := yaml.NewDecoder(contextReader{ctx: ctx, r: bytes.NewReader(text)})
 	root, err := firstWithContent(dec)
 	if err != nil {
@@ -127,7 +127,7 @@ func readYAML(ctx context.Context, data []byte, maxNodes budget.Limit) (ParsedYA
 	}
 
 	doc := ParsedYAMLDocument{Root: root, Rest: rest, Directive: governing(dirs, root)}
-	if err := settle(ctx, &doc, r); err != nil {
+	if err := settle(ctx, &doc, respelling); err != nil {
 		return ParsedYAMLDocument{}, err
 	}
 	if !maxNodes.Admits(doc.Nodes) {
@@ -144,9 +144,9 @@ func governing(dirs []Directive, root *yaml.Node) *Directive {
 	if root.Kind != yaml.DocumentNode || len(root.Content) == 0 {
 		return nil
 	}
-	for _, d := range dirs {
-		if d.Line >= root.Line && d.Line < root.Content[0].Line {
-			return &d
+	for _, directive := range dirs {
+		if directive.Line >= root.Line && directive.Line < root.Content[0].Line {
+			return &directive
 		}
 	}
 	return nil

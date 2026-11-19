@@ -35,8 +35,8 @@ func TestContent_NonRequiredRequestBody(t *testing.T) {
 	assert.False(t, *op.Request.Required)
 	assert.NotContains(t, op.Request.Unmodeled, "openapi:required",
 		"the typed field carries the fact, so no sentinel is written beside it")
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "request body",
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "request body",
 			"a typed fact is not a degraded construct")
 	}
 }
@@ -233,17 +233,17 @@ components:
 	}
 
 	var at []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == diag.EmptyRequestContent {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			at = append(at, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.EmptyRequestContent {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			at = append(at, diagnostic.Provenance.Pointer)
 		}
 	}
 	slices.Sort(at)
 	assert.Equal(t, []jsontext.Pointer{"/components/requestBodies/Empty/content", "/paths/~1inline/post/requestBody/content"}, at)
-	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Code == diag.Validation+"/validation-required-field" &&
-			d.Provenance.Pointer == "/paths/~1missing/post/requestBody"
+	assert.True(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+		return diagnostic.Code == diag.Validation+"/validation-required-field" &&
+			diagnostic.Provenance.Pointer == "/paths/~1missing/post/requestBody"
 	}), "the rule table reports the content left out: %+v", diags)
 }
 

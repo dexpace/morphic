@@ -24,10 +24,10 @@ func linkValueViolations(lv ir.LinkValue) []string {
 		Name: named("next"), Operation: "operation/x/S/op", Body: &lv,
 	}}}}}
 	var got []string
-	for _, v := range irverify.Verify(opDoc(op)) {
+	for _, violation := range irverify.Verify(opDoc(op)) {
 		for _, code := range linkValueCodes {
-			if v.Code == code {
-				got = append(got, code+" "+v.Path)
+			if violation.Code == code {
+				got = append(got, code+" "+violation.Path)
 			}
 		}
 	}

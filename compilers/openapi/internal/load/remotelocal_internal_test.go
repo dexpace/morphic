@@ -39,10 +39,10 @@ func TestExternal_ASourceReadOverTheNetworkReadsNoFile(t *testing.T) {
 	t.Parallel()
 	fake := &fakeReader{data: []byte("X: {type: integer}\n")}
 	self := sourceDocument{path: "http://host/v1/root.yaml", judged: judgment{checker: specrules.NewChecker()}}
-	e := newExternal(Options{Reader: fake}, newExternalReads(self, budget.Unbounded()), &aside{})
+	external := newExternal(Options{Reader: fake}, newExternalReads(self, budget.Unbounded()), &aside{})
 
 	for _, name := range []string{"/etc/secret.yaml", "file:///etc/secret.yaml"} {
-		_, err := e.document(t.Context(), name, self.path)
+		_, err := external.document(t.Context(), name, self.path)
 		require.ErrorContains(t, err, reftable.OffNetwork, name)
 	}
 	assert.Empty(t, fake.reqs, "nothing is read")

@@ -234,8 +234,8 @@ func walkWith(doc *ir.Document, root any, path string, walk walkFunc,
 	decls := declarations{collected: ids, truncated: walk(root, path, visitors...)}
 
 	reports := make([][]Violation, len(built))
-	for i, c := range built {
-		reports[i] = c.report(decls)
+	for i, walkCheck := range built {
+		reports[i] = walkCheck.report(decls)
 	}
 	return slices.Concat(reports...), decls.truncated
 }

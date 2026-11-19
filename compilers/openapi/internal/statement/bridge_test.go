@@ -16,9 +16,9 @@ import (
 // operation walk takes the parser's value back through.
 func TestParsed_HandsBackWhatTheStatementWasReadFrom(t *testing.T) {
 	t.Parallel()
-	table, c := tableOver(t, document("3.1.0", `A: {type: string}`, `B: {properties: {t: true}}`), rulesAt(t, "3.1.0", ""))
-	stated := c.Bindings().At(component(c, "A"))
-	boolean := c.Bindings().At(c.Position("/components/schemas/B/properties/t"))
+	table, loweringContext := tableOver(t, document("3.1.0", `A: {type: string}`, `B: {properties: {t: true}}`), rulesAt(t, "3.1.0", ""))
+	stated := loweringContext.Bindings().At(component(loweringContext, "A"))
+	boolean := loweringContext.Bindings().At(loweringContext.Position("/components/schemas/B/properties/t"))
 	require.NotNil(t, stated.GetSchema())
 
 	assert.Same(t, stated, statement.ParsedAt(table.Of(stated)))

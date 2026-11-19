@@ -23,8 +23,8 @@ func TestVerify_ATagsKeptKeysAreHeldToTheEntryChecks(t *testing.T) {
 	}}}
 	got := verifyDeclared(doc)
 	assert.Equal(t, []string{"ir/empty-unmodeled-key", "ir/empty-unmodeled-reason"}, codesOf(got))
-	for _, v := range got {
-		assert.Contains(t, v.Path, "document.TagDefs[0].Unmodeled")
+	for _, violation := range got {
+		assert.Contains(t, violation.Path, "document.TagDefs[0].Unmodeled")
 	}
 }
 

@@ -18,12 +18,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// shards returns the coordinates of every case of c pick admits, by the
+// shards returns the coordinates of every case of cases pick admits, by the
 // case's version and target.
-func shards(t *testing.T, c harness.Cases, pick func([]int) bool) map[[2]int][][]int {
+func shards(t *testing.T, cases harness.Cases, pick func([]int) bool) map[[2]int][][]int {
 	t.Helper()
 	out := map[[2]int][][]int{}
-	each, err := harness.Each(c)
+	each, err := harness.Each(cases)
 	require.NoError(t, err)
 	for _, at := range each {
 		if pick(at) {
@@ -62,18 +62,18 @@ func TestGroups_EachValueCompilesAtALaterVersion(t *testing.T) {
 	eachValueCompilesAtALaterVersion(t, openapicases.Groups())
 }
 
-// eachValueCompilesAtALaterVersion compiles, at each version of c the core
+// eachValueCompilesAtALaterVersion compiles, at each version of cases the core
 // leaves out, the first case writing each value of each other axis, as
 // eachCoreCaseCompilesWithNoError compiles the core. The gate checks no other
 // document of such a version, so one the version alone makes the compiler
 // refuse fails here and not first in the nightly run, whose oracles decline
 // it; one refused only where two values meet is that run's to find.
-func eachValueCompilesAtALaterVersion(t *testing.T, c harness.Cases) {
+func eachValueCompilesAtALaterVersion(t *testing.T, cases harness.Cases) {
 	t.Helper()
-	axes := c.Axes()
+	axes := cases.Axes()
 	seen := map[[3]int]bool{}
 	first := map[[2]int][][]int{}
-	each, err := harness.Each(c)
+	each, err := harness.Each(cases)
 	require.NoError(t, err)
 	for _, at := range each {
 		if axes[0].Values[at[0]].Like == "" {
@@ -86,7 +86,7 @@ func eachValueCompilesAtALaterVersion(t *testing.T, c harness.Cases) {
 		if !fresh {
 			continue
 		}
-		if _, ok := c.Write(at); !ok {
+		if _, ok := cases.Write(at); !ok {
 			continue
 		}
 		for k := 1; k < len(at); k++ {
@@ -95,25 +95,25 @@ func eachValueCompilesAtALaterVersion(t *testing.T, c harness.Cases) {
 		first[[2]int{at[0], at[1]}] = append(first[[2]int{at[0], at[1]}], at)
 	}
 	require.NotEmpty(t, first, "a version the core leaves out")
-	compilesWithNoError(t, c, first)
+	compilesWithNoError(t, cases, first)
 }
 
-// eachCoreCaseCompilesWithNoError compiles each core case of c
+// eachCoreCaseCompilesWithNoError compiles each core case of cases
 // (compilesWithNoError).
-func eachCoreCaseCompilesWithNoError(t *testing.T, c harness.Cases) {
+func eachCoreCaseCompilesWithNoError(t *testing.T, cases harness.Cases) {
 	t.Helper()
-	compilesWithNoError(t, c, shards(t, c, harness.Core(c)))
+	compilesWithNoError(t, cases, shards(t, cases, harness.Core(cases)))
 }
 
-// compilesWithNoError compiles each case of byShard, cases of c by version
+// compilesWithNoError compiles each case of byShard, cases of harnessCases by version
 // and target, as the harness's first three oracles hold a spec: verified, so a
 // broken invariant or a panic fails the run, and with no error diagnostic.
 // Each case is a valid document of its version, so a case the compiler refuses
 // is the writer's defect. An info or a warning stands: it is the compiler's
 // account of a valid construct, which the case oracles judge.
-func compilesWithNoError(t *testing.T, c harness.Cases, byShard map[[2]int][][]int) {
+func compilesWithNoError(t *testing.T, harnessCases harness.Cases, byShard map[[2]int][][]int) {
 	t.Helper()
-	axes := c.Axes()
+	axes := harnessCases.Axes()
 	for key, cases := range byShard {
 		name := axes[0].Values[key[0]].Name + "/" + axes[1].Values[key[1]].Name
 		t.Run(name, func(t *testing.T) {
@@ -121,7 +121,7 @@ func compilesWithNoError(t *testing.T, c harness.Cases, byShard map[[2]int][][]i
 			eng, err := engine.New(engine.WithCompilers(engine.Compilers()...), engine.WithPasses(engine.Passes()...))
 			require.NoError(t, err)
 			for _, at := range cases {
-				doc, ok := c.Write(at)
+				doc, ok := harnessCases.Write(at)
 				if !ok {
 					continue
 				}
@@ -159,27 +159,27 @@ func TestGroups_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 // holding at one, and the walk does not grow by the product of the two axes.
 func alone(at []int) bool { return at[3] == 0 || at[4] == 0 }
 
-// eachCaseWritesADocumentOfItsOwn writes every case of c's full product pick
+// eachCaseWritesADocumentOfItsOwn writes every case of cases's full product pick
 // admits: each document holds minSources sources or more, each JSON, is
 // written alike twice, and no two cases write the same one, as a value Write
 // misreads would make them; and each value of each axis is written by some
 // case. Each case's name is its own because CaseCount accepts the axes.
-func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources int, pick func([]int) bool) {
+func eachCaseWritesADocumentOfItsOwn(t *testing.T, cases harness.Cases, minSources int, pick func([]int) bool) {
 	t.Helper()
-	axes := c.Axes()
+	axes := cases.Axes()
 
 	writers := map[[sha256.Size]byte][]int{}
 	written := make([][]bool, len(axes))
 	for k, a := range axes {
 		written[k] = make([]bool, len(a.Values))
 	}
-	each, err := harness.Each(c)
+	each, err := harness.Each(cases)
 	require.NoError(t, err)
 	for _, at := range each {
 		if !pick(at) {
 			continue
 		}
-		doc, ok := c.Write(at)
+		doc, ok := cases.Write(at)
 		if !ok {
 			continue
 		}
@@ -189,7 +189,7 @@ func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources i
 			require.True(t, jsontext.Value(src.Data).IsValid(), "%v: %s", at, src.Path)
 			h.Write([]byte(src.Path + "\x00" + string(src.Data) + "\x00"))
 		}
-		again, _ := c.Write(at)
+		again, _ := cases.Write(at)
 		require.Equal(t, doc.Sources, again.Sources, "%v is written alike twice", at)
 		sum := [sha256.Size]byte(h.Sum(nil))
 		first, dup := writers[sum]
@@ -223,8 +223,8 @@ func TestNew_TheAxesInTheirOrder(t *testing.T) {
 		{Name: "enum", Like: "string"}, {Name: "union"}, {Name: "formatted", Like: "string"},
 		{Name: "map", Like: "object"}}, axes[1].Values)
 	assert.Equal(t, harness.Value{Name: "none"}, axes[3].Values[0])
-	for _, v := range axes[3].Values[1:] {
-		assert.Equal(t, "none", v.Like, "a second construct, %s, is recorded under none", v.Name)
+	for _, value := range axes[3].Values[1:] {
+		assert.Equal(t, "none", value.Like, "a second construct, %s, is recorded under none", value.Name)
 	}
 	assert.Equal(t, []harness.Value{{Name: "inline"}, {Name: "beside"}, {Name: "wrap"}, {Name: "entry"},
 		{Name: "entryFirst", Like: "entry"}, {Name: "nested"}, {Name: "besideEntry"}}, axes[5].Values)
@@ -234,12 +234,12 @@ func TestNew_TheAxesInTheirOrder(t *testing.T) {
 }
 
 func TestNew_WritesNothingOutsideTheProduct(t *testing.T) {
-	c := openapicases.New()
+	cases := openapicases.New()
 	for _, at := range [][]int{nil, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 6}, {0, -1, 0, 0, 0, 0}} {
-		_, ok := c.Write(at)
+		_, ok := cases.Write(at)
 		assert.False(t, ok, "%v", at)
 	}
-	_, ok := c.Write([]int{0, 0, 0, 0, 0, 0})
+	_, ok := cases.Write([]int{0, 0, 0, 0, 0, 0})
 	assert.True(t, ok, "the first case writes the object target at a component")
 }
 
@@ -247,15 +247,15 @@ func TestNew_WritesNothingOutsideTheProduct(t *testing.T) {
 // every line's reason to Reasons, and the full record to holding each line of
 // the core's.
 func TestRecord_ReadsEachCaseOraclesRecord(t *testing.T) {
-	for _, o := range harness.CaseOracles() {
-		r, err := openapicases.Record(o)
-		require.NoError(t, err, o)
-		_, _, _, unreasoned := r.Judge(nil, openapicases.Reasons())
-		assert.Empty(t, unreasoned, o)
-		every, err := openapicases.FullRecord(o)
-		require.NoError(t, err, o)
-		for name := range r {
-			assert.Contains(t, every, name, o)
+	for _, oracle := range harness.CaseOracles() {
+		recorded, err := openapicases.Record(oracle)
+		require.NoError(t, err, oracle)
+		_, _, _, unreasoned := recorded.Judge(nil, openapicases.Reasons())
+		assert.Empty(t, unreasoned, oracle)
+		every, err := openapicases.FullRecord(oracle)
+		require.NoError(t, err, oracle)
+		for name := range recorded {
+			assert.Contains(t, every, name, oracle)
 		}
 	}
 	for _, read := range []func(harness.Oracle) (harness.Recorded, error){openapicases.Record, openapicases.FullRecord} {
@@ -268,12 +268,12 @@ func TestRecord_ReadsEachCaseOraclesRecord(t *testing.T) {
 // TestNew_WritesAPositionOnlyAtTheVersionsItHolds pins the positions written
 // from 3.1, whose keywords exist from that version: no case writes them at 3.0.
 func TestNew_WritesAPositionOnlyAtTheVersionsItHolds(t *testing.T) {
-	c := openapicases.New()
-	axes := c.Axes()
-	for i, p := range axes[4].Values {
+	cases := openapicases.New()
+	axes := cases.Axes()
+	for i, value := range axes[4].Values {
 		for v, version := range axes[0].Values {
-			_, ok := c.Write([]int{v, 0, 0, 0, i, 0})
-			assert.Equal(t, v > 0 || !slices.Contains(from31Positions, p.Name), ok, "%s at %s", p.Name, version.Name)
+			_, ok := cases.Write([]int{v, 0, 0, 0, i, 0})
+			assert.Equal(t, v > 0 || !slices.Contains(from31Positions, value.Name), ok, "%s at %s", value.Name, version.Name)
 		}
 	}
 }

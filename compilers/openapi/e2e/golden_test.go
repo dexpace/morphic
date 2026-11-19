@@ -142,9 +142,9 @@ func TestGolden_SplitSpec(t *testing.T) {
 
 	const item = "server/openapi@paths.yaml/paths/~1pets~1{petId}"
 	byURL := map[string]ir.ServerID{}
-	for id, s := range doc.Servers {
-		byURL[s.URLTemplate] = id
-		assert.Equal(t, string(id), "server/"+serverSpace(t, id)+string(s.Provenance.Pointer),
+	for id, server := range doc.Servers {
+		byURL[server.URLTemplate] = id
+		assert.Equal(t, string(id), "server/"+serverSpace(t, id)+string(server.Provenance.Pointer),
 			"%s is named by the position its provenance records", id)
 	}
 	assert.Equal(t, ir.ServerID(item+"/servers/0"), byURL["https://pets.example.com"])

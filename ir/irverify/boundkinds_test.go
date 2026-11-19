@@ -16,9 +16,9 @@ import (
 // boundViolations returns the violations of ir/bound-of-another-kind in doc.
 func boundViolations(doc *ir.Document) []irverify.Violation {
 	var found []irverify.Violation
-	for _, v := range irverify.Verify(doc) {
-		if v.Code == "ir/bound-of-another-kind" {
-			found = append(found, v)
+	for _, violation := range irverify.Verify(doc) {
+		if violation.Code == "ir/bound-of-another-kind" {
+			found = append(found, violation)
 		}
 	}
 	return found

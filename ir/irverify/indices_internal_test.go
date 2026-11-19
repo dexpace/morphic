@@ -72,8 +72,8 @@ func TestCheckIndices_ResponseIndexInRangeIsClean(t *testing.T) {
 func TestVerify_ReportsOutOfRangeIndices(t *testing.T) {
 	found := Verify(docWithSuccessStatus(map[int]int{4: 200}))
 	codes := make([]string, 0, len(found))
-	for _, v := range found {
-		codes = append(codes, v.Code)
+	for _, violation := range found {
+		codes = append(codes, violation.Code)
 	}
 	assert.Contains(t, codes, "ir/response-index-out-of-range")
 }
@@ -247,9 +247,9 @@ func TestIntegerFields_AreAllClassified(t *testing.T) {
 func declaredIntegerFields(t *testing.T) []string {
 	t.Helper()
 	var names []string
-	for _, f := range declaredFields(t) {
-		if mentionsInteger(t, f.field.Type(), 0) {
-			names = append(names, f.key())
+	for _, declaredField := range declaredFields(t) {
+		if mentionsInteger(t, declaredField.field.Type(), 0) {
+			names = append(names, declaredField.key())
 		}
 	}
 	return names

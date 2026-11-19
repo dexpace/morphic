@@ -25,8 +25,8 @@ func TestSchemaRules_ASecondShapeCountsFromItsOwnMinor(t *testing.T) {
 		index:   map[Kind]int{Schema: 0},
 	}
 	rules := func(version string) SchemaRules {
-		r, _ := spec.SchemaRules(version, "")
-		return r
+		schemaRules, _ := spec.SchemaRules(version, "")
+		return schemaRules
 	}
 	assert.True(t, rules("3.0.3").Takes("x", String))
 	assert.False(t, rules("3.0.3").Takes("x", Boolean), "3.0 admits no second shape")
@@ -42,37 +42,37 @@ func TestDialects_EveryRowCitesItsText(t *testing.T) {
 	t.Parallel()
 	dialects := schemaDialects()
 	assert.NotEmpty(t, dialects)
-	for _, d := range dialects {
-		assert.True(t, slices.ContainsFunc(d.cites, func(c Cite) bool { return c.Minor == V31 && c.Text == 0 }),
-			"%s cites the OpenAPI sentence admitting it", d.id)
-		for _, c := range d.cites {
-			assert.NotEmpty(t, c.Sentence, d.id)
-			assert.NotEqual(t, c.Text == 0, c.Minor == 0, "%s cites one text: OpenAPI's at a minor, or another", d.id)
+	for _, dialect := range dialects {
+		assert.True(t, slices.ContainsFunc(dialect.cites, func(cite Cite) bool { return cite.Minor == V31 && cite.Text == 0 }),
+			"%s cites the OpenAPI sentence admitting it", dialect.id)
+		for _, cite := range dialect.cites {
+			assert.NotEmpty(t, cite.Sentence, dialect.id)
+			assert.NotEqual(t, cite.Text == 0, cite.Minor == 0, "%s cites one text: OpenAPI's at a minor, or another", dialect.id)
 		}
-		if d.rules != nil {
-			for _, r := range d.rules() {
-				assert.Equal(t, From(V31), r.Span, "%s rule %s", d.id, r.Field+r.Name)
-				assert.NotEmpty(t, r.Cites, "%s rule %s", d.id, r.Field+r.Name)
-				for _, c := range r.Cites {
-					assert.Zero(t, c.Minor, "%s rule %s cites no OpenAPI minor", d.id, r.Field+r.Name)
-					assert.NotZero(t, c.Text, d.id)
-					assert.NotEmpty(t, c.Section, d.id)
-					assert.NotEmpty(t, c.Sentence, d.id)
+		if dialect.rules != nil {
+			for _, rule := range dialect.rules() {
+				assert.Equal(t, From(V31), rule.Span, "%s rule %s", dialect.id, rule.Field+rule.Name)
+				assert.NotEmpty(t, rule.Cites, "%s rule %s", dialect.id, rule.Field+rule.Name)
+				for _, cite := range rule.Cites {
+					assert.Zero(t, cite.Minor, "%s rule %s cites no OpenAPI minor", dialect.id, rule.Field+rule.Name)
+					assert.NotZero(t, cite.Text, dialect.id)
+					assert.NotEmpty(t, cite.Section, dialect.id)
+					assert.NotEmpty(t, cite.Sentence, dialect.id)
 				}
 			}
 		}
-		if d.keywords == nil {
+		if dialect.keywords == nil {
 			continue
 		}
-		for _, f := range d.keywords() {
-			assert.True(t, f.IsJSONSchemaKeyword, "%s %s", d.id, f.Name)
-			assert.Equal(t, From(V31), f.Defined, "%s %s", d.id, f.Name)
-			assert.NotEmpty(t, f.Cites, "%s %s", d.id, f.Name)
-			for _, c := range f.Cites {
-				assert.Zero(t, c.Minor, "%s %s cites no OpenAPI minor", d.id, f.Name)
-				assert.NotZero(t, c.Text, "%s %s", d.id, f.Name)
-				assert.NotEmpty(t, c.Section, "%s %s", d.id, f.Name)
-				assert.NotEmpty(t, c.Sentence, "%s %s", d.id, f.Name)
+		for _, field := range dialect.keywords() {
+			assert.True(t, field.IsJSONSchemaKeyword, "%s %s", dialect.id, field.Name)
+			assert.Equal(t, From(V31), field.Defined, "%s %s", dialect.id, field.Name)
+			assert.NotEmpty(t, field.Cites, "%s %s", dialect.id, field.Name)
+			for _, cite := range field.Cites {
+				assert.Zero(t, cite.Minor, "%s %s cites no OpenAPI minor", dialect.id, field.Name)
+				assert.NotZero(t, cite.Text, "%s %s", dialect.id, field.Name)
+				assert.NotEmpty(t, cite.Section, "%s %s", dialect.id, field.Name)
+				assert.NotEmpty(t, cite.Sentence, "%s %s", dialect.id, field.Name)
 			}
 		}
 	}
@@ -93,7 +93,7 @@ func TestSchemaRules_TheOwnRowsReadAsTheSchemaObject(t *testing.T) {
 		rules, _ := spec.SchemaRules(version, "")
 		require.NotNil(t, rules.rows, version)
 		want := obj
-		want.Fields = slices.DeleteFunc(slices.Clone(obj.Fields), func(f Field) bool { return !f.Defined.Holds(minor) })
+		want.Fields = slices.DeleteFunc(slices.Clone(obj.Fields), func(field Field) bool { return !field.Defined.Holds(minor) })
 		want.Boolean = MinorVersionRange{}
 		if obj.Boolean.Holds(minor) {
 			want.Boolean = Always()
@@ -116,9 +116,9 @@ func TestSchemaRules_LaterKeywordsAreTheOwnRowsADialectLacks(t *testing.T) {
 	d4 := slices.Concat(d6, []string{"const", "contains", "examples", "propertyNames"})
 	obj, _ := Table().Object(Schema)
 	var at30 []string
-	for _, f := range obj.Fields {
-		if f.Defined.Holds(V31) && !slices.ContainsFunc(obj.Fields, func(g Field) bool { return g.Name == f.Name && g.Defined.Holds(V30) }) {
-			at30 = append(at30, f.Name)
+	for _, field := range obj.Fields {
+		if field.Defined.Holds(V31) && !slices.ContainsFunc(obj.Fields, func(fieldValue Field) bool { return fieldValue.Name == field.Name && fieldValue.Defined.Holds(V30) }) {
+			at30 = append(at30, field.Name)
 		}
 	}
 	for _, tc := range []struct {

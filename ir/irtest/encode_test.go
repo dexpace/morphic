@@ -46,11 +46,11 @@ func TestEncoded_FailsTheTestOnADocumentThatDoesNotEncode(t *testing.T) {
 // nor one refused for another reason is.
 func TestRefusedAsCyclic_ReadsOnlyTheCycleRefusal(t *testing.T) {
 	t.Parallel()
-	c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
-	self := ir.Value{Kind: ir.ValueConstructor, Constructor: c}
-	c.Args = []ir.Value{self}
-	cyclic := irtest.DocOf(irtest.ModelOf("type/x/M", func(m *ir.Model) {
-		m.Examples = []ir.Example{{Value: &self}}
+	constructorValue := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
+	self := ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}
+	constructorValue.Args = []ir.Value{self}
+	cyclic := irtest.DocOf(irtest.ModelOf("type/x/M", func(model *ir.Model) {
+		model.Examples = []ir.Example{{Value: &self}}
 	}))
 	cyclic.IRVersion = ir.IRVersion
 

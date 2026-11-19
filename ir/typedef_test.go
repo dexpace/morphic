@@ -23,12 +23,12 @@ var allKinds = []ir.TypeKind{
 
 func TestTypeDef_KindDispatchIsComplete(t *testing.T) {
 	t.Parallel()
-	for _, k := range allKinds {
-		t.Run(string(k), func(t *testing.T) {
+	for _, typeKind := range allKinds {
+		t.Run(string(typeKind), func(t *testing.T) {
 			t.Parallel()
-			td, ok := ir.NewTypeDef(k)
-			require.True(t, ok, "no concrete type registered for kind %q", k)
-			assert.Equal(t, k, td.Kind())
+			td, ok := ir.NewTypeDef(typeKind)
+			require.True(t, ok, "no concrete type registered for kind %q", typeKind)
+			assert.Equal(t, typeKind, td.Kind())
 			require.NotNil(t, td.Common())
 		})
 	}
@@ -153,11 +153,11 @@ func TestTypeDef_ZeroValueShapeWithKindTag(t *testing.T) {
 // shared-singleton mutant.
 func TestTypeDef_CommonIsAnAliasNotACopy(t *testing.T) {
 	t.Parallel()
-	for _, k := range allKinds {
-		t.Run(string(k), func(t *testing.T) {
+	for _, typeKind := range allKinds {
+		t.Run(string(typeKind), func(t *testing.T) {
 			t.Parallel()
-			td, ok := ir.NewTypeDef(k)
-			require.True(t, ok, "no concrete type registered for kind %q", k)
+			td, ok := ir.NewTypeDef(typeKind)
+			require.True(t, ok, "no concrete type registered for kind %q", typeKind)
 			td.Common().ID = "type/y"
 			raw, err := json.Marshal(td)
 			require.NoError(t, err)

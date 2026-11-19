@@ -14,47 +14,47 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerPrincipal lowers the branch r uses where s, written at pointer, refines.
+// lowerPrincipal lowers the branch refinementValue uses where schema, written at pointer, refines.
 // A $ref goes through Ref, as fillRefBranch's does, keeping the alias what is
 // written beside it always has, in a frame of its own. An inline branch lowers
 // by its own keywords, its node standing at pointer for the whole conjunction,
 // finished by fin, its children and the reports on what it writes where they are
 // written (docs/compilers/openapi.md#allof-refinement). A $ref the principal beat
 // is still resolved: nothing else may lower what it names.
-func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, r refinement,
+func lowerPrincipal(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, refinementValue refinement,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
-	e := r.principal
-	resolveBeaten(c, ts, r)
-	if e.schema.Ref != nil {
-		ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, annotation.HomeOwnNode)
+	allOfBranch := refinementValue.principal
+	resolveBeaten(loweringContext, ts, refinementValue)
+	if allOfBranch.schema.Ref != nil {
+		ref, diags := schemaRefHomed(loweringContext, ts, depth, allOfBranch.schema, allOfBranch.pointer, annotation.HomeOwnNode)
 		return ref.Target, diags
 	}
 	// The node keeps the content vocabulary the branch writes where it holds
 	// none, as the branch's own node would (recordUnplacedContent).
 	var content, built []ir.Diagnostic
-	st := stand{of: s, at: pointer}
+	st := stand{of: schema, at: pointer}
 	// What the principal's build kept on the node itself is held back while
 	// the position writes, the last of the principal's to leave and the first
 	// kept again.
 	outside := fin
 	position := finisher(func(td ir.TypeDef, read keySet, held *principalKept) {
-		built = keepBuiltAround(c, st, td, read, held, e.schema.Schema, e.pointer, outside)
+		built = keepBuiltAround(loweringContext, st, td, read, held, allOfBranch.schema.Schema, allOfBranch.pointer, outside)
 	})
 	fin = func(td ir.TypeDef, read keySet, held *principalKept) {
-		k := unplacedContent(c, e.schema.Schema, td, e.pointer)
-		content = keepAround(c, ts, st, td, read, held, e.schema.Schema, e.pointer, k, position)
+		keeping := unplacedContent(loweringContext, allOfBranch.schema.Schema, td, allOfBranch.pointer)
+		content = keepAround(loweringContext, ts, st, td, read, held, allOfBranch.schema.Schema, allOfBranch.pointer, keeping, position)
 	}
-	ref, diags := lowerSchemaBody(c, ts, depth, e.schema.Schema, e.pointer, fin, st)
-	return ref.Target, slices.Concat(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags, built, content)
+	ref, diags := lowerSchemaBody(loweringContext, ts, depth, allOfBranch.schema.Schema, allOfBranch.pointer, fin, st)
+	return ref.Target, slices.Concat(missingArrayItemsConjoined(loweringContext, allOfBranch.schema.Schema, allOfBranch.pointer), diags, built, content)
 }
 
-// resolveBeaten resolves each $ref of r but its principal: nothing else may
+// resolveBeaten resolves each $ref of refinementValue but its principal: nothing else may
 // lower what a $ref the principal beat names.
-func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
-	for _, e := range r.comp.branches {
-		if e.schema.Ref != nil && !r.principalIs(e) {
-			resolveSchemaRef(c, ts, e.schema)
+func resolveBeaten(loweringContext lowering.Ctx, ts *compile.Types, refinementValue refinement) {
+	for _, allOfBranch := range refinementValue.comp.branches {
+		if allOfBranch.schema.Ref != nil && !refinementValue.principalIs(allOfBranch) {
+			resolveSchemaRef(loweringContext, ts, allOfBranch.schema)
 		}
 	}
 }
@@ -68,7 +68,7 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 // reference it collapses or expands to (referenceOutcomeKeywords), its node as
 // its builder names it (held), else the node standing or the
 // shared primitive.
-func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, principal *allOfBranch, standing ir.TypeDef,
+func refinedShape(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, principal *allOfBranch, standing ir.TypeDef,
 	held *principalKept,
 ) string {
 	switch {
@@ -79,14 +79,14 @@ func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, pr
 	case principal.schema.Ref != nil:
 		return "a use of one of its allOf conjuncts"
 	}
-	if electsOneOfPair(c, s) {
+	if electsOneOfPair(loweringContext, schema) {
 		// The union passed over conjoins, so the elected one collapses no more
 		// than one schema writing both does (pairedPrincipal).
 		if _, ok := standing.(*ir.Union); ok {
-			_, key, _ := unionBranches(c, s, principal.schema.Schema)
+			_, key, _ := unionBranches(loweringContext, schema, principal.schema.Schema)
 			return "the Union of its " + key
 		}
-	} else if _, shape := referenceOutcomeKeywords(c, principal.schema.Schema, principal.pointer); shape != "" {
+	} else if _, shape := referenceOutcomeKeywords(loweringContext, principal.schema.Schema, principal.pointer); shape != "" {
 		return shape
 	}
 	if named := held.named(); named != "" {
@@ -98,33 +98,33 @@ func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, pr
 	return nodeShape(ir.KindPrimitive)
 }
 
-// lowerUndecided lowers s, written at pointer, which writes no kind and no
+// lowerUndecided lowers schema, written at pointer, which writes no kind and no
 // shape keyword, by the types its allOf, refining electing no entry, admits
 // (undecidedTypes), as a type list naming them lowers, and to the top type
 // where it admits none of a primitive's kinds alone. fin finishes the node
 // standing at pointer after its census.
-func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
+func lowerUndecided(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, dispatchValue dispatch,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
-	types := undecidedTypes(c, s, pointer)
+	types := undecidedTypes(loweringContext, schema, pointer)
 	switch len(types) {
 	case 0:
-		return keepingUnread(c, ts, s, pointer, d, fin, st, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(loweringContext, ts, schema, pointer, dispatchValue, fin, st, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			return ts.PrimID(ir.PrimitiveAny), 0, nil
 		})
 	case 1:
-		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return lowerTyped(c, ts, depth, s, pointer, types[0], fin, st)
+		return keepingUnread(loweringContext, ts, schema, pointer, dispatchValue, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return lowerTyped(loweringContext, ts, depth, schema, pointer, types[0], fin, st)
 		})
 	default:
-		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false, fin, st)
+		return lowerUntypedUnion(loweringContext, ts, depth, schema, pointer, types, false, fin, st)
 	}
 }
 
 // primitiveKinds are the kinds a primitive holds.
 const primitiveKinds = kindString | kindNumber | kindBoolean
 
-// undecidedTypes returns the types s, written at pointer, lowers by where its
+// undecidedTypes returns the types schema, written at pointer, lowers by where its
 // allOf refines electing no entry: the kinds its conjuncts admit together, null
 // aside (lowersTo), and where they state value sets of the members those share
 // (sharedKinds), in one order whatever the order written. It returns none
@@ -132,13 +132,13 @@ const primitiveKinds = kindString | kindNumber | kindBoolean
 // array, whose shape no entry was elected to give, every kind among them, or
 // the kind-inference policy read them, as it reads only those: the position is
 // then the top type.
-func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []statement.JSONSchemaTypeName {
-	r, refines := refinementOf(c, s, pointer)
-	if !refines || r.principal != nil {
+func undecidedTypes(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) []statement.JSONSchemaTypeName {
+	refinement, refines := refinementOf(loweringContext, schema, pointer)
+	if !refines || refinement.principal != nil {
 		return nil
 	}
-	kinds, inferred := lowersTo(c, c.Statements().Read(s))
-	kinds &= sharedKinds(r.joint) &^ kindNull
+	kinds, inferred := lowersTo(loweringContext, loweringContext.Statements().Read(schema))
+	kinds &= sharedKinds(refinement.joint) &^ kindNull
 	if kinds == 0 || kinds&^primitiveKinds != 0 || inferred {
 		return nil
 	}

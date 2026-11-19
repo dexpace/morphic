@@ -130,14 +130,14 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 // reach.
 func TestLimitOptions_NameEveryBudget(t *testing.T) {
 	t.Parallel()
-	var l openapi.Limits
+	var limitsValue openapi.Limits
 	fields := map[*int]string{}
-	for name, field := range openapi.LimitOptions(&l) {
+	for name, field := range openapi.LimitOptions(&limitsValue) {
 		_, dup := fields[field]
 		assert.False(t, dup, "%s sets a field another option sets", name)
 		fields[field] = name
 	}
-	limits := reflect.ValueOf(&l).Elem()
+	limits := reflect.ValueOf(&limitsValue).Elem()
 	require.Len(t, fields, limits.NumField(), "an option for each field, and no other")
 	for i := range limits.NumField() {
 		field, ok := reflect.TypeAssert[*int](limits.Field(i).Addr())
@@ -152,14 +152,14 @@ func TestLimitOptions_NameEveryBudget(t *testing.T) {
 // rather than staying out of a text caller's reach.
 func TestSwitchOptions_NameEveryPolicy(t *testing.T) {
 	t.Parallel()
-	var o openapi.Options
+	var options openapi.Options
 	fields := map[*bool]string{}
-	for name, field := range openapi.SwitchOptions(&o) {
+	for name, field := range openapi.SwitchOptions(&options) {
 		_, dup := fields[field]
 		assert.False(t, dup, "%s switches a policy another option switches", name)
 		fields[field] = name
 	}
-	opts := reflect.ValueOf(&o).Elem()
+	opts := reflect.ValueOf(&options).Elem()
 	policies := 0
 	for i := range opts.NumField() {
 		if opts.Field(i).Kind() != reflect.Struct {
@@ -408,9 +408,9 @@ func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 		require.NotNil(t, doc)
 		out := map[string]string{}
 		for _, top := range doc.Services[0].Groups {
-			for _, g := range append([]ir.OperationGroup{top}, top.Groups...) {
-				for _, op := range g.Operations {
-					out[op.Name.Source] = string(g.ID)
+			for _, operationGroup := range append([]ir.OperationGroup{top}, top.Groups...) {
+				for _, op := range operationGroup.Operations {
+					out[op.Name.Source] = string(operationGroup.ID)
 				}
 			}
 		}
@@ -481,8 +481,8 @@ func TestCompile_GroupingAliasesFollowTheKeysTheyRestate(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		out := make([]ir.GroupID, 0, len(doc.Services[0].Groups))
-		for _, g := range doc.Services[0].Groups {
-			out = append(out, g.ID)
+		for _, operationGroup := range doc.Services[0].Groups {
+			out = append(out, operationGroup.ID)
 		}
 		return out
 	}

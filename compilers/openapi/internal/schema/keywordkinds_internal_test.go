@@ -95,7 +95,7 @@ func TestTaken_AKeywordTheTableDoesNotListAppliesToEveryKind(t *testing.T) {
 func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 	t.Parallel()
 	const obj = "{$ref: '#/components/schemas/Obj'}"
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Obj: {type: object}\n"))
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    Obj: {type: object}\n"))
 	for _, tc := range []struct {
 		name, body string
 		want       bool
@@ -112,7 +112,7 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := openapitest.SchemaFromYAML(t.Context(), t, tc.body).GetSchema()
-			assert.Equal(t, tc.want, writesBound(l.Ctx, StandaloneSchema(s)))
+			assert.Equal(t, tc.want, writesBound(lowerer.Ctx, StandaloneSchema(s)))
 		})
 	}
 }
@@ -124,16 +124,16 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 // landing on no schema leaves the position's own type to decide.
 func TestBoundKinds_ReadsEachShapeWhole(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", budgetShapes(1000)), service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", budgetShapes(1000)), service.Policy{})
 	for name, want := range map[string]kindSet{
 		"AllOf": kindString, "AnyOf": kindString, "Nulls": kindString, "Trues": anyInstance, "D0": kindString,
 		"Deep": kindString, "Dangling": anyInstance, "Mixed": anyInstance, "All": anyInstance,
 	} {
-		r := admissionOf(c.Ctx, heldAt(c.Ctx, jsontext.Pointer("/components/schemas/"+name)))
+		admission := admissionOf(serviceContext.Ctx, heldAt(serviceContext.Ctx, jsontext.Pointer("/components/schemas/"+name)))
 		cut := name == "Dangling" || name == "Mixed" || name == "All"
-		assert.Equal(t, cut, r.cut, name)
+		assert.Equal(t, cut, admission.cut, name)
 		if !cut {
-			assert.Equal(t, want, r.kinds, name)
+			assert.Equal(t, want, admission.kinds, name)
 		}
 	}
 }
@@ -179,14 +179,14 @@ func budgetShapes(n int) string {
 // type, every bound where it writes none.
 func TestBoundKinds_ACycleLeavesTheOwnTypeToDecide(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$dynamicAnchor: a, $dynamicRef: '#b', minimum: 1}
+	serviceContext := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$dynamicAnchor: a, $dynamicRef: '#b', minimum: 1}
     B: {$dynamicAnchor: b, $dynamicRef: '#a'}
     R: {allOf: [{$ref: '#/components/schemas/R'}], type: integer, minLength: 1}
     Dangling: {allOf: [{$ref: '#/components/schemas/Nowhere'}], minLength: 1}
 `), service.Policy{})
 	for name, want := range map[string]kindSet{"A": anyInstance, "R": kindInteger, "Dangling": anyInstance} {
-		st := heldAt(c.Ctx, jsontext.Pointer("/components/schemas/"+name))
-		require.True(t, admissionOf(c.Ctx, st).cut, name)
-		assert.Equal(t, want, boundKinds(c.Ctx, st.Schema), name)
+		st := heldAt(serviceContext.Ctx, jsontext.Pointer("/components/schemas/"+name))
+		require.True(t, admissionOf(serviceContext.Ctx, st).cut, name)
+		assert.Equal(t, want, boundKinds(serviceContext.Ctx, st.Schema), name)
 	}
 }

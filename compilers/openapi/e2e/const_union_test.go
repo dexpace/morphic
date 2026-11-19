@@ -58,9 +58,9 @@ func TestStringConstUnion_NormalizesToItsEnumSpelling(t *testing.T) {
 		assert.Equal(t, want.ValueType, enum.ValueType, name)
 		assert.Equal(t, want.Closed, enum.Closed, name)
 		require.Len(t, enum.Members, len(facts), name)
-		for i, m := range want.Members {
-			m.Docs, m.Deprecation = facts[i].Docs, facts[i].Deprecation
-			assert.Empty(t, cmp.Diff(m, enum.Members[i]), "%s member %d", name, i)
+		for i, enumMember := range want.Members {
+			enumMember.Docs, enumMember.Deprecation = facts[i].Docs, facts[i].Deprecation
+			assert.Empty(t, cmp.Diff(enumMember, enum.Members[i]), "%s member %d", name, i)
 		}
 		assert.Equal(t, doc.Types[componentID(name)].Common().Provenance, enum.Provenance,
 			"%s keeps the union's provenance", name)
@@ -99,22 +99,22 @@ func TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion(t *testing.T) {
 
 	want := &ir.Constraints{MaxLength: new(int64(1))}
 	for _, id := range []ir.TypeID{componentID("Union"), "type/anonymous/components/schemas/H/properties/u"} {
-		u, ok := got.Types[id].(*ir.Union)
+		union, ok := got.Types[id].(*ir.Union)
 		require.True(t, ok, "%s stays a union, got %T", id, got.Types[id])
 		assert.Same(t, doc.Types[id], got.Types[id], id)
-		assert.Equal(t, want, u.Constraints, id)
-		assert.Empty(t, u.Unmodeled, id)
+		assert.Equal(t, want, union.Constraints, id)
+		assert.Empty(t, union.Unmodeled, id)
 	}
 	for _, id := range []ir.TypeID{componentID("Enum"), "type/anonymous/components/schemas/H/properties/e"} {
 		enum, ok := got.Types[id].(*ir.Enum)
 		require.True(t, ok, "%s is an enum, got %T", id, got.Types[id])
 		assert.Equal(t, []string{"openapi:maxLength"}, slices.Sorted(maps.Keys(enum.Unmodeled)), id)
 	}
-	h, ok := typeByName(got, "H").(*ir.Model)
+	model, ok := typeByName(got, "H").(*ir.Model)
 	require.True(t, ok)
 	for _, wire := range []string{"u", "e"} {
-		p, ok := propByWire(h, wire)
+		property, ok := propByWire(model, wire)
 		require.True(t, ok)
-		assert.Nil(t, p.Constraints, wire)
+		assert.Nil(t, property.Constraints, wire)
 	}
 }

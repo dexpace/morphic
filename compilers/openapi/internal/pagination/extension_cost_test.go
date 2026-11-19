@@ -80,12 +80,12 @@ func promoteBytes(t *testing.T, src string, operations int) float64 {
 		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	p := promotion.New(pagePolicy())
+	promoter := promotion.New(pagePolicy())
 	fewest := math.Inf(1)
 	for range 3 {
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		_, diags := pagination.Promote(p, compileddoc.New(doc), nil)
+		_, diags := pagination.Promote(promoter, compileddoc.New(doc), nil)
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size fills its paginations alike")
 		filled := 0

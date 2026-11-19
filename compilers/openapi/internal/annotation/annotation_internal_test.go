@@ -215,8 +215,8 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 	_, diags := dialectAt(standaloneSchema(s), "/components/schemas/S", sourced(0), Dialect{})
 	require.Len(t, diags, 3)
 	said := map[jsontext.Pointer]string{}
-	for _, d := range diags {
-		said[d.Provenance.Pointer] = d.Message
+	for _, diagnostic := range diags {
+		said[diagnostic.Provenance.Pointer] = diagnostic.Message
 	}
 	assert.Contains(t, said["/components/schemas/S/$id"], "is read only for reference resolution")
 	assert.Contains(t, said["/components/schemas/S/$schema"],
@@ -235,8 +235,8 @@ func TestDialectAt_ReadsTheIdentifierTheDialectSpells(t *testing.T) {
 	saidOf := func(dialect Dialect) (ir.Unmodeled, map[jsontext.Pointer]string) {
 		got, diags := dialectAt(standaloneSchema(s), "/components/schemas/S", sourced(0), dialect)
 		said := map[jsontext.Pointer]string{}
-		for _, d := range diags {
-			said[d.Provenance.Pointer] = d.Message
+		for _, diagnostic := range diags {
+			said[diagnostic.Provenance.Pointer] = diagnostic.Message
 		}
 		return got, said
 	}
@@ -564,13 +564,13 @@ func TestFillTypeDocs_AssignsRatherThanAccumulates(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "title: T\ndescription: D\nexternalDocs: {url: 'https://x', description: E}\n")
 
-	var d ir.Docs
-	FillTypeDocs(&d, standaloneSchema(s))
-	FillTypeDocs(&d, standaloneSchema(s))
+	var docs ir.Docs
+	FillTypeDocs(&docs, standaloneSchema(s))
+	FillTypeDocs(&docs, standaloneSchema(s))
 
-	assert.Equal(t, "T", d.Summary)
-	assert.Equal(t, "D", d.Description)
-	assert.Equal(t, []ir.Link{{URL: "https://x", Description: "E"}}, d.ExternalDocs)
+	assert.Equal(t, "T", docs.Summary)
+	assert.Equal(t, "D", docs.Description)
+	assert.Equal(t, []ir.Link{{URL: "https://x", Description: "E"}}, docs.ExternalDocs)
 }
 
 // TestFillTypeDocs_AnAbsentFieldOverwritesNothing pins the other half: a schema
@@ -578,11 +578,11 @@ func TestFillTypeDocs_AssignsRatherThanAccumulates(t *testing.T) {
 // which is what makes the field-by-field merge in FillCarrierDocs work.
 func TestFillTypeDocs_AnAbsentFieldOverwritesNothing(t *testing.T) {
 	t.Parallel()
-	d := ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}
+	docs := ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}
 
-	FillTypeDocs(&d, standaloneSchema(schemaFromYAML(t, "type: string\n")))
+	FillTypeDocs(&docs, standaloneSchema(schemaFromYAML(t, "type: string\n")))
 
-	assert.Equal(t, ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}, d)
+	assert.Equal(t, ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}, docs)
 }
 
 // TestFillCarrierDocs_MergesFieldByField pins the rule
@@ -592,15 +592,15 @@ func TestFillTypeDocs_AnAbsentFieldOverwritesNothing(t *testing.T) {
 // rather than replacing the whole set.
 func TestFillCarrierDocs_MergesFieldByField(t *testing.T) {
 	t.Parallel()
-	var d ir.Docs
+	var docs ir.Docs
 
-	FillCarrierDocs(&d, []*statement.Schema{
+	FillCarrierDocs(&docs, []*statement.Schema{
 		standaloneSchema(schemaFromYAML(t, "description: fromSite\n")),
 		standaloneSchema(schemaFromYAML(t, "title: fromTarget\ndescription: fromTarget\n")),
 	})
 
-	assert.Equal(t, "fromTarget", d.Summary, "the title has no site-local answer")
-	assert.Equal(t, "fromSite", d.Description, "the site wrote one, so it wins")
+	assert.Equal(t, "fromTarget", docs.Summary, "the title has no site-local answer")
+	assert.Equal(t, "fromSite", docs.Description, "the site wrote one, so it wins")
 }
 
 // TestXMLHints_ReadsEveryFieldDirectly pins the fields read off the XML object
@@ -701,9 +701,9 @@ func sourced(index int) provenance.Doc { return provenance.Doc{Source: index} }
 // in source 0, the base document.
 func overlaid(pointers ...jsontext.Pointer) provenance.Doc {
 	touched := provenance.NewPositions()
-	for _, p := range pointers {
+	for _, pointer := range pointers {
 		at := touched.Root()
-		for token := range p.Tokens() {
+		for token := range pointer.Tokens() {
 			at = touched.Child(at, token)
 		}
 		at.Write()
@@ -743,8 +743,8 @@ func TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce(t *testing.T) {
 	assert.Contains(t, got.Unmodeled, "openapi:if-then-else")
 	assert.Equal(t, jsontext.Pointer("/p/allOf/0/propertyNames"), got.Unmodeled["openapi:propertyNames"].Provenance.Pointer)
 	at := map[jsontext.Pointer]int{}
-	for _, d := range diags {
-		at[d.Provenance.Pointer]++
+	for _, diagnostic := range diags {
+		at[diagnostic.Provenance.Pointer]++
 	}
 	assert.Equal(t, map[jsontext.Pointer]int{"/p": 2, "/p/allOf/0": 1}, at, "the site reports its two, the voice the one it alone writes")
 

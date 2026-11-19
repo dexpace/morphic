@@ -37,10 +37,10 @@ func TestRespell_ATextWithNoTriggerIsReturnedAsItIs(t *testing.T) {
 	t.Parallel()
 	in := []byte("openapi: 3.1.0\ninfo: {title: \"a" + bs + "\\b\", version: \"1\"}\n")
 
-	out, r, dirs := respell(in)
+	out, respellingValue, dirs := respell(in)
 
 	assert.Same(t, &in[0], &out[0], "no copy is made")
-	assert.Equal(t, respelling{}, r)
+	assert.Equal(t, respelling{}, respellingValue)
 	assert.Empty(t, dirs)
 }
 
@@ -68,11 +68,11 @@ func TestRespell_APlaceholderIsTheLowestOneNoSpellingOfTheTextCanMake(t *testing
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			out, r, _ := respell([]byte(tc.text))
+			out, respelling, _ := respell([]byte(tc.text))
 
-			assert.Equal(t, tc.want, r.breaks[0])
-			assert.Zero(t, r.breaks[1])
-			assert.Zero(t, r.breaks[2])
+			assert.Equal(t, tc.want, respelling.breaks[0])
+			assert.Zero(t, respelling.breaks[1])
+			assert.Zero(t, respelling.breaks[2])
 			assert.NotContains(t, string(out), nel, "the break is gone from what the parser reads")
 		})
 	}
@@ -86,9 +86,9 @@ func TestRespell_EachTriggerGetsAPlaceholderOfItsOwn(t *testing.T) {
 	text := "a: \"p" + nel + "q\"\nb: p" + ls + "q\nc: |\n  p" + ps + "q\nd: \"x" + bs + "/y\"\ne: \"" + bs + "uE000\"\n" +
 		"f: \"" + bs + "uD83D" + bs + "uDE00\"\n"
 
-	out, r, _ := respell([]byte(text))
+	out, respelling, _ := respell([]byte(text))
 
-	got := []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash, r.pair}
+	got := []rune{respelling.breaks[0], respelling.breaks[1], respelling.breaks[2], respelling.slash, respelling.pair}
 	seen := map[rune]bool{}
 	for _, p := range got {
 		assert.GreaterOrEqual(t, p, rune(0xE001), "U+E000 is spelled by an escape")
@@ -131,10 +131,10 @@ func TestTranscoded_AUTF16OrUTF32TextIsTheUTF8ItEncodes(t *testing.T) {
 	} {
 		utf8Text, ok := transcoded(in)
 		require.True(t, ok, name)
-		out, r, dirs := respell(utf8Text)
+		out, respelling, dirs := respell(utf8Text)
 
 		assert.Equal(t, string(want), string(out), name)
-		assert.Equal(t, wantR, r, name)
+		assert.Equal(t, wantR, respelling, name)
 		assert.Empty(t, dirs, "%s: %%YAML after content is no directive", name)
 	}
 
@@ -145,10 +145,10 @@ func TestTranscoded_AUTF16OrUTF32TextIsTheUTF8ItEncodes(t *testing.T) {
 	} {
 		_, ok := transcoded(in)
 		assert.False(t, ok, name)
-		out, r, dirs := respell(in)
+		out, respellingValue, dirs := respell(in)
 
 		assert.Same(t, &in[0], &out[0], "%s: the input slice itself", name)
-		assert.Equal(t, respelling{}, r, name)
+		assert.Equal(t, respelling{}, respellingValue, name)
 		assert.Empty(t, dirs, name)
 	}
 }
@@ -204,16 +204,16 @@ func TestRespell_ATextSpellingEveryCandidateLeavesItsTriggerAsWritten(t *testing
 	}
 	text := "a: \"p" + nel + "q\"\nb: " + every.String() + "\nc: \"" + bs + "uD83D" + bs + "uDE00\"\n"
 
-	out, r, _ := respell([]byte(text))
+	out, respelling, _ := respell([]byte(text))
 
 	assert.Equal(t, text, string(out))
-	assert.Zero(t, r.breaks[0])
-	assert.Zero(t, r.pair)
+	assert.Zero(t, respelling.breaks[0])
+	assert.Zero(t, respelling.pair)
 
 	// One candidate left free is taken.
 	free := strings.Replace(text, string(rune(0xE03F)), "", 1)
-	_, r, _ = respell([]byte(free))
-	assert.Equal(t, rune(0xE03F), r.breaks[0], "the sixty-fourth candidate is the last tried")
+	_, respelling, _ = respell([]byte(free))
+	assert.Equal(t, rune(0xE03F), respelling.breaks[0], "the sixty-fourth candidate is the last tried")
 }
 
 // TestRespell_ADirectiveIsRecordedAndAMinorPastOneIsRewrittenToOnePointOne holds
@@ -305,14 +305,14 @@ func walk(n *yaml.Node, f func(*yaml.Node)) {
 	}
 }
 
-// restored parses a respelled text and restores its tree under r. The error is
+// restored parses a respelled text and restores its tree under respellingValue. The error is
 // the parser's, as text, when it refuses the text.
-func restored(text []byte, r respelling) (*yaml.Node, string) {
+func restored(text []byte, respellingValue respelling) (*yaml.Node, string) {
 	doc, msg := tree(text)
 	if doc == nil {
 		return nil, msg
 	}
-	walk(doc, r.restore)
+	walk(doc, respellingValue.restore)
 	return doc, ""
 }
 
@@ -369,9 +369,9 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 		if utf8Text, ok := transcoded([]byte(text)); ok {
 			written = string(utf8Text)
 		}
-		out, r, _ := respell([]byte(written))
-		placeholders := slicesOf(r)
-		first, firstErr := restored(out, r)
+		out, respelling, _ := respell([]byte(written))
+		placeholders := slicesOf(respelling)
+		first, firstErr := restored(out, respelling)
 
 		// No placeholder the text does not spell may show in the tree.
 		if first != nil {
@@ -387,7 +387,7 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 		// The same read under a disjoint range of placeholders.
 		const base = 0xF100
 		swapped := out
-		moved := r
+		moved := respelling
 		next := rune(base)
 		for _, p := range placeholders {
 			if spells(written, next) {
@@ -415,11 +415,11 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 	})
 }
 
-// slicesOf lists the placeholders r holds, in a fixed order, leaving out what
+// slicesOf lists the placeholders respellingValue holds, in a fixed order, leaving out what
 // it does not use.
-func slicesOf(r respelling) []rune {
+func slicesOf(respellingValue respelling) []rune {
 	out := make([]rune, 0, 5)
-	for _, p := range []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash, r.pair} {
+	for _, p := range []rune{respellingValue.breaks[0], respellingValue.breaks[1], respellingValue.breaks[2], respellingValue.slash, respellingValue.pair} {
 		if p != 0 {
 			out = append(out, p)
 		}
@@ -427,20 +427,20 @@ func slicesOf(r respelling) []rune {
 	return out
 }
 
-// replacePlaceholder returns r with the placeholder from standing as to.
-func replacePlaceholder(r respelling, from, to rune) respelling {
-	for i, p := range r.breaks {
+// replacePlaceholder returns respellingValue with the placeholder from standing as to.
+func replacePlaceholder(respellingValue respelling, from, to rune) respelling {
+	for i, p := range respellingValue.breaks {
 		if p == from {
-			r.breaks[i] = to
+			respellingValue.breaks[i] = to
 		}
 	}
-	if r.slash == from {
-		r.slash = to
+	if respellingValue.slash == from {
+		respellingValue.slash = to
 	}
-	if r.pair == from {
-		r.pair = to
+	if respellingValue.pair == from {
+		respellingValue.pair = to
 	}
-	return r
+	return respellingValue
 }
 
 // TestReadPlaceholders_TheFuzzTargetSeesTheTextOnlyThroughRead pins that the
@@ -450,8 +450,8 @@ func TestReadPlaceholders_TheFuzzTargetSeesTheTextOnlyThroughRead(t *testing.T) 
 	t.Parallel()
 	text := "a: \"p" + bs + "/q\"\nb: 'p" + nel + "q'\n"
 
-	out, r, _ := respell([]byte(text))
-	viaRespell, msg := restored(out, r)
+	out, respelling, _ := respell([]byte(text))
+	viaRespell, msg := restored(out, respelling)
 	require.Empty(t, msg)
 	viaRead, err := Read(t.Context(), []byte(text), budget.Unbounded())
 	require.NoError(t, err)

@@ -27,11 +27,11 @@ func findingsIn(t *testing.T, dialect, doc string) []finding {
 	diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
 		Start:  specrules.Schema,
 		Rows:   rulesOf("3.1.0", dialect),
-		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 	})
 	out := make([]finding, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, finding{Code: d.Code, At: string(d.Provenance.Pointer)})
+	for _, diagnostic := range diags {
+		out = append(out, finding{Code: diagnostic.Code, At: string(diagnostic.Provenance.Pointer)})
 	}
 	sortFindings(out)
 	return out
@@ -118,11 +118,11 @@ func TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne(t *testing.T) {
 			diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
 				Start:  tc.kind,
 				Rows:   rulesOf("3.1.0", tc.dialect),
-				Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+				Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 			})
 			got := make([]finding, 0, len(diags))
-			for _, d := range diags {
-				got = append(got, finding{Code: d.Code, At: string(d.Provenance.Pointer)})
+			for _, diagnostic := range diags {
+				got = append(got, finding{Code: diagnostic.Code, At: string(diagnostic.Provenance.Pointer)})
 			}
 			sortFindings(got)
 			want := append([]finding(nil), tc.want...)
@@ -182,13 +182,13 @@ func TestCheck_ARefsSiblingsInADraftAreWarnedOf(t *testing.T) {
 		findingAtPointer(later, "/$defs"), findingAtPointer(later, "/description"), findingAtPointer(later, "/minLength"), findingAtPointer(mismatch, "/minLength"),
 	}, findingsIn(t, draft07, doc)))
 	assert.Empty(t, findingsIn(t, draft2019, `{$ref: '#/a', description: d}`), "2019-09 applies them")
-	for _, d := range func() []ir.Diagnostic {
+	for _, diagnostic := range func() []ir.Diagnostic {
 		var n yaml.Node
 		require.NoError(t, yaml.Unmarshal([]byte(`{$ref: '#/a', description: d}`), &n))
 		return specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{Start: specrules.Schema, Rows: rulesOf("3.1.0", draft04)})
 	}() {
 		assert.Equal(t, `keyword "description" beside a $ref is ignored by this schema's dialect, as by the JSON Schema `+
-			`drafts before 2019-09; it is applied as in 2020-12`, d.Message)
+			`drafts before 2019-09; it is applied as in 2020-12`, diagnostic.Message)
 	}
 }
 
@@ -203,15 +203,15 @@ func TestCheck_ARootReadsItsOwnRows(t *testing.T) {
 	var asked []jsontext.Pointer
 	diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
 		Root:   "/x",
-		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 		RootRows: func(at jsontext.Pointer) (specrules.SchemaRules, bool) {
 			asked = append(asked, at)
 			return rulesOf("3.1.0", draft04), at == root
 		},
 	})
 	at := make([]jsontext.Pointer, 0, len(diags))
-	for _, d := range diags {
-		at = append(at, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		at = append(at, diagnostic.Provenance.Pointer)
 	}
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/S/properties/a/required", "/components/schemas/S/required"}, at,
 		"what a schema holds is read among its fields, before its rules")
@@ -231,11 +231,11 @@ func TestCheckPending_ReadsWhatACheckHandedBack(t *testing.T) {
 	seen := map[specrules.Kind]int{}
 	alias := strings.NewReplacer("/schemas/T", "/schemas/S")
 	opts := specrules.Options{
-		Locate: func(p jsontext.Pointer) ir.Provenance {
-			return ir.Provenance{Pointer: jsontext.Pointer(alias.Replace(string(p)))}
+		Locate: func(pointer jsontext.Pointer) ir.Provenance {
+			return ir.Provenance{Pointer: jsontext.Pointer(alias.Replace(string(pointer)))}
 		},
-		Seen:  func(k specrules.Kind, _ *yaml.Node) { seen[k]++ },
-		Later: func(p specrules.Pending) { pending = append(pending, p) },
+		Seen:  func(kind specrules.Kind, _ *yaml.Node) { seen[kind]++ },
+		Later: func(pendingValue specrules.Pending) { pending = append(pending, pendingValue) },
 	}
 	checker := specrules.NewChecker()
 	assert.Empty(t, checker.Check(t.Context(), &n, "3.1.0", opts))
@@ -244,8 +244,8 @@ func TestCheckPending_ReadsWhatACheckHandedBack(t *testing.T) {
 	opts.Rows = rulesOf("3.1.0", draft04)
 	diags := checker.CheckPending(t.Context(), pending, "3.1.0", opts)
 	at := make([]jsontext.Pointer, 0, len(diags))
-	for _, d := range diags {
-		at = append(at, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		at = append(at, diagnostic.Provenance.Pointer)
 	}
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/S/properties/a/required", "/components/schemas/S/required",
 		"/components/parameters/P/schema/required"}, at, "in order, and once for the node S and T mount")
@@ -282,8 +282,8 @@ func TestCheck_BoundsFollowTheSchemasRows(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("{properties: {a: &bad {exclusiveMinimum: true}, b: *bad, c: *bad}}"), &n))
 	written := strings.NewReplacer("/properties/b/", "/properties/a/", "/properties/c/", "/properties/a/")
 	diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{Start: specrules.Schema, ReadAt: true,
-		Locate: func(p jsontext.Pointer) ir.Provenance {
-			return ir.Provenance{Pointer: jsontext.Pointer(written.Replace(string(p)))}
+		Locate: func(pointer jsontext.Pointer) ir.Provenance {
+			return ir.Provenance{Pointer: jsontext.Pointer(written.Replace(string(pointer)))}
 		}})
 	require.Len(t, diags, 1, "one defect at one node")
 	assert.Equal(t, form, diags[0].Code)

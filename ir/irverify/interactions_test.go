@@ -23,8 +23,8 @@ func TestVerify_AnInputPathNamesARequestValue(t *testing.T) {
 	param := ir.ParameterID("parameter/x/S/op/cursor")
 	body := ir.InputPath{Segments: []ir.PropertyID{"property/x/Body/cursor"}}
 	// Each value holds a path of its own: the walk enters a pointer once.
-	link := func(v ir.InputPath) []ir.OperationLink {
-		inParam, inBody := v, v
+	link := func(inputPath ir.InputPath) []ir.OperationLink {
+		inParam, inBody := inputPath, inputPath
 		return []ir.OperationLink{{
 			Operation: "operation/x/S/op",
 			Params:    []ir.LinkParam{{Value: ir.LinkValue{Kind: ir.LinkRequest, Request: &inParam}}},
@@ -36,33 +36,33 @@ func TestVerify_AnInputPathNamesARequestValue(t *testing.T) {
 		edit     func(*ir.Operation)
 		bodyless []string
 	}{
-		{"a parameter", func(o *ir.Operation) {
-			o.Pagination = &ir.Pagination{InputCursor: &ir.InputPath{Param: &param}}
-			o.Default = &ir.Response{Links: link(ir.InputPath{Param: &param})}
+		{"a parameter", func(operation *ir.Operation) {
+			operation.Pagination = &ir.Pagination{InputCursor: &ir.InputPath{Param: &param}}
+			operation.Default = &ir.Response{Links: link(ir.InputPath{Param: &param})}
 		}, nil},
-		{"the body sent and a member of it", func(o *ir.Operation) {
-			o.Request = &ir.Payload{}
-			o.Pagination = &ir.Pagination{InputCursor: &body, InputLimit: &ir.InputPath{}}
-			o.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: body}}
-			o.Responses = []ir.Response{{Links: link(ir.InputPath{})}}
-			o.Errors = []ir.ErrorCase{{Links: link(body)}}
+		{"the body sent and a member of it", func(operation *ir.Operation) {
+			operation.Request = &ir.Payload{}
+			operation.Pagination = &ir.Pagination{InputCursor: &body, InputLimit: &ir.InputPath{}}
+			operation.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: body}}
+			operation.Responses = []ir.Response{{Links: link(ir.InputPath{})}}
+			operation.Errors = []ir.ErrorCase{{Links: link(body)}}
 		}, nil},
-		{"a member of no body, as a cursor", func(o *ir.Operation) {
-			o.Pagination = &ir.Pagination{InputCursor: &body}
+		{"a member of no body, as a cursor", func(operation *ir.Operation) {
+			operation.Pagination = &ir.Pagination{InputCursor: &body}
 		}, []string{op + ".Pagination.InputCursor"}},
-		{"a member of no body, as a stream's condition", func(o *ir.Operation) {
-			o.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: body}}
+		{"a member of no body, as a stream's condition", func(operation *ir.Operation) {
+			operation.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: body}}
 		}, []string{op + ".ResponseStream.Condition.Input"}},
-		{"no body whole, as a limit", func(o *ir.Operation) {
-			o.Pagination = &ir.Pagination{InputLimit: &ir.InputPath{}}
+		{"no body whole, as a limit", func(operation *ir.Operation) {
+			operation.Pagination = &ir.Pagination{InputLimit: &ir.InputPath{}}
 		}, []string{op + ".Pagination.InputLimit"}},
-		{"no body whole, as a stream's condition", func(o *ir.Operation) {
-			o.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Value: ir.Value{Kind: ir.ValueBool, Bool: true}}}
+		{"no body whole, as a stream's condition", func(operation *ir.Operation) {
+			operation.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Value: ir.Value{Kind: ir.ValueBool, Bool: true}}}
 		}, []string{op + ".ResponseStream.Condition.Input"}},
-		{"no body, as a link's values", func(o *ir.Operation) {
-			o.Responses = []ir.Response{{Links: link(body)}}
-			o.Errors = []ir.ErrorCase{{Links: link(ir.InputPath{})}}
-			o.Default = &ir.Response{Links: link(body)}
+		{"no body, as a link's values", func(operation *ir.Operation) {
+			operation.Responses = []ir.Response{{Links: link(body)}}
+			operation.Errors = []ir.ErrorCase{{Links: link(ir.InputPath{})}}
+			operation.Default = &ir.Response{Links: link(body)}
 		}, []string{
 			op + ".Default.Links[0].Body.Request",
 			op + ".Default.Links[0].Params[0].Value.Request",
@@ -74,9 +74,9 @@ func TestVerify_AnInputPathNamesARequestValue(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			o := ir.Operation{ID: "operation/x/S/op"}
-			tc.edit(&o)
-			assert.Equal(t, tc.bodyless, violationPaths(irverify.Verify(opDoc(o)), "ir/input-body-absent"))
+			operation := ir.Operation{ID: "operation/x/S/op"}
+			tc.edit(&operation)
+			assert.Equal(t, tc.bodyless, violationPaths(irverify.Verify(opDoc(operation)), "ir/input-body-absent"))
 		})
 	}
 }
@@ -88,8 +88,8 @@ func TestVerify_ABodyInputReadsItsOwnOperation(t *testing.T) {
 	t.Parallel()
 	sends := ir.Operation{ID: "operation/x/S/sends", Request: &ir.Payload{}}
 	sendsNone := ir.Operation{ID: "operation/x/S/none"}
-	for _, o := range []*ir.Operation{&sends, &sendsNone} {
-		o.Pagination = &ir.Pagination{InputCursor: &ir.InputPath{Segments: []ir.PropertyID{"property/x/Body/cursor"}}}
+	for _, operation := range []*ir.Operation{&sends, &sendsNone} {
+		operation.Pagination = &ir.Pagination{InputCursor: &ir.InputPath{Segments: []ir.PropertyID{"property/x/Body/cursor"}}}
 	}
 	for name, tc := range map[string]struct {
 		first, second ir.Operation
@@ -114,17 +114,17 @@ func TestVerify_ABodyInputReadsItsOwnOperation(t *testing.T) {
 func TestVerify_AStreamTerminatorHoldsData(t *testing.T) {
 	t.Parallel()
 	const op = "document.Services[0].Groups[0].Operations[0]"
-	o := ir.Operation{
+	operation := ir.Operation{
 		ID:             "operation/x/S/op",
 		RequestStream:  &ir.StreamDetail{Terminator: new("")},
 		ResponseStream: &ir.StreamDetail{Terminator: new("[DONE]")},
 	}
 	assert.Equal(t, []string{op + ".RequestStream.Terminator"},
-		violationPaths(irverify.Verify(opDoc(o)), "ir/stream-terminator-empty"))
+		violationPaths(irverify.Verify(opDoc(operation)), "ir/stream-terminator-empty"))
 
-	o.RequestStream, o.ResponseStream = &ir.StreamDetail{}, &ir.StreamDetail{Terminator: new("")}
+	operation.RequestStream, operation.ResponseStream = &ir.StreamDetail{}, &ir.StreamDetail{Terminator: new("")}
 	assert.Equal(t, []string{op + ".ResponseStream.Terminator"},
-		violationPaths(irverify.Verify(opDoc(o)), "ir/stream-terminator-empty"))
+		violationPaths(irverify.Verify(opDoc(operation)), "ir/stream-terminator-empty"))
 }
 
 // TestVerify_APaginationStopIsOneIRDeclares holds Pagination.Stop to the
@@ -163,9 +163,9 @@ func TestVerify_APaginationStopIsListedOnce(t *testing.T) {
 		"document.Services[0].Groups[0].Operations[0].Pagination.Stop[4]",
 	}, violationPaths(vs, "ir/set-entry-duplicate"))
 	var messages []string
-	for _, v := range vs {
-		if v.Code == "ir/set-entry-duplicate" {
-			messages = append(messages, v.Message)
+	for _, violation := range vs {
+		if violation.Code == "ir/set-entry-duplicate" {
+			messages = append(messages, violation.Message)
 		}
 	}
 	assert.Equal(t, []string{

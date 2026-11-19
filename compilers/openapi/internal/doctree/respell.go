@@ -61,25 +61,25 @@ func respell(text []byte) ([]byte, respelling, []Directive) {
 		return out, respelling{}, dirs
 	}
 
-	var r respelling
+	var respellingValue respelling
 	free := ^spelled(text)
 	for i, b := range lineBreaks {
 		if present[i] {
-			r.breaks[i] = take(&free)
-			out = replaceBreak(out, b, r.breaks[i])
+			respellingValue.breaks[i] = take(&free)
+			out = replaceBreak(out, b, respellingValue.breaks[i])
 		}
 	}
 	if slashed {
-		r.slash = take(&free)
-		out = replaceSlashes(out, r.slash)
+		respellingValue.slash = take(&free)
+		out = replaceSlashes(out, respellingValue.slash)
 	}
 	if paired {
 		// Found again in out: a placeholder is wider in bytes than a break or an
 		// escaped slash it stands for, so the offsets text gave have moved.
-		r.pair = take(&free)
-		out = replacePairs(out, pairsIn(out), r.pair)
+		respellingValue.pair = take(&free)
+		out = replacePairs(out, pairsIn(out), respellingValue.pair)
 	}
-	return out, r, dirs
+	return out, respellingValue, dirs
 }
 
 // wide reports whether text opens with a UTF-16 or UTF-32 byte order mark.
@@ -449,9 +449,9 @@ func directives(text []byte) ([]Directive, []byte) {
 		}
 		switch {
 		case prologue && bytes.HasPrefix(l, []byte("%")):
-			if d, at, ok := yamlDirective(l, line); ok {
-				dirs = append(dirs, d)
-				out = rewriteVersion(out, text, end-len(l)+at.start, end-len(l)+at.end, d.Minor)
+			if directive, at, ok := yamlDirective(l, line); ok {
+				dirs = append(dirs, directive)
+				out = rewriteVersion(out, text, end-len(l)+at.start, end-len(l)+at.end, directive.Minor)
 			}
 		case prologue && blankOrComment(l):
 		case prologue:

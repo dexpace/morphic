@@ -153,9 +153,9 @@ func keptFindingsUnder(t *testing.T, diags []ir.Diagnostic, name string, want []
 	t.Helper()
 	prefix := "/components/schemas/" + name
 	var got []ir.Diagnostic
-	for _, d := range diags {
-		if underPointer(string(d.Provenance.Pointer), prefix) {
-			got = append(got, d)
+	for _, diagnostic := range diags {
+		if underPointer(string(diagnostic.Provenance.Pointer), prefix) {
+			got = append(got, diagnostic)
 		}
 	}
 	line := func(sev ir.Severity, code, at string) string { return fmt.Sprintf("%s %s %s", sev, code, at) }
@@ -164,25 +164,25 @@ func keptFindingsUnder(t *testing.T, diags []ir.Diagnostic, name string, want []
 			line(a.Severity, a.Code, string(a.Provenance.Pointer)), line(b.Severity, b.Code, string(b.Provenance.Pointer)))
 	})
 	gotLines := make([]string, 0, len(got))
-	for _, d := range got {
-		gotLines = append(gotLines, line(d.Severity, d.Code, strings.TrimPrefix(string(d.Provenance.Pointer), prefix)))
+	for _, diagnostic := range got {
+		gotLines = append(gotLines, line(diagnostic.Severity, diagnostic.Code, strings.TrimPrefix(string(diagnostic.Provenance.Pointer), prefix)))
 	}
 	matched := make([]bool, len(got))
-	for _, w := range want {
+	for _, keptFinding := range want {
 		found := false
-		for i, d := range got {
-			rel := strings.TrimPrefix(string(d.Provenance.Pointer), prefix)
-			if matched[i] || d.Severity != w.severity || d.Code != w.code || rel != w.at {
+		for i, diagnostic := range got {
+			rel := strings.TrimPrefix(string(diagnostic.Provenance.Pointer), prefix)
+			if matched[i] || diagnostic.Severity != keptFinding.severity || diagnostic.Code != keptFinding.code || rel != keptFinding.at {
 				continue
 			}
 			matched[i], found = true, true
-			for _, word := range w.words {
-				assert.Contains(t, d.Message, word, "%s: the message at %s", name, rel)
+			for _, word := range keptFinding.words {
+				assert.Contains(t, diagnostic.Message, word, "%s: the message at %s", name, rel)
 			}
 			break
 		}
 		require.True(t, found, "%s: the finding %s is drawn; the document draws %v",
-			name, line(w.severity, w.code, w.at), gotLines)
+			name, line(keptFinding.severity, keptFinding.code, keptFinding.at), gotLines)
 	}
 	for i := range got {
 		assert.True(t, matched[i], "%s: the finding %s is not one the schema should draw", name, gotLines[i])
@@ -259,39 +259,39 @@ func (c keptKeywordCase) spellings() (schemas []string) {
 // runKept compiles the case at each version, in both orders of the
 // components, and holds the entry after the principal and the entry before it
 // to the same keys, reasons, findings and provenance.
-func runKept(t *testing.T, c keptKeywordCase) {
+func runKept(t *testing.T, keptKeywordCaseValue keptKeywordCase) {
 	t.Helper()
-	versions := c.versions
+	versions := keptKeywordCaseValue.versions
 	if len(versions) == 0 {
 		versions = keptKeywordVersions
 	}
 	for _, version := range versions {
-		t.Run(c.name+"/"+version, func(t *testing.T) {
+		t.Run(keptKeywordCaseValue.name+"/"+version, func(t *testing.T) {
 			t.Parallel()
-			inBothOrders(t, c.spellings(), func(t *testing.T, schemas []string) {
+			inBothOrders(t, keptKeywordCaseValue.spellings(), func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "kept", admissionSpec(version, "", schemas...))
 				for _, spelling := range []struct {
 					name  string
 					index int
 				}{{"E", 1}, {"S", 0}} {
-					entry := "/components/schemas/" + spelling.name + c.pos + "/allOf/" + strconv.Itoa(spelling.index)
+					entry := "/components/schemas/" + spelling.name + keptKeywordCaseValue.pos + "/allOf/" + strconv.Itoa(spelling.index)
 					want := map[string]ir.UnmodeledReason{}
-					for key, reason := range c.want {
+					for key, reason := range keptKeywordCaseValue.want {
 						want[keptIndexed(key, spelling.index)] = reason
 					}
-					finds := make([]keptFinding, 0, len(c.finds))
-					for _, f := range c.finds {
-						f.at = keptIndexed(c.pos+f.at, spelling.index)
-						finds = append(finds, f)
+					finds := make([]keptFinding, 0, len(keptKeywordCaseValue.finds))
+					for _, keptFinding := range keptKeywordCaseValue.finds {
+						keptFinding.at = keptIndexed(keptKeywordCaseValue.pos+keptFinding.at, spelling.index)
+						finds = append(finds, keptFinding)
 					}
 					got := keptKeywordsOf(doc, spelling.name)
-					requireKeptKeywords(t, spelling.name, got, want, entry, c.whole)
+					requireKeptKeywords(t, spelling.name, got, want, entry, keptKeywordCaseValue.whole)
 					keptFindingsUnder(t, diags, spelling.name, finds)
-					if c.check != nil {
-						c.check(t, doc, spelling.name)
+					if keptKeywordCaseValue.check != nil {
+						keptKeywordCaseValue.check(t, doc, spelling.name)
 					}
 				}
-				if c.twin {
+				if keptKeywordCaseValue.twin {
 					assert.Equal(t, keptKeywordReasons(keptKeywordsOf(doc, "E")), keptKeywordReasons(keptKeywordsOf(doc, "B")),
 						"the keyword kept beside the allOf and on an entry has one key and one reason")
 				}
@@ -303,8 +303,8 @@ func runKept(t *testing.T, c keptKeywordCase) {
 // runKeptCases runs each case as a subtest.
 func runKeptCases(t *testing.T, cases []keptKeywordCase) {
 	t.Helper()
-	for _, c := range cases {
-		runKept(t, c)
+	for _, keptKeywordCase := range cases {
+		runKept(t, keptKeywordCase)
 	}
 }
 

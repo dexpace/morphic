@@ -55,9 +55,9 @@ func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
 		}}},
 	}
 	var messages []string
-	for _, d := range validated(t, docWithOperation(op)) {
-		if d.Code == "pass/param-binding-mismatch" {
-			messages = append(messages, d.Message)
+	for _, diagnostic := range validated(t, docWithOperation(op)) {
+		if diagnostic.Code == "pass/param-binding-mismatch" {
+			messages = append(messages, diagnostic.Message)
 		}
 	}
 	require.Len(t, messages, 1)
@@ -70,8 +70,8 @@ func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
 func paramBindingOp(id ir.OperationID, params ...ir.Parameter) ir.Operation {
 	op := ir.Operation{ID: id, Params: params}
 	bindings := make([]ir.HTTPParamBinding, 0, len(params))
-	for _, p := range params {
-		bindings = append(bindings, ir.HTTPParamBinding{Param: p.ID, Location: ir.HTTPLocationQuery})
+	for _, parameter := range params {
+		bindings = append(bindings, ir.HTTPParamBinding{Param: parameter.ID, Location: ir.HTTPLocationQuery})
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "GET", URITemplate: "/x", ParamBindings: bindings}}}
 	return op
@@ -146,9 +146,9 @@ func TestValidate_ParamBinding_EachBindingIsJudgedAlone(t *testing.T) {
 			diags := validated(t, docWithOperations(op, other))
 			found := append(withCode(diags, "pass/param-unbound"), withCode(diags, "pass/param-binding-mismatch")...)
 			got := make([]report, 0, len(found))
-			for _, d := range found {
-				assert.Equal(t, "op/bindings/http/1", d.Provenance.Node, d.Message)
-				got = append(got, report{d.Code, d.Severity, d.Message})
+			for _, diagnostic := range found {
+				assert.Equal(t, "op/bindings/http/1", diagnostic.Provenance.Node, diagnostic.Message)
+				got = append(got, report{diagnostic.Code, diagnostic.Severity, diagnostic.Message})
 			}
 			assert.Equal(t, tc.want, got)
 		})
@@ -204,9 +204,9 @@ func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
 	diags := validated(t, docWithOperations(get, post))
 
 	var at []string
-	for _, d := range diags {
-		if d.Code == "pass/param-binding-mismatch" {
-			at = append(at, d.Provenance.Node)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "pass/param-binding-mismatch" {
+			at = append(at, diagnostic.Provenance.Node)
 		}
 	}
 	assert.Equal(t, []string{
@@ -238,9 +238,9 @@ func TestValidate_ParamReferences_StreamConditionsAreHeld(t *testing.T) {
 	post := streamed("operation/x/post", "parameter/x/post/p", "parameter/x/get/p")
 
 	var at []string
-	for _, d := range validated(t, docWithOperations(get, post)) {
-		if d.Code == "pass/param-binding-mismatch" {
-			at = append(at, d.Provenance.Node)
+	for _, diagnostic := range validated(t, docWithOperations(get, post)) {
+		if diagnostic.Code == "pass/param-binding-mismatch" {
+			at = append(at, diagnostic.Provenance.Node)
 		}
 	}
 	assert.Equal(t, []string{"operation/x/post/requestStream/condition", "operation/x/post/responseStream/condition"}, at)
@@ -283,9 +283,9 @@ func TestValidate_ParamReferences_EmptyPaginationInputIsReportedOnceAsEmpty(t *t
 	op := paramRefOp("operation/x/get", "parameter/x/get/p", "", "parameter/x/get/p", "parameter/x/get/p")
 	diags := validated(t, docWithOperations(op))
 	var at []string
-	for _, d := range diags {
-		if d.Code == "ir/empty-parameter-ref" {
-			at = append(at, d.Provenance.Node)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "ir/empty-parameter-ref" {
+			at = append(at, diagnostic.Provenance.Node)
 		}
 	}
 	assert.Equal(t, []string{"document.Services[0].Groups[0].Operations[0].Pagination.InputCursor.Param"}, at)
@@ -310,9 +310,9 @@ func TestValidate_ParamReferences_FieldArgumentIsRejected(t *testing.T) {
 
 	diags := validated(t, doc)
 	var at []string
-	for _, d := range diags {
-		if d.Code == "pass/param-binding-mismatch" {
-			at = append(at, d.Provenance.Node)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "pass/param-binding-mismatch" {
+			at = append(at, diagnostic.Provenance.Node)
 		}
 	}
 	assert.Equal(t, []string{"operation/x/get/bindings/http/0", "operation/x/get/pagination/inputLimit"}, at)

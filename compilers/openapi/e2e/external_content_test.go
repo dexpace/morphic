@@ -262,7 +262,7 @@ func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
-	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == "openapi/unresolved-ref" }),
+	assert.False(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == "openapi/unresolved-ref" }),
 		"every mapping value resolves: %+v", diags)
 	ext := ids.In("ext.yaml")
 	model, ok := doc.Types[ext.AnonType("/components/responses/D/content/application~1json/schema")].(*ir.Model)
@@ -408,9 +408,9 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 		model, ok := doc.Types[ext.AnonType(object)].(*ir.Model)
 		require.True(t, ok, "the object is lowered as a model, where ext.yaml declares it")
 		for name, target := range map[string]ir.TypeID{"pet": ext.NamedType("/components/schemas/Pet"), "toy": "type/primitive/any"} {
-			p, ok := propByWire(model, name)
+			property, ok := propByWire(model, name)
 			require.True(t, ok, name)
-			assert.Equal(t, target, p.Type.Target, name)
+			assert.Equal(t, target, property.Type.Target, name)
 		}
 	}
 	for _, c := range []struct {
@@ -447,9 +447,9 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, doc)
 				got := make([]string, 0, len(diags))
-				for _, d := range diags {
-					got = append(got, fmt.Sprintf("%s %s %d%s %s", d.Severity, d.Code, d.Provenance.Source,
-						d.Provenance.Pointer, strings.ReplaceAll(d.Message, dir, "<dir>")))
+				for _, diagnostic := range diags {
+					got = append(got, fmt.Sprintf("%s %s %d%s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Source,
+						diagnostic.Provenance.Pointer, strings.ReplaceAll(diagnostic.Message, dir, "<dir>")))
 				}
 				slices.Sort(got)
 				assert.Equal(t, want, got, root)
@@ -642,8 +642,8 @@ func TestExternalContent_ARefInTheSourceNamingItNamesIt(t *testing.T) {
 				require.NoError(t, err)
 
 				if !c.names {
-					assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-						return d.Code == "openapi/unresolved-ref" && d.Provenance.Pointer == pointer
+					assert.True(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+						return diagnostic.Code == "openapi/unresolved-ref" && diagnostic.Provenance.Pointer == pointer
 					}), "the $ref names a file that is not the source: %v", diags)
 					return
 				}
@@ -762,8 +762,8 @@ paths:
 				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 			require.NoError(t, err, tc.name)
 			require.NotNil(t, doc, tc.name)
-			for _, d := range diags {
-				assert.NotEqual(t, "openapi/unresolved-ref", d.Code, "%s, reversed=%t: %+v", tc.name, reversed, d)
+			for _, diagnostic := range diags {
+				assert.NotEqual(t, "openapi/unresolved-ref", diagnostic.Code, "%s, reversed=%t: %+v", tc.name, reversed, diagnostic)
 			}
 			tc.check(t, doc)
 			compiled = append(compiled, compiledThrough(t, dir, root))
@@ -858,8 +858,8 @@ components:
 	op := func(path string) ir.Operation { return ops[ir.OperationID("operation/openapi/paths/~1"+path+"/post")] }
 
 	params := map[string]ir.Parameter{}
-	for _, p := range op("form").Params {
-		params[p.Name.Source] = p
+	for _, parameter := range op("form").Params {
+		params[parameter.Name.Source] = parameter
 	}
 	for _, name := range []string{"lent", "own", "home"} {
 		require.NotNil(t, params[name].Default, "%s: a parameter's default", name)
@@ -868,8 +868,8 @@ components:
 	}
 	require.Len(t, op("form").Responses, 1)
 	headers := map[string]ir.Header{}
-	for _, h := range op("form").Responses[0].Headers {
-		headers[h.Name.Source] = h
+	for _, header := range op("form").Responses[0].Headers {
+		headers[header.Name.Source] = header
 	}
 	for _, name := range []string{"X-Lent", "X-Home"} {
 		require.NotNil(t, headers[name].Default, "%s: a header's default", name)
@@ -929,8 +929,8 @@ Z: {type: object, properties: {bin: {type: string, format: binary}}}
 
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Code == "openapi/conflicting-redeclaration"
+	assert.False(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+		return diagnostic.Code == "openapi/conflicting-redeclaration"
 	}), "the binary narrows the string: %+v", diags)
 	op := operationAt(t, doc, "POST", "/up")
 	require.NotNil(t, op.Request)
@@ -975,11 +975,11 @@ components:
 
 		require.NoError(t, err)
 		assert.Empty(t, diags, "first branch %s", branches[0])
-		m, ok := doc.Types["type/openapi/components/schemas/T"].(*ir.Model)
+		model, ok := doc.Types["type/openapi/components/schemas/T"].(*ir.Model)
 		require.True(t, ok)
-		require.Len(t, m.Properties, 1)
-		assert.Equal(t, want, m.Properties[0].Type.Target, "the referenced enum wins: first branch %s", branches[0])
-		assert.Empty(t, m.Properties[0].Unmodeled, "first branch %s", branches[0])
+		require.Len(t, model.Properties, 1)
+		assert.Equal(t, want, model.Properties[0].Type.Target, "the referenced enum wins: first branch %s", branches[0])
+		assert.Empty(t, model.Properties[0].Unmodeled, "first branch %s", branches[0])
 	}
 }
 
@@ -1007,9 +1007,9 @@ func TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart(t *testing.
 
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types["type/openapi/components/schemas/H"].(*ir.Model)
+	model, ok := doc.Types["type/openapi/components/schemas/H"].(*ir.Model)
 	require.True(t, ok)
-	props := openapitest.PropsByWire(m.Properties)
+	props := openapitest.PropsByWire(model.Properties)
 	assert.Contains(t, props["there"].Unmodeled, "openapi:items", "the copy in another document is kept")
 	assert.Empty(t, props["here"].Unmodeled, "the copy in the source restates its target")
 }
@@ -1037,9 +1037,9 @@ func TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart(t *testing.T
 
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types["type/openapi/components/schemas/S"].(*ir.Model)
+	model, ok := doc.Types["type/openapi/components/schemas/S"].(*ir.Model)
 	require.True(t, ok)
-	got := openapitest.PropsByWire(m.Properties)["x"]
+	got := openapitest.PropsByWire(model.Properties)["x"]
 	assert.Equal(t, ir.TypeID("type/openapi@other.yaml/components/schemas/E"), got.Type.Target)
 	assert.Contains(t, got.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x")
 }
@@ -1111,11 +1111,11 @@ components:
 	require.NoError(t, err)
 	assert.Empty(t, diags)
 	for _, name := range []string{"F2", "F3"} {
-		m, ok := doc.Types[ir.TypeID("type/openapi@other.yaml/components/schemas/"+name)].(*ir.Model)
+		model, ok := doc.Types[ir.TypeID("type/openapi@other.yaml/components/schemas/"+name)].(*ir.Model)
 		require.True(t, ok, name)
-		require.Len(t, m.Properties, 1, name)
-		assert.Equal(t, ir.TypeID("type/openapi@other.yaml/components/schemas/E"), m.Properties[0].Type.Target, name)
-		assert.Empty(t, m.Properties[0].Unmodeled, name)
+		require.Len(t, model.Properties, 1, name)
+		assert.Equal(t, ir.TypeID("type/openapi@other.yaml/components/schemas/E"), model.Properties[0].Type.Target, name)
+		assert.Empty(t, model.Properties[0].Unmodeled, name)
 	}
 }
 
@@ -1162,14 +1162,14 @@ components:
 			"type/openapi@other.yaml/components/schemas/A",
 		},
 	} {
-		m, ok := doc.Types[tc.model].(*ir.Model)
+		model, ok := doc.Types[tc.model].(*ir.Model)
 		require.True(t, ok, tc.model)
-		require.Len(t, m.Properties, 1, tc.model)
-		assert.Equal(t, tc.composed, m.Properties[0].Type.Target, tc.model)
-		c, ok := doc.Types[tc.composed].(*ir.Model)
+		require.Len(t, model.Properties, 1, tc.model)
+		assert.Equal(t, tc.composed, model.Properties[0].Type.Target, tc.model)
+		irModel, ok := doc.Types[tc.composed].(*ir.Model)
 		require.True(t, ok, tc.composed)
-		require.Len(t, c.Mixins, 2, tc.composed)
-		assert.Equal(t, tc.mixin, c.Mixins[0].Target, tc.composed)
+		require.Len(t, irModel.Mixins, 2, tc.composed)
+		assert.Equal(t, tc.mixin, irModel.Mixins[0].Target, tc.composed)
 	}
 	assert.Contains(t, doc.IDSpaces[ir.IDKindType], "composed@other.yaml")
 }
@@ -1218,9 +1218,9 @@ components:
 		{"type/openapi/components/schemas/F", "property/openapi/components/schemas/F/allOf/0/properties/p"},
 		{"type/openapi@other.yaml/components/schemas/F", "property/composed@other.yaml/components/schemas/F/allOf/1/properties/p"},
 	} {
-		m, ok := doc.Types[tc.model].(*ir.Model)
+		model, ok := doc.Types[tc.model].(*ir.Model)
 		require.True(t, ok, tc.model)
-		require.Len(t, m.Properties, 1, tc.model)
-		assert.Equal(t, tc.want, m.Properties[0].ID, tc.model)
+		require.Len(t, model.Properties, 1, tc.model)
+		assert.Equal(t, tc.want, model.Properties[0].ID, tc.model)
 	}
 }

@@ -60,8 +60,8 @@ func TestParamIndex_NamedReadsALocationQualifiedName(t *testing.T) {
 		{"region", "", 0},
 		{"nope", "", 0},
 	} {
-		w, op := wholeOf(*paramsOp())
-		id, matched := w.Params(op).Named(tc.key)
+		compiledDocumentView, op := wholeOf(*paramsOp())
+		id, matched := compiledDocumentView.Params(op).Named(tc.key)
 		assert.Equal(t, tc.want, id, tc.key)
 		assert.Equal(t, tc.matched, matched, tc.key)
 	}
@@ -77,8 +77,8 @@ func TestParamIndex_LeavesTheHostOut(t *testing.T) {
 		{Param: "parameter/x/host", Location: ir.HTTPLocationHost, WireName: "id"},
 		{Param: "parameter/x/id", Location: ir.HTTPLocationQuery, WireName: "id"},
 	}}}}}
-	w, held := wholeOf(*op)
-	ix := w.Params(held)
+	compiledDocumentView, held := wholeOf(*op)
+	ix := compiledDocumentView.Params(held)
 	assert.Equal(t, []ir.ParameterID{"parameter/x/id"}, ix.Bound("", "id"))
 	assert.Empty(t, ix.Bound(ir.HTTPLocationHost, "id"))
 }
@@ -89,8 +89,8 @@ func TestParamIndex_LeavesTheHostOut(t *testing.T) {
 // a host binding and an unbound parameter place nothing.
 func TestParamIndex_PlacementsReadsWhereEachParameterIsBound(t *testing.T) {
 	t.Parallel()
-	w, op := wholeOf(*paramsOp())
-	ix := w.Params(op)
+	compiledDocumentView, op := wholeOf(*paramsOp())
+	ix := compiledDocumentView.Params(op)
 	for _, tc := range []struct {
 		id   ir.ParameterID
 		want []compileddoc.Placement

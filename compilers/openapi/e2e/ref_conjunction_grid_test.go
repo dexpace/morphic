@@ -274,8 +274,8 @@ func variantHints(t *testing.T, doc *ir.Document, name string) []string {
 	union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
 	require.True(t, ok, "%s is a union", name)
 	hints := make([]string, 0, len(union.Variants))
-	for _, v := range union.Variants {
-		hints = append(hints, v.Name.Hint)
+	for _, variant := range union.Variants {
+		hints = append(hints, variant.Name.Hint)
 	}
 	return hints
 }
@@ -365,8 +365,8 @@ func TestRefConjunction_ATitleNamesTheVariantHoldingItWhereverItIsWritten(t *tes
 // nothing else is reported, whatever its severity.
 func requireOnlyFindings(t *testing.T, diags []ir.Diagnostic, what string, allowed ...string) {
 	t.Helper()
-	for _, d := range diags {
-		assert.Contains(t, allowed, d.Code, "%s: %s %s at %s", what, d.Severity, d.Code, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		assert.Contains(t, allowed, diagnostic.Code, "%s: %s %s at %s", what, diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer)
 	}
 }
 
@@ -376,7 +376,7 @@ type spell func(target, keywords string) string
 // compileSpelled compiles the schemas build gives with each spelling and
 // returns the document of each, the beside spelling's findings with them.
 func compileSpelled(
-	t *testing.T, version string, build func(s spell) []string,
+	t *testing.T, version string, build func(spellValue spell) []string,
 ) (beside, wrapped *ir.Document, findings []ir.Diagnostic) {
 	t.Helper()
 	beside, findings = compileUnrefused(t, admissionSpec(version, "", build(besideSpelling)...))
@@ -395,12 +395,12 @@ func TestRefConjunction_AStructuralKeywordBesideARefIsComposedOverItsTarget(t *t
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			beside, wrapped, diags := compileSpelled(t, version, func(s spell) []string {
+			beside, wrapped, diags := compileSpelled(t, version, func(spellValue spell) []string {
 				return []string{
 					user,
-					"Created: " + s("User", "required: [id]"),
-					"Extended: " + s("User", "properties: {age: {type: integer}}"),
-					"Holder: {type: object, properties: {u: " + s("User", "required: [id]") + "}}",
+					"Created: " + spellValue("User", "required: [id]"),
+					"Extended: " + spellValue("User", "properties: {age: {type: integer}}"),
+					"Holder: {type: object, properties: {u: " + spellValue("User", "required: [id]") + "}}",
 				}
 			})
 			requireSpellingsEqual(t, beside, wrapped, "required and properties beside a $ref")
@@ -418,9 +418,9 @@ func TestRefConjunction_AStructuralKeywordBesideARefIsComposedOverItsTarget(t *t
 			require.Len(t, extended.Properties, 1)
 			assert.Equal(t, "age", extended.Properties[0].Name.Source)
 
-			u, ok := propByWire(requireModelOf(t, beside, "Holder"), "u")
+			property, ok := propByWire(requireModelOf(t, beside, "Holder"), "u")
 			require.True(t, ok)
-			held := kindNode(t, beside, u.Type.Target)
+			held := kindNode(t, beside, property.Type.Target)
 			model, ok := held.(*ir.Model)
 			require.True(t, ok, "the property names a model over the object, as the allOf spelling does")
 			assert.Equal(t, []string{"id"}, model.Requires)
@@ -447,10 +447,10 @@ func TestRefConjunction_AValueSetBesideARefNarrowsItsTargetInEverySpelling(t *te
 	for _, version := range []string{"3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			build := func(s spell) []string {
+			build := func(spellValue spell) []string {
 				props := make([]string, 0, len(uses))
 				for _, u := range uses {
-					props = append(props, u.name+": "+s(u.target, u.keywords))
+					props = append(props, u.name+": "+spellValue(u.target, u.keywords))
 				}
 				return append(slices.Clone(levels), "Holder: {type: object, properties: {"+strings.Join(props, ", ")+"}}")
 			}
@@ -488,11 +488,11 @@ func TestRefConjunction_ARedactionBesideARefInItemsIsAModelOverItsTarget(t *test
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			beside, wrapped, _ := compileSpelled(t, version, func(s spell) []string {
+			beside, wrapped, _ := compileSpelled(t, version, func(spellValue spell) []string {
 				return []string{
 					conjTargets["Obj"],
-					"Holder: {type: object, properties: {p: {type: array, items: " + s("Obj", "format: password") + "}, " +
-						"d: {type: array, items: " + s("Obj", "description: d") + "}}}",
+					"Holder: {type: object, properties: {p: {type: array, items: " + spellValue("Obj", "format: password") + "}, " +
+						"d: {type: array, items: " + spellValue("Obj", "description: d") + "}}}",
 				}
 			})
 			requireSpellingsEqual(t, beside, wrapped, "a redaction beside a $ref")
@@ -559,12 +559,12 @@ func TestRefConjunction_AUnionBesideARefLowersAsBesideAnAllOfOfIt(t *testing.T) 
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			beside, wrapped, diags := compileSpelled(t, version, func(s spell) []string {
+			beside, wrapped, diags := compileSpelled(t, version, func(spellValue spell) []string {
 				return []string{
 					conjTargets["Str"], conjTargets["Obj"],
-					"UnionStr: " + s("Str", "oneOf: [{type: string}, {type: boolean}]"),
-					"UnionReq: " + s("Obj", "anyOf: [{required: [a]}, {required: [b]}]"),
-					"UnionObj: " + s("Obj", objBranches),
+					"UnionStr: " + spellValue("Str", "oneOf: [{type: string}, {type: boolean}]"),
+					"UnionReq: " + spellValue("Obj", "anyOf: [{required: [a]}, {required: [b]}]"),
+					"UnionObj: " + spellValue("Obj", objBranches),
 				}
 			})
 			requireSpellingsEqual(t, beside, wrapped, "a union beside a $ref")
@@ -588,9 +588,9 @@ func TestRefConjunction_AUnionBesideARefLowersAsBesideAnAllOfOfIt(t *testing.T) 
 // filterCodes returns the diagnostics whose code is none of those given.
 func filterCodes(diags []ir.Diagnostic, drop ...string) []ir.Diagnostic {
 	var kept []ir.Diagnostic
-	for _, d := range diags {
-		if !slices.Contains(drop, d.Code) {
-			kept = append(kept, d)
+	for _, diagnostic := range diags {
+		if !slices.Contains(drop, diagnostic.Code) {
+			kept = append(kept, diagnostic)
 		}
 	}
 	return kept
@@ -660,7 +660,7 @@ func TestRefConjunction_ADynamicRefBesideARefIsKeptOnTheUseInEverySpelling(t *te
 		"Tree: {$dynamicAnchor: m, type: object, properties: {kids: {type: array, items: {$dynamicRef: '#m'}}}}",
 	}
 	for _, name := range []string{"component", "property", "items"} {
-		site := conjSites[slices.IndexFunc(conjSites, func(s conjSite) bool { return s.name == name })]
+		site := conjSites[slices.IndexFunc(conjSites, func(conjSiteValue conjSite) bool { return conjSiteValue.name == name })]
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			beside, diags := compileUnrefused(t, site.write(version, "{"+refTo("T")+", $dynamicRef: '#m'}", others...))
@@ -716,8 +716,8 @@ func TestRefConjunction_TwoBasesInADiscriminatorHierarchyElectTheLeastReference(
 // mixinTargets lists the types a model names as its mixins, in order.
 func mixinTargets(model *ir.Model) []ir.TypeID {
 	targets := make([]ir.TypeID, 0, len(model.Mixins))
-	for _, m := range model.Mixins {
-		targets = append(targets, m.Target)
+	for _, typeRef := range model.Mixins {
+		targets = append(targets, typeRef.Target)
 	}
 	return targets
 }

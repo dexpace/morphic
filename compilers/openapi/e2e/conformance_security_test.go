@@ -23,22 +23,22 @@ func assertServersVariables(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, doc.Services, 1)
 	require.Len(t, doc.Services[0].Servers, 1, "the service names the document's one server")
 	require.Len(t, doc.Servers, 1)
-	s, ok := doc.Servers[doc.Services[0].Servers[0]]
+	server, ok := doc.Servers[doc.Services[0].Servers[0]]
 	require.True(t, ok, "the service's server is registered")
-	assert.Equal(t, "https://{env}.example.com/v1", s.URLTemplate)
-	assert.Equal(t, "primary", s.Name.Source,
+	assert.Equal(t, "https://{env}.example.com/v1", server.URLTemplate)
+	assert.Equal(t, "primary", server.Name.Source,
 		"a 3.2 server name is the server's naming, not part of its description")
-	require.Len(t, s.Variables, 1)
-	v := s.Variables[0]
-	assert.Equal(t, "env", v.Name)
-	assert.Equal(t, new("api"), v.Default)
-	assert.Equal(t, []string{"api", "staging"}, v.Enum)
+	require.Len(t, server.Variables, 1)
+	serverVariable := server.Variables[0]
+	assert.Equal(t, "env", serverVariable.Name)
+	assert.Equal(t, new("api"), serverVariable.Default)
+	assert.Equal(t, []string{"api", "staging"}, serverVariable.Enum)
 }
 
 func assertSecuritySchemes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	kinds := map[ir.AuthKind]bool{}
-	for _, s := range doc.Auth {
-		kinds[s.Kind] = true
+	for _, authScheme := range doc.Auth {
+		kinds[authScheme.Kind] = true
 	}
 	assert.True(t, kinds[ir.AuthKindAPIKey])
 	assert.True(t, kinds[ir.AuthKindHTTPBasic])
@@ -55,8 +55,8 @@ func assertSecuritySchemes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertSchemeDetail(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	byName := make(map[string]ir.AuthScheme, len(doc.Auth))
-	for _, s := range doc.Auth {
-		byName[s.Name.Source] = s
+	for _, authScheme := range doc.Auth {
+		byName[authScheme.Name.Source] = authScheme
 	}
 
 	key, ok := byName["apiKeyAuth"]
@@ -96,15 +96,15 @@ func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const code = "openapi/oauth2-no-flow"
 	reported := map[string]bool{"emptyFlows": true, "unknownFlowsOnly": true}
 	byPointer := map[jsontext.Pointer]ir.AuthScheme{}
-	for _, s := range doc.Auth {
-		byPointer[s.Provenance.Pointer] = s
+	for _, authScheme := range doc.Auth {
+		byPointer[authScheme.Provenance.Pointer] = authScheme
 	}
 	for _, name := range []string{
 		"aliasFirst", "aliasSecond", "emptyFlows", "unknownFlowsOnly", "metadataOnly", "declaredFlow",
 	} {
-		s, ok := byPointer[jsontext.Pointer("/components/securitySchemes/"+name)]
+		authScheme, ok := byPointer[jsontext.Pointer("/components/securitySchemes/"+name)]
 		require.True(t, ok, "%s interns, flowless or not", name)
-		assert.Equal(t, ir.AuthKindOAuth2, s.Kind, "%s", name)
+		assert.Equal(t, ir.AuthKindOAuth2, authScheme.Kind, "%s", name)
 		var want []ir.Severity
 		if reported[name] {
 			want = []ir.Severity{ir.SeverityWarning}
@@ -113,8 +113,8 @@ func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 			"%s: reported once at a flowless declaration, never at an alias or a control", name)
 	}
 	n := 0
-	for _, d := range diags {
-		if d.Code == code {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
 			n++
 		}
 	}
@@ -129,8 +129,8 @@ func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // (GitHub #865, #639).
 func assertOAuthFlowFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	byName := make(map[string]ir.AuthScheme, len(doc.Auth))
-	for _, s := range doc.Auth {
-		byName[s.Name.Source] = s
+	for _, authScheme := range doc.Auth {
+		byName[authScheme.Name.Source] = authScheme
 	}
 	const e = "https://example.com/"
 	cases := []struct {
@@ -164,8 +164,8 @@ func assertOAuthFlowFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 			"%s: announced once at the field", tc.kind)
 	}
 	var announced int
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
 			announced++
 		}
 	}
@@ -238,10 +238,10 @@ func assertSecurityUnresolved(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		slices.Sorted(maps.Keys(doc.Auth[httpNoScheme].Unmodeled)), "named by no requirement, and kept all the same")
 
 	var pointers []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedSecurityScheme {
-			assert.Equal(t, ir.SeverityError, d.Severity)
-			pointers = append(pointers, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnresolvedSecurityScheme {
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+			pointers = append(pointers, diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.Len(t, pointers, 9, "one report at each requirement: %v", pointers)
@@ -313,11 +313,11 @@ func assertSecurityStates(t *testing.T, doc *ir.Document, root []ir.AuthRequirem
 	require.NoError(t, err)
 	var back ir.Document
 	require.NoError(t, json.Unmarshal(encoded, &back))
-	for name, d := range map[string]*ir.Document{"compiled": doc, "read back": &back} {
-		require.Len(t, d.Services, 1, name)
-		assertAuthState(t, name+", the document", root, d.Services[0].Auth)
+	for name, document := range map[string]*ir.Document{"compiled": doc, "read back": &back} {
+		require.Len(t, document.Services, 1, name)
+		assertAuthState(t, name+", the document", root, document.Services[0].Auth)
 		for op, want := range ops {
-			got, ok := opByName(d, op)
+			got, ok := opByName(document, op)
 			require.True(t, ok, "%s: %s", name, op)
 			assertAuthState(t, name+", "+op, want, got.Auth)
 		}

@@ -111,12 +111,12 @@ components:
 `, cfg)
 	other, ok := table.Find("other.yaml")
 	require.True(t, ok)
-	s := entryAt(t, table, "/components/schemas/S")
-	require.Equal(t, reftable.Resolved, s.Hop.Status, s.Hop.Why())
-	assert.Equal(t, reftable.DocumentPointer{Doc: other, Pointer: "/components/headers/HO/schema"}, s.Hop.Target)
-	h, ok := table.Reference(reftable.DocumentPointer{Doc: other, Pointer: "/components/responses/R/headers/H"}, reftable.RefHeader)
+	referenceSite := entryAt(t, table, "/components/schemas/S")
+	require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+	assert.Equal(t, reftable.DocumentPointer{Doc: other, Pointer: "/components/headers/HO/schema"}, referenceSite.Hop.Target)
+	reference, ok := table.Reference(reftable.DocumentPointer{Doc: other, Pointer: "/components/responses/R/headers/H"}, reftable.RefHeader)
 	require.True(t, ok, "other.yaml's header is read")
-	assert.Equal(t, reftable.DocumentPointer{Doc: other, Pointer: "/components/headers/HO"}, h.Chain.End)
+	assert.Equal(t, reftable.DocumentPointer{Doc: other, Pointer: "/components/headers/HO"}, reference.Chain.End)
 }
 
 // referenceObjects declares a reference object of each kind a pointer into a
@@ -195,9 +195,9 @@ func TestBind_ReadsWhatAReferenceObjectResolvedTo(t *testing.T) {
 	table := bound(t, throughSpec, throughConfig())
 	id, ok := table.Find("other.yaml")
 	require.True(t, ok)
-	e, ok := table.Entry(reftable.DocumentPointer{Doc: id, Pointer: "/R/content/application~1json/schema/properties/n"})
+	referenceSite, ok := table.Entry(reftable.DocumentPointer{Doc: id, Pointer: "/R/content/application~1json/schema/properties/n"})
 	require.True(t, ok, "the site in what R resolved to is read")
-	assert.Equal(t, reftable.DocumentPointer{Doc: id, Pointer: "/Elsewhere"}, e.Hop.Target, "read against the document holding it")
+	assert.Equal(t, reftable.DocumentPointer{Doc: id, Pointer: "/Elsewhere"}, referenceSite.Hop.Target, "read against the document holding it")
 }
 
 // TestBind_ReadsEverySchemaSiteOnce pins the sites a table holds: every schema
@@ -220,8 +220,8 @@ func TestBind_ReadsEverySchemaSiteOnce(t *testing.T) {
 		"  responses:\n    R:\n      description: r\n      headers: {x-h: {schema: {$ref: '#/components/schemas/A'}}}\n"
 	table := bound(t, src, self)
 	sites := make([]jsontext.Pointer, 0, len(table.Entries()))
-	for _, e := range table.Entries() {
-		sites = append(sites, e.Site.Pointer)
+	for _, referenceSite := range table.Entries() {
+		sites = append(sites, referenceSite.Site.Pointer)
 	}
 	assert.Equal(t, []jsontext.Pointer{"/components/responses/R/headers/x-h/schema", "/components/schemas/A",
 		"/components/schemas/B/allOf/0", "/components/schemas/B/properties/x-p", "/components/schemas/C",
@@ -266,10 +266,10 @@ x-lib:
 		"#/x-lib/b":       {Status: reftable.Resolved, End: documentPointerAt("/x-lib/b"), Hops: 1},
 		"#/x-lib/missing": {Status: reftable.Unresolved},
 	} {
-		m, ok := table.Mapping(disc, value)
+		mapping, ok := table.Mapping(disc, value)
 		require.True(t, ok, value)
-		assert.Equal(t, want, m.Chain, value)
-		assert.Equal(t, disc, m.At, value)
+		assert.Equal(t, want, mapping.Chain, value)
+		assert.Equal(t, disc, mapping.At, value)
 	}
 	_, ok := table.Mapping(disc, "Cat")
 	assert.False(t, ok, "a component's name is the lowering's to read")
@@ -303,8 +303,8 @@ x-lib:
 	other, ok := table.Find("other.yaml")
 	require.True(t, ok)
 	got := map[reftable.DocumentPointer]reftable.Landing{}
-	for _, l := range table.Landings() {
-		got[l.At] = l
+	for _, landing := range table.Landings() {
+		got[landing.At] = landing
 	}
 	in := func(pointer jsontext.Pointer) reftable.DocumentPointer {
 		return reftable.DocumentPointer{Doc: other, Pointer: pointer}

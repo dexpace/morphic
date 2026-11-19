@@ -259,12 +259,12 @@ func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 func TestAt_AnswersAsAFreshNamerWould(t *testing.T) {
 	t.Parallel()
 	tb := table(t, ownersSpec, nil)
-	p := documentPointerAt("/paths/~1a/post/requestBody/content/application~1json/schema")
+	documentPointer := documentPointerAt("/paths/~1a/post/requestBody/content/application~1json/schema")
 	read := naming.New(tb, true)
-	first := read.At(p)
+	first := read.At(documentPointer)
 	assert.Equal(t, "postA_request", first)
-	assert.Equal(t, first, read.At(p), "asked again")
-	assert.Equal(t, first, naming.New(tb, true).At(p), "asked of a fresh namer")
+	assert.Equal(t, first, read.At(documentPointer), "asked again")
+	assert.Equal(t, first, naming.New(tb, true).At(documentPointer), "asked of a fresh namer")
 }
 
 // TestAt_ReadsAnOwnerAsTheParserDoes pins that an owner's name is read from
@@ -679,19 +679,19 @@ func TestAt_NamesNoSchemaByItsTitleWhereTitlesNameNothing(t *testing.T) {
 	on := naming.New(table(t, titlesSpec, nil), true)
 	differs := 0
 	for _, tc := range titleRows {
-		p := documentPointerAt(tc.pointer)
+		documentPointer := documentPointerAt(tc.pointer)
 		if tc.pointer == "/components/schemas/Lookup/oneOf/8" {
 			// A title beside a $ref makes the branch a node of its own, named by
 			// its position, where the $ref alone is named after its target.
-			assert.Equal(t, "variant_8", off.At(p), tc.name)
-			assert.Equal(t, "Pet", written.At(p), tc.name)
+			assert.Equal(t, "variant_8", off.At(documentPointer), tc.name)
+			assert.Equal(t, "Pet", written.At(documentPointer), tc.name)
 		} else {
-			assert.Equal(t, written.At(p), off.At(p), tc.name)
+			assert.Equal(t, written.At(documentPointer), off.At(documentPointer), tc.name)
 		}
-		title, titled := off.Title(p)
+		title, titled := off.Title(documentPointer)
 		assert.False(t, titled, tc.name)
 		assert.Empty(t, title, tc.name)
-		if on.At(p) != off.At(p) {
+		if on.At(documentPointer) != off.At(documentPointer) {
 			differs++
 		}
 	}

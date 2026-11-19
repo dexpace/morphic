@@ -24,9 +24,9 @@ const reachedParam = `{name: p, in: query, explode: "true", required: on, schema
 // and pointer, sorted: where a finding lands, not what it says.
 func judgedAt(diags []ir.Diagnostic) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == typeMismatch {
-			out = append(out, fmt.Sprintf("%s %d %s", d.Severity, d.Provenance.Source, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == typeMismatch {
+			out = append(out, fmt.Sprintf("%s %d %s", diagnostic.Severity, diagnostic.Provenance.Source, diagnostic.Provenance.Pointer))
 		}
 	}
 	slices.Sort(out)
@@ -71,8 +71,8 @@ func TestCompile_AValueARefLandsOnIsJudgedBeforeItIsBuilt(t *testing.T) {
 		"error 0 /x-lib/p/schema/items",
 	}, judgedAt(diags), "%+v", diags)
 	assert.Empty(t, byCode(diags, "openapi/false-schema"), "items: hello is read as no schema, so no schema is false")
-	for _, d := range byCode(diags, typeMismatch) {
-		assert.Contains(t, d.Message, "must be a")
+	for _, diagnostic := range byCode(diags, typeMismatch) {
+		assert.Contains(t, diagnostic.Message, "must be a")
 	}
 	param, binding := onlyParam(t, reached)
 	assert.False(t, param.Required, "required: on is no boolean, so it is left out")
@@ -146,8 +146,8 @@ func TestCompile_AValueOneReadingRefusesAndAnotherAcceptsIsKeptForTheOther(t *te
 		require.NotNil(t, doc, name)
 		got := judgedAt(diags)
 		assert.Equal(t, []string{"error 0 /x-lib/n/required"}, got, "%s: %+v", name, diags)
-		for _, d := range byCode(diags, typeMismatch) {
-			assert.Contains(t, d.Message, `Parameter Object field "required" must be a boolean`, name)
+		for _, diagnostic := range byCode(diags, typeMismatch) {
+			assert.Contains(t, diagnostic.Message, `Parameter Object field "required" must be a boolean`, name)
 		}
 		model, ok := doc.Types[ir.TypeID("type/anonymous/x-lib/n")].(*ir.Model)
 		require.True(t, ok, name)

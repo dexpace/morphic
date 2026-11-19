@@ -48,8 +48,8 @@ func TestLower_NamedScalarComponentResolves(t *testing.T) {
 	assert.Equal(t, componentID("MyId"), holder.Properties[0].Type.Target)
 
 	// The reference must resolve: the validate pass finds no dangling type ref.
-	for _, d := range validated(t, doc) {
-		assert.NotEqual(t, "ir/dangling-type-ref", d.Code, "ref to named scalar dangles: %+v", d)
+	for _, diagnostic := range validated(t, doc) {
+		assert.NotEqual(t, "ir/dangling-type-ref", diagnostic.Code, "ref to named scalar dangles: %+v", diagnostic)
 	}
 }
 
@@ -79,8 +79,8 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := typeByName(doc, "S").(*ir.Model)
-	byWire := openapitest.PropsByWire(m.Properties)
+	model := typeByName(doc, "S").(*ir.Model)
+	byWire := openapitest.PropsByWire(model.Properties)
 	assert.Equal(t, ir.TypeID("type/primitive/any"), byWire["anything"].Type.Target)
 	// `false` schema lowered to a closed empty model.
 	nothing := doc.Types[byWire["nothing"].Type.Target]
@@ -95,8 +95,8 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
-	l := schema.NewRawLowerer(&soa.OpenAPI{})
-	ref, diags := schema.Ref(l.Ctx, l.Types, schema.TopLevelDepth, schema.Standalone(openapitest.EmptyEitherSchema()), "/p")
+	lowerer := schema.NewRawLowerer(&soa.OpenAPI{})
+	ref, diags := schema.Ref(lowerer.Ctx, lowerer.Types, schema.TopLevelDepth, schema.Standalone(openapitest.EmptyEitherSchema()), "/p")
 	assert.Equal(t, ir.TypeID("type/primitive/any"), ref.Target)
 	assert.Empty(t, diags, "an empty either lowers to any without complaint")
 }
@@ -360,8 +360,8 @@ func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := typeByName(doc, "S").Common().Unmodeled
-	assert.Equal(t, []string{"openapi:$ref", "openapi:enum"}, unmodeledKeys(p))
+	unmodeled := typeByName(doc, "S").Common().Unmodeled
+	assert.Equal(t, []string{"openapi:$ref", "openapi:enum"}, unmodeledKeys(unmodeled))
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 		"declares enum beside its const")
@@ -411,10 +411,10 @@ func TestCoDeclaredFamily_TheReportNamesWhatTheNodeKeeps(t *testing.T) {
 			require.NotNil(t, td)
 			assert.Equal(t, tc.keys, unmodeledKeys(td.Common().Unmodeled))
 			var said []string
-			for _, d := range diags {
-				if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/S" &&
-					strings.Contains(d.Message, "allOf beside its enum, and JSON Schema conjoins them") {
-					said = append(said, d.Message)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.DegradedConstruct && diagnostic.Provenance.Pointer == "/components/schemas/S" &&
+					strings.Contains(diagnostic.Message, "allOf beside its enum, and JSON Schema conjoins them") {
+					said = append(said, diagnostic.Message)
 				}
 			}
 			require.Len(t, said, 1, "one report says what the election passed over: %+v", diags)
@@ -444,11 +444,11 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	}
 }
 
-// unmodeledKeys returns p's keys in sorted order, which is what makes an
+// unmodeledKeys returns unmodeled's keys in sorted order, which is what makes an
 // expected key set assertable as a whole: a census that keeps too much fails the
 // same test as one that keeps too little.
-func unmodeledKeys(p ir.Unmodeled) []string {
-	return slices.Sorted(maps.Keys(p))
+func unmodeledKeys(unmodeled ir.Unmodeled) []string {
+	return slices.Sorted(maps.Keys(unmodeled))
 }
 
 // TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut pins the reading
@@ -476,9 +476,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			null: "    A:\n      type: object\n      properties:\n        p: null\n",
 			twin: "    A:\n      type: object\n      properties:\n        p: {}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				m := asKind[*ir.Model](t, td)
-				require.Len(t, m.Properties, 1)
-				assert.Equal(t, top, m.Properties[0].Type, "the top type, and no node of its own")
+				model := asKind[*ir.Model](t, td)
+				require.Len(t, model.Properties, 1)
+				assert.Equal(t, top, model.Properties[0].Type, "the top type, and no node of its own")
 			},
 		},
 		{
@@ -486,10 +486,10 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			null: "    A:\n      allOf:\n        - null\n        - {type: object, properties: {q: {type: string}}}\n",
 			twin: "    A:\n      allOf:\n        - true\n        - {type: object, properties: {q: {type: string}}}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				m := asKind[*ir.Model](t, td)
-				assert.Empty(t, m.Additional, "the composed model is not closed")
-				require.Len(t, m.Properties, 1)
-				assert.Equal(t, "q", m.Properties[0].WireName, "the other branch still composes")
+				model := asKind[*ir.Model](t, td)
+				assert.Empty(t, model.Additional, "the composed model is not closed")
+				require.Len(t, model.Properties, 1)
+				assert.Equal(t, "q", model.Properties[0].WireName, "the other branch still composes")
 			},
 		},
 		{
@@ -497,9 +497,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			null: "    A:\n      oneOf:\n        - null\n        - {type: string}\n",
 			twin: "    A:\n      oneOf:\n        - {}\n        - {type: string}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				u := asKind[*ir.Union](t, td)
-				require.Len(t, u.Variants, 2)
-				assert.Equal(t, top, u.Variants[0].Type)
+				union := asKind[*ir.Union](t, td)
+				require.Len(t, union.Variants, 2)
+				assert.Equal(t, top, union.Variants[0].Type)
 			},
 		},
 		{
@@ -507,8 +507,8 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			null: "    A: null\n",
 			twin: "    A: {}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				s := asKind[*ir.Scalar](t, td)
-				assert.Equal(t, &top, s.Base, "a scalar alias over the top type")
+				scalar := asKind[*ir.Scalar](t, td)
+				assert.Equal(t, &top, scalar.Base, "a scalar alias over the top type")
 			},
 		},
 		{
@@ -544,9 +544,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 				"      additionalProperties: null\n",
 			twin: "    A:\n      type: object\n      properties: {a: {type: string}}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				m := asKind[*ir.Model](t, td)
-				assert.Empty(t, m.Additional, "the model stays open")
-				assert.Nil(t, m.AdditionalProperties, "no catch-all is written")
+				model := asKind[*ir.Model](t, td)
+				assert.Empty(t, model.Additional, "the model stays open")
+				assert.Nil(t, model.AdditionalProperties, "no catch-all is written")
 			},
 		},
 		{
@@ -554,10 +554,10 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			null: "    A:\n      type: object\n      patternProperties:\n        '^x': null\n",
 			twin: "    A:\n      type: object\n      patternProperties:\n        '^x': {}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				m := asKind[*ir.Model](t, td)
-				require.NotNil(t, m.AdditionalProperties)
-				require.Len(t, m.AdditionalProperties.Patterns, 1)
-				assert.Equal(t, top, m.AdditionalProperties.Patterns[0].Value)
+				model := asKind[*ir.Model](t, td)
+				require.NotNil(t, model.AdditionalProperties)
+				require.Len(t, model.AdditionalProperties.Patterns, 1)
+				assert.Equal(t, top, model.AdditionalProperties.Patterns[0].Value)
 			},
 		},
 		{
@@ -565,10 +565,10 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			null: "    A:\n      type: string\n      contentMediaType: application/json\n      contentSchema: null\n",
 			twin: "    A:\n      type: string\n      contentMediaType: application/json\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				s := asKind[*ir.Scalar](t, td)
-				require.NotNil(t, s.Encoding, "the media type is still written")
-				assert.Equal(t, "application/json", s.Encoding.MediaType)
-				assert.Nil(t, s.Encoding.Schema, "no Encoding.Schema")
+				scalar := asKind[*ir.Scalar](t, td)
+				require.NotNil(t, scalar.Encoding, "the media type is still written")
+				assert.Equal(t, "application/json", scalar.Encoding.MediaType)
+				assert.Nil(t, scalar.Encoding.Schema, "no Encoding.Schema")
 			},
 		},
 		{
@@ -649,9 +649,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			twin: "    A:\n      type: object\n      properties:\n        p:\n          allOf:\n" +
 				"            - true\n            - {type: [string, 'null']}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				m := asKind[*ir.Model](t, td)
-				require.Len(t, m.Properties, 1)
-				assert.True(t, m.Properties[0].Type.Nullable, "a null branch no longer forbids null")
+				model := asKind[*ir.Model](t, td)
+				require.Len(t, model.Properties, 1)
+				assert.True(t, model.Properties[0].Type.Nullable, "a null branch no longer forbids null")
 			},
 		},
 		{
@@ -661,9 +661,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			twin: "    N: {}\n    A:\n      type: object\n      properties:\n        p:\n          allOf:\n" +
 				"            - {$ref: '#/components/schemas/N'}\n            - {type: [string, 'null']}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				m := asKind[*ir.Model](t, td)
-				require.Len(t, m.Properties, 1)
-				assert.True(t, m.Properties[0].Type.Nullable, "what the $ref lands on no longer forbids null")
+				model := asKind[*ir.Model](t, td)
+				require.Len(t, model.Properties, 1)
+				assert.True(t, model.Properties[0].Type.Nullable, "what the $ref lands on no longer forbids null")
 			},
 		},
 		{
@@ -688,9 +688,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			null: target + "{$ref: '#/components/schemas/B', " + keyword + ": null}\n",
 			twin: target + "{$ref: '#/components/schemas/B'}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
-				m := asKind[*ir.Model](t, td)
-				require.Len(t, m.Properties, 1)
-				assert.Equal(t, ir.TypeRef{Target: "type/openapi/components/schemas/B"}, m.Properties[0].Type,
+				model := asKind[*ir.Model](t, td)
+				require.Len(t, model.Properties, 1)
+				assert.Equal(t, ir.TypeRef{Target: "type/openapi/components/schemas/B"}, model.Properties[0].Type,
 					"the target itself, with no alias over it")
 			},
 		})
@@ -766,29 +766,29 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 		doc, diags := lowerSpecOnly(t, openapitest.ComponentSpec(fmt.Sprintf(spec, "null")))
 		twin, twinDiags := lowerSpecOnly(t, openapitest.ComponentSpec(fmt.Sprintf(spec, "{}")))
 
-		m := asKind[*ir.Model](t, typeByName(doc, "A"))
-		require.Len(t, m.Properties, 1)
-		assert.Equal(t, ir.TypeRef{Target: "type/primitive/string"}, m.Properties[0].Type)
-		assert.Empty(t, m.Properties[0].Unmodeled, "the top type says nothing the string loses")
+		model := asKind[*ir.Model](t, typeByName(doc, "A"))
+		require.Len(t, model.Properties, 1)
+		assert.Equal(t, ir.TypeRef{Target: "type/primitive/string"}, model.Properties[0].Type)
+		assert.Empty(t, model.Properties[0].Unmodeled, "the top type says nothing the string loses")
 		assert.Empty(t, cmp.Diff(twin.Types, doc.Types))
 		assert.Empty(t, cmp.Diff(twinDiags, diags, cmpopts.EquateEmpty()))
 	})
 
 	t.Run("a property redeclared as a null keeps the losing declaration as a null", func(t *testing.T) {
 		t.Parallel()
-		l, _ := schema.LoweredFor(t, openapitest.ComponentSpec("    A:\n      allOf:\n"+
+		lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpec("    A:\n      allOf:\n"+
 			"        - {type: object, properties: {p: null}}\n"+
 			"        - {type: object, properties: {p: {type: string, enum: [a, b]}}}\n"))
-		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(1)}
-		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
+		lowerer.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(1)}
+		diags := schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas())
 
-		m := asKind[*ir.Model](t, typeByName(l.Document(t), "A"))
-		require.Len(t, m.Properties, 1)
-		assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/A/allOf/1/properties/p"), m.Properties[0].Type.Target,
+		model := asKind[*ir.Model](t, typeByName(lowerer.Document(t), "A"))
+		require.Len(t, model.Properties, 1)
+		assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/A/allOf/1/properties/p"), model.Properties[0].Type.Target,
 			"the later declaration stands")
 		const loser = "openapi:conflicting-redeclaration/components/schemas/A/allOf/0/properties/p"
-		assert.Equal(t, []string{loser}, unmodeledKeys(m.Properties[0].Unmodeled))
-		kept := m.Properties[0].Unmodeled[loser]
+		assert.Equal(t, []string{loser}, unmodeledKeys(model.Properties[0].Unmodeled))
+		kept := model.Properties[0].Unmodeled[loser]
 		assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
 		assert.Equal(t, ir.RawValue("null"), kept.Value, "as written: a null, not the false the parser decodes it as")
 		assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "%+v", diags)
@@ -812,7 +812,7 @@ func asKind[T ir.TypeDef](t *testing.T, td ir.TypeDef) T {
 // beside the $ref (S: {$ref: Target, minimum: 5}) binds S, not Target.
 func TestLowerComponentSchema_RefSiblingConstraintBindsTheSite(t *testing.T) {
 	t.Parallel()
-	l, _ := schema.LoweredFor(t, `openapi: 3.1.0
+	lowerer, _ := schema.LoweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -822,15 +822,15 @@ components:
       $ref: '#/components/schemas/Target'
       minimum: 5
 `)
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
+	lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
 
-	sc, ok := typeByName(l.Document(t), "S").(*ir.Scalar)
+	sc, ok := typeByName(lowerer.Document(t), "S").(*ir.Scalar)
 	require.True(t, ok, "S aliases Target and must own a Scalar node")
 	require.NotNil(t, sc.Constraints, "a bound beside a $ref binds S, not Target")
 	require.NotNil(t, sc.Constraints.Min)
 	assert.Equal(t, "5", sc.Constraints.Min.String())
 
-	target := typeByName(l.Document(t), "Target")
+	target := typeByName(lowerer.Document(t), "Target")
 	require.NotNil(t, target)
 	tsc, ok := target.(*ir.Scalar)
 	require.True(t, ok, "Target aliases a primitive and must own a Scalar node")
@@ -943,10 +943,10 @@ func TestUntypedKinds_ACutReadLeavesTheKeywordsToThePolicy(t *testing.T) {
 			assert.False(t, marked)
 			continue
 		}
-		u, ok := td.(*ir.Union)
+		union, ok := td.(*ir.Union)
 		require.True(t, ok, "the policy reads its properties as an object the oneOf distributes across")
-		require.Len(t, u.Variants, 1)
-		variant := doc.Types[u.Variants[0].Type.Target]
+		require.Len(t, union.Variants, 1)
+		variant := doc.Types[union.Variants[0].Type.Target]
 		assert.Equal(t, ir.KindModel, variant.Kind())
 		assert.Equal(t, lowering.KindInferenceHeuristic, variant.Common().Provenance.Inferred)
 		assert.Contains(t, variant.Common().Unmodeled, "openapi:anyOf", "the anyOf kept on the variant")

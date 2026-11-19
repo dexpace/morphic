@@ -27,7 +27,7 @@ import (
 // each key keeps its own, and only a first ask is charged.
 func TestExternalReads_OnceReadsEachDocumentOnce(t *testing.T) {
 	t.Parallel()
-	r := newExternalReads(sourceDocument{}, budget.Unbounded())
+	externalReads := newExternalReads(sourceDocument{}, budget.Unbounded())
 	reads := map[string]int{}
 	readAs := func(key string, a answer) func() answer {
 		return func() answer {
@@ -38,15 +38,15 @@ func TestExternalReads_OnceReadsEachDocumentOnce(t *testing.T) {
 	gone := answer{err: errors.New("GET k: 404 Not Found")}
 	found := answer{body: []byte("document")}
 
-	first := r.once("k", compilers.SpaceUnstated, readAs("k", gone))
-	again := r.once("k", compilers.SpaceUnstated, readAs("k", found))
-	other := r.once("other", compilers.SpaceUnstated, readAs("other", found))
+	first := externalReads.once("k", compilers.SpaceUnstated, readAs("k", gone))
+	again := externalReads.once("k", compilers.SpaceUnstated, readAs("k", found))
+	other := externalReads.once("other", compilers.SpaceUnstated, readAs("other", found))
 
 	assert.Equal(t, gone, first)
 	assert.Equal(t, gone, again, "a later ask gets the first answer, not a read of its own")
 	assert.Equal(t, found, other, "each key keeps its own answer")
 	assert.Equal(t, map[string]int{"k": 1, "other": 1}, reads)
-	assert.Equal(t, 2, r.documents.Spent(), "a document is charged once")
+	assert.Equal(t, 2, externalReads.documents.Spent(), "a document is charged once")
 }
 
 // TestExternalReads_OnceReadsOnceUnderConcurrentAsks pins the one read where
@@ -54,13 +54,13 @@ func TestExternalReads_OnceReadsEachDocumentOnce(t *testing.T) {
 // a single read, and the document is charged once.
 func TestExternalReads_OnceReadsOnceUnderConcurrentAsks(t *testing.T) {
 	t.Parallel()
-	r := newExternalReads(sourceDocument{}, budget.Unbounded())
+	externalReads := newExternalReads(sourceDocument{}, budget.Unbounded())
 	var reads atomic.Int32
 	var wg sync.WaitGroup
 	got := make([]answer, 16)
 	for i := range got {
 		wg.Go(func() {
-			got[i] = r.once("k", compilers.SpaceUnstated, func() answer {
+			got[i] = externalReads.once("k", compilers.SpaceUnstated, func() answer {
 				return answer{body: fmt.Appendf(nil, "read %d", reads.Add(1))}
 			})
 		})
@@ -71,7 +71,7 @@ func TestExternalReads_OnceReadsOnceUnderConcurrentAsks(t *testing.T) {
 	for _, a := range got {
 		assert.Equal(t, "read 1", string(a.body))
 	}
-	assert.Equal(t, 1, r.documents.Spent())
+	assert.Equal(t, 1, externalReads.documents.Spent())
 }
 
 // TestExternalReads_OnceRefusesADocumentPastTheBudget pins the budget's edge:
@@ -79,24 +79,24 @@ func TestExternalReads_OnceReadsOnceUnderConcurrentAsks(t *testing.T) {
 // and a refused one stays refused, however often it is asked for.
 func TestExternalReads_OnceRefusesADocumentPastTheBudget(t *testing.T) {
 	t.Parallel()
-	r := newExternalReads(sourceDocument{}, budget.AtMost(2))
+	externalReads := newExternalReads(sourceDocument{}, budget.AtMost(2))
 	read := 0
 	fetch := func() answer {
 		read++
 		return answer{}
 	}
 	for i := range 2 {
-		assert.NoError(t, r.once(fmt.Sprintf("k%d", i), compilers.SpaceUnstated, fetch).err)
+		assert.NoError(t, externalReads.once(fmt.Sprintf("k%d", i), compilers.SpaceUnstated, fetch).err)
 	}
 
-	past := r.once("k2", compilers.SpaceUnstated, fetch)
-	again := r.once("k2", compilers.SpaceUnstated, fetch)
+	past := externalReads.once("k2", compilers.SpaceUnstated, fetch)
+	again := externalReads.once("k2", compilers.SpaceUnstated, fetch)
 
 	require.Error(t, past.err)
 	assert.Equal(t, "external document k2 refused: it is past the 2-document budget", past.err.Error())
 	assert.Equal(t, past, again, "the refusal is the document's answer")
 	assert.Equal(t, 2, read, "nothing past the budget is read")
-	assert.Equal(t, 3, r.documents.Spent(), "the refused document is charged, so the budget reads as crossed")
+	assert.Equal(t, 3, externalReads.documents.Spent(), "the refused document is charged, so the budget reads as crossed")
 }
 
 // TestExternalReads_OnceLeavesAFailureWhereAReadPanics pins that a read
@@ -104,12 +104,12 @@ func TestExternalReads_OnceRefusesADocumentPastTheBudget(t *testing.T) {
 // document failed rather than answered as empty, and is not read again.
 func TestExternalReads_OnceLeavesAFailureWhereAReadPanics(t *testing.T) {
 	t.Parallel()
-	r := newExternalReads(sourceDocument{}, budget.Unbounded())
+	externalReads := newExternalReads(sourceDocument{}, budget.Unbounded())
 	assert.Panics(t, func() {
-		r.once("k", compilers.SpaceUnstated, func() answer { panic("read") })
+		externalReads.once("k", compilers.SpaceUnstated, func() answer { panic("read") })
 	})
 
-	got := r.once("k", compilers.SpaceUnstated, func() answer { return answer{} })
+	got := externalReads.once("k", compilers.SpaceUnstated, func() answer { return answer{} })
 
 	require.Error(t, got.err)
 	assert.Equal(t, "external document k refused: its read did not finish", got.err.Error())
@@ -121,15 +121,15 @@ func TestExternalReads_OnceLeavesAFailureWhereAReadPanics(t *testing.T) {
 func TestExternalReads_ExhaustedReportsOnceAtTheSource(t *testing.T) {
 	t.Parallel()
 	at := provenance.Doc{}
-	r := newExternalReads(sourceDocument{}, budget.AtMost(1))
+	externalReads := newExternalReads(sourceDocument{}, budget.AtMost(1))
 	ok := func() answer { return answer{} }
-	r.once("a", compilers.SpaceUnstated, ok)
-	assert.Empty(t, r.exhausted(at), "a budget spent exactly is not crossed")
+	externalReads.once("a", compilers.SpaceUnstated, ok)
+	assert.Empty(t, externalReads.exhausted(at), "a budget spent exactly is not crossed")
 
-	r.once("b", compilers.SpaceUnstated, ok)
-	r.once("c", compilers.SpaceUnstated, ok)
+	externalReads.once("b", compilers.SpaceUnstated, ok)
+	externalReads.once("c", compilers.SpaceUnstated, ok)
 
-	got := r.exhausted(at)
+	got := externalReads.exhausted(at)
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.BudgetExceeded, got[0].Code)
 	assert.Equal(t, ir.SeverityError, got[0].Severity)
@@ -149,20 +149,20 @@ func TestExternalReads_ExhaustedReportsOnceAtTheSource(t *testing.T) {
 // catch. Under -race, unsynchronized access fails here.
 func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 	t.Parallel()
-	r := newExternalReads(sourceDocument{}, budget.Unbounded())
+	externalReads := newExternalReads(sourceDocument{}, budget.Unbounded())
 	for i := range 8 {
 		key := fmt.Sprintf("http://host/doc%d.yaml", i)
 		t.Run(fmt.Sprintf("doc%d", i), func(t *testing.T) {
 			t.Parallel()
 			tree := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
 			for range 100 {
-				r.recordTree(key, doctree.ParsedYAMLDocument{Root: tree}, nil)
-				got, ok := r.preparedFor(key)
+				externalReads.recordTree(key, doctree.ParsedYAMLDocument{Root: tree}, nil)
+				got, ok := externalReads.preparedFor(key)
 				assert.True(t, ok)
 				assert.Same(t, tree, got)
-				a := r.once(key, compilers.SpaceUnstated, func() answer { return answer{body: []byte(key)} })
+				a := externalReads.once(key, compilers.SpaceUnstated, func() answer { return answer{body: []byte(key)} })
 				assert.Equal(t, key, string(a.body))
-				r.adopt(key+"#again", key)
+				externalReads.adopt(key+"#again", key)
 			}
 		})
 	}
@@ -177,11 +177,11 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a file key", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+		externalReads := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("/tmp/doc.yaml", doctree.ParsedYAMLDocument{Root: tree}, nil)
+		externalReads.recordTree("/tmp/doc.yaml", doctree.ParsedYAMLDocument{Root: tree}, nil)
 
-		got, ok := r.preparedFor("/tmp/doc.yaml")
+		got, ok := externalReads.preparedFor("/tmp/doc.yaml")
 
 		require.True(t, ok)
 		assert.Same(t, tree, got)
@@ -189,11 +189,11 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a file key http.NewRequest would respell", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+		externalReads := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("dir/with space/doc.yaml", doctree.ParsedYAMLDocument{Root: tree}, nil)
+		externalReads.recordTree("dir/with space/doc.yaml", doctree.ParsedYAMLDocument{Root: tree}, nil)
 
-		got, ok := r.preparedFor("dir/with space/doc.yaml")
+		got, ok := externalReads.preparedFor("dir/with space/doc.yaml")
 
 		require.True(t, ok, "the path is its own key; the request spelling %20 is not")
 		assert.Same(t, tree, got)
@@ -201,12 +201,12 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a URL key found under the one spelling it is located by", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+		externalReads := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("http://host/doc.yaml", doctree.ParsedYAMLDocument{Root: tree}, nil)
+		externalReads.recordTree("http://host/doc.yaml", doctree.ParsedYAMLDocument{Root: tree}, nil)
 
-		got, ok := r.preparedFor("http://host/doc.yaml")
-		_, other := r.preparedFor("HTTP://host:/doc.yaml")
+		got, ok := externalReads.preparedFor("http://host/doc.yaml")
+		_, other := externalReads.preparedFor("HTTP://host:/doc.yaml")
 
 		require.True(t, ok)
 		assert.Same(t, tree, got)
@@ -215,18 +215,18 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a key no read recorded", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+		externalReads := newExternalReads(sourceDocument{}, budget.Unbounded())
 
-		_, ok := r.preparedFor("http://host/\x00bad")
+		_, ok := externalReads.preparedFor("http://host/\x00bad")
 
 		assert.False(t, ok)
 	})
 
 	t.Run("a missing key", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+		externalReads := newExternalReads(sourceDocument{}, budget.Unbounded())
 
-		_, ok := r.preparedFor("/no/such/file.yaml")
+		_, ok := externalReads.preparedFor("/no/such/file.yaml")
 
 		assert.False(t, ok)
 	})

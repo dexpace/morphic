@@ -40,8 +40,8 @@ func loadReferencing(t *testing.T, ref string) (*LoadedOpenAPIDocument, []string
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	return doc, codes
 }
@@ -102,13 +102,13 @@ func TestPointersIn_PlacesANodeInWhicheverTreeHoldsIt(t *testing.T) {
 
 	for key, tree := range trees {
 		x := tree.Content[0].Content[3].Alias.Content[1]
-		p, ok := held(x)
+		pointer, ok := held(x)
 		assert.True(t, ok, key)
-		assert.Equal(t, jsontext.Pointer("/A/x"), p, key)
+		assert.Equal(t, jsontext.Pointer("/A/x"), pointer, key)
 	}
-	p, ok := held(&yaml.Node{Kind: yaml.ScalarNode, Value: "1"})
+	pointerValue, ok := held(&yaml.Node{Kind: yaml.ScalarNode, Value: "1"})
 	assert.False(t, ok)
-	assert.Empty(t, p)
+	assert.Empty(t, pointerValue)
 }
 
 // TestPointersIn_IndexesUnderTheLoadsContext pins that each tree's pointer

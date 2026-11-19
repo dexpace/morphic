@@ -77,8 +77,8 @@ func compileChoices(t *testing.T, spec string, opts openapi.Options) (*ir.Docume
 // unpromoted returns the findings of diags that report a promotion key stating
 // nothing usable.
 func unpromoted(diags []ir.Diagnostic) []ir.Diagnostic {
-	return slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
-		return d.Code != "openapi/unpromoted-extension"
+	return slices.DeleteFunc(slices.Clone(diags), func(diagnostic ir.Diagnostic) bool {
+		return diagnostic.Code != "openapi/unpromoted-extension"
 	})
 }
 

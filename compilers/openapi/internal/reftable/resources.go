@@ -51,11 +51,11 @@ type resources struct {
 // A document whose $self names a URI is named and based by it
 // (docs/compilers/openapi.md#self-uri).
 func (r resources) document(id DocID) resource {
-	d := r.docs.list[id]
-	if d.self == "" {
-		return resource{root: DocumentPointer{Doc: id}, uri: d.name}
+	document := r.docs.list[id]
+	if document.self == "" {
+		return resource{root: DocumentPointer{Doc: id}, uri: document.name}
 	}
-	return resource{root: DocumentPointer{Doc: id}, uri: d.self, based: true, detached: d.absolute}
+	return resource{root: DocumentPointer{Doc: id}, uri: document.self, based: true, detached: document.absolute}
 }
 
 // identifiers is every identifier the documents' schemas declare: each URI an
@@ -140,16 +140,16 @@ func (ix *identifiers) readsDialects(id DocID) bool {
 	return ix.named[id] || !ix.read[id]
 }
 
-// document adds r, doc's own resource, and returns its index. Another
+// document adds resourceValue, doc's own resource, and returns its index. Another
 // document than the source declares the URI its $self names at its root, as
 // an $id declares one; the source is named by its $self directly (names).
-func (ix *identifiers) document(doc DocID, r resource) int32 {
+func (ix *identifiers) document(doc DocID, resourceValue resource) int32 {
 	i := int32(len(ix.resources))
-	ix.resources = append(ix.resources, r)
+	ix.resources = append(ix.resources, resourceValue)
 	ix.own[doc] = i
-	if r.based && doc != Source {
-		ix.declared[r.uri] = append(ix.declared[r.uri], r.root)
-		ix.byDoc[doc] = append(ix.byDoc[doc], r.uri)
+	if resourceValue.based && doc != Source {
+		ix.declared[resourceValue.uri] = append(ix.declared[resourceValue.uri], resourceValue.root)
+		ix.byDoc[doc] = append(ix.byDoc[doc], resourceValue.uri)
 	}
 	return i
 }
@@ -159,13 +159,13 @@ func (ix *identifiers) document(doc DocID, r resource) int32 {
 // `$schema` names among it where n roots a resource (enterIn), and returns the
 // index of the resource its content is in, its own where it writes an
 // identifier naming another URI, and the dialect that content is read in.
-func (ix *identifiers) declare(r resources, in int32, at DocumentPointer, n *yaml.Node, enclosing string) (int32, string) {
+func (ix *identifiers) declare(resourcesValue resources, in int32, at DocumentPointer, n *yaml.Node, enclosing string) (int32, string) {
 	held := ix.resources[in]
-	e := r.enterIn(held, at, n, enclosing, func() bool { return heldAt(r.docs, at) })
-	res := e.res
-	ix.truncated[at.Doc] = ix.truncated[at.Doc] || !e.known
+	entering := resourcesValue.enterIn(held, at, n, enclosing, func() bool { return heldAt(resourcesValue.docs, at) })
+	res := entering.res
+	ix.truncated[at.Doc] = ix.truncated[at.Doc] || !entering.known
 	switch {
-	case e.rooted:
+	case entering.rooted:
 		res.root = at
 		ix.declared[res.uri] = append(ix.declared[res.uri], at)
 		ix.byDoc[at.Doc] = append(ix.byDoc[at.Doc], res.uri)
@@ -174,34 +174,34 @@ func (ix *identifiers) declare(r resources, in int32, at DocumentPointer, n *yam
 	case res != held:
 		in = ix.own[at.Doc]
 	}
-	view := r.docs.list[at.Doc].view
-	if e.names {
-		ix.dialects[at] = DialectRoot{At: at, URI: e.dialect, Node: nodeview.Deref(n)}
+	view := resourcesValue.docs.list[at.Doc].view
+	if entering.names {
+		ix.dialects[at] = DialectRoot{At: at, URI: entering.dialect, Node: nodeview.Deref(n)}
 		ix.named[at.Doc] = true
 	}
-	rule := dialectRule(r.docs, at.Doc, e.dialect)
+	rule := dialectRule(resourcesValue.docs, at.Doc, entering.dialect)
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor", rule.Keyword} {
 		name, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), keyword))
 		switch {
 		case keyword == rule.Keyword:
-			name, ok = fragmentName(rule, name, ok && rule.Fragments && !r.ignoresIdentifier(at.Doc, n, rule))
+			name, ok = fragmentName(rule, name, ok && rule.Fragments && !resourcesValue.ignoresIdentifier(at.Doc, n, rule))
 		case ok:
 			ok = anchorNamed(rule, keyword, name)
 		}
 		if !ok {
 			continue
 		}
-		k := anchorKey{root: res.root, name: name}
-		ix.anchors[k] = append(ix.anchors[k], at)
+		anchorKeyValue := anchorKey{root: res.root, name: name}
+		ix.anchors[anchorKeyValue] = append(ix.anchors[anchorKeyValue], at)
 		if keyword == "$dynamicAnchor" {
-			d := dynamicKey{doc: at.Doc, name: name}
-			ix.dynamic[d] = append(ix.dynamic[d], at)
+			dynamicKeyValue := dynamicKey{doc: at.Doc, name: name}
+			ix.dynamic[dynamicKeyValue] = append(ix.dynamic[dynamicKeyValue], at)
 		}
 	}
 	if rule.Recursive && recursiveAnchored(view, n) {
 		ix.recursive[at.Doc] = append(ix.recursive[at.Doc], at)
 	}
-	return in, e.dialect
+	return in, entering.dialect
 }
 
 // admitted reports whether a declaration in document decl answers a reference
@@ -211,8 +211,8 @@ func (ix *identifiers) declare(r resources, in int32, at DocumentPointer, n *yam
 // only for a URI of its own origin, scheme, host and port, so it supplies no
 // other host's content; and a document read over http(s) is answered by no
 // file, nor by a source that is one, which it reaches by no route.
-func admitted(d *docs, decl, from DocID, uri string) bool {
-	declarer, asker := d.list[decl].name, d.list[from].name
+func admitted(docsValue *docs, decl, from DocID, uri string) bool {
+	declarer, asker := docsValue.list[decl].name, docsValue.list[from].name
 	switch {
 	case decl == from:
 		return true
@@ -282,9 +282,9 @@ func (ix *identifiers) answering() map[string][]DocumentPointer {
 // answer returns the declarations of uri commit counts.
 func (ix *identifiers) answer(uri string) []DocumentPointer {
 	var at []DocumentPointer
-	for _, p := range ix.declared[uri] {
-		if ix.every || ix.counted[p.Doc] {
-			at = append(at, p)
+	for _, documentPointer := range ix.declared[uri] {
+		if ix.every || ix.counted[documentPointer.Doc] {
+			at = append(at, documentPointer)
 		}
 	}
 	return at
@@ -298,9 +298,9 @@ func (ix *identifiers) answer(uri string) []DocumentPointer {
 // again, and a pass that goes on past what it held pays for what it adds.
 func (ix *identifiers) grow(reached []DocID) bool {
 	affected := map[string]bool{}
-	for _, d := range reached {
-		ix.counted[d] = true
-		for _, uri := range ix.byDoc[d] {
+	for _, docID := range reached {
+		ix.counted[docID] = true
+		for _, uri := range ix.byDoc[docID] {
 			affected[uri] = true
 		}
 	}
@@ -345,9 +345,9 @@ func (ix *identifiers) reading() string {
 // (keep).
 func (ix *identifiers) lookupURI(uri string, answers func(decl DocID) bool, mayWait bool) (DocumentPointer, bool, Reason, []DocID) {
 	var found []DocumentPointer
-	for _, p := range ix.uris[uri] {
-		if answers(p.Doc) {
-			found = append(found, p)
+	for _, documentPointer := range ix.uris[uri] {
+		if answers(documentPointer.Doc) {
+			found = append(found, documentPointer)
 		}
 	}
 	switch {
@@ -365,9 +365,9 @@ func (ix *identifiers) lookupURI(uri string, answers func(decl DocID) bool, mayW
 // asker answers admits: each declaration answers once its document is reached.
 func (ix *identifiers) pending(uri string, answers func(decl DocID) bool) []DocID {
 	var docs []DocID
-	for _, p := range ix.declared[uri] {
-		if !ix.counted[p.Doc] && answers(p.Doc) {
-			docs = append(docs, p.Doc)
+	for _, documentPointer := range ix.declared[uri] {
+		if !ix.counted[documentPointer.Doc] && answers(documentPointer.Doc) {
+			docs = append(docs, documentPointer.Doc)
 		}
 	}
 	return docs
@@ -641,37 +641,37 @@ func scalarOf(n *yaml.Node) (string, bool) {
 	return v.Value, true
 }
 
-// holding is the resource the position p, reached along path, is in: the one
+// holding is the resource the position documentPointer, reached along path, is in: the one
 // each schema on path enters in turn (enter), from its document's own. With
-// schema, p is read as a schema whatever the grammar reads it as, as a $ref
+// schema, documentPointer is read as a schema whatever the grammar reads it as, as a $ref
 // site is, so its own $id counts. Where named, a schema of the documents names
 // its dialect, and each schema on path is read in the one the schema holding it
 // enters (enterIn); else every schema is read in its document's. known is false
 // where a schema on path may hide an identifier past the merge bound.
-func (r resources) holding(p DocumentPointer, path []*yaml.Node, schema, named bool) (resource, bool) {
-	res, known := r.document(p.Doc), true
-	s, tokens := r.docs.identityState(p.Doc), slices.Collect(p.Pointer.Tokens())
-	dialect, held := defaultDialect(r.docs, p.Doc), false
-	rule := dialectRule(r.docs, p.Doc, dialect)
+func (r resources) holding(documentPointer DocumentPointer, path []*yaml.Node, schema, named bool) (resource, bool) {
+	res, known := r.document(documentPointer.Doc), true
+	state, tokens := r.docs.identityState(documentPointer.Doc), slices.Collect(documentPointer.Pointer.Tokens())
+	dialect, held := defaultDialect(r.docs, documentPointer.Doc), false
+	rule := dialectRule(r.docs, documentPointer.Doc, dialect)
 	for i, n := range path {
 		if i > 0 {
-			held = held || s == sSchema || s == sLoose
-			s = stepIn(r.docs, p.Doc, path[i-1], s, tokens[i-1], dialect)
+			held = held || state == sSchema || state == sLoose
+			state = stepIn(r.docs, documentPointer.Doc, path[i-1], state, tokens[i-1], dialect)
 		}
-		if s != sSchema && s != sLoose && (i < len(path)-1 || !schema) {
+		if state != sSchema && state != sLoose && (i < len(path)-1 || !schema) {
 			continue
 		}
-		e := entering{dialect: dialect}
+		enteringValue := entering{dialect: dialect}
 		if named {
-			e = r.enterIn(res, DocumentPointer{Doc: p.Doc}, n, dialect, func() bool { return held })
+			enteringValue = r.enterIn(res, DocumentPointer{Doc: documentPointer.Doc}, n, dialect, func() bool { return held })
 		} else {
-			e.res, e.rooted, e.known = r.enter(res, n, rule)
+			enteringValue.res, enteringValue.rooted, enteringValue.known = r.enter(res, n, rule)
 		}
-		known = known && e.known
-		if e.rooted {
-			e.res.root = DocumentPointer{Doc: p.Doc, Pointer: jsontext.Pointer(prefix(p.Pointer, i))}
+		known = known && enteringValue.known
+		if enteringValue.rooted {
+			enteringValue.res.root = DocumentPointer{Doc: documentPointer.Doc, Pointer: jsontext.Pointer(prefix(documentPointer.Pointer, i))}
 		}
-		res, dialect = e.res, e.dialect
+		res, dialect = enteringValue.res, enteringValue.dialect
 	}
 	return res, known
 }

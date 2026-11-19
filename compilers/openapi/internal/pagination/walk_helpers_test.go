@@ -80,9 +80,9 @@ func inEitherOrder(t *testing.T, src string) []string {
 // findings reported at pointer.
 func undecidedAt(diags []ir.Diagnostic, pointer string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == "openapi/undecided-pagination" && string(d.Provenance.Pointer) == pointer {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/undecided-pagination" && string(diagnostic.Provenance.Pointer) == pointer {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out

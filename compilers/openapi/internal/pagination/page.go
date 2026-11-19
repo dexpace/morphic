@@ -21,9 +21,9 @@ type reader struct {
 	pages  map[pageKey]page
 }
 
-// newReader returns a reader over w that has read nothing yet.
-func newReader(w *compileddoc.CompiledDocumentView) *reader {
-	return &reader{w: w, models: &models{w: w, read: map[ir.TypeID]*model{}}, pages: map[pageKey]page{}}
+// newReader returns a reader over compiledDocumentView that has read nothing yet.
+func newReader(compiledDocumentView *compileddoc.CompiledDocumentView) *reader {
+	return &reader{w: compiledDocumentView, models: &models{w: compiledDocumentView, read: map[ir.TypeID]*model{}}, pages: map[pageKey]page{}}
 }
 
 // models is what a page reads of each model of w, read once per model (of),
@@ -86,12 +86,12 @@ type page struct {
 	nextHeader                                   bool
 }
 
-// equal reports whether p and q, two pages a body holds, hold them at the same
+// equal reports whether p and pageValue, two pages a body holds, hold them at the same
 // members. Their links may differ: such a link is left unset (agreed), which
 // stops no walk.
-func (p page) equal(q page) bool {
-	return slices.Equal(p.items, q.items) && slices.Equal(p.next, q.next) && slices.Equal(p.hasMore, q.hasMore) &&
-		slices.Equal(p.totalCount, q.totalCount) && slices.Equal(p.totalPages, q.totalPages)
+func (p page) equal(pageValue page) bool {
+	return slices.Equal(p.items, pageValue.items) && slices.Equal(p.next, pageValue.next) && slices.Equal(p.hasMore, pageValue.hasMore) &&
+		slices.Equal(p.totalCount, pageValue.totalCount) && slices.Equal(p.totalPages, pageValue.totalPages)
 }
 
 // responsePage returns where op's success responses hold the page a walk
@@ -269,16 +269,16 @@ func noNextCursor(ms *models, body *model, key pageKey, next string) string {
 func pageFlag(ms *models, body, holder *model) ([]ir.PropertyID, string) {
 	var paths [][]ir.PropertyID
 	var names []string
-	for _, f := range body.flags {
-		if flagName(f.Name.Canonical) {
-			paths, names = append(paths, []ir.PropertyID{f.ID}), append(names, strconv.Quote(f.EffectiveWireName()))
+	for _, property := range body.flags {
+		if flagName(property.Name.Canonical) {
+			paths, names = append(paths, []ir.PropertyID{property.ID}), append(names, strconv.Quote(property.EffectiveWireName()))
 		}
 	}
-	for _, o := range body.objects {
-		for _, f := range ms.of(o.id).flags {
-			if flagName(f.Name.Canonical) {
-				paths = append(paths, []ir.PropertyID{o.member.ID, f.ID})
-				names = append(names, strconv.Quote(o.member.EffectiveWireName()+"."+f.EffectiveWireName()))
+	for _, object := range body.objects {
+		for _, property := range ms.of(object.id).flags {
+			if flagName(property.Name.Canonical) {
+				paths = append(paths, []ir.PropertyID{object.member.ID, property.ID})
+				names = append(names, strconv.Quote(object.member.EffectiveWireName()+"."+property.EffectiveWireName()))
 			}
 		}
 	}
@@ -306,15 +306,15 @@ func flagName(canonical string) bool {
 	}
 }
 
-// leastFlag returns the least wire name of the booleans m holds, or "" for
-// none or a nil m, so a finding naming one reads the same in any order.
-func leastFlag(m *model) string {
+// leastFlag returns the least wire name of the booleans modelValue holds, or "" for
+// none or a nil modelValue, so a finding naming one reads the same in any order.
+func leastFlag(modelValue *model) string {
 	least := ""
-	if m == nil {
+	if modelValue == nil {
 		return least
 	}
-	for _, f := range m.flags {
-		if name := f.EffectiveWireName(); least == "" || name < least {
+	for _, property := range modelValue.flags {
+		if name := property.EffectiveWireName(); least == "" || name < least {
 			least = name
 		}
 	}
@@ -339,16 +339,16 @@ func find(ms *models, body *model, name string, admit func(ir.PrimitiveKind) boo
 	var path []ir.PropertyID
 	var holder *model
 	found := 0
-	for _, s := range body.scalars[name] {
-		if admit(s.prim) {
-			path, holder, found = []ir.PropertyID{s.member.ID}, body, found+1
+	for _, scalar := range body.scalars[name] {
+		if admit(scalar.prim) {
+			path, holder, found = []ir.PropertyID{scalar.member.ID}, body, found+1
 		}
 	}
-	for _, o := range body.objects {
-		held := ms.of(o.id)
-		for _, s := range held.scalars[name] {
-			if admit(s.prim) {
-				path, holder, found = []ir.PropertyID{o.member.ID, s.member.ID}, held, found+1
+	for _, object := range body.objects {
+		held := ms.of(object.id)
+		for _, scalar := range held.scalars[name] {
+			if admit(scalar.prim) {
+				path, holder, found = []ir.PropertyID{object.member.ID, scalar.member.ID}, held, found+1
 			}
 		}
 	}
@@ -362,14 +362,14 @@ func find(ms *models, body *model, name string, admit func(ir.PrimitiveKind) boo
 func pageItems(ms *models, body *model, strict bool) ([]ir.PropertyID, string) {
 	var named, holders []*ir.Property
 	var held ir.TypeID
-	for _, l := range body.lists {
-		if itemsName(l.Name.Canonical) {
-			named = append(named, l)
+	for _, property := range body.lists {
+		if itemsName(property.Name.Canonical) {
+			named = append(named, property)
 		}
 	}
-	for _, o := range body.objects {
-		if itemsName(o.member.Name.Canonical) {
-			holders, held = append(holders, o.member), o.id
+	for _, object := range body.objects {
+		if itemsName(object.member.Name.Canonical) {
+			holders, held = append(holders, object.member), object.id
 		}
 	}
 	switch {
@@ -421,41 +421,41 @@ func itemsName(canonical string) bool {
 // of returns what a page reads of the members of the model id, read once
 // per model.
 func (ms *models) of(id ir.TypeID) *model {
-	if m, read := ms.read[id]; read {
-		return m
+	if model, read := ms.read[id]; read {
+		return model
 	}
-	m := &model{scalars: map[string][]scalar{}, urls: map[string][]*ir.Property{}}
-	for _, p := range ms.w.Members(id) {
-		switch td := ms.w.Stands(p.Type.Target).(type) {
+	modelValue := &model{scalars: map[string][]scalar{}, urls: map[string][]*ir.Property{}}
+	for _, property := range ms.w.Members(id) {
+		switch td := ms.w.Stands(property.Type.Target).(type) {
 		case *ir.List:
-			m.lists = append(m.lists, p)
+			modelValue.lists = append(modelValue.lists, property)
 		case *ir.Model:
-			m.objects = append(m.objects, object{member: p, id: td.ID})
+			modelValue.objects = append(modelValue.objects, object{member: property, id: td.ID})
 		default:
 			if prim, ok := sendableAs(td); ok {
-				m.scalars[p.Name.Canonical] = append(m.scalars[p.Name.Canonical], scalar{member: p, prim: prim})
+				modelValue.scalars[property.Name.Canonical] = append(modelValue.scalars[property.Name.Canonical], scalar{member: property, prim: prim})
 			} else if isBool(td) {
-				m.flags = append(m.flags, p)
+				modelValue.flags = append(modelValue.flags, property)
 			} else if isURL(td) {
-				m.urls[p.Name.Canonical] = append(m.urls[p.Name.Canonical], p)
+				modelValue.urls[property.Name.Canonical] = append(modelValue.urls[property.Name.Canonical], property)
 			}
 		}
 	}
-	ms.read[id] = m
-	return m
+	ms.read[id] = modelValue
+	return modelValue
 }
 
 // isBool reports whether td is the boolean primitive.
 func isBool(td ir.TypeDef) bool {
-	p, ok := td.(*ir.Primitive)
-	return ok && p.PrimitiveKind == ir.PrimitiveBool
+	primitive, ok := td.(*ir.Primitive)
+	return ok && primitive.PrimitiveKind == ir.PrimitiveBool
 }
 
 // wireNames lists the members' wire names, two or more, as listed does.
 func wireNames(members []*ir.Property) string {
 	names := make([]string, len(members))
-	for i, m := range members {
-		names[i] = strconv.Quote(m.EffectiveWireName())
+	for i, property := range members {
+		names[i] = strconv.Quote(property.EffectiveWireName())
 	}
 	return listed(names)
 }

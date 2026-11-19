@@ -21,7 +21,7 @@ func messageBindingDoc(channel ir.ChannelID, carried, used []ir.MessageID) *ir.D
 		"message/a": {ID: "message/a", Name: ir.Naming{Source: "a"}},
 		"message/b": {ID: "message/b", Name: ir.Naming{Source: "b"}},
 	}
-	putChannel(doc, func(c *ir.Channel) { c.Messages = carried })
+	putChannel(doc, func(channel *ir.Channel) { channel.Messages = carried })
 	firstOp(doc).Bindings.Message = &ir.MessageBinding{Channel: channel, Messages: used}
 	return doc
 }

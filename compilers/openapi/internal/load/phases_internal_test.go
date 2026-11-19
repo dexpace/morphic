@@ -69,8 +69,8 @@ func phasedOptions(entered func(phase)) Options {
 func allPhases() []phase {
 	all := make([]phase, 0, len(steps())+1)
 	all = append(all, phaseParse)
-	for _, s := range steps() {
-		all = append(all, s.phase)
+	for _, step := range steps() {
+		all = append(all, step.phase)
 	}
 	return all
 }
@@ -83,7 +83,7 @@ func TestLoad_EntersEveryPhaseInOrder(t *testing.T) {
 	var entered []phase
 
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(phasedSpec),
-		phasedOptions(func(p phase) { entered = append(entered, p) }))
+		phasedOptions(func(phaseValue phase) { entered = append(entered, phaseValue) }))
 
 	require.NoError(t, err)
 	require.NotNil(t, doc, "%+v", diags)
@@ -111,9 +111,9 @@ func TestLoad_ACancelAtAPhaseEntersNoLaterOne(t *testing.T) {
 			var entered []phase
 			var cancelledAt uint64
 
-			doc, diags, err := Load(ctx, 0, openapitest.SourceOf(phasedSpec), phasedOptions(func(p phase) {
-				entered = append(entered, p)
-				if p == at {
+			doc, diags, err := Load(ctx, 0, openapitest.SourceOf(phasedSpec), phasedOptions(func(phaseValue phase) {
+				entered = append(entered, phaseValue)
+				if phaseValue == at {
 					cancel()
 					cancelledAt = mallocs()
 				}
@@ -338,8 +338,8 @@ func TestLoad_ChecksTheContextThroughoutAPhase(t *testing.T) {
 	src := openapitest.SourceOf(widePhasedSpec(300))
 	rec := &recorder{Context: t.Context()}
 	after := -1
-	opts := phasedOptions(func(p phase) {
-		if p == phaseSiblings {
+	opts := phasedOptions(func(phaseValue phase) {
+		if phaseValue == phaseSiblings {
 			after = len(rec.at)
 		}
 	})

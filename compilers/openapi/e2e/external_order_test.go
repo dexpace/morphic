@@ -190,8 +190,8 @@ func compiledThrough(t *testing.T, dir, root string) []string {
 		compilers.Options{Reader: reader.Disk{Client: &http.Client{Transport: stubOffline{}}}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags)+1)
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s %s", d.Severity, d.Code, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 	slices.Sort(out)
 	if doc != nil {

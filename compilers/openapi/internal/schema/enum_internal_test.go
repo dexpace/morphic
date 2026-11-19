@@ -100,8 +100,8 @@ func TestValueKey_IsInjectiveAcrossNesting(t *testing.T) {
 		str("l:[]"),
 	}
 	seen := map[string]int{}
-	for i, v := range values {
-		key, ok := valueKey(v, 0)
+	for i, value := range values {
+		key, ok := valueKey(value, 0)
 		require.True(t, ok, "value %d", i)
 		require.NotContains(t, seen, key, "values %d and %d share a key", seen[key], i)
 		seen[key] = i
@@ -118,7 +118,7 @@ func TestValueKey_RefusesWhatNoSourceEnumHolds(t *testing.T) {
 	for range maxValueKeyDepth + 1 {
 		deep = ir.Value{Kind: ir.ValueList, List: []ir.Value{deep}}
 	}
-	for name, v := range map[string]ir.Value{
+	for name, value := range map[string]ir.Value{
 		"a reference":           ref,
 		"a constructor":         {Kind: ir.ValueConstructor},
 		"infinity":              {Kind: ir.ValueInfinity},
@@ -129,7 +129,7 @@ func TestValueKey_RefusesWhatNoSourceEnumHolds(t *testing.T) {
 		"an object holding one": {Kind: ir.ValueObject, Object: []ir.Field{{Name: "r", Value: ref}}},
 		"past the depth bound":  deep,
 	} {
-		key, ok := valueKey(v, 0)
+		key, ok := valueKey(value, 0)
 		assert.False(t, ok, name)
 		assert.Empty(t, key, name)
 	}
@@ -178,11 +178,11 @@ func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
 		{[]statement.JSONSchemaTypeName{statement.KindInteger, statement.KindBoolean}, []ir.Value{one, yes}, []ir.Value{str}},
 		{[]statement.JSONSchemaTypeName{statement.KindInteger, "file"}, []ir.Value{str, one, null}, nil},
 	} {
-		for _, v := range tc.admits {
-			assert.True(t, typesAdmit(tc.types, v), "%v admits %+v", tc.types, v)
+		for _, value := range tc.admits {
+			assert.True(t, typesAdmit(tc.types, value), "%v admits %+v", tc.types, value)
 		}
-		for _, v := range tc.not {
-			assert.False(t, typesAdmit(tc.types, v), "%v admits no %+v", tc.types, v)
+		for _, value := range tc.not {
+			assert.False(t, typesAdmit(tc.types, value), "%v admits no %+v", tc.types, value)
 		}
 	}
 }
@@ -190,7 +190,7 @@ func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
 // TestDescribeValue_SpellsEachKind pins how a member is named in a message.
 func TestDescribeValue_SpellsEachKind(t *testing.T) {
 	t.Parallel()
-	for v, want := range map[*ir.Value]string{
+	for value, want := range map[*ir.Value]string{
 		{Kind: ir.ValueString, String: "a"}:     `"a"`,
 		{Kind: ir.ValueSymbol, String: "b"}:     `"b"`,
 		{Kind: ir.ValueNumber, Number: "1.5"}:   "1.5",
@@ -199,6 +199,6 @@ func TestDescribeValue_SpellsEachKind(t *testing.T) {
 		{Kind: ir.ValueBytes}:                   "of kind bytes",
 		{Kind: ir.ValueKind("a kind ir lacks")}: "of kind a kind ir lacks",
 	} {
-		assert.Equal(t, want, describeValue(*v))
+		assert.Equal(t, want, describeValue(*value))
 	}
 }

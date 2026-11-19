@@ -55,8 +55,8 @@ func validateCodes(t *testing.T, doc *ir.Document) []string {
 	diags, err := pass.Validate(t.Context(), doc)
 	require.NoError(t, err)
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	slices.Sort(codes)
 	return codes
@@ -68,49 +68,49 @@ func validateCodes(t *testing.T, doc *ir.Document) []string {
 // and the code is irverify's.
 func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 	t.Parallel()
-	model := func(d *ir.Document) *ir.Model { return d.Types["type/x/M"].(*ir.Model) }
-	op := func(d *ir.Document) *ir.Operation { return &d.Services[0].Groups[0].Operations[0] }
+	model := func(document *ir.Document) *ir.Model { return document.Types["type/x/M"].(*ir.Model) }
+	op := func(document *ir.Document) *ir.Operation { return &document.Services[0].Groups[0].Operations[0] }
 	channel := ir.Naming{Source: "c", Canonical: "c"}
 	for _, tc := range []struct {
 		name string
 		code string
-		plan func(d *ir.Document)
+		plan func(document *ir.Document)
 	}{
-		{"additional mode", "ir/unknown-additional-mode", func(d *ir.Document) { model(d).Additional = "bogus" }},
-		{"presence", "ir/unknown-presence-kind", func(d *ir.Document) { model(d).Properties[0].Presence = "bogus" }},
-		{"http location", "ir/unknown-http-location", func(d *ir.Document) {
-			op(d).Bindings.HTTP[0].ParamBindings[0].Location = ""
+		{"additional mode", "ir/unknown-additional-mode", func(document *ir.Document) { model(document).Additional = "bogus" }},
+		{"presence", "ir/unknown-presence-kind", func(document *ir.Document) { model(document).Properties[0].Presence = "bogus" }},
+		{"http location", "ir/unknown-http-location", func(document *ir.Document) {
+			op(document).Bindings.HTTP[0].ParamBindings[0].Location = ""
 		}},
-		{"idempotency kind", "ir/unknown-idempotency-kind", func(d *ir.Document) { op(d).Idempotency.Kind = "bogus" }},
-		{"page strategy", "ir/unknown-page-strategy", func(d *ir.Document) {
-			op(d).Pagination = &ir.Pagination{Strategy: "bogus"}
+		{"idempotency kind", "ir/unknown-idempotency-kind", func(document *ir.Document) { op(document).Idempotency.Kind = "bogus" }},
+		{"page strategy", "ir/unknown-page-strategy", func(document *ir.Document) {
+			op(document).Pagination = &ir.Pagination{Strategy: "bogus"}
 		}},
-		{"message direction", "ir/unknown-message-direction", func(d *ir.Document) {
-			d.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: channel}}
-			d.IDSpaces[ir.IDKindChannel] = []string{"x"}
-			op(d).Bindings.Message = &ir.MessageBinding{Channel: "channel/x/c", Direction: "bogus"}
+		{"message direction", "ir/unknown-message-direction", func(document *ir.Document) {
+			document.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: channel}}
+			document.IDSpaces[ir.IDKindChannel] = []string{"x"}
+			op(document).Bindings.Message = &ir.MessageBinding{Channel: "channel/x/c", Direction: "bogus"}
 		}},
-		{"severity", "ir/unknown-severity", func(d *ir.Document) {
-			d.Diagnostics = []ir.Diagnostic{{
+		{"severity", "ir/unknown-severity", func(document *ir.Document) {
+			document.Diagnostics = []ir.Diagnostic{{
 				Severity: "bogus", Code: "x/y", Message: "m", Provenance: ir.Provenance{Source: ir.NoSource},
 			}}
 		}},
-		{"blank version", "ir/version-label-blank", func(d *ir.Document) { d.Versions = []string{"v1", ""} }},
-		{"repeated version", "ir/version-label-repeated", func(d *ir.Document) { d.Versions = []string{"v1", "v1"} }},
-		{"undeclared version", "ir/version-label-undeclared", func(d *ir.Document) {
-			d.Versions = []string{"v1"}
-			model(d).Availability = &ir.Availability{Added: []string{"v9"}}
+		{"blank version", "ir/version-label-blank", func(document *ir.Document) { document.Versions = []string{"v1", ""} }},
+		{"repeated version", "ir/version-label-repeated", func(document *ir.Document) { document.Versions = []string{"v1", "v1"} }},
+		{"undeclared version", "ir/version-label-undeclared", func(document *ir.Document) {
+			document.Versions = []string{"v1"}
+			model(document).Availability = &ir.Availability{Added: []string{"v9"}}
 		}},
-		{"availability order", "ir/availability-out-of-order", func(d *ir.Document) {
-			d.Versions = []string{"v1", "v2"}
-			model(d).Availability = &ir.Availability{Added: []string{"v2", "v1"}}
+		{"availability order", "ir/availability-out-of-order", func(document *ir.Document) {
+			document.Versions = []string{"v1", "v2"}
+			model(document).Availability = &ir.Availability{Added: []string{"v2", "v1"}}
 		}},
-		{"primitive source", "ir/prim-names-source", func(d *ir.Document) {
-			d.Sources = []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml"}}
-			d.Types["type/primitive/string"].Common().Provenance = ir.Provenance{Source: 0}
+		{"primitive source", "ir/prim-names-source", func(document *ir.Document) {
+			document.Sources = []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml"}}
+			document.Types["type/primitive/string"].Common().Provenance = ir.Provenance{Source: 0}
 		}},
-		{"enum member kind", "ir/enum-member-kind", func(d *ir.Document) {
-			d.Types["type/x/E"].(*ir.Enum).ValueType = ir.PrimitiveInteger
+		{"enum member kind", "ir/enum-member-kind", func(document *ir.Document) {
+			document.Types["type/x/E"].(*ir.Enum).ValueType = ir.PrimitiveInteger
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -120,8 +120,8 @@ func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 
 			violations := irverify.Verify(planted)
 			codes := make([]string, 0, len(violations))
-			for _, v := range violations {
-				codes = append(codes, v.Code)
+			for _, violation := range violations {
+				codes = append(codes, violation.Code)
 			}
 			require.Contains(t, codes, tc.code, "the plant is one irverify refuses")
 			assert.Equal(t, validateCodes(t, verifyOnlyBase()), validateCodes(t, planted),

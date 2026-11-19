@@ -162,14 +162,14 @@ actions:
 			require.NotNil(t, doc, "compile refused: %+v", diags)
 
 			var got []report
-			for _, d := range diags {
-				if d.Code != diag.DuplicateServerName {
+			for _, diagnostic := range diags {
+				if diagnostic.Code != diag.DuplicateServerName {
 					continue
 				}
-				assert.Equal(t, ir.SeverityWarning, d.Severity)
-				_, first, _ := strings.Cut(d.Message, " repeats the name at ")
+				assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+				_, first, _ := strings.Cut(diagnostic.Message, " repeats the name at ")
 				first, _, _ = strings.Cut(first, ";")
-				got = append(got, report{at: string(d.Provenance.Pointer), first: first, source: d.Provenance.WrittenBy})
+				got = append(got, report{at: string(diagnostic.Provenance.Pointer), first: first, source: diagnostic.Provenance.WrittenBy})
 			}
 			assert.Equal(t, tc.want, got, "each repeat, in order, credited to its writer: %+v", diags)
 
@@ -192,9 +192,9 @@ func propertyProvenance(t *testing.T, doc *ir.Document, schema, property string)
 		if !ok || model.Name.Source != schema {
 			continue
 		}
-		for _, p := range model.Properties {
-			if p.Name.Source == property {
-				return p.Provenance
+		for _, irProperty := range model.Properties {
+			if irProperty.Name.Source == property {
+				return irProperty.Provenance
 			}
 		}
 		t.Fatalf("schema %q has no property %q", schema, property)
@@ -220,8 +220,8 @@ func TestCompile_OverlayAppliesBeforeLowering(t *testing.T) {
 		var out []string
 		for _, def := range doc.Types {
 			if model, ok := def.(*ir.Model); ok && model.Name.Source == "Pet" {
-				for _, p := range model.Properties {
-					out = append(out, p.Name.Source)
+				for _, property := range model.Properties {
+					out = append(out, property.Name.Source)
 				}
 			}
 		}
@@ -307,9 +307,9 @@ actions:
 	require.NoError(t, err)
 
 	var got []ir.Provenance
-	for _, d := range diags {
-		if d.Code == diag.ConflictingRedecl {
-			got = append(got, d.Provenance)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ConflictingRedecl {
+			got = append(got, diagnostic.Provenance)
 		}
 	}
 	assert.Equal(t, []ir.Provenance{{Pointer: "/components/schemas/X/allOf/0/properties/p", WrittenBy: 1}}, got,
@@ -542,8 +542,8 @@ func TestCompile_PrimitivesNameNoSource(t *testing.T) {
 			}
 
 			want := make(map[ir.PrimitiveKind]ir.Provenance, len(tc.kinds))
-			for _, k := range tc.kinds {
-				want[k] = ir.Provenance{Source: ir.NoSource}
+			for _, primitiveKind := range tc.kinds {
+				want[primitiveKind] = ir.Provenance{Source: ir.NoSource}
 			}
 			if diff := cmp.Diff(want, primitiveProvenances(doc)); diff != "" {
 				t.Errorf("primitive provenance by kind (-want +got):\n%s", diff)
@@ -587,9 +587,9 @@ actions:
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		var out []ir.Diagnostic
-		for _, d := range diags {
-			if d.Provenance.Position != (ir.Position{}) {
-				out = append(out, d)
+		for _, diagnostic := range diags {
+			if diagnostic.Provenance.Position != (ir.Position{}) {
+				out = append(out, diagnostic)
 			}
 		}
 		require.NotEmpty(t, out, "the fixture must produce a sited diagnostic to compare")
@@ -682,8 +682,8 @@ actions:
 		if !ok || model.Name.Source != "Pet" {
 			continue
 		}
-		for _, p := range model.Properties {
-			assert.NotEqual(t, "fromDisk", p.Name.Source, "the file at that path was read")
+		for _, property := range model.Properties {
+			assert.NotEqual(t, "fromDisk", property.Name.Source, "the file at that path was read")
 		}
 	}
 }
@@ -723,9 +723,9 @@ actions:
 	require.NotNil(t, doc)
 
 	var errs []ir.Diagnostic
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			errs = append(errs, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
+			errs = append(errs, diagnostic)
 		}
 	}
 	want := []ir.Diagnostic{{Severity: ir.SeverityError, Code: diag.CyclicRef,
@@ -990,9 +990,9 @@ type diagKey struct {
 // returned them.
 func diagnosticsByCodeAndPointer(diags []ir.Diagnostic) map[diagKey][]ir.Diagnostic {
 	out := map[diagKey][]ir.Diagnostic{}
-	for _, d := range diags {
-		k := diagKey{d.Code, d.Provenance.Pointer}
-		out[k] = append(out[k], d)
+	for _, diagnostic := range diags {
+		diagKeyValue := diagKey{diagnostic.Code, diagnostic.Provenance.Pointer}
+		out[diagKeyValue] = append(out[diagKeyValue], diagnostic)
 	}
 	return out
 }
@@ -1017,9 +1017,9 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc, "compile refused: %+v", diags)
 	assert.False(t, ir.HasError(diags), "the overlay applies cleanly: %+v", diags)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.OverlayAction, d.Code,
-			"an action that silently matched nothing would hollow this test out: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.OverlayAction, diagnostic.Code,
+			"an action that silently matched nothing would hollow this test out: %+v", diagnostic)
 	}
 	assert.Empty(t, irverify.Verify(doc), "the fixture stays structurally valid")
 
@@ -1124,8 +1124,8 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		// schema's attribution while the combined entries name the overlay.
 		validationOnly := byCodeAndPointer[diagKey{diag.ValidationOnlyKeyword, "/components/schemas/Pet"}]
 		require.Len(t, validationOnly, 4)
-		for _, d := range validationOnly {
-			assert.Equal(t, 0, d.Provenance.Source, "%s", d.Message)
+		for _, diagnostic := range validationOnly {
+			assert.Equal(t, 0, diagnostic.Provenance.Source, "%s", diagnostic.Message)
 		}
 	})
 
@@ -1191,8 +1191,8 @@ actions:
 		}})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "compile refused: %+v", diags)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.OverlayAction, d.Code, "every action must land: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.OverlayAction, diagnostic.Code, "every action must land: %+v", diagnostic)
 	}
 
 	entries := unmodeledEntriesByPath(doc)
@@ -1245,8 +1245,8 @@ actions:
 		}})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "compile refused: %+v", diags)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.OverlayAction, d.Code, "every action must land: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.OverlayAction, diagnostic.Code, "every action must land: %+v", diagnostic)
 	}
 
 	byCodeAndPointer := diagnosticsByCodeAndPointer(diags)
@@ -1290,9 +1290,9 @@ actions:
 // operationIDFindings returns the operationId diagnostics in diags, keyed by code.
 func operationIDFindings(diags []ir.Diagnostic) map[string][]ir.Diagnostic {
 	found := map[string][]ir.Diagnostic{}
-	for _, d := range diags {
-		if d.Code == diag.ConflictingOperationID || d.Code == diag.DuplicateOperationID {
-			found[d.Code] = append(found[d.Code], d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ConflictingOperationID || diagnostic.Code == diag.DuplicateOperationID {
+			found[diagnostic.Code] = append(found[diagnostic.Code], diagnostic)
 		}
 	}
 	return found

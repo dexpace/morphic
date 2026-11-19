@@ -26,8 +26,8 @@ func tableObjects(t *testing.T) map[specrules.Kind]specrules.Object {
 	t.Helper()
 	spec, out := specrules.Table(), map[specrules.Kind]specrules.Object{}
 	for k := range math.MaxUint8 + 1 {
-		if o, ok := spec.Object(specrules.Kind(k)); ok {
-			out[specrules.Kind(k)] = o
+		if object, ok := spec.Object(specrules.Kind(k)); ok {
+			out[specrules.Kind(k)] = object
 		}
 	}
 	require.NotEmpty(t, out)
@@ -43,17 +43,17 @@ func tableObjects(t *testing.T) map[specrules.Kind]specrules.Object {
 func TestObjectFields_ReadsEveryObjectOfTheTable(t *testing.T) {
 	t.Parallel()
 	objects := tableObjects(t)
-	for kind, o := range objects {
+	for kind, object := range objects {
 		_, stated := kindStates[kind]
-		assert.NotEqual(t, stated, slices.Contains(plainKinds, kind), "%s has a state or is plain", o.Name)
+		assert.NotEqual(t, stated, slices.Contains(plainKinds, kind), "%s has a state or is plain", object.Name)
 	}
 	for kind := range kindStates {
 		assert.Contains(t, objects, kind)
 	}
 	for _, kind := range plainKinds {
 		assert.Contains(t, objects, kind)
-		for _, f := range objects[kind].Fields {
-			assert.Equal(t, sValue, class(leads(f.Shape, f.Of)), "%s.%s", objects[kind].Name, f.Name)
+		for _, field := range objects[kind].Fields {
+			assert.Equal(t, sValue, class(leads(field.Shape, field.Of)), "%s.%s", objects[kind].Name, field.Name)
 		}
 	}
 }
@@ -65,16 +65,16 @@ func TestObjectFields_ReadsEveryObjectOfTheTable(t *testing.T) {
 // Object does. A schema's $ref is a site of its own (finder.visit).
 func TestObjectFields_ReadsAReferenceWhereTheTableAdmitsOne(t *testing.T) {
 	t.Parallel()
-	for kind, o := range tableObjects(t) {
-		s, stated := kindStates[kind]
-		if !stated || s == sSchema {
+	for kind, object := range tableObjects(t) {
+		state, stated := kindStates[kind]
+		if !stated || state == sSchema {
 			continue
 		}
-		admits := o.Referenceable != (specrules.MinorVersionRange{}) || slices.ContainsFunc(o.Fields, func(f specrules.Field) bool {
-			return f.Name == "$ref"
+		admits := object.Referenceable != (specrules.MinorVersionRange{}) || slices.ContainsFunc(object.Fields, func(field specrules.Field) bool {
+			return field.Name == "$ref"
 		})
-		_, refers := refKinds[s]
-		assert.Equal(t, admits, refers, o.Name)
+		_, refers := refKinds[state]
+		assert.Equal(t, admits, refers, object.Name)
 	}
 }
 

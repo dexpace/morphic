@@ -161,8 +161,8 @@ func TestBindingOracle_AgreesWithTheLibrary(t *testing.T) {
 	docs := oracleDocs(t)
 	binder := make([]map[jsontext.Pointer]string, len(docs))
 	var compared []int
-	for i, d := range docs {
-		answers, loaded := binderAnswers(t, d.spec)
+	for i, oracleDoc := range docs {
+		answers, loaded := binderAnswers(t, oracleDoc.spec)
 		if loaded {
 			binder[i] = answers
 			compared = append(compared, i)
@@ -188,15 +188,15 @@ func TestBindingOracle_AgreesWithTheLibrary(t *testing.T) {
 // overflows, since this runs in the test's own process.
 func TestBindingOracle_AnswersAlikeInEitherOrder(t *testing.T) {
 	t.Parallel()
-	for _, s := range oracleShapes() {
-		if s.fixed {
+	for _, oracleShape := range oracleShapes() {
+		if oracleShape.fixed {
 			continue
 		}
-		forward, ok := binderEnds(t, s.document(false))
-		require.True(t, ok, s.name)
-		backward, ok := binderEnds(t, s.document(true))
-		require.True(t, ok, s.name)
-		assert.Equal(t, forward, backward, "%s: the order of the declarations decided an answer", s.name)
+		forward, ok := binderEnds(t, oracleShape.document(false))
+		require.True(t, ok, oracleShape.name)
+		backward, ok := binderEnds(t, oracleShape.document(true))
+		require.True(t, ok, oracleShape.name)
+		assert.Equal(t, forward, backward, "%s: the order of the declarations decided an answer", oracleShape.name)
 	}
 }
 
@@ -217,8 +217,8 @@ func binderAnswers(t *testing.T, spec string) (map[jsontext.Pointer]string, bool
 		return path[len(path)-1]
 	}
 	out := map[jsontext.Pointer]string{}
-	for site, c := range sourceChains(table) {
-		out[site] = chainAnswer(c, nodeAt)
+	for site, chain := range sourceChains(table) {
+		out[site] = chainAnswer(chain, nodeAt)
 	}
 	return out, true
 }
@@ -229,14 +229,14 @@ func binderAnswers(t *testing.T, spec string) (map[jsontext.Pointer]string, bool
 // table reads as the $ref it spells is no $ref the library reads.
 func sourceChains(table *reftable.ReferenceTargetTable) map[jsontext.Pointer]reftable.Chain {
 	out := map[jsontext.Pointer]reftable.Chain{}
-	for _, e := range table.Entries() {
-		if e.Site.Doc == reftable.Source && e.Keyword == "$ref" {
-			out[e.Site.Pointer] = e.Chain
+	for _, referenceSite := range table.Entries() {
+		if referenceSite.Site.Doc == reftable.Source && referenceSite.Keyword == "$ref" {
+			out[referenceSite.Site.Pointer] = referenceSite.Chain
 		}
 	}
-	for _, r := range table.References() {
-		if _, seen := out[r.Site.Pointer]; r.Site.Doc == reftable.Source && !seen {
-			out[r.Site.Pointer] = r.Chain
+	for _, reference := range table.References() {
+		if _, seen := out[reference.Site.Pointer]; reference.Site.Doc == reftable.Source && !seen {
+			out[reference.Site.Pointer] = reference.Chain
 		}
 	}
 	return out
@@ -251,8 +251,8 @@ func binderEnds(t *testing.T, spec string) (map[jsontext.Pointer]string, bool) {
 		return nil, false
 	}
 	out := map[jsontext.Pointer]string{}
-	for site, c := range sourceChains(table) {
-		out[site] = fmt.Sprintf("%s %d#%s", c.Status, c.End.Doc, c.End.Pointer)
+	for site, chain := range sourceChains(table) {
+		out[site] = fmt.Sprintf("%s %d#%s", chain.Status, chain.End.Doc, chain.End.Pointer)
 	}
 	return out, true
 }
@@ -273,10 +273,10 @@ func loadedTable(t *testing.T, spec string) (*reftable.ReferenceTargetTable, boo
 
 // chainAnswer is the answer a chain gives: the position of the node it ends
 // on, read by nodeAt, or why it ends on none.
-func chainAnswer(c reftable.Chain, nodeAt func(reftable.DocumentPointer) *yaml.Node) string {
-	switch c.Status {
+func chainAnswer(chain reftable.Chain, nodeAt func(reftable.DocumentPointer) *yaml.Node) string {
+	switch chain.Status {
 	case reftable.Resolved:
-		return nodeAnswer(nodeAt(c.End))
+		return nodeAnswer(nodeAt(chain.End))
 	case reftable.Cyclic:
 		return answerCyclic
 	case reftable.OverBudget:
@@ -324,13 +324,13 @@ func answerDocument(ctx context.Context, index int, spec string, skip int) {
 		return
 	}
 	sites, at := walkSites(ctx, doc)
-	for _, s := range sites {
-		fmt.Printf("%s%s\n", siteMark, s)
+	for _, pointer := range sites {
+		fmt.Printf("%s%s\n", siteMark, pointer)
 	}
 	opts := references.ResolveOptions{TargetLocation: location, RootDocument: doc, DisableExternalRefs: true}
-	for _, s := range sites[min(skip, len(sites)):] {
-		answer, detail := libraryAnswer(ctx, at[s], opts)
-		fmt.Printf("%s%s\t%s\t%q\n", answerMark, s, answer, detail)
+	for _, pointer := range sites[min(skip, len(sites)):] {
+		answer, detail := libraryAnswer(ctx, at[pointer], opts)
+		fmt.Printf("%s%s\t%s\t%q\n", answerMark, pointer, answer, detail)
 	}
 }
 
@@ -352,10 +352,10 @@ func walkSites(ctx context.Context, doc *soa.OpenAPI) ([]jsontext.Pointer, map[j
 	for item := range soa.Walk(ctx, doc) {
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{Any: func(model any) error {
-			p := typed.PointerOf(item.Location)
+			pointer := typed.PointerOf(item.Location)
 			w, ok := model.(interface{ IsReference() bool })
-			if _, seen := at[p]; ok && w.IsReference() && !seen {
-				sites, at[p] = append(sites, p), model
+			if _, seen := at[pointer]; ok && w.IsReference() && !seen {
+				sites, at[pointer] = append(sites, pointer), model
 			}
 			return nil
 		}})
@@ -469,19 +469,19 @@ func runShard(t *testing.T, docs []oracleDoc, indices []int) map[int][]siteAnswe
 	run := shardRun{sites: map[int][]jsontext.Pointer{}, answers: map[int]map[jsontext.Pointer]siteAnswer{}, last: -1}
 	skip := "0:0"
 	for range maxChildren(specs) {
-		r := runOracleChild(t, path, skip)
-		run.read(r.output)
-		if r.outcome == returned {
+		result := runOracleChild(t, path, skip)
+		run.read(result.output)
+		if result.outcome == returned {
 			break
 		}
-		next, ok := run.died(string(r.outcome))
-		require.True(t, ok, "a child died before it reached a document:\n%.2000s", r.output)
+		next, ok := run.died(string(result.outcome))
+		require.True(t, ok, "a child died before it reached a document:\n%.2000s", result.output)
 		skip = next
 	}
 	out := map[int][]siteAnswer{}
 	for k, i := range indices {
-		for _, s := range run.sites[k] {
-			out[i] = append(out[i], run.answers[k][s])
+		for _, pointer := range run.sites[k] {
+			out[i] = append(out[i], run.answers[k][pointer])
 		}
 	}
 	return out
@@ -513,9 +513,9 @@ func runOracleChild(t *testing.T, path, skip string) result {
 		require.NoError(t, ctx.Err(), "the child did not finish within %s", oracleTimeout)
 		require.NoError(t, err, "the child did not start")
 	}
-	r, ok := classify(string(out), code, ctx.Err() != nil)
+	resultValue, ok := classify(string(out), code, ctx.Err() != nil)
 	require.True(t, ok, "the oracle's child ended in a way no outcome names (%v):\n%.2000s", err, out)
-	return r
+	return resultValue
 }
 
 // read takes in what a child printed.
@@ -586,11 +586,11 @@ func disagreements(doc string, binder map[jsontext.Pointer]string, library []sit
 		if b == a.answer {
 			continue
 		}
-		d := disagreement{doc: doc, site: string(a.site), binder: kindOf(b), library: kindOf(a.answer), detail: a.detail}
-		if d.binder == d.library {
-			d.library += " elsewhere"
+		disagreementValue := disagreement{doc: doc, site: string(a.site), binder: kindOf(b), library: kindOf(a.answer), detail: a.detail}
+		if disagreementValue.binder == disagreementValue.library {
+			disagreementValue.library += " elsewhere"
 		}
-		out = append(out, d)
+		out = append(out, disagreementValue)
 	}
 	return out
 }
@@ -618,10 +618,10 @@ func readDisagreements(t *testing.T) map[string]string {
 		}
 		fields := strings.Split(line, "\t")
 		require.Len(t, fields, 5, "%s: %q is not a document, a site, two answers and a reason", oracleDisagreements, line)
-		d := disagreement{doc: fields[0], site: fields[1], binder: fields[2], library: fields[3]}
-		_, dup := out[d.key()]
+		disagreementValue := disagreement{doc: fields[0], site: fields[1], binder: fields[2], library: fields[3]}
+		_, dup := out[disagreementValue.key()]
 		require.False(t, dup, "%s lists %q twice", oracleDisagreements, line)
-		out[d.key()] = fields[4]
+		out[disagreementValue.key()] = fields[4]
 	}
 	return out
 }
@@ -631,13 +631,13 @@ func readDisagreements(t *testing.T) map[string]string {
 func checkDisagreements(t *testing.T, found []disagreement, listed map[string]string) {
 	t.Helper()
 	seen := map[string]bool{}
-	for _, d := range found {
-		seen[d.key()] = true
-		reason, ok := listed[d.key()]
-		if !assert.True(t, ok, "a disagreement %s does not list: %s (the library: %q)", oracleDisagreements, d.key(), d.detail) {
+	for _, disagreement := range found {
+		seen[disagreement.key()] = true
+		reason, ok := listed[disagreement.key()]
+		if !assert.True(t, ok, "a disagreement %s does not list: %s (the library: %q)", oracleDisagreements, disagreement.key(), disagreement.detail) {
 			continue
 		}
-		assert.Contains(t, oracleReasons, reason, "%s gives a reason oracleReasons does not name: %s", d.key(), reason)
+		assert.Contains(t, oracleReasons, reason, "%s gives a reason oracleReasons does not name: %s", disagreement.key(), reason)
 	}
 	for key := range listed {
 		assert.True(t, seen[key], "%s lists a disagreement the oracle no longer finds: %s", oracleDisagreements, key)
@@ -662,12 +662,12 @@ func writeDisagreements(t *testing.T, found []disagreement, listed map[string]st
 	t.Helper()
 	var b strings.Builder
 	b.WriteString(oracleHeader)
-	for _, d := range found {
-		reason, ok := listed[d.key()]
+	for _, disagreement := range found {
+		reason, ok := listed[disagreement.key()]
 		if !ok {
 			reason = unclassified
 		}
-		b.WriteString(d.key() + "\t" + reason + "\n")
+		b.WriteString(disagreement.key() + "\t" + reason + "\n")
 	}
 	require.NoError(t, os.MkdirAll(filepath.Dir(oracleDisagreements), 0o755))
 	require.NoError(t, os.WriteFile(oracleDisagreements, []byte(b.String()), 0o644))
@@ -680,10 +680,10 @@ func writeDisagreements(t *testing.T, found []disagreement, listed map[string]st
 func oracleDocs(t *testing.T) []oracleDoc {
 	t.Helper()
 	var docs []oracleDoc
-	for _, s := range oracleShapes() {
-		docs = append(docs, oracleDoc{name: "shape/" + s.name, spec: s.document(false)})
-		if !s.fixed {
-			docs = append(docs, oracleDoc{name: "shape/" + s.name + "/reversed", spec: s.document(true)})
+	for _, oracleShape := range oracleShapes() {
+		docs = append(docs, oracleDoc{name: "shape/" + oracleShape.name, spec: oracleShape.document(false)})
+		if !oracleShape.fixed {
+			docs = append(docs, oracleDoc{name: "shape/" + oracleShape.name + "/reversed", spec: oracleShape.document(true)})
 		}
 	}
 	docs = append(docs, suiteDocs(t)...)
@@ -702,12 +702,12 @@ func suiteDocs(t *testing.T) []oracleDoc {
 	groups, err := openapicases.SuiteGroups()
 	require.NoError(t, err)
 	var docs []oracleDoc
-	for _, g := range groups {
-		if !strings.Contains(string(g.Schema), `"$ref"`) {
+	for _, group := range groups {
+		if !strings.Contains(string(group.Schema), `"$ref"`) {
 			continue
 		}
-		docs = append(docs, oracleDoc{name: "suite/" + g.Name,
-			spec: head + "components:\n  schemas:\n    T: " + string(g.Schema) + "\n"})
+		docs = append(docs, oracleDoc{name: "suite/" + group.Name,
+			spec: head + "components:\n  schemas:\n    T: " + string(group.Schema) + "\n"})
 	}
 	require.NotEmpty(t, docs, "no group of the suite writes a reference")
 	return docs

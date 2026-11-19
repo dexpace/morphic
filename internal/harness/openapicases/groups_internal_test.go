@@ -43,12 +43,12 @@ func TestGroupsWrite_PanicsOnWhatItCannotWrite(t *testing.T) {
 	broken.suite = errors.New("openapicases: the test suite: unreadable")
 	assert.PanicsWithValue(t, "openapicases: the test suite: unreadable", func() { broken.Write([]int{0, 0, 0, 0}) })
 
-	for name, g := range map[string]Group{
+	for name, group := range map[string]Group{
 		"an instance that is no JSON": {Name: "f/g", Schema: []byte(`{}`), Tests: []Test{{Data: []byte(`{`), Valid: true}}},
 		"a schema that is no JSON":    {Name: "f/g", Schema: []byte(`{"a"`), Tests: []Test{{Data: []byte(`1`), Valid: true}}},
 	} {
-		c := Groups().(groupCases)
-		c.groups = []Group{g}
-		assert.Panics(t, func() { c.Write([]int{0, 0, 0, 0}) }, name)
+		groupCasesValue := Groups().(groupCases)
+		groupCasesValue.groups = []Group{group}
+		assert.Panics(t, func() { groupCasesValue.Write([]int{0, 0, 0, 0}) }, name)
 	}
 }

@@ -42,8 +42,8 @@ func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	ops := map[string]ir.Operation{}
-	for _, g := range svc.Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range svc.Groups {
+		for _, op := range operationGroup.Operations {
 			ops[op.Name.Source] = op
 		}
 	}
@@ -122,8 +122,8 @@ func TestOperations_MethodsTagsServersRefs(t *testing.T) {
 
 	// All eight HTTP methods lowered.
 	methods := map[string]bool{}
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, op := range operationGroup.Operations {
 			for _, hb := range op.Bindings.HTTP {
 				methods[hb.Method] = true
 			}
@@ -269,8 +269,8 @@ func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
 	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
 	for _, op := range operationsOf(doc) {
 		checked += check("operation", string(op.ID), op.Provenance.Pointer)
-		for _, h := range headersOf(op) {
-			checked += check("header", h.WireName, h.Provenance.Pointer)
+		for _, header := range headersOf(op) {
+			checked += check("header", header.WireName, header.Provenance.Pointer)
 		}
 	}
 	assert.Positive(t, checked, "the spec must exercise at least one pointer worth checking")
@@ -280,8 +280,8 @@ func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
 func operationsOf(doc *ir.Document) []ir.Operation {
 	var out []ir.Operation
 	for _, svc := range doc.Services {
-		for _, g := range svc.Groups {
-			out = append(out, g.Operations...)
+		for _, operationGroup := range svc.Groups {
+			out = append(out, operationGroup.Operations...)
 		}
 	}
 	return out
@@ -297,8 +297,8 @@ func headersOf(op ir.Operation) []ir.Header {
 	if op.Request == nil {
 		return out
 	}
-	for _, c := range op.Request.Contents {
-		for _, pe := range c.Encoding {
+	for _, content := range op.Request.Contents {
+		for _, pe := range content.Encoding {
 			out = append(out, pe.Headers...)
 		}
 	}
@@ -393,8 +393,8 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	doc, diags := parseFull(t, sharedDefectiveBodySpec)
 
 	seen := map[string]int{}
-	for _, d := range diags {
-		seen[string(d.Severity)+"|"+d.Code+"|"+string(d.Provenance.Pointer)+"|"+d.Message]++
+	for _, diagnostic := range diags {
+		seen[string(diagnostic.Severity)+"|"+diagnostic.Code+"|"+string(diagnostic.Provenance.Pointer)+"|"+diagnostic.Message]++
 	}
 	for key, n := range seen {
 		assert.Equal(t, 1, n, "one defect, one diagnostic: %s", key)
@@ -423,11 +423,11 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 // at one pointer are two findings, not one repeated.
 func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	var acc compile.Diags
-	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
-	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
-	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
+	acc.Append(serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
+	acc.Append(serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
+	acc.Append(serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
 	require.Len(t, acc.List(), 2, "the repeat is dropped, the distinct message is not")
 	assert.Equal(t, "first", acc.List()[0].Message)
 	assert.Equal(t, "second", acc.List()[1].Message)
@@ -451,9 +451,9 @@ func TestOperation_UnserializableExtensionStillWarns(t *testing.T) {
 	doc, diags := parseFull(t, spec)
 
 	var announced bool
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning &&
-			strings.Contains(d.Message, "x-bad") {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityWarning &&
+			strings.Contains(diagnostic.Message, "x-bad") {
 			announced = true
 		}
 	}
@@ -615,9 +615,9 @@ func serversNamed(t *testing.T, doc *ir.Document, serverIDs []ir.ServerID) []str
 	t.Helper()
 	urls := make([]string, 0, len(serverIDs))
 	for _, id := range serverIDs {
-		s, ok := doc.Servers[id]
+		server, ok := doc.Servers[id]
 		require.True(t, ok, "%s names no registered server", id)
-		urls = append(urls, s.URLTemplate)
+		urls = append(urls, server.URLTemplate)
 	}
 	return urls
 }
@@ -872,10 +872,10 @@ components:
   securitySchemes:
     key: {type: apiKey, in: header, name: X-Key}
 `
-	c := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags})
-	declared, _ := auth.LowerSecuritySchemes(c)
+	serviceContext := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags})
+	declared, _ := auth.LowerSecuritySchemes(serviceContext)
 
-	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
+	lowered, _ := operation.LowerService(t.Context(), serviceContext, compile.NewTypes(), declared)
 
 	assert.Equal(t, []ir.AuthID{ids.Auth("key")}, slices.Sorted(maps.Keys(declared)), "the declared schemes alone")
 	assert.Equal(t, []ir.AuthID{ids.Auth("key"), ids.UnresolvedAuth("ghost")}, slices.Sorted(maps.Keys(lowered.Auth)),
@@ -940,10 +940,10 @@ components:
 	assert.Equal(t, []string{"b", "a", "B"}, openapitest.FindOp(t, doc, "clean").Tags, "a list repeating nothing")
 
 	var got []string
-	for _, d := range diags {
-		if d.Code == diag.RepeatedEntry {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.RepeatedEntry {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			got = append(got, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 		}
 	}
 	slices.Sort(got)

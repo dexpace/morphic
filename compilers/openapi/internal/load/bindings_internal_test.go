@@ -111,10 +111,10 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 		exhausted = table.Exhausted()
 		var failed []ir.Diagnostic
 		crossed := false
-		for _, d := range bindingDiags(byDocument(table), table) {
-			switch d.Code {
+		for _, diagnostic := range bindingDiags(byDocument(table), table) {
+			switch diagnostic.Code {
 			case diag.UnresolvedRef:
-				failed = append(failed, d)
+				failed = append(failed, diagnostic)
 			case diag.BudgetExceeded:
 				crossed = true
 			}
@@ -153,8 +153,8 @@ func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 
 	diags := bindingDiags(byDocument(table), table)
 	got := make([]string, 0, len(diags))
-	for _, d := range diags {
-		got = append(got, fmt.Sprintf("%d%s: %s", d.Provenance.Source, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		got = append(got, fmt.Sprintf("%d%s: %s", diagnostic.Provenance.Source, diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 
 	const rest = " comes back to where it started and never reaches a schema"
@@ -189,12 +189,12 @@ func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
 	} {
 		js, ok := doc.Components.Schemas.Get(name)
 		require.True(t, ok, name)
-		e, ok := bindings.Entry(js)
+		referenceSite, ok := bindings.Entry(js)
 		require.True(t, ok, name)
-		require.Equal(t, reftable.Resolved, e.Chain.Status, name)
-		assert.Equal(t, want.doc, table.Document(e.Chain.End.Doc).Name, name)
-		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
-		held := bindings.At(e.Chain.End)
+		require.Equal(t, reftable.Resolved, referenceSite.Chain.Status, name)
+		assert.Equal(t, want.doc, table.Document(referenceSite.Chain.End.Doc).Name, name)
+		assert.Equal(t, want.pointer, referenceSite.Chain.End.Pointer, name)
+		held := bindings.At(referenceSite.Chain.End)
 		assert.NotNil(t, held, "%s ends on a schema held for it", name)
 		assert.Same(t, held, bindings.End(js), name)
 	}
@@ -335,9 +335,9 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 
 			require.NoError(t, err)
 			var unresolved []ir.Diagnostic
-			for _, d := range diags {
-				if d.Code == diag.UnresolvedRef {
-					unresolved = append(unresolved, d)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.UnresolvedRef {
+					unresolved = append(unresolved, diagnostic)
 				}
 			}
 			require.Len(t, unresolved, 1, "%+v", diags)

@@ -24,35 +24,35 @@ import (
 // counts, and a "#/$defs/..." pointer nothing answers says whether its own
 // definitions hold the name.
 func (b *binder) resolve(site DocumentPointer, path []*yaml.Node, ref string, schema bool) Hop {
-	h := Hop{Ref: ref, Status: Unresolved}
+	hop := Hop{Ref: ref, Status: Unresolved}
 	uri, frag, _ := strings.Cut(ref, "#")
 	if strings.Contains(frag, "#") {
-		h.Reason = BadPointer
-		return h
+		hop.Reason = BadPointer
+		return hop
 	}
 	in, known := b.resources.holding(site, path, schema, b.ids.readsDialects(site.Doc))
 	if !known {
-		h.Reason = MergeBound
-		return h
+		hop.Reason = MergeBound
+		return hop
 	}
 	to, reason, detail := b.named(in, uri)
 	if reason != NoReason {
-		h.Reason, h.Detail = reason, detail
-		return h
+		hop.Reason, hop.Detail = reason, detail
+		return hop
 	}
-	r, reason := b.land(site, path, to, ref, schema, &h)
+	reading, reason := b.land(site, path, to, ref, schema, &hop)
 	if reason != NoReason {
-		h.Reason = reason
-		return h
+		hop.Reason = reason
+		return hop
 	}
 	// A schema no model holds is raw YAML, which the table builds as a
 	// landing (finder.landed), and which answers only where shaped as one.
-	if !answers(r.role(), r.node) {
-		h.Reason = NotSchema
-		return h
+	if !answers(reading.role(), reading.node) {
+		hop.Reason = NotSchema
+		return hop
 	}
-	h.Status, h.Target, h.Role = Resolved, r.at, r.role()
-	return h
+	hop.Status, hop.Target, hop.Role = Resolved, reading.at, reading.role()
+	return hop
 }
 
 // named is the resource the document part uri of a reference read in the
@@ -177,11 +177,11 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 const OffNetwork = "a reference in a document read over http or https reads only http and https URLs"
 
 // reachable reports whether a reference written in the resource in, of one of
-// d's documents, may read the document named name: judged by the location
+// docsValue's documents, may read the document named name: judged by the location
 // in's document was read from, never by a URI an $id gives in, so that no $id
 // moves a reference in a document read over the network onto a file.
-func reachable(d *docs, in resource, name string) bool {
-	return Reachable(d.name(in.root.Doc), name)
+func reachable(docsValue *docs, in resource, name string) bool {
+	return Reachable(docsValue.name(in.root.Doc), name)
 }
 
 // Reachable reports whether a reference written in the document read from
@@ -232,9 +232,9 @@ func (b *binder) read(name string, in resource) (resource, Reason, string) {
 // land reads where the fragment of ref, written at site and reached along
 // path, names in the resource to: a JSON pointer from its root, a
 // "#/$defs/..." one in a document's own resource by the $defs rule
-// (definition), or the schema a plain name names (anchored). It notes in h
+// (definition), or the schema a plain name names (anchored). It notes in hop
 // the URI of a resource it names nothing in.
-func (b *binder) land(site DocumentPointer, path []*yaml.Node, to resource, ref string, schema bool, h *Hop,
+func (b *binder) land(site DocumentPointer, path []*yaml.Node, to resource, ref string, schema bool, hop *Hop,
 ) (reading, Reason) {
 	pointer := fragment.Pointer(ref)
 	switch {
@@ -244,14 +244,14 @@ func (b *binder) land(site DocumentPointer, path []*yaml.Node, to resource, ref 
 		return reading{}, BadPointer
 	}
 	if uri, _, _ := strings.Cut(ref, "#"); strings.TrimSpace(uri) == "" && !to.namedByDollarID && isDefs(pointer) {
-		r, reason := b.readPointer(site.Doc, pointer)
-		return b.defs.definition(site, path, pointer, schema, r, reason)
+		reading, reason := b.readPointer(site.Doc, pointer)
+		return b.defs.definition(site, path, pointer, schema, reading, reason)
 	}
-	r, reason := b.readPointer(to.root.Doc, to.root.Pointer+pointer)
+	readingValue, reason := b.readPointer(to.root.Doc, to.root.Pointer+pointer)
 	if reason == NoTarget && to.namedByDollarID {
-		reason, h.Detail = NoResourceTarget, to.uri
+		reason, hop.Detail = NoResourceTarget, to.uri
 	}
-	return r, reason
+	return readingValue, reason
 }
 
 // anchored reads the schema the resource to declares the plain name name in, as
@@ -274,32 +274,32 @@ func (b *binder) anchored(to resource, name string) (reading, Reason) {
 	}
 }
 
-// hop is the hop of the $ref written at p, read once and remembered. Only a
+// hop is the hop of the $ref written at documentPointer, read once and remembered. Only a
 // position writing a $ref is asked, a site or a hop's target that writes one,
 // or a $dynamicRef that is the $ref it spells (holdsRef).
-func (b *binder) hop(p DocumentPointer) Hop {
-	if h, ok := b.hops[p]; ok {
-		return h
+func (b *binder) hop(documentPointer DocumentPointer) Hop {
+	if hop, ok := b.hops[documentPointer]; ok {
+		return hop
 	}
 	// Only a position its document holds writes a $ref, so the path reaches it.
-	path, _ := b.docs.path(p)
-	ref, written := b.docs.refOf(p.Doc, path[len(path)-1])
+	path, _ := b.docs.path(documentPointer)
+	ref, written := b.docs.refOf(documentPointer.Doc, path[len(path)-1])
 	if !written {
-		ref, _ = dynamicRefValue(b.docs, p.Doc, path[len(path)-1])
-		b.dyn.spelled[p] = true
+		ref, _ = dynamicRefValue(b.docs, documentPointer.Doc, path[len(path)-1])
+		b.dyn.spelled[documentPointer] = true
 	}
-	h := b.resolve(p, path, ref, true)
+	hopValue := b.resolve(documentPointer, path, ref, true)
 	if b.work.over() {
-		h = Hop{Ref: ref, Status: OverBudget}
+		hopValue = Hop{Ref: ref, Status: OverBudget}
 	}
-	b.hops[p] = h
-	if h.Status == Resolved {
-		b.find.landed(h)
+	b.hops[documentPointer] = hopValue
+	if hopValue.Status == Resolved {
+		b.find.landed(hopValue)
 	}
-	if h.Reason == PendingExternalDocumentRead {
-		b.wait.held = append(b.wait.held, p)
+	if hopValue.Reason == PendingExternalDocumentRead {
+		b.wait.held = append(b.wait.held, documentPointer)
 	}
-	return h
+	return hopValue
 }
 
 // DynamicFragment returns the anchor name a $dynamicRef written as ref

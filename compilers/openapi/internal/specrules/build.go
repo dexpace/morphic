@@ -9,8 +9,8 @@ package specrules
 
 // sectioned returns a constructor of citations under one heading.
 func sectioned(section string) func(Minor, string) Cite {
-	return func(m Minor, sentence string) Cite {
-		return Cite{Minor: m, Section: section, Sentence: sentence}
+	return func(minor Minor, sentence string) Cite {
+		return Cite{Minor: minor, Section: section, Sentence: sentence}
 	}
 }
 
@@ -19,42 +19,42 @@ func field(name string, shape Shape, cites ...Cite) Field {
 	return Field{Name: name, Shape: shape, Defined: Always(), Cites: cites}
 }
 
-// objectOf returns a field holding one object of kind k.
-func objectOf(name string, k Kind, cites ...Cite) Field {
-	f := field(name, Nested, cites...)
-	f.Of = k
-	return f
+// objectOf returns a field holding one object of kind kind.
+func objectOf(name string, kind Kind, cites ...Cite) Field {
+	fieldValue := field(name, Nested, cites...)
+	fieldValue.Of = kind
+	return fieldValue
 }
 
-// mapOf returns a field holding a map of objects of kind k.
-func mapOf(name string, k Kind, cites ...Cite) Field {
-	f := field(name, Map, cites...)
-	f.Of = k
-	return f
+// mapOf returns a field holding a map of objects of kind kind.
+func mapOf(name string, kind Kind, cites ...Cite) Field {
+	fieldValue := field(name, Map, cites...)
+	fieldValue.Of = kind
+	return fieldValue
 }
 
-// listOf returns a field holding a list of objects of kind k.
-func listOf(name string, k Kind, cites ...Cite) Field {
-	f := field(name, List, cites...)
-	f.Of = k
-	return f
+// listOf returns a field holding a list of objects of kind kind.
+func listOf(name string, kind Kind, cites ...Cite) Field {
+	fieldValue := field(name, List, cites...)
+	fieldValue.Of = kind
+	return fieldValue
 }
 
 // during narrows the minors that define the field.
-func (f Field) during(s MinorVersionRange) Field {
-	f.Defined = s
+func (f Field) during(minorVersionRange MinorVersionRange) Field {
+	f.Defined = minorVersionRange
 	return f
 }
 
 // required sets the minors at which the field must be present.
-func (f Field) required(s MinorVersionRange) Field {
-	f.Required = s
+func (f Field) required(minorVersionRange MinorVersionRange) Field {
+	f.Required = minorVersionRange
 	return f
 }
 
 // nonEmpty sets the minors whose grammar refuses the empty string.
-func (f Field) nonEmpty(s MinorVersionRange, cites ...Cite) Field {
-	f.NonEmpty = s
+func (f Field) nonEmpty(minorVersionRange MinorVersionRange, cites ...Cite) Field {
+	f.NonEmpty = minorVersionRange
 	f.Cites = append(f.Cites, cites...)
 	return f
 }
@@ -65,9 +65,9 @@ func (f Field) admits(values ...Value) Field {
 	return f
 }
 
-// also adds a shape the field admits from the minors in s.
-func (f Field) also(shape Shape, s MinorVersionRange) Field {
-	f.Alts = append(f.Alts, Alt{Shape: shape, Span: s})
+// also adds a shape the field admits from the minors in minorVersionRange.
+func (f Field) also(shape Shape, minorVersionRange MinorVersionRange) Field {
+	f.Alts = append(f.Alts, Alt{Shape: shape, Span: minorVersionRange})
 	return f
 }
 
@@ -99,9 +99,9 @@ func (f Field) decimal() Field {
 }
 
 // within adds a media type under which the field takes effect at the minors
-// in s.
-func (f Field) within(mediaType string, s MinorVersionRange, cites ...Cite) Field {
-	f.Within = append(f.Within, Within{MediaType: mediaType, Span: s, Cites: cites})
+// in minorVersionRange.
+func (f Field) within(mediaType string, minorVersionRange MinorVersionRange, cites ...Cite) Field {
+	f.Within = append(f.Within, Within{MediaType: mediaType, Span: minorVersionRange, Cites: cites})
 	return f
 }
 
@@ -123,12 +123,12 @@ func vals(names ...string) []Value {
 	return out
 }
 
-// valFrom returns a value admitted from minor m.
-func valFrom(name string, m Minor) Value { return Value{Name: name, Span: From(m)} }
+// valFrom returns a value admitted from minor minor.
+func valFrom(name string, minor Minor) Value { return Value{Name: name, Span: From(minor)} }
 
 // valWhen returns a value admitted when the terms hold.
-func valWhen(name string, s MinorVersionRange, cond ...Term) Value {
-	return Value{Name: name, Span: s, When: cond}
+func valWhen(name string, minorVersionRange MinorVersionRange, cond ...Term) Value {
+	return Value{Name: name, Span: minorVersionRange, When: cond}
 }
 
 // term returns the condition that sibling field name holds one of in.
@@ -138,8 +138,8 @@ func term(name string, in ...string) Term { return Term{Field: name, In: in} }
 func writing(name string) Term { return Term{Field: name, Written: true} }
 
 // pattern returns a family of keys every minor admits.
-func pattern(name string, shape Shape, k Kind, cites ...Cite) Pattern {
-	return Pattern{Name: name, Shape: shape, Of: k, Span: Always(), Cites: cites}
+func pattern(name string, shape Shape, kind Kind, cites ...Cite) Pattern {
+	return Pattern{Name: name, Shape: shape, Of: kind, Span: Always(), Cites: cites}
 }
 
 // keyed sets the syntax of the pattern's keys.
@@ -149,8 +149,8 @@ func (p Pattern) keyed(format Format) Pattern {
 }
 
 // during narrows the minors that admit the pattern.
-func (p Pattern) during(s MinorVersionRange) Pattern {
-	p.Span = s
+func (p Pattern) during(minorVersionRange MinorVersionRange) Pattern {
+	p.Span = minorVersionRange
 	return p
 }
 
@@ -161,83 +161,83 @@ func (p Pattern) byURI() Pattern {
 }
 
 // exclusive returns a rule: at most one of fields.
-func exclusive(s MinorVersionRange, fields []string, cites ...Cite) Rule {
-	return Rule{Kind: RuleExclusive, Span: s, Fields: fields, Cites: cites}
+func exclusive(minorVersionRange MinorVersionRange, fields []string, cites ...Cite) Rule {
+	return Rule{Kind: RuleExclusive, Span: minorVersionRange, Fields: fields, Cites: cites}
 }
 
 // exactlyOne returns a rule: one of fields, and only one.
-func exactlyOne(s MinorVersionRange, fields []string, cites ...Cite) Rule {
-	return Rule{Kind: RuleExactlyOne, Span: s, Fields: fields, Cites: cites}
+func exactlyOne(minorVersionRange MinorVersionRange, fields []string, cites ...Cite) Rule {
+	return Rule{Kind: RuleExactlyOne, Span: minorVersionRange, Fields: fields, Cites: cites}
 }
 
 // anyOf returns a rule: at least one of fields.
-func anyOf(s MinorVersionRange, fields []string, cites ...Cite) Rule {
-	return Rule{Kind: RuleAnyOf, Span: s, Fields: fields, Cites: cites}
+func anyOf(minorVersionRange MinorVersionRange, fields []string, cites ...Cite) Rule {
+	return Rule{Kind: RuleAnyOf, Span: minorVersionRange, Fields: fields, Cites: cites}
 }
 
 // count returns a rule: field holds at least one entry and at most hi; zero
 // is no cap.
-func count(s MinorVersionRange, lv Level, name string, hi int, cites ...Cite) Rule {
-	return Rule{Kind: RuleCount, Span: s, Level: lv, Field: name, Min: 1, Max: hi, Cites: cites}
+func count(minorVersionRange MinorVersionRange, lv Level, name string, hi int, cites ...Cite) Rule {
+	return Rule{Kind: RuleCount, Span: minorVersionRange, Level: lv, Field: name, Min: 1, Max: hi, Cites: cites}
 }
 
 // requiredWhen returns a rule: name is present when the terms hold.
-func requiredWhen(s MinorVersionRange, name string, cond []Term, cites ...Cite) Rule {
-	return Rule{Kind: RuleRequiredWhen, Span: s, Field: name, When: cond, Cites: cites}
+func requiredWhen(minorVersionRange MinorVersionRange, name string, cond []Term, cites ...Cite) Rule {
+	return Rule{Kind: RuleRequiredWhen, Span: minorVersionRange, Field: name, When: cond, Cites: cites}
 }
 
 // forbiddenWhen returns a rule: none of fields is present when the terms hold.
-func forbiddenWhen(s MinorVersionRange, fields []string, cond []Term, cites ...Cite) Rule {
-	return Rule{Kind: RuleForbiddenWhen, Span: s, Fields: fields, When: cond, Cites: cites}
+func forbiddenWhen(minorVersionRange MinorVersionRange, fields []string, cond []Term, cites ...Cite) Rule {
+	return Rule{Kind: RuleForbiddenWhen, Span: minorVersionRange, Fields: fields, When: cond, Cites: cites}
 }
 
 // ruleRequiringFieldValue returns a rule: name is value when the terms hold.
-func ruleRequiringFieldValue(s MinorVersionRange, name, value string, cond []Term, cites ...Cite) Rule {
-	return Rule{Kind: RuleMustBe, Span: s, Field: name, Value: value, When: cond, Cites: cites}
+func ruleRequiringFieldValue(minorVersionRange MinorVersionRange, name, value string, cond []Term, cites ...Cite) Rule {
+	return Rule{Kind: RuleMustBe, Span: minorVersionRange, Field: name, Value: value, When: cond, Cites: cites}
 }
 
 // member returns a rule: name's value is among the strings of list.
-func member(s MinorVersionRange, lv Level, name, list string, cites ...Cite) Rule {
-	return Rule{Kind: RuleMember, Span: s, Level: lv, Field: name, Of: list, Cites: cites}
+func member(minorVersionRange MinorVersionRange, lv Level, name, list string, cites ...Cite) Rule {
+	return Rule{Kind: RuleMember, Span: minorVersionRange, Level: lv, Field: name, Of: list, Cites: cites}
 }
 
 // uniqueNames returns a rule: the items of list have names that differ.
-func uniqueNames(s MinorVersionRange, list string, cites ...Cite) Rule {
-	return Rule{Kind: RuleUnique, Span: s, Field: list, Key: "name", Cites: cites}
+func uniqueNames(minorVersionRange MinorVersionRange, list string, cites ...Cite) Rule {
+	return Rule{Kind: RuleUnique, Span: minorVersionRange, Field: list, Key: "name", Cites: cites}
 }
 
 // distinct returns a rule: the items of list differ.
-func distinct(s MinorVersionRange, list string, cites ...Cite) Rule {
-	return Rule{Kind: RuleUnique, Span: s, Field: list, Cites: cites}
+func distinct(minorVersionRange MinorVersionRange, list string, cites ...Cite) Rule {
+	return Rule{Kind: RuleUnique, Span: minorVersionRange, Field: list, Cites: cites}
 }
 
 // syntax returns a rule: name, when written, has the format when the terms hold.
-func syntax(s MinorVersionRange, name string, format Format, cond []Term, cites ...Cite) Rule {
-	return Rule{Kind: RuleSyntax, Span: s, Field: name, Format: format, When: cond, Cites: cites}
+func syntax(minorVersionRange MinorVersionRange, name string, format Format, cond []Term, cites ...Cite) Rule {
+	return Rule{Kind: RuleSyntax, Span: minorVersionRange, Field: name, Format: format, When: cond, Cites: cites}
 }
 
 // inapplicable returns a rule: name has no effect when the terms hold, the
 // specification applying it only where scope says.
-func inapplicable(s MinorVersionRange, name string, cond []Term, scope string, cites ...Cite) Rule {
-	return Rule{Kind: RuleInapplicable, Span: s, Level: Should, Field: name, When: cond, Scope: scope, Cites: cites}
+func inapplicable(minorVersionRange MinorVersionRange, name string, cond []Term, scope string, cites ...Cite) Rule {
+	return Rule{Kind: RuleInapplicable, Span: minorVersionRange, Level: Should, Field: name, When: cond, Scope: scope, Cites: cites}
 }
 
 // misplaced returns a rule: none of fields is written when the terms hold, and
 // one that is lowers as declared, so it is warned of.
-func misplaced(s MinorVersionRange, fields []string, cond []Term, cites ...Cite) Rule {
-	return Rule{Kind: RuleMisplaced, Span: s, Level: Should, Fields: fields, When: cond, Cites: cites}
+func misplaced(minorVersionRange MinorVersionRange, fields []string, cond []Term, cites ...Cite) Rule {
+	return Rule{Kind: RuleMisplaced, Span: minorVersionRange, Level: Should, Fields: fields, When: cond, Cites: cites}
 }
 
 // reserved returns a rule: name, when the terms hold, names none of names in
 // any case, as HTTP compares field names; a string field by its value, a map
 // field by each of its keys.
-func reserved(s MinorVersionRange, name string, cond []Term, names []string, cites ...Cite) Rule {
-	return Rule{Kind: RuleReserved, Span: s, Level: Should, Field: name, When: cond, Names: names, Cites: cites}
+func reserved(minorVersionRange MinorVersionRange, name string, cond []Term, names []string, cites ...Cite) Rule {
+	return Rule{Kind: RuleReserved, Span: minorVersionRange, Level: Should, Field: name, When: cond, Names: names, Cites: cites}
 }
 
 // code returns a rule written in Go, reported by owner when it is not empty.
-func code(s MinorVersionRange, name, owner string, cites ...Cite) Rule {
-	return Rule{Kind: RuleCode, Span: s, Name: name, Owner: owner, Cites: cites}
+func code(minorVersionRange MinorVersionRange, name, owner string, cites ...Cite) Rule {
+	return Rule{Kind: RuleCode, Span: minorVersionRange, Name: name, Owner: owner, Cites: cites}
 }
 
 // softened grades rules down to SHOULD: they rest on a sentence's wording by
@@ -271,8 +271,8 @@ const (
 )
 
 // contentTypeDefault returns the value an Encoding Object's contentType takes
-// where the object leaves it unwritten, for a value of case k, at the minors s
+// where the object leaves it unwritten, for a value of case defaultCase, at the minors minorVersionRange
 // holds.
-func contentTypeDefault(k DefaultCase, value string, s MinorVersionRange, cites ...Cite) Default {
-	return Default{Field: "contentType", Value: value, Cites: cites, Span: s, Case: k}
+func contentTypeDefault(defaultCase DefaultCase, value string, minorVersionRange MinorVersionRange, cites ...Cite) Default {
+	return Default{Field: "contentType", Value: value, Cites: cites, Span: minorVersionRange, Case: defaultCase}
 }

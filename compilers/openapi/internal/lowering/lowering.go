@@ -152,26 +152,26 @@ type Loaded struct {
 	Sources   []ir.SourceInfo
 }
 
-// New derives the context for in under p, reading the source's own content:
+// New derives the context for in under policy, reading the source's own content:
 // in.Documents holds the source at reftable.Source.
 //
 // The schema-name index arrives built, not built on first use, so every reader
 // sees the same set whatever the source order: a $ref resolved mid-lowering
 // must see a component declared later. The promotion policy is copied so no
 // lowering can write through the context into the caller's map.
-func New(in Loaded, p Policy) Ctx {
-	promoter := promotion.New(p.Promotions)
+func New(in Loaded, policy Policy) Ctx {
+	promoter := promotion.New(policy.Promotions)
 	return Ctx{
 		DocumentPlacement:      siteOf(reftable.Source, in.Documents[reftable.Source]),
-		Limits:                 p.Limits,
+		Limits:                 policy.Limits,
 		schemas:                in.Declares,
 		promoter:               &promoter,
-		NullableInference:      p.NullableInference,
-		DiscriminatorInference: p.DiscriminatorInference,
-		KindInference:          p.KindInference,
+		NullableInference:      policy.NullableInference,
+		DiscriminatorInference: policy.DiscriminatorInference,
+		KindInference:          policy.KindInference,
 
 		shared: &shared{documents: maps.Clone(in.Documents), dialects: in.Rules, sources: slices.Clone(in.Sources),
-			names:    naming.New(in.Bindings.Table(), p.TitleNames.Honours()),
+			names:    naming.New(in.Bindings.Table(), policy.TitleNames.Honours()),
 			reads:    componentlookup.Scope{SelfPath: in.Location, Places: in.Places, Bindings: in.Bindings},
 			readings: map[any]any{}, settled: map[any]any{},
 			statements: statement.NewTable(statement.Source{Bindings: in.Bindings, Rules: in.Rules})},
@@ -179,9 +179,9 @@ func New(in Loaded, p Policy) Ctx {
 	}
 }
 
-// siteOf returns the site of document id, which d is.
-func siteOf(id reftable.DocID, d BoundDocument) DocumentPlacement {
-	return DocumentPlacement{place: d.Place, ids: d.IDs, doc: id}
+// siteOf returns the site of document id, which boundDocument is.
+func siteOf(id reftable.DocID, boundDocument BoundDocument) DocumentPlacement {
+	return DocumentPlacement{place: boundDocument.Place, ids: boundDocument.IDs, doc: id}
 }
 
 // Promoter returns the vendor-extension promotion policy this context carries.
@@ -223,18 +223,18 @@ func (c Ctx) Statements() *statement.MemoizingSchemaReader {
 }
 
 // ReadOncePerRun returns read's answer for key, read once and remembered for every
-// copy of c. read must turn only on the documents and their bindings, which no
+// copy of loweringContext. read must turn only on the documents and their bindings, which no
 // lowering changes, and key on all else it turns on; a package's own key type
 // keeps its readings from another's. Each type of key and answer has a map of
 // its own, so neither is boxed to be found or kept, and a key read for two
 // types of answer is read once for each.
-func ReadOncePerRun[K comparable, V any](c Ctx, key K, read func() V) V {
-	answers, ok := c.shared.readings[memo[K, V]{}].(map[K]V)
+func ReadOncePerRun[K comparable, V any](loweringContext Ctx, key K, read func() V) V {
+	answers, ok := loweringContext.shared.readings[memo[K, V]{}].(map[K]V)
 	if !ok {
 		// Kept before read runs, so a reading that asks Remembered for answers of
 		// the same types keeps them here rather than in a map this one replaces.
 		answers = map[K]V{}
-		c.shared.readings[memo[K, V]{}] = answers
+		loweringContext.shared.readings[memo[K, V]{}] = answers
 	}
 	if answer, seen := answers[key]; seen {
 		return answer
@@ -249,7 +249,7 @@ func ReadOncePerRun[K comparable, V any](c Ctx, key K, read func() V) V {
 type memo[K comparable, V any] struct{}
 
 // Settled returns the run's store of type S, which build makes on the first
-// ask of any copy of c, for what settlements (compile.Settlement) read of the
+// ask of any copy of loweringContext, for what settlements (compile.Settlement) read of the
 // registry. Remembered may not keep such a reading, as it reads what the
 // settlements before it left: it is sound only while no settlement after it
 // rewrites what it read. The run takes every completion
@@ -257,12 +257,12 @@ type memo[K comparable, V any] struct{}
 // deferred settlements fill is sound where only completions rewrite what it
 // reads. S's documentation names them, and each reports a store it finds
 // filled.
-func Settled[S any](c Ctx, build func() *S) *S {
-	if s, ok := c.shared.settled[store[S]{}].(*S); ok {
+func Settled[S any](loweringContext Ctx, build func() *S) *S {
+	if s, ok := loweringContext.shared.settled[store[S]{}].(*S); ok {
 		return s
 	}
 	s := build()
-	c.shared.settled[store[S]{}] = s
+	loweringContext.shared.settled[store[S]{}] = s
 	return s
 }
 
@@ -293,54 +293,54 @@ func (c Ctx) Rules() dialect.SchemaDialectRows { return c.shared.dialects }
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() componentlookup.Scope {
-	r := c.shared.reads
-	scope := componentlookup.Scope{SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas, Reached: c.reached,
-		Bindings: r.Bindings}
+	componentlookupScope := c.shared.reads
+	scope := componentlookup.Scope{SelfPath: componentlookupScope.SelfPath, Places: componentlookupScope.Places, Declares: c.schemas, Reached: c.reached,
+		Bindings: componentlookupScope.Bindings}
 	if c.doc != reftable.Source {
 		scope.Foreign, scope.Holder = true, c.shared.documents[c.doc].Name
 	}
 	return scope
 }
 
-// NameAt returns the hint the node built at pointer in c's document is named
+// NameAt returns the hint the node built at pointer in loweringContext's document is named
 // by (naming.Namer.At): a function of the documents and the coordinate alone,
-// whichever lowering builds the node, read once for every copy of c.
-func NameAt(c Ctx, pointer jsontext.Pointer) string {
-	return c.shared.names.At(c.Position(pointer))
+// whichever lowering builds the node, read once for every copy of loweringContext.
+func NameAt(loweringContext Ctx, pointer jsontext.Pointer) string {
+	return loweringContext.shared.names.At(loweringContext.Position(pointer))
 }
 
-// NameTitle returns the name the title of the schema at pointer in c's
+// NameTitle returns the name the title of the schema at pointer in loweringContext's
 // document gives the node built there (naming.Namer.Title), and false where it
 // gives none.
-func NameTitle(c Ctx, pointer jsontext.Pointer) (string, bool) {
-	return c.shared.names.Title(c.Position(pointer))
+func NameTitle(loweringContext Ctx, pointer jsontext.Pointer) (string, bool) {
+	return loweringContext.shared.names.Title(loweringContext.Position(pointer))
 }
 
-// NameThrough returns the name the $ref written at pointer in c's document
+// NameThrough returns the name the $ref written at pointer in loweringContext's document
 // suggests (naming.Namer.Through), and "" where it suggests none.
-func NameThrough(c Ctx, pointer jsontext.Pointer) string {
-	return c.shared.names.Through(c.Position(pointer))
+func NameThrough(loweringContext Ctx, pointer jsontext.Pointer) string {
+	return loweringContext.shared.names.Through(loweringContext.Position(pointer))
 }
 
 // NameOfDocument returns the hint what is declared at the root of document doc
 // of the bindings' table is named by (naming.Namer.Document).
-func NameOfDocument(c Ctx, doc reftable.DocID) string {
-	return c.shared.names.Document(doc)
+func NameOfDocument(loweringContext Ctx, doc reftable.DocID) string {
+	return loweringContext.shared.names.Document(doc)
 }
 
-// InDocument returns c for lowering what document id of the bindings' table
+// InDocument returns loweringContext for lowering what document id of the bindings' table
 // declares, at that document's own coordinates (DocumentPlacement): the source's, or
 // another's, whose references are read in its scope, whose positions are its
 // own, so each Provenance names it, and whose IDs it qualifies. It is the one
-// way to another document, or back to the source. It is false, c unchanged,
+// way to another document, or back to the source. It is false, loweringContext unchanged,
 // for a document the compile did not read beside the source.
-func InDocument(c Ctx, id reftable.DocID) (Ctx, bool) {
-	d, ok := c.shared.documents[id]
+func InDocument(loweringContext Ctx, id reftable.DocID) (Ctx, bool) {
+	boundDocument, ok := loweringContext.shared.documents[id]
 	if !ok {
-		return c, false
+		return loweringContext, false
 	}
-	c.DocumentPlacement = siteOf(id, d)
-	return c, true
+	loweringContext.DocumentPlacement = siteOf(id, boundDocument)
+	return loweringContext, true
 }
 
 // DynamicAnchor returns what c's document's declarations of the

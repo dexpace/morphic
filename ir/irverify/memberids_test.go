@@ -16,8 +16,8 @@ import (
 // memberDoc returns a document holding the enum id with members of the given IDs.
 func memberDoc(id ir.TypeID, members ...ir.EnumMemberID) *ir.Document {
 	enum := &ir.Enum{ID: id, Name: ir.Naming{Source: "E", Canonical: "e"}}
-	for _, m := range members {
-		enum.Members = append(enum.Members, ir.EnumMember{ID: m})
+	for _, enumMemberID := range members {
+		enum.Members = append(enum.Members, ir.EnumMember{ID: enumMemberID})
 	}
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: enum}}
 }

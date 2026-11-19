@@ -113,8 +113,8 @@ func (p place) along(tokens []string) place {
 // field no model holds is raw YAML, and any other position is what its state
 // reads.
 func (p place) role() Role {
-	if r := roleOf(p.state); r != Schema || !p.beneath {
-		return r
+	if role := roleOf(p.state); role != Schema || !p.beneath {
+		return role
 	}
 	return Raw
 }
@@ -204,9 +204,9 @@ var refStates = []state{sPathItem, sParameter, sHeader, sRequestBody, sResponse,
 // state is the state an object of kind k is read at.
 func (k RefKind) state() state { return refStates[k-1] }
 
-// step is the state one token below s.
-func step(s state, token string) state {
-	switch s {
+// step is the state one token below stateValue.
+func step(stateValue state, token string) state {
+	switch stateValue {
 	case sRaw:
 		return sRaw
 	case sValue, sObject:
@@ -214,13 +214,13 @@ func step(s state, token string) state {
 	case sLoose:
 		return looseStep(token)
 	}
-	if e, ok := entries[s]; ok {
-		if strings.HasPrefix(token, "x-") && extensible[s] {
+	if state, ok := entries[stateValue]; ok {
+		if strings.HasPrefix(token, "x-") && extensible[stateValue] {
 			return sRaw
 		}
-		return e
+		return state
 	}
-	if next, ok := fields[s][token]; ok {
+	if next, ok := fields[stateValue][token]; ok {
 		return next
 	}
 	return sRaw
@@ -241,17 +241,17 @@ func looseStep(token string) state {
 	return sLoose
 }
 
-// stateOf is the state tokens reach from s.
-func stateOf(s state, tokens []string) state {
+// stateOf is the state tokens reach from stateValue.
+func stateOf(stateValue state, tokens []string) state {
 	for _, t := range tokens {
-		s = step(s, t)
+		stateValue = step(stateValue, t)
 	}
-	return s
+	return stateValue
 }
 
-// roleOf is the role a position read at state s has.
-func roleOf(s state) Role {
-	switch s {
+// roleOf is the role a position read at state stateValue has.
+func roleOf(stateValue state) Role {
+	switch stateValue {
 	case sSchema:
 		return Schema
 	case sRaw:
@@ -261,8 +261,8 @@ func roleOf(s state) Role {
 	}
 }
 
-// modelled reports whether the model holds a position read at s as an object
+// modelled reports whether the model holds a position read at stateValue as an object
 // or a list of its own, rather than as raw YAML or a scalar value.
-func modelled(s state) bool {
-	return s != sRaw && s != sValue
+func modelled(stateValue state) bool {
+	return stateValue != sRaw && stateValue != sValue
 }

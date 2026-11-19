@@ -26,19 +26,19 @@ import (
 // they place nowhere at the carrier, which reads it.
 func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
-	c := l.Ctx
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
+	loweringContext := lowerer.Ctx
 	ref := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference("#/x"))})
-	unknown := placeOf(c, Standalone(ref))
+	unknown := placeOf(loweringContext, Standalone(ref))
 	assert.False(t, unknown.known, "a schema the bindings do not know is placed nowhere")
 	assert.False(t, unknown.beneath("/allOf/0").known, "nor is a branch beneath it")
 
-	u := Use{FoldedAllOfBranches: []annotation.FoldedAllOfBranch{{At: "/v"}}}
-	u.appendFallbackReferent(StandaloneSchema(&oas3.Schema{}), referentPlace{doc: c.Place(), pointer: "/r", known: true})
-	u.appendFallbackReferent(StandaloneSchema(&oas3.Schema{}), unknown)
+	use := Use{FoldedAllOfBranches: []annotation.FoldedAllOfBranch{{At: "/v"}}}
+	use.appendFallbackReferent(StandaloneSchema(&oas3.Schema{}), referentPlace{doc: loweringContext.Place(), pointer: "/r", known: true})
+	use.appendFallbackReferent(StandaloneSchema(&oas3.Schema{}), unknown)
 	const carrier = jsontext.Pointer("/p")
 	for i, want := range []jsontext.Pointer{"/p/default", "/v/default", "/r/default", "/p"} {
-		assert.Equal(t, want, u.defaultAt(c, i, carrier).Pointer, "schema %d of the chain", i)
+		assert.Equal(t, want, use.defaultAt(loweringContext, i, carrier).Pointer, "schema %d of the chain", i)
 	}
 }
 
@@ -46,9 +46,9 @@ func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 // no key the policy reads, whatever the policy reads.
 func TestKeysOf_ANilSchemaFallsBackToNothing(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
-	require.NotEmpty(t, slices.Collect(l.Ctx.Promoter().Keys()), "the default policy reads keys")
-	assert.Equal(t, promotion.Referent{}, keysOf(l.Ctx, nil))
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
+	require.NotEmpty(t, slices.Collect(lowerer.Ctx.Promoter().Keys()), "the default policy reads keys")
+	assert.Equal(t, promotion.Referent{}, keysOf(lowerer.Ctx, nil))
 }
 
 // TestUseOf_ARunTheBindingsDoNotKnowFallsBackToWhatItWrites pins appendFallbackChainRun on a $ref
@@ -56,14 +56,14 @@ func TestKeysOf_ANilSchemaFallsBackToNothing(t *testing.T) {
 // ends there, on no schema.
 func TestUseOf_ARunTheBindingsDoNotKnowFallsBackToWhatItWrites(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
 	ref := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference("#/x"))})
-	var u Use
-	s, ok := u.appendFallbackChainRun(l.Ctx, l.Ctx.Statements().Of(ref))
+	var use Use
+	schema, ok := use.appendFallbackChainRun(lowerer.Ctx, lowerer.Ctx.Statements().Of(ref))
 	assert.False(t, ok)
-	assert.Nil(t, s)
-	require.Len(t, u.Referents, 1)
-	assert.Same(t, ref.GetSchema(), statement.Parsed(u.Referents[0]))
+	assert.Nil(t, schema)
+	require.Len(t, use.Referents, 1)
+	assert.Same(t, ref.GetSchema(), statement.Parsed(use.Referents[0]))
 }
 
 // TestUseOf_ARunEndingUnresolvedFallsBackToNothing pins appendFallbackChainRun on a $ref whose
@@ -71,13 +71,13 @@ func TestUseOf_ARunTheBindingsDoNotKnowFallsBackToWhatItWrites(t *testing.T) {
 // run ends on none.
 func TestUseOf_ARunEndingUnresolvedFallsBackToNothing(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {$ref: '#/components/schemas/U'}\n"+
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {$ref: '#/components/schemas/U'}\n"+
 		"    U: {$ref: '#/components/schemas/Missing'}\n"))
-	st := l.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: "/components/schemas/T"})
+	st := lowerer.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: "/components/schemas/T"})
 	require.NotNil(t, st.Ref)
-	var u Use
-	s, ok := u.appendFallbackChainRun(l.Ctx, st)
+	var use Use
+	schema, ok := use.appendFallbackChainRun(lowerer.Ctx, st)
 	assert.False(t, ok)
-	assert.Nil(t, s)
-	assert.Empty(t, u.Referents)
+	assert.Nil(t, schema)
+	assert.Empty(t, use.Referents)
 }

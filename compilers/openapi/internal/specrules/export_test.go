@@ -28,15 +28,15 @@ func (s Spec) Objects() []Object { return s.objects }
 func SchemaDialectIDs() []string {
 	dialects := schemaDialects()
 	ids := make([]string, 0, len(dialects))
-	for _, d := range dialects {
-		ids = append(ids, d.id)
+	for _, dialect := range dialects {
+		ids = append(ids, dialect.id)
 	}
 	return ids
 }
 
-// KeywordsOf returns the fields r defines and those it defines later, each
+// KeywordsOf returns the fields schemaRules defines and those it defines later, each
 // sorted by name, for the external tests reading every keyword of a row.
-func KeywordsOf(r SchemaRules) (defined, later []Field) {
+func KeywordsOf(schemaRules SchemaRules) (defined, later []Field) {
 	byName := func(a, b Field) int { return strings.Compare(a.Name, b.Name) }
-	return slices.SortedFunc(maps.Values(r.rows.fields), byName), slices.SortedFunc(maps.Values(r.rows.later), byName)
+	return slices.SortedFunc(maps.Values(schemaRules.rows.fields), byName), slices.SortedFunc(maps.Values(schemaRules.rows.later), byName)
 }

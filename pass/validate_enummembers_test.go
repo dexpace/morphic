@@ -29,10 +29,10 @@ func TestValidate_DuplicateEnumMemberIDIsAnError(t *testing.T) {
 	}}
 
 	var at []string
-	for _, d := range validated(t, doc) {
-		if d.Code == "pass/duplicate-enum-member-id" {
-			assert.Equal(t, ir.SeverityError, d.Severity)
-			at = append(at, d.Provenance.Node)
+	for _, diagnostic := range validated(t, doc) {
+		if diagnostic.Code == "pass/duplicate-enum-member-id" {
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+			at = append(at, diagnostic.Provenance.Node)
 		}
 	}
 	assert.Equal(t, []string{"type/e/members/2"}, at)

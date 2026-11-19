@@ -60,10 +60,10 @@ func declaredFields(t *testing.T) []declaredField {
 // resolving TypeID to string would defeat the check this mirrors.
 func idClassTypes(t *testing.T) map[*types.TypeName]bool {
 	t.Helper()
-	p := irDecls(t)
+	loadedPackage := irDecls(t)
 	classes := map[*types.TypeName]bool{}
 	for class := range ir.IDClasses() {
-		named, err := p.Named(class.Name())
+		named, err := loadedPackage.Named(class.Name())
 		require.NoError(t, err, "a node declares an ID of %s, which the ir package must declare", class.Name())
 		classes[named.Obj()] = true
 	}
@@ -119,9 +119,9 @@ func identityFieldKeys(t *testing.T) map[string]bool {
 	t.Helper()
 	classes := idClassTypes(t)
 	found := map[string]bool{}
-	for _, f := range declaredFields(t) {
-		if mentionsIDClass(classes, f.field.Type()) {
-			found[f.key()] = true
+	for _, declaredField := range declaredFields(t) {
+		if mentionsIDClass(classes, declaredField.field.Type()) {
+			found[declaredField.key()] = true
 		}
 	}
 	return found
@@ -136,16 +136,16 @@ func identityFieldKeys(t *testing.T) map[string]bool {
 func TestIDPositions_EveryShapeIsOneTheReadingReads(t *testing.T) {
 	t.Parallel()
 	classes := idClassTypes(t)
-	for _, f := range declaredFields(t) {
-		typ := f.field.Type()
+	for _, declaredField := range declaredFields(t) {
+		typ := declaredField.field.Type()
 		if !mentionsIDClassAnywhere(t, classes, typ, 0) {
 			continue
 		}
 		assert.True(t, mentionsIDClass(classes, typ),
-			"ir.%s holds an identity nested deeper than the reading reads", f.key())
+			"ir.%s holds an identity nested deeper than the reading reads", declaredField.key())
 		m, isMap := typ.Underlying().(*types.Map)
 		assert.False(t, isMap && isIDClass(classes, m.Key()) && isIDClass(classes, m.Elem()),
-			"ir.%s maps an identity to an identity, and the reading reads only the key", f.key())
+			"ir.%s maps an identity to an identity, and the reading reads only the key", declaredField.key())
 	}
 }
 
@@ -183,8 +183,8 @@ func TestIDPositions_AnEmptyFormIsASingleIDs(t *testing.T) {
 	t.Parallel()
 	classes := idClassTypes(t)
 	fields := map[string]types.Type{}
-	for _, f := range declaredFields(t) {
-		fields[f.key()] = f.field.Type()
+	for _, declaredField := range declaredFields(t) {
+		fields[declaredField.key()] = declaredField.field.Type()
 	}
 	positions := ir.EmptyFormPositions()
 	require.NotEmpty(t, positions)

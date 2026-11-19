@@ -92,11 +92,11 @@ func shapesReported(t *testing.T, lines []string) map[string]string {
 	_, diags := parseFull(t, openapitest.ComponentSpec(strings.Join(lines, "\n")+"\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	out := map[string]string{}
-	for _, d := range diags {
-		_, rest, lowered := strings.Cut(d.Message, " lowered to ")
+	for _, diagnostic := range diags {
+		_, rest, lowered := strings.Cut(diagnostic.Message, " lowered to ")
 		shape, _, homed := strings.Cut(rest, ", which has no home")
-		if d.Code == diag.DegradedConstruct && lowered && homed {
-			out[strings.TrimPrefix(string(d.Provenance.Pointer), "/components/schemas/")] = shape
+		if diagnostic.Code == diag.DegradedConstruct && lowered && homed {
+			out[strings.TrimPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/")] = shape
 		}
 	}
 	return out
@@ -118,10 +118,10 @@ func TestStandingShape_ConjunctsSharingNoValueNameWhatThePositionLoweredTo(t *te
 		"/components/schemas/R": "which a use of one of its allOf conjuncts cannot state",
 	}
 	got := map[string]string{}
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "share no value") {
-			_, tail, _ := strings.Cut(d.Message, "so no instance satisfies this schema, ")
-			got[string(d.Provenance.Pointer)] = tail
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && strings.Contains(diagnostic.Message, "share no value") {
+			_, tail, _ := strings.Cut(diagnostic.Message, "so no instance satisfies this schema, ")
+			got[string(diagnostic.Provenance.Pointer)] = tail
 		}
 	}
 	assert.Equal(t, want, got)

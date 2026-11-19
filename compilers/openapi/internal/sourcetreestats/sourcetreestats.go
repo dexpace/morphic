@@ -165,11 +165,11 @@ type openNode struct {
 // The walk is bounded by maxNodes (nodeview.Walk), and it never stops at a
 // finding, or one answer would hide another.
 func (x *Measurements) walk(ctx context.Context, maxNodes int) {
-	w := walker{x: x, ancestors: map[*yaml.Node]bool{}, measure: NewMeasure(maxNodes)}
-	visit := func(n *yaml.Node, depth int) nodeview.Step { return w.visit(ctx, n, depth) }
-	out := nodeview.Walk{Nodes: maxNodes, Visit: visit, Leave: w.leave}.Run(ctx, x.root)
+	walkerValue := walker{x: x, ancestors: map[*yaml.Node]bool{}, measure: NewMeasure(maxNodes)}
+	visit := func(n *yaml.Node, depth int) nodeview.Step { return walkerValue.visit(ctx, n, depth) }
+	out := nodeview.Walk{Nodes: maxNodes, Visit: visit, Leave: walkerValue.leave}.Run(ctx, x.root)
 	x.nodes = out.Visited
-	x.truncated = out.Cut || w.measure.Truncated()
+	x.truncated = out.Cut || walkerValue.measure.Truncated()
 }
 
 // visit records what n answers, at depth below the root. An alias is a leaf:
@@ -209,16 +209,16 @@ func (w *walker) leave(n *yaml.Node, depth int) {
 // finish hands a finished node's shape to the node holding it, under the
 // pointer that node's Content index gives it, or to the index when it is the
 // root. The walk visits no nil child, so the index skips those first.
-func (w *walker) finish(s shape) {
+func (w *walker) finish(shapeValue shape) {
 	if len(w.open) == 0 {
-		w.x.nesting, w.x.pointers, w.x.expanded = s.nesting, s.pointers, s.text
+		w.x.nesting, w.x.pointers, w.x.expanded = shapeValue.nesting, shapeValue.pointers, shapeValue.text
 		return
 	}
 	top := &w.open[len(w.open)-1]
 	for top.next < len(top.n.Content) && top.n.Content[top.next] == nil {
 		top.next++
 	}
-	top.shape = top.shape.holding(s, edge(top.n, top.next))
+	top.shape = top.shape.holding(shapeValue, edge(top.n, top.next))
 	top.next++
 }
 

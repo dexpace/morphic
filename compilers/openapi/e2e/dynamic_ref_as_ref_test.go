@@ -118,12 +118,12 @@ func TestCompile_ADynamicRefResolvingNowhereIsAnUnresolvedRef(t *testing.T) {
 
 	twin := byCode(diags, "openapi/unresolved-ref")
 	var ref, dyn []ir.Diagnostic
-	for _, d := range twin {
-		switch d.Provenance.Pointer {
+	for _, diagnostic := range twin {
+		switch diagnostic.Provenance.Pointer {
 		case "/components/schemas/MissRef":
-			ref = append(ref, d)
+			ref = append(ref, diagnostic)
 		case "/components/schemas/Miss":
-			dyn = append(dyn, d)
+			dyn = append(dyn, diagnostic)
 		}
 	}
 	require.Len(t, ref, 1, "the $ref twin draws its error: %+v", diags)
@@ -137,10 +137,10 @@ func TestCompile_ADynamicRefResolvingNowhereIsAnUnresolvedRef(t *testing.T) {
 	require.NotNil(t, sc.Base)
 	assert.Equal(t, ir.TypeID("type/primitive/any"), sc.Base.Target)
 	assert.Empty(t, sc.Unmodeled, "the binding's error stands alone")
-	for _, d := range diags {
-		assert.NotEqual(t, "openapi/dynamic-ref-expanded", d.Code)
-		if d.Code == "openapi/degraded-construct" {
-			assert.NotContains(t, string(d.Provenance.Pointer), "Miss/$dynamicRef", "no info beside the error")
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, "openapi/dynamic-ref-expanded", diagnostic.Code)
+		if diagnostic.Code == "openapi/degraded-construct" {
+			assert.NotContains(t, string(diagnostic.Provenance.Pointer), "Miss/$dynamicRef", "no info beside the error")
 		}
 	}
 }
@@ -171,12 +171,12 @@ func TestCompile_ADynamicRefNamingAnotherDocumentReadsAsARef(t *testing.T) {
 	_, diags = compileOnDisk(t, filepath.Join(refused, "in", "spec.yaml"),
 		dynHead+"    Ext: {$dynamicRef: '../other.yaml#/X'}\n    ExtRef: {$ref: '../other.yaml#/X'}\n", false)
 	var ref, dyn []ir.Diagnostic
-	for _, d := range byCode(diags, "openapi/unresolved-ref") {
-		switch d.Provenance.Pointer {
+	for _, diagnostic := range byCode(diags, "openapi/unresolved-ref") {
+		switch diagnostic.Provenance.Pointer {
 		case "/components/schemas/ExtRef":
-			ref = append(ref, d)
+			ref = append(ref, diagnostic)
 		case "/components/schemas/Ext":
-			dyn = append(dyn, d)
+			dyn = append(dyn, diagnostic)
 		}
 	}
 	require.Len(t, ref, 1, "%+v", diags)
@@ -211,8 +211,8 @@ func TestCompile_ATwoMemberCycleThroughADynamicRefIsACyclicRef(t *testing.T) {
 		require.Len(t, cyclic, 1, "%s: %+v", name, diags)
 		assert.Equal(t, ir.SeverityError, cyclic[0].Severity, name)
 		assert.EqualValues(t, "/components/schemas/A", cyclic[0].Provenance.Pointer, name)
-		for _, d := range diags {
-			assert.NotEqual(t, "openapi/dynamic-ref-expanded", d.Code, name)
+		for _, diagnostic := range diags {
+			assert.NotEqual(t, "openapi/dynamic-ref-expanded", diagnostic.Code, name)
 		}
 		for _, id := range []ir.TypeID{componentID("A"), componentID("B")} {
 			_, inTwin := twin.Types[id]
@@ -245,9 +245,9 @@ func TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference(t *testing.T) {
 		assert.JSONEq(t, `"#a"`, string(entry.Value), name)
 
 		var found []ir.Diagnostic
-		for _, d := range diags {
-			if d.Code == "openapi/degraded-construct" && d.Provenance.Pointer == "/components/schemas/B/$dynamicRef" {
-				found = append(found, d)
+		for _, diagnostic := range diags {
+			if diagnostic.Code == "openapi/degraded-construct" && diagnostic.Provenance.Pointer == "/components/schemas/B/$dynamicRef" {
+				found = append(found, diagnostic)
 			}
 		}
 		require.Len(t, found, 1, "%s: %+v", name, diags)
@@ -283,11 +283,11 @@ func TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling(t *testing.T) {
 	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C/$dynamicRef"), "%+v", diags)
 	assert.Equal(t, jsonOf(t, twin), jsonOf(t, doc))
 	assert.Equal(t, twinDiags, diags)
-	c, ok := doc.Types[componentID("C")].(*ir.Model)
+	model, ok := doc.Types[componentID("C")].(*ir.Model)
 	require.True(t, ok, "got %T", doc.Types[componentID("C")])
-	require.NotNil(t, c.Base)
-	assert.Equal(t, componentID("Pet"), c.Base.Target)
-	assert.Empty(t, c.Unmodeled)
+	require.NotNil(t, model.Base)
+	assert.Equal(t, componentID("Pet"), model.Base.Target)
+	assert.Empty(t, model.Unmodeled)
 }
 
 // TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds pins that a $ref
@@ -305,10 +305,10 @@ func TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.Empty(t, diags)
 
-	s, twin := dynScalar(t, doc, "S"), dynScalar(t, doc, "STwin")
-	require.NotNil(t, s.Base)
+	dynUse, twin := dynScalar(t, doc, "S"), dynScalar(t, doc, "STwin")
+	require.NotNil(t, dynUse.Base)
 	require.NotNil(t, twin.Base)
-	assert.Equal(t, componentID("ByPointer"), s.Base.Target, "a $ref names the component, as one onto a $ref alias does")
+	assert.Equal(t, componentID("ByPointer"), dynUse.Base.Target, "a $ref names the component, as one onto a $ref alias does")
 	assert.Equal(t, componentID("Pet"), twin.Base.Target)
 	byPointer := dynScalar(t, doc, "ByPointer")
 	require.NotNil(t, byPointer.Base)
@@ -316,10 +316,10 @@ func TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds(t *testing.T) {
 
 	obj, ok := doc.Types[componentID("Obj")].(*ir.Model)
 	require.True(t, ok)
-	p, okP := propByWire(obj, "p")
-	q, okQ := propByWire(obj, "q")
+	property, okP := propByWire(obj, "p")
+	irProperty, okQ := propByWire(obj, "q")
 	require.True(t, okP && okQ)
-	assert.Equal(t, componentID("Pet"), p.Type.Target)
-	assert.Empty(t, cmp.Diff(q.Type, p.Type))
-	assert.Empty(t, p.Unmodeled)
+	assert.Equal(t, componentID("Pet"), property.Type.Target)
+	assert.Empty(t, cmp.Diff(irProperty.Type, property.Type))
+	assert.Empty(t, property.Unmodeled)
 }

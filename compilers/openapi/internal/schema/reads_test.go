@@ -60,9 +60,9 @@ func assertNoKeyIsBothReadAndKept(t *testing.T, doc *ir.Document) {
 	built := map[string]bool{}
 	for _, td := range doc.Types {
 		built[string(td.Common().Provenance.Pointer)] = true
-		if m, ok := td.(*ir.Model); ok {
-			for _, p := range m.Properties {
-				built[string(p.Provenance.Pointer)] = true
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				built[string(property.Provenance.Pointer)] = true
 			}
 		}
 	}
@@ -81,18 +81,18 @@ func assertNoKeyIsBothReadAndKept(t *testing.T, doc *ir.Document) {
 }
 
 // assertEveryKeyIsReadOrKept holds the keeping of what a build did not
-// read to every key of domain, the census's, that s writes: kept unless read,
+// read to every key of domain, the census's, that statementSchema writes: kept unless read,
 // in the domain's order.
-func assertEveryKeyIsReadOrKept(t *testing.T, s *statement.Schema, domain []string) {
+func assertEveryKeyIsReadOrKept(t *testing.T, statementSchema *statement.Schema, domain []string) {
 	t.Helper()
 	var written []string
 	for _, k := range domain {
-		if _, read := s.Key(k); read {
+		if _, read := statementSchema.Key(k); read {
 			written = append(written, k)
 		}
 	}
-	assert.Equal(t, written, nilIfEmpty(schema.UnreadKeys(s, nil)), "%s: nothing read keeps every key", s.At.Pointer)
-	assert.Empty(t, schema.UnreadKeys(s, domain), "%s: everything read keeps nothing", s.At.Pointer)
+	assert.Equal(t, written, nilIfEmpty(schema.UnreadKeys(statementSchema, nil)), "%s: nothing read keeps every key", statementSchema.At.Pointer)
+	assert.Empty(t, schema.UnreadKeys(statementSchema, domain), "%s: everything read keeps nothing", statementSchema.At.Pointer)
 	even := make([]string, 0, len(written))
 	var odd []string
 	for i, k := range written {
@@ -102,7 +102,7 @@ func assertEveryKeyIsReadOrKept(t *testing.T, s *statement.Schema, domain []stri
 			odd = append(odd, k)
 		}
 	}
-	assert.Equal(t, odd, nilIfEmpty(schema.UnreadKeys(s, even)), "%s: a key read is the one not kept", s.At.Pointer)
+	assert.Equal(t, odd, nilIfEmpty(schema.UnreadKeys(statementSchema, even)), "%s: a key read is the one not kept", statementSchema.At.Pointer)
 }
 
 // keyValues writes a value for each key of the census's domain beside a target.

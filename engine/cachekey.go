@@ -20,9 +20,9 @@ import (
 // follows from the bytes, and finding it is what a hit skips. The spec's
 // Location is present beside its Path because what its references name is
 // read against it.
-func (b *cacheBinding) runKey(spec compilers.Source, opts RunOptions, p plan) cache.Key {
-	passes := make([]string, 0, len(p.passes))
-	for _, np := range p.passes {
+func (b *cacheBinding) runKey(spec compilers.Source, opts RunOptions, planValue plan) cache.Key {
+	passes := make([]string, 0, len(planValue.passes))
+	for _, np := range planValue.passes {
 		passes = append(passes, np.name)
 	}
 	return deriveKey(keyInputs{

@@ -58,9 +58,9 @@ func TestVerify_PrimitiveSourceMessage(t *testing.T) {
 	doc.Sources = oneSource()
 	primitiveOf(doc).Provenance = ir.Provenance{Source: 0}
 	var got []string
-	for _, v := range irverify.Verify(doc) {
-		if v.Code == primSourceCode {
-			got = append(got, v.Message)
+	for _, violation := range irverify.Verify(doc) {
+		if violation.Code == primSourceCode {
+			got = append(got, violation.Message)
 		}
 	}
 	assert.Equal(t, []string{"primitive is credited to source 0, and a primitive shared by every source names none"}, got)

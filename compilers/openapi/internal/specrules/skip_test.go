@@ -37,12 +37,12 @@ func TestCheck_SkipLeavesUnreadAMappingItAnswersTrueFor(t *testing.T) {
 	diags := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
 		Start: specrules.Components,
 		Skip:  func(_ specrules.Kind, node *yaml.Node) bool { return skipped[node] },
-		Seen:  func(k specrules.Kind, node *yaml.Node) { seen = append(seen, kindNode{k, node}) },
+		Seen:  func(kind specrules.Kind, node *yaml.Node) { seen = append(seen, kindNode{kind, node}) },
 	})
 
 	assert.Empty(t, diags, "the parameter written in: bogus is not read")
-	for _, s := range seen {
-		assert.False(t, skipped[s.node], "a skipped mapping is not told to Seen")
+	for _, kindNode := range seen {
+		assert.False(t, skipped[kindNode.node], "a skipped mapping is not told to Seen")
 	}
 }
 
@@ -56,8 +56,8 @@ func TestCheck_ANodeSeenIsSkippedWhenItIsReadAgain(t *testing.T) {
 	read := map[kindNode]bool{}
 	opts := specrules.Options{
 		Start: specrules.Components,
-		Seen:  func(k specrules.Kind, node *yaml.Node) { read[kindNode{k, node}] = true },
-		Skip:  func(k specrules.Kind, node *yaml.Node) bool { return read[kindNode{k, node}] },
+		Seen:  func(kind specrules.Kind, node *yaml.Node) { read[kindNode{kind, node}] = true },
+		Skip:  func(kind specrules.Kind, node *yaml.Node) bool { return read[kindNode{kind, node}] },
 	}
 
 	first := specrules.NewChecker().Check(t.Context(), &n, "3.1.0", opts)

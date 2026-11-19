@@ -77,14 +77,14 @@ func TestRun_AppendsNothingAfterAFirstAsk(t *testing.T) {
 func staleReadings(kept, fresh *compileddoc.CompiledDocumentView) []string {
 	var stale []string
 	for _, op := range fresh.Ops {
-		for _, p := range op.Params {
-			if !slices.Equal(kept.Params(op).Placements(p.ID), fresh.Params(op).Placements(p.ID)) {
-				stale = append(stale, "placements of "+string(p.ID))
+		for _, parameter := range op.Params {
+			if !slices.Equal(kept.Params(op).Placements(parameter.ID), fresh.Params(op).Placements(parameter.ID)) {
+				stale = append(stale, "placements of "+string(parameter.ID))
 			}
 		}
 		for key, headers := range responseHeaders(op) {
-			for _, h := range headers {
-				name := h.EffectiveWireName()
+			for _, header := range headers {
+				name := header.EffectiveWireName()
 				if !slices.Equal(kept.Header(key, headers, name), fresh.Header(key, headers, name)) {
 					stale = append(stale, "header "+name+" of "+string(op.ID))
 				}
@@ -118,8 +118,8 @@ func responseHeaders(op *ir.Operation) map[compileddoc.ResponseKey][]ir.Header {
 // propIDs returns the IDs of props, in order.
 func propIDs(props []*ir.Property) []ir.PropertyID {
 	ids := make([]ir.PropertyID, len(props))
-	for i, p := range props {
-		ids[i] = p.ID
+	for i, property := range props {
+		ids[i] = property.ID
 	}
 	return ids
 }

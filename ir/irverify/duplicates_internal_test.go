@@ -74,9 +74,9 @@ func TestCheckDuplicateIDs_GroupIDsAreUniqueAcrossTheWholeDocument(t *testing.T)
 
 	got := duplicateViolations(doc)
 	paths := make([]string, 0, len(got))
-	for _, v := range got {
-		assert.Equal(t, "ir/duplicate-group-id", v.Code)
-		paths = append(paths, v.Path)
+	for _, violation := range got {
+		assert.Equal(t, "ir/duplicate-group-id", violation.Code)
+		paths = append(paths, violation.Path)
 	}
 	assert.Equal(t, []string{
 		"document.Services[0].Groups[0].Groups[0]",
@@ -146,10 +146,13 @@ func TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID(t *testing.T) {
 	base := ir.Property{ID: dup, Name: ir.Naming{Source: "alpha"}, WireName: "alpha",
 		Type: ir.TypeRef{Target: "type/x/A"}}
 
-	differs := map[string]func(p ir.Property) ir.Property{
-		"source name": func(p ir.Property) ir.Property { p.Name = ir.Naming{Source: "beta"}; return p },
-		"wire name":   func(p ir.Property) ir.Property { p.WireName = "beta"; return p },
-		"type":        func(p ir.Property) ir.Property { p.Type = ir.TypeRef{Target: "type/x/B"}; return p },
+	differs := map[string]func(property ir.Property) ir.Property{
+		"source name": func(property ir.Property) ir.Property { property.Name = ir.Naming{Source: "beta"}; return property },
+		"wire name":   func(property ir.Property) ir.Property { property.WireName = "beta"; return property },
+		"type": func(property ir.Property) ir.Property {
+			property.Type = ir.TypeRef{Target: "type/x/B"}
+			return property
+		},
 	}
 	for field, differ := range differs {
 		t.Run(field, func(t *testing.T) {
@@ -221,10 +224,10 @@ func TestCheckDuplicateIDs_EachRepeatIsHeldToTheFirstProperty(t *testing.T) {
 			}
 			got := duplicateViolations(doc)
 			paths := make([]string, 0, len(got))
-			for _, v := range got {
-				assert.Equal(t, "ir/duplicate-property-id", v.Code)
-				assert.Contains(t, v.Message, "document.Types[type/x/A].Properties[0]", "held to the first property")
-				paths = append(paths, v.Path)
+			for _, violation := range got {
+				assert.Equal(t, "ir/duplicate-property-id", violation.Code)
+				assert.Contains(t, violation.Message, "document.Types[type/x/A].Properties[0]", "held to the first property")
+				paths = append(paths, violation.Path)
 			}
 			assert.Equal(t, tc.want, paths)
 		})
@@ -262,10 +265,10 @@ func TestCheckDuplicateIDs_VisitingCostsNoAllocation(t *testing.T) {
 func TestPropIDs_AreDeclaredByPropertiesAlone(t *testing.T) {
 	t.Parallel()
 	var declaring []string
-	for _, f := range declaredFields(t) {
-		named, isNamed := types.Unalias(f.field.Type()).(*types.Named)
-		if f.field.Name() == "ID" && isNamed && named.Obj().Name() == propIDType.Name() {
-			declaring = append(declaring, f.owner)
+	for _, declaredField := range declaredFields(t) {
+		named, isNamed := types.Unalias(declaredField.field.Type()).(*types.Named)
+		if declaredField.field.Name() == "ID" && isNamed && named.Obj().Name() == propIDType.Name() {
+			declaring = append(declaring, declaredField.owner)
 		}
 	}
 	assert.Equal(t, []string{propertyType.Name()}, declaring)
@@ -277,8 +280,8 @@ func TestVerify_ReportsDuplicateIDs(t *testing.T) {
 	doc := docWithOperations(ir.Operation{ID: "operation/x"}, ir.Operation{ID: "operation/x"})
 
 	codes := make([]string, 0, 4)
-	for _, v := range Verify(doc) {
-		codes = append(codes, v.Code)
+	for _, violation := range Verify(doc) {
+		codes = append(codes, violation.Code)
 	}
 	assert.Contains(t, codes, "ir/duplicate-operation-id")
 }

@@ -102,9 +102,9 @@ func TestAllOfBranchFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) 
 				gotUnion, ok := got.Types[id].(*ir.Union)
 				require.True(t, ok)
 				require.Len(t, gotUnion.Variants, len(wantUnion.Variants))
-				for i, v := range wantUnion.Variants {
+				for i, variant := range wantUnion.Variants {
 					target := gotUnion.Variants[i].Type.Target
-					require.Equal(t, v.Type.Target, target)
+					require.Equal(t, variant.Type.Target, target)
 					assertNodeAlike(t, want.Types[target], got.Types[target])
 				}
 			})
@@ -129,8 +129,8 @@ func assertNodeAlike(t *testing.T, want, got ir.TypeDef) {
 // runs reporting alike at other pointers compare equal.
 func severityCodes(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, string(d.Severity)+" "+d.Code)
+	for _, diagnostic := range diags {
+		out = append(out, string(diagnostic.Severity)+" "+diagnostic.Code)
 	}
 	slices.Sort(out)
 	return out
@@ -176,9 +176,9 @@ func TestAllOfBranchFolding_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
 					assert.Contains(t, got, tc.why, path)
 				}
 				assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing a kept branch writes folds")
-				for _, m := range composedModels(t, doc) {
-					assert.ElementsMatch(t, tc.kept, keptBranches(m), m.ID)
-					assert.Equal(t, tc.cons, m.Constraints, m.ID)
+				for _, model := range composedModels(t, doc) {
+					assert.ElementsMatch(t, tc.kept, keptBranches(model), model.ID)
+					assert.Equal(t, tc.cons, model.Constraints, model.ID)
 				}
 			})
 		}
@@ -189,26 +189,26 @@ func TestAllOfBranchFolding_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
 // variant of the Union a distributed union lowers it to.
 func composedModels(t *testing.T, doc *ir.Document) []*ir.Model {
 	t.Helper()
-	s := typeByName(doc, "S")
-	u, distributed := s.(*ir.Union)
+	typeDef := typeByName(doc, "S")
+	union, distributed := typeDef.(*ir.Union)
 	if !distributed {
-		m, ok := s.(*ir.Model)
-		require.True(t, ok, "S lowered to a %T, want a Model or a Union", s)
-		return []*ir.Model{m}
+		model, ok := typeDef.(*ir.Model)
+		require.True(t, ok, "S lowered to a %T, want a Model or a Union", typeDef)
+		return []*ir.Model{model}
 	}
-	out := make([]*ir.Model, 0, len(u.Variants))
-	for _, v := range u.Variants {
-		m, ok := doc.Types[v.Type.Target].(*ir.Model)
-		require.True(t, ok, "variant %s lowered to a %T, want a Model", v.Type.Target, doc.Types[v.Type.Target])
-		out = append(out, m)
+	out := make([]*ir.Model, 0, len(union.Variants))
+	for _, variant := range union.Variants {
+		model, ok := doc.Types[variant.Type.Target].(*ir.Model)
+		require.True(t, ok, "variant %s lowered to a %T, want a Model", variant.Type.Target, doc.Types[variant.Type.Target])
+		out = append(out, model)
 	}
 	return out
 }
 
-// keptBranches returns the path of each allOf branch m keeps whole.
-func keptBranches(m *ir.Model) []string {
+// keptBranches returns the path of each allOf branch model keeps whole.
+func keptBranches(model *ir.Model) []string {
 	var out []string
-	for key := range m.Unmodeled {
+	for key := range model.Unmodeled {
 		if path, ok := strings.CutPrefix(key, "openapi:"); ok && strings.HasPrefix(path, "allOf/") {
 			out = append(out, path)
 		}
@@ -229,9 +229,9 @@ func TestAllOfBranchFolding_AFalseFlagAgreesWithATrue(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+", "+flags+"]}"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
+			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			assert.Empty(t, keptBranches(m), "no branch disagrees, so each folds")
+			assert.Empty(t, keptBranches(model), "no branch disagrees, so each folds")
 			use := propertyOf(t, doc, "Holder", "s")
 			assert.True(t, use.Deprecation != nil || len(use.Visibility.Only) > 0, "the true is in force at the use")
 		})
@@ -270,10 +270,10 @@ func TestAllOfBranchFolding_ABranchDisagreeingFoldsNothingInEveryOrder(t *testin
 			t.Parallel()
 			doc, diags := parseFull(t, foldedBranchesDoc(tc.schema))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
+			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
 			var kept []string
-			for key := range m.Unmodeled {
+			for key := range model.Unmodeled {
 				kept = append(kept, key)
 			}
 			assert.ElementsMatch(t, tc.kept, kept)
@@ -285,10 +285,10 @@ func TestAllOfBranchFolding_ABranchDisagreeingFoldsNothingInEveryOrder(t *testin
 	// A disagreeing branch folds nothing, not only the keyword it disagrees on.
 	doc, diags := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+", {description: a, title: only}, {description: b}]}"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
+	irModel, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	assert.Empty(t, m.Docs.Summary)
-	assert.Empty(t, m.Docs.Description, "no precedence chooses between two descriptions")
+	assert.Empty(t, irModel.Docs.Summary)
+	assert.Empty(t, irModel.Docs.Description, "no precedence chooses between two descriptions")
 }
 
 // TestAllOfBranchFolding_BoundsMeetInEveryOrder pins value bounds two conjuncts write apart:
@@ -331,10 +331,10 @@ func TestAllOfBranchFolding_BoundsMeetInEveryOrder(t *testing.T) {
 	}
 
 	doc, _ := parseFull(t, foldedBranchesDoc("{maxProperties: 3, allOf: ["+ref+", {maxProperties: 5}]}"))
-	m, ok := typeByName(doc, "S").(*ir.Model)
+	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, &ir.Constraints{MaxProperties: new(int64(3))}, m.Constraints, "a bound beside the allOf meets one on a branch")
-	assert.Empty(t, m.Unmodeled)
+	assert.Equal(t, &ir.Constraints{MaxProperties: new(int64(3))}, model.Constraints, "a bound beside the allOf meets one on a branch")
+	assert.Empty(t, model.Unmodeled)
 
 	for i, order := range []string{"{exclusiveMinimum: true}, {exclusiveMinimum: false}", "{exclusiveMinimum: false}, {exclusiveMinimum: true}"} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
@@ -364,18 +364,18 @@ func TestAllOfBranchFolding_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *te
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Base: {type: object, description: an object}\n"+
 			"    S: {allOf: ["+ref+", "+order[0]+", "+order[1]+"], minLength: 2, maxProperties: 3}\n"))
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := typeByName(doc, "S").(*ir.Model)
+		model, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, &ir.Constraints{MaxProperties: new(int64(3))}, m.Constraints, "%v", order)
+		assert.Equal(t, &ir.Constraints{MaxProperties: new(int64(3))}, model.Constraints, "%v", order)
 		assert.ElementsMatch(t, []string{"openapi:multipleOf", "openapi:maximum", "openapi:minLength"},
-			slices.Collect(maps.Keys(m.Unmodeled)), "%v", order)
+			slices.Collect(maps.Keys(model.Unmodeled)), "%v", order)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 			"no home for minLength", "%v", order)
 		for i, branch := range order {
 			at := fmt.Sprintf("/components/schemas/S/allOf/%d", i+1)
 			keyword := strings.Trim(strings.Split(branch, ":")[0], "{")
-			assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled["openapi:"+keyword].Reason, "%v", order)
-			assert.Equal(t, jsontext.Pointer(at+"/"+keyword), m.Unmodeled["openapi:"+keyword].Provenance.Pointer, "%v", order)
+			assert.Equal(t, ir.ReasonDegradedLowering, model.Unmodeled["openapi:"+keyword].Reason, "%v", order)
+			assert.Equal(t, jsontext.Pointer(at+"/"+keyword), model.Unmodeled["openapi:"+keyword].Provenance.Pointer, "%v", order)
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
 				"no home for "+keyword+" written on this inline branch", "%v", order)
 		}
@@ -412,10 +412,10 @@ func TestAllOfBranchFolding_AgreeingConjunctsSayItOnce(t *testing.T) {
 		"{$ref: '#/components/schemas/Base'}, {description: same, example: {id: a}}, {description: same}]}"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, withCode(diags, diag.DegradedConstruct))
-	m, ok := typeByName(doc, "S").(*ir.Model)
+	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, "same", m.Docs.Description)
-	assert.Len(t, m.Examples, 1)
+	assert.Equal(t, "same", model.Docs.Description)
+	assert.Len(t, model.Examples, 1)
 }
 
 // TestAllOfBranchFolding_ANullKeywordWritesNothing pins a branch writing a keyword as null,
@@ -425,10 +425,10 @@ func TestAllOfBranchFolding_ANullKeywordWritesNothing(t *testing.T) {
 	t.Parallel()
 	for _, branches := range []string{"{description: null}, {description: d}", "{description: d}, {description: null}"} {
 		doc, _ := parseFull(t, foldedBranchesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+branches+"]}"))
-		m, ok := typeByName(doc, "S").(*ir.Model)
+		model, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, branches)
-		assert.Equal(t, "d", m.Docs.Description, branches)
-		assert.Empty(t, m.Unmodeled, branches)
+		assert.Equal(t, "d", model.Docs.Description, branches)
+		assert.Empty(t, model.Unmodeled, branches)
 	}
 }
 
@@ -495,10 +495,10 @@ func TestAllOfBranchFolding_AnExampleRenderingNothingStillAgrees(t *testing.T) {
 	for _, at := range []string{"/components/schemas/S/allOf/1", "/components/schemas/S/allOf/2"} {
 		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), at)
 	}
-	m, ok := doc.Types["type/openapi/components/schemas/S"].(*ir.Model)
+	model, ok := doc.Types["type/openapi/components/schemas/S"].(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, "d", m.Docs.Description)
-	assert.Empty(t, m.Unmodeled)
+	assert.Equal(t, "d", model.Docs.Description)
+	assert.Empty(t, model.Unmodeled)
 }
 
 // TestAllOfBranchFolding_AValueThatWillNotRenderAgreesWithNothing pins two branches writing one
@@ -529,17 +529,17 @@ func TestAllOfBranchFolding_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, _ := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+", "+branches+"]}"))
-			m, ok := typeByName(doc, "S").(*ir.Model)
+			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			assert.NotContains(t, m.Unmodeled, "openapi:if-then-else")
-			assert.NotContains(t, m.Unmodeled, "openapi:contains")
+			assert.NotContains(t, model.Unmodeled, "openapi:if-then-else")
+			assert.NotContains(t, model.Unmodeled, "openapi:contains")
 		})
 	}
 	doc, diags := parseFull(t, foldedBranchesDoc("{allOf: ["+ref+", {if: {required: [a]}}, {if: {required: [a]}}]}"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
+	irModel, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	assert.Contains(t, m.Unmodeled, "openapi:if-then-else")
+	assert.Contains(t, irModel.Unmodeled, "openapi:if-then-else")
 }
 
 // TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch pins that no unevaluated
@@ -580,8 +580,8 @@ func TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T)
 				}
 				require.Len(t, at, 1, "the branch's one report: nothing folds to be reported; got %v", diags)
 				assert.Contains(t, at[0].Message, "the branch (", "the report is the branch's")
-				if m, ok := typeByName(doc, "S").(*ir.Model); ok {
-					assert.Empty(t, m.Additional, "a branch's closure is not the model's")
+				if model, ok := typeByName(doc, "S").(*ir.Model); ok {
+					assert.Empty(t, model.Additional, "a branch's closure is not the model's")
 				}
 			})
 		}
@@ -608,10 +608,10 @@ func TestAllOfBranchFolding_AUseBindingKeywordReachesItsCarrierOrItsNode(t *test
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"f", "g"} {
-		p := propertyOf(t, doc, "Holder", name)
-		assert.NotEmpty(t, p.Visibility.Only, name)
-		assert.NotNil(t, p.Default, name)
-		assert.Empty(t, doc.Types[p.Type.Target].Common().Unmodeled, name)
+		property := propertyOf(t, doc, "Holder", name)
+		assert.NotEmpty(t, property.Visibility.Only, name)
+		assert.NotNil(t, property.Default, name)
+		assert.Empty(t, doc.Types[property.Type.Target].Common().Unmodeled, name)
 	}
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/Holder/properties/g"))
 	bare, ok := typeByName(doc, "Bare").(*ir.Model)
@@ -642,9 +642,9 @@ func TestAllOfBranchFolding_APromotedExtensionReadsFromABranch(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, composed.Deprecation)
 	assert.Equal(t, "gone", composed.Deprecation.Message)
-	f := propertyOf(t, doc, "Holder", "f")
-	require.NotNil(t, f.Deprecation)
-	assert.Equal(t, "gone", f.Deprecation.Message)
+	property := propertyOf(t, doc, "Holder", "f")
+	require.NotNil(t, property.Deprecation)
+	assert.Equal(t, "gone", property.Deprecation.Message)
 }
 
 // TestAllOfBranchFolding_AnEntrysKeywordsBesideItsRefAreAFoldedBranch pins that what an allOf
@@ -671,12 +671,12 @@ func TestAllOfBranchFolding_AnEntrysKeywordsBesideItsRefAreAFoldedBranch(t *test
 			doc, diags := parseFull(t, foldedBranchesDoc("{allOf: [{$ref: '#/components/schemas/Base', description: "+tc.beside+
 				"}, {title: mine, description: "+other+"}]}"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
+			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			require.NotNil(t, m.Base)
-			assert.Equal(t, componentID("Base"), m.Base.Target, "the $ref is the Base itself")
-			assert.Equal(t, tc.description, m.Docs.Description)
-			assert.Equal(t, tc.kept, slices.Sorted(maps.Keys(m.Unmodeled)))
+			require.NotNil(t, model.Base)
+			assert.Equal(t, componentID("Base"), model.Base.Target, "the $ref is the Base itself")
+			assert.Equal(t, tc.description, model.Docs.Description)
+			assert.Equal(t, tc.kept, slices.Sorted(maps.Keys(model.Unmodeled)))
 			assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/S/allOf/0"), "no node at the entry")
 		})
 	}

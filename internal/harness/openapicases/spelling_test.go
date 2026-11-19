@@ -33,8 +33,8 @@ const (
 // line's reason. No case faults.
 func TestCore_SpellingsHoldTheRecord(t *testing.T) {
 	results := slices.Concat(coreResults(t), groupResults(t))
-	for _, r := range results {
-		require.False(t, r.Faulted(), "%s: %s: %s", r.Spec, r.Outcome, r.Detail)
+	for _, result := range results {
+		require.False(t, result.Faulted(), "%s: %s: %s", result.Spec, result.Outcome, result.Detail)
 	}
 	found := harness.Findings(results, harness.OracleSpelling)
 	record, err := openapicases.Record(harness.OracleSpelling)
@@ -67,18 +67,18 @@ var colliding = []string{
 // uncompared unseen. A case outside the core drawing it where the core case it
 // is like does not is held by nothing.
 func TestCore_ARelocationCollidesAtTheListedGroupsAlone(t *testing.T) {
-	collides := func(r harness.Result) bool {
-		return slices.ContainsFunc(r.Verdicts, func(v harness.Verdict) bool {
-			return v.Declined == harness.DeclineRelocationCollides
+	collides := func(result harness.Result) bool {
+		return slices.ContainsFunc(result.Verdicts, func(verdict harness.Verdict) bool {
+			return verdict.Declined == harness.DeclineRelocationCollides
 		})
 	}
-	for _, r := range coreResults(t) {
-		assert.False(t, collides(r), r.Spec)
+	for _, result := range coreResults(t) {
+		assert.False(t, collides(result), result.Spec)
 	}
 	groups := map[string]bool{}
-	for _, r := range groupResults(t) {
-		if collides(r) {
-			groups[strings.Split(r.Spec, "/")[1]] = true
+	for _, result := range groupResults(t) {
+		if collides(result) {
+			groups[strings.Split(result.Spec, "/")[1]] = true
 		}
 	}
 	assert.Equal(t, colliding, slices.Sorted(maps.Keys(groups)))

@@ -95,8 +95,8 @@ func (ix ParamIndex) Bound(location ir.HTTPLocation, name string) []ir.Parameter
 		return ix.at[keyOf(location, name)]
 	}
 	var found []ir.ParameterID
-	for _, l := range ix.locations {
-		for _, id := range ix.at[keyOf(l, name)] {
+	for _, httpLocation := range ix.locations {
+		for _, id := range ix.at[keyOf(httpLocation, name)] {
 			if !slices.Contains(found, id) {
 				found = append(found, id)
 			}

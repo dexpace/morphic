@@ -43,8 +43,8 @@ func TestValidate_NilTypeDefIsReportedNotPanicked(t *testing.T) {
 			require.NotPanics(t, func() { diags = validated(t, doc) })
 
 			codes := make([]string, 0, len(diags))
-			for _, d := range diags {
-				codes = append(codes, d.Code)
+			for _, diagnostic := range diags {
+				codes = append(codes, diagnostic.Code)
 			}
 			assert.Contains(t, codes, "ir/nil-type",
 				"a nil type definition must be reported, not skipped: %v", codes)

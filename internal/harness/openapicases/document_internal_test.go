@@ -52,9 +52,9 @@ func TestObjectWith_SetsEachMemberInItsPlace(t *testing.T) {
 }
 
 func TestWrite_ATableTheWriterCannotEncodePanics(t *testing.T) {
-	c := New().(cases)
-	c.targets = []target{{name: "bad", body: object{{"type", 1}}}}
+	casesValue := New().(cases)
+	casesValue.targets = []target{{name: "bad", body: object{{"type", 1}}}}
 	assert.PanicsWithValue(t, "openapicases: case [0 0 0 0 0 0]: openapicases: no JSON for a int", func() {
-		c.Write([]int{0, 0, 0, 0, 0, 0})
+		casesValue.Write([]int{0, 0, 0, 0, 0, 0})
 	})
 }

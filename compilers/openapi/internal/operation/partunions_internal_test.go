@@ -153,16 +153,16 @@ func TestPartUnions_KeepsADefaultContentTypeByAllItTurnsOn(t *testing.T) {
 	}
 	v31, v32 := specrules.Table().EncodingRules("3.1.0"), specrules.Table().EncodingRules("3.2.0")
 	part := func(of ir.TypeID, rules specrules.EncodingRules, by contentEncoding) func(*testing.T, *partUnions) []string {
-		return func(t *testing.T, u *partUnions) []string {
+		return func(t *testing.T, partUnionsValue *partUnions) []string {
 			t.Helper()
-			types, ok := u.partDefault(node, rules, &ir.Property{Type: ir.TypeRef{Target: of}}, by)
+			types, ok := partUnionsValue.partDefault(node, rules, &ir.Property{Type: ir.TypeRef{Target: of}}, by)
 			require.True(t, ok, "the values of a part of %s are read", of)
 			return types
 		}
 	}
 	item := func(of ir.TypeID, rules specrules.EncodingRules, by contentEncoding) func(*testing.T, *partUnions) []string {
-		return func(_ *testing.T, u *partUnions) []string {
-			return u.itemDefault(node, rules, ir.TypeRef{Target: of}, by)
+		return func(_ *testing.T, partUnionsValue *partUnions) []string {
+			return partUnionsValue.itemDefault(node, rules, ir.TypeRef{Target: of}, by)
 		}
 	}
 	for name, pair := range map[string][2]func(*testing.T, *partUnions) []string{

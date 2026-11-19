@@ -481,11 +481,11 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 	stream := openapitest.FindOp(t, doc, "stream")
 	resp := stream.Responses[0]
 	require.NotNil(t, resp.Payload)
-	c := resp.Payload.Contents[0]
-	require.NotNil(t, c.Item, "itemSchema becomes the element type")
-	require.NotNil(t, c.ItemEncoding, "itemEncoding lowered structurally")
-	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
-	assert.True(t, c.ItemEncoding.RepeatsPerArrayItem, "itemEncoding governs a repeated tail")
+	content := resp.Payload.Contents[0]
+	require.NotNil(t, content.Item, "itemSchema becomes the element type")
+	require.NotNil(t, content.ItemEncoding, "itemEncoding lowered structurally")
+	assert.Equal(t, []string{"application/json"}, content.ItemEncoding.ContentTypes)
+	assert.True(t, content.ItemEncoding.RepeatsPerArrayItem, "itemEncoding governs a repeated tail")
 
 	// Empty request-body content lowers to a body naming no media type.
 	empty := openapitest.FindOp(t, doc, "emptyBody")
@@ -497,9 +497,9 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 func multipartEncoding(t *testing.T, op ir.Operation) map[ir.PropertyID]ir.PartEncoding {
 	t.Helper()
 	require.NotNil(t, op.Request)
-	for _, c := range op.Request.Contents {
-		if len(c.Encoding) > 0 {
-			return c.Encoding
+	for _, content := range op.Request.Contents {
+		if len(content.Encoding) > 0 {
+			return content.Encoding
 		}
 	}
 	t.Fatal("no encoding map")
@@ -511,8 +511,8 @@ func multipartEncoding(t *testing.T, op ir.Operation) map[ir.PropertyID]ir.PartE
 func opByPath(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
 	t.Helper()
 	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, op := range operationGroup.Operations {
 			for _, hb := range op.Bindings.HTTP {
 				if hb.Method == method && hb.URITemplate == uri {
 					return op

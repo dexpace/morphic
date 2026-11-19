@@ -25,9 +25,9 @@ type Entry struct {
 
 // Field returns the field e writes under name, and whether it writes one.
 func (e Entry) Field(name string) (Field, bool) {
-	for _, f := range e.Fields {
-		if f.Name == name {
-			return f, true
+	for _, field := range e.Fields {
+		if field.Name == name {
+			return field, true
 		}
 	}
 	return Field{}, false
@@ -83,12 +83,12 @@ func Spans(s string) []string {
 // names no field, a field fields does not list, and a field written twice. An
 // entry ends at the next heading of any level, and fenced code is not read.
 func Parse(text string, fields ...string) ([]Entry, []string) {
-	p := reader{known: fields}
+	readerValue := reader{known: fields}
 	for i, line := range strings.Split(text, "\n") {
-		p.read(i+1, line)
+		readerValue.read(i+1, line)
 	}
-	p.close()
-	return p.entries, p.problems
+	readerValue.close()
+	return readerValue.entries, readerValue.problems
 }
 
 // reader is Parse's state between lines.
@@ -163,7 +163,7 @@ func (p *reader) bullet(n int, line string) {
 		refuse("writes a bullet that names no field: %q", line)
 	case !slices.Contains(p.known, m[1]):
 		refuse("writes a field no reader knows: %q", line)
-	case slices.ContainsFunc(p.cur.Fields, func(f Field) bool { return f.Name == m[1] }):
+	case slices.ContainsFunc(p.cur.Fields, func(field Field) bool { return field.Name == m[1] }):
 		refuse("writes the field %q twice", m[1])
 	default:
 		p.cur.Fields = append(p.cur.Fields, Field{Name: m[1], Line: n, Value: strings.TrimSpace(m[2])})

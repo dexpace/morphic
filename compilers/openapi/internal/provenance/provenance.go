@@ -69,8 +69,8 @@ func (a Attribution) WriterOf(pointer jsontext.Pointer, from []jsontext.Pointer)
 		return own
 	}
 	writer := a.WriterAt(from[0])
-	for _, p := range from[1:] {
-		if a.WriterAt(p) != writer {
+	for _, pointer := range from[1:] {
+		if a.WriterAt(pointer) != writer {
 			return own
 		}
 	}

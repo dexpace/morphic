@@ -114,14 +114,14 @@ func viewOf(t *testing.T, src string) plusView {
 		return cmp.Or(cmp.Compare(a.Code, b.Code), cmp.Compare(a.Provenance.Pointer, b.Provenance.Pointer),
 			cmp.Compare(a.Message, b.Message))
 	})
-	v := plusView{Types: doc.Types, Diagnostics: diags, Responses: map[string]ir.TypeID{}, Components: map[string]ir.TypeID{}}
+	plusViewValue := plusView{Types: doc.Types, Diagnostics: diags, Responses: map[string]ir.TypeID{}, Components: map[string]ir.TypeID{}}
 	for _, name := range []string{"sp", "pl"} {
-		v.Responses[name] = openapitest.BodyTarget(t, openapitest.FindOp(t, doc, name).Responses[0].Payload)
+		plusViewValue.Responses[name] = openapitest.BodyTarget(t, openapitest.FindOp(t, doc, name).Responses[0].Payload)
 	}
 	for _, name := range []string{"Plus", "Escaped", "Space"} {
-		v.Components[name] = useTarget(t, doc, name)
+		plusViewValue.Components[name] = useTarget(t, doc, name)
 	}
-	return v
+	return plusViewValue
 }
 
 // TestCompile_APlusAndAnEscapedPlusAndASpaceKeepTheirOwnTypesInEveryOrder pins
@@ -189,9 +189,9 @@ x-defs:
 `)
 
 	messages := map[string]string{}
-	for _, d := range diags {
-		messages[string(d.Provenance.Pointer)] = d.Message
-		assert.NotContains(t, d.Message, "%2B", "%s", d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		messages[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
+		assert.NotContains(t, diagnostic.Message, "%2B", "%s", diagnostic.Provenance.Pointer)
 	}
 	assert.True(t, strings.HasPrefix(messages["/paths/~1a/get/parameters/0"], `unresolved $ref "#/paths/~1nope+x/get": `))
 	const nothing = ": it names nothing in the document it points into"
@@ -264,8 +264,8 @@ func TestCompile_AReferenceOfEveryKindThroughAPlusKeyIsLoweredWhereItIsDeclared(
 		openapitest.BodyTarget(t, &ir.Payload{Contents: relay.Responses[0].Payload.Contents[:1]}), "the response")
 
 	var mounted []string
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, op := range operationGroup.Operations {
 			if strings.HasPrefix(string(op.ID), "operation/openapi/paths/~1c/") {
 				mounted = append(mounted, string(op.Provenance.Pointer))
 			}
@@ -343,8 +343,8 @@ components:
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		got := make([]string, 0, len(diags))
-		for _, d := range diags {
-			got = append(got, string(d.Provenance.Pointer)+" "+d.Message)
+		for _, diagnostic := range diags {
+			got = append(got, string(diagnostic.Provenance.Pointer)+" "+diagnostic.Message)
 		}
 		slices.Sort(got)
 		reported = append(reported, got)
@@ -398,7 +398,7 @@ paths:
 	put := opWithID(t, doc, "operation/openapi/paths/~1m/put")
 	assert.Equal(t, "putBeside", put.Name.Source)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1a/x-n/put"}, put.Provenance)
-	for _, d := range diags {
-		assert.NotEqual(t, "/paths/~1m", string(d.Provenance.Pointer), "%+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, "/paths/~1m", string(diagnostic.Provenance.Pointer), "%+v", diagnostic)
 	}
 }

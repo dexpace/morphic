@@ -102,14 +102,14 @@ func chainOf(depth int) string {
 }
 
 // decodedAt decodes src as the parser decodes a schema and records it, and
-// everything below it, at p, as the source's walk records its schemas.
-func decodedAt(t *testing.T, bd *Builder, src string, p reftable.DocumentPointer) {
+// everything below it, at documentPointer, as the source's walk records its schemas.
+func decodedAt(t *testing.T, bd *Builder, src string, documentPointer reftable.DocumentPointer) {
 	t.Helper()
 	var n yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &n))
 	js := &schemaRef{}
 	require.NoError(t, bd.decode(t.Context(), n.Content[0], js))
-	bd.Walk(t.Context(), js, p)
+	bd.Walk(t.Context(), js, documentPointer)
 }
 
 // TestMend_DecodesAgainAMappingTheParserReadAsFalse pins mend: a schema the

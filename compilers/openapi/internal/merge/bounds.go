@@ -51,16 +51,16 @@ func sameBounds(a, b *ir.Constraints) bool {
 		!slices.ContainsFunc(constraintKeywords, func(kw constraintKeyword) bool { return !kw.same(a, b) })
 }
 
-// boundsBeyond returns what c says that own does not: c without each keyword own
-// states at the value c holds. It writes to neither.
-func boundsBeyond(c, own *ir.Constraints) *ir.Constraints {
-	beyond := *c
+// boundsBeyond returns what constraints says that own does not: constraints without each keyword own
+// states at the value constraints holds. It writes to neither.
+func boundsBeyond(constraints, own *ir.Constraints) *ir.Constraints {
+	beyond := *constraints
 	for _, kw := range constraintKeywords {
-		if kw.same(c, own) {
+		if kw.same(constraints, own) {
 			kw.clear(&beyond)
 		}
 	}
-	beyond.UniqueItems = c.UniqueItems && !own.UniqueItems
+	beyond.UniqueItems = constraints.UniqueItems && !own.UniqueItems
 	return &beyond
 }
 
@@ -81,26 +81,26 @@ func boundsOf(td ir.TypeDef) *ir.Constraints {
 	}
 }
 
-// withBounds returns a copy of td holding c, and td itself where boundsOf reads
+// withBounds returns a copy of td holding constraints, and td itself where boundsOf reads
 // none of its kind. The copy shares the rest of td, which is read and never
 // written: an editor clones a node before changing it.
-func withBounds(td ir.TypeDef, c *ir.Constraints) ir.TypeDef {
+func withBounds(td ir.TypeDef, constraints *ir.Constraints) ir.TypeDef {
 	switch n := td.(type) {
 	case *ir.Scalar:
 		own := *n
-		own.Constraints = c
+		own.Constraints = constraints
 		return &own
 	case *ir.List:
 		own := *n
-		own.Constraints = c
+		own.Constraints = constraints
 		return &own
 	case *ir.MapT:
 		own := *n
-		own.Constraints = c
+		own.Constraints = constraints
 		return &own
 	case *ir.Tuple:
 		own := *n
-		own.Constraints = c
+		own.Constraints = constraints
 		return &own
 	default:
 		return td
@@ -116,47 +116,47 @@ func withBounds(td ir.TypeDef, c *ir.Constraints) ir.TypeDef {
 func meetConstraints(sets []*ir.Constraints, disagree func(i, kept int, detail string)) *ir.Constraints {
 	setBy := make([]int, len(constraintKeywords))
 	var kept *ir.Constraints
-	for i, c := range slices.Backward(sets) {
-		if c == nil {
+	for i, constraints := range slices.Backward(sets) {
+		if constraints == nil {
 			continue
 		}
-		if k, detail, conflict := constraintsConflict(kept, c); conflict {
+		if k, detail, conflict := constraintsConflict(kept, constraints); conflict {
 			disagree(i, setBy[k], detail)
 		}
 		for k, kw := range constraintKeywords {
-			if kw.set(c) && (kept == nil || !kw.set(kept)) {
+			if kw.set(constraints) && (kept == nil || !kw.set(kept)) {
 				setBy[k] = i
 			}
 		}
 		if kept == nil {
-			own := *c
+			own := *constraints
 			kept = &own
 			continue
 		}
-		kept = Constraints(kept, c)
+		kept = Constraints(kept, constraints)
 	}
 	return kept
 }
 
 // nodeBounds returns the constraints on the node ref names.
-func nodeBounds(j typeJudge, ref ir.TypeRef) *ir.Constraints {
-	td, ok := j.resolve(ref.Target)
+func nodeBounds(typeJudgeValue typeJudge, ref ir.TypeRef) *ir.Constraints {
+	td, ok := typeJudgeValue.resolve(ref.Target)
 	if !ok {
 		return nil
 	}
 	return boundsOf(td)
 }
 
-// allBounds returns the bounds p holds and those on its type's node together.
-func allBounds(j typeJudge, p *ir.Property) *ir.Constraints {
+// allBounds returns the bounds property holds and those on its type's node together.
+func allBounds(typeJudgeValue typeJudge, property *ir.Property) *ir.Constraints {
 	var all ir.Constraints
-	return Constraints(Constraints(&all, p.Constraints), nodeBounds(j, p.Type))
+	return Constraints(Constraints(&all, property.Constraints), nodeBounds(typeJudgeValue, property.Type))
 }
 
 // sameTypeIgnoringBounds reports whether a and b are one type but for the bounds their nodes hold:
 // the judgment on the two with those bounds set aside.
-func sameTypeIgnoringBounds(j typeJudge, a, b ir.TypeRef) bool {
-	at, aok := j.resolve(a.Target)
-	bt, bok := j.resolve(b.Target)
-	return aok && bok && j.boundedNodes(withBounds(at, nil), withBounds(bt, nil), 0) == relSame
+func sameTypeIgnoringBounds(typeJudgeValue typeJudge, a, b ir.TypeRef) bool {
+	at, aok := typeJudgeValue.resolve(a.Target)
+	bt, bok := typeJudgeValue.resolve(b.Target)
+	return aok && bok && typeJudgeValue.boundedNodes(withBounds(at, nil), withBounds(bt, nil), 0) == relSame
 }

@@ -53,10 +53,10 @@ type admissionReader struct {
 	compared func()
 }
 
-// newAdmissionReader returns a read with the whole budget, in the dialect c reads its
+// newAdmissionReader returns a read with the whole budget, in the dialect loweringContext reads its
 // schemas in. It returns a value so the read lives on its caller's stack.
-func newAdmissionReader(c lowering.Ctx) admissionReader {
-	return admissionReader{c: c, nullable: c.SchemaRules().Defines("nullable"),
+func newAdmissionReader(loweringContext lowering.Ctx) admissionReader {
+	return admissionReader{c: loweringContext, nullable: loweringContext.SchemaRules().Defines("nullable"),
 		reads: budget.New(budget.AtMost(maxAdmissionReads)), members: budget.New(budget.AtMost(maxAdmissionMembers))}
 }
 
@@ -73,30 +73,30 @@ func (w *admissionReader) incomplete() bool { return w.reads.Exhausted() || w.me
 // A $dynamicRef the read meets masks no kind: one the position expands is read
 // as what it names, and any other admits every kind.
 func (w *admissionReader) of(js *statement.Statement) admitted {
-	r := admissionOf(w.c, js)
-	w.reads.Spend(r.reads)
-	w.members.Spend(r.members)
-	if r.cut {
+	admission := admissionOf(w.c, js)
+	w.reads.Spend(admission.reads)
+	w.members.Spend(admission.members)
+	if admission.cut {
 		w.cut = true
 		w.reads.Exhaust()
 	}
-	return r.admitted
+	return admission.admitted
 }
 
-// lowered is what js admits as the node it lowers to does: what w reads of it,
+// lowered is what js admits as the node it lowers to does: what admissionReaderValue reads of it,
 // narrowed to the kinds the kind-inference policy read off shape keywords
 // where nothing js declares names a kind (loweredAs). An election weighs what
 // each conjunct declares, and reads admissionReader.of; a reader asking whether a
 // position already says what a keyword does reads this.
-func lowered(w *admissionReader, js *statement.Statement) admitted {
-	return loweredAs(w.c, js, w.of(js))
+func lowered(admissionReaderValue *admissionReader, js *statement.Statement) admitted {
+	return loweredAs(admissionReaderValue.c, js, admissionReaderValue.of(js))
 }
 
 // loweredAs is read, what js admits, narrowed to the kinds js lowers to where
 // the kind-inference policy read them (lowersTo), as the node it lowers to
 // excludes every other kind.
-func loweredAs(c lowering.Ctx, js *statement.Statement, read admitted) admitted {
-	if kinds, inferred := lowersTo(c, js); inferred {
+func loweredAs(loweringContext lowering.Ctx, js *statement.Statement, read admitted) admitted {
+	if kinds, inferred := lowersTo(loweringContext, js); inferred {
 		read.kinds &= kinds
 	}
 	return read
@@ -108,29 +108,29 @@ func loweredAs(c lowering.Ctx, js *statement.Statement, read admitted) admitted 
 // the keywords js writes itself (claimedKinds), else every kind. The election,
 // the readers of what a position already says and the lowering of a schema
 // naming no kind each read a statement's kinds here.
-func lowersTo(c lowering.Ctx, js *statement.Statement) (kindSet, bool) {
-	r := admissionOf(c, js)
-	if !r.cut {
-		return r.kinds, r.inferred
+func lowersTo(loweringContext lowering.Ctx, js *statement.Statement) (kindSet, bool) {
+	admission := admissionOf(loweringContext, js)
+	if !admission.cut {
+		return admission.kinds, admission.inferred
 	}
-	if claims := claimedKinds(c, js.Schema); claims != 0 {
+	if claims := claimedKinds(loweringContext, js.Schema); claims != 0 {
 		return claims, true
 	}
 	return anyInstance, false
 }
 
-// writtenLowered is what s's own keywords admit as w reads them
+// writtenLowered is what schema's own keywords admit as admissionReaderValue reads them
 // (admissionReader.written), narrowed, where it writes no type, to the kinds it
 // lowers to (untypedKinds): those its conjuncts declare where its keywords
 // speak of them, else those the kind-inference policy reads off them. So a
 // body beside branches each declaring an object admits what it would writing
 // `type: object`.
-func writtenLowered(w *admissionReader, s *statement.Schema, nullable bool) admitted {
-	read := w.written(s, nullable)
-	if writesType(s) {
+func writtenLowered(admissionReaderValue *admissionReader, schema *statement.Schema, nullable bool) admitted {
+	read := admissionReaderValue.written(schema, nullable)
+	if writesType(schema) {
 		return read
 	}
-	if kinds, _ := untypedKinds(w.c, s); kinds != 0 {
+	if kinds, _ := untypedKinds(admissionReaderValue.c, schema); kinds != 0 {
 		read.kinds &= kinds
 	}
 	return read
@@ -164,12 +164,12 @@ func newDeclarationSet() declarationSet {
 	return declarationSet{properties: map[string]*place{}}
 }
 
-// add records s and its `items`. An s holding no schema object, a boolean
+// add records schema and its `items`. An schema holding no schema object, a boolean
 // schema's, declares nothing: it writes no `items` and no property
 // (statement.Schema.Property).
-func (d *declarationSet) add(t *statement.MemoizingSchemaReader, s *statement.Schema) {
-	d.schemas = append(d.schemas, s)
-	if items := t.Subschema(itemsSchema(s)); items.Truth != statement.Unwritten {
+func (d *declarationSet) add(memoizingSchemaReader *statement.MemoizingSchemaReader, schema *statement.Schema) {
+	d.schemas = append(d.schemas, schema)
+	if items := memoizingSchemaReader.Subschema(itemsSchema(schema)); items.Truth != statement.Unwritten {
 		if d.items == nil {
 			d.items = &place{}
 		}
@@ -178,40 +178,40 @@ func (d *declarationSet) add(t *statement.MemoizingSchemaReader, s *statement.Sc
 }
 
 // property returns the place of the property name, nil where no schema of d
-// declares it, gathered once and read from t.
-func (d *declarationSet) property(t *statement.MemoizingSchemaReader, name string) *place {
+// declares it, gathered once and read from memoizingSchemaReader.
+func (d *declarationSet) property(memoizingSchemaReader *statement.MemoizingSchemaReader, name string) *place {
 	if at, ok := d.properties[name]; ok {
 		return at
 	}
 	var at *place
-	for _, s := range d.schemas {
-		if p, ok := s.Property(name); ok {
+	for _, schema := range d.schemas {
+		if subschema, ok := schema.Property(name); ok {
 			if at == nil {
 				at = &place{}
 			}
-			at.decls = append(at.decls, t.Subschema(p))
+			at.decls = append(at.decls, memoizingSchemaReader.Subschema(subschema))
 		}
 	}
 	d.properties[name] = at
 	return at
 }
 
-// declarationsOf returns what s declares: itself, each allOf conjunct and what
-// a $ref lands on, read as w reads them and within the same budget.
-func declarationsOf(w *admissionReader, s *statement.Schema) declarationSet {
+// declarationsOf returns what schema declares: itself, each allOf conjunct and what
+// a $ref lands on, read as admissionReaderValue reads them and within the same budget.
+func declarationsOf(admissionReaderValue *admissionReader, schema *statement.Schema) declarationSet {
 	out := newDeclarationSet()
-	out.add(w.c.Statements(), s)
-	out.declare(w, conjunctsIn(w.c, s))
+	out.add(admissionReaderValue.c.Statements(), schema)
+	out.declare(admissionReaderValue, conjunctsIn(admissionReaderValue.c, schema))
 	return out
 }
 
-// admits returns what p's declarations admit together, as w reads them, read
+// admits returns what p's declarations admit together, as admissionReaderValue reads them, read
 // once.
-func (p *place) admits(w *admissionReader) admitted {
+func (p *place) admits(admissionReaderValue *admissionReader) admitted {
 	if p.held == nil {
-		held := lowered(w, p.decls[0])
-		for _, d := range p.decls[1:] {
-			held = held.and(lowered(w, d))
+		held := lowered(admissionReaderValue, p.decls[0])
+		for _, schemaStatement := range p.decls[1:] {
+			held = held.and(lowered(admissionReaderValue, schemaStatement))
 		}
 		p.held = &held
 	}
@@ -220,10 +220,10 @@ func (p *place) admits(w *admissionReader) admitted {
 
 // declares returns what p's declarations declare together, as declarationsOf
 // reads one, read once.
-func (p *place) declares(w *admissionReader) declarationSet {
+func (p *place) declares(admissionReaderValue *admissionReader) declarationSet {
 	if p.inner == nil {
 		inner := newDeclarationSet()
-		inner.declare(w, slices.Clone(p.decls))
+		inner.declare(admissionReaderValue, slices.Clone(p.decls))
 		p.inner = &inner
 	}
 	return *p.inner
@@ -235,14 +235,14 @@ func (p *place) declares(w *admissionReader) declarationSet {
 // budget or a $ref landing nowhere, is one fewer to restate, which errs towards
 // shape. The walk keeps its own stack, so it adds no recursion cycle, and the
 // order of each list is no answer.
-func (d *declarationSet) declare(w *admissionReader, stack []*statement.Statement) {
-	for len(stack) > 0 && w.reads.Spend(1) {
+func (d *declarationSet) declare(admissionReaderValue *admissionReader, stack []*statement.Statement) {
+	for len(stack) > 0 && admissionReaderValue.reads.Spend(1) {
 		st := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		d.composed = append(d.composed, st)
-		d.add(w.c.Statements(), st.Schema)
-		stack = append(stack, conjunctsIn(w.c, st.Schema)...)
-		if next, _ := declaredOf(w.c, st); next != nil {
+		d.add(admissionReaderValue.c.Statements(), st.Schema)
+		stack = append(stack, conjunctsIn(admissionReaderValue.c, st.Schema)...)
+		if next, _ := declaredOf(admissionReaderValue.c, st); next != nil {
 			stack = append(stack, next)
 		}
 	}
@@ -250,10 +250,10 @@ func (d *declarationSet) declare(w *admissionReader, stack []*statement.Statemen
 
 // statementsOf returns the statements of the schemas list names, in its
 // order.
-func statementsOf(c lowering.Ctx, list []statement.Subschema) []*statement.Statement {
+func statementsOf(loweringContext lowering.Ctx, list []statement.Subschema) []*statement.Statement {
 	out := make([]*statement.Statement, len(list))
 	for i, b := range list {
-		out[i] = c.Statements().Subschema(b)
+		out[i] = loweringContext.Statements().Subschema(b)
 	}
 	return out
 }
@@ -268,37 +268,37 @@ func (w *admissionReader) union(branches []statement.Subschema) admitted {
 }
 
 // definesNullableAt reports whether the dialect of the document holding js
-// defines nullable: where c's bindings place js, that document's, and c's own
+// defines nullable: where loweringContext's bindings place js, that document's, and loweringContext's own
 // for a schema they do not place.
-func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
+func definesNullableAt(loweringContext lowering.Ctx, js *statement.Statement) bool {
 	at, ok := siteOf(js.Schema)
 	if !ok {
-		return c.SchemaRules().Defines("nullable")
+		return loweringContext.SchemaRules().Defines("nullable")
 	}
-	return definesNullableIn(c, at.Doc)
+	return definesNullableIn(loweringContext, at.Doc)
 }
 
-// written reads the keywords s itself writes that say what a value is, in a
+// written reads the keywords schema itself writes that say what a value is, in a
 // dialect defining nullable where nullable says: `type`, which a `nullable`
 // adds null to there, `format`, `enum`, `const` and `items`. A schema in c's
 // document is read in w.nullable's dialect.
-func (w *admissionReader) written(s *statement.Schema, nullable bool) admitted {
-	out := admitted{kinds: writtenKinds(s, nullable)}
+func (w *admissionReader) written(schema *statement.Schema, nullable bool) admitted {
+	out := admitted{kinds: writtenKinds(schema, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
-	if items := w.c.Statements().Subschema(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
+	if items := w.c.Statements().Subschema(itemsSchema(schema)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
 		out.items = items
 	}
-	if form, ok := formOf(s); ok {
+	if form, ok := formOf(schema); ok {
 		out.forms = []scalarForm{form}
 		if form.listed && form.prim.StrictlyWithin(ir.PrimitiveInteger) {
 			out.kinds &= kindInteger | kindNull
 		}
 	}
-	if enumWritten(s) {
-		out = out.and(w.valueSet(valueSetOf{s, "enum"}, s.Enum()))
+	if enumWritten(schema) {
+		out = out.and(w.valueSet(valueSetOf{schema, "enum"}, schema.Enum()))
 	}
-	if constant := s.Const(); constant != nil {
-		out = out.and(w.valueSet(valueSetOf{s, "const"}, []*yaml.Node{constant}))
+	if constant := schema.Const(); constant != nil {
+		out = out.and(w.valueSet(valueSetOf{schema, "const"}, []*yaml.Node{constant}))
 	}
 	return out
 }
@@ -308,27 +308,27 @@ func (w *admissionReader) written(s *statement.Schema, nullable bool) admitted {
 // nullable says. A schema writing none, a null `type` among them (writesType),
 // admits every kind, whatever shape keywords it writes: each passes an
 // instance of another kind (docs/compilers/openapi.md#shape-applicator).
-func writtenKinds(s *statement.Schema, nullable bool) kindSet {
-	if !writesType(s) {
+func writtenKinds(schema *statement.Schema, nullable bool) kindSet {
+	if !writesType(schema) {
 		return kindAny
 	}
 	var out kindSet
-	for _, t := range s.Types() {
-		out |= kindOfType(t)
+	for _, jsonSchemaTypeName := range schema.Types() {
+		out |= kindOfType(jsonSchemaTypeName)
 	}
-	if nullable && nullableTrue(s) {
+	if nullable && nullableTrue(schema) {
 		out |= kindNull
 	}
 	return out
 }
 
-// formOf returns the format s holds a value to. The redaction names no shape.
-func formOf(s *statement.Schema) (scalarForm, bool) {
-	format := s.FormatName()
-	if format == "" || annotation.DeclaresRedaction(s) {
+// formOf returns the format schema holds a value to. The redaction names no shape.
+func formOf(schema *statement.Schema) (scalarForm, bool) {
+	format := schema.FormatName()
+	if format == "" || annotation.DeclaresRedaction(schema) {
 		return scalarForm{}, false
 	}
-	prim, listed := formatPrimitive(s)
+	prim, listed := formatPrimitive(schema)
 	return scalarForm{spelled: format, prim: prim, listed: listed}, true
 }
 
@@ -364,20 +364,20 @@ func (w *admissionReader) valueSet(key valueSetOf, members []*yaml.Node) admitte
 
 // memberSetOf returns the members of the set key names, members, read once a
 // run.
-func memberSetOf(c lowering.Ctx, key valueSetOf, members []*yaml.Node) memberSet {
-	return lowering.ReadOncePerRun(c, key, func() memberSet { return readMembers(members) })
+func memberSetOf(loweringContext lowering.Ctx, key valueSetOf, members []*yaml.Node) memberSet {
+	return lowering.ReadOncePerRun(loweringContext, key, func() memberSet { return readMembers(members) })
 }
 
-// valueKinds returns the kinds the enum and the const s writes leave, null
+// valueKinds returns the kinds the enum and the const schema writes leave, null
 // aside: every kind where it writes neither, and none for a set no reading
 // converts, which cuts the read (readOwn).
-func valueKinds(c lowering.Ctx, s *statement.Schema) kindSet {
+func valueKinds(loweringContext lowering.Ctx, schema *statement.Schema) kindSet {
 	kinds := anyInstance
-	if enumWritten(s) {
-		kinds &= memberSetOf(c, valueSetOf{s, "enum"}, s.Enum()).kinds
+	if enumWritten(schema) {
+		kinds &= memberSetOf(loweringContext, valueSetOf{schema, "enum"}, schema.Enum()).kinds
 	}
-	if constant := s.Const(); constant != nil {
-		kinds &= memberSetOf(c, valueSetOf{s, "const"}, []*yaml.Node{constant}).kinds
+	if constant := schema.Const(); constant != nil {
+		kinds &= memberSetOf(loweringContext, valueSetOf{schema, "const"}, []*yaml.Node{constant}).kinds
 	}
 	return kinds
 }
@@ -424,23 +424,23 @@ func (w *admissionReader) restates(held admitted, from, js *statement.Statement)
 	if js.Truth != statement.Stated || w.reads.Exhausted() {
 		return false
 	}
-	return !slices.ContainsFunc(js.Keys, func(k statement.Key) bool {
-		return !annotation.WritesKeywordLeftOut(js.Schema, k.Name) && !w.holds(held, js.Schema, k.Name)
+	return !slices.ContainsFunc(js.Keys, func(key statement.Key) bool {
+		return !annotation.WritesKeywordLeftOut(js.Schema, key.Name) && !w.holds(held, js.Schema, key.Name)
 	})
 }
 
-// holds reports whether what held admits says all that s's keyword key does, so
+// holds reports whether what held admits says all that schema's keyword key does, so
 // a position lowered to held loses nothing leaving it unread.
-func (w *admissionReader) holds(held admitted, s *statement.Schema, key string) bool {
+func (w *admissionReader) holds(held admitted, schema *statement.Schema, key string) bool {
 	switch key {
 	case "type":
-		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.nullable)})
+		return held.kindsWithin(admitted{kinds: writtenKinds(schema, w.nullable)})
 	case "format":
-		return held.formsWithin(w.written(s, w.nullable))
+		return held.formsWithin(w.written(schema, w.nullable))
 	case "enum", "const":
-		return held.valuesWithin(w.written(s, w.nullable))
+		return held.valuesWithin(w.written(schema, w.nullable))
 	case "items":
-		return w.itemsWithin(held, w.written(s, w.nullable))
+		return w.itemsWithin(held, w.written(schema, w.nullable))
 	default:
 		return false
 	}

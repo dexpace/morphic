@@ -49,23 +49,23 @@ type useFacts struct {
 // conventionFacts gathers useFacts for every operation of doc, its
 // parameters and its responses' headers.
 func conventionFacts(doc *ir.Document) map[string]useFacts {
-	replaced := func(d *ir.Deprecation) []ir.EntityRef {
-		if d == nil {
+	replaced := func(deprecation *ir.Deprecation) []ir.EntityRef {
+		if deprecation == nil {
 			return nil
 		}
-		return d.ReplacedBy
+		return deprecation.ReplacedBy
 	}
 	facts := map[string]useFacts{}
 	for _, op := range allOperations(doc) {
 		facts[string(op.ID)] = useFacts{Idempotency: op.Idempotency, ReplacedBy: replaced(op.Deprecation),
 			Inferred: op.Provenance.Inferred}
-		for _, p := range op.Params {
-			facts[string(p.ID)] = useFacts{Secret: p.Secret, ReplacedBy: replaced(p.Deprecation),
-				Inferred: p.Provenance.Inferred}
+		for _, parameter := range op.Params {
+			facts[string(parameter.ID)] = useFacts{Secret: parameter.Secret, ReplacedBy: replaced(parameter.Deprecation),
+				Inferred: parameter.Provenance.Inferred}
 		}
-		for _, r := range op.Responses {
-			for _, h := range r.Headers {
-				facts[string(h.ID)] = useFacts{Secret: h.Secret, Encoding: h.Encoding, Inferred: h.Provenance.Inferred}
+		for _, response := range op.Responses {
+			for _, header := range response.Headers {
+				facts[string(header.ID)] = useFacts{Secret: header.Secret, Encoding: header.Encoding, Inferred: header.Provenance.Inferred}
 			}
 		}
 	}
@@ -91,9 +91,9 @@ func TestConventions_DeclarationOrderChangesNothing(t *testing.T) {
 			assert.Empty(t, cmp.Diff(facts, conventionFacts(backward)))
 			assert.Empty(t, cmp.Diff(conventionReports(writtenDiags), conventionReports(backwardDiags)))
 			filled := 0
-			for _, f := range facts {
+			for _, useFacts := range facts {
 				for _, mark := range conventionMarks {
-					if strings.Contains(string(f.Inferred), string(mark)) {
+					if strings.Contains(string(useFacts.Inferred), string(mark)) {
 						filled++
 					}
 				}
@@ -107,9 +107,9 @@ func TestConventions_DeclarationOrderChangesNothing(t *testing.T) {
 // pointer and message, sorted: a reversed source moves every line.
 func conventionReports(diags []ir.Diagnostic) []string {
 	var out []string
-	for _, d := range diags {
-		if slices.Contains(conventionCodes, d.Code) {
-			out = append(out, d.Code+" "+string(d.Provenance.Pointer)+" "+d.Message)
+	for _, diagnostic := range diags {
+		if slices.Contains(conventionCodes, diagnostic.Code) {
+			out = append(out, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer)+" "+diagnostic.Message)
 		}
 	}
 	slices.Sort(out)
@@ -140,19 +140,19 @@ func TestConventions_DisabledFillsNothing(t *testing.T) {
 			for _, code := range conventionCodes {
 				assert.False(t, openapitest.HasDiag(diags, code), code)
 			}
-			for id, f := range conventionFacts(doc) {
+			for id, useFacts := range conventionFacts(doc) {
 				for _, mark := range conventionMarks {
-					assert.NotContains(t, string(f.Inferred), string(mark), id)
+					assert.NotContains(t, string(useFacts.Inferred), string(mark), id)
 				}
 			}
 			for id, td := range doc.Types {
-				m, ok := td.(*ir.Model)
+				model, ok := td.(*ir.Model)
 				if !ok {
 					continue
 				}
-				for _, p := range m.Properties {
+				for _, property := range model.Properties {
 					for _, mark := range conventionMarks {
-						assert.NotContains(t, string(p.Provenance.Inferred), string(mark), "%s %s", id, p.ID)
+						assert.NotContains(t, string(property.Provenance.Inferred), string(mark), "%s %s", id, property.ID)
 					}
 				}
 			}

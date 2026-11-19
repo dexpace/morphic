@@ -83,9 +83,9 @@ func (g *grafter) flatten(ctx context.Context, m *yaml.Node) error {
 			written[key] = true
 		}
 	}
-	for _, p := range pairs {
-		if !written[p.Key] {
-			brought = append(brought, keys[p], p.Val)
+	for _, pair := range pairs {
+		if !written[pair.Key] {
+			brought = append(brought, keys[pair], pair.Val)
 		}
 	}
 	size := 0
@@ -154,8 +154,8 @@ func mergedKeys(m *yaml.Node) map[nodeview.Pair]*yaml.Node {
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			if !nodeview.IsMergeKey(n.Content[i]) {
 				key, _ := nodeview.KeyOf(n.Content[i])
-				if p := (nodeview.Pair{Key: key, Val: nodeview.Deref(n.Content[i+1])}); keys[p] == nil {
-					keys[p] = n.Content[i]
+				if pair := (nodeview.Pair{Key: key, Val: nodeview.Deref(n.Content[i+1])}); keys[pair] == nil {
+					keys[pair] = n.Content[i]
 				}
 				continue
 			}
@@ -190,15 +190,15 @@ func (g *grafter) copyTree(n *yaml.Node, moved bool) *yaml.Node {
 	type pair struct{ from, to *yaml.Node }
 	root := g.copyNode(n, moved)
 	for stack := []pair{{n, root}}; len(stack) > 0; {
-		p := stack[len(stack)-1]
+		pairValue := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if len(p.from.Content) == 0 {
+		if len(pairValue.from.Content) == 0 {
 			continue
 		}
-		p.to.Content = make([]*yaml.Node, len(p.from.Content))
-		for i, c := range p.from.Content {
-			p.to.Content[i] = g.copyNode(c, moved)
-			stack = append(stack, pair{c, p.to.Content[i]})
+		pairValue.to.Content = make([]*yaml.Node, len(pairValue.from.Content))
+		for i, c := range pairValue.from.Content {
+			pairValue.to.Content[i] = g.copyNode(c, moved)
+			stack = append(stack, pair{c, pairValue.to.Content[i]})
 		}
 	}
 	return root

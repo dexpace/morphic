@@ -81,9 +81,9 @@ func cycleRefusals(t *testing.T, data []byte) []string {
 		compilers.Options{})
 	require.NoError(t, err)
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.CyclicRef || d.Code == diag.CycleScanFailed {
-			out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.CyclicRef || diagnostic.Code == diag.CycleScanFailed {
+			out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Code, diagnostic.Provenance.Pointer, diagnostic.Message))
 		}
 	}
 	slices.Sort(out)

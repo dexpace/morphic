@@ -42,10 +42,10 @@ func TestValue_JSONRoundTrip(t *testing.T) {
 			Args:   []ir.Value{{Kind: ir.ValueString, String: "2024-05-06"}},
 		}},
 	}
-	for name, v := range cases {
+	for name, value := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			raw, err := json.Marshal(v)
+			raw, err := json.Marshal(value)
 			require.NoError(t, err)
 			var got ir.Value
 			require.NoError(t, json.Unmarshal(raw, &got))
@@ -54,7 +54,7 @@ func TestValue_JSONRoundTrip(t *testing.T) {
 			// indistinguishably from nil and decode back nil; EquateEmpty makes
 			// that the pass condition instead of exact struct reproduction, which
 			// would fail an empty-but-non-nil payload against the nil it decoded to.
-			assert.Empty(t, cmp.Diff(v, got, cmpopts.EquateEmpty()), "JSON round-trip must reproduce the original value")
+			assert.Empty(t, cmp.Diff(value, got, cmpopts.EquateEmpty()), "JSON round-trip must reproduce the original value")
 		})
 	}
 }
@@ -84,8 +84,8 @@ func TestValue_EmptyPayloadHasOneSpelling(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			for _, v := range []ir.Value{tt.empty, tt.absent} {
-				raw, err := json.Marshal(v)
+			for _, value := range []ir.Value{tt.empty, tt.absent} {
+				raw, err := json.Marshal(value)
 				require.NoError(t, err)
 				assert.Equal(t, tt.want, string(raw))
 			}

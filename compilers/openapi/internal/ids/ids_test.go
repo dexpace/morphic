@@ -109,10 +109,10 @@ func TestPtr_TokensRoundTripAndValidate(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := ids.Ptr(tc.tokens...)
-			assert.Equal(t, tc.tokens, slices.Collect(p.Tokens()),
-				"escaping %q produced %q, which does not come back", tc.tokens, p)
-			assert.True(t, p.IsValid(), "%q is not a valid RFC 6901 pointer", p)
+			pointer := ids.Ptr(tc.tokens...)
+			assert.Equal(t, tc.tokens, slices.Collect(pointer.Tokens()),
+				"escaping %q produced %q, which does not come back", tc.tokens, pointer)
+			assert.True(t, pointer.IsValid(), "%q is not a valid RFC 6901 pointer", pointer)
 		})
 	}
 }

@@ -28,11 +28,11 @@ func stringValues(n int) []ir.Value {
 // level below twice, so the two elements share one backing array and the tree
 // the encoding writes has 2^depth leaves.
 func doublingValue(depth int) ir.Value {
-	v := ir.Value{Kind: ir.ValueNull}
+	value := ir.Value{Kind: ir.ValueNull}
 	for range depth {
-		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v, v}}
+		value = ir.Value{Kind: ir.ValueList, List: []ir.Value{value, value}}
 	}
-	return v
+	return value
 }
 
 // sharedExamples returns 21 examples holding a list of 200 strings: the first
@@ -90,10 +90,10 @@ func TestWalkValues_ReadsToItsLimit(t *testing.T) {
 		{12, limit, true},
 		{14, limit, true},
 	} {
-		v := doublingValue(tc.depth)
+		value := doublingValue(tc.depth)
 		var counting shownCounter
 
-		cut := ir.WalkValuesWithin(limit, &v, "document", &counting)
+		cut := ir.WalkValuesWithin(limit, &value, "document", &counting)
 
 		assert.Equal(t, tc.wantShown, counting.n, "depth %d: values shown", tc.depth)
 		assert.Equal(t, tc.wantCut, cut, "depth %d: whether the walk stopped", tc.depth)
@@ -145,11 +145,11 @@ func TestWalkValues_ASharedPointerIsReadFromEveryHolder(t *testing.T) {
 // the other in Value, each a constructor whose arguments are a list of 300
 // strings and the constructor itself, both through one pointer.
 func cycleExamples() []ir.Example {
-	d := &ir.ConstructorValue{Scalar: "type/s", Args: []ir.Value{{Kind: ir.ValueList, List: stringValues(300)}}}
-	d.Args = append(d.Args, ir.Value{Kind: ir.ValueConstructor, Constructor: d})
+	constructorValue := &ir.ConstructorValue{Scalar: "type/s", Args: []ir.Value{{Kind: ir.ValueList, List: stringValues(300)}}}
+	constructorValue.Args = append(constructorValue.Args, ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue})
 	return []ir.Example{
-		{Name: "h", Headers: &ir.Value{Kind: ir.ValueConstructor, Constructor: d}},
-		{Name: "v", Value: &ir.Value{Kind: ir.ValueConstructor, Constructor: d}},
+		{Name: "h", Headers: &ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}},
+		{Name: "v", Value: &ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}},
 	}
 }
 
@@ -228,9 +228,9 @@ func TestWalkValues_AVisitorIsShownTheSameWalkBesideOthers(t *testing.T) {
 		counters, visitors := countersOf(130)
 		assert.True(t, ir.WalkValuesWithin(limit, &root, "document", visitors...))
 		var total int
-		for i, c := range counters {
-			assert.Equal(t, limit, c.n, "visitor %d", i)
-			total += c.n
+		for i, shownCounter := range counters {
+			assert.Equal(t, limit, shownCounter.n, "visitor %d", i)
+			total += shownCounter.n
 		}
 		assert.Equal(t, 195_000, total)
 	})

@@ -18,14 +18,14 @@ import (
 // another document is read apart: its $refs resolve against that document, and
 // its dialect may differ (docs/compilers/openapi.md#openapi-versions). A schema
 // placed nowhere, a nil one among them, is written alike with none.
-func sameText(c lowering.Ctx, a, b *statement.Statement) bool {
+func sameText(loweringContext lowering.Ctx, a, b *statement.Statement) bool {
 	at, placed := siteOf(a.Schema)
 	bt, placedB := siteOf(b.Schema)
 	if !placed || !placedB || at.Doc != bt.Doc {
 		return false
 	}
-	text := writtenText(c, a)
-	if text == nil || !bytes.Equal(text, writtenText(c, b)) {
+	text := writtenText(loweringContext, a)
+	if text == nil || !bytes.Equal(text, writtenText(loweringContext, b)) {
 		return false
 	}
 	// The texts are remembered, so comparing them first leaves a base, which
@@ -33,8 +33,8 @@ func sameText(c lowering.Ctx, a, b *statement.Statement) bool {
 	if !annotation.WritesReference(text) {
 		return true
 	}
-	base, known := c.Bindings().Table().Base(at)
-	other, knownB := c.Bindings().Table().Base(bt)
+	base, known := loweringContext.Bindings().Table().Base(at)
+	other, knownB := loweringContext.Bindings().Table().Base(bt)
 	return known && knownB && base == other
 }
 
@@ -45,8 +45,8 @@ type textOf struct {
 
 // writtenText renders js, nil where it cannot be rendered. Every position
 // restating a shared schema asks, so it is rendered once a run.
-func writtenText(c lowering.Ctx, js *statement.Statement) ir.RawValue {
-	return lowering.ReadOncePerRun(c, textOf{js}, func() ir.RawValue {
+func writtenText(loweringContext lowering.Ctx, js *statement.Statement) ir.RawValue {
+	return lowering.ReadOncePerRun(loweringContext, textOf{js}, func() ir.RawValue {
 		raw, err := annotation.RawFromNode(js.Node)
 		if err != nil {
 			return nil

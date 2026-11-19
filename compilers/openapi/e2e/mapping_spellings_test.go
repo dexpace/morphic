@@ -127,8 +127,8 @@ func mappingDiags(t *testing.T, dir, src string, external bool) []string {
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}}, opts)
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out

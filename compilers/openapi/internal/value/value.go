@@ -28,8 +28,8 @@ const maxValueDepth = 128
 // bound an error, an example that will not convert a warning, and holds the
 // provenance (GitHub #169).
 func FromNode(node *yaml.Node) (ir.Value, error) {
-	c := converter{view: nodeview.New()}
-	return c.value(node, 0)
+	converterValue := converter{view: nodeview.New()}
+	return converterValue.value(node, 0)
 }
 
 // converter is one FromNode conversion: the view every mapping in the value is
@@ -69,21 +69,21 @@ func (c converter) value(node *yaml.Node, depth int) (ir.Value, error) {
 // `2021-1-1`. A scalar under a tag YAML gives no type has no ir.Value to hold
 // it.
 func scalarValue(node *yaml.Node) (ir.Value, error) {
-	s, err := Classify(node)
+	scalar, err := Classify(node)
 	if err != nil {
 		return ir.Value{}, err
 	}
-	switch s.Kind {
+	switch scalar.Kind {
 	case ScalarNull:
 		return ir.Value{Kind: ir.ValueNull}, nil
 	case ScalarBool:
-		return ir.Value{Kind: ir.ValueBool, Bool: s.Bool}, nil
+		return ir.Value{Kind: ir.ValueBool, Bool: scalar.Bool}, nil
 	case ScalarNumber:
-		return ir.Value{Kind: ir.ValueNumber, Number: s.Num}, nil
+		return ir.Value{Kind: ir.ValueNumber, Number: scalar.Num}, nil
 	case ScalarString, ScalarTimestamp:
-		return ir.Value{Kind: ir.ValueString, String: s.Text}, nil
+		return ir.Value{Kind: ir.ValueString, String: scalar.Text}, nil
 	case ScalarBinary:
-		return ir.Value{Kind: ir.ValueBytes, Bytes: s.Bytes}, nil
+		return ir.Value{Kind: ir.ValueBytes, Bytes: scalar.Bytes}, nil
 	default:
 		// ScalarTagged, and so any kind added later: refused, never guessed at.
 		return ir.Value{}, fmt.Errorf("openapi: unsupported scalar tag %q", node.Tag)
@@ -94,11 +94,11 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 func (c converter) sequence(node *yaml.Node, depth int) (ir.Value, error) {
 	list := make([]ir.Value, 0, len(node.Content))
 	for _, child := range node.Content {
-		v, err := c.value(child, depth+1)
+		value, err := c.value(child, depth+1)
 		if err != nil {
 			return ir.Value{}, err
 		}
-		list = append(list, v)
+		list = append(list, value)
 	}
 	return ir.Value{Kind: ir.ValueList, List: list}, nil
 }
@@ -117,12 +117,12 @@ func (c converter) mapping(node *yaml.Node, depth int) (ir.Value, error) {
 		return ir.Value{}, errMergedPastBound
 	}
 	fields := make([]ir.Field, 0, len(pairs))
-	for _, p := range pairs {
-		val, err := c.value(p.Val, depth+1)
+	for _, pair := range pairs {
+		val, err := c.value(pair.Val, depth+1)
 		if err != nil {
 			return ir.Value{}, err
 		}
-		fields = append(fields, ir.Field{Name: p.Key, Value: val})
+		fields = append(fields, ir.Field{Name: pair.Key, Value: val})
 	}
 	return ir.Value{Kind: ir.ValueObject, Object: fields}, nil
 }

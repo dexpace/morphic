@@ -31,10 +31,10 @@ const (
 // aliases ends.
 const maxAliasHops = 64
 
-// primShape is the shape of a primitive of kind k. Every kind has one:
+// primShape is the shape of a primitive of kind primitiveKind. Every kind has one:
 // TestPrimShapes_EveryPrimKindHasARow holds the cases to the kinds ir declares.
-func primShape(k ir.PrimitiveKind) shape {
-	switch k {
+func primShape(primitiveKind ir.PrimitiveKind) shape {
+	switch primitiveKind {
 	case ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveNumber, ir.PrimitiveDecimal, ir.PrimitiveDecimal128:
 		return shapeNumber
 	case ir.PrimitiveInt8, ir.PrimitiveInt16, ir.PrimitiveInt32, ir.PrimitiveInt64,
@@ -68,48 +68,48 @@ type bounds struct {
 	minProps, maxProps *int64
 }
 
-// and conjoins the bounds c declares into b. A numeric bound that does not
+// and conjoins the bounds constraints declares into b. A numeric bound that does not
 // parse is passed over: irverify reports it.
-func (b *bounds) and(c *ir.Constraints) {
-	if c == nil {
+func (b *bounds) and(constraints *ir.Constraints) {
+	if constraints == nil {
 		return
 	}
-	b.raise(c.Min, false)
-	b.raise(c.ExclusiveMin, true)
-	b.lower(c.Max, false)
-	b.lower(c.ExclusiveMax, true)
-	b.minLen, b.maxLen = greater(b.minLen, c.MinLength), lesser(b.maxLen, c.MaxLength)
-	b.minItems, b.maxItems = greater(b.minItems, c.MinItems), lesser(b.maxItems, c.MaxItems)
-	b.minProps, b.maxProps = greater(b.minProps, c.MinProperties), lesser(b.maxProps, c.MaxProperties)
+	b.raise(constraints.Min, false)
+	b.raise(constraints.ExclusiveMin, true)
+	b.lower(constraints.Max, false)
+	b.lower(constraints.ExclusiveMax, true)
+	b.minLen, b.maxLen = greater(b.minLen, constraints.MinLength), lesser(b.maxLen, constraints.MaxLength)
+	b.minItems, b.maxItems = greater(b.minItems, constraints.MinItems), lesser(b.maxItems, constraints.MaxItems)
+	b.minProps, b.maxProps = greater(b.minProps, constraints.MinProperties), lesser(b.maxProps, constraints.MaxProperties)
 }
 
-// raise takes v as the lower end where it is greater than the one held, or
+// raise takes bigVal as the lower end where it is greater than the one held, or
 // equal to it and exclusive.
-func (b *bounds) raise(v *ir.BigVal, open bool) {
-	if v == nil {
+func (b *bounds) raise(bigVal *ir.BigVal, open bool) {
+	if bigVal == nil {
 		return
 	}
-	d, err := v.Decimal()
+	decimal, err := bigVal.Decimal()
 	if err != nil {
 		return
 	}
-	if c := d.Cmp(b.lo); !b.loSet || c > 0 || (c == 0 && open) {
-		b.lo, b.loText, b.loSet, b.loOpen = d, *v, true, open
+	if c := decimal.Cmp(b.lo); !b.loSet || c > 0 || (c == 0 && open) {
+		b.lo, b.loText, b.loSet, b.loOpen = decimal, *bigVal, true, open
 	}
 }
 
-// lower takes v as the upper end where it is less than the one held, or equal
+// lower takes bigVal as the upper end where it is less than the one held, or equal
 // to it and exclusive.
-func (b *bounds) lower(v *ir.BigVal, open bool) {
-	if v == nil {
+func (b *bounds) lower(bigVal *ir.BigVal, open bool) {
+	if bigVal == nil {
 		return
 	}
-	d, err := v.Decimal()
+	decimal, err := bigVal.Decimal()
 	if err != nil {
 		return
 	}
-	if c := d.Cmp(b.hi); !b.hiSet || c < 0 || (c == 0 && open) {
-		b.hi, b.hiText, b.hiSet, b.hiOpen = d, *v, true, open
+	if c := decimal.Cmp(b.hi); !b.hiSet || c < 0 || (c == 0 && open) {
+		b.hi, b.hiText, b.hiSet, b.hiOpen = decimal, *bigVal, true, open
 	}
 }
 
@@ -172,10 +172,10 @@ func settle(doc *ir.Document, target ir.TypeID, b *bounds) (shape, ir.TypeDef, b
 	return shapeNotChecked, nil, encoded
 }
 
-// empty reports whether the bounds b holds admit no value of shape s. A bound
-// that does not apply to s is not judged.
-func (b *bounds) empty(s shape) bool {
-	switch s {
+// empty reports whether the bounds b holds admit no value of shape shapeValue. A bound
+// that does not apply to shapeValue is not judged.
+func (b *bounds) empty(shapeValue shape) bool {
+	switch shapeValue {
 	case shapeNumber, shapeInteger:
 		if !b.loSet || !b.hiSet {
 			return false
@@ -199,10 +199,10 @@ func crossed(minimum, maximum *int64) bool {
 	return minimum != nil && maximum != nil && *minimum > *maximum
 }
 
-// describe says which values b admits none of, for a shape s that b.empty
+// describe says which values b admits none of, for a shape shapeValue that b.empty
 // holds.
-func (b *bounds) describe(s shape) string {
-	switch s {
+func (b *bounds) describe(shapeValue shape) string {
+	switch shapeValue {
 	case shapeText:
 		return fmt.Sprintf("bounds admit no string: none has at least %d characters and at most %d", *b.minLen, *b.maxLen)
 	case shapeBytes:
@@ -234,18 +234,18 @@ func unsatisfiable(doc *ir.Document, own *ir.Constraints, target ir.TypeID, self
 		return ""
 	}
 	var b bounds
-	s := self
-	if s == shapeNotChecked {
-		s, _, _ = settle(doc, target, &b)
+	shapeValue := self
+	if shapeValue == shapeNotChecked {
+		shapeValue, _, _ = settle(doc, target, &b)
 	}
-	if b.empty(s) {
+	if b.empty(shapeValue) {
 		return ""
 	}
 	b.and(own)
-	if !b.empty(s) {
+	if !b.empty(shapeValue) {
 		return ""
 	}
-	return b.describe(s)
+	return b.describe(shapeValue)
 }
 
 // checkBounds reports each position and type whose bounds, together with those
@@ -263,9 +263,9 @@ func checkBounds(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		}
 	}
 	var keys []ir.PropertyID
-	eachPosition(doc, live, &keys, func(p *position) {
-		if why := unsatisfiable(doc, p.own, p.typ.Target, shapeNotChecked); why != "" {
-			diags = append(diags, diagAt("pass/bounds-admit-no-value", why, p.node, p.from))
+	eachPosition(doc, live, &keys, func(positionValue *position) {
+		if why := unsatisfiable(doc, positionValue.own, positionValue.typ.Target, shapeNotChecked); why != "" {
+			diags = append(diags, diagAt("pass/bounds-admit-no-value", why, positionValue.node, positionValue.from))
 		}
 	})
 	return diags
@@ -275,8 +275,8 @@ func checkBounds(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 // with the chain typeBounds names, or, for a union, kind by kind
 // (unionUnsatisfiable).
 func typeUnsatisfiable(doc *ir.Document, td ir.TypeDef) string {
-	if u, isUnion := td.(*ir.Union); isUnion {
-		return unionUnsatisfiable(u.Constraints)
+	if union, isUnion := td.(*ir.Union); isUnion {
+		return unionUnsatisfiable(union.Constraints)
 	}
 	own, target, self := typeBounds(td)
 	return unsatisfiable(doc, own, target, self)
@@ -296,9 +296,9 @@ func unionUnsatisfiable(own *ir.Constraints) string {
 	}
 	var b bounds
 	b.and(own)
-	for _, s := range unionShapes {
-		if b.empty(s) {
-			return b.describe(s)
+	for _, shape := range unionShapes {
+		if b.empty(shape) {
+			return b.describe(shape)
 		}
 	}
 	return ""

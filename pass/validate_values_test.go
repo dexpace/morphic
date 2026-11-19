@@ -26,15 +26,15 @@ func text(s string) *ir.Value { return &ir.Value{Kind: ir.ValueString, String: s
 func null() *ir.Value { return &ir.Value{Kind: ir.ValueNull} }
 
 // defaulted gives a property a default.
-func defaulted(v *ir.Value) func(*ir.Property) {
-	return func(p *ir.Property) { p.Default = v }
+func defaulted(value *ir.Value) func(*ir.Property) {
+	return func(property *ir.Property) { property.Default = value }
 }
 
 // exampled gives a property an example of each of vs.
 func exampled(vs ...*ir.Value) func(*ir.Property) {
-	return func(p *ir.Property) {
-		for _, v := range vs {
-			p.Examples = append(p.Examples, ir.Example{Value: v})
+	return func(property *ir.Property) {
+		for _, value := range vs {
+			property.Examples = append(property.Examples, ir.Example{Value: value})
 		}
 	}
 }
@@ -76,29 +76,44 @@ func TestValidate_ADefaultItsTypeDoesNotAdmitIsReported(t *testing.T) {
 		{"a fraction for an integer", at(defaulted(num("1.5")), intT), want("is no integer, and type/primitive/integer holds one")},
 		{"a bool for a string", at(defaulted(&ir.Value{Kind: ir.ValueBool, Bool: true}), strT), want("is a bool, and type/primitive/string holds a string")},
 		{"null for a type that admits none", at(defaulted(null()), boolT), want("is null, and type/primitive/bool is not nullable here")},
-		{"null for a nullable form of it", at(func(p *ir.Property) { p.Default = null(); nullable(p) }, boolT), nil},
+		{"null for a nullable form of it", at(func(property *ir.Property) { property.Default = null(); nullable(property) }, boolT), nil},
 		{"a value outside an enum", at(defaulted(text("blue")), ir.TypeRef{Target: "type/e"}), want("is not a member of enum type/e")},
 		{"a member of an enum", at(defaulted(text("green")), ir.TypeRef{Target: "type/e"}), nil},
 		{"a number for an enum of strings", at(defaulted(num("1")), ir.TypeRef{Target: "type/e"}), want("is not a member of enum type/e")},
 		{"a value other than a literal's", at(defaulted(num("5")), ir.TypeRef{Target: "type/four"}), want("is not the value of literal type/four")},
 		{"a literal's value written another way", at(defaulted(num("4.0")), ir.TypeRef{Target: "type/four"}), nil},
-		{"below the minimum", at(func(p *ir.Property) { p.Default = num("1"); p.Constraints = numeric("3", "", "", "") }, intT),
+		{"below the minimum", at(func(property *ir.Property) {
+			property.Default = num("1")
+			property.Constraints = numeric("3", "", "", "")
+		}, intT),
 			want("lies outside the bounds declared for it")},
-		{"at the minimum", at(func(p *ir.Property) { p.Default = num("3"); p.Constraints = numeric("3", "", "", "") }, intT), nil},
-		{"at an exclusive minimum", at(func(p *ir.Property) { p.Default = num("3"); p.Constraints = numeric("", "3", "", "") }, intT),
+		{"at the minimum", at(func(property *ir.Property) {
+			property.Default = num("3")
+			property.Constraints = numeric("3", "", "", "")
+		}, intT), nil},
+		{"at an exclusive minimum", at(func(property *ir.Property) {
+			property.Default = num("3")
+			property.Constraints = numeric("", "3", "", "")
+		}, intT),
 			want("lies outside the bounds declared for it")},
-		{"a string over its maximum length", at(func(p *ir.Property) { p.Default = text("ABC"); p.Constraints = lengths(0, 1) }, strT),
+		{"a string over its maximum length", at(func(property *ir.Property) { property.Default = text("ABC"); property.Constraints = lengths(0, 1) }, strT),
 			want("lies outside the bounds declared for it")},
-		{"a string of its maximum length", at(func(p *ir.Property) { p.Default = text("A"); p.Constraints = lengths(0, 1) }, strT), nil},
-		{"a string of one character in two bytes", at(func(p *ir.Property) { p.Default = text("é"); p.Constraints = lengths(0, 1) }, strT), nil},
-		{"a list over its maximum", at(func(p *ir.Property) { p.Default = two; p.Constraints = &ir.Constraints{MaxItems: new(int64(1))} },
+		{"a string of its maximum length", at(func(property *ir.Property) { property.Default = text("A"); property.Constraints = lengths(0, 1) }, strT), nil},
+		{"a string of one character in two bytes", at(func(property *ir.Property) { property.Default = text("é"); property.Constraints = lengths(0, 1) }, strT), nil},
+		{"a list over its maximum", at(func(property *ir.Property) {
+			property.Default = two
+			property.Constraints = &ir.Constraints{MaxItems: new(int64(1))}
+		},
 			ir.TypeRef{Target: "type/l"}), want("lies outside the bounds declared for it")},
-		{"a list of its maximum", at(func(p *ir.Property) { p.Default = one; p.Constraints = &ir.Constraints{MaxItems: new(int64(1))} },
+		{"a list of its maximum", at(func(property *ir.Property) {
+			property.Default = one
+			property.Constraints = &ir.Constraints{MaxItems: new(int64(1))}
+		},
 			ir.TypeRef{Target: "type/l"}), nil},
 		{"a string for an encoded decimal", at(defaulted(text("1.5")), ir.TypeRef{Target: "type/dec"}), nil},
-		{"a string for an integer the property encodes", at(func(p *ir.Property) {
-			p.Default = text("5")
-			p.Encoding = &ir.Encoding{Name: "string"}
+		{"a string for an integer the property encodes", at(func(property *ir.Property) {
+			property.Default = text("5")
+			property.Encoding = &ir.Encoding{Name: "string"}
 		}, intT), nil},
 		{"a string for a union, one of whose variants admits it", at(defaulted(text("x")), ir.TypeRef{Target: "type/u"}), nil},
 		{"a string for a type holding anything", at(defaulted(text("x")), anyT), nil},
@@ -117,10 +132,10 @@ func TestValidate_ADefaultItsTypeDoesNotAdmitIsReported(t *testing.T) {
 // its type at the parameter, as a property's is held at the property.
 func TestValidate_AParametersDefaultIsHeldToItsType(t *testing.T) {
 	t.Parallel()
-	at := func(v *ir.Value) *ir.Document {
+	at := func(value *ir.Value) *ir.Document {
 		doc := valueDoc()
 		doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{{
-			ID: "operation/x", Params: []ir.Parameter{{ID: "parameter/x/q", Type: intT, Default: v, Provenance: provAt("parameter/x/q")}},
+			ID: "operation/x", Params: []ir.Parameter{{ID: "parameter/x/q", Type: intT, Default: value, Provenance: provAt("parameter/x/q")}},
 		}}}}}}
 		return doc
 	}
@@ -140,11 +155,11 @@ func TestValidate_AnExampleItsTypeDoesNotAdmitIsReported(t *testing.T) {
 	t.Parallel()
 	typeExamples := func(vs ...*ir.Value) *ir.Document {
 		doc := valueDoc()
-		l := &ir.List{ID: "type/l", ElementType: strT, Provenance: provAt("type/l")}
-		for _, v := range vs {
-			l.Examples = append(l.Examples, ir.Example{Value: v})
+		list := &ir.List{ID: "type/l", ElementType: strT, Provenance: provAt("type/l")}
+		for _, value := range vs {
+			list.Examples = append(list.Examples, ir.Example{Value: value})
 		}
-		doc.Types["type/l"] = l
+		doc.Types["type/l"] = list
 		return doc
 	}
 	scenario := func(in ir.Example) *ir.Document {
@@ -155,8 +170,8 @@ func TestValidate_AnExampleItsTypeDoesNotAdmitIsReported(t *testing.T) {
 		}}}}}}
 		return doc
 	}
-	params := func(v *ir.Value) ir.Example {
-		return ir.Example{Name: "s", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/q": *v}}}
+	params := func(value *ir.Value) ir.Example {
+		return ir.Example{Name: "s", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/q": *value}}}
 	}
 	badNamed := ir.Example{Name: "bad", Value: text("x")}
 	contentExample := valueDoc()
@@ -172,8 +187,8 @@ func TestValidate_AnExampleItsTypeDoesNotAdmitIsReported(t *testing.T) {
 		want []finding
 	}{
 		{"a property's examples, one of which fails", func() *ir.Document {
-			doc := modelOf(prop("property/a/e", intT, func(p *ir.Property) {
-				p.Examples = []ir.Example{{Value: num("7")}, badNamed}
+			doc := modelOf(prop("property/a/e", intT, func(property *ir.Property) {
+				property.Examples = []ir.Example{{Value: num("7")}, badNamed}
 			}))
 			return doc
 		}(), []finding{{"property/a/e", `example "bad" is a string, and type/primitive/integer holds an integer`}}},

@@ -26,15 +26,15 @@ func TestLowerUntyped_KeywordsOfAnObjectAndAnArrayAreAMarkedUnion(t *testing.T) 
 		"    Both: {properties: {a: {type: string}}, items: {type: string}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	u, ok := typeByName(doc, "Both").(*ir.Union)
+	union, ok := typeByName(doc, "Both").(*ir.Union)
 	require.True(t, ok, "the keywords speak of two kinds")
-	assert.Equal(t, lowering.KindInferenceHeuristic, u.Provenance.Inferred)
-	assert.Empty(t, u.Unmodeled)
-	require.Len(t, u.Variants, 2)
+	assert.Equal(t, lowering.KindInferenceHeuristic, union.Provenance.Inferred)
+	assert.Empty(t, union.Unmodeled)
+	require.Len(t, union.Variants, 2)
 	for i, kind := range []ir.TypeKind{ir.KindModel, ir.KindList} {
-		v := doc.Types[u.Variants[i].Type.Target]
-		require.NotNil(t, v, "variant %d", i)
-		assert.Equal(t, kind, v.Kind(), "variant %d", i)
-		assert.Equal(t, lowering.KindInferenceHeuristic, v.Common().Provenance.Inferred, "variant %d", i)
+		typeDef := doc.Types[union.Variants[i].Type.Target]
+		require.NotNil(t, typeDef, "variant %d", i)
+		assert.Equal(t, kind, typeDef.Kind(), "variant %d", i)
+		assert.Equal(t, lowering.KindInferenceHeuristic, typeDef.Common().Provenance.Inferred, "variant %d", i)
 	}
 }

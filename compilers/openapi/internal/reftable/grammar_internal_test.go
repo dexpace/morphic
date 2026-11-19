@@ -55,26 +55,26 @@ var lags = map[state][]string{
 // of lags is one the model names, so a release adding one fails here.
 func TestGrammar_FieldsAreTheModels(t *testing.T) {
 	t.Parallel()
-	for model, s := range modelStates {
+	for model, stateValue := range modelStates {
 		want := map[string]state{}
 		for f := range model.Fields() {
 			if key := f.Tag.Get("key"); key != "" && key != "extensions" && key != "$ref" {
 				want[key] = modelState(t, f.Type)
 			}
 		}
-		if e, isContainer := entries[s]; isContainer {
+		if state, isContainer := entries[stateValue]; isContainer {
 			for key, ws := range want {
-				assert.Equal(t, class(ws), class(e), "%s.%s is read as an entry", model.Name(), key)
+				assert.Equal(t, class(ws), class(state), "%s.%s is read as an entry", model.Name(), key)
 			}
 			continue
 		}
-		got := maps.Clone(fields[s])
+		got := maps.Clone(fields[stateValue])
 		delete(got, "$ref")
-		for _, lag := range lags[s] {
+		for _, lag := range lags[stateValue] {
 			assert.NotContains(t, want, lag, "%s.%s is a field the model names", model.Name(), lag)
 			delete(got, lag)
 		}
-		if s == sPathItem {
+		if stateValue == sPathItem {
 			for key, ks := range got {
 				if ks == sOperation {
 					assert.True(t, soa.IsStandardMethod(key), "%s is no method the model reads", key)
@@ -109,20 +109,20 @@ func TestGrammar_ReadsEveryMethodTheModelDoes(t *testing.T) {
 // way to name an entry.
 func TestGrammar_ReadsAnExtensionWhereTheModelDoes(t *testing.T) {
 	t.Parallel()
-	for model, s := range modelStates {
-		_, holdsEntries := entries[s]
+	for model, state := range modelStates {
+		_, holdsEntries := entries[state]
 		_, hasExtensions := model.FieldByName("Extensions")
-		assert.Equal(t, holdsEntries && hasExtensions, extensible[s], model.Name())
+		assert.Equal(t, holdsEntries && hasExtensions, extensible[state], model.Name())
 	}
 }
 
 // class is what a state means to a reading: a value and an object other than
 // the model's kinds are alike, since neither holds a schema or raw YAML.
-func class(s state) state {
-	if s == sObject || s == sSecurityList {
+func class(stateValue state) state {
+	if stateValue == sObject || stateValue == sSecurityList {
 		return sValue
 	}
-	return s
+	return stateValue
 }
 
 // modelState is the state the model reads a field of type ft at.
@@ -131,8 +131,8 @@ func modelState(t *testing.T, ft reflect.Type) state {
 	for ft.Kind() == reflect.Pointer {
 		ft = ft.Elem()
 	}
-	if s, ok := modelStates[ft]; ok {
-		return s
+	if state, ok := modelStates[ft]; ok {
+		return state
 	}
 	name := ft.String()
 	switch {
@@ -163,8 +163,8 @@ func modelState(t *testing.T, ft reflect.Type) state {
 // modelContainer is the container state in gives for holds, the state of what
 // the container holds, or a value for a container of values.
 func modelContainer(in map[state]state, holds state) state {
-	if s, ok := in[holds]; ok {
-		return s
+	if state, ok := in[holds]; ok {
+		return state
 	}
 	return sValue
 }
@@ -181,19 +181,19 @@ var loadModels = map[state][]string{sComponents: {"mediaTypes"}}
 // as one the model holds.
 func TestGrammar_PlacesWhatNoModelHoldsAsUnheld(t *testing.T) {
 	t.Parallel()
-	for s, names := range unheld {
+	for state, names := range unheld {
 		for name := range names {
-			assert.Contains(t, lags[s], name, "unheld %d.%s", s, name)
-			assert.Contains(t, fields[s], name, "unheld %d.%s is placed", s, name)
+			assert.Contains(t, lags[state], name, "unheld %d.%s", state, name)
+			assert.Contains(t, fields[state], name, "unheld %d.%s is placed", state, name)
 		}
 	}
-	for s, names := range lags {
+	for state, names := range lags {
 		for _, name := range names {
-			if !modelled(fields[s][name]) {
+			if !modelled(fields[state][name]) {
 				continue
 			}
-			assert.NotEqual(t, unheld[s][name], slices.Contains(loadModels[s], name),
-				"lag %d.%s is unheld or modelled by the load phase", s, name)
+			assert.NotEqual(t, unheld[state][name], slices.Contains(loadModels[state], name),
+				"lag %d.%s is unheld or modelled by the load phase", state, name)
 		}
 	}
 }
@@ -222,9 +222,9 @@ func TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw(t *testing.T) {
 		{encoding + "headers/H", Object, true},
 	}
 	for _, tc := range tests {
-		p := place{state: sDocument}.along(strings.Split(tc.pointer, "/"))
-		assert.Equal(t, tc.role, p.role(), tc.pointer)
-		assert.Equal(t, tc.held, p.held(), tc.pointer)
+		placeValue := place{state: sDocument}.along(strings.Split(tc.pointer, "/"))
+		assert.Equal(t, tc.role, placeValue.role(), tc.pointer)
+		assert.Equal(t, tc.held, placeValue.held(), tc.pointer)
 	}
 	past := place{state: sDocument}.along(strings.Split(encoding+"encoding/g/headers/H", "/"))
 	fresh := place{state: past.state}.along([]string{"schema"})

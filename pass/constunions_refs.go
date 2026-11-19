@@ -26,7 +26,7 @@ var (
 // Enum names, and each member of one that is an Enum, beside how many variants
 // of the registry's unions name each such type.
 func refsTo(types ir.TypeRegistry) *typeRefs {
-	r := &typeRefs{
+	typeRefsValue := &typeRefs{
 		watched: map[ir.TypeID]bool{},
 		members: map[ir.EnumMemberID]ir.TypeID{},
 		held:    map[ir.TypeID]int{},
@@ -35,31 +35,31 @@ func refsTo(types ir.TypeRegistry) *typeRefs {
 		carries: map[reflect.Type]bool{},
 	}
 	for id, td := range types {
-		u, isUnion := td.(*ir.Union)
-		if !isUnion || u == nil {
+		union, isUnion := td.(*ir.Union)
+		if !isUnion || union == nil {
 			continue
 		}
-		for _, v := range u.Variants {
-			r.held[v.Type.Target]++
+		for _, variant := range union.Variants {
+			typeRefsValue.held[variant.Type.Target]++
 		}
-		if u.ID == id && mayBeEnum(types, u) {
-			for _, v := range u.Variants {
-				r.watch(types, v.Type.Target)
+		if union.ID == id && mayBeEnum(types, union) {
+			for _, variant := range union.Variants {
+				typeRefsValue.watch(types, variant.Type.Target)
 			}
 		}
 	}
-	return r
+	return typeRefsValue
 }
 
-// mayBeEnum reports whether u may be read as an Enum: a closed union saying
+// mayBeEnum reports whether union may be read as an Enum: a closed union saying
 // nothing beside its variants, each naming an anonymous Literal, Enum or union.
 // Reading it decides; this spares a document holding no such union the walk.
-func mayBeEnum(types ir.TypeRegistry, u *ir.Union) bool {
-	if !u.Closed || !plainUnion(*u) {
+func mayBeEnum(types ir.TypeRegistry, union *ir.Union) bool {
+	if !union.Closed || !plainUnion(*union) {
 		return false
 	}
-	for _, v := range u.Variants {
-		td := types[v.Type.Target]
+	for _, variant := range union.Variants {
+		td := types[variant.Type.Target]
 		switch td.(type) {
 		case *ir.Literal, *ir.Enum, *ir.Union:
 			if ir.IsNilTypeDef(td) || !td.Common().Anonymous {
@@ -81,8 +81,8 @@ func (r *typeRefs) watch(types ir.TypeRegistry, id ir.TypeID) {
 	r.watched[id] = true
 	if enum, isEnum := types[id].(*ir.Enum); isEnum {
 		r.membersRead += len(enum.Members)
-		for _, m := range enum.Members {
-			r.members[m.ID] = id
+		for _, enumMember := range enum.Members {
+			r.members[enumMember.ID] = id
 		}
 	}
 }

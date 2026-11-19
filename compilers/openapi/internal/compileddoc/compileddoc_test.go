@@ -23,8 +23,8 @@ import (
 // group, and the operation as it holds it, which is the one Params reads.
 func wholeOf(op ir.Operation) (*compileddoc.CompiledDocumentView, *ir.Operation) {
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}}
-	w := compileddoc.New(doc)
-	return w, &doc.Services[0].Groups[0].Operations[0]
+	compiledDocumentView := compileddoc.New(doc)
+	return compiledDocumentView, &doc.Services[0].Groups[0].Operations[0]
 }
 
 // prop is a member of a model with the ID id, the wire name wire and the type
@@ -35,10 +35,10 @@ func prop(id ir.PropertyID, wire string, target ir.TypeID) ir.Property {
 
 // model is the model id declaring props, shaped further by mutate.
 func model(id ir.TypeID, mutate func(*ir.Model), props ...ir.Property) *ir.Model {
-	return irtest.ModelOf(id, func(m *ir.Model) {
-		m.Properties = props
+	return irtest.ModelOf(id, func(model *ir.Model) {
+		model.Properties = props
 		if mutate != nil {
-			mutate(m)
+			mutate(model)
 		}
 	})
 }
@@ -66,14 +66,14 @@ func TestDocument_ListsEveryOperationOnce(t *testing.T) {
 		}},
 		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op("operation/f")}}, {Groups: chain}}},
 	}}
-	w := compileddoc.New(doc)
+	compiledDocumentView := compileddoc.New(doc)
 
-	got := make([]ir.OperationID, 0, len(w.Ops))
+	got := make([]ir.OperationID, 0, len(compiledDocumentView.Ops))
 	seen := map[ir.OperationID]bool{}
-	for _, o := range w.Ops {
-		got = append(got, o.ID)
-		assert.False(t, seen[o.ID], "%s is listed once", o.ID)
-		seen[o.ID] = true
+	for _, operation := range compiledDocumentView.Ops {
+		got = append(got, operation.ID)
+		assert.False(t, seen[operation.ID], "%s is listed once", operation.ID)
+		seen[operation.ID] = true
 	}
 	above := []ir.OperationID{"operation/a", "operation/b", "operation/c", "operation/d", "operation/e", "operation/f"}
 	assert.Equal(t, []ir.OperationID{"operation/a", "operation/b", "operation/c"}, got[:3], "a group's operations, then those of the groups beside it")
@@ -83,11 +83,11 @@ func TestDocument_ListsEveryOperationOnce(t *testing.T) {
 	for _, id := range above {
 		assert.True(t, seen[id], "%s is listed", id)
 	}
-	assert.Len(t, w.Ops, len(above)+ir.MaxGroupDepth, "those above, and one per level of the chain to the cap")
+	assert.Len(t, compiledDocumentView.Ops, len(above)+ir.MaxGroupDepth, "those above, and one per level of the chain to the cap")
 	assert.True(t, seen[ir.OperationID(fmt.Sprintf("operation/%d", ir.MaxGroupDepth))], "the group at the cap is read")
 	assert.False(t, seen[ir.OperationID(fmt.Sprintf("operation/%d", ir.MaxGroupDepth+1))], "the group past it is not")
 
-	w.Ops[0].Pagination = &ir.Pagination{}
+	compiledDocumentView.Ops[0].Pagination = &ir.Pagination{}
 	assert.NotNil(t, doc.Services[0].Groups[0].Operations[0].Pagination, "an operation is read in place")
 }
 
@@ -96,20 +96,20 @@ func TestDocument_ListsEveryOperationOnce(t *testing.T) {
 // binding appended after that are in no answer.
 func TestDocument_IndexesParametersOnce(t *testing.T) {
 	t.Parallel()
-	w, op := wholeOf(ir.Operation{
+	compiledDocumentView, op := wholeOf(ir.Operation{
 		ID:     "operation/x",
 		Params: []ir.Parameter{{ID: "parameter/q", Name: ir.Naming{Source: "q"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			ParamBindings: []ir.HTTPParamBinding{{Param: "parameter/q", Location: ir.HTTPLocationQuery}},
 		}}},
 	})
-	first := w.Params(op)
+	first := compiledDocumentView.Params(op)
 	require.Equal(t, []ir.ParameterID{"parameter/q"}, first.Bound(ir.HTTPLocationQuery, "q"))
 
 	op.Params = append(op.Params, ir.Parameter{ID: "parameter/r", Name: ir.Naming{Source: "r"}})
 	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
 		ir.HTTPParamBinding{Param: "parameter/r", Location: ir.HTTPLocationQuery})
-	second := w.Params(op)
+	second := compiledDocumentView.Params(op)
 	assert.Equal(t, []ir.ParameterID{"parameter/q"}, second.Bound(ir.HTTPLocationQuery, "q"), "what it indexed first")
 	assert.Empty(t, second.Bound(ir.HTTPLocationQuery, "r"), "and not what was added after")
 	assert.Empty(t, first.Bound(ir.HTTPLocationQuery, "r"))
@@ -146,9 +146,9 @@ func bodyShapes() map[string]bodyShape {
 		return irtest.DocOf(append(aliasChain("body", length, "m"), model("m", nil, prop("m.a", "a", "string")))...).Types
 	}
 	nullable := func(id ir.PropertyID, wire string, target ir.TypeID) ir.Property {
-		p := prop(id, wire, target)
-		p.Type.Nullable = true
-		return p
+		property := prop(id, wire, target)
+		property.Type.Nullable = true
+		return property
 	}
 	child := model("child", nil, prop("child.v", "v", "string"))
 	return map[string]bodyShape{
@@ -159,7 +159,7 @@ func bodyShapes() map[string]bodyShape {
 		},
 		"an allOf redeclaring a member": {
 			types: irtest.DocOf(
-				model("m", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "base"} }, prop("m.n", "n", "string")),
+				model("m", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "base"} }, prop("m.n", "n", "string")),
 				model("base", nil, prop("base.n", "n", "string"), prop("base.k", "k", "string"))).Types,
 			root:  "m",
 			taken: map[string]ir.PropertyID{"n": "m.n"},
@@ -175,9 +175,9 @@ func bodyShapes() map[string]bodyShape {
 		},
 		"one base composed twice": {
 			types: irtest.DocOf(
-				model("m", func(m *ir.Model) { m.Mixins = irtest.RefsTo("x", "y") }, prop("m.own", "own", "string")),
-				model("x", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "z"} }, prop("x.n", "n", "string")),
-				model("y", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "z"} }),
+				model("m", func(model *ir.Model) { model.Mixins = irtest.RefsTo("x", "y") }, prop("m.own", "own", "string")),
+				model("x", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "z"} }, prop("x.n", "n", "string")),
+				model("y", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "z"} }),
 				model("z", nil, prop("z.n", "n", "string"), prop("z.k", "k", "string"))).Types,
 			root:  "m",
 			taken: map[string]ir.PropertyID{"n": "x.n"},
@@ -209,28 +209,28 @@ func TestDocument_MemberAgreesWithMembers(t *testing.T) {
 	for name, shape := range bodyShapes() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			w := compileddoc.New(&ir.Document{Types: shape.types})
-			members := w.Members(shape.root)
+			compiledDocumentView := compileddoc.New(&ir.Document{Types: shape.types})
+			members := compiledDocumentView.Members(shape.root)
 			if shape.none {
 				assert.Empty(t, members)
 				for _, wire := range []string{"n", "a", "absent"} {
-					_, ok := w.Member(shape.root, wire)
+					_, ok := compiledDocumentView.Member(shape.root, wire)
 					assert.False(t, ok, "a body standing for no model has no member %q", wire)
 				}
 				return
 			}
 			require.NotEmpty(t, members)
-			for _, m := range members {
-				got, ok := w.Member(shape.root, m.EffectiveWireName())
-				require.True(t, ok, m.EffectiveWireName())
-				assert.Same(t, m, got, "the declaration of %q the flattening takes", m.EffectiveWireName())
+			for _, property := range members {
+				got, ok := compiledDocumentView.Member(shape.root, property.EffectiveWireName())
+				require.True(t, ok, property.EffectiveWireName())
+				assert.Same(t, property, got, "the declaration of %q the flattening takes", property.EffectiveWireName())
 			}
 			for wire, id := range shape.taken {
-				got, ok := w.Member(shape.root, wire)
+				got, ok := compiledDocumentView.Member(shape.root, wire)
 				require.True(t, ok, wire)
 				assert.Equal(t, id, got.ID, "the declaration of %q the row names", wire)
 			}
-			_, ok := w.Member(shape.root, "absent")
+			_, ok := compiledDocumentView.Member(shape.root, "absent")
 			assert.False(t, ok, "a name no model declares")
 		})
 	}
@@ -293,18 +293,18 @@ func TestDocument_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 		aliasChain("ok", compileddoc.MaxAliasHops, "m"),
 		aliasChain("long", compileddoc.MaxAliasHops+1, "m"),
 	)
-	w := compileddoc.New(&ir.Document{Types: irtest.DocOf(defs...).Types})
-	w.Types["nil"] = (*ir.Model)(nil)
+	compiledDocumentView := compileddoc.New(&ir.Document{Types: irtest.DocOf(defs...).Types})
+	compiledDocumentView.Types["nil"] = (*ir.Model)(nil)
 	// noType is no type at all, which a typed nil is not: assert.Nil accepts both.
 	var noType ir.TypeDef
 
-	assert.Equal(t, w.Types["m"], w.Stands("m"), "a model stands for itself")
-	assert.Equal(t, w.Types["m"], w.Stands("ok000"), "the head of as many alias scalars as the cap allows")
-	assert.Equal(t, noType, w.Stands("long000"), "the head of one more")
-	assert.Equal(t, noType, w.Stands("loop1"), "a cycle of aliases")
-	assert.Equal(t, noType, w.Stands("dangling"), "an alias of no type")
-	assert.Equal(t, noType, w.Stands("toNil"), "an alias of a typed nil")
-	assert.Equal(t, noType, w.Stands("gone"), "a type the registry lacks")
+	assert.Equal(t, compiledDocumentView.Types["m"], compiledDocumentView.Stands("m"), "a model stands for itself")
+	assert.Equal(t, compiledDocumentView.Types["m"], compiledDocumentView.Stands("ok000"), "the head of as many alias scalars as the cap allows")
+	assert.Equal(t, noType, compiledDocumentView.Stands("long000"), "the head of one more")
+	assert.Equal(t, noType, compiledDocumentView.Stands("loop1"), "a cycle of aliases")
+	assert.Equal(t, noType, compiledDocumentView.Stands("dangling"), "an alias of no type")
+	assert.Equal(t, noType, compiledDocumentView.Stands("toNil"), "an alias of a typed nil")
+	assert.Equal(t, noType, compiledDocumentView.Stands("gone"), "a type the registry lacks")
 }
 
 // TestDocument_HeaderMatchesTheNameWithoutCase pins a header to its wire name as
@@ -317,18 +317,18 @@ func TestDocument_HeaderMatchesTheNameWithoutCase(t *testing.T) {
 		{Property: prop("h/next", "Link", "type/text")},
 		{Property: prop("h/again", "x-rate", "type/text")},
 	}
-	w := compileddoc.New(&ir.Document{})
+	compiledDocumentView := compileddoc.New(&ir.Document{})
 	at := compileddoc.ResponseKey{Op: "operation/x"}
-	assert.Equal(t, []ir.PropertyID{"h/rate", "h/again"}, w.Header(at, headers, "X-RATE"))
-	assert.Equal(t, []ir.PropertyID{"h/next"}, w.Header(at, headers, "link"))
-	assert.Empty(t, w.Header(at, headers, "ETag"))
+	assert.Equal(t, []ir.PropertyID{"h/rate", "h/again"}, compiledDocumentView.Header(at, headers, "X-RATE"))
+	assert.Equal(t, []ir.PropertyID{"h/next"}, compiledDocumentView.Header(at, headers, "link"))
+	assert.Empty(t, compiledDocumentView.Header(at, headers, "ETag"))
 
 	other := []ir.Header{{Property: prop("h/other", "X-Rate", "type/text")}}
-	assert.Equal(t, []ir.PropertyID{"h/rate", "h/again"}, w.Header(at, other, "x-rate"), "a key's first read is kept")
+	assert.Equal(t, []ir.PropertyID{"h/rate", "h/again"}, compiledDocumentView.Header(at, other, "x-rate"), "a key's first read is kept")
 	for _, key := range []compileddoc.ResponseKey{
 		{Op: "operation/x", List: compileddoc.ListErrors}, {Op: "operation/x", Index: 1}, {Op: "operation/y"},
 	} {
-		assert.Equal(t, []ir.PropertyID{"h/other"}, w.Header(key, other, "x-rate"), "%+v is a response of its own", key)
+		assert.Equal(t, []ir.PropertyID{"h/other"}, compiledDocumentView.Header(key, other, "x-rate"), "%+v is a response of its own", key)
 	}
 }
 
@@ -338,17 +338,17 @@ func TestDocument_HeaderMatchesTheNameWithoutCase(t *testing.T) {
 // question of them, and a later question of the same builds nothing. It does
 // not run in parallel, since the count is process-wide.
 func TestDocument_ReadsOnceAndAllocatesNothingAfter(t *testing.T) {
-	w := compileddoc.New(&ir.Document{
+	compiledDocumentView := compileddoc.New(&ir.Document{
 		Types:    irtest.DocOf(model("type/page", nil, prop("property/info", "info", "type/info"))).Types,
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "operation/x"}}}}}},
 	})
-	op := w.Ops[0]
+	op := compiledDocumentView.Ops[0]
 	headers := []ir.Header{{Property: prop("h/rate", "X-Rate", "type/text")}}
 	reads := map[string]func(){
-		"a model's member":   func() { w.Member("type/page", "info") },
-		"a model's members":  func() { w.Members("type/page") },
-		"a parameter index":  func() { w.Params(op) },
-		"a response headers": func() { w.Header(compileddoc.ResponseKey{Op: "operation/x"}, headers, "x-rate") },
+		"a model's member":   func() { compiledDocumentView.Member("type/page", "info") },
+		"a model's members":  func() { compiledDocumentView.Members("type/page") },
+		"a parameter index":  func() { compiledDocumentView.Params(op) },
+		"a response headers": func() { compiledDocumentView.Header(compileddoc.ResponseKey{Op: "operation/x"}, headers, "x-rate") },
 	}
 	for name, read := range reads {
 		read()
@@ -370,19 +370,19 @@ func TestDocument_ABodyReadFlattensNoModel(t *testing.T) {
 			payload := &ir.Payload{}
 			for i := range k {
 				id := ir.TypeID(fmt.Sprintf("b%02d", i))
-				defs = append(defs, model(id, func(m *ir.Model) { m.Mixins = irtest.RefsTo("a") }))
+				defs = append(defs, model(id, func(model *ir.Model) { model.Mixins = irtest.RefsTo("a") }))
 				payload.Contents = append(payload.Contents,
 					ir.Content{MediaType: fmt.Sprintf("application/x-%02d", i), Type: ir.TypeRef{Target: id}})
 			}
-			w := compileddoc.New(&ir.Document{Types: irtest.DocOf(defs...).Types})
-			flattenings := compileddoc.CountFlattenings(w)
+			compiledDocumentView := compileddoc.New(&ir.Document{Types: irtest.DocOf(defs...).Types})
+			flattenings := compileddoc.CountFlattenings(compiledDocumentView)
 
-			got, why, ok := runtimeexpr.BodyPath(w, payload, []string{"a"}, "request")
+			got, why, ok := runtimeexpr.BodyPath(compiledDocumentView, payload, []string{"a"}, "request")
 			require.True(t, ok, why)
 			assert.Equal(t, []ir.PropertyID{"a.a"}, got)
 			assert.Zero(t, *flattenings, "no model of the %d contents is flattened", k)
 
-			w.Members("b00")
+			compiledDocumentView.Members("b00")
 			assert.Equal(t, 1, *flattenings, "the count sees a flattening that is made")
 		})
 	}
@@ -401,18 +401,18 @@ func TestDocument_APromotionNoMemberMarksFlattensNoModel(t *testing.T) {
 			{MediaType: "application/json", Type: ir.TypeRef{Target: "type/page"}},
 		}}}},
 	}
-	w := compileddoc.New(&ir.Document{
+	compiledDocumentView := compileddoc.New(&ir.Document{
 		Types:    irtest.DocOf(page, &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/text"}}, &ir.Scalar{ID: "type/text"}).Types,
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}},
 	})
-	p := promotion.New(promotion.ExtensionPromotions{
+	promoter := promotion.New(promotion.ExtensionPromotions{
 		Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
 			promotion.TargetPaginationItems: {{Key: "x-k", Member: "purpose", Values: []string{"items"}}},
 		},
 	})
-	flattenings := compileddoc.CountFlattenings(w)
+	flattenings := compileddoc.CountFlattenings(compiledDocumentView)
 
-	stated, diags := pagination.Promote(p, w, nil)
+	stated, diags := pagination.Promote(promoter, compiledDocumentView, nil)
 	assert.Empty(t, stated, "no key is written")
 	assert.Empty(t, diags)
 	assert.Zero(t, *flattenings, "no member keeps the key, so no model is flattened")
@@ -423,14 +423,14 @@ func TestDocument_APromotionNoMemberMarksFlattensNoModel(t *testing.T) {
 // aliases of it give the same members, flattened once.
 func TestDocument_MembersFlattensAModelOnceWhateverNamesIt(t *testing.T) {
 	t.Parallel()
-	w := compileddoc.New(&ir.Document{Types: irtest.DocOf(
+	compiledDocumentView := compileddoc.New(&ir.Document{Types: irtest.DocOf(
 		model("m", nil, prop("m.a", "a", "string")), irtest.ScalarOf("one", "m"), irtest.ScalarOf("two", "one"),
 	).Types})
-	flattenings := compileddoc.CountFlattenings(w)
-	want := w.Members("m")
+	flattenings := compileddoc.CountFlattenings(compiledDocumentView)
+	want := compiledDocumentView.Members("m")
 	require.Len(t, want, 1)
 	for _, id := range []ir.TypeID{"one", "two"} {
-		assert.Equal(t, want, w.Members(id), "%s names the model", id)
+		assert.Equal(t, want, compiledDocumentView.Members(id), "%s names the model", id)
 	}
 	assert.Equal(t, 1, *flattenings, "the model is flattened once")
 }

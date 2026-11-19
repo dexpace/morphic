@@ -32,26 +32,26 @@ const draft04 = "http://json-schema.org/draft-04/schema#"
 // jsonSchemaDialect chooses its rows at that minor.
 func TestDialects_ReadADocumentAtTheMinorItDeclares(t *testing.T) {
 	t.Parallel()
-	d := &dialects{spec: specrules.Table(), version: "3.1.0", minor: "3.1"}
-	version, minor, r30 := d.of("3.0.3", "")
+	dialectsValue := &dialects{spec: specrules.Table(), version: "3.1.0", minor: "3.1"}
+	version, minor, r30 := dialectsValue.of("3.0.3", "")
 	assert.Equal(t, []string{"3.0.3", "3.0"}, []string{version, minor})
 	assert.True(t, r30.Schema.Defines("nullable"))
 	for _, declared := range []string{"", "3.3.0", "2.0"} {
-		version, minor, r := d.of(declared, "")
+		version, minor, rows := dialectsValue.of(declared, "")
 		assert.Equal(t, []string{"3.1.0", "3.1"}, []string{version, minor}, "%q", declared)
-		assert.False(t, r.Schema.Defines("nullable"), "%q", declared)
+		assert.False(t, rows.Schema.Defines("nullable"), "%q", declared)
 	}
 	// Identity, not equality: rows built twice would be equal, and the claim is
 	// that a minor's rows are built once.
-	if _, _, again := d.of("3.0.0", ""); again != r30 {
+	if _, _, again := dialectsValue.of("3.0.0", ""); again != r30 {
 		t.Error("a second document declaring 3.0 built the minor's rows again")
 	}
-	_, _, r04 := d.of("3.2.0", draft04)
+	_, _, r04 := dialectsValue.of("3.2.0", draft04)
 	assert.True(t, r04.Schema.Takes("exclusiveMinimum", specrules.Boolean), "a jsonSchemaDialect chooses the rows")
-	_, _, r04 = d.of("", draft04)
+	_, _, r04 = dialectsValue.of("", draft04)
 	assert.True(t, r04.Schema.Takes("exclusiveMinimum", specrules.Boolean), "at the source's minor")
-	assert.True(t, d.at("3.1.0", "https://example.com/custom").unread)
-	assert.False(t, d.at("3.0.3", "https://example.com/custom").unread, "3.0 names no dialect")
+	assert.True(t, dialectsValue.at("3.1.0", "https://example.com/custom").unread)
+	assert.False(t, dialectsValue.at("3.0.3", "https://example.com/custom").unread, "3.0 names no dialect")
 }
 
 // TestDeclaredDialect_ReadsAnOpenAPIDocumentsOwn pins whose jsonSchemaDialect
@@ -109,10 +109,10 @@ func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *test
 	require.NotNil(t, doc)
 
 	var unread []ir.Provenance
-	for _, d := range diags {
-		if d.Code == diag.UnreadDialect {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			unread = append(unread, ir.Provenance{Source: d.Provenance.Source, Pointer: d.Provenance.Pointer})
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnreadDialect {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			unread = append(unread, ir.Provenance{Source: diagnostic.Provenance.Source, Pointer: diagnostic.Provenance.Pointer})
 		}
 	}
 	other, ok := doc.Others.Named("/r/o.yaml")
@@ -223,9 +223,9 @@ func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
 	require.Equal(t, 2, doc.Bindings.Table().Documents(), "the binder reads one name")
 	require.Len(t, doc.Others.List(), 1, "sanity: of one document")
 	var unread []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.UnreadDialect {
-			unread = append(unread, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnreadDialect {
+			unread = append(unread, diagnostic)
 		}
 	}
 	require.Len(t, unread, 1)
@@ -250,8 +250,8 @@ func TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds(t *testing.T) {
 	table := doc.Bindings.Table()
 	unreached := false
 	for id := range reftable.DocID(table.Documents()) {
-		d := table.Document(id)
-		unreached = unreached || d.Unreached && len(d.Dialects) == 1
+		referencedDocument := table.Document(id)
+		unreached = unreached || referencedDocument.Unreached && len(referencedDocument.Dialects) == 1
 	}
 	require.True(t, unreached, "sanity: a.yaml is read, named, and left out")
 	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
@@ -297,8 +297,8 @@ func TestLoad_TheSourceSharesItsRowsWithADocumentOfItsMinor(t *testing.T) {
 		"  schemas:\n    A: {$ref: 'same.yaml#/components/schemas/S'}\n    B: {$ref: 'other.yaml#/components/schemas/S'}\n",
 		Options{})
 	rows := map[string]Rows{}
-	for _, o := range doc.Others.List() {
-		rows[o.Label] = o.Rows
+	for _, other := range doc.Others.List() {
+		rows[other.Label] = other.Rows
 	}
 	require.Len(t, rows, 2, "both documents are read")
 	if rows["same.yaml"] != doc.Rows {
@@ -324,8 +324,8 @@ func TestLoad_TheSourcesRowsAreThoseOfItsJSONSchemaDialect(t *testing.T) {
 		"components:\n  schemas:\n    A: {$ref: 'named.yaml#/components/schemas/S'}\n"+
 		"    B: {$ref: 'none.yaml#/components/schemas/S'}\n", Options{})
 	rows := map[string]Rows{}
-	for _, o := range doc.Others.List() {
-		rows[o.Label] = o.Rows
+	for _, other := range doc.Others.List() {
+		rows[other.Label] = other.Rows
 	}
 	require.Len(t, rows, 2, "both documents are read")
 	assert.True(t, doc.Rows.Schema.Takes("exclusiveMinimum", specrules.Boolean), "the source's rows are draft 4's")

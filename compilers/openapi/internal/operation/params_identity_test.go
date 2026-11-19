@@ -95,8 +95,8 @@ paths:
 `)
 		openapitest.RequireNoErrorDiags(t, diags)
 		out := map[string]ir.ParameterID{}
-		for _, p := range openapitest.FindOp(t, doc, "getItem").Params {
-			out[p.Name.Source] = p.ID
+		for _, parameter := range openapitest.FindOp(t, doc, "getItem").Params {
+			out[parameter.Name.Source] = parameter.ID
 		}
 		return out
 	}
@@ -117,10 +117,10 @@ func TestParams_PathItemParamIsScopedPerOperation(t *testing.T) {
 		"a path-item parameter copied into two operations is two parameters")
 
 	var shared []ir.ParameterID
-	for _, g := range doc.Services[0].Groups {
-		for _, o := range g.Operations {
-			if len(o.Params) == 1 && o.Params[0].Name.Source == "limit" {
-				shared = append(shared, o.Params[0].ID)
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, operation := range operationGroup.Operations {
+			if len(operation.Params) == 1 && operation.Params[0].Name.Source == "limit" {
+				shared = append(shared, operation.Params[0].ID)
 			}
 		}
 	}
@@ -245,8 +245,8 @@ func TestParams_AHeaderIsOneParameterInAnyCase(t *testing.T) {
 		doc, diags = parseFull(t, repeatSpec(nil, tc.params))
 		op = openapitest.FindOp(t, doc, "g")
 		got := make([]ir.ParameterID, 0, len(op.Params))
-		for _, p := range op.Params {
-			got = append(got, p.ID)
+		for _, parameter := range op.Params {
+			got = append(got, parameter.ID)
 		}
 		assert.Equal(t, tc.want, got, "%s: neither occurrence is dropped, nor renamed by the other", tc.name)
 		assert.Equal(t, tc.repeats, errorFindings(diags), tc.name)
@@ -287,9 +287,9 @@ func TestParams_AHeaderRepeatedInAnotherDocumentInAnyCaseIsReported(t *testing.T
 	require.Len(t, op.Params, 2)
 	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1x/get/parameters/x-q/header"), op.Params[1].ID)
 	var repeats []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.DuplicateParameter {
-			repeats = append(repeats, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateParameter {
+			repeats = append(repeats, diagnostic)
 		}
 	}
 	require.Len(t, repeats, 1)
@@ -311,8 +311,8 @@ func TestParams_RepeatsAreNumberedInListOrder(t *testing.T) {
 
 	const base = "parameter/openapi/paths/~1x/get/parameters/limit/query"
 	got := make([]ir.ParameterID, 0, len(op.Params))
-	for _, p := range op.Params {
-		got = append(got, p.ID)
+	for _, parameter := range op.Params {
+		got = append(got, parameter.ID)
 	}
 	assert.Equal(t, []ir.ParameterID{base, "parameter/openapi/paths/~1x/get/parameters/id/query", base + "/2", base + "/3"}, got)
 	for _, repeat := range []string{"/paths/~1x/get/parameters/2", "/paths/~1x/get/parameters/3"} {
@@ -344,10 +344,10 @@ components:
         responses: {"200": {description: ok}}
 `)
 	var got []ir.ParameterID
-	for _, g := range doc.Services[0].Groups {
-		for _, o := range g.Operations {
-			for _, p := range o.Params {
-				got = append(got, p.ID)
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, operation := range operationGroup.Operations {
+			for _, parameter := range operation.Params {
+				got = append(got, parameter.ID)
 			}
 		}
 	}
@@ -410,13 +410,13 @@ paths:
 			Provenance: ir.Provenance{Source: source, Pointer: pointer}}
 	}
 	var got []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.DuplicateParameter {
-			got = append(got, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateParameter {
+			got = append(got, diagnostic)
 		}
 	}
-	slices.SortFunc(got, func(x, y ir.Diagnostic) int {
-		return strings.Compare(string(x.Provenance.Pointer), string(y.Provenance.Pointer))
+	slices.SortFunc(got, func(diagnostic, irDiagnostic ir.Diagnostic) int {
+		return strings.Compare(string(diagnostic.Provenance.Pointer), string(irDiagnostic.Provenance.Pointer))
 	})
 	want := []ir.Diagnostic{
 		repeat(1, "/X/get/parameters/2", "q", "query", "/X/get/parameters/0"),
@@ -458,7 +458,7 @@ func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
 	wantID := ir.TypeID("type/anonymous/paths/~1pets~1{petId}/parameters/0/schema")
 	assert.Equal(t, wantID, getPet.Params[0].Type.Target, "get resolves the shared path-item schema")
 
-	byName := openapitest.IndexBy(deletePet.Params, func(p ir.Parameter) string { return p.Name.Source })
+	byName := openapitest.IndexBy(deletePet.Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 	assert.Equal(t, wantID, byName["petId"].Type.Target, "delete resolves the same shared schema, not a copy")
 
 	typeDef, ok := doc.Types[wantID]
@@ -509,7 +509,7 @@ func TestParameters_PathItemSchemaIDStableAcrossOperationParamChanges(t *testing
 	require.Len(t, opBefore.Params, 1)
 	require.Len(t, opAfter.Params, 2, "the unrelated verbose parameter adds a second entry")
 
-	byName := openapitest.IndexBy(opAfter.Params, func(p ir.Parameter) string { return p.Name.Source })
+	byName := openapitest.IndexBy(opAfter.Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 	assert.Equal(t, opBefore.Params[0].Type.Target, byName["petId"].Type.Target,
 		"an unrelated operation-level parameter must not shift the shared path-item schema's ID")
 }
@@ -648,9 +648,9 @@ paths:
 		openapitest.RequireNoErrorDiags(t, diags)
 		out := map[string]string{}
 		for _, name := range []string{"a", "b"} {
-			p, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, name), "limit")
+			parameter, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, name), "limit")
 			require.True(t, ok)
-			out[name] = p.Docs.Description
+			out[name] = parameter.Docs.Description
 		}
 		return out
 	}

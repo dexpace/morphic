@@ -122,9 +122,9 @@ func TestPromotionCarriers_RowsAreTheOnesTheCorpusBuilds(t *testing.T) {
 // so a carrier is covered the day it is declared.
 func deprecationCarrierTypes(t *testing.T) []*types.Named {
 	t.Helper()
-	p, err := decls.Load(deprecationType.PkgPath())
+	loadedPackage, err := decls.Load(deprecationType.PkgPath())
 	require.NoError(t, err)
-	shape, err := jsonshape.Read(p, "Document")
+	shape, err := jsonshape.Read(loadedPackage, "Document")
 	require.NoError(t, err)
 
 	var found []*types.Named
@@ -136,10 +136,10 @@ func deprecationCarrierTypes(t *testing.T) []*types.Named {
 	return found
 }
 
-// pointsToDeprecation reports whether m is a field of type *ir.Deprecation,
+// pointsToDeprecation reports whether member is a field of type *ir.Deprecation,
 // however many aliases spell it.
-func pointsToDeprecation(m jsonshape.Member) bool {
-	ptr, isPointer := types.Unalias(m.Field.Type()).(*types.Pointer)
+func pointsToDeprecation(member jsonshape.Member) bool {
+	ptr, isPointer := types.Unalias(member.Field.Type()).(*types.Pointer)
 	if !isPointer {
 		return false
 	}

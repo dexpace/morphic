@@ -33,9 +33,9 @@ func TestScope_InDocument_ReadsTheDocumentItNames(t *testing.T) {
 	assert.Empty(t, home.Holder)
 	assert.True(t, foreign.Foreign, "the scope it was asked from is left as it was")
 
-	e, ok := b.doc.Bindings.Entry(b.component(t, "Other"))
-	require.True(t, ok && e.Lands(), "Other's $ref lands in ext.yaml")
-	there := b.scope.InDocument(e.Hop.Target.Doc)
+	referenceSite, ok := b.doc.Bindings.Entry(b.component(t, "Other"))
+	require.True(t, ok && referenceSite.Lands(), "Other's $ref lands in ext.yaml")
+	there := b.scope.InDocument(referenceSite.Hop.Target.Doc)
 	assert.True(t, there.Foreign, "ext.yaml holds E")
 	assert.Equal(t, filepath.Join(filepath.Dir(path), "ext.yaml"), there.Holder)
 	assert.False(t, b.scope.Foreign, "the scope it was asked from is left as it was")

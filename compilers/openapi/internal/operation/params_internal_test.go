@@ -23,10 +23,10 @@ import (
 
 func TestFillParamSchema_EmptyEitherNoOp(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	param := &ir.Parameter{}
 	var written ir.Unmodeled
-	diags := fillParamSchema(l.ctx, l.types, param, &written, openapitest.EmptyEitherSchema(), "/p")
+	diags := fillParamSchema(lowerer.ctx, lowerer.types, param, &written, openapitest.EmptyEitherSchema(), "/p")
 	assert.Nil(t, written)
 	assert.Nil(t, param.Constraints)
 	assert.Nil(t, param.Default)
@@ -39,14 +39,14 @@ func TestFillParamSchema_EmptyEitherNoOp(t *testing.T) {
 // record nothing rather than announce a preservation it did not make.
 func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, openapitest.ComponentSpec("    A: {type: string}\n"))
+	lowerer, _ := loweredFor(t, openapitest.ComponentSpec("    A: {type: string}\n"))
 	s := &oas3.Schema{XML: &oas3.XML{}}
 	require.NotNil(t, s.GetXML(), "the model reports the hint as set")
 	_, backed := standaloneSchema(s).Key("xml")
 	require.False(t, backed, "and no raw node backs it")
 
 	var written ir.Unmodeled
-	diags := preserveParamXML(l.ctx, &written, standaloneSchema(s), "/paths/~1x/get/parameters/0/schema")
+	diags := preserveParamXML(lowerer.ctx, &written, standaloneSchema(s), "/paths/~1x/get/parameters/0/schema")
 
 	assert.Nil(t, written, "no entry is recorded when there are no bytes to record")
 	assert.Empty(t, diags, "and nothing is announced, so the two channels agree")

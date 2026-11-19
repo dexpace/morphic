@@ -67,9 +67,9 @@ func TestValidate_DanglingPropIDsAreReportedByLocation(t *testing.T) {
 		segments[i] = ir.PropertyID(fmt.Sprintf("property/m/ghost%d", i))
 	}
 	var where []string
-	for _, d := range validated(t, docWithOperation(propPathOperation(segments))) {
-		if d.Code == "ir/dangling-property-ref" {
-			where = append(where, d.Provenance.Node)
+	for _, diagnostic := range validated(t, docWithOperation(propPathOperation(segments))) {
+		if diagnostic.Code == "ir/dangling-property-ref" {
+			where = append(where, diagnostic.Provenance.Node)
 		}
 	}
 	require.Len(t, where, 11)

@@ -23,29 +23,29 @@ func TestDiags_DedupesByFullIdentity(t *testing.T) {
 		Message:    "m",
 		Provenance: ir.Provenance{Source: 0, Pointer: "/p"},
 	}
-	differs := map[string]func(d *ir.Diagnostic){
-		"severity":        func(d *ir.Diagnostic) { d.Severity = ir.SeverityInfo },
-		"code":            func(d *ir.Diagnostic) { d.Code = "x/z" },
-		"message":         func(d *ir.Diagnostic) { d.Message = "other" },
-		"source":          func(d *ir.Diagnostic) { d.Provenance.Source = 1 },
-		"pointer":         func(d *ir.Diagnostic) { d.Provenance.Pointer = "/q" },
-		"inferredBy":      func(d *ir.Diagnostic) { d.Provenance.Inferred = "guess" },
-		"position line":   func(d *ir.Diagnostic) { d.Provenance.Position.Line = 5 },
-		"position column": func(d *ir.Diagnostic) { d.Provenance.Position.Column = 5 },
-		"node":            func(d *ir.Diagnostic) { d.Provenance.Node = "operation/x" },
+	differs := map[string]func(diagnostic *ir.Diagnostic){
+		"severity":        func(diagnostic *ir.Diagnostic) { diagnostic.Severity = ir.SeverityInfo },
+		"code":            func(diagnostic *ir.Diagnostic) { diagnostic.Code = "x/z" },
+		"message":         func(diagnostic *ir.Diagnostic) { diagnostic.Message = "other" },
+		"source":          func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Source = 1 },
+		"pointer":         func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Pointer = "/q" },
+		"inferredBy":      func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Inferred = "guess" },
+		"position line":   func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Position.Line = 5 },
+		"position column": func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Position.Column = 5 },
+		"node":            func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Node = "operation/x" },
 	}
 	for name, mutate := range differs {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			var d compile.Diags
-			d.Append(base)
-			d.Append(base)
-			require.Len(t, d.List(), 1, "an identical repeat collapses")
+			var diags compile.Diags
+			diags.Append(base)
+			diags.Append(base)
+			require.Len(t, diags.List(), 1, "an identical repeat collapses")
 
 			other := base
 			mutate(&other)
-			d.Append(other)
-			assert.Len(t, d.List(), 2, "a diagnostic differing in %s is a distinct finding", name)
+			diags.Append(other)
+			assert.Len(t, diags.List(), 2, "a diagnostic differing in %s is a distinct finding", name)
 		})
 	}
 }
@@ -55,18 +55,18 @@ func TestDiags_AppendAllPreservesFirstSeenOrder(t *testing.T) {
 	mk := func(code string) ir.Diagnostic {
 		return ir.Diagnostic{Severity: ir.SeverityError, Code: code}
 	}
-	var d compile.Diags
-	d.AppendAll([]ir.Diagnostic{mk("a"), mk("b"), mk("a"), mk("c")})
+	var diags compile.Diags
+	diags.AppendAll([]ir.Diagnostic{mk("a"), mk("b"), mk("a"), mk("c")})
 
-	got := make([]string, 0, len(d.List()))
-	for _, x := range d.List() {
-		got = append(got, x.Code)
+	got := make([]string, 0, len(diags.List()))
+	for _, diagnostic := range diags.List() {
+		got = append(got, diagnostic.Code)
 	}
 	assert.Equal(t, []string{"a", "b", "c"}, got)
 }
 
 func TestDiags_ZeroValueIsUsable(t *testing.T) {
 	t.Parallel()
-	var d compile.Diags
-	assert.Empty(t, d.List())
+	var diags compile.Diags
+	assert.Empty(t, diags.List())
 }

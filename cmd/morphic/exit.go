@@ -131,8 +131,8 @@ func reportViolations(w io.Writer, err error) {
 		return
 	}
 	shown := min(len(verr.Violations), maxViolationLines)
-	for _, v := range verr.Violations[:shown] {
-		emitf(w, "  %s at %.*q: %.*s\n", v.Code, maxViolationPath, v.Path, maxViolationText, v.Message)
+	for _, violation := range verr.Violations[:shown] {
+		emitf(w, "  %s at %.*q: %.*s\n", violation.Code, maxViolationPath, violation.Path, maxViolationText, violation.Message)
 	}
 	if more := len(verr.Violations) - shown; more > 0 {
 		emitf(w, "  and %d more\n", more)

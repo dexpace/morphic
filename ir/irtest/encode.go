@@ -20,11 +20,11 @@ func Encoded(t *testing.T, doc *ir.Document) string {
 
 // encoded holds Encoded's logic against the minimal testingT surface, so its
 // failure is testable.
-func encoded(t testingT, doc *ir.Document) string {
-	t.Helper()
+func encoded(testingTValue testingT, doc *ir.Document) string {
+	testingTValue.Helper()
 	raw, err := json.Marshal(doc)
 	if err != nil {
-		t.Fatalf("encode the document: %v", err)
+		testingTValue.Fatalf("encode the document: %v", err)
 		return ""
 	}
 	return string(raw)

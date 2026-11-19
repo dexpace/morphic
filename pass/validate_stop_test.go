@@ -24,8 +24,8 @@ func cutWalk(n int) func(context.Context, any, string, ...ir.Visitor) (bool, err
 	return func(ctx context.Context, root any, path string, visitors ...ir.Visitor) (bool, error) {
 		cut := false
 		held := make([]ir.Visitor, len(visitors))
-		for i, v := range visitors {
-			held[i] = &cutVisitor{inner: v, left: n, cut: &cut}
+		for i, visitor := range visitors {
+			held[i] = &cutVisitor{inner: visitor, left: n, cut: &cut}
 		}
 		truncated, err := ir.WalkValuesContext(ctx, root, path, held...)
 		return truncated || cut, err

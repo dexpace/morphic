@@ -36,10 +36,10 @@ func loaded(t *testing.T, spec string) *reftable.ReferenceTargetTable {
 func TestNode_ReadsNothingTheTableDoesNotHold(t *testing.T) {
 	t.Parallel()
 	tb := loaded(t, openapitest.ComponentSpec("    A: {type: object}\n"))
-	n := New(tb, true)
-	require.NotNil(t, n.node(reftable.Source, "/components/schemas/A"), "sanity: the source holds A")
-	assert.Nil(t, n.node(-1, "/components/schemas/A"))
-	assert.Nil(t, n.node(reftable.DocID(tb.Documents()), "/components/schemas/A"))
+	namer := New(tb, true)
+	require.NotNil(t, namer.node(reftable.Source, "/components/schemas/A"), "sanity: the source holds A")
+	assert.Nil(t, namer.node(-1, "/components/schemas/A"))
+	assert.Nil(t, namer.node(reftable.DocID(tb.Documents()), "/components/schemas/A"))
 	assert.Nil(t, New(nil, true).node(reftable.Source, "/components/schemas/A"))
 }
 

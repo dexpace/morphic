@@ -25,9 +25,9 @@ const describingOverlay = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
 	"actions:\n  - target: $.info\n    update: {description: from the overlay}\n"
 
 // namedOverlay is the loader's options for an overlay the caller named and did
-// not read, read through r under the byte budget limit.
-func namedOverlay(r compilers.DocumentReader, limit budget.Limit) Options {
-	return Options{Overlay: &overlay.Options{Path: "patch.yaml"}, OverlaySrcIndex: 1, Reader: r,
+// not read, read through documentReader under the byte budget limit.
+func namedOverlay(documentReader compilers.DocumentReader, limit budget.Limit) Options {
+	return Options{Overlay: &overlay.Options{Path: "patch.yaml"}, OverlaySrcIndex: 1, Reader: documentReader,
 		MaxSourceBytes: limit}
 }
 
@@ -37,8 +37,8 @@ func namedOverlay(r compilers.DocumentReader, limit budget.Limit) Options {
 // under the compile's own context. What it read is what is applied.
 func TestLoad_ReadsANamedOverlayThroughTheReader(t *testing.T) {
 	t.Parallel()
-	r := &fakeReader{data: []byte(describingOverlay)}
-	opts := namedOverlay(r, budget.AtMost(4096))
+	fakeReaderValue := &fakeReader{data: []byte(describingOverlay)}
+	opts := namedOverlay(fakeReaderValue, budget.AtMost(4096))
 	opts.Within = "/confined/to/here"
 	ctx := context.WithValue(t.Context(), ctxKey{}, "the compile's")
 
@@ -46,8 +46,8 @@ func TestLoad_ReadsANamedOverlayThroughTheReader(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, doc, "%+v", diags)
-	assert.Equal(t, []compilers.DocumentRequest{{Location: "patch.yaml", Limit: 4096}}, r.seen())
-	assert.Equal(t, []any{"the compile's"}, r.contexts())
+	assert.Equal(t, []compilers.DocumentRequest{{Location: "patch.yaml", Limit: 4096}}, fakeReaderValue.seen())
+	assert.Equal(t, []any{"the compile's"}, fakeReaderValue.contexts())
 	assert.True(t, doc.Overlay.Applied())
 	assert.Equal(t, "from the overlay", doc.Doc.Info.GetDescription())
 }
@@ -56,15 +56,15 @@ func TestLoad_ReadsANamedOverlayThroughTheReader(t *testing.T) {
 // arrives: bytes the caller read, which the reader is never asked for.
 func TestLoad_AnOverlayHandedInBytesIsNotRead(t *testing.T) {
 	t.Parallel()
-	r := &fakeReader{err: fs.ErrNotExist}
+	fakeReaderValue := &fakeReader{err: fs.ErrNotExist}
 	opts := overlayOf(describingOverlay)
-	opts.Reader = r
+	opts.Reader = fakeReaderValue
 
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
 
 	require.NoError(t, err)
 	require.NotNil(t, doc, "%+v", diags)
-	assert.Empty(t, r.seen())
+	assert.Empty(t, fakeReaderValue.seen())
 	assert.Equal(t, "from the overlay", doc.Doc.Info.GetDescription())
 }
 

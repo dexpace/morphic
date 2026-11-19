@@ -252,7 +252,7 @@ func (t *Types) Building(id ir.TypeID) bool {
 	return !built
 }
 
-// PrimRef interns the primitive of kind k on first use and returns a reference
+// PrimRef interns the primitive of kind primitiveKind on first use and returns a reference
 // to it. Primitives are leaves reached by kind rather than by position, so they
 // never enter the pointer-keyed table.
 //
@@ -263,17 +263,19 @@ func (t *Types) Building(id ir.TypeID) bool {
 // It claims neither ID nor space, since both claims are about a coordinate
 // owning an ID. Another node landing in the prim space is caught, for every
 // producer, by irverify's ir/prim-space-reserved.
-func (t *Types) PrimRef(k ir.PrimitiveKind) ir.TypeRef {
-	id := ir.PrimitiveTypeID(k)
+func (t *Types) PrimRef(primitiveKind ir.PrimitiveKind) ir.TypeRef {
+	id := ir.PrimitiveTypeID(primitiveKind)
 	if _, ok := t.reg[id]; !ok {
 		t.reg[id] = &ir.Primitive{
 			ID:            id,
 			Provenance:    ir.Provenance{Source: ir.NoSource},
-			PrimitiveKind: k,
+			PrimitiveKind: primitiveKind,
 		}
 	}
 	return ir.TypeRef{Target: id}
 }
 
-// PrimID interns the primitive of kind k and returns its ID.
-func (t *Types) PrimID(k ir.PrimitiveKind) ir.TypeID { return t.PrimRef(k).Target }
+// PrimID interns the primitive of kind primitiveKind and returns its ID.
+func (t *Types) PrimID(primitiveKind ir.PrimitiveKind) ir.TypeID {
+	return t.PrimRef(primitiveKind).Target
+}

@@ -31,9 +31,9 @@ webhooks:
 	openapitest.RequireNoErrorDiags(t, diags)
 	var group ir.OperationGroup
 	found := false
-	for _, g := range svc.Groups {
-		if g.Name.Hint == "webhooks" {
-			group, found = g, true
+	for _, operationGroup := range svc.Groups {
+		if operationGroup.Name.Hint == "webhooks" {
+			group, found = operationGroup, true
 		}
 	}
 	require.True(t, found, "webhook operations land in the webhooks group")
@@ -96,7 +96,7 @@ webhooks:
 // webhookOperation returns the one operation of svc's webhooks group.
 func webhookOperation(t *testing.T, svc ir.Service) ir.Operation {
 	t.Helper()
-	i := slices.IndexFunc(svc.Groups, func(g ir.OperationGroup) bool { return g.ID == ids.WebhookGroup() })
+	i := slices.IndexFunc(svc.Groups, func(operationGroup ir.OperationGroup) bool { return operationGroup.ID == ids.WebhookGroup() })
 	require.GreaterOrEqual(t, i, 0, "the service has a webhooks group")
 	require.Len(t, svc.Groups[i].Operations, 1, "the webhooks group holds exactly one operation")
 	return svc.Groups[i].Operations[0]

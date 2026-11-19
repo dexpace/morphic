@@ -105,21 +105,21 @@ func TestCompile_AReadPastTheAdmissionCapsKeepsItsKinds(t *testing.T) {
 func requireKindsRead(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	for name, dead := range map[string]string{"PU": "anyOf/0", "PUr": "anyOf/1"} {
-		u, ok := typeByName(doc, name).(*ir.Union)
+		union, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, name)
-		assert.Len(t, u.Variants, 1, "%s: the branch over T is no variant", name)
-		assert.Contains(t, u.Unmodeled, "openapi:"+dead, name)
+		assert.Len(t, union.Variants, 1, "%s: the branch over T is no variant", name)
+		assert.Contains(t, union.Unmodeled, "openapi:"+dead, name)
 	}
 	for name, base := range map[string]ir.TypeID{"PA": "", "PA2": componentID("O"), "PA2r": componentID("O")} {
-		m, ok := typeByName(doc, name).(*ir.Model)
+		model, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, name)
 		got := ir.TypeID("")
-		if m.Base != nil {
-			got = m.Base.Target
+		if model.Base != nil {
+			got = model.Base.Target
 		}
 		assert.Equal(t, base, got, name)
-		assert.Empty(t, m.Mixins, name)
-		assert.Contains(t, m.Unmodeled, "openapi:$ref", "%s: the entry over T is kept", name)
+		assert.Empty(t, model.Mixins, name)
+		assert.Contains(t, model.Unmodeled, "openapi:$ref", "%s: the entry over T is kept", name)
 	}
 	requireErrorsAndWarnings(t, diags, []wantFinding{
 		{code: diag.DegradedConstruct, pointer: "/components/schemas/PU", contains: []string{"anyOf/0: string"}},
@@ -150,9 +150,9 @@ func neighbourhoodOf(doc *ir.Document, diags []ir.Diagnostic) capNeighbourhood {
 			out.types[id] = td
 		}
 	}
-	for _, d := range diags {
-		if owned(string(d.Provenance.Pointer)) {
-			out.diags = append(out.diags, d)
+	for _, diagnostic := range diags {
+		if owned(string(diagnostic.Provenance.Pointer)) {
+			out.diags = append(out.diags, diagnostic)
 		}
 	}
 	return out
@@ -175,16 +175,16 @@ func TestCompile_ABranchPastTheAdmissionCapsBesideANullableBodyLives(t *testing.
 			schemas := append([]string{capNeighbours[0], "PN: {type: [object, 'null'], properties: {u: {type: string}}, anyOf: [" +
 				capRef("T") + ", " + capRef("O") + "]}"}, capTarget(tc.kind, tc.n)...)
 			doc, diags := compileAnnotationSpec(t, "caps", admissionSpec("3.1.0", "", schemas...))
-			u, ok := typeByName(doc, "PN").(*ir.Union)
+			union, ok := typeByName(doc, "PN").(*ir.Union)
 			require.True(t, ok)
 			if tc.within {
-				assert.Len(t, u.Variants, 1)
+				assert.Len(t, union.Variants, 1)
 				requireErrorsAndWarnings(t, diags, []wantFinding{
 					{code: diag.DegradedConstruct, pointer: "/components/schemas/PN", contains: []string{"anyOf/0: string"}},
 				})
 				return
 			}
-			assert.Len(t, u.Variants, 2, "the branch over T lives")
+			assert.Len(t, union.Variants, 2, "the branch over T lives")
 			requireErrorsAndWarnings(t, diags, nil)
 			assert.Equal(t, 1, countFindings(diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/PN/anyOf/0"),
 				"the branch is kept on its variant")

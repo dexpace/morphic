@@ -49,22 +49,22 @@ func pageLink(ms *models, body *model, deep bool, names linkNames) []ir.Property
 func findLink(ms *models, body *model, deep bool, names []string, plain bool) ([]ir.PropertyID, int) {
 	var path []ir.PropertyID
 	found := 0
-	at := func(m *model, through []ir.PropertyID) {
+	at := func(modelValue *model, through []ir.PropertyID) {
 		for _, name := range names {
-			for _, p := range m.urls[name] {
-				path, found = append(slices.Clone(through), p.ID), found+1
+			for _, property := range modelValue.urls[name] {
+				path, found = append(slices.Clone(through), property.ID), found+1
 			}
-			for _, s := range m.scalars[name] {
-				if plain && s.prim == ir.PrimitiveString {
-					path, found = append(slices.Clone(through), s.member.ID), found+1
+			for _, scalar := range modelValue.scalars[name] {
+				if plain && scalar.prim == ir.PrimitiveString {
+					path, found = append(slices.Clone(through), scalar.member.ID), found+1
 				}
 			}
 		}
 	}
 	at(body, nil)
 	if deep {
-		for _, o := range body.objects {
-			at(ms.of(o.id), []ir.PropertyID{o.member.ID})
+		for _, object := range body.objects {
+			at(ms.of(object.id), []ir.PropertyID{object.member.ID})
 		}
 	}
 	return path, found
@@ -89,13 +89,13 @@ func agreed(pages []page, of func(page) []ir.PropertyID) []ir.PropertyID {
 // leading x_ aside, is next_<cursor>, else the cursor's own, and the least of
 // its spellings. It returns nil where none is, or where two headers, as HTTP
 // compares their names, are so named.
-func headerCursor(w *compileddoc.CompiledDocumentView, op *ir.Operation, cursor string) (*ir.PropPath, string) {
+func headerCursor(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation, cursor string) (*ir.PropPath, string) {
 	for _, name := range [...]string{"next_" + cursor, cursor} {
 		spellings := map[string][]string{} // by the name as HTTP compares it
 		for i := range op.Responses {
 			for j := range op.Responses[i].Headers {
-				h := &op.Responses[i].Headers[j].Property
-				if wire := h.EffectiveWireName(); strings.TrimPrefix(h.Name.Canonical, "x_") == name {
+				property := &op.Responses[i].Headers[j].Property
+				if wire := property.EffectiveWireName(); strings.TrimPrefix(property.Name.Canonical, "x_") == name {
 					spellings[strings.ToLower(wire)] = append(spellings[strings.ToLower(wire)], wire)
 				}
 			}
@@ -105,7 +105,7 @@ func headerCursor(w *compileddoc.CompiledDocumentView, op *ir.Operation, cursor 
 		}
 		for _, spelled := range spellings {
 			least := slices.Min(spelled)
-			if out, failure := headerOutput(w, op, least); failure == "" {
+			if out, failure := headerOutput(compiledDocumentView, op, least); failure == "" {
 				return out, least
 			}
 		}
@@ -115,8 +115,8 @@ func headerCursor(w *compileddoc.CompiledDocumentView, op *ir.Operation, cursor 
 
 // isURL reports whether td is the url primitive.
 func isURL(td ir.TypeDef) bool {
-	p, ok := td.(*ir.Primitive)
-	return ok && p.PrimitiveKind == ir.PrimitiveURL
+	primitive, ok := td.(*ir.Primitive)
+	return ok && primitive.PrimitiveKind == ir.PrimitiveURL
 }
 
 // linkWalk returns the walk op's response alone continues, where no place
@@ -168,10 +168,10 @@ func (r *reader) linkWalk(op *ir.Operation) (*ir.Pagination, string) {
 	}, ""
 }
 
-// sameLinkPage reports whether p and q hold a link walk's page, links
+// sameLinkPage reports whether pageValue and otherPage hold a link walk's page, links
 // included, at the same members.
-func sameLinkPage(p, q page) bool {
-	return p.equal(q) && slices.Equal(p.nextLink, q.nextLink) && slices.Equal(p.prevLink, q.prevLink)
+func sameLinkPage(pageValue, otherPage page) bool {
+	return pageValue.equal(otherPage) && slices.Equal(pageValue.nextLink, otherPage.nextLink) && slices.Equal(pageValue.prevLink, otherPage.prevLink)
 }
 
 // linkPart is what a member of a link walk's page is.
@@ -232,12 +232,12 @@ func partIf(ok bool, part linkPart) linkPart {
 // is set where it is no page.
 func (r *reader) linkPage(id ir.TypeID) page {
 	parts := map[linkPart][]*ir.Property{}
-	for _, p := range r.w.Members(id) {
-		part := linkPartOf(p.Name.Canonical, r.w.Stands(p.Type.Target))
+	for _, property := range r.w.Members(id) {
+		part := linkPartOf(property.Name.Canonical, r.w.Stands(property.Type.Target))
 		if part == partOther {
 			return page{why: "is no page"}
 		}
-		parts[part] = append(parts[part], p)
+		parts[part] = append(parts[part], property)
 	}
 	if len(parts[partItems]) != 1 {
 		return page{why: "is no page"}
@@ -251,19 +251,19 @@ func (r *reader) linkPage(id ir.TypeID) page {
 // linkHeader reports whether every success response of op declaring a page
 // body declares one Link header of a plain string type, the header RFC 8288
 // names, and one does.
-func linkHeader(w *compileddoc.CompiledDocumentView, op *ir.Operation) bool {
+func linkHeader(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation) bool {
 	declared := false
 	for i := range op.Responses {
 		if pageBody(op.Responses[i].Payload) == nil {
 			continue
 		}
 		headers := op.Responses[i].Headers
-		found := w.Header(compileddoc.ResponseKey{Op: op.ID, List: compileddoc.ListResponses, Index: i}, headers, "Link")
+		found := compiledDocumentView.Header(compileddoc.ResponseKey{Op: op.ID, List: compileddoc.ListResponses, Index: i}, headers, "Link")
 		if len(found) != 1 {
 			return false
 		}
-		at := slices.IndexFunc(headers, func(h ir.Header) bool { return h.ID == found[0] })
-		if prim, ok := w.Stands(headers[at].Type.Target).(*ir.Primitive); !ok || prim.PrimitiveKind != ir.PrimitiveString {
+		at := slices.IndexFunc(headers, func(header ir.Header) bool { return header.ID == found[0] })
+		if prim, ok := compiledDocumentView.Stands(headers[at].Type.Target).(*ir.Primitive); !ok || prim.PrimitiveKind != ir.PrimitiveString {
 			return false
 		}
 		declared = true

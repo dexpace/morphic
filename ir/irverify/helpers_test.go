@@ -11,9 +11,9 @@ import "github.com/dexpace/morphic/ir/irverify"
 // order.
 func violationPaths(vs []irverify.Violation, code string) []string {
 	var out []string
-	for _, v := range vs {
-		if v.Code == code {
-			out = append(out, v.Path)
+	for _, violation := range vs {
+		if violation.Code == code {
+			out = append(out, violation.Path)
 		}
 	}
 	return out
@@ -23,8 +23,8 @@ func violationPaths(vs []irverify.Violation, code string) []string {
 // not depend on violation order or message wording.
 func violationCodes(vs []irverify.Violation) []string {
 	out := make([]string, 0, len(vs))
-	for _, v := range vs {
-		out = append(out, v.Code)
+	for _, violation := range vs {
+		out = append(out, violation.Code)
 	}
 	return out
 }

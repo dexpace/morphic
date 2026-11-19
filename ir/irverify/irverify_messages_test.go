@@ -53,23 +53,23 @@ type messageCase struct {
 func messageCases() []messageCase {
 	return []messageCase{
 		{"bigval not numeric", func() *ir.Document {
-			m := namedModel("type/x/A")
-			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
+			model := namedModel("type/x/A")
+			model.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
 				Default: &ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal(illFormed)}}}
-			return typesDoc(m)
+			return typesDoc(model)
 		}, "ir/bigval-not-numeric",
 			fmt.Sprintf("numeric value %q is not a decimal literal, so it does not read back as a JSON number", illFormed)},
 		{"inferred not canonical", func() *ir.Document {
-			m := namedModel("type/x/A")
-			m.Provenance.Inferred = illFormed + "," + illFormed
-			return typesDoc(m)
+			model := namedModel("type/x/A")
+			model.Provenance.Inferred = illFormed + "," + illFormed
+			return typesDoc(model)
 		}, "ir/inferred-not-canonical", fmt.Sprintf(
 			"inferred marker %q is not the list %q ir.JoinInferred writes for it", illFormed+","+illFormed, illFormed)},
 		{"inferred on a reference admitting no null", func() *ir.Document {
-			m := namedModel("type/x/A")
-			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"),
+			model := namedModel("type/x/A")
+			model.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"),
 				Type: ir.TypeRef{Target: "type/x/A", Inferred: illFormed}}}
-			return typesDoc(m)
+			return typesDoc(model)
 		}, "ir/type-ref-inferred-not-nullable", fmt.Sprintf(
 			"type reference is marked inferred by %q but admits no null", illFormed)},
 		{"inferred on a part carrying no filename", func() *ir.Document {
@@ -79,18 +79,18 @@ func messageCases() []messageCase {
 		}, "ir/part-encoding-inferred-not-filename", fmt.Sprintf(
 			"part encoding is marked inferred by %q but carries no filename", illFormed)},
 		{"bigval out of range", func() *ir.Document {
-			m := namedModel("type/x/A")
-			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
+			model := namedModel("type/x/A")
+			model.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
 				Default: &ir.Value{Kind: ir.ValueNumber, Number: "1e1000000000000000000"}}}
-			return typesDoc(m)
+			return typesDoc(model)
 		}, "ir/bigval-out-of-range",
 			`numeric value "1e1000000000000000000" is a decimal literal whose leading digit carries a power of ten ` +
 				`past the ±999999999999999999 a BigVal holds`},
 		{"bigval not canonical", func() *ir.Document {
-			m := namedModel("type/x/A")
-			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
+			model := namedModel("type/x/A")
+			model.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
 				Default: &ir.Value{Kind: ir.ValueNumber, Number: "01"}}}
-			return typesDoc(m)
+			return typesDoc(model)
 		}, "ir/bigval-not-canonical", `numeric value "01" is not the JSON form "1" ir.NewBigVal produces for it`},
 		{"duplicate id", func() *ir.Document {
 			op := ir.Operation{ID: ir.OperationID("operation/x/S/" + illFormed), Name: named("op")}
@@ -186,9 +186,9 @@ func messageCases() []messageCase {
 		}, "ir/id-malformed", fmt.Sprintf(
 			"id %q is not type/<space>[/<path>]; every segment must be non-empty", "type//"+illFormed)},
 		{"id disagrees with its pointer", func() *ir.Document {
-			m := namedModel(ir.TypeID("type/x/" + illFormed))
-			m.Provenance = ir.Provenance{Pointer: "/other"}
-			return typesDoc(m)
+			model := namedModel(ir.TypeID("type/x/" + illFormed))
+			model.Provenance = ir.Provenance{Pointer: "/other"}
+			return typesDoc(model)
 		}, "ir/id-provenance-disagreement", fmt.Sprintf(
 			"id %q carries path %q, which is not the source pointer \"/other\" it records", "type/x/"+illFormed, illFormed)},
 		{"namespace undeclared", func() *ir.Document {
@@ -269,33 +269,33 @@ func messageCases() []messageCase {
 			"canonical name \"x\" is not what the grammar derives from source %q (%q); "+
 				"emitters cannot tell which grammar produced it", illFormed+"X", ir.CanonicalWords(illFormed+"X"))},
 		{"unmodeled reason", func() *ir.Document {
-			m := namedModel("type/x/A")
-			m.Unmodeled = ir.Unmodeled{"bytes:k": {Reason: ir.UnmodeledReason(illFormed), Value: ir.RawValue(`1`)}}
-			return typesDoc(m)
+			model := namedModel("type/x/A")
+			model.Unmodeled = ir.Unmodeled{"bytes:k": {Reason: ir.UnmodeledReason(illFormed), Value: ir.RawValue(`1`)}}
+			return typesDoc(model)
 		}, "ir/unknown-unmodeled-reason", fmt.Sprintf("unmodeled entry carries undeclared reason %q", illFormed)},
 		{"dangling reference", func() *ir.Document {
-			m := namedModel("type/x/A")
-			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: ir.TypeID("type/x/" + illFormed)}}}
-			return typesDoc(m)
+			model := namedModel("type/x/A")
+			model.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: ir.TypeID("type/x/" + illFormed)}}}
+			return typesDoc(model)
 		}, "ir/dangling-type-ref", fmt.Sprintf("reference %q does not resolve in types", "type/x/"+illFormed)},
 		{"stray payload", func() *ir.Document {
-			m := namedModel("type/x/A")
-			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
+			model := namedModel("type/x/A")
+			model.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
 				Default: &ir.Value{Kind: ir.ValueString, String: "s", Bool: true}}}
-			return typesDoc(m)
+			return typesDoc(model)
 		}, "ir/value-stray-payload", `value of kind "string" populates Bool, a payload its kind does not select`},
 		{"missing payload", func() *ir.Document {
-			m := namedModel("type/x/A")
-			m.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
+			model := namedModel("type/x/A")
+			model.Properties = []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"},
 				Default: &ir.Value{Kind: ir.ValueNumber}}}
-			return typesDoc(m)
+			return typesDoc(model)
 		}, "ir/value-missing-payload", `value of kind "number" leaves Number empty, which is no value of that kind`},
 		{"cyclic structure", func() *ir.Document {
-			c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
-			c.Args = []ir.Value{ctorValue(c)}
-			m := namedModel(ir.TypeID("type/x/" + illFormed))
-			m.Examples = []ir.Example{{Value: new(ctorValue(c))}}
-			return typesDoc(m,
+			constructorValue := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
+			constructorValue.Args = []ir.Value{ctorValue(constructorValue)}
+			model := namedModel(ir.TypeID("type/x/" + illFormed))
+			model.Examples = []ir.Example{{Value: new(ctorValue(constructorValue))}}
+			return typesDoc(model,
 				&ir.Scalar{ID: "type/x/S", Name: named("s"), Base: &ir.TypeRef{Target: "type/primitive/string"}},
 				&ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString})
 		}, "ir/cyclic-structure", fmt.Sprintf(
@@ -321,13 +321,13 @@ func TestVerify_MessagesQuoteWhatTheDocumentSpells(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := verifyDeclared(tc.doc())
-			for _, v := range got {
-				assert.True(t, utf8.ValidString(v.Message), "%s: %q", v.Code, v.Message)
+			for _, violation := range got {
+				assert.True(t, utf8.ValidString(violation.Message), "%s: %q", violation.Code, violation.Message)
 			}
 			var messages []string
-			for _, v := range got {
-				if v.Code == tc.code {
-					messages = append(messages, v.Message)
+			for _, violation := range got {
+				if violation.Code == tc.code {
+					messages = append(messages, violation.Message)
 				}
 			}
 			require.NotEmpty(t, messages, "the case must reach %s; got %v", tc.code, codesOf(got))

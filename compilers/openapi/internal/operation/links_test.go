@@ -91,9 +91,9 @@ func keptLink(t *testing.T, on, link string) (ir.Response, []ir.Diagnostic) {
 		pointer = "/paths/~1bare/get/responses/200/links/L"
 	}
 	var at []ir.Diagnostic
-	for _, d := range diags {
-		if d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			at = append(at, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) {
+			at = append(at, diagnostic)
 		}
 	}
 	return resp, at
@@ -144,11 +144,11 @@ func TestLinks_AFindingKeepsTheLinkWhole(t *testing.T) {
 			assert.Empty(t, resp.Links, "a link that does not lower whole is not lowered in part")
 			assert.Contains(t, resp.Unmodeled, "openapi:links/L", "it is kept verbatim under its own key")
 			var found []string
-			for _, d := range at {
-				if d.Code == tc.code {
-					found = append(found, d.Message)
+			for _, diagnostic := range at {
+				if diagnostic.Code == tc.code {
+					found = append(found, diagnostic.Message)
 					assert.Equal(t, map[string]ir.Severity{diag.InvalidLink: ir.SeverityWarning, diag.UntypedLink: ir.SeverityInfo}[tc.code],
-						d.Severity, "a link kept verbatim fails no compile")
+						diagnostic.Severity, "a link kept verbatim fails no compile")
 				}
 			}
 			require.Len(t, found, 1, "one finding at the link's entry; got %+v", at)
@@ -418,9 +418,9 @@ components:
 			assert.Empty(t, resp.Links)
 			assert.Contains(t, resp.Unmodeled, "openapi:links/Again")
 			var found []string
-			for _, d := range diags {
-				if d.Code == diag.UntypedLink {
-					found = append(found, d.Message)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.UntypedLink {
+					found = append(found, diagnostic.Message)
 				}
 			}
 			require.Len(t, found, 1)
@@ -460,14 +460,14 @@ func TestLinks_LowerAlikeInEitherDeclarationOrder(t *testing.T) {
 		doc, diags := parseFull(t, openapitest.PathsSpec(spec))
 		got := map[ir.OperationID][]ir.OperationLink{}
 		ir.ForEachOperation(doc, func(op ir.Operation) {
-			for _, r := range op.Responses {
-				got[op.ID] = append(got[op.ID], r.Links...)
+			for _, response := range op.Responses {
+				got[op.ID] = append(got[op.ID], response.Links...)
 			}
 		})
 		var findings []string
-		for _, d := range diags {
-			if d.Code == diag.InvalidLink || d.Code == diag.UntypedLink {
-				findings = append(findings, d.Code+" "+string(d.Provenance.Pointer))
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.InvalidLink || diagnostic.Code == diag.UntypedLink {
+				findings = append(findings, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 			}
 		}
 		return got, findings
@@ -483,9 +483,9 @@ func TestLinks_LowerAlikeInEitherDeclarationOrder(t *testing.T) {
 // severitiesOf returns the severity of each finding of diags under code.
 func severitiesOf(diags []ir.Diagnostic, code string) []ir.Severity {
 	var out []ir.Severity
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, d.Severity)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, diagnostic.Severity)
 		}
 	}
 	return out

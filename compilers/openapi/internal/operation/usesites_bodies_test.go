@@ -18,9 +18,9 @@ import (
 // them.
 func byCode(diags []ir.Diagnostic, code string) []string {
 	var matching []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == code {
-			matching = append(matching, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			matching = append(matching, diagnostic)
 		}
 	}
 	return findings(matching)
@@ -120,9 +120,9 @@ func TestRequestBody_OnAMethodThatForbidsOne(t *testing.T) {
 	t.Parallel()
 	section := func(diags []ir.Diagnostic) []string {
 		var out []string
-		for _, d := range diags {
-			if d.Code == "openapi/body-forbidden-by-method" {
-				out = append(out, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Code == "openapi/body-forbidden-by-method" {
+				out = append(out, diagnostic.Message)
 			}
 		}
 		return out

@@ -33,8 +33,8 @@ func compileConfig(doc *yaml.Node) reftable.Config {
 		components := nodeview.Deref(view.ChildByToken(root, "components"))
 		pairs := view.MappingPairs(view.ChildByToken(components, kind))
 		out := make([]string, 0, len(pairs))
-		for _, p := range pairs {
-			out = append(out, p.Key)
+		for _, pair := range pairs {
+			out = append(out, pair.Key)
 		}
 		return out
 	}
@@ -62,22 +62,22 @@ type spelled struct {
 func spelledBy(t *testing.T, text string) spelled {
 	t.Helper()
 	doc := openapitest.YAMLDocument(t, text)
-	var s spelled
-	s.weighed, s.complete = reftable.NamedPointerBytes(t.Context(), doc, namedSteps)
+	var spelledValue spelled
+	spelledValue.weighed, spelledValue.complete = reftable.NamedPointerBytes(t.Context(), doc, namedSteps)
 	table := reftable.Bind(t.Context(), doc, compileConfig(doc).Spelling(func(at reftable.DocumentPointer, member bool) {
 		bytes := 0
 		for token := range at.Pointer.Tokens() {
 			bytes += len(token) + 1
 		}
-		s.walked += bytes
-		s.named += bytes
+		spelledValue.walked += bytes
+		spelledValue.named += bytes
 		if member {
-			s.named += bytes
+			spelledValue.named += bytes
 		}
 	}))
 	require.False(t, table.Exhausted() || table.Truncated(), "the table is whole")
 	require.Equal(t, 1, table.Passes(), "the table is read in one pass")
-	return s
+	return spelledValue
 }
 
 // landedOn returns a bringer whose n positions are raw values holding the
@@ -128,10 +128,10 @@ type spot struct {
 	unread, byURI, over, full bool
 }
 
-// fully returns s held to every chain.
-func fully(s spot) spot {
-	s.full = true
-	return s
+// fully returns spotValue held to every chain.
+func fully(spotValue spot) spot {
+	spotValue.full = true
+	return spotValue
 }
 
 // okResponses is the responses of an operation a spot writes.
@@ -263,9 +263,9 @@ func eachMap(item func(m string) string, maps ...string) []string {
 // wideMember is the member a wider document writes at each `%` of a spot.
 const wideMember = ", x-wwwwwwwwwwwwwwwwwwwwwwww: {a: b}"
 
-// spotDocument writes the document of a minor holding, at each `@` of s, the
+// spotDocument writes the document of a minor holding, at each `@` of spotValue, the
 // leaf chain brings to broughtCopies positions by each bringer in turn.
-func spotDocument(s spot, version string, chain []bringer, wide bool) string {
+func spotDocument(spotValue spot, version string, chain []bringer, wide bool) string {
 	var defs, mounts []string
 	schema, more := broughtLeaf(wide), ""
 	for depth, by := range slices.Backward(chain) {
@@ -276,7 +276,7 @@ func spotDocument(s spot, version string, chain []bringer, wide bool) string {
 		more = wideMember
 	}
 	return "openapi: " + version + "\ninfo: {title: t, version: '1'}\nx-defs: {" + strings.Join(defs, ", ") + "}\n" +
-		strings.Join(mounts, "") + strings.NewReplacer("@", schema, "%", more).Replace(s.body)
+		strings.Join(mounts, "") + strings.NewReplacer("@", schema, "%", more).Replace(spotValue.body)
 }
 
 // spotChains lists the chains a spot is held to: each bringer and landing
@@ -295,9 +295,9 @@ func spotChains(full bool) [][]bringer {
 		}
 		return chains
 	}
-	for _, c := range broughtChains() {
-		if len(c) > 1 {
-			chains = append(chains, c)
+	for _, bringers := range broughtChains() {
+		if len(bringers) > 1 {
+			chains = append(chains, bringers)
 		}
 	}
 	for _, a := range landings {
@@ -324,22 +324,22 @@ func TestNamedPointerBytes_TotalsWhatATablesWalksSpell(t *testing.T) {
 	for _, version := range spelledMinors {
 		last := version == spelledMinors[len(spelledMinors)-1]
 		byURI := specrules.Table().SecurityRules(version).NamesByURI()
-		for _, s := range spots {
-			t.Run(s.name+" at "+version, func(t *testing.T) {
+		for _, spot := range spots {
+			t.Run(spot.name+" at "+version, func(t *testing.T) {
 				t.Parallel()
-				for _, chain := range spotChains(s.full && last && !testing.Short()) {
+				for _, chain := range spotChains(spot.full && last && !testing.Short()) {
 					name := chainName(chain)
-					narrow := spelledBy(t, spotDocument(s, version, chain, false))
-					wide := spelledBy(t, spotDocument(s, version, chain, true))
+					narrow := spelledBy(t, spotDocument(spot, version, chain, false))
+					wide := spelledBy(t, spotDocument(spot, version, chain, true))
 					require.True(t, narrow.complete && wide.complete, "%s: the total is taken", name)
-					if !s.unread && (byURI || !s.byURI) {
+					if !spot.unread && (byURI || !spot.byURI) {
 						require.Greater(t, wide.named, narrow.named, "%s: a walk reads the member more", name)
 					}
 
 					assert.GreaterOrEqual(t, narrow.weighed, narrow.named, "%s: the total names what the walks read", name)
 					assert.GreaterOrEqual(t, wide.weighed-narrow.weighed, wide.named-narrow.named,
 						"%s: the total names the member more wherever a walk reads it", name)
-					if !s.over && !slices.ContainsFunc(chain, func(b bringer) bool { return b.repeats }) {
+					if !spot.over && !slices.ContainsFunc(chain, func(b bringer) bool { return b.repeats }) {
 						assert.LessOrEqual(t, narrow.weighed, 4*narrow.named, "%s: the total names little no walk reads", name)
 					}
 				}

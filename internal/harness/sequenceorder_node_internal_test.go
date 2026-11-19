@@ -40,8 +40,8 @@ func TestSequenceOrderInvariant_ATieIsHeldToTheNodeItsReportNames(t *testing.T) 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				p := property(t, doc, "p")
-				diags = append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/tie", tie, string(p.ID)))
+				irProperty := property(t, doc, "p")
+				diags = append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/tie", tie, string(irProperty.ID)))
 				if reversed {
 					tc.change(doc)
 				}
@@ -257,9 +257,9 @@ func TestCanonicalForm_ForgivesANodeATieNamesWhereverItSits(t *testing.T) {
 	assert.Equal(t, a.document, b.document)
 	assert.Equal(t, a.shape, b.shape)
 
-	c, err := canonicalForm(retyped, nil, tieSites{nodes: []string{"property/Q/q"}})
+	canonical, err := canonicalForm(retyped, nil, tieSites{nodes: []string{"property/Q/q"}})
 	require.NoError(t, err)
-	assert.NotEqual(t, a.shape, c.shape, "a member no tie names is compared")
+	assert.NotEqual(t, a.shape, canonical.shape, "a member no tie names is compared")
 }
 
 // TestUntied_LeavesOutWhatATieDecided pins which reports one order alone makes
@@ -280,8 +280,8 @@ func TestUntied_LeavesOutWhatATieDecided(t *testing.T) {
 	got := untied(rs, ties, nil)
 
 	keys := make([]string, 0, len(got))
-	for _, r := range got {
-		keys = append(keys, r.key)
+	for _, report := range got {
+		keys = append(keys, report.key)
 	}
 	assert.Equal(t, []string{"another node", "beside a site"}, keys)
 }
@@ -347,14 +347,14 @@ func TestNodeKey_PairsOnlyANodeItsFormTellsByWhatItHolds(t *testing.T) {
 func TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration(t *testing.T) {
 	t.Parallel()
 	folded := map[string]func(*ir.Property){
-		"secret":     func(p *ir.Property) { p.Secret = true },
-		"visibility": func(p *ir.Property) { p.Visibility = ir.Visibility{InvisibleInEveryLifecycle: true} },
+		"secret":     func(property *ir.Property) { property.Secret = true },
+		"visibility": func(property *ir.Property) { property.Visibility = ir.Visibility{InvisibleInEveryLifecycle: true} },
 	}
 	stated := map[string]func(*ir.Property){
-		"deprecation": func(p *ir.Property) { p.Deprecation = &ir.Deprecation{Message: "m"} },
-		"docs":        func(p *ir.Property) { p.Docs.Description = "d" },
-		"name":        func(p *ir.Property) { p.Name = ir.Naming{Source: "n", Canonical: "n"} },
-		"xml":         func(p *ir.Property) { p.XML = &ir.XMLHints{Name: "x"} },
+		"deprecation": func(property *ir.Property) { property.Deprecation = &ir.Deprecation{Message: "m"} },
+		"docs":        func(property *ir.Property) { property.Docs.Description = "d" },
+		"name":        func(property *ir.Property) { property.Name = ir.Naming{Source: "n", Canonical: "n"} },
+		"xml":         func(property *ir.Property) { property.XML = &ir.XMLHints{Name: "x"} },
 	}
 	compare := func(ties tieSites, change func(*ir.Property)) (document, shape bool) {
 		changed := settledDoc()

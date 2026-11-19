@@ -34,16 +34,16 @@ func mapModel() *ir.Model {
 // each unchanged.
 func TestAsMap_CarriesWhatAMapHolds(t *testing.T) {
 	t.Parallel()
-	m := mapModel()
+	model := mapModel()
 
-	mt, ok := ir.AsMap(m)
+	mt, ok := ir.AsMap(model)
 
 	require.True(t, ok)
 	want := &ir.MapT{
-		TypeCommon:  m.TypeCommon,
-		Key:         m.AdditionalProperties.Key,
-		Value:       *m.AdditionalProperties.Value,
-		Constraints: m.Constraints,
+		TypeCommon:  model.TypeCommon,
+		Key:         model.AdditionalProperties.Key,
+		Value:       *model.AdditionalProperties.Value,
+		Constraints: model.Constraints,
 	}
 	assert.Empty(t, cmp.Diff(want, mt))
 }
@@ -60,12 +60,12 @@ func TestAsMap_RefusesWhatIsNoMap(t *testing.T) {
 	noCatchAll.AdditionalProperties = nil
 	noValue := mapModel()
 	noValue.AdditionalProperties.Value = nil
-	for name, m := range map[string]*ir.Model{
+	for name, model := range map[string]*ir.Model{
 		"nil": nil, "no catch-all": noCatchAll, "patterned": patterned, "no value": noValue,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			mt, ok := ir.AsMap(m)
+			mt, ok := ir.AsMap(model)
 			assert.False(t, ok)
 			assert.Nil(t, mt)
 		})
@@ -85,9 +85,9 @@ func TestAsMap_EveryUncarriedFieldIsMoreThanAMap(t *testing.T) {
 		of      func(*ir.Model) reflect.Value
 	}{
 		{reflect.TypeFor[ir.Model](), map[string]bool{"TypeCommon": true, "AdditionalProperties": true, "Constraints": true},
-			func(m *ir.Model) reflect.Value { return reflect.ValueOf(m).Elem() }},
+			func(model *ir.Model) reflect.Value { return reflect.ValueOf(model).Elem() }},
 		{reflect.TypeFor[ir.AdditionalProperties](), map[string]bool{"Key": true, "Value": true},
-			func(m *ir.Model) reflect.Value { return reflect.ValueOf(m.AdditionalProperties).Elem() }},
+			func(model *ir.Model) reflect.Value { return reflect.ValueOf(model.AdditionalProperties).Elem() }},
 	} {
 		for field := range s.typ.Fields() {
 			name := s.typ.Name() + "." + field.Name
@@ -96,10 +96,10 @@ func TestAsMap_EveryUncarriedFieldIsMoreThanAMap(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
-				m := mapModel()
-				setNonZero(t, s.of(m).FieldByName(field.Name))
+				model := mapModel()
+				setNonZero(t, s.of(model).FieldByName(field.Name))
 
-				_, ok := ir.AsMap(m)
+				_, ok := ir.AsMap(model)
 
 				assert.False(t, ok, "a model setting %s states more than a map does", name)
 			})

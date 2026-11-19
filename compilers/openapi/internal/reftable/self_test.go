@@ -37,17 +37,17 @@ func TestBind_ASelfIsADocumentsBaseAndName(t *testing.T) {
 
 	assert.Equal(t, "https://e.test/api/a.yaml", table.Document(reftable.Source).Self)
 	for _, site := range []string{"/components/schemas/U", "/components/schemas/V"} {
-		e := entryAt(t, table, jsontext.Pointer(site))
-		require.Equal(t, reftable.Resolved, e.Chain.Status, site)
-		assert.Equal(t, reftable.Source, e.Chain.End.Doc, "%s names the source by its $self", site)
+		referenceSite := entryAt(t, table, jsontext.Pointer(site))
+		require.Equal(t, reftable.Resolved, referenceSite.Chain.Status, site)
+		assert.Equal(t, reftable.Source, referenceSite.Chain.End.Doc, "%s names the source by its $self", site)
 	}
-	w := entryAt(t, table, "/components/schemas/W")
-	require.Equal(t, reftable.Resolved, w.Chain.Status, "a relative reference is read against the $self")
-	assert.Equal(t, "https://e.test/api/local/other.yaml", table.Document(w.Chain.End.Doc).Name)
-	assert.Equal(t, "https://e.test/o/other.yaml", table.Document(w.Chain.End.Doc).Self)
-	y := entryAt(t, table, "/components/schemas/Y")
-	require.Equal(t, reftable.Resolved, y.Chain.Status, "another document's $self is declared at its root")
-	assert.Equal(t, w.Chain.End, y.Chain.End)
+	referenceSiteValue := entryAt(t, table, "/components/schemas/W")
+	require.Equal(t, reftable.Resolved, referenceSiteValue.Chain.Status, "a relative reference is read against the $self")
+	assert.Equal(t, "https://e.test/api/local/other.yaml", table.Document(referenceSiteValue.Chain.End.Doc).Name)
+	assert.Equal(t, "https://e.test/o/other.yaml", table.Document(referenceSiteValue.Chain.End.Doc).Self)
+	otherReferenceSite := entryAt(t, table, "/components/schemas/Y")
+	require.Equal(t, reftable.Resolved, otherReferenceSite.Chain.Status, "another document's $self is declared at its root")
+	assert.Equal(t, referenceSiteValue.Chain.End, otherReferenceSite.Chain.End)
 
 	relative := bound(t, "openapi: 3.2.0\n$self: sub/x.yaml\n", reftable.Config{Self: "/r/spec.yaml", Locate: resolving.Locate})
 	assert.Equal(t, "/r/sub/x.yaml", relative.Document(reftable.Source).Self, "a relative $self is read against the document")
@@ -80,9 +80,9 @@ func TestBind_AMappedLocationIsJudgedWhereAFetchedDocumentReadsIt(t *testing.T) 
 			}})
 
 	var why string
-	for _, e := range table.Entries() {
-		if e.Hop.Status == reftable.Unresolved {
-			why = e.Hop.Why()
+	for _, referenceSite := range table.Entries() {
+		if referenceSite.Hop.Status == reftable.Unresolved {
+			why = referenceSite.Hop.Why()
 		}
 	}
 	assert.Contains(t, why, reftable.OffNetwork)
@@ -153,11 +153,11 @@ func TestBind_AMappedURLUnderABaseIsJudgedWhereItLands(t *testing.T) {
 	table := bound(t, "openapi: 3.2.0\n$self: https://m.test/spec.yaml\ncomponents:\n  schemas:\n"+
 		"    S: {$ref: 'b.yaml#/B'}\n    F: {$ref: 'https://n.test/net.yaml#/components/schemas/X'}\n", cfg)
 
-	s := entryAt(t, table, "/components/schemas/S")
-	require.Equal(t, reftable.Resolved, s.Chain.Status)
-	assert.Equal(t, "/files/b.yaml", table.Document(s.Chain.End.Doc).Name, "read where the mapping puts it")
-	f := entryAt(t, table, "/components/schemas/F")
-	assert.Equal(t, reftable.Unresolved, f.Chain.Status, "a fetched document is mapped onto no file")
+	referenceSite := entryAt(t, table, "/components/schemas/S")
+	require.Equal(t, reftable.Resolved, referenceSite.Chain.Status)
+	assert.Equal(t, "/files/b.yaml", table.Document(referenceSite.Chain.End.Doc).Name, "read where the mapping puts it")
+	referenceSiteValue := entryAt(t, table, "/components/schemas/F")
+	assert.Equal(t, reftable.Unresolved, referenceSiteValue.Chain.Status, "a fetched document is mapped onto no file")
 	assert.Equal(t, []string{"/files/b.yaml", "https://n.test/net.yaml"}, opened)
 }
 

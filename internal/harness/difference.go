@@ -37,14 +37,14 @@ func lineDifference(a, b []string) string {
 		return ""
 	}
 
-	w := &differenceWriter{offset: start}
+	differenceWriterValue := &differenceWriter{offset: start}
 	if (len(a)+1)*(len(b)+1) <= differenceCells {
-		matchLines(w, a, b)
+		matchLines(differenceWriterValue, a, b)
 	} else {
-		unmatchedLines(w, '-', a, b)
-		unmatchedLines(w, '+', b, a)
+		unmatchedLines(differenceWriterValue, '-', a, b)
+		unmatchedLines(differenceWriterValue, '+', b, a)
 	}
-	return w.finish()
+	return differenceWriterValue.finish()
 }
 
 // commonPrefix is how many leading lines a and b share.
@@ -68,7 +68,7 @@ func commonSuffix(a, b []string) int {
 // matchLines walks a and b from their starts along a longest common
 // subsequence, printing each line it leaves out of the match: a deletion
 // before an insertion where both lengthen the match alike.
-func matchLines(w *differenceWriter, a, b []string) {
+func matchLines(differenceWriterValue *differenceWriter, a, b []string) {
 	width := len(b) + 1
 	common := commonLengths(a, b)
 	i, j := 0, 0
@@ -78,10 +78,10 @@ func matchLines(w *differenceWriter, a, b []string) {
 			i++
 			j++
 		case i < len(a) && (j == len(b) || common[(i+1)*width+j] >= common[i*width+j+1]):
-			w.print('-', i, a[i])
+			differenceWriterValue.print('-', i, a[i])
 			i++
 		default:
-			w.print('+', j, b[j])
+			differenceWriterValue.print('+', j, b[j])
 			j++
 		}
 	}
@@ -90,7 +90,7 @@ func matchLines(w *differenceWriter, a, b []string) {
 // unmatchedLines prints, as sign's side, each line of side that other holds
 // fewer of, as multisets: a line the two share is printed on neither side,
 // though moved, where no table matches the two.
-func unmatchedLines(w *differenceWriter, sign byte, side, other []string) {
+func unmatchedLines(differenceWriterValue *differenceWriter, sign byte, side, other []string) {
 	held := make(map[string]int, len(other))
 	for _, line := range other {
 		held[line]++
@@ -100,7 +100,7 @@ func unmatchedLines(w *differenceWriter, sign byte, side, other []string) {
 			held[line]--
 			continue
 		}
-		w.print(sign, i, line)
+		differenceWriterValue.print(sign, i, line)
 	}
 }
 

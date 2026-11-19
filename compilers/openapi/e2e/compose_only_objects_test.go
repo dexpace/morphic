@@ -61,8 +61,8 @@ func TestAllOfCompose_ObjectsAloneStayAModel(t *testing.T) {
 						parents = append(parents, *two.Base)
 					}
 					var targets []ir.TypeID
-					for _, p := range parents {
-						targets = append(targets, p.Target)
+					for _, typeRef := range parents {
+						targets = append(targets, typeRef.Target)
 					}
 					assert.ElementsMatch(t, []ir.TypeID{componentID("Obj"), componentID("Obj2")}, targets)
 
@@ -226,8 +226,8 @@ func TestAllOfUnion_AUnionSharingAKindWithTheRestStaysDistributed(t *testing.T) 
 						union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
 						require.True(t, ok, "%s is distributed", name)
 						require.Len(t, union.Variants, 2, name)
-						for _, v := range union.Variants {
-							assert.Equal(t, ir.KindModel, kindNode(t, doc, v.Type.Target).Kind(), name)
+						for _, variant := range union.Variants {
+							assert.Equal(t, ir.KindModel, kindNode(t, doc, variant.Type.Target).Kind(), name)
 						}
 					}
 
@@ -287,9 +287,9 @@ func keptPointersUnder(doc *ir.Document, name string) []string {
 func holderPropertyType(t *testing.T, doc *ir.Document, property string) ir.TypeID {
 	t.Helper()
 	model := requireModelOf(t, doc, "Holder")
-	for _, p := range model.Properties {
-		if p.Name.Source == property {
-			return p.Type.Target
+	for _, irProperty := range model.Properties {
+		if irProperty.Name.Source == property {
+			return irProperty.Type.Target
 		}
 	}
 	require.Failf(t, "no such property", "Holder holds no property %s", property)
@@ -638,8 +638,8 @@ func unionSummary(t *testing.T, doc *ir.Document, name string) string {
 	require.NoError(t, err)
 	parts := make([]string, 0, 1+len(union.Variants))
 	parts = append(parts, fmt.Sprintf("exclusive=%t constraints=%s", union.Exclusive, raw))
-	for _, v := range union.Variants {
-		variant, isScalar := kindNode(t, doc, v.Type.Target).(*ir.Scalar)
+	for _, irVariant := range union.Variants {
+		variant, isScalar := kindNode(t, doc, irVariant.Type.Target).(*ir.Scalar)
 		require.True(t, isScalar, "%s variant", name)
 		raw, err := json.Marshal(variant.Constraints, json.Deterministic(true))
 		require.NoError(t, err)
@@ -841,8 +841,8 @@ func pickSummary(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, names []
 		case *ir.Scalar:
 			parents = append(parents, string(n.Base.Target))
 		case *ir.Model:
-			for _, p := range parentsOf(n) {
-				parents = append(parents, string(p))
+			for _, typeID := range parentsOf(n) {
+				parents = append(parents, string(typeID))
 			}
 		}
 		var kept []string
@@ -855,8 +855,8 @@ func pickSummary(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, names []
 		require.NoError(t, err)
 		out = append(out, fmt.Sprintf("%s %s %v %s %v", name, td.Kind(), parents, raw, kept))
 	}
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, index.ReplaceAllString(string(d.Provenance.Pointer), "/$1/*")))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, index.ReplaceAllString(string(diagnostic.Provenance.Pointer), "/$1/*")))
 	}
 	slices.Sort(out)
 	return out
@@ -1001,9 +1001,9 @@ func TestAllOfCompose_APositionUsedTwiceLowersAsOnce(t *testing.T) {
 // severity, code and pointer.
 func findingsUnder(diags []ir.Diagnostic, prefix string) []string {
 	var out []string
-	for _, d := range diags {
-		if at := string(d.Provenance.Pointer); strings.HasPrefix(at, prefix) {
-			out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, at))
+	for _, diagnostic := range diags {
+		if at := string(diagnostic.Provenance.Pointer); strings.HasPrefix(at, prefix) {
+			out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, at))
 		}
 	}
 	return out
@@ -1029,8 +1029,8 @@ func TestAllOfRefine_ATargetInferredNarrowerThanTheDeclaredKindsIsNoPrincipal(t 
 		for _, name := range []string{"TypeListRef", "UnionRef"} {
 			union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
 			require.True(t, ok, "%s is the union its own keywords declare", name)
-			assert.True(t, slices.ContainsFunc(union.Variants, func(v ir.Variant) bool {
-				return v.Type.Target == ir.TypeID("type/primitive/string")
+			assert.True(t, slices.ContainsFunc(union.Variants, func(variant ir.Variant) bool {
+				return variant.Type.Target == ir.TypeID("type/primitive/string")
 			}), "%s admits the string it declares", name)
 			assert.Equal(t, degradedKept("openapi:$ref"), keptOn(union), name)
 			assert.Equal(t, entryPointer(name, 0), union.Unmodeled["openapi:$ref"].Provenance.Pointer, name)
@@ -1058,14 +1058,14 @@ func TestAllOfUnion_ARefAdmittingEveryKindBesideAUnionIsKeptAsTheInlineSpellingI
 		requireErrorsAndWarnings(t, diags, nil)
 		want := &ir.Constraints{MinLength: new(int64(1)), MinProperties: new(int64(2))}
 		for _, name := range []string{"ERef", "EInline", "EFlat"} {
-			u, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
+			union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
 			require.True(t, ok, "%s is the union its flat spelling is", name)
-			assert.Equal(t, want, u.Constraints, name)
+			assert.Equal(t, want, union.Constraints, name)
 		}
-		u, ok := kindNode(t, doc, componentID("ERef")).(*ir.Union)
+		irUnion, ok := kindNode(t, doc, componentID("ERef")).(*ir.Union)
 		require.True(t, ok)
-		assert.Equal(t, degradedKept("openapi:$ref"), keptOn(u))
-		assert.Equal(t, entryPointer("ERef", 0), u.Unmodeled["openapi:$ref"].Provenance.Pointer)
+		assert.Equal(t, degradedKept("openapi:$ref"), keptOn(irUnion))
+		assert.Equal(t, entryPointer("ERef", 0), irUnion.Unmodeled["openapi:$ref"].Provenance.Pointer)
 		assert.Equal(t, 1, degradedInfosUnder(diags, "/components/schemas/ERef/allOf/0"))
 	})
 }

@@ -22,11 +22,11 @@ import (
 // and is reported as info diag.UnpromotedExtension at the most specific
 // coordinate. Choices and variants are sorted by name, as an object's members
 // keep no order. An operation holding a filled choice is marked; the key stays.
-// p is the run's promoter.
-func PromoteChoices(p promotion.Promoter, w *compileddoc.CompiledDocumentView) []ir.Diagnostic {
+// promoter is the run's promoter.
+func PromoteChoices(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, op := range w.Ops {
-		st, written, readDiags := p.StatementOf(promotion.TargetParamChoices, op.Unmodeled)
+	for _, op := range compiledDocumentView.Ops {
+		st, written, readDiags := promoter.StatementOf(promotion.TargetParamChoices, op.Unmodeled)
 		diags = append(diags, readDiags...)
 		if !written {
 			continue
@@ -38,9 +38,9 @@ func PromoteChoices(p promotion.Promoter, w *compileddoc.CompiledDocumentView) [
 				`from each variant's name to a list of parameter names`, "no choice is filled"))
 			continue
 		}
-		r := reader{w: w, op: op, key: st.Source.String()}
+		readerValue := reader{w: compiledDocumentView, op: op, key: st.Source.String()}
 		for _, name := range slices.Sorted(maps.Keys(groups)) {
-			choice, report, ok := r.choice(name, groups[name], at(st.At, name))
+			choice, report, ok := readerValue.choice(name, groups[name], at(st.At, name))
 			if !ok {
 				diags = append(diags, report)
 				continue
@@ -174,18 +174,18 @@ func (r reader) variantParams(variant string, raw jsontext.Value, where ir.Prove
 // some of variants name and some do not, or "" where none does: the choice
 // would be false of a request picking a variant lacking it.
 func (r reader) carriedBySome(variants []ir.ParamVariant) string {
-	for _, p := range r.op.Params {
-		if !p.Required {
+	for _, parameter := range r.op.Params {
+		if !parameter.Required {
 			continue
 		}
 		in := 0
-		for _, v := range variants {
-			if slices.Contains(v.Params, p.ID) {
+		for _, paramVariant := range variants {
+			if slices.Contains(paramVariant.Params, parameter.ID) {
 				in++
 			}
 		}
 		if in > 0 && in < len(variants) {
-			return p.Name.Source
+			return parameter.Name.Source
 		}
 	}
 	return ""

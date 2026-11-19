@@ -423,25 +423,25 @@ type Spec struct {
 	index   map[Kind]int
 }
 
-// Object returns the object of kind k.
-func (s Spec) Object(k Kind) (Object, bool) {
-	i, ok := s.index[k]
+// Object returns the object of kind kind.
+func (s Spec) Object(kind Kind) (Object, bool) {
+	i, ok := s.index[kind]
 	if !ok {
 		return Object{}, false
 	}
 	return s.objects[i], true
 }
 
-// must returns the object of kind k, which the table holds for every kind.
-func (s Spec) must(k Kind) Object { return s.objects[s.index[k]] }
+// must returns the object of kind kind, which the table holds for every kind.
+func (s Spec) must(kind Kind) Object { return s.objects[s.index[kind]] }
 
 // Table returns the specification's rules for OpenAPI 3.0, 3.1 and 3.2.
 func Table() Spec {
 	objs := slices.Concat(documentObjects(), pathObjects(), parameterObjects(), responseObjects(),
 		componentObjects(), securityObjects(), schemaObjects())
 	index := make(map[Kind]int, len(objs))
-	for i, o := range objs {
-		index[o.Kind] = i
+	for i, object := range objs {
+		index[object.Kind] = i
 	}
 	return Spec{objects: objs, index: index}
 }

@@ -47,9 +47,9 @@ func meetRegistry() map[ir.TypeID]ir.TypeDef {
 	enum("type/ba", 1, "b", "a")
 	enum("type/abc-described", 0, "a", "b", "c")
 	reg["type/abc-described"].Common().Docs.Description = "d"
-	list := func(id ir.TypeID, n int, elem ir.TypeRef, c ir.TypeCommon) {
-		c.ID, c.Anonymous, c.Provenance = id, true, at(n)
-		reg[id] = &ir.List{TypeCommon: c, ElementType: elem}
+	list := func(id ir.TypeID, n int, elem ir.TypeRef, typeCommon ir.TypeCommon) {
+		typeCommon.ID, typeCommon.Anonymous, typeCommon.Provenance = id, true, at(n)
+		reg[id] = &ir.List{TypeCommon: typeCommon, ElementType: elem}
 	}
 	described := func(d string) ir.TypeCommon { return ir.TypeCommon{Docs: ir.Docs{Description: d}} }
 	list("type/ints-described", 0, primRef(ir.PrimitiveInteger), described("d"))
@@ -83,8 +83,8 @@ func meetRegistry() map[ir.TypeID]ir.TypeDef {
 // field, the registry and what the fold reported.
 func foldOf(targets ...ir.TypeID) (ir.Property, map[ir.TypeID]ir.TypeDef, []ir.Diagnostic) {
 	reg := meetRegistry()
-	g, recorded := stubMerger(reg)
-	return g.fold(declsOf(targets...)), reg, *recorded
+	stubbed, recorded := stubMerger(reg)
+	return stubbed.fold(declsOf(targets...)), reg, *recorded
 }
 
 // TestFold_EnumsAreJudgedByTheValuesTheyShare pins GitHub #1042's enums in both
@@ -103,10 +103,10 @@ func TestFold_EnumsAreJudgedByTheValuesTheyShare(t *testing.T) {
 
 	got, reg, recorded := foldOf("type/ab", "type/bc")
 	require.Equal(t, composedAt(declaredAt(1)), got.Type.Target)
-	e, ok := reg[got.Type.Target].(*ir.Enum)
+	enum, ok := reg[got.Type.Target].(*ir.Enum)
 	require.True(t, ok)
-	require.Len(t, e.Members, 1)
-	assert.Equal(t, str("b"), e.Members[0].Value)
+	require.Len(t, enum.Members, 1)
+	assert.Equal(t, str("b"), enum.Members[0].Value)
 	assert.Empty(t, recorded)
 	assert.Len(t, reg["type/ab"].(*ir.Enum).Members, 2, "the declared enum is as it was written")
 
@@ -124,10 +124,10 @@ func TestFold_ANarrowerListAdoptsTheBroadersDetail(t *testing.T) {
 	for _, order := range [][]ir.TypeID{{"type/ints-described", "type/i32s"}, {"type/i32s", "type/ints-described"}} {
 		got, reg, recorded := foldOf(order...)
 		require.Equal(t, composedAt(declaredAt(1)), got.Type.Target, "%v", order)
-		l, ok := reg[got.Type.Target].(*ir.List)
+		list, ok := reg[got.Type.Target].(*ir.List)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, primRef(ir.PrimitiveInt32), l.ElementType, "%v", order)
-		assert.Equal(t, "d", l.Docs.Description, "%v", order)
+		assert.Equal(t, primRef(ir.PrimitiveInt32), list.ElementType, "%v", order)
+		assert.Equal(t, "d", list.Docs.Description, "%v", order)
 		assert.Empty(t, recorded, "%v", order)
 		assert.Empty(t, got.Unmodeled, "%v", order)
 	}
@@ -143,32 +143,32 @@ func TestFold_ANarrowerListAdoptsTheBroadersEncoding(t *testing.T) {
 		reg := meetRegistry()
 		reg["type/ints-encoded"] = &ir.List{ID: "type/ints-encoded", Anonymous: true,
 			Provenance: ptrAt(declaredAt(0)), ElementType: primRef(ir.PrimitiveInteger), Encoding: &ir.Encoding{Name: "csv"}}
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 
-		got := g.fold(declsOf(order...))
+		got := stubbed.fold(declsOf(order...))
 
-		l, ok := reg[got.Type.Target].(*ir.List)
+		list, ok := reg[got.Type.Target].(*ir.List)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, primRef(ir.PrimitiveInt32), l.ElementType, "%v", order)
-		assert.Equal(t, &ir.Encoding{Name: "csv"}, l.Encoding, "%v", order)
+		assert.Equal(t, primRef(ir.PrimitiveInt32), list.ElementType, "%v", order)
+		assert.Equal(t, &ir.Encoding{Name: "csv"}, list.Encoding, "%v", order)
 		assert.Empty(t, *recorded, "%v", order)
 	}
 
 	reg := meetRegistry()
-	encoded := func(id ir.TypeID, n int, elem ir.PrimitiveKind, enc *ir.Encoding, c *ir.Constraints) {
+	encoded := func(id ir.TypeID, n int, elem ir.PrimitiveKind, enc *ir.Encoding, constraints *ir.Constraints) {
 		reg[id] = &ir.List{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n)),
-			ElementType: primRef(elem), Encoding: enc, Constraints: c}
+			ElementType: primRef(elem), Encoding: enc, Constraints: constraints}
 	}
 	encoded("type/ints-min", 0, ir.PrimitiveInteger, nil, &ir.Constraints{MinItems: new(int64(1))})
 	encoded("type/i32s-csv", 1, ir.PrimitiveInt32, &ir.Encoding{Name: "csv"}, nil)
 	encoded("type/i32s-tsv", 2, ir.PrimitiveInt32, &ir.Encoding{Name: "tsv"}, nil)
-	g, recorded := stubMerger(reg)
+	stubbedValue, recorded := stubMerger(reg)
 
-	got := g.fold(declsOf("type/ints-min", "type/i32s-csv", "type/i32s-tsv"))
+	got := stubbedValue.fold(declsOf("type/ints-min", "type/i32s-csv", "type/i32s-tsv"))
 
-	l, ok := reg[got.Type.Target].(*ir.List)
+	irList, ok := reg[got.Type.Target].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, &ir.Encoding{Name: "tsv"}, l.Encoding, "the last encoding given is kept")
+	assert.Equal(t, &ir.Encoding{Name: "tsv"}, irList.Encoding, "the last encoding given is kept")
 	require.Len(t, *recorded, 1, "and the other reported")
 	assert.Equal(t, declaredAt(1), (*recorded)[0].Provenance.Pointer)
 	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(1)))
@@ -194,9 +194,9 @@ func TestFold_ContainersOfModelsComposeTheirMembers(t *testing.T) {
 			require.Equal(t, composedAt(declaredAt(1)), got.Type.Target, "%v", order)
 			member := tc.member(reg[got.Type.Target])
 			require.Equal(t, composedAt(declaredAt(1)+tc.at), member.Target, "%v", order)
-			m, ok := reg[member.Target].(*ir.Model)
+			model, ok := reg[member.Target].(*ir.Model)
 			require.True(t, ok, "%v", order)
-			assert.ElementsMatch(t, []ir.TypeID{"type/A", "type/B"}, targetsOf(m.Mixins), "%v", order)
+			assert.ElementsMatch(t, []ir.TypeID{"type/A", "type/B"}, targetsOf(model.Mixins), "%v", order)
 			assert.Empty(t, recorded, "%v", order)
 			assert.Empty(t, got.Unmodeled, "%v", order)
 		}
@@ -244,15 +244,15 @@ func TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept(t *testing.T) {
 	reg := meetRegistry()
 	reg["type/ints-min"] = &ir.List{ID: "type/ints-min", Anonymous: true, Provenance: ptrAt(declaredAt(0)),
 		ElementType: primRef(ir.PrimitiveInteger), Constraints: &ir.Constraints{MinItems: new(int64(1))}}
-	g, recorded := stubMerger(reg)
+	stubbed, recorded := stubMerger(reg)
 
-	got := g.fold(declsOf("type/ints-min", "type/i32s-one", "type/i32s-other"))
+	got := stubbed.fold(declsOf("type/ints-min", "type/i32s-one", "type/i32s-other"))
 
-	l, ok := reg[got.Type.Target].(*ir.List)
+	list, ok := reg[got.Type.Target].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, "other", l.Docs.Description)
-	assert.Equal(t, primRef(ir.PrimitiveInt32), l.ElementType)
-	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, l.Constraints)
+	assert.Equal(t, "other", list.Docs.Description)
+	assert.Equal(t, primRef(ir.PrimitiveInt32), list.ElementType)
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, list.Constraints)
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, declaredAt(1), (*recorded)[0].Provenance.Pointer)
 	assert.Contains(t, (*recorded)[0].Message, "give the docs of a type", "the detail is named as a document spells it")
@@ -281,10 +281,10 @@ func TestFold_EnumsListingSharedValuesApartKeepTheWinner(t *testing.T) {
 	for _, order := range [][]ir.TypeID{{"type/abc", "type/bcd"}, {"type/bcd", "type/abc"}} {
 		got, reg, recorded := foldOf(order...)
 
-		e, ok := reg[got.Type.Target].(*ir.Enum)
+		enum, ok := reg[got.Type.Target].(*ir.Enum)
 		require.True(t, ok, "%v", order)
-		require.Len(t, e.Members, 2, "%v", order)
-		assert.Equal(t, []ir.Value{str("b"), str("c")}, []ir.Value{e.Members[0].Value, e.Members[1].Value}, "%v", order)
+		require.Len(t, enum.Members, 2, "%v", order)
+		assert.Equal(t, []ir.Value{str("b"), str("c")}, []ir.Value{enum.Members[0].Value, enum.Members[1].Value}, "%v", order)
 		assert.Empty(t, recorded, "%v", order)
 	}
 }
@@ -308,9 +308,9 @@ func TestFold_EnumsSharingNoValueTogetherKeepTheWinner(t *testing.T) {
 func TestFold_AFailedMeetingReportsOnlyItsDrops(t *testing.T) {
 	t.Parallel()
 	reg := meetRegistry()
-	list := func(id ir.TypeID, n int, elem ir.TypeRef, c *ir.Constraints) {
+	list := func(id ir.TypeID, n int, elem ir.TypeRef, constraints *ir.Constraints) {
 		reg[id] = &ir.List{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n) + "/prefixItems/0"),
-			ElementType: elem, Constraints: c}
+			ElementType: elem, Constraints: constraints}
 	}
 	list("type/l0", 0, primRef(ir.PrimitiveAny), &ir.Constraints{Pattern: "^a$"})
 	list("type/l1", 1, primRef(ir.PrimitiveString), &ir.Constraints{Pattern: "^b$"})
@@ -322,14 +322,14 @@ func TestFold_AFailedMeetingReportsOnlyItsDrops(t *testing.T) {
 	tuple("type/t0", 0, "type/l0", primRef(ir.PrimitiveAny))
 	tuple("type/t1", 1, "type/l1", primRef(ir.PrimitiveString))
 	tuple("type/t2", 2, "type/l2", primRef(ir.PrimitiveBool))
-	g, recorded := stubMerger(reg)
+	stubbed, recorded := stubMerger(reg)
 
-	got := g.fold(declsOf("type/t0", "type/t1", "type/t2"))
+	got := stubbed.fold(declsOf("type/t0", "type/t1", "type/t2"))
 
 	assert.Equal(t, ir.TypeID("type/t0"), got.Type.Target)
 	require.Len(t, *recorded, 2, "one report per dropped declaration")
-	for _, d := range *recorded {
-		assert.Equal(t, diag.DegradedConstruct, d.Code)
+	for _, diagnostic := range *recorded {
+		assert.Equal(t, diag.DegradedConstruct, diagnostic.Code)
 	}
 }
 
@@ -343,15 +343,15 @@ func TestFold_AnEnumWithinAnotherAdoptsItsDetail(t *testing.T) {
 		ab := *reg["type/ab"].(*ir.Enum)
 		ab.ID, ab.Docs = "type/ab-described", ir.Docs{Description: "d"}
 		reg["type/ab-described"] = &ab
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 
-		got := g.fold(declsOf(order...))
+		got := stubbed.fold(declsOf(order...))
 
-		e, ok := reg[got.Type.Target].(*ir.Enum)
+		enum, ok := reg[got.Type.Target].(*ir.Enum)
 		require.True(t, ok, "%v", order)
-		require.Len(t, e.Members, 1, "%v", order)
-		assert.Equal(t, str("a"), e.Members[0].Value, "%v", order)
-		assert.Equal(t, "d", e.Docs.Description, "%v", order)
+		require.Len(t, enum.Members, 1, "%v", order)
+		assert.Equal(t, str("a"), enum.Members[0].Value, "%v", order)
+		assert.Equal(t, "d", enum.Docs.Description, "%v", order)
 		assert.Empty(t, *recorded, "%v", order)
 	}
 }
@@ -369,13 +369,13 @@ func TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps(t *testing.T) {
 		reg := meetRegistry()
 		reg["type/ints-kept"] = &ir.List{ID: "type/ints-kept", Anonymous: true,
 			Provenance: ptrAt(declaredAt(0)), Unmodeled: kept("1"), ElementType: primRef(ir.PrimitiveInteger)}
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 
-		got := g.fold(declsOf(order...))
+		got := stubbed.fold(declsOf(order...))
 
-		l, ok := reg[got.Type.Target].(*ir.List)
+		list, ok := reg[got.Type.Target].(*ir.List)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, kept("1"), l.Unmodeled, "%v", order)
+		assert.Equal(t, kept("1"), list.Unmodeled, "%v", order)
 		assert.Empty(t, *recorded, "%v", order)
 	}
 
@@ -387,13 +387,13 @@ func TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps(t *testing.T) {
 		reg[id] = &ir.List{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n + 1)),
 			Unmodeled: kept(v), ElementType: primRef(ir.PrimitiveInt32)}
 	}
-	g, recorded := stubMerger(reg)
+	stubbedValue, recorded := stubMerger(reg)
 
-	got := g.fold(declsOf("type/ints-min", "type/i32s-kept-1", "type/i32s-kept-2"))
+	got := stubbedValue.fold(declsOf("type/ints-min", "type/i32s-kept-1", "type/i32s-kept-2"))
 
-	l, ok := reg[got.Type.Target].(*ir.List)
+	irList, ok := reg[got.Type.Target].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, kept("2"), l.Unmodeled)
+	assert.Equal(t, kept("2"), irList.Unmodeled)
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, declaredAt(1), (*recorded)[0].Provenance.Pointer)
 }
@@ -404,14 +404,14 @@ func TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps(t *testing.T) {
 func TestFold_TuplesBuildWhatFollowsTheirPositions(t *testing.T) {
 	t.Parallel()
 	reg := meetRegistry()
-	for n, m := range []ir.TypeID{"type/A", "type/B"} {
-		id := ir.TypeID("type/" + strings.TrimPrefix(string(m), "type/") + "-rest-tuple")
+	for n, typeID := range []ir.TypeID{"type/A", "type/B"} {
+		id := ir.TypeID("type/" + strings.TrimPrefix(string(typeID), "type/") + "-rest-tuple")
 		reg[id] = &ir.Tuple{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n)),
-			ElementTypes: []ir.TypeRef{ref(m)}, Rest: new(ref(m))}
+			ElementTypes: []ir.TypeRef{ref(typeID)}, Rest: new(ref(typeID))}
 	}
-	g, recorded := stubMerger(reg)
+	stubbed, recorded := stubMerger(reg)
 
-	got := g.fold(declsOf("type/A-rest-tuple", "type/B-rest-tuple"))
+	got := stubbed.fold(declsOf("type/A-rest-tuple", "type/B-rest-tuple"))
 
 	tu, ok := reg[got.Type.Target].(*ir.Tuple)
 	require.True(t, ok)
@@ -433,8 +433,8 @@ func TestBuilder_RefusesWhatNoNodeHolds(t *testing.T) {
 		ElementTypes: []ir.TypeRef{ref("type/A"), ref("type/A")}}
 	reg["type/A-rest-tuple"] = &ir.Tuple{ID: "type/A-rest-tuple", Anonymous: true, Provenance: ptrAt(declaredAt(1)),
 		ElementTypes: []ir.TypeRef{ref("type/A")}, Rest: new(ref("type/A"))}
-	g, _ := stubMerger(reg)
-	f := newFolding(&g.Merger, declsOf("type/A", "type/B"), declaredAt(1))
+	stubbed, _ := stubMerger(reg)
+	folding := newFolding(&stubbed.Merger, declsOf("type/A", "type/B"), declaredAt(1))
 	m := func(id ir.TypeID, decl int) member { return member{ref: ref(id), decl: decl} }
 	for _, tc := range []struct {
 		name          string
@@ -447,13 +447,13 @@ func TestBuilder_RefusesWhatNoNodeHolds(t *testing.T) {
 		{"a tuple admitting more beside one that does not", m("type/A-rest-tuple", 0), m("type/A-tuple", 1)},
 		{"an enum beside a list", m("type/ab", 0), m("type/i32s", 1)},
 	} {
-		b := builder{f: f, dry: true}
+		b := builder{f: folding, dry: true}
 		b.meetNode(tc.base, []member{tc.partner}, declaredAt(1), 0)
 		assert.True(t, b.failed, tc.name)
 	}
 
-	j := judge(g)
-	assert.Equal(t, relOverlap, j.literalBesideDetail(&ir.Literal{Value: str("a")}, reg["type/ab"]))
+	typeJudge := judge(stubbed)
+	assert.Equal(t, relOverlap, typeJudge.literalBesideDetail(&ir.Literal{Value: str("a")}, reg["type/ab"]))
 }
 
 // TestFold_AValueIsJudgedByTheNodeTheFieldHolds pins a value written beside a
@@ -475,7 +475,7 @@ func TestFold_AValueIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
 	} {
 		for i := range 2 {
 			reg := meetRegistry()
-			g, recorded := stubMerger(reg)
+			stubbed, recorded := stubMerger(reg)
 			decls := declsOf(tc.valued, tc.other)
 			decls[0].prop.Default = &tc.dflt
 			if i == 1 {
@@ -483,7 +483,7 @@ func TestFold_AValueIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
 				decls[1].prop.Default = &tc.dflt
 			}
 
-			got := g.fold(decls)
+			got := stubbed.fold(decls)
 
 			assert.Equal(t, composedAt(declaredAt(1)), got.Type.Target, "%s (order %d)", tc.name, i)
 			assert.Nil(t, got.Default, "%s (order %d)", tc.name, i)
@@ -501,9 +501,9 @@ func TestFold_AValueIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
 func TestFold_AnAliasMeetsAsTheNodeItStandsFor(t *testing.T) {
 	t.Parallel()
 	reg := meetRegistry()
-	alias := func(id, base ir.TypeID, docs string, c *ir.Constraints) {
+	alias := func(id, base ir.TypeID, docs string, constraints *ir.Constraints) {
 		reg[id] = &ir.Scalar{ID: id, Provenance: ptrAt("/components/schemas/" + jsontext.Pointer(strings.TrimPrefix(string(id), "type/"))),
-			Docs: ir.Docs{Description: docs}, Base: &ir.TypeRef{Target: base}, Constraints: c}
+			Docs: ir.Docs{Description: docs}, Base: &ir.TypeRef{Target: base}, Constraints: constraints}
 	}
 	alias("type/ab-alias", "type/ab", "alias", nil)
 	alias("type/ints-alias", "type/ints-described", "", &ir.Constraints{MaxItems: new(int64(3))})
@@ -515,33 +515,33 @@ func TestFold_AnAliasMeetsAsTheNodeItStandsFor(t *testing.T) {
 		check func(t *testing.T, td ir.TypeDef, label string)
 	}{
 		{"an alias of an enum", "type/ab-alias", "type/bc", func(t *testing.T, td ir.TypeDef, label string) {
-			e, ok := td.(*ir.Enum)
+			enum, ok := td.(*ir.Enum)
 			require.True(t, ok, label)
-			assert.Equal(t, []ir.Value{str("b")}, valuesOf(e), label)
-			assert.Equal(t, "alias", e.Docs.Description, label)
+			assert.Equal(t, []ir.Value{str("b")}, valuesOf(enum), label)
+			assert.Equal(t, "alias", enum.Docs.Description, label)
 		}},
 		{"an alias of a list", "type/ints-alias", "type/i32s", func(t *testing.T, td ir.TypeDef, label string) {
-			l, ok := td.(*ir.List)
+			list, ok := td.(*ir.List)
 			require.True(t, ok, label)
-			assert.Equal(t, primRef(ir.PrimitiveInt32), l.ElementType, label)
-			assert.Equal(t, "d", l.Docs.Description, "%s: the docs the alias reads from its node", label)
-			assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, l.Constraints, label)
+			assert.Equal(t, primRef(ir.PrimitiveInt32), list.ElementType, label)
+			assert.Equal(t, "d", list.Docs.Description, "%s: the docs the alias reads from its node", label)
+			assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, list.Constraints, label)
 		}},
 		{"two aliases of one list", "type/As-min", "type/As-max", func(t *testing.T, td ir.TypeDef, label string) {
-			s, ok := td.(*ir.Scalar)
+			scalar, ok := td.(*ir.Scalar)
 			require.True(t, ok, "%s: an alias of the list they share", label)
-			assert.Equal(t, ir.TypeRef{Target: "type/As"}, *s.Base, label)
-			assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(3))}, s.Constraints, label)
+			assert.Equal(t, ir.TypeRef{Target: "type/As"}, *scalar.Base, label)
+			assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(3))}, scalar.Constraints, label)
 		}},
 	} {
 		for _, order := range [][]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
-			g, recorded := stubMerger(maps.Clone(reg))
+			stubbed, recorded := stubMerger(maps.Clone(reg))
 			label := fmt.Sprintf("%s: %v", tc.name, order)
 
-			got := g.fold(declsOf(order...))
+			got := stubbed.fold(declsOf(order...))
 
 			require.Equal(t, composedAt(declaredAt(1)), got.Type.Target, label)
-			tc.check(t, g.Reg[got.Type.Target], label)
+			tc.check(t, stubbed.Reg[got.Type.Target], label)
 			assert.Empty(t, *recorded, label)
 			assert.Empty(t, got.Unmodeled, label)
 		}
@@ -556,12 +556,12 @@ func TestFold_AnAliasIsWithinTheNodeItStandsFor(t *testing.T) {
 	reg := meetRegistry()
 	reg["type/ab-alias"] = &ir.Scalar{ID: "type/ab-alias", Base: &ir.TypeRef{Target: "type/ab"}}
 	for _, order := range [][]ir.TypeID{{"type/ab-alias", "type/ab"}, {"type/ab", "type/ab-alias"}} {
-		g, recorded := stubMerger(maps.Clone(reg))
+		stubbed, recorded := stubMerger(maps.Clone(reg))
 
-		got := g.fold(declsOf(order...))
+		got := stubbed.fold(declsOf(order...))
 
 		assert.Equal(t, ir.TypeID("type/ab-alias"), got.Type.Target, "%v", order)
-		assert.Zero(t, g.walk.minted, "%v", order)
+		assert.Zero(t, stubbed.walk.minted, "%v", order)
 		assert.Empty(t, *recorded, "%v", order)
 		assert.Empty(t, got.Unmodeled, "%v", order)
 	}

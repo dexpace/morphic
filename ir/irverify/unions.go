@@ -23,18 +23,18 @@ func checkUnions(doc *ir.Document) []Violation {
 		if ir.IsNilTypeDef(td) {
 			continue // checkRegistryKeys reports the nil entry itself
 		}
-		u, isUnion := td.(*ir.Union)
+		union, isUnion := td.(*ir.Union)
 		if !isUnion {
 			continue
 		}
-		if len(u.Variants) == 0 {
+		if len(union.Variants) == 0 {
 			vs = append(vs, Violation{
 				Code:    "ir/union-no-variants",
 				Message: "union declares no variants, so no value inhabits it",
 				Path:    typePath(id),
 			})
 		}
-		if u.Discriminator != nil && !u.WireTagged {
+		if union.Discriminator != nil && !union.WireTagged {
 			vs = append(vs, Violation{
 				Code:    "ir/union-discriminator-untagged",
 				Message: "union carries a discriminator but is not WireTagged, a tag mode docs/ir/unions.md does not define",

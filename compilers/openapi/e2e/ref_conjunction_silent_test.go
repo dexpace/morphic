@@ -24,10 +24,10 @@ func TestRefConjunction_SilentKeysBesideARefLeaveItTheReference(t *testing.T) {
 			"Use: {$ref: '#/components/schemas/Str', "+key+"}",
 			"H: {type: object, properties: {p: {$ref: '#/components/schemas/Obj', "+key+"}}}")
 		doc, _ := compileUnrefused(t, spec)
-		h, ok := kindNode(t, doc, componentID("H")).(*ir.Model)
+		model, ok := kindNode(t, doc, componentID("H")).(*ir.Model)
 		require.True(t, ok, key)
-		require.Len(t, h.Properties, 1, key)
-		assert.Equal(t, componentID("Obj"), h.Properties[0].Type.Target, "%s: the property names the target", key)
+		require.Len(t, model.Properties, 1, key)
+		assert.Equal(t, componentID("Obj"), model.Properties[0].Type.Target, "%s: the property names the target", key)
 		use, ok := kindNode(t, doc, componentID("Use")).(*ir.Scalar)
 		require.True(t, ok, "%s: the component is the alias", key)
 		assert.Equal(t, componentID("Str"), use.Base.Target, key)

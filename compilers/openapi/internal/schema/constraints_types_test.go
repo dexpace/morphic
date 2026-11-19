@@ -41,8 +41,8 @@ type boundSite struct {
 // sitesOf returns the four positions of an atEverySite document.
 func sitesOf(t *testing.T, doc *ir.Document) []boundSite {
 	t.Helper()
-	p := propertyOf(t, doc, "Holder", "p")
-	q, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+	property := propertyOf(t, doc, "Holder", "p")
+	parameter, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
 	require.True(t, ok)
 	owned := func(id ir.TypeID, ref ir.TypeRef) ir.TypeDef {
 		if ref.Target != id {
@@ -52,11 +52,11 @@ func sitesOf(t *testing.T, doc *ir.Document) []boundSite {
 	}
 	return []boundSite{
 		{pointer: "/components/schemas/C", node: typeByName(doc, "C")},
-		{pointer: "/components/schemas/Holder/properties/p", carrier: true, held: p.Constraints, kept: p.Unmodeled,
-			node: owned("type/anonymous/components/schemas/Holder/properties/p", p.Type)},
+		{pointer: "/components/schemas/Holder/properties/p", carrier: true, held: property.Constraints, kept: property.Unmodeled,
+			node: owned("type/anonymous/components/schemas/Holder/properties/p", property.Type)},
 		{pointer: "/components/schemas/Items/items", node: doc.Types["type/anonymous/components/schemas/Items/items"]},
-		{pointer: "/paths/~1a/get/parameters/0/schema", carrier: true, held: q.Constraints, kept: schemaKept(q.Unmodeled),
-			node: owned("type/anonymous/paths/~1a/get/parameters/0/schema", q.Type)},
+		{pointer: "/paths/~1a/get/parameters/0/schema", carrier: true, held: parameter.Constraints, kept: schemaKept(parameter.Unmodeled),
+			node: owned("type/anonymous/paths/~1a/get/parameters/0/schema", parameter.Type)},
 	}
 }
 
@@ -81,32 +81,32 @@ func (s boundSite) keeps(keyword string) int {
 	return n
 }
 
-// boundField reports whether c holds the field the value bound keyword fills.
-func boundField(c *ir.Constraints, keyword string) bool {
-	if c == nil {
+// boundField reports whether constraints holds the field the value bound keyword fills.
+func boundField(constraints *ir.Constraints, keyword string) bool {
+	if constraints == nil {
 		return false
 	}
 	switch keyword {
 	case "minimum":
-		return c.Min != nil
+		return constraints.Min != nil
 	case "maximum":
-		return c.Max != nil
+		return constraints.Max != nil
 	case "exclusiveMinimum":
-		return c.ExclusiveMin != nil
+		return constraints.ExclusiveMin != nil
 	case "exclusiveMaximum":
-		return c.ExclusiveMax != nil
+		return constraints.ExclusiveMax != nil
 	case "multipleOf":
-		return c.MultipleOf != nil
+		return constraints.MultipleOf != nil
 	case "minLength":
-		return c.MinLength != nil
+		return constraints.MinLength != nil
 	case "maxLength":
-		return c.MaxLength != nil
+		return constraints.MaxLength != nil
 	case "pattern":
-		return c.Pattern != ""
+		return constraints.Pattern != ""
 	case "minProperties":
-		return c.MinProperties != nil
+		return constraints.MinProperties != nil
 	case "maxProperties":
-		return c.MaxProperties != nil
+		return constraints.MaxProperties != nil
 	default:
 		return false
 	}
@@ -285,11 +285,11 @@ func TestConstraints_AReferenceOutcomeReadsByTheTypesItNames(t *testing.T) {
 
 // heldCount reports whether the collection count keyword reached a
 // Constraints field at the site, its node's or its carrier's.
-func heldCount(s boundSite, keyword string) bool {
-	has := func(c *ir.Constraints) bool {
-		return c != nil && ((keyword == "maxItems" && c.MaxItems != nil) || (keyword == "minItems" && c.MinItems != nil))
+func heldCount(boundSiteValue boundSite, keyword string) bool {
+	has := func(constraints *ir.Constraints) bool {
+		return constraints != nil && ((keyword == "maxItems" && constraints.MaxItems != nil) || (keyword == "minItems" && constraints.MinItems != nil))
 	}
-	return has(s.held) || (s.node != nil && has(heldBounds(s.node)))
+	return has(boundSiteValue.held) || (boundSiteValue.node != nil && has(heldBounds(boundSiteValue.node)))
 }
 
 // TestConstraints_ABoundAListKeepsIsKeptOnce pins a value bound beside an
@@ -300,11 +300,11 @@ func TestConstraints_ABoundAListKeepsIsKeptOnce(t *testing.T) {
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Holder: {type: object, properties: {a: {type: array, items: {type: string}, maxLength: 5}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	p := propertyOf(t, doc, "Holder", "a")
-	assert.Nil(t, p.Constraints)
-	assert.Empty(t, p.Unmodeled)
-	list, ok := doc.Types[p.Type.Target].(*ir.List)
-	require.True(t, ok, "got %T", doc.Types[p.Type.Target])
+	property := propertyOf(t, doc, "Holder", "a")
+	assert.Nil(t, property.Constraints)
+	assert.Empty(t, property.Unmodeled)
+	list, ok := doc.Types[property.Type.Target].(*ir.List)
+	require.True(t, ok, "got %T", doc.Types[property.Type.Target])
 	assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(list.Unmodeled))
 	assert.Equal(t, 1, strings.Count(marshalForTest(t, doc), `"openapi:maxLength"`))
 	assert.Len(t, diags, 1)
@@ -339,8 +339,8 @@ func TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
 			"no home for exclusiveMinimum")
 	}
 	require.Len(t, diags, 4, "%+v", diags)
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityInfo, d.Severity, "no warning from a reader")
+	for _, diagnostic := range diags {
+		assert.Equal(t, ir.SeverityInfo, diagnostic.Severity, "no warning from a reader")
 	}
 }
 
@@ -417,8 +417,8 @@ func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
 			assert.Nil(t, heldBounds(site.node), "%s: %s", tc.schema, site.pointer)
 			assert.Equal(t, 1, site.keeps(tc.kept), "%s: %s", tc.schema, site.pointer)
 			var reports int
-			for _, d := range diagsAtPointer(diags, diag.DegradedConstruct, site.pointer+tc.under) {
-				if strings.Contains(d.Message, tc.bound) {
+			for _, diagnostic := range diagsAtPointer(diags, diag.DegradedConstruct, site.pointer+tc.under) {
+				if strings.Contains(diagnostic.Message, tc.bound) {
 					reports++
 				}
 			}
@@ -472,9 +472,9 @@ func TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
 // schemaKept returns what a parameter or a header keeps of what its schema
 // writes, beneath openapi:schema/, keyed as a node of the schema's own keeps
 // it, so one reading compares every carrier.
-func schemaKept(u ir.Unmodeled) ir.Unmodeled {
+func schemaKept(unmodeled ir.Unmodeled) ir.Unmodeled {
 	out := ir.Unmodeled{}
-	for key, entry := range u {
+	for key, entry := range unmodeled {
 		if rest, ok := strings.CutPrefix(key, "openapi:schema/"); ok {
 			out["openapi:"+rest] = entry
 		}

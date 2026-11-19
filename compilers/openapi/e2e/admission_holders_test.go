@@ -68,9 +68,9 @@ func TestCompile_AVariantIsReadWithEverySchemaHoldingItsUnion(t *testing.T) {
 						requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct,
 							pointer: "/components/schemas/Common/properties/r", contains: []string{"/anyOf/1: array", "/anyOf/2: string"}}})
 						var uncompared []string
-						for _, d := range diags {
-							if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "does not compare") {
-								uncompared = append(uncompared, string(d.Provenance.Pointer))
+						for _, diagnostic := range diags {
+							if diagnostic.Code == diag.DegradedConstruct && strings.Contains(diagnostic.Message, "does not compare") {
+								uncompared = append(uncompared, string(diagnostic.Provenance.Pointer))
 							}
 						}
 						assert.ElementsMatch(t, []string{"/components/schemas/Coll1/allOf/0", "/components/schemas/Coll2/allOf/0/properties/r"},
@@ -93,11 +93,11 @@ func TestCompile_AVariantIsReadWithEverySchemaHoldingItsUnion(t *testing.T) {
 // typeOfR is the type the property r of the component model gives.
 func typeOfR(t *testing.T, doc *ir.Document, model string) ir.TypeRef {
 	t.Helper()
-	m, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/"+model)].(*ir.Model)
+	irModel, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/"+model)].(*ir.Model)
 	require.True(t, ok, "%s lowers to a model", model)
-	for _, p := range m.Properties {
-		if p.WireName == "r" {
-			return p.Type
+	for _, property := range irModel.Properties {
+		if property.WireName == "r" {
+			return property.Type
 		}
 	}
 	require.Failf(t, "no such property", "%s has no property r", model)

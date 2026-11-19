@@ -30,25 +30,25 @@ func CheckFormat(ctx context.Context, root *yaml.Node, declared string, opts Opt
 	if !ok {
 		return nil
 	}
-	f := formatCheck{minor: minor, at: map[*yaml.Node]jsontext.Pointer{}, merged: map[*yaml.Node]bool{},
+	formatCheckValue := formatCheck{minor: minor, at: map[*yaml.Node]jsontext.Pointer{}, merged: map[*yaml.Node]bool{},
 		locate: opts.Locate, declared: declared, readAt: opts.ReadAt, rootAt: opts.Root, said: map[ir.DiagnosticKey]saying{}}
-	if f.locate == nil {
-		f.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
+	if formatCheckValue.locate == nil {
+		formatCheckValue.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
 	}
 	// Placing a finding costs a pointer per node, and most documents break
 	// neither rule, so a first walk only looks, and stops at the first break.
 	if !BreaksFormat(ctx, root, opts.Budget.Cap()) {
 		return nil
 	}
-	out := nodeview.Walk{Nodes: opts.Budget.Cap(), Visit: f.visit}.Run(ctx, nodeview.DocumentRoot(root))
+	out := nodeview.Walk{Nodes: opts.Budget.Cap(), Visit: formatCheckValue.visit}.Run(ctx, nodeview.DocumentRoot(root))
 	if ctx.Err() != nil {
 		return nil
 	}
 	if out.Cut {
-		f.diags = append(f.diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, f.locate(""),
+		formatCheckValue.diags = append(formatCheckValue.diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, formatCheckValue.locate(""),
 			"the OpenAPI %s check of the document's keys stopped at its work budget; what lies past it is unchecked", minor))
 	}
-	return f.diags
+	return formatCheckValue.diags
 }
 
 // BreaksFormat reports whether some mapping of the tree root breaks a rule
@@ -132,11 +132,11 @@ func (f *formatCheck) mapping(n *yaml.Node, ptr jsontext.Pointer) {
 		// The entry is left out, so it has no pointer of its own: two such keys of
 		// one mapping are told apart by where each is written.
 		f.at[key], f.at[val] = ptr, ptr
-		d := diag.Newf(ir.SeverityError, diag.Validation+"/"+classType, f.locate(ptr),
+		diagnostic := diag.Newf(ir.SeverityError, diag.Validation+"/"+classType, f.locate(ptr),
 			"a mapping key must be a string in OpenAPI %s (Format), and this one is %s; the entry is read as left out",
 			f.minor, kindName(nodeview.Deref(key)))
-		d.Provenance.Position = ir.Position{Line: key.Line, Column: key.Column}
-		f.add(d, ptr)
+		diagnostic.Provenance.Position = ir.Position{Line: key.Line, Column: key.Column}
+		f.add(diagnostic, ptr)
 	}
 }
 
@@ -223,10 +223,10 @@ func repeatedIn(n *yaml.Node, ptr jsontext.Pointer, at map[*yaml.Node]jsontext.P
 		if copies[key]++; copies[key] != 2 {
 			continue
 		}
-		d := diag.Newf(ir.SeverityWarning, diag.Validation+"/"+classDuplicate, locate(ptr.AppendToken(key)),
+		diagnostic := diag.Newf(ir.SeverityWarning, diag.Validation+"/"+classDuplicate, locate(ptr.AppendToken(key)),
 			"a mapping writes the key %q more than once, and only the last copy is read in OpenAPI %s (Format)", key, minor)
-		d.Provenance.Position = ir.Position{Line: n.Content[i].Line, Column: n.Content[i].Column}
-		diags = append(diags, d)
+		diagnostic.Provenance.Position = ir.Position{Line: n.Content[i].Line, Column: n.Content[i].Column}
+		diags = append(diags, diagnostic)
 	}
 	return diags
 }

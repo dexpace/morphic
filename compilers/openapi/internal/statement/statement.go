@@ -114,8 +114,8 @@ func (s *Schema) Key(name string) (Key, bool) {
 	if i < 0 {
 		return Key{}, false
 	}
-	k := s.Keys[i]
-	return k, k.read()
+	key := s.Keys[i]
+	return key, key.read()
 }
 
 // find returns the place of name in s's keys, -1 where s writes none, and how
@@ -130,8 +130,8 @@ func (s *Schema) find(name string) (place, compared int) {
 		}
 		return -1, 1
 	}
-	for i, k := range s.Keys {
-		if k.Name == name {
+	for i, key := range s.Keys {
+		if key.Name == name {
 			return i, i + 1
 		}
 	}

@@ -36,9 +36,9 @@ const dynStrList = "    StrList:\n      $id: https://example.com/strlist\n      
 // the document naming it.
 func dynKeptIn(diags []ir.Diagnostic, source int) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == "openapi/degraded-construct" && d.Provenance.Source == source && string(d.Provenance.Pointer) == dynListPoint {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/degraded-construct" && diagnostic.Provenance.Source == source && string(diagnostic.Provenance.Pointer) == dynListPoint {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -106,9 +106,9 @@ func TestCompile_ADynamicRefNoOtherDocumentDeclaresTheNameExpands(t *testing.T) 
 // pointer of the source table's entry source.
 func diagsAtSource(diags []ir.Diagnostic, code, pointer string, source int) []ir.Severity {
 	var out []ir.Severity
-	for _, d := range diags {
-		if d.Code == code && d.Provenance.Source == source && string(d.Provenance.Pointer) == pointer {
-			out = append(out, d.Severity)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Provenance.Source == source && string(diagnostic.Provenance.Pointer) == pointer {
+			out = append(out, diagnostic.Severity)
 		}
 	}
 	return out
@@ -145,8 +145,8 @@ func TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept(t *testing.T) {
 	require.Empty(t, byCode(diags, "openapi/budget-exceeded"), "%d findings", len(diags))
 	require.Empty(t, byCode(diags, "openapi/dynamic-ref-expanded"), "a name two documents declare is kept")
 	kept := 0
-	for _, d := range byCode(diags, "openapi/degraded-construct") {
-		if strings.HasSuffix(string(d.Provenance.Pointer), "/$dynamicRef") && strings.Contains(d.Message, "another document") {
+	for _, diagnostic := range byCode(diags, "openapi/degraded-construct") {
+		if strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/$dynamicRef") && strings.Contains(diagnostic.Message, "another document") {
 			kept++
 		}
 	}
@@ -164,8 +164,8 @@ func TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, exceeded[0].Severity)
 	assert.Empty(t, byCode(diags, "openapi/dynamic-ref-expanded"), "a reference past the budget is never expanded")
 	var unread int
-	for _, d := range byCode(diags, "openapi/degraded-construct") {
-		if strings.Contains(d.Message, "not read whole") {
+	for _, diagnostic := range byCode(diags, "openapi/degraded-construct") {
+		if strings.Contains(diagnostic.Message, "not read whole") {
 			unread++
 		}
 	}

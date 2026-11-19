@@ -33,10 +33,10 @@ func walkEveryKind(t *testing.T, roles, notFields map[string]string) (*readKeys,
 	var read readKeys
 	kinds := declaredKinds(t)
 	walks := make([]partWalk, 0, len(kinds))
-	for _, k := range kinds {
-		p := walkParts(t, k, roles, notFields)
-		read.add(p)
-		walks = append(walks, p)
+	for _, typeKind := range kinds {
+		partWalk := walkParts(t, typeKind, roles, notFields)
+		read.add(partWalk)
+		walks = append(walks, partWalk)
 	}
 	return &read, walks
 }
@@ -129,8 +129,8 @@ func TestStaleEntries_ARealEntryIsStillNeeded(t *testing.T) {
 // undecidedOf returns the positions naming a type that no table decided in walks.
 func undecidedOf(walks []partWalk) []string {
 	var out []string
-	for _, w := range walks {
-		out = append(out, w.undecided...)
+	for _, partWalk := range walks {
+		out = append(out, partWalk.undecided...)
 	}
 	return out
 }

@@ -108,12 +108,12 @@ func docWithOperations(ops ...ir.Operation) *ir.Document {
 
 // nestGroups buries op under depth levels of operation groups.
 func nestGroups(depth int, op ir.Operation) *ir.Document {
-	g := ir.OperationGroup{Operations: []ir.Operation{op}}
+	operationGroup := ir.OperationGroup{Operations: []ir.Operation{op}}
 	for range depth {
-		g = ir.OperationGroup{Groups: []ir.OperationGroup{g}}
+		operationGroup = ir.OperationGroup{Groups: []ir.OperationGroup{operationGroup}}
 	}
 	doc := validDoc()
-	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{g}}}
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{operationGroup}}}
 	return doc
 }
 
@@ -121,8 +121,8 @@ func nestGroups(depth int, op ir.Operation) *ir.Document {
 func countCode(t *testing.T, diags []ir.Diagnostic, code string) int {
 	t.Helper()
 	var n int
-	for _, d := range diags {
-		if d.Code == code {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
 			n++
 		}
 	}
@@ -133,9 +133,9 @@ func countCode(t *testing.T, diags []ir.Diagnostic, code string) int {
 func messageForCode(t *testing.T, diags []ir.Diagnostic, code string) string {
 	t.Helper()
 	require.Equal(t, 1, countCode(t, diags, code), "expected exactly one %s", code)
-	for _, d := range diags {
-		if d.Code == code {
-			return d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			return diagnostic.Message
 		}
 	}
 	return ""
@@ -282,15 +282,15 @@ func TestValidate_WalksTheDocumentOnce(t *testing.T) {
 // appendTypeIDs, which walks one GraphQL operation rather than the document.
 func TestValidate_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
+	loadedPackage, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
 	require.NoError(t, err)
-	irAsSeen, reaches := p.Imported(reflect.TypeFor[ir.Document]().PkgPath())
+	irAsSeen, reaches := loadedPackage.Imported(reflect.TypeFor[ir.Document]().PkgPath())
 	require.True(t, reaches, "the pass must import ir")
 	for name, want := range map[string][]string{
 		"WalkValuesContext": {"Run", "Validate"}, "WalkValues": {"appendTypeIDs"},
 	} {
 		walk := irAsSeen.Scope().Lookup(name)
 		require.NotNil(t, walk, "the ir package must declare %s", name)
-		assert.Equal(t, want, p.FuncsUsing(walk), "the functions that walk through ir.%s", name)
+		assert.Equal(t, want, loadedPackage.FuncsUsing(walk), "the functions that walk through ir.%s", name)
 	}
 }

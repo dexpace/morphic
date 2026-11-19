@@ -391,8 +391,8 @@ func (e external) admit(ctx context.Context, key string, doc doctree.ParsedYAMLD
 	findings := refusals(ctx, place, place.Node(nil), doc.Root, e.opts, false)
 	if len(findings) > 0 {
 		reasons := make([]string, len(findings))
-		for i, d := range findings {
-			reasons[i] = d.Message
+		for i, diagnostic := range findings {
+			reasons[i] = diagnostic.Message
 		}
 		return refused(key, strings.Join(reasons, "; "))
 	}

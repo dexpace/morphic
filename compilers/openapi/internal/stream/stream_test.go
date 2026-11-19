@@ -103,10 +103,10 @@ func compile(t *testing.T, src string, opts openapi.Options) (ir.Operation, *ir.
 func findings(t *testing.T, diags []ir.Diagnostic) []string {
 	t.Helper()
 	var out []string
-	for _, d := range diags {
-		if d.Code == unpromoted {
-			assert.Equal(t, ir.SeverityInfo, d.Severity)
-			out = append(out, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == unpromoted {
+			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+			out = append(out, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	return out
@@ -129,11 +129,11 @@ func terminator(op ir.Operation) *string {
 }
 
 // markers splits a marker list into its names.
-func markers(m ir.Inferred) []string {
-	if m == "" {
+func markers(inferred ir.Inferred) []string {
+	if inferred == "" {
 		return nil
 	}
-	return strings.Split(string(m), ",")
+	return strings.Split(string(inferred), ",")
 }
 
 // TestPromote_FillsTheTerminator pins the default reading of a streaming
@@ -227,8 +227,8 @@ func TestPromote_TerminatorIsAllOrNone(t *testing.T) {
 			assert.Nil(t, terminator(op), "a terminator is filled all or none")
 			assert.Equal(t, tc.want, findings(t, diags))
 			assert.Empty(t, irverify.Verify(doc))
-			for _, c := range contents(t, op) {
-				assert.Empty(t, c.Inferred, "a content records only a key it filled")
+			for _, content := range contents(t, op) {
+				assert.Empty(t, content.Inferred, "a content records only a key it filled")
 			}
 		})
 	}

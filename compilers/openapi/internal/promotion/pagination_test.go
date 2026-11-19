@@ -23,8 +23,8 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 	t.Parallel()
 	expression := promotion.ExtensionSource{Key: "x-page", Member: "cursor"}
 	mark := promotion.ExtensionSource{Key: "x-role", Member: "purpose", Values: []string{"cursor"}}
-	p := promotion.New(mapping(promotion.TargetPaginationCursor, expression, mark))
-	assert.Equal(t, []promotion.ExtensionSource{expression, mark}, p.Sources(promotion.TargetPaginationCursor))
+	promoter := promotion.New(mapping(promotion.TargetPaginationCursor, expression, mark))
+	assert.Equal(t, []promotion.ExtensionSource{expression, mark}, promoter.Sources(promotion.TargetPaginationCursor))
 
 	for _, tc := range []struct {
 		name  string
@@ -41,7 +41,7 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			entries := ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)}
-			got, diags := promotion.PageStatementOf(p, promotion.TargetPaginationCursor, tc.src, entries, nil)
+			got, diags := promotion.PageStatementOf(promoter, promotion.TargetPaginationCursor, tc.src, entries, nil)
 			assert.Equal(t, tc.want.Expression, got.Expression)
 			assert.Equal(t, tc.want.Stated, got.Stated)
 			assert.Equal(t, tc.want.Written, got.Written)
@@ -54,7 +54,7 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 		})
 	}
 	for _, src := range []promotion.ExtensionSource{expression, mark} {
-		got, diags := promotion.PageStatementOf(p, promotion.TargetPaginationCursor, src,
+		got, diags := promotion.PageStatementOf(promoter, promotion.TargetPaginationCursor, src,
 			ir.Unmodeled{"openapi:x-other": vendorExtension(`{"cursor":"$request.c","purpose":"cursor"}`)}, nil)
 		assert.Equal(t, promotion.PageStatement{}, got, "a node keeping another key: %s", src)
 		assert.Empty(t, diags)
@@ -103,7 +103,7 @@ func TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk(t *testing.T) {
 		mark   = promotion.ExtensionSource{Key: "x-mark", Values: []string{"cursor"}}
 		flag   = promotion.ExtensionSource{Key: "x-flag", Values: []string{"false"}}
 	)
-	p := promotion.New(pageValuesPolicy())
+	promoter := promotion.New(pageValuesPolicy())
 	for _, tc := range []struct {
 		name   string
 		member bool // the report sits at the member the source reads
@@ -169,7 +169,7 @@ func TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk(t *testing.T) {
 			if tc.src.Key == link.Key {
 				target = promotion.TargetPaginationNextLink
 			}
-			got, diags := promotion.PageStatementOf(p, target, tc.src,
+			got, diags := promotion.PageStatementOf(promoter, target, tc.src,
 				ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)}, nil)
 			assert.True(t, got.Written, "a key the node keeps is written, whatever it holds")
 			assert.Equal(t, tc.stated, got.Stated)
@@ -200,7 +200,7 @@ func TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk(t *testing.T) {
 func TestPageStatementOf_ReadsTheRootForTrue(t *testing.T) {
 	t.Parallel()
 	src := promotion.ExtensionSource{Key: "x-page", Member: "cursor"}
-	p := promotion.New(mapping(promotion.TargetPaginationCursor, src))
+	promoter := promotion.New(mapping(promotion.TargetPaginationCursor, src))
 	onTrue := ir.Unmodeled{"openapi:x-page": opKey(`true`)}
 	rootKey := func(value string) ir.Unmodeled {
 		return ir.Unmodeled{"openapi:x-page": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(value),
@@ -228,7 +228,7 @@ func TestPageStatementOf_ReadsTheRootForTrue(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags := promotion.PageStatementOf(p, promotion.TargetPaginationCursor, src, tc.own, tc.root)
+			got, diags := promotion.PageStatementOf(promoter, promotion.TargetPaginationCursor, src, tc.own, tc.root)
 			assert.Equal(t, tc.want, got)
 			if tc.code == "" {
 				assert.Empty(t, diags)

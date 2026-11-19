@@ -24,14 +24,14 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
 		byParam[pb.WireName] = pb
 	}
-	q := byParam["q"]
-	assert.Equal(t, "form", q.Style, "query default style is form")
-	assert.Nil(t, q.Explode, "q writes no explode, so the IR states none")
+	httpParamBinding := byParam["q"]
+	assert.Equal(t, "form", httpParamBinding.Style, "query default style is form")
+	assert.Nil(t, httpParamBinding.Explode, "q writes no explode, so the IR states none")
 	assert.Equal(t, "deepObject", byParam["filter"].Style)
 	assert.Equal(t, "application/json", byParam["payload"].ContentType, "content-style param records its media type")
 	assert.True(t, byParam["path"].AllowReserved,
 		"reserved characters passing through unescaped is a wire fact, not a style")
-	assert.False(t, q.AllowReserved, "and the default is to escape them")
+	assert.False(t, httpParamBinding.AllowReserved, "and the default is to escape them")
 
 	// "path" is a query parameter in this 3.1 document, the one location the
 	// keyword belongs to before 3.2 — so a declaration of it, which the
@@ -159,7 +159,7 @@ func paramStyleDefaultStyles() []paramStylePair {
 func paramStyleMatrixWant() map[paramSlot]paramWire {
 	yes, no := true, false
 	want := map[paramSlot]paramWire{}
-	for _, p := range paramStyleLegalPairs() {
+	for _, paramStylePair := range paramStyleLegalPairs() {
 		for _, e := range []struct {
 			suffix  string
 			explode *bool
@@ -168,11 +168,11 @@ func paramStyleMatrixWant() map[paramSlot]paramWire {
 			{"NoExplode", &no},
 			{"DefaultExplode", nil},
 		} {
-			want[paramSlot{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
+			want[paramSlot{paramStylePair.param(e.suffix), paramStylePair.location}] = paramWire{paramStylePair.style, e.explode}
 		}
 	}
-	for _, d := range paramStyleDefaultStyles() {
-		want[paramSlot{string(d.location) + "Defaulted", d.location}] = paramWire{d.style, nil}
+	for _, paramStylePair := range paramStyleDefaultStyles() {
+		want[paramSlot{string(paramStylePair.location) + "Defaulted", paramStylePair.location}] = paramWire{paramStylePair.style, nil}
 	}
 	return want
 }
@@ -194,22 +194,22 @@ func TestParamStyleTable_MatchesTheSpecification(t *testing.T) {
 		"3.2 permits ten (in, style) pairs; a different number here is a claim about OpenAPI, not about the fixture")
 
 	legal := make(map[paramStylePair]bool, len(pairs))
-	for _, p := range pairs {
-		assert.NotEmpty(t, p.style,
-			"%s: a pair names a style, and a location that takes none belongs in neither table", p.location)
-		assert.NotContains(t, legal, p, "the (%s, %s) pair is listed twice", p.location, p.style)
-		legal[p] = true
+	for _, paramStylePair := range pairs {
+		assert.NotEmpty(t, paramStylePair.style,
+			"%s: a pair names a style, and a location that takes none belongs in neither table", paramStylePair.location)
+		assert.NotContains(t, legal, paramStylePair, "the (%s, %s) pair is listed twice", paramStylePair.location, paramStylePair.style)
+		legal[paramStylePair] = true
 	}
 
 	defaults := paramStyleDefaultStyles()
 	require.Len(t, defaults, 4, "each location that takes a style at all defaults exactly one")
 	locations := make(map[ir.HTTPLocation]bool, len(defaults))
-	for _, d := range defaults {
-		assert.NotContains(t, locations, d.location, "%s is given two default styles", d.location)
-		locations[d.location] = true
-		assert.Contains(t, legal, d,
+	for _, paramStylePair := range defaults {
+		assert.NotContains(t, locations, paramStylePair.location, "%s is given two default styles", paramStylePair.location)
+		locations[paramStylePair.location] = true
+		assert.Contains(t, legal, paramStylePair,
 			"%s defaults to style %q, which is not a pair the table says that location takes",
-			d.location, d.style)
+			paramStylePair.location, paramStylePair.style)
 	}
 }
 
@@ -296,10 +296,10 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	require.True(t, ok)
 	require.Len(t, summary.Bindings.HTTP, 1)
 	require.Len(t, summary.Bindings.HTTP[0].ParamBindings, 1)
-	q := summary.Bindings.HTTP[0].ParamBindings[0]
-	assert.Equal(t, ir.HTTPLocationQuery, q.Location)
-	assert.Equal(t, "form", q.Style, "a query parameter still takes its own location's default")
-	assert.Nil(t, q.Explode, "but no explode, which it does not write")
+	httpParamBinding := summary.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuery, httpParamBinding.Location)
+	assert.Equal(t, "form", httpParamBinding.Style, "a query parameter still takes its own location's default")
+	assert.Nil(t, httpParamBinding.Explode, "but no explode, which it does not write")
 
 	raw, ok := opByName(doc, "rawReport")
 	require.True(t, ok)
@@ -377,11 +377,11 @@ func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []i
 		"/paths/~1reports~1{id}/get/parameters/2/allowReserved": "parameter field allowReserved has no effect for in=cookie" + rule,
 	}
 	got := map[string]string{}
-	for _, d := range diags {
-		if d.Code == diag.InapplicableLocationKeyword {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			assert.NotContains(t, got, string(d.Provenance.Pointer), "one declaration, one report")
-			got[string(d.Provenance.Pointer)] = d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.InapplicableLocationKeyword {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			assert.NotContains(t, got, string(diagnostic.Provenance.Pointer), "one declaration, one report")
+			got[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 		}
 	}
 	assert.Equal(t, want, got)
@@ -560,8 +560,8 @@ func assertHeaderNameCase(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 
 	require.Len(t, list.Responses, 1)
 	keys := make([]string, 0, len(list.Responses[0].Headers))
-	for _, h := range list.Responses[0].Headers {
-		keys = append(keys, h.EffectiveWireName())
+	for _, header := range list.Responses[0].Headers {
+		keys = append(keys, header.EffectiveWireName())
 	}
 	assert.Equal(t, []string{"x-rate", "X-Rate"}, keys, "both keys lower, in source order")
 
@@ -579,8 +579,8 @@ func assertHeaderNameCase(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, duplicate, rate))
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, duplicate, part))
 	drawn := 0
-	for _, d := range diags {
-		if d.Code == duplicate {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == duplicate {
 			drawn++
 		}
 	}
@@ -597,8 +597,8 @@ func assertHeaderNameSyntax(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	op, ok := opByName(doc, "getTrace")
 	require.True(t, ok)
 	ids := make([]ir.ParameterID, 0, len(op.Params))
-	for _, p := range op.Params {
-		ids = append(ids, p.ID)
+	for _, parameter := range op.Params {
+		ids = append(ids, parameter.ID)
 	}
 	assert.Equal(t, []ir.ParameterID{
 		"parameter/openapi/paths/~1traces/get/parameters/X-Trace/header",

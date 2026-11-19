@@ -42,17 +42,17 @@ func (l layout) runServiceTreeWrites(pass *analysis.Pass) (any, error) {
 	if !l.inModule(path) || l.within(path, "ir") || l.within(path, "compilers") {
 		return nil, nil
 	}
-	c := treeCheck{l: l, pass: pass}
+	treeCheckValue := treeCheck{l: l, pass: pass}
 	for _, name := range []string{"Service", "OperationGroup", "Operation"} {
 		tn := typeNamed(pass.Pkg, irPath, name)
 		if tn == nil {
 			return nil, nil // a package that reaches no ir holds none of its trees
 		}
-		c.elems = append(c.elems, tn.Type())
+		treeCheckValue.elems = append(treeCheckValue.elems, tn.Type())
 	}
 	for _, f := range productionFiles(pass) {
 		for n := range ast.Preorder(f) {
-			c.node(n)
+			treeCheckValue.node(n)
 		}
 	}
 	return nil, nil

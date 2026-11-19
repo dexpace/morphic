@@ -150,9 +150,13 @@ func TestCoDeclaredBound_ASingleKeywordKeepsNothing(t *testing.T) {
 
 // minSide and maxSide read one side's pair of bounds off a Constraints, so one
 // table can drive both sides through the same assertion.
-func minSide(c *ir.Constraints) (incl, excl *ir.BigVal) { return c.Min, c.ExclusiveMin }
+func minSide(constraints *ir.Constraints) (incl, excl *ir.BigVal) {
+	return constraints.Min, constraints.ExclusiveMin
+}
 
-func maxSide(c *ir.Constraints) (incl, excl *ir.BigVal) { return c.Max, c.ExclusiveMax }
+func maxSide(constraints *ir.Constraints) (incl, excl *ir.BigVal) {
+	return constraints.Max, constraints.ExclusiveMax
+}
 
 func TestConstraints_ExclusiveBoolean30(t *testing.T) {
 	t.Parallel()
@@ -172,16 +176,16 @@ func TestConstraints_ExclusiveBoolean30(t *testing.T) {
 	// bound lowers cleanly with the flag set and no error diagnostic.
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	c := propConstraints(t, doc, "S", "n")
+	constraints := propConstraints(t, doc, "S", "n")
 	// The modifier is a spelling of the exclusive bound, so the literal it
 	// modified lands in the exclusive field and the inclusive one is left empty
 	// — the same constraints the 2020-12 spelling of "x > 5, x < 10" produces.
-	assert.Nil(t, c.Min, "the modified minimum does not also stay inclusive")
-	assert.Nil(t, c.Max)
-	require.NotNil(t, c.ExclusiveMin)
-	require.NotNil(t, c.ExclusiveMax)
-	assert.Equal(t, ir.BigVal("5"), *c.ExclusiveMin)
-	assert.Equal(t, ir.BigVal("10"), *c.ExclusiveMax)
+	assert.Nil(t, constraints.Min, "the modified minimum does not also stay inclusive")
+	assert.Nil(t, constraints.Max)
+	require.NotNil(t, constraints.ExclusiveMin)
+	require.NotNil(t, constraints.ExclusiveMax)
+	assert.Equal(t, ir.BigVal("5"), *constraints.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("10"), *constraints.ExclusiveMax)
 }
 
 func TestConstraints_ExclusiveNumeric31(t *testing.T) {
@@ -196,13 +200,13 @@ func TestConstraints_ExclusiveNumeric31(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	c := propConstraints(t, doc, "S", "n")
-	assert.Nil(t, c.Min)
-	assert.Nil(t, c.Max)
-	require.NotNil(t, c.ExclusiveMin)
-	require.NotNil(t, c.ExclusiveMax)
-	assert.Equal(t, ir.BigVal("1.5"), *c.ExclusiveMin)
-	assert.Equal(t, ir.BigVal("9.5"), *c.ExclusiveMax)
+	constraints := propConstraints(t, doc, "S", "n")
+	assert.Nil(t, constraints.Min)
+	assert.Nil(t, constraints.Max)
+	require.NotNil(t, constraints.ExclusiveMin)
+	require.NotNil(t, constraints.ExclusiveMax)
+	assert.Equal(t, ir.BigVal("1.5"), *constraints.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("9.5"), *constraints.ExclusiveMax)
 }
 
 func TestConstraints_MalformedNumericLiterals(t *testing.T) {
@@ -216,10 +220,10 @@ func TestConstraints_MalformedNumericLiterals(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	var count int
-	for _, d := range diags {
-		if d.Code == diag.NumericPrecision {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.NumericPrecision {
 			count++
-			assert.Equal(t, ir.SeverityError, d.Severity)
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
 		}
 	}
 	assert.GreaterOrEqual(t, count, 2, "both malformed literals error")
@@ -238,13 +242,13 @@ func TestConstraints_NumericPrecisionSurvives(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	c := m.Properties[0].Constraints
-	require.NotNil(t, c)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	constraints := model.Properties[0].Constraints
+	require.NotNil(t, constraints)
 	// Exact decimal strings — a float64 path would corrupt all three.
-	assert.Equal(t, ir.BigVal("0.30000000000000004"), *c.Min)
-	assert.Equal(t, ir.BigVal("9007199254740993"), *c.Max)
-	assert.Equal(t, ir.BigVal("0.1"), *c.MultipleOf)
+	assert.Equal(t, ir.BigVal("0.30000000000000004"), *constraints.Min)
+	assert.Equal(t, ir.BigVal("9007199254740993"), *constraints.Max)
+	assert.Equal(t, ir.BigVal("0.1"), *constraints.MultipleOf)
 }
 
 func TestConstraints_LosslessNumericLiterals(t *testing.T) {
@@ -272,9 +276,9 @@ func TestConstraints_LosslessNumericLiterals(t *testing.T) {
 			// A valid number, however spelled, is accepted with no error: the
 			// library's float64/JSON complaint is not surfaced.
 			openapitest.RequireNoErrorDiags(t, diags)
-			c := propConstraints(t, doc, "S", "n")
-			require.NotNil(t, c.Min)
-			assert.Equal(t, tc.want, *c.Min)
+			constraints := propConstraints(t, doc, "S", "n")
+			require.NotNil(t, constraints.Min)
+			assert.Equal(t, tc.want, *constraints.Min)
 		})
 	}
 }
@@ -290,11 +294,11 @@ func TestConstraints_ABoundPastTheExponentRangeIsRefused(t *testing.T) {
 
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.NumericPrecision, ir.SeverityError),
 		"one numeric-precision error, got: %+v", diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
+	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, m.Properties, 1)
-	if c := m.Properties[0].Constraints; c != nil {
-		assert.Nil(t, c.Min, "a refused bound is dropped, not recorded")
+	require.Len(t, model.Properties, 1)
+	if constraints := model.Properties[0].Constraints; constraints != nil {
+		assert.Nil(t, constraints.Min, "a refused bound is dropped, not recorded")
 	}
 }
 
@@ -339,11 +343,11 @@ func TestConstraints_ExclusiveWrongDialectForm(t *testing.T) {
 			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ExclusiveBoundForm, ir.SeverityError),
 				"one dialect-form error, got: %+v", diags)
 			// The degenerate bound is dropped, not recorded.
-			m, ok := typeByName(doc, "S").(*ir.Model)
+			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			for _, p := range m.Properties {
-				if p.WireName == "n" && p.Constraints != nil {
-					assert.Nil(t, p.Constraints.ExclusiveMin, "wrong-form exclusive bound is not set")
+			for _, property := range model.Properties {
+				if property.WireName == "n" && property.Constraints != nil {
+					assert.Nil(t, property.Constraints.ExclusiveMin, "wrong-form exclusive bound is not set")
 				}
 			}
 		})
@@ -371,10 +375,10 @@ func TestConstraints_NonNumericMinimumErrors(t *testing.T) {
 	// A genuinely non-numeric bound is never dropped silently: Morphic owns the
 	// keyword and reports it as an error with the property's exact provenance.
 	var reported bool
-	for _, d := range diags {
-		if d.Code == diag.NumericPrecision {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.NumericPrecision {
 			reported = true
-			assert.Equal(t, ir.SeverityError, d.Severity)
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
 		}
 	}
 	assert.True(t, reported, "a non-numeric minimum yields an error diagnostic")
@@ -383,12 +387,12 @@ func TestConstraints_NonNumericMinimumErrors(t *testing.T) {
 // propConstraints returns the constraints of a named model's property.
 func propConstraints(t *testing.T, doc *ir.Document, model, wire string) *ir.Constraints {
 	t.Helper()
-	m, ok := typeByName(doc, model).(*ir.Model)
+	irModel, ok := typeByName(doc, model).(*ir.Model)
 	require.True(t, ok)
-	for _, p := range m.Properties {
-		if p.WireName == wire {
-			require.NotNil(t, p.Constraints, "property %s has constraints", wire)
-			return p.Constraints
+	for _, property := range irModel.Properties {
+		if property.WireName == wire {
+			require.NotNil(t, property.Constraints, "property %s has constraints", wire)
+			return property.Constraints
 		}
 	}
 	t.Fatalf("property %s not found", wire)
@@ -403,11 +407,11 @@ func TestComponentConstraints_DiagnosticProvenance(t *testing.T) {
 	spec := openapitest.ComponentSpec("    BadN: {type: number, minimum: hello}\n")
 	_, diags := schema.LowerSpec(t, spec)
 	var found bool
-	for _, d := range diags {
-		if d.Code == diag.NumericPrecision {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.NumericPrecision {
 			found = true
-			assert.NotEmpty(t, d.Provenance.Pointer, "component numeric diagnostic carries its pointer")
-			assert.Equal(t, ir.SeverityError, d.Severity, "a non-numeric bound is an error")
+			assert.NotEmpty(t, diagnostic.Provenance.Pointer, "component numeric diagnostic carries its pointer")
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity, "a non-numeric bound is an error")
 		}
 	}
 	assert.True(t, found, "a non-numeric component bound is reported")
@@ -477,9 +481,9 @@ func TestCollectionBound_BesideAReferenceReachesTheCarrier(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, wire := range []string{"ref", "nullable"} {
-		p := propertyOf(t, doc, "Holder", wire)
-		assert.Equal(t, allBounds(), p.Constraints, wire)
-		assert.Empty(t, p.Unmodeled, "%s: a bound the carrier holds is not also kept", wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		assert.Equal(t, allBounds(), property.Constraints, wire)
+		assert.Empty(t, property.Unmodeled, "%s: a bound the carrier holds is not also kept", wire)
 		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
 			"/components/schemas/Holder/properties/"+wire), "%s: %+v", wire, diags)
 	}
@@ -505,9 +509,9 @@ func TestCollectionBound_ARefinementReachesWhatThePositionOwns(t *testing.T) {
 		assert.Empty(t, alias.Unmodeled, name)
 	}
 	for _, wire := range []string{"f", "onBranch"} {
-		p := propertyOf(t, doc, "Holder", wire)
-		assert.Equal(t, allBounds(), p.Constraints, wire)
-		assert.Empty(t, p.Unmodeled, "%s: a bound the carrier holds is not also kept", wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		assert.Equal(t, allBounds(), property.Constraints, wire)
+		assert.Empty(t, property.Unmodeled, "%s: a bound the carrier holds is not also kept", wire)
 	}
 }
 
@@ -552,12 +556,12 @@ type bounds struct {
 // statedBounds reads the bounds Holder's property wire states.
 func statedBounds(t *testing.T, doc *ir.Document, wire string) bounds {
 	t.Helper()
-	p := propertyOf(t, doc, "Holder", wire)
-	out := bounds{carrier: p.Constraints}
-	td := doc.Types[p.Type.Target]
-	if u, ok := td.(*ir.Union); ok {
-		require.NotEmpty(t, u.Variants)
-		td = doc.Types[u.Variants[0].Type.Target]
+	property := propertyOf(t, doc, "Holder", wire)
+	out := bounds{carrier: property.Constraints}
+	td := doc.Types[property.Type.Target]
+	if union, ok := td.(*ir.Union); ok {
+		require.NotEmpty(t, union.Variants)
+		td = doc.Types[union.Variants[0].Type.Target]
 	}
 	switch n := td.(type) {
 	case *ir.List:
@@ -586,9 +590,9 @@ func TestCollectionBound_OnABranchMeetsInEveryOrder(t *testing.T) {
 		doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
 			"    Holder:\n      type: object\n      properties:\n        f: "+written+"\n"))
 		openapitest.RequireNoErrorDiags(t, diags)
-		p := propertyOf(t, doc, "Holder", "f")
-		assert.Equal(t, want, p.Constraints, written)
-		assert.Empty(t, p.Unmodeled, written)
+		property := propertyOf(t, doc, "Holder", "f")
+		assert.Equal(t, want, property.Constraints, written)
+		assert.Empty(t, property.Unmodeled, written)
 	}
 }
 
@@ -617,12 +621,12 @@ func TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch(t *testing.T) {
 			doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
 				"    Holder:\n      type: object\n      properties:\n        f: "+tc.written+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			p := propertyOf(t, doc, "Holder", "f")
-			assert.Equal(t, tc.held, p.Constraints)
-			kept := p.Unmodeled
-			if m, composed := doc.Types[p.Type.Target].(*ir.Model); composed {
-				assert.Nil(t, m.Constraints)
-				kept = m.Unmodeled
+			property := propertyOf(t, doc, "Holder", "f")
+			assert.Equal(t, tc.held, property.Constraints)
+			kept := property.Unmodeled
+			if model, composed := doc.Types[property.Type.Target].(*ir.Model); composed {
+				assert.Nil(t, model.Constraints)
+				kept = model.Unmodeled
 			}
 			assert.Equal(t, []string{"openapi:" + tc.key}, unmodeledKeys(kept))
 			at := "/components/schemas/Holder/properties/f/" + tc.branch
@@ -702,9 +706,9 @@ func TestCollectionBound_ARedeclaredFieldFoldsIt(t *testing.T) {
 			t.Parallel()
 			doc, diags := settledSpec(t, tagsSchema, tc.a, tc.b)
 
-			p := propertyOf(t, doc, "T", "v")
-			assert.Equal(t, tc.want, p.Constraints)
-			assert.Empty(t, p.Unmodeled, "the fold reads the typed field")
+			property := propertyOf(t, doc, "T", "v")
+			assert.Equal(t, tc.want, property.Constraints)
+			assert.Empty(t, property.Unmodeled, "the fold reads the typed field")
 			assert.Empty(t, diags)
 		})
 	}
@@ -732,16 +736,16 @@ func TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds(t *testin
 			doc, diags := settledSpec(t, tagsSchema, tc.a, tc.b)
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			p := propertyOf(t, doc, "T", "v")
-			assert.Equal(t, tc.kept, p.Type.Target)
-			assert.Empty(t, p.Unmodeled)
+			property := propertyOf(t, doc, "T", "v")
+			assert.Equal(t, tc.kept, property.Type.Target)
+			assert.Empty(t, property.Unmodeled)
 			assert.Empty(t, diags)
 		})
 	}
 	doc, _ := settledSpec(t, tagsSchema, list("minItems: 1"), list("maxItems: 3"))
-	l, ok := doc.Types["type/composed/components/schemas/T/allOf/1/properties/v"].(*ir.List)
+	irList, ok := doc.Types["type/composed/components/schemas/T/allOf/1/properties/v"].(*ir.List)
 	require.True(t, ok, "two lists whose elements meet stand on a list built of both")
-	elem, ok := doc.Types[l.ElementType.Target].(*ir.Scalar)
+	elem, ok := doc.Types[irList.ElementType.Target].(*ir.Scalar)
 	require.True(t, ok, "whose element is built of both elements")
 	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(3))}, elem.Constraints)
 }
@@ -817,9 +821,9 @@ func TestCollectionBound_ASpellingOfYAMLReachesConstraints(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, wire := range []string{"alias", "merged"} {
-		p := propertyOf(t, doc, "Holder", wire)
-		assert.Equal(t, &ir.Constraints{MinItems: new(int64(2))}, p.Constraints, wire)
-		assert.Empty(t, p.Unmodeled, wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		assert.Equal(t, &ir.Constraints{MinItems: new(int64(2))}, property.Constraints, wire)
+		assert.Empty(t, property.Unmodeled, wire)
 	}
 }
 
@@ -856,9 +860,9 @@ func TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState(t *testing.T)
 			assert.Equal(t, tc.kept, unmodeledKeys(alias.Unmodeled))
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S"))
 
-			p := propertyOf(t, doc, "Holder", "f")
-			assert.Equal(t, tc.held, p.Constraints)
-			assert.Equal(t, tc.kept, unmodeledKeys(p.Unmodeled))
+			property := propertyOf(t, doc, "Holder", "f")
+			assert.Equal(t, tc.held, property.Constraints)
+			assert.Equal(t, tc.kept, unmodeledKeys(property.Unmodeled))
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Holder/properties/f"))
 		})
 	}
@@ -1023,9 +1027,9 @@ func TestConstraints_ACountNoFieldStatesIsKeptVerbatim(t *testing.T) {
 	doc, diags := parseFull(t, openapitest.ComponentSpec("    S:\n      type: object\n      properties:\n"+
 		"        n: {type: string, maxLength: "+past+"}\n        max: {type: string, maxLength: 9223372036854775807}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	n := propertyOf(t, doc, "S", "n")
-	assert.Nil(t, n.Constraints, "a carrier states none")
-	assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(n.Unmodeled), "and keeps it")
+	property := propertyOf(t, doc, "S", "n")
+	assert.Nil(t, property.Constraints, "a carrier states none")
+	assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(property.Unmodeled), "and keeps it")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/properties/n"))
 	assert.Equal(t, &ir.Constraints{MaxLength: new(int64(9223372036854775807))}, propertyOf(t, doc, "S", "max").Constraints,
 		"a count at the int64 bound is stated")
@@ -1048,9 +1052,9 @@ func TestConstraints_ACountPastTheDecimalRangeIsRefused(t *testing.T) {
 	assert.Empty(t, td.Common().Unmodeled, "no entry holds it")
 	assert.Nil(t, heldBounds(td), "no field states it")
 	require.NotEmpty(t, diags)
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityError, d.Severity, "%+v", d)
-		assert.Equal(t, diag.UnpreservableConstruct, d.Code, "%+v", d)
+	for _, diagnostic := range diags {
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity, "%+v", diagnostic)
+		assert.Equal(t, diag.UnpreservableConstruct, diagnostic.Code, "%+v", diagnostic)
 	}
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S"), diags[0].Provenance.Pointer)
 }
@@ -1073,9 +1077,9 @@ func TestConstraints_ACountTheLoadPhaseRefusesReachesNoField(t *testing.T) {
 		for _, name := range []string{"S", "L", "R", "O", "M"} {
 			td := typeByName(doc, name)
 			assert.Empty(t, td.Common().Unmodeled, "%s %s", literal, name)
-			if c := heldBounds(td); c != nil {
-				assert.Nil(t, c.MaxLength, "%s %s", literal, name)
-				assert.Nil(t, c.MaxItems, "%s %s", literal, name)
+			if constraints := heldBounds(td); constraints != nil {
+				assert.Nil(t, constraints.MaxLength, "%s %s", literal, name)
+				assert.Nil(t, constraints.MaxItems, "%s %s", literal, name)
 			}
 		}
 		assert.Len(t, diags, 5, "%s: one report each, the load phase's: %+v", literal, diags)

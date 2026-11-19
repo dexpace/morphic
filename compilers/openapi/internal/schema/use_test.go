@@ -73,9 +73,9 @@ func TestUse_ALostRefSpeaksWithWhatIsBesideIt(t *testing.T) {
         f: {allOf: [`+lost+`, {enum: [a]}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	f := doc.Types[propertyOf(t, doc, "Holder", "f").Type.Target].Common()
-	assert.Equal(t, "beside", f.Docs.Description, "the node standing at the property")
-	assert.NotNil(t, f.Deprecation)
+	typeCommon := doc.Types[propertyOf(t, doc, "Holder", "f").Type.Target].Common()
+	assert.Equal(t, "beside", typeCommon.Docs.Description, "the node standing at the property")
+	assert.NotNil(t, typeCommon.Deprecation)
 	for _, name := range []string{"Narrow", "Passed"} {
 		common := typeByName(doc, name).Common()
 		assert.Equal(t, "beside", common.Docs.Description, name)
@@ -178,14 +178,14 @@ func TestUse_ACarrierReadsThroughADecorator(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, wire := range []string{"wrapped", "branch", "bound", "viaRef"} {
-		p := propertyOf(t, doc, "Holder", wire)
-		assert.NotEmpty(t, p.Visibility.Only, wire)
-		assert.NotNil(t, p.Default, wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		assert.NotEmpty(t, property.Visibility.Only, wire)
+		assert.NotNil(t, property.Default, wire)
 	}
 	for _, wire := range []string{"adds", "requires"} {
-		p := propertyOf(t, doc, "Holder", wire)
-		assert.Empty(t, p.Visibility.Only, wire)
-		assert.Nil(t, p.Default, wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		assert.Empty(t, property.Visibility.Only, wire)
+		assert.Nil(t, property.Default, wire)
 	}
 }
 
@@ -201,8 +201,8 @@ func TestUse_ANarrowingOfTwoRefsFallsBackToNothing(t *testing.T) {
         f: {enum: [x], allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	p := propertyOf(t, doc, "Holder", "f")
-	assert.Empty(t, firstDocs(doc, p).Description)
+	property := propertyOf(t, doc, "Holder", "f")
+	assert.Empty(t, firstDocs(doc, property).Description)
 }
 
 // TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert pins the dialect a site
@@ -288,9 +288,9 @@ func TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement(t *testing.T) {
 		refines := propertyOf(t, doc, "Holder", "refines")
 		assert.Equal(t, "mine", refines.Docs.Description, "what the position writes speaks first")
 		for _, wire := range []string{"refines", "viaRefines"} {
-			p := propertyOf(t, doc, "Holder", wire)
-			require.NotNil(t, p.Default, wire)
-			assert.Equal(t, "lent", p.Default.String, wire)
+			property := propertyOf(t, doc, "Holder", wire)
+			require.NotNil(t, property.Default, wire)
+			assert.Equal(t, "lent", property.Default.String, wire)
 		}
 		assert.Equal(t, "from Str", propertyOf(t, doc, "Holder", "viaRefines").Docs.Description)
 		for _, wire := range []string{"composes", "viaComposes"} {

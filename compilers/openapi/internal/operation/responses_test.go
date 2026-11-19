@@ -116,9 +116,9 @@ func TestResponses_NamedByStatusKey(t *testing.T) {
 
 	require.Len(t, op.Responses, 3)
 	hints := make([]string, 0, len(op.Responses))
-	for _, r := range op.Responses {
-		assert.Empty(t, r.Name.Source, "OpenAPI declares no response name, so Source stays empty")
-		hints = append(hints, r.Name.Hint)
+	for _, response := range op.Responses {
+		assert.Empty(t, response.Name.Source, "OpenAPI declares no response name, so Source stays empty")
+		hints = append(hints, response.Name.Hint)
 	}
 	assert.Equal(t, []string{"200", "2_xx", "empty"}, hints,
 		"the key as declared, neutralized; a key with no word in it takes the mint")
@@ -156,7 +156,7 @@ func TestResponses_InvalidStatusKeyIsReported(t *testing.T) {
 	assert.Contains(t, msg, `"wat"`, "the message names the key that could not be read")
 
 	require.Len(t, op.Responses, 2)
-	byHint := openapitest.IndexBy(op.Responses, func(r ir.Response) string { return r.Name.Hint })
+	byHint := openapitest.IndexBy(op.Responses, func(response ir.Response) string { return response.Name.Hint })
 	ok200, found := byHint["200"]
 	require.True(t, found)
 	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, ok200.Conditions.StatusCodes)
@@ -222,16 +222,16 @@ func TestResponses_ErrorHeadersAreStructural(t *testing.T) {
 
 	require.Len(t, ec.Headers, 2, "both headers lowered structurally")
 	wire := make([]string, 0, len(ec.Headers))
-	for _, h := range ec.Headers {
-		wire = append(wire, h.WireName)
-		assert.NotEmpty(t, h.Type.Target, "each header carries its lowered type")
+	for _, header := range ec.Headers {
+		wire = append(wire, header.WireName)
+		assert.NotEmpty(t, header.Type.Target, "each header carries its lowered type")
 	}
 	assert.Equal(t, []string{"Retry-After", "X-RateLimit-Remaining"}, wire)
 
 	assert.NotContains(t, ec.Unmodeled, "openapi:headers",
 		"a typed home means nothing is kept verbatim beside it")
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "error response headers",
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "error response headers",
 			"nothing is degraded, so nothing announces a degradation")
 	}
 }
@@ -252,11 +252,11 @@ func TestResponses_HeadersLowered(t *testing.T) {
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 1)
-	h := op.Responses[0].Headers[0]
-	assert.Equal(t, "X-Rate-Limit", h.WireName)
-	assert.True(t, h.Required)
-	assert.Equal(t, ir.TypeID("type/primitive/integer"), h.Type.Target)
-	assert.Equal(t, ir.PropertyID("property/openapi/paths/~1h/get/responses/200/headers/X-Rate-Limit"), h.ID)
+	header := op.Responses[0].Headers[0]
+	assert.Equal(t, "X-Rate-Limit", header.WireName)
+	assert.True(t, header.Required)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), header.Type.Target)
+	assert.Equal(t, ir.PropertyID("property/openapi/paths/~1h/get/responses/200/headers/X-Rate-Limit"), header.ID)
 }
 
 // TestResponses_LinksLowerOntoTheResponse pins that a response's links lower
@@ -455,8 +455,8 @@ func TestErrorCase_EveryMediaTypeIsAContent(t *testing.T) {
 		assert.NotContains(t, ec.Unmodeled, "openapi:content",
 			"%d keeps no content map beside a typed payload", status)
 	}
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "ErrorCase home",
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "ErrorCase home",
 			"nothing is degraded, so nothing announces a degradation")
 	}
 
@@ -507,9 +507,9 @@ func TestResponses_ACollisionIsReportedTheSameInEitherOrder(t *testing.T) {
 		spec := openapitest.PathsSpec("  /w:\n    get:\n      operationId: w\n      responses:\n" + keys)
 		_, _, diags := compileService(t, spec)
 		var found []ir.Diagnostic
-		for _, d := range diags {
-			if d.Code == diag.DuplicateStatusKey {
-				found = append(found, d)
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.DuplicateStatusKey {
+				found = append(found, diagnostic)
 			}
 		}
 		return found
@@ -601,9 +601,9 @@ components:
 		msg = openapitest.DiagMessageAt(t, diags, diag.InvalidStatusKey, ir.SeverityWarning, responses+"/wat")
 		assert.Contains(t, msg, `"wat"`, "the message names the key that could not be read")
 	}
-	for _, d := range diags {
-		assert.NotEqual(t, jsontext.Pointer("/components/responses/NF"), d.Provenance.Pointer,
-			"a key of the operation's map is no fault of the component it resolved to: %v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, jsontext.Pointer("/components/responses/NF"), diagnostic.Provenance.Pointer,
+			"a key of the operation's map is no fault of the component it resolved to: %v", diagnostic)
 	}
 }
 
@@ -651,9 +651,9 @@ components:
 	assert.Equal(t, "as b fails", b.Errors[0].Docs.Description,
 		"an error case is lowered by the same shared function, so it folds too")
 
-	c := openapitest.FindOp(t, doc, "c")
-	require.Len(t, c.Responses, 1)
-	assert.Equal(t, "declared", c.Responses[0].Docs.Description,
+	operation := openapitest.FindOp(t, doc, "c")
+	require.Len(t, operation.Responses, 1)
+	assert.Equal(t, "declared", operation.Responses[0].Docs.Description,
 		"a mount with no siblings keeps the declaration's description")
 }
 

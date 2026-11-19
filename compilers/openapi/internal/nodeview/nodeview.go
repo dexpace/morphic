@@ -191,16 +191,16 @@ func (v *View) expand(n *yaml.Node, depth int) expansion {
 	}
 
 	v.inFlight[n] = true
-	e := v.expandContent(n, depth)
+	expansionValue := v.expandContent(n, depth)
 	delete(v.inFlight, n)
 
 	// An incomplete result is memoized at an entry point too: nothing is in
 	// flight, so it depends on n alone, and a truncated chain is not
 	// re-expanded once per node that references it.
-	if e.complete || v.isEntryPoint(depth) {
-		v.memoize(n, e)
+	if expansionValue.complete || v.isEntryPoint(depth) {
+		v.memoize(n, expansionValue)
 	}
-	return e
+	return expansionValue
 }
 
 // serves reports whether a memoized expansion is the answer a fresh view would
@@ -212,11 +212,11 @@ func (v *View) expand(n *yaml.Node, depth int) expansion {
 // truncate, and the memo must not hide the truncation. An incomplete entry was
 // kept only because it was an entry point, and an entry point is the one read
 // it can stand in for.
-func (v *View) serves(e expansion, depth int) bool {
-	if !e.complete {
+func (v *View) serves(expansionValue expansion, depth int) bool {
+	if !expansionValue.complete {
 		return v.isEntryPoint(depth)
 	}
-	return depth+e.height <= MergeDepthLimit
+	return depth+expansionValue.height <= MergeDepthLimit
 }
 
 // isEntryPoint reports whether an expansion that just finished at this depth was
@@ -232,15 +232,15 @@ func (v *View) isEntryPoint(depth int) bool {
 // makes the budget a memory bound the scan can enforce without touching what
 // it reports. An expansion declined spends nothing, so a smaller one may still
 // fit after it.
-func (v *View) memoize(n *yaml.Node, e expansion) {
-	held := len(e.pairs)
-	if e.repeated != nil {
-		held += len(e.repeated.merged)
+func (v *View) memoize(n *yaml.Node, expansionValue expansion) {
+	held := len(expansionValue.pairs)
+	if expansionValue.repeated != nil {
+		held += len(expansionValue.repeated.merged)
 	}
 	if !v.cached.Remaining().Admits(held) {
 		return
 	}
-	v.pairs[n] = e
+	v.pairs[n] = expansionValue
 	v.cached.Spend(held)
 }
 
@@ -252,7 +252,7 @@ func (v *View) memoize(n *yaml.Node, e expansion) {
 // mapping that merges nothing has height 0.
 func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 	var explicit, merged []Pair
-	e := expansion{complete: true}
+	expansionValue := expansion{complete: true}
 
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		raw, val := n.Content[i], Deref(n.Content[i+1])
@@ -263,8 +263,8 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 		if IsMergeKey(raw) {
 			got := v.mergeSource(val, depth+1)
 			merged = append(merged, got.pairs...)
-			e.complete = e.complete && got.complete
-			e.height = max(e.height, got.height+1)
+			expansionValue.complete = expansionValue.complete && got.complete
+			expansionValue.height = max(expansionValue.height, got.height+1)
 			continue
 		}
 		key, own := KeyOf(raw)
@@ -278,15 +278,15 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 	if !repeats && len(merged) == 0 {
 		// Most mappings merge nothing and write each key once: their own pairs
 		// are already the answer, in order, and nothing else is allocated.
-		e.pairs = explicit
-		return e
+		expansionValue.pairs = explicit
+		return expansionValue
 	}
 	var asSource []Pair
-	e.pairs, asSource = flatten(explicit, merged)
+	expansionValue.pairs, asSource = flatten(explicit, merged)
 	if repeats {
-		e.repeated = &repeated{merged: asSource}
+		expansionValue.repeated = &repeated{merged: asSource}
 	}
-	return e
+	return expansionValue
 }
 
 // smallKeys is the width below which a mapping's keys are compared pair by
@@ -298,8 +298,8 @@ const smallKeys = 16
 func writesTwice(own []Pair) bool {
 	if len(own) <= smallKeys {
 		for i := 1; i < len(own); i++ {
-			for _, p := range own[:i] {
-				if p.Key == own[i].Key {
+			for _, pair := range own[:i] {
+				if pair.Key == own[i].Key {
 					return true
 				}
 			}
@@ -307,11 +307,11 @@ func writesTwice(own []Pair) bool {
 		return false
 	}
 	seen := make(map[string]bool, len(own))
-	for _, p := range own {
-		if seen[p.Key] {
+	for _, pair := range own {
+		if seen[pair.Key] {
 			return true
 		}
-		seen[p.Key] = true
+		seen[pair.Key] = true
 	}
 	return false
 }
@@ -325,17 +325,17 @@ func writesTwice(own []Pair) bool {
 // is written twice.
 func flatten(explicit, merged []Pair) (own, asSource []Pair) {
 	written := make(map[string]int, len(explicit))
-	for _, p := range explicit {
-		written[p.Key]++
+	for _, pair := range explicit {
+		written[pair.Key]++
 	}
 	base := make([]Pair, 0, len(merged))
 	taken := make(map[string]bool, len(merged))
-	for _, p := range merged {
-		if written[p.Key] > 0 || taken[p.Key] {
+	for _, pair := range merged {
+		if written[pair.Key] > 0 || taken[pair.Key] {
 			continue
 		}
-		taken[p.Key] = true
-		base = append(base, p)
+		taken[pair.Key] = true
+		base = append(base, pair)
 	}
 	own = slices.Concat(base, keepCopy(explicit, written, lastCopy))
 	if len(written) == len(explicit) {
@@ -357,10 +357,10 @@ const (
 func keepCopy(pairs []Pair, written map[string]int, rule copyRule) []Pair {
 	seen := make(map[string]int, len(written))
 	out := make([]Pair, 0, len(written))
-	for _, p := range pairs {
-		seen[p.Key]++
-		if rule == firstCopy && seen[p.Key] == 1 || rule == lastCopy && seen[p.Key] == written[p.Key] {
-			out = append(out, p)
+	for _, pair := range pairs {
+		seen[pair.Key]++
+		if rule == firstCopy && seen[pair.Key] == 1 || rule == lastCopy && seen[pair.Key] == written[pair.Key] {
+			out = append(out, pair)
 		}
 	}
 	return out
@@ -435,14 +435,14 @@ func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 		got := v.expand(val, depth)
 		return expansion{pairs: got.asSource(), height: got.height, complete: got.complete}
 	}
-	e := expansion{complete: true}
+	expansionValue := expansion{complete: true}
 	for _, item := range val.Content {
 		got := v.expand(Deref(item), depth)
-		e.pairs = append(e.pairs, got.asSource()...)
-		e.complete = e.complete && got.complete
-		e.height = max(e.height, got.height)
+		expansionValue.pairs = append(expansionValue.pairs, got.asSource()...)
+		expansionValue.complete = expansionValue.complete && got.complete
+		expansionValue.height = max(expansionValue.height, got.height)
 	}
-	return e
+	return expansionValue
 }
 
 // MergeSources returns what the `<<` value val names: each element of a list
@@ -576,9 +576,9 @@ func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
 	if index := v.keyIndex(n, pairs); index != nil {
 		return index[token]
 	}
-	for _, p := range pairs {
-		if p.Key == token {
-			return p.Val
+	for _, pair := range pairs {
+		if pair.Key == token {
+			return pair.Val
 		}
 	}
 	return nil
@@ -631,8 +631,8 @@ func (v *View) keyIndex(n *yaml.Node, pairs []Pair) map[string]*yaml.Node {
 
 	// Only a marker reaches here: callers read a built index from v.keys first.
 	index := make(map[string]*yaml.Node, len(pairs))
-	for _, p := range pairs {
-		index[p.Key] = p.Val
+	for _, pair := range pairs {
+		index[pair.Key] = pair.Val
 	}
 	v.keys[n] = index
 	return index

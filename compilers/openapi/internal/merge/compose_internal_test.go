@@ -79,8 +79,8 @@ func nthDecl(n int, target ir.TypeID) declaration {
 // declsOf is one declaration of each target, in order.
 func declsOf(targets ...ir.TypeID) []declaration {
 	out := make([]declaration, len(targets))
-	for i, t := range targets {
-		out[i] = nthDecl(i, t)
+	for i, typeID := range targets {
+		out[i] = nthDecl(i, typeID)
 	}
 	return out
 }
@@ -126,21 +126,21 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			reg := composeRegistry()
-			g, recorded := stubMerger(reg)
+			stubbed, recorded := stubMerger(reg)
 
-			got := g.fold(declsOf(tc.targets...))
+			got := stubbed.fold(declsOf(tc.targets...))
 
 			require.Equal(t, composedAt(declaredAt(1)), got.Type.Target, "the field takes the minted model")
-			m, ok := reg[got.Type.Target].(*ir.Model)
+			model, ok := reg[got.Type.Target].(*ir.Model)
 			require.True(t, ok, "the minted model is registered")
-			assert.Empty(t, cmp.Diff(tc.mixins, targetsOf(m.Mixins)), "mixins")
+			assert.Empty(t, cmp.Diff(tc.mixins, targetsOf(model.Mixins)), "mixins")
 			if tc.base == "" {
-				assert.Nil(t, m.Base)
+				assert.Nil(t, model.Base)
 			} else {
-				require.NotNil(t, m.Base)
-				assert.Equal(t, tc.base, m.Base.Target)
+				require.NotNil(t, model.Base)
+				assert.Equal(t, tc.base, model.Base.Target)
 			}
-			assert.Empty(t, m.Properties, "the composition stays in source form")
+			assert.Empty(t, model.Properties, "the composition stays in source form")
 			assert.Empty(t, *recorded, "nothing is lost, so nothing is reported")
 			assert.Empty(t, got.Unmodeled, "and nothing is kept")
 		})
@@ -150,8 +150,8 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 // targetsOf lists what refs name.
 func targetsOf(refs []ir.TypeRef) []ir.TypeID {
 	out := make([]ir.TypeID, 0, len(refs))
-	for _, r := range refs {
-		out = append(out, r.Target)
+	for _, typeRef := range refs {
+		out = append(out, typeRef.Target)
 	}
 	return out
 }
@@ -187,15 +187,15 @@ func TestFold_OnlyTwoOrMoreModelsCompose(t *testing.T) {
 			t.Parallel()
 			reg := composeRegistry()
 			count := len(reg)
-			g, _ := stubMerger(reg)
+			stubbed, _ := stubMerger(reg)
 
-			got := g.fold(declsOf(tc.targets...))
+			got := stubbed.fold(declsOf(tc.targets...))
 
 			assert.Equal(t, tc.want, got.Type.Target)
 			assert.Len(t, reg, count, "nothing is minted")
 			want := make([]string, 0, len(tc.dropped))
-			for _, p := range tc.dropped {
-				want = append(want, losingDeclarationKey+string(p))
+			for _, pointer := range tc.dropped {
+				want = append(want, losingDeclarationKey+string(pointer))
 			}
 			assert.ElementsMatch(t, want, slices.Collect(maps.Keys(got.Unmodeled)), "each drop is kept")
 		})
@@ -218,18 +218,18 @@ func TestFold_AComposedFieldIntersectsNull(t *testing.T) {
 		{"neither does", false, false, false},
 	} {
 		reg := composeRegistry()
-		g, _ := stubMerger(reg)
+		stubbed, _ := stubMerger(reg)
 		decls := declsOf("type/A", "type/in1")
 		decls[0].prop.Type.Nullable, decls[1].prop.Type.Nullable = tc.a, tc.b
 
-		got := g.fold(decls)
+		got := stubbed.fold(decls)
 
 		assert.Equal(t, tc.want, got.Type.Nullable, tc.name)
-		m, ok := reg[got.Type.Target].(*ir.Model)
+		model, ok := reg[got.Type.Target].(*ir.Model)
 		require.True(t, ok, tc.name)
-		require.NotNil(t, m.Base, tc.name)
-		assert.False(t, m.Base.Nullable, "%s: the base carries no bit", tc.name)
-		assert.False(t, m.Mixins[0].Nullable, "%s: nor does a mixin", tc.name)
+		require.NotNil(t, model.Base, tc.name)
+		assert.False(t, model.Base.Nullable, "%s: the base carries no bit", tc.name)
+		assert.False(t, model.Mixins[0].Nullable, "%s: nor does a mixin", tc.name)
 	}
 }
 
@@ -238,13 +238,13 @@ func TestFold_AComposedFieldIntersectsNull(t *testing.T) {
 // the field, and one contradicting another is reported as for any other fold.
 func TestFold_AComposedFieldKeepsEveryDeclarationsDetail(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(composeRegistry())
+	stubbed, recorded := stubMerger(composeRegistry())
 	decls := declsOf("type/A", "type/B", "type/in1")
 	decls[0].prop.Constraints = &ir.Constraints{MinProperties: new(int64(1)), Pattern: "^a$"}
 	decls[1].prop.Constraints = &ir.Constraints{MaxProperties: new(int64(4))}
 	decls[2].prop.Constraints = &ir.Constraints{MinProperties: new(int64(2)), Pattern: "^b$"}
 
-	got := g.fold(decls)
+	got := stubbed.fold(decls)
 
 	require.NotNil(t, got.Constraints)
 	assert.Equal(t, int64(2), *got.Constraints.MinProperties, "a bound takes its tightest value")
@@ -267,11 +267,11 @@ func TestFold_AComposedFieldHoldsTheBoundsOfEachDeclarationsOwnNode(t *testing.T
 	reg["type/in0"].(*ir.Model).Constraints = &ir.Constraints{MinProperties: new(int64(1)), MaxProperties: new(int64(9))}
 	reg["type/in1"].(*ir.Model).Constraints = &ir.Constraints{MaxProperties: new(int64(5))}
 	reg["type/A"].(*ir.Model).Constraints = &ir.Constraints{MinProperties: new(int64(3))}
-	g, recorded := stubMerger(reg)
+	stubbed, recorded := stubMerger(reg)
 	decls := declsOf("type/in0", "type/in1", "type/A")
 	decls[2].prop.Constraints = &ir.Constraints{MaxProperties: new(int64(7))}
 
-	got := g.fold(decls)
+	got := stubbed.fold(decls)
 
 	assert.Equal(t, &ir.Constraints{MinProperties: new(int64(1)), MaxProperties: new(int64(5))}, got.Constraints)
 	composed, ok := reg[got.Type.Target].(*ir.Model)
@@ -300,13 +300,13 @@ func TestOwnBounds_ReadsTheNodeADeclarationOwns(t *testing.T) {
 		"type/list":   &ir.List{TypeCommon: common("type/list"), ElementType: str, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
 		"type/named":  &ir.Model{ID: "type/named", Provenance: ptrAt("/components/schemas/N"), Constraints: bound},
 	}
-	g, _ := stubMerger(reg)
+	stubbed, _ := stubMerger(reg)
 	for target, want := range map[ir.TypeID]*ir.Constraints{
 		"type/model": bound, "type/map": bound, "type/scalar": length, "type/union": length,
 		"type/list": nil, "type/named": nil, "type/missing": nil,
 	} {
-		f := &folding{g: &g.Merger, decls: declsOf(target)}
-		assert.Equal(t, want, f.ownBounds(0), target)
+		foldingValue := &folding{g: &stubbed.Merger, decls: declsOf(target)}
+		assert.Equal(t, want, foldingValue.ownBounds(0), target)
 	}
 }
 
@@ -319,14 +319,14 @@ func TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet(t *testing.T) {
 	reg := composeRegistry()
 	reg["type/min"] = &ir.Scalar{ID: "type/min", Base: &ir.TypeRef{Target: "type/B"}, Constraints: &ir.Constraints{MinProperties: new(int64(1))}}
 	reg["type/max"] = &ir.Scalar{ID: "type/max", Base: &ir.TypeRef{Target: "type/B"}, Constraints: &ir.Constraints{MaxProperties: new(int64(4))}}
-	g, recorded := stubMerger(reg)
+	stubbed, recorded := stubMerger(reg)
 
-	got := g.fold(declsOf("type/min", "type/max"))
+	got := stubbed.fold(declsOf("type/min", "type/max"))
 
 	composed, ok := reg[got.Type.Target].(*ir.Model)
 	require.True(t, ok, "the field's type is the composition")
 	assert.Equal(t, []ir.TypeRef{{Target: "type/min"}, {Target: "type/max"}}, composed.Mixins)
-	assert.Equal(t, 1, g.walk.minted, "one pointer takes one node, which Register would otherwise refuse")
+	assert.Equal(t, 1, stubbed.walk.minted, "one pointer takes one node, which Register would otherwise refuse")
 	assert.Empty(t, *recorded)
 }
 
@@ -353,12 +353,12 @@ func TestFold_AComposedFieldAdoptsOnlyANull(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(composeRegistry())
+			stubbed, recorded := stubMerger(composeRegistry())
 			decls := declsOf("type/A", "type/in1")
 			decls[0].prop.Type.Nullable, decls[1].prop.Type.Nullable = tc.nullable, tc.nullable
 			decls[tc.at].prop.Default = &tc.value
 
-			got := g.fold(decls)
+			got := stubbed.fold(decls)
 
 			if tc.adopted {
 				assert.Equal(t, &tc.value, got.Default)
@@ -379,7 +379,7 @@ func TestFold_AComposedFieldAdoptsOnlyANull(t *testing.T) {
 func TestFold_ComposesOnlyTheDeclarationsItJudges(t *testing.T) {
 	t.Parallel()
 	reg := composeRegistry()
-	g, recorded := stubMerger(reg)
+	stubbed, recorded := stubMerger(reg)
 	decls := make([]declaration, 0, maxFoldDeclarations+1)
 	for range maxFoldDeclarations {
 		decls = append(decls, nthDecl(0, "type/A"))
@@ -387,11 +387,11 @@ func TestFold_ComposesOnlyTheDeclarationsItJudges(t *testing.T) {
 	decls[1] = nthDecl(1, "type/B")
 	decls = append(decls, nthDecl(2, "type/Pet"))
 
-	got := g.fold(decls)
+	got := stubbed.fold(decls)
 
-	m, ok := reg[got.Type.Target].(*ir.Model)
+	model, ok := reg[got.Type.Target].(*ir.Model)
 	require.True(t, ok)
-	assert.Empty(t, cmp.Diff([]ir.TypeID{"type/B", "type/A"}, targetsOf(m.Mixins)),
+	assert.Empty(t, cmp.Diff([]ir.TypeID{"type/B", "type/A"}, targetsOf(model.Mixins)),
 		"the declaration past the bound composes nothing, and the last of one type stands for it")
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, diag.BudgetExceeded, (*recorded)[0].Code)

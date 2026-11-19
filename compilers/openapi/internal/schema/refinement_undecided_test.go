@@ -36,16 +36,16 @@ components:
 }
 
 // undecidedTargets returns what the component C, the property p and the
-// parameter q lowered to, C as what its alias is a use of.
+// parameter parameter lowered to, C as what its alias is a use of.
 func undecidedTargets(t *testing.T, doc *ir.Document) []ir.TypeRef {
 	t.Helper()
-	q, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+	parameter, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
 	require.True(t, ok)
-	c := typeByName(doc, "C")
-	if sc, isScalar := c.(*ir.Scalar); isScalar && sc.Base != nil {
-		return []ir.TypeRef{*sc.Base, propertyOf(t, doc, "Holder", "p").Type, q.Type}
+	typeDef := typeByName(doc, "C")
+	if sc, isScalar := typeDef.(*ir.Scalar); isScalar && sc.Base != nil {
+		return []ir.TypeRef{*sc.Base, propertyOf(t, doc, "Holder", "p").Type, parameter.Type}
 	}
-	return []ir.TypeRef{{Target: c.Common().ID}, propertyOf(t, doc, "Holder", "p").Type, q.Type}
+	return []ir.TypeRef{{Target: typeDef.Common().ID}, propertyOf(t, doc, "Holder", "p").Type, parameter.Type}
 }
 
 // TestRefinementUndecided_ThePositionIsTheKindsItsEntriesAdmit pins an allOf
@@ -102,14 +102,14 @@ func TestRefinementUndecided_SeveralSharedKindsAreTheirUnion(t *testing.T) {
 			for _, order := range [][2]string{tc, {tc[1], tc[0]}} {
 				doc, diags := parseFull(t, undecidedSpec(order[0], order[1]))
 				openapitest.RequireNoErrorDiags(t, diags)
-				u, ok := typeByName(doc, "C").(*ir.Union)
+				union, ok := typeByName(doc, "C").(*ir.Union)
 				require.True(t, ok, "%v: got %T", order, typeByName(doc, "C"))
 				var variants []ir.TypeID
-				for _, v := range u.Variants {
-					variants = append(variants, v.Type.Target)
+				for _, variant := range union.Variants {
+					variants = append(variants, variant.Type.Target)
 				}
 				assert.Equal(t, []ir.TypeID{ir.PrimitiveTypeID(ir.PrimitiveString), ir.PrimitiveTypeID(ir.PrimitiveInteger)}, variants, "%v", order)
-				assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1"}, unmodeledKeys(u.Unmodeled), "%v", order)
+				assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1"}, unmodeledKeys(union.Unmodeled), "%v", order)
 			}
 		})
 	}
@@ -146,7 +146,7 @@ func TestRefinementUndecided_AnElectionOrNoSharedValueIsUnchanged(t *testing.T) 
 		_, model := typeByName(doc, "C").(*ir.Model)
 		assert.True(t, model, "%v", order)
 		warned := slices.ContainsFunc(diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/C"),
-			func(d ir.Diagnostic) bool { return d.Severity == ir.SeverityWarning })
+			func(diagnostic ir.Diagnostic) bool { return diagnostic.Severity == ir.SeverityWarning })
 		assert.True(t, warned, "%v", order)
 	}
 }

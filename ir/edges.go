@@ -28,8 +28,8 @@ func typeEdges(limit int, td TypeDef) iter.Seq[TypeID] {
 		if IsNilTypeDef(td) {
 			return
 		}
-		w := edgeWalk{yield: yield, steps: stepLimit{left: limit}}
-		w.def(td)
+		edgeWalkValue := edgeWalk{yield: yield, steps: stepLimit{left: limit}}
+		edgeWalkValue.def(td)
 	}
 }
 
@@ -56,10 +56,10 @@ func (w *edgeWalk) id(id TypeID) {
 	w.stopped = !w.yield(id)
 }
 
-// ref yields the target of r, if there is a reference at all.
-func (w *edgeWalk) ref(r *TypeRef) {
-	if r != nil {
-		w.id(r.Target)
+// ref yields the target of typeRef, if there is a reference at all.
+func (w *edgeWalk) ref(typeRef *TypeRef) {
+	if typeRef != nil {
+		w.id(typeRef.Target)
 	}
 }
 
@@ -102,29 +102,29 @@ func (w *edgeWalk) def(td TypeDef) {
 
 // common yields what every kind can hold: the availability timeline, examples
 // and the template instantiation.
-func (w *edgeWalk) common(c *TypeCommon) {
-	w.availability(c.Availability)
-	w.examples(c.Examples)
-	w.instantiation(c.Instantiation)
+func (w *edgeWalk) common(typeCommon *TypeCommon) {
+	w.availability(typeCommon.Availability)
+	w.examples(typeCommon.Examples)
+	w.instantiation(typeCommon.Instantiation)
 }
 
-// value yields the types v refers to, through every nested list, object member
-// and constructor argument, taking a step for v. depth counts one level per
+// value yields the types value refers to, through every nested list, object member
+// and constructor argument, taking a step for value. depth counts one level per
 // step down; the reflection walk charges each of those steps at least twice,
 // so it is cut first. A list, object or constructor met again from inside
 // itself is not entered again.
-func (w *edgeWalk) value(v *Value, depth int) {
-	if v == nil || depth > MaxWalkDepth || !w.steps.take() {
+func (w *edgeWalk) value(value *Value, depth int) {
+	if value == nil || depth > MaxWalkDepth || !w.steps.take() {
 		return
 	}
-	w.values(v.List, depth+1)
-	w.members(v.Object, depth+1)
-	if v.Ref != nil {
-		w.id(v.Ref.Type)
+	w.values(value.List, depth+1)
+	w.members(value.Object, depth+1)
+	if value.Ref != nil {
+		w.id(value.Ref.Type)
 	}
-	if c := v.Constructor; c != nil && w.path.enter(c, 0) {
-		w.id(c.Scalar)
-		w.values(c.Args, depth+1)
+	if constructorValue := value.Constructor; constructorValue != nil && w.path.enter(constructorValue, 0) {
+		w.id(constructorValue.Scalar)
+		w.values(constructorValue.Args, depth+1)
 		w.path.leave()
 	}
 }
@@ -159,9 +159,9 @@ func (w *edgeWalk) examples(exs []Example) {
 		w.value(ex.Headers, 0)
 		w.input(ex.Input)
 		w.value(ex.Output, 0)
-		if e := ex.Error; e != nil {
-			w.ref(&e.Type)
-			w.value(&e.Content, 0)
+		if errorExample := ex.Error; errorExample != nil {
+			w.ref(&errorExample.Type)
+			w.value(&errorExample.Content, 0)
 		}
 	}
 }
@@ -174,8 +174,8 @@ func (w *edgeWalk) input(in *ScenarioInput) {
 		return
 	}
 	for _, id := range slices.Sorted(maps.Keys(in.Params)) {
-		v := in.Params[id]
-		w.value(&v, 0)
+		value := in.Params[id]
+		w.value(&value, 0)
 	}
 	w.value(in.Body, 0)
 }
@@ -191,12 +191,12 @@ func (w *edgeWalk) availability(a *Availability) {
 }
 
 // encoding yields an encoding's wire type and decoded-schema type.
-func (w *edgeWalk) encoding(e *Encoding) {
-	if e == nil {
+func (w *edgeWalk) encoding(encoding *Encoding) {
+	if encoding == nil {
 		return
 	}
-	w.ref(e.WireType)
-	w.ref(e.Schema)
+	w.ref(encoding.WireType)
+	w.ref(encoding.Schema)
 }
 
 // instantiation yields the type and value arguments of a monomorphized
@@ -213,40 +213,40 @@ func (w *edgeWalk) instantiation(inst *TemplateInstantiation) {
 
 // model yields a model's properties, composition parents, catch-all and
 // discriminator.
-func (w *edgeWalk) model(m *Model) {
-	for i := range m.Properties {
-		w.property(&m.Properties[i])
+func (w *edgeWalk) model(model *Model) {
+	for i := range model.Properties {
+		w.property(&model.Properties[i])
 	}
-	w.ref(m.Base)
-	w.refs(m.Implements)
-	w.refs(m.Mixins)
-	w.additional(m.AdditionalProperties)
-	w.discriminator(m.Discriminator)
+	w.ref(model.Base)
+	w.refs(model.Implements)
+	w.refs(model.Mixins)
+	w.additional(model.AdditionalProperties)
+	w.discriminator(model.Discriminator)
 }
 
 // property yields everything a property refers to, its field arguments
 // included.
-func (w *edgeWalk) property(p *Property) {
-	w.ref(&p.Type)
-	w.value(p.Default, 0)
-	w.encoding(p.Encoding)
-	for i := range p.Args {
-		w.parameter(&p.Args[i])
+func (w *edgeWalk) property(property *Property) {
+	w.ref(&property.Type)
+	w.value(property.Default, 0)
+	w.encoding(property.Encoding)
+	for i := range property.Args {
+		w.parameter(&property.Args[i])
 	}
-	w.examples(p.Examples)
-	w.availability(p.Availability)
+	w.examples(property.Examples)
+	w.availability(property.Availability)
 }
 
 // parameter yields everything a field argument refers to.
-func (w *edgeWalk) parameter(p *Parameter) {
-	w.ref(&p.Type)
-	w.value(p.Default, 0)
-	w.encoding(p.Encoding)
-	if p.ValueFrom != nil {
-		w.ref(p.ValueFrom.Root)
+func (w *edgeWalk) parameter(parameter *Parameter) {
+	w.ref(&parameter.Type)
+	w.value(parameter.Default, 0)
+	w.encoding(parameter.Encoding)
+	if parameter.ValueFrom != nil {
+		w.ref(parameter.ValueFrom.Root)
 	}
-	w.availability(p.Availability)
-	w.examples(p.Examples)
+	w.availability(parameter.Availability)
+	w.examples(parameter.Examples)
 }
 
 // additional yields the catch-all value and key types and each pattern's value
@@ -264,33 +264,33 @@ func (w *edgeWalk) additional(a *AdditionalProperties) {
 
 // discriminator yields the mapping targets in sorted key order, then the
 // default target.
-func (w *edgeWalk) discriminator(d *Discriminator) {
-	if d == nil {
+func (w *edgeWalk) discriminator(discriminator *Discriminator) {
+	if discriminator == nil {
 		return
 	}
-	for _, k := range slices.Sorted(maps.Keys(d.Mapping)) {
-		w.id(d.Mapping[k])
+	for _, k := range slices.Sorted(maps.Keys(discriminator.Mapping)) {
+		w.id(discriminator.Mapping[k])
 	}
-	w.id(d.Default)
+	w.id(discriminator.Default)
 }
 
 // union yields each variant's references, then the discriminator's.
-func (w *edgeWalk) union(u *Union) {
-	for i := range u.Variants {
-		v := &u.Variants[i]
-		w.ref(&v.Type)
-		w.availability(v.Availability)
-		w.examples(v.Examples)
+func (w *edgeWalk) union(union *Union) {
+	for i := range union.Variants {
+		variant := &union.Variants[i]
+		w.ref(&variant.Type)
+		w.availability(variant.Availability)
+		w.examples(variant.Examples)
 	}
-	w.discriminator(u.Discriminator)
+	w.discriminator(union.Discriminator)
 }
 
 // enum yields each member's value, availability and example references.
-func (w *edgeWalk) enum(e *Enum) {
-	for i := range e.Members {
-		m := &e.Members[i]
-		w.value(&m.Value, 0)
-		w.availability(m.Availability)
-		w.examples(m.Examples)
+func (w *edgeWalk) enum(enum *Enum) {
+	for i := range enum.Members {
+		enumMember := &enum.Members[i]
+		w.value(&enumMember.Value, 0)
+		w.availability(enumMember.Availability)
+		w.examples(enumMember.Examples)
 	}
 }

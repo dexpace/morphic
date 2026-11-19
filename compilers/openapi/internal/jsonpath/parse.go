@@ -78,18 +78,18 @@ func Parse(text string) (Query, error) {
 	if bad := firstInvalid(text); bad < len(text) {
 		return Query{}, &SyntaxError{Offset: bad, Reason: "the text is not UTF-8"}
 	}
-	p := &parser{text: text}
-	if !p.eat('$') {
-		return Query{}, p.fail("a query starts with $")
+	parserValue := &parser{text: text}
+	if !parserValue.eat('$') {
+		return Query{}, parserValue.fail("a query starts with $")
 	}
-	segments, err := p.segments()
+	segments, err := parserValue.segments()
 	if err != nil {
 		return Query{}, err
 	}
-	if p.pos < len(text) {
-		return Query{}, p.fail(fmt.Sprintf("%q cannot follow the query before it", p.rest()))
+	if parserValue.pos < len(text) {
+		return Query{}, parserValue.fail(fmt.Sprintf("%q cannot follow the query before it", parserValue.rest()))
 	}
-	return Query{segments: segments, notes: p.notes}, nil
+	return Query{segments: segments, notes: parserValue.notes}, nil
 }
 
 // firstInvalid returns the offset of the first byte of text that is no part
@@ -109,11 +109,11 @@ func firstInvalid(text string) int {
 // fail returns a *SyntaxError at the parser's offset, naming the dot before
 // the member name read last where the offset is that name's end.
 func (s *scanner) fail(reason string) *SyntaxError {
-	e := &SyntaxError{Offset: s.pos, Reason: reason}
+	syntaxError := &SyntaxError{Offset: s.pos, Reason: reason}
 	if s.nameDot > 0 && s.pos == s.nameAt {
-		e.Dot = s.nameDot
+		syntaxError.Dot = s.nameDot
 	}
-	return e
+	return syntaxError
 }
 
 // rest returns a short quotation of the text from the parser's offset.
@@ -158,18 +158,18 @@ func (s *scanner) blank() bool {
 	return s.pos > start
 }
 
-// enter counts one more nesting of kind k, refusing one past maxDepth.
-func (p *parser) enter(k nesting) error {
-	if p.open[k] == maxDepth {
+// enter counts one more nesting of kind nestingValue, refusing one past maxDepth.
+func (p *parser) enter(nestingValue nesting) error {
+	if p.open[nestingValue] == maxDepth {
 		return p.fail(fmt.Sprintf("the query nests %s past the depth of %d the compiler reads", [...]string{
-			"filters", "parentheses", "function calls"}[k], maxDepth))
+			"filters", "parentheses", "function calls"}[nestingValue], maxDepth))
 	}
-	p.open[k]++
+	p.open[nestingValue]++
 	return nil
 }
 
 // leave ends a nesting enter counted.
-func (p *parser) leave(k nesting) { p.open[k]-- }
+func (p *parser) leave(nestingValue nesting) { p.open[nestingValue]-- }
 
 // segments reads the segments following a root or current-node identifier, as
 // many as follow, each perhaps after blank space.
@@ -182,11 +182,11 @@ func (p *parser) segments() ([]segment, error) {
 			p.pos = save
 			return out, nil
 		}
-		s, err := p.segment()
+		segment, err := p.segment()
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, s)
+		out = append(out, segment)
 	}
 }
 
@@ -238,7 +238,7 @@ func isNameChar(r rune) bool {
 // by commas, blank space around each. One name or index selector written with
 // no blank space is a singular segment (RFC 9535 section 2.3.5.1).
 func (p *parser) bracketed(descendant bool) (segment, error) {
-	s := segment{descendant: descendant}
+	segmentValue := segment{descendant: descendant}
 	spaced := false
 	for {
 		spaced = p.blank() || spaced
@@ -246,7 +246,7 @@ func (p *parser) bracketed(descendant bool) (segment, error) {
 		if err != nil {
 			return segment{}, err
 		}
-		s.selectors = append(s.selectors, sel)
+		segmentValue.selectors = append(segmentValue.selectors, sel)
 		spaced = p.blank() || spaced
 		if p.eat(']') {
 			break
@@ -255,9 +255,9 @@ func (p *parser) bracketed(descendant bool) (segment, error) {
 			return segment{}, p.fail("a selector is followed by a comma or ]")
 		}
 	}
-	kind := s.selectors[0].kind
-	s.singular = !descendant && !spaced && len(s.selectors) == 1 && (kind == selName || kind == selIndex)
-	return s, nil
+	kind := segmentValue.selectors[0].kind
+	segmentValue.singular = !descendant && !spaced && len(segmentValue.selectors) == 1 && (kind == selName || kind == selIndex)
+	return segmentValue, nil
 }
 
 // selector reads one selector of a bracketed selection.

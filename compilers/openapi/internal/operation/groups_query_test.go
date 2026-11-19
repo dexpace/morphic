@@ -19,8 +19,8 @@ import (
 // groupIDs lists the ID of each group, in order.
 func groupIDs(groups []ir.OperationGroup) []ir.GroupID {
 	ids := make([]ir.GroupID, 0, len(groups))
-	for _, g := range groups {
-		ids = append(ids, g.ID)
+	for _, operationGroup := range groups {
+		ids = append(ids, operationGroup.ID)
 	}
 	return ids
 }
@@ -64,12 +64,12 @@ func TestGroups_PathPrefixStopsAtTheQuery(t *testing.T) {
 			assert.Empty(t, cmp.Diff(want, opsByGroup(t, svc.Groups)), "group ID to operations (-want +got)")
 			assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.InvalidPathKey, ir.SeverityWarning),
 				"one warning per key carrying a query, and none from the grouping")
-			for _, g := range svc.Groups {
-				switch g.ID {
+			for _, operationGroup := range svc.Groups {
+				switch operationGroup.ID {
 				case "operation-group/path-prefix":
-					assert.Equal(t, ir.Naming{Hint: "empty"}, g.Name)
+					assert.Equal(t, ir.Naming{Hint: "empty"}, operationGroup.Name)
 				case "operation-group/path-prefix/users":
-					assert.Equal(t, "users", g.Name.Source)
+					assert.Equal(t, "users", operationGroup.Name.Source)
 				}
 			}
 		})

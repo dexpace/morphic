@@ -81,18 +81,18 @@ func firstDifference(a, b *yaml.Node) string {
 	}
 	stack := []step{{a, b, ""}}
 	for len(stack) > 0 {
-		p := stack[len(stack)-1]
+		stepValue := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		x, y := *p.a, *p.b
+		x, y := *stepValue.a, *stepValue.b
 		x.Content, y.Content = nil, nil
 		if diff := cmp.Diff(x, y); diff != "" {
-			return fmt.Sprintf("at %q (-yaml.v3 +Read):\n%s", p.path, diff)
+			return fmt.Sprintf("at %q (-yaml.v3 +Read):\n%s", stepValue.path, diff)
 		}
-		if len(p.a.Content) != len(p.b.Content) {
-			return fmt.Sprintf("at %q: %d children, then %d", p.path, len(p.a.Content), len(p.b.Content))
+		if len(stepValue.a.Content) != len(stepValue.b.Content) {
+			return fmt.Sprintf("at %q: %d children, then %d", stepValue.path, len(stepValue.a.Content), len(stepValue.b.Content))
 		}
-		for i, child := range slices.Backward(p.a.Content) {
-			stack = append(stack, step{child, p.b.Content[i], fmt.Sprintf("%s/%d", p.path, i)})
+		for i, child := range slices.Backward(stepValue.a.Content) {
+			stack = append(stack, step{child, stepValue.b.Content[i], fmt.Sprintf("%s/%d", stepValue.path, i)})
 		}
 	}
 	return ""

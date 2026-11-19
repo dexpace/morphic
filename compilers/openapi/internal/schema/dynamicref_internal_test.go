@@ -45,7 +45,7 @@ var deepMergeSpec = func() string {
 // identifier above, which must not read as none.
 func TestSameResource_SaysWhyTwoPositionsMayLieInTwo(t *testing.T) {
 	t.Parallel()
-	l, diags := LoweredFor(t, deepMergeSpec)
+	lowerer, diags := LoweredFor(t, deepMergeSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, tc := range []struct {
 		from, at jsontext.Pointer
@@ -58,7 +58,7 @@ func TestSameResource_SaysWhyTwoPositionsMayLieInTwo(t *testing.T) {
 		{"/components/schemas/Deep", "/components/schemas/Plain", "may hide an identifier"},
 		{"/components/schemas/Plain", "/components/schemas/Deep", "may hide an identifier"},
 	} {
-		why, ok := sameResource(l.Ctx, reftable.DocumentPointer{Pointer: tc.from}, reftable.DocumentPointer{Pointer: tc.at})
+		why, ok := sameResource(lowerer.Ctx, reftable.DocumentPointer{Pointer: tc.from}, reftable.DocumentPointer{Pointer: tc.at})
 		assert.Equal(t, tc.want == "", ok, "%s %s", tc.from, tc.at)
 		assert.Contains(t, why, tc.want, "%s %s", tc.from, tc.at)
 	}
@@ -122,14 +122,14 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			l, diags := LoweredFor(t, openapitest.ComponentSpec(tc.schemas))
+			lowerer, diags := LoweredFor(t, openapitest.ComponentSpec(tc.schemas))
 			openapitest.RequireNoErrorDiags(t, diags)
 			if tc.anchor != "" {
-				require.Equal(t, tc.wantSites, l.Ctx.DynamicAnchor(tc.anchor).Count,
+				require.Equal(t, tc.wantSites, lowerer.Ctx.DynamicAnchor(tc.anchor).Count,
 					"the fixture must set up the case it is named for")
 			}
 
-			next, hops := dynamicHop(l.Ctx, reftable.DocumentPointer{Pointer: tc.at})
+			next, hops := dynamicHop(lowerer.Ctx, reftable.DocumentPointer{Pointer: tc.at})
 
 			assert.Equal(t, tc.wantNext != "", hops)
 			assert.Equal(t, tc.wantNext, next.Pointer)
@@ -147,22 +147,22 @@ func TestResolvesAt_AnswersAsResolvePointerDoes(t *testing.T) {
 	for _, name := range []string{"dynamic-ref", "schema-identifiers"} {
 		data, err := os.ReadFile(filepath.Join("../../../../testdata/conformance/openapi", name+".yaml"))
 		require.NoError(t, err)
-		l, _ := LoweredFor(t, string(data))
-		table := l.Ctx.Bindings().Table()
+		lowerer, _ := LoweredFor(t, string(data))
+		table := lowerer.Ctx.Bindings().Table()
 		positions := []reftable.DocumentPointer{}
 		for _, landing := range table.Landings() {
 			positions = append(positions, landing.At)
 		}
-		for _, e := range table.Entries() {
-			positions = append(positions, e.Site, e.Hop.Target)
+		for _, referenceSite := range table.Entries() {
+			positions = append(positions, referenceSite.Site, referenceSite.Hop.Target)
 		}
 		for _, at := range positions {
-			there, read := lowering.InDocument(l.Ctx, at.Doc)
+			there, read := lowering.InDocument(lowerer.Ctx, at.Doc)
 			want := false
 			if read {
-				_, want = resolvePointer(there, l.Types, at.Pointer, l.Ctx.Statements().At(at))
+				_, want = resolvePointer(there, lowerer.Types, at.Pointer, lowerer.Ctx.Statements().At(at))
 			}
-			assert.Equal(t, want, resolvesAt(l.Ctx, at), "%s: %v", name, at)
+			assert.Equal(t, want, resolvesAt(lowerer.Ctx, at), "%s: %v", name, at)
 			asked++
 		}
 	}
@@ -181,33 +181,33 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 		"      allOf: [{not: {$ref: '#/components/schemas/Item'}}]\n"
 	src := strings.Replace(deepMergeSpec, "    Deep: {<<: *c70}\n",
 		"    Item: {type: string}\n    Plain:"+body+"    Twin:"+body+"    Deep:\n      <<: *c70"+body, 1)
-	l, diags := LoweredFor(t, src)
+	lowerer, diags := LoweredFor(t, src)
 	var unresolved []jsontext.Pointer
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			unresolved = append(unresolved, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
+			unresolved = append(unresolved, diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.ElementsMatch(t, []jsontext.Pointer{"/components/schemas/Deep/properties/p/items",
 		"/components/schemas/Deep/allOf/0/not"}, unresolved, "%+v", diags)
 	at := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
-		js := l.Ctx.Bindings().At(reftable.DocumentPointer{Pointer: jsontext.Pointer("/components/schemas/" + name + "/properties/p")})
+		js := lowerer.Ctx.Bindings().At(reftable.DocumentPointer{Pointer: jsontext.Pointer("/components/schemas/" + name + "/properties/p")})
 		require.NotNil(t, js, name)
 		return js
 	}
 	branch := func(name string) allOfBranch {
-		s := l.Ctx.Statements().At(reftable.DocumentPointer{Pointer: jsontext.Pointer("/components/schemas/" + name)}).Schema
-		return allOfBranches(l.Ctx, s, "").branches[0]
+		schema := lowerer.Ctx.Statements().At(reftable.DocumentPointer{Pointer: jsontext.Pointer("/components/schemas/" + name)}).Schema
+		return allOfBranches(lowerer.Ctx, schema, "").branches[0]
 	}
 	prov := func(name string) ir.Provenance {
-		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
+		return lowerer.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
 	}
-	fields := modelFields{c: l.Ctx}
+	fields := modelFields{c: lowerer.Ctx}
 
-	assert.True(t, sameText(l.Ctx, l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Twin"))))
-	assert.False(t, sameText(l.Ctx, l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Deep"))))
-	assert.True(t, readsAtPosition(l.Ctx, branch("Plain")))
-	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
+	assert.True(t, sameText(lowerer.Ctx, lowerer.Ctx.Statements().Of(at("Plain")), lowerer.Ctx.Statements().Of(at("Twin"))))
+	assert.False(t, sameText(lowerer.Ctx, lowerer.Ctx.Statements().Of(at("Plain")), lowerer.Ctx.Statements().Of(at("Deep"))))
+	assert.True(t, readsAtPosition(lowerer.Ctx, branch("Plain")))
+	assert.False(t, readsAtPosition(lowerer.Ctx, branch("Deep")))
 	assert.True(t, fields.Alike(prov("Plain"), prov("Twin")))
 	assert.False(t, fields.Alike(prov("Plain"), prov("Deep")))
 }
@@ -233,10 +233,10 @@ func TestResolvesAt_ResolvesNothingInADocumentTheCompileDidNotRead(t *testing.T)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	read := LowererOver(service.New(0, doc, service.Policy{}))
-	e, ok := read.Ctx.Bindings().Table().Entry(reftable.DocumentPointer{Pointer: "/components/schemas/A"})
+	referenceSite, ok := read.Ctx.Bindings().Table().Entry(reftable.DocumentPointer{Pointer: "/components/schemas/A"})
 	require.True(t, ok)
-	require.True(t, resolvesAt(read.Ctx, e.Hop.Target), "sanity: the document the compile read resolves")
+	require.True(t, resolvesAt(read.Ctx, referenceSite.Hop.Target), "sanity: the document the compile read resolves")
 	none := *doc
 	none.Others = load.Others{}
-	assert.False(t, resolvesAt(LowererOver(service.New(0, &none, service.Policy{})).Ctx, e.Hop.Target))
+	assert.False(t, resolvesAt(LowererOver(service.New(0, &none, service.Policy{})).Ctx, referenceSite.Hop.Target))
 }

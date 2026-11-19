@@ -321,13 +321,13 @@ func TestReadUpTo_GrowsNoFurtherThanTheBound(t *testing.T) {
 	for _, size := range []int64{0, 8 << 20} {
 		t.Run(fmt.Sprintf("reporting %d bytes", size), func(t *testing.T) {
 			t.Parallel()
-			r := &serveThenFail{max: 2 * n}
+			serveThenFailValue := &serveThenFail{max: 2 * n}
 
-			got, err := readUpTo(t.Context(), "document", r, n, size)
+			got, err := readUpTo(t.Context(), "document", serveThenFailValue, n, size)
 
 			require.NoError(t, err)
 			assert.Len(t, got, n)
-			assert.Equal(t, n, r.served, "nothing past the bound is read")
+			assert.Equal(t, n, serveThenFailValue.served, "nothing past the bound is read")
 			assert.LessOrEqual(t, cap(got), n, "the buffer grew to the bound, not past it")
 		})
 	}
@@ -340,14 +340,14 @@ func TestReadUpTo_GrowsNoFurtherThanTheBound(t *testing.T) {
 func TestReadUpTo_AsksTheContextBetweenChunks(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
-	r := &cancelOnRead{cancel: cancel}
+	cancelOnReadValue := &cancelOnRead{cancel: cancel}
 
-	got, err := readUpTo(ctx, "document", r, 0, 1<<40)
+	got, err := readUpTo(ctx, "document", cancelOnReadValue, 0, 1<<40)
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, got)
-	assert.Equal(t, 1, r.reads, "the read stopped at the first ask after the cancel")
-	assert.Equal(t, readChunk, r.asked, "and that one read asked for no more than a chunk")
+	assert.Equal(t, 1, cancelOnReadValue.reads, "the read stopped at the first ask after the cancel")
+	assert.Equal(t, readChunk, cancelOnReadValue.asked, "and that one read asked for no more than a chunk")
 }
 
 // cancelOnRead serves every byte it is asked for, cancelling its context on the

@@ -26,9 +26,9 @@ const aliasAmplification = "openapi/alias-amplification"
 // in the order diags lists them.
 func codedPointers(diags []ir.Diagnostic, codes ...string) []string {
 	var out []string
-	for _, d := range diags {
-		if slices.Contains(codes, d.Code) {
-			out = append(out, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if slices.Contains(codes, diagnostic.Code) {
+			out = append(out, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	return out
@@ -39,8 +39,8 @@ func codedPointers(diags []ir.Diagnostic, codes ...string) []string {
 // must agree on, positions and messages aside.
 func kinds(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Code+" "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -130,8 +130,8 @@ func TestCompile_ASharedNodesFindingsDoNotDependOnWhichPlaceIsWrittenFirst(t *te
 
 	require.NotEmpty(t, ab)
 	assert.Empty(t, cmp.Diff(kinds(ab), kinds(ba)), "the same findings in either order")
-	for _, d := range slices.Concat(ab, ba) {
-		assert.Equal(t, ir.Position{Line: 6, Column: 49}, d.Provenance.Position, "the node's own text, which is where it is written: %+v", d)
+	for _, diagnostic := range slices.Concat(ab, ba) {
+		assert.Equal(t, ir.Position{Line: 6, Column: 49}, diagnostic.Provenance.Position, "the node's own text, which is where it is written: %+v", diagnostic)
 	}
 }
 

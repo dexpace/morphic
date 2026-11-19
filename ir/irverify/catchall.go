@@ -26,8 +26,8 @@ func checkCatchAllEncodings(*ir.Document) walkCheck {
 			if v.Type() != contentType {
 				return operationPath[v.Type()] || contentPath[v.Type()]
 			}
-			if c, ok := reflect.TypeAssert[ir.Content](v); ok && len(c.CatchAllEncoding) > 0 {
-				vs = appendEmptyCatchAlls(vs, c.CatchAllEncoding, at)
+			if content, ok := reflect.TypeAssert[ir.Content](v); ok && len(content.CatchAllEncoding) > 0 {
+				vs = appendEmptyCatchAlls(vs, content.CatchAllEncoding, at)
 			}
 			return false
 		},

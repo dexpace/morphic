@@ -82,59 +82,59 @@ func compilePaged(t *testing.T, op string, policy openapi.ExtensionPromotions) (
 	return doc, openapitest.FirstOp(t, doc.Services[0]), diags
 }
 
-// renderPage spells p by the names its fields reach, so a case reads as the
+// renderPage spells pagination by the names its fields reach, so a case reads as the
 // document it compiles: a parameter as param:<name>, the request body as
 // body:<members>, and a page value as its members, or header:<name>.
-func renderPage(doc *ir.Document, op ir.Operation, p *ir.Pagination) string {
-	if p == nil {
+func renderPage(doc *ir.Document, op ir.Operation, pagination *ir.Pagination) string {
+	if pagination == nil {
 		return "none"
 	}
 	names := map[ir.PropertyID]string{}
 	for _, td := range doc.Types {
-		if m, ok := td.(*ir.Model); ok {
-			for _, prop := range m.Properties {
+		if model, ok := td.(*ir.Model); ok {
+			for _, prop := range model.Properties {
 				names[prop.ID] = prop.Name.Source
 			}
 		}
 	}
-	for _, r := range op.Responses {
-		for _, h := range r.Headers {
-			names[h.ID] = h.Name.Source
+	for _, response := range op.Responses {
+		for _, header := range response.Headers {
+			names[header.ID] = header.Name.Source
 		}
 	}
 	path := func(segments []ir.PropertyID) string {
 		words := make([]string, len(segments))
-		for i, s := range segments {
-			words[i] = names[s]
+		for i, propertyID := range segments {
+			words[i] = names[propertyID]
 		}
 		return strings.Join(words, ".")
 	}
-	in := func(name string, v *ir.InputPath) string {
+	in := func(name string, inputPath *ir.InputPath) string {
 		switch {
-		case v == nil:
+		case inputPath == nil:
 			return ""
-		case v.Param == nil:
-			return " " + name + "=body:" + path(v.Segments)
+		case inputPath.Param == nil:
+			return " " + name + "=body:" + path(inputPath.Segments)
 		}
 		for _, param := range op.Params {
-			if param.ID == *v.Param {
-				return " " + name + "=param:" + strings.TrimSuffix(param.Name.Source+"."+path(v.Segments), ".")
+			if param.ID == *inputPath.Param {
+				return " " + name + "=param:" + strings.TrimSuffix(param.Name.Source+"."+path(inputPath.Segments), ".")
 			}
 		}
 		return " " + name + "=?"
 	}
-	out := func(name string, v *ir.PropPath) string {
+	out := func(name string, propPath *ir.PropPath) string {
 		switch {
-		case v == nil:
+		case propPath == nil:
 			return ""
-		case v.In == "header":
-			return " " + name + "=header:" + path(v.Segments)
+		case propPath.In == "header":
+			return " " + name + "=header:" + path(propPath.Segments)
 		default:
-			return " " + name + "=" + path(v.Segments)
+			return " " + name + "=" + path(propPath.Segments)
 		}
 	}
-	return string(p.Strategy) + in("in", p.InputCursor) + in("limit", p.InputLimit) + out("items", p.Items) +
-		out("next", p.NextCursor) + out("link", p.NextLink) + out("total", p.TotalCount) + out("pages", p.TotalPages)
+	return string(pagination.Strategy) + in("in", pagination.InputCursor) + in("limit", pagination.InputLimit) + out("items", pagination.Items) +
+		out("next", pagination.NextCursor) + out("link", pagination.NextLink) + out("total", pagination.TotalCount) + out("pages", pagination.TotalPages)
 }
 
 // TestPromote_FillsWhatTheExtensionsDeclare pins each way a policy's
@@ -285,8 +285,8 @@ func TestPromote_ReportsWhatFillsNone(t *testing.T) {
 			_, op, diags := compilePaged(t, tc.op, pagePolicy())
 			assert.Nil(t, op.Pagination)
 			var found bool
-			for _, d := range diags {
-				found = found || strings.Contains(d.Message, tc.want) && d.Code == "openapi/degraded-construct"
+			for _, diagnostic := range diags {
+				found = found || strings.Contains(diagnostic.Message, tc.want) && diagnostic.Code == "openapi/degraded-construct"
 			}
 			assert.True(t, found, "want a report holding %q, got %+v", tc.want, diags)
 		})
@@ -435,9 +435,9 @@ func TestPromote_ReadsEverySuccessResponse(t *testing.T) {
 			doc, op, diags := compilePaged(t, tc.op, pagePolicy())
 			assert.Equal(t, tc.want, renderPage(doc, op, op.Pagination))
 			var reports []string
-			for _, d := range diags {
-				if d.Code == "openapi/degraded-construct" {
-					reports = append(reports, d.Message)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == "openapi/degraded-construct" {
+					reports = append(reports, diagnostic.Message)
 				}
 			}
 			if tc.report == "" {

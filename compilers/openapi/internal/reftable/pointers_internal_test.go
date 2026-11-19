@@ -24,9 +24,9 @@ func binderOver(t *testing.T, src string) *binder {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 	cfg := Config{Self: "spec.yaml"}
-	w := &work{ctx: t.Context(), steps: budget.New(budget.AtMost(MaxSteps))}
-	d := newDocs(&root, cfg, w)
-	return newBinder(cfg, d, w, newIdentifiers(resources{d}.document(Source)), newReads())
+	workValue := &work{ctx: t.Context(), steps: budget.New(budget.AtMost(MaxSteps))}
+	docs := newDocs(&root, cfg, workValue)
+	return newBinder(cfg, docs, workValue, newIdentifiers(resources{docs}.document(Source)), newReads())
 }
 
 // TestBinder_ReadPointerCostsItsPointersLength pins that a read spells the position it
@@ -41,9 +41,9 @@ func TestBinder_ReadPointerCostsItsPointersLength(t *testing.T) {
 	}
 	cost := func(levels int) uint64 {
 		b, pointer := spine(levels)
-		r, reason := b.readPointer(Source, pointer)
+		reading, reason := b.readPointer(Source, pointer)
 		require.Equal(t, NoReason, reason)
-		require.Equal(t, pointer, r.at.Pointer)
+		require.Equal(t, pointer, reading.at.Pointer)
 		var stats runtime.MemStats
 		least := uint64(math.MaxUint64)
 		for range 3 {

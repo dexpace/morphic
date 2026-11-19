@@ -104,9 +104,9 @@ func TestCheckNaming_ExemptsAPrimitiveInAFieldNotOneEmbedded(t *testing.T) {
 			check := checkNaming(nil)
 			ir.WalkValues(tc.root, ir.DocumentPath, check)
 			var absent []string
-			for _, v := range check.report(declarations{}) {
-				if v.Code == "ir/naming-absent" {
-					absent = append(absent, v.Path)
+			for _, violation := range check.report(declarations{}) {
+				if violation.Code == "ir/naming-absent" {
+					absent = append(absent, violation.Path)
 				}
 			}
 			assert.Equal(t, tc.want, absent)

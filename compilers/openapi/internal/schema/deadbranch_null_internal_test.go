@@ -24,13 +24,13 @@ import (
 // null out (docs/compilers/openapi.md#union-beside-structure).
 func TestDeadBranch_ReadsANullWhereTheIRHoldsIt(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", deadNullSpec()), service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", deadNullSpec()), service.Policy{})
 	for name, dead := range map[string]bool{
 		"OnAVariant": false, "OnALenientVariant": false, "BesideNoNull": true,
 		"PastTheWalk": false, "KeptOutPastTheWalk": true,
 	} {
-		st := heldAt(c.Ctx, jsontext.Pointer("/components/schemas/"+name))
-		assert.Equal(t, []bool{dead, false}, deadBranches(c.Ctx, st.Schema, st.Schema), name)
+		st := heldAt(serviceContext.Ctx, jsontext.Pointer("/components/schemas/"+name))
+		assert.Equal(t, []bool{dead, false}, deadBranches(serviceContext.Ctx, st.Schema, st.Schema), name)
 	}
 }
 

@@ -35,11 +35,11 @@ func TestBind_ARequirementKeyIsAReferenceWhereItsDocumentReadsOneAsAURI(t *testi
 	byURI := func(string) bool { return true }
 	table := reftable.Bind(t.Context(), openapitest.YAMLDocument(t, requirementSpec),
 		reftable.Config{Self: "spec.yaml", SecuritySchemes: []string{"named"}, KeysByURI: byURI})
-	r, ok := table.Reference(reftable.DocumentPointer{Pointer: "/security/0/#~1x~1s"}, reftable.RefSecurityScheme)
+	reference, ok := table.Reference(reftable.DocumentPointer{Pointer: "/security/0/#~1x~1s"}, reftable.RefSecurityScheme)
 	require.True(t, ok, "a key naming no entry is a reference")
-	assert.Equal(t, "#/x/s", r.Hop.Ref)
-	assert.Equal(t, reftable.Resolved, r.Chain.Status)
-	assert.Equal(t, reftable.DocumentPointer{Pointer: "/x/s"}, r.Chain.End)
+	assert.Equal(t, "#/x/s", reference.Hop.Ref)
+	assert.Equal(t, reftable.Resolved, reference.Chain.Status)
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/x/s"}, reference.Chain.End)
 	_, ok = table.Reference(reftable.DocumentPointer{Pointer: "/security/0/named"}, reftable.RefSecurityScheme)
 	assert.False(t, ok, "a key naming an entry is that entry's name")
 

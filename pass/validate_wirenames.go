@@ -17,13 +17,13 @@ func checkDuplicateWireNames(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic
 	var diags []ir.Diagnostic
 	var names scratchstate.Map[string, bool]
 	for _, id := range live {
-		m, ok := doc.Types[id].(*ir.Model)
+		model, ok := doc.Types[id].(*ir.Model)
 		if !ok {
 			continue
 		}
 		seen := names.Emptied()
-		for _, p := range m.Properties {
-			name := p.EffectiveWireName()
+		for _, property := range model.Properties {
+			name := property.EffectiveWireName()
 			if name == "" {
 				continue
 			}
@@ -52,8 +52,8 @@ func checkAmbiguousAliases(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var claims scratchstate.Map[string, int]
 	for _, id := range live {
-		if m, ok := doc.Types[id].(*ir.Model); ok {
-			diags = append(diags, ambiguousAliases(id, m.Properties, &claims)...)
+		if model, ok := doc.Types[id].(*ir.Model); ok {
+			diags = append(diags, ambiguousAliases(id, model.Properties, &claims)...)
 		}
 	}
 	return diags
@@ -67,16 +67,16 @@ func checkAmbiguousAliases(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 // are read through claims.
 func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *scratchstate.Map[string, int]) []ir.Diagnostic {
 	claimant := claims.Emptied()
-	for i, p := range props {
-		if name := p.EffectiveWireName(); name != "" {
+	for i, property := range props {
+		if name := property.EffectiveWireName(); name != "" {
 			if _, taken := claimant[name]; !taken {
 				claimant[name] = i
 			}
 		}
 	}
 	var diags []ir.Diagnostic
-	for i, p := range props {
-		for _, alias := range p.Name.Aliases {
+	for i, property := range props {
+		for _, alias := range property.Name.Aliases {
 			j, taken := claimant[alias]
 			switch {
 			case alias == "" || (taken && j == i):
@@ -86,7 +86,7 @@ func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *scratchstate.Ma
 			default:
 				diags = append(diags, diag(ir.SeverityError, "pass/ambiguous-alias",
 					fmt.Sprintf("alias %q of property %q is a name property %q also answers to",
-						alias, p.ID, props[j].ID),
+						alias, property.ID, props[j].ID),
 					fmt.Sprintf("%s/properties/%d", id, i)))
 			}
 		}

@@ -243,8 +243,8 @@ components:
 	requireNoErrorDiagnostics(t, diags)
 
 	assert.Empty(t, unmodeledSites(doc), "nothing undeclared, so nothing kept")
-	for _, d := range diags {
-		assert.NotContains(t, d.Code, "unknown-", "a well-formed document reports no unknown key: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Code, "unknown-", "a well-formed document reports no unknown key: %+v", diagnostic)
 	}
 }
 
@@ -459,9 +459,9 @@ components:
 `)
 	requireNoErrorDiagnostics(t, diags)
 
-	for _, d := range diags {
-		assert.NotEqual(t, "openapi/unknown-object-key", d.Code,
-			"every key here is one a path item declares: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, "openapi/unknown-object-key", diagnostic.Code,
+			"every key here is one a path item declares: %+v", diagnostic)
 	}
 	for _, site := range unmodeledSites(doc) {
 		// The summary and description are kept beneath the same scope by their own
@@ -484,8 +484,8 @@ components:
 // diagnostic, naming it.
 func requireNoErrorDiagnostics(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
-	d, ok := ir.FirstError(diags)
-	require.False(t, ok, "unexpected error diagnostic: %+v", d)
+	diagnostic, ok := ir.FirstError(diags)
+	require.False(t, ok, "unexpected error diagnostic: %+v", diagnostic)
 }
 
 // TestUnknownKeys_PathItemWithNoOperationKeepsWhatItWrote covers a path item
@@ -536,11 +536,11 @@ webhooks:
 	// And the loss is announced rather than merely repaired: a reader finding
 	// these on the service needs to know why they are not on an operation.
 	var announced int
-	for _, d := range diags {
-		if d.Code == "openapi/degraded-construct" &&
-			strings.Contains(d.Message, "declares no operation this compiler lowers") {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/degraded-construct" &&
+			strings.Contains(diagnostic.Message, "declares no operation this compiler lowers") {
 			announced++
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
 		}
 	}
 	assert.Equal(t, 2, announced, "one per unmounted item: the path and the webhook")

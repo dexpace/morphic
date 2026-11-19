@@ -113,17 +113,17 @@ func checkFlagValue(t *testing.T, fresh func() flagValue, typeName string, cases
 	t.Helper()
 	assert.Equal(t, typeName, fresh().Type())
 	for _, tc := range cases {
-		f := fresh()
-		before := f.String()
-		err := f.Set(tc.raw)
+		flagValue := fresh()
+		before := flagValue.String()
+		err := flagValue.Set(tc.raw)
 		if tc.refused == "" {
 			require.NoError(t, err, "%q", tc.raw)
-			assert.Equal(t, tc.raw, f.String())
+			assert.Equal(t, tc.raw, flagValue.String())
 			continue
 		}
 		require.Error(t, err, "%q", tc.raw)
 		assert.Contains(t, err.Error(), tc.refused)
-		assert.Equal(t, before, f.String(), "a refused %q leaves the flag as it was", tc.raw)
+		assert.Equal(t, before, flagValue.String(), "a refused %q leaves the flag as it was", tc.raw)
 	}
 }
 

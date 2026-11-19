@@ -121,11 +121,11 @@ func TestDiscriminatorBesideUnion_ARequiredNameKeepsTheBodyAModel(t *testing.T) 
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, doc := range discriminatedOrders(t, "3.1.0", tc.pet, cat+subDog) {
-				m, ok := doc.Types[tc.node].(*ir.Model)
+				model, ok := doc.Types[tc.node].(*ir.Model)
 				require.True(t, ok, "a required name keeps the body a Model; got %T", doc.Types[tc.node])
-				assert.Nil(t, m.Discriminator, "the discriminator moved")
-				assert.Equal(t, []string{"a"}, m.Requires)
-				assert.NotContains(t, m.Unmodeled, "openapi:required")
+				assert.Nil(t, model.Discriminator, "the discriminator moved")
+				assert.Equal(t, []string{"a"}, model.Requires)
+				assert.NotContains(t, model.Unmodeled, "openapi:required")
 				assert.Empty(t, censusReports(doc.Diagnostics, pointer))
 			}
 		})
@@ -273,8 +273,8 @@ func TestDiscriminatorBesideUnion_MovesOnlyWhatItCopied(t *testing.T) {
 	assert.NotContains(t, pet.Unmodeled, "openapi:discriminator")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, movedPointer),
 		"the failed copy is reported: %+v", diags)
-	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return strings.Contains(d.Message, "beside the union it was written for")
+	assert.False(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+		return strings.Contains(diagnostic.Message, "beside the union it was written for")
 	}), "no move is announced")
 }
 
@@ -464,10 +464,10 @@ const mapPet = "    Pet:\n      type: object\n      additionalProperties: {type:
 // each naming the keywords that position kept for want of a home.
 func censusReports(diags []ir.Diagnostic, pointer jsontext.Pointer) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == pointer &&
-			strings.HasPrefix(d.Message, "this position lowered to ") {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Provenance.Pointer == pointer &&
+			strings.HasPrefix(diagnostic.Message, "this position lowered to ") {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out

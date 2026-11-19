@@ -57,12 +57,12 @@ func (l Limit) Cap() int {
 func (l Limit) Past() int { return sum(l.Cap(), 1) }
 
 // Plus returns the Limit on two counts taken together, one within l and one
-// within o: their sum, held at math.MaxInt, or unbounded where either is.
-func (l Limit) Plus(o Limit) Limit {
-	if !l.bounded || !o.bounded {
+// within limit: their sum, held at math.MaxInt, or unbounded where either is.
+func (l Limit) Plus(limit Limit) Limit {
+	if !l.bounded || !limit.bounded {
 		return Unbounded()
 	}
-	return AtMost(sum(l.most, o.most))
+	return AtMost(sum(l.most, limit.most))
 }
 
 // sum returns a+b for counts a and b, neither negative, held at math.MaxInt

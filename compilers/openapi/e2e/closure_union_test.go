@@ -42,11 +42,11 @@ func TestEntryClosure_AClosureBesideAUnionsOwnMembersIsKept(t *testing.T) {
 				doc, diags := compileAnnotationSpec(t, "union", conjunctionSpec(version, tc.schema, closureUser))
 				requireErrorsAndWarnings(t, diags, nil)
 				for _, at := range conjunctionPositions {
-					u, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.Union)
+					union, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.Union)
 					require.True(t, ok, "a union at %s", at)
-					require.Len(t, u.Variants, 2, at)
-					for _, v := range u.Variants {
-						variant, ok := kindNode(t, doc, v.Type.Target).(*ir.Model)
+					require.Len(t, union.Variants, 2, at)
+					for _, irVariant := range union.Variants {
+						variant, ok := kindNode(t, doc, irVariant.Type.Target).(*ir.Model)
 						require.True(t, ok, "a composed variant at %s", at)
 						assert.Equal(t, ir.AdditionalUnspecified, variant.Additional, "open at %s", at)
 						assert.Equal(t, ir.ReasonDegradedLowering, keptOn(variant)[tc.key], "the closing entry kept at %s", at)

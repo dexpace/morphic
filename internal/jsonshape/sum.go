@@ -13,12 +13,12 @@ import (
 	"strings"
 )
 
-// variants reads the sealed sum t declares: the type of the tag its Kind
+// variants reads the sealed sum typeValue declares: the type of the tag its Kind
 // method returns, and each variant with that tag. The encoder writes whichever
 // variant a value holds, so the variants are the interface's shape. Any
 // package can implement an interface that is not sealed, so only a sealed one
 // has variants to list.
-func (w *walker) variants(t *Type, iface *types.Interface) error {
+func (w *walker) variants(typeValue *Type, iface *types.Interface) error {
 	if !sealed(iface) {
 		return errors.New("an interface with no unexported method is open to any implementation, so it has no one shape")
 	}
@@ -33,28 +33,28 @@ func (w *walker) variants(t *Type, iface *types.Interface) error {
 	}
 
 	var out []Variant
-	pkg := t.Named.Obj().Pkg()
+	pkg := typeValue.Named.Obj().Pkg()
 	for _, name := range pkg.Scope().Names() {
 		variant, byPointer, implements := implementer(pkg.Scope().Lookup(name), iface)
 		if !implements {
 			continue
 		}
-		v := Variant{Named: variant, ByPointer: byPointer, spelled: w.name(variant)}
+		variantValue := Variant{Named: variant, ByPointer: byPointer, spelled: w.name(variant)}
 		held := types.Type(variant)
 		if byPointer {
-			held, v.spelled = types.NewPointer(variant), "*"+v.spelled
+			held, variantValue.spelled = types.NewPointer(variant), "*"+variantValue.spelled
 		}
-		if v.Tag, err = w.tagOf(held, pkg); err != nil {
+		if variantValue.Tag, err = w.tagOf(held, pkg); err != nil {
 			return fmt.Errorf("variant %s: %w", name, err)
 		}
 		w.reach(variant)
-		out = append(out, v)
+		out = append(out, variantValue)
 	}
 	if len(out) == 0 {
 		return errors.New("no type implements the sealed interface")
 	}
 	slices.SortFunc(out, func(a, b Variant) int { return strings.Compare(a.line(), b.line()) })
-	t.Tag, t.tag, t.Variants = tagType, tag, out
+	typeValue.Tag, typeValue.tag, typeValue.Variants = tagType, tag, out
 	return nil
 }
 

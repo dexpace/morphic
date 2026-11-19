@@ -18,7 +18,7 @@ import (
 type Expansion = expansion
 
 // NewExpansion exposes newExpansion.
-func NewExpansion(l budget.Limit) *Expansion { return newExpansion(l) }
+func NewExpansion(limit budget.Limit) *Expansion { return newExpansion(limit) }
 
 // Admit exposes admit.
 func (e *expansion) Admit(at reftable.Reading, end *yaml.Node, hops ...*yaml.Node) bool {
@@ -40,4 +40,6 @@ func WeightOf(root *yaml.Node, at reftable.Reading, within budget.Limit) int {
 }
 
 // ReadingOf exposes readingOf.
-func ReadingOf(c Ctx, usePtr jsontext.Pointer) reftable.Reading { return readingOf(c, usePtr) }
+func ReadingOf(serviceContext Ctx, usePtr jsontext.Pointer) reftable.Reading {
+	return readingOf(serviceContext, usePtr)
+}

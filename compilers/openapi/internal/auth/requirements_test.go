@@ -218,9 +218,9 @@ paths: {}
 	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("missing")}, schemeUses(svc.Auth[0]))
 	assert.Len(t, doc.Auth, 1, "the name is the one scheme the document holds")
 
-	d, ok := openapitest.FirstDiag(diags, diag.UnresolvedSecurityScheme)
+	diagnostic, ok := openapitest.FirstDiag(diags, diag.UnresolvedSecurityScheme)
 	require.True(t, ok, "reported: %+v", diags)
-	assert.Equal(t, jsontext.Pointer("/security/0"), d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/security/0"), diagnostic.Provenance.Pointer,
 		"points at the requirement that named the missing scheme, not a nonexistent components entry")
 }
 
@@ -246,9 +246,9 @@ components:
 	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("missing")}, schemeUses(svc.Auth[1]), "in its own place")
 	assert.Empty(t, svc.Auth[2].Schemes, "the trailing empty option still means no-auth-is-fine")
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedSecurityScheme, ir.SeverityError))
-	d, ok := openapitest.FirstDiag(diags, diag.UnresolvedSecurityScheme)
+	diagnostic, ok := openapitest.FirstDiag(diags, diag.UnresolvedSecurityScheme)
 	require.True(t, ok, "reported: %+v", diags)
-	assert.Equal(t, jsontext.Pointer("/security/1"), d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/security/1"), diagnostic.Provenance.Pointer,
 		"the pointer names the option's own index, not the list or a constant 0")
 }
 
@@ -292,9 +292,9 @@ components:
 	op := onlyOperation(t, svc)
 	require.Len(t, op.Auth, 1, "the operation keeps its own requirement")
 	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("missing")}, schemeUses(op.Auth[0]))
-	d, ok := openapitest.FirstDiag(diags, diag.UnresolvedSecurityScheme)
+	diagnostic, ok := openapitest.FirstDiag(diags, diag.UnresolvedSecurityScheme)
 	require.True(t, ok, "reported: %+v", diags)
-	assert.Equal(t, jsontext.Pointer("/paths/~1x/get/security/0"), d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/paths/~1x/get/security/0"), diagnostic.Provenance.Pointer,
 		"points at the operation's own requirement, not a nonexistent components entry")
 }
 
@@ -610,8 +610,8 @@ func TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder(t *testing.
 // so two orders of one document compare on what was reported and where.
 func reported(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %v %s %s", d.Code, d.Severity, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %v %s %s", diagnostic.Code, diagnostic.Severity, diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 	return out
 }
@@ -687,8 +687,8 @@ components:
 // pointer, which is where the operation is declared rather than where it mounts.
 func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 	out := make(map[string]ir.Operation)
-	for _, g := range svc.Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range svc.Groups {
+		for _, op := range operationGroup.Operations {
 			out[string(op.Provenance.Pointer)] = op
 		}
 	}
@@ -706,14 +706,14 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 // opposite claim.
 func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	reg := auth.RegistryOf(c, nil)
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	reg := auth.RegistryOf(serviceContext, nil)
 
-	absent, absentDiags := reg.Requirements(c, nil, "")
+	absent, absentDiags := reg.Requirements(serviceContext, nil, "")
 	assert.Nil(t, absent, "no security key at all inherits the enclosing default")
 	assert.Empty(t, absentDiags)
 
-	empty, emptyDiags := reg.Requirements(c, []*soa.SecurityRequirement{}, "")
+	empty, emptyDiags := reg.Requirements(serviceContext, []*soa.SecurityRequirement{}, "")
 	assert.NotNil(t, empty, "an empty list is a declaration, not an absence")
 	assert.Empty(t, empty, "and it declares no options")
 	assert.Empty(t, emptyDiags)
@@ -882,8 +882,8 @@ components:
 func onlyOperation(t *testing.T, svc ir.Service) ir.Operation {
 	t.Helper()
 	var ops []ir.Operation
-	for _, g := range svc.Groups {
-		ops = append(ops, g.Operations...)
+	for _, operationGroup := range svc.Groups {
+		ops = append(ops, operationGroup.Operations...)
 	}
 	require.Len(t, ops, 1, "the fixture declares exactly one operation")
 	return ops[0]
@@ -895,9 +895,9 @@ func onlyOperation(t *testing.T, svc ir.Service) ir.Operation {
 // entry was placed without pinning which rule placed it.
 func loaderErrors(diags []ir.Diagnostic) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError && strings.HasPrefix(d.Code, diag.Validation+"/") {
-			out = append(out, string(d.Provenance.Pointer)+": "+d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError && strings.HasPrefix(diagnostic.Code, diag.Validation+"/") {
+			out = append(out, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 		}
 	}
 	return out
@@ -911,9 +911,9 @@ func loaderErrors(diags []ir.Diagnostic) []string {
 // and a nil one is in no document at all.
 func TestRegistryRequirements_DropsANilEntrySilently(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	reg := auth.RegistryOf(c, nil)
-	got, diags := reg.Requirements(c, []*soa.SecurityRequirement{nil}, "/security")
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	reg := auth.RegistryOf(serviceContext, nil)
+	got, diags := reg.Requirements(serviceContext, []*soa.SecurityRequirement{nil}, "/security")
 
 	assert.Empty(t, got, "a nil entry is no requirement, so it is dropped")
 	assert.Empty(t, diags)
@@ -1085,14 +1085,14 @@ func TestSecurityRequirement_AMergeChainIsReadToItsEnd(t *testing.T) {
 // hand-built requirement holds one, and it is no option rather than {}.
 func TestRegistryRequirements_AnEntryWhoseRootIsNoMappingIsNoOption(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	reg := auth.RegistryOf(c, nil)
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	reg := auth.RegistryOf(serviceContext, nil)
 	req := soa.NewSecurityRequirement()
 	core := soacore.NewSecurityRequirement()
 	core.SetRootNode(&yaml.Node{Kind: yaml.ScalarNode, Value: "5"})
 	req.SetCore(core)
 
-	got, diags := reg.Requirements(c, []*soa.SecurityRequirement{req}, "")
+	got, diags := reg.Requirements(serviceContext, []*soa.SecurityRequirement{req}, "")
 	assert.Nil(t, got, "no option, so the list collapses")
 	assert.Empty(t, diags)
 }
@@ -1128,10 +1128,10 @@ components:
 	assert.Empty(t, cmp.Diff(want, onlyOperation(t, svc).Auth), "the operation")
 
 	var got []string
-	for _, d := range diags {
-		if d.Code == diag.RepeatedEntry {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.RepeatedEntry {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			got = append(got, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 		}
 	}
 	slices.Sort(got)

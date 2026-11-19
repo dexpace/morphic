@@ -80,18 +80,18 @@ type ruleKey struct {
 }
 
 // newDocs returns the documents of a table over the source tree root.
-func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
+func newDocs(root *yaml.Node, cfg Config, workValue *work) *docs {
 	src := &document{name: cfg.Self, root: nodeview.DocumentRoot(root), view: nodeview.New(), grammar: true,
 		openapi: true}
 	components := make(map[string]bool, len(cfg.Components))
 	for _, name := range cfg.Components {
 		components[name] = true
 	}
-	d := &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
-		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{},
+	docsValue := &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
+		failed: map[string]error{}, work: workValue, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{},
 		components: components, schemes: setOf(cfg.SecuritySchemes), keyRefs: map[DocumentPointer]string{}}
-	src.self, src.absolute = d.selfOf(src)
-	return d
+	src.self, src.absolute = docsValue.selfOf(src)
+	return docsValue
 }
 
 // selfOf is the URI the $self doc's OpenAPI Object writes names, resolved
@@ -142,14 +142,14 @@ func (d *docs) locate(uri, base string) (string, bool) {
 }
 
 // opening is the name the document uri names, written in the document named
-// base, is opened under in d: located (docs.locate), then put where the caller
+// base, is opened under in docsValue: located (docs.locate), then put where the caller
 // mapped it (Config.Map).
-func opening(d *docs, uri, base string) (string, bool) {
-	name, ok := d.locate(uri, base)
-	if !ok || d.cfg.Map == nil {
+func opening(docsValue *docs, uri, base string) (string, bool) {
+	name, ok := docsValue.locate(uri, base)
+	if !ok || docsValue.cfg.Map == nil {
 		return name, ok
 	}
-	return d.cfg.Map(name), true
+	return docsValue.cfg.Map(name), true
 }
 
 // refusal is why Config.Refuse refuses a reference whose document part is
@@ -215,9 +215,9 @@ func (d *docs) judge(name, from string) error {
 // askOpen asks Config.Open, which is set, for the document named name as from
 // reads it, a step of the work: the one call bind makes into the reader, for a
 // read and a judgement alike.
-func askOpen(d *docs, name, from string) (*yaml.Node, error) {
-	d.work.spend(1)
-	return d.cfg.Open(name, from)
+func askOpen(docsValue *docs, name, from string) (*yaml.Node, error) {
+	docsValue.work.spend(1)
+	return docsValue.cfg.Open(name, from)
 }
 
 // reach notes that the pass under way asked for document id.
@@ -250,18 +250,18 @@ func (d *docs) unread(name string) bool {
 	return !opened && !failed && d.cfg.Open != nil
 }
 
-// path returns the nodes along p's pointer from its document's root, aliases
-// dereferenced, and whether it reaches p, charging a step a node.
-func (d *docs) path(p DocumentPointer) ([]*yaml.Node, bool) {
-	doc := d.list[p.Doc]
-	path, complete := doc.view.DocumentPath(doc.root, p.Pointer)
+// path returns the nodes along documentPointer's pointer from its document's root, aliases
+// dereferenced, and whether it reaches documentPointer, charging a step a node.
+func (d *docs) path(documentPointer DocumentPointer) ([]*yaml.Node, bool) {
+	doc := d.list[documentPointer.Doc]
+	path, complete := doc.view.DocumentPath(doc.root, documentPointer.Pointer)
 	d.work.spend(len(path))
 	return path, complete
 }
 
-// node returns the node at p, or nil where its document holds none.
-func (d *docs) node(p DocumentPointer) *yaml.Node {
-	path, ok := d.path(p)
+// node returns the node at documentPointer, or nil where its document holds none.
+func (d *docs) node(documentPointer DocumentPointer) *yaml.Node {
+	path, ok := d.path(documentPointer)
 	if !ok {
 		return nil
 	}
@@ -270,8 +270,8 @@ func (d *docs) node(p DocumentPointer) *yaml.Node {
 
 // compare orders positions as a table reads them: the source's first,
 // another document's by its name, then by pointer (comparePositions).
-func (d *docs) compare(p, q DocumentPointer) int {
-	return compareNamed(p, q, d.name)
+func (d *docs) compare(documentPointer, documentPointerValue DocumentPointer) int {
+	return compareNamed(documentPointer, documentPointerValue, d.name)
 }
 
 // name returns the name of the document id names.
@@ -299,10 +299,10 @@ func (d *docs) identityState(id DocID) state {
 	return sLoose
 }
 
-// stateAt is the state the OpenAPI grammar reads p at where p is: its own
+// stateAt is the state the OpenAPI grammar reads documentPointer at where documentPointer is: its own
 // document's, not that of a reference read through on the way.
-func (d *docs) stateAt(p DocumentPointer) state {
-	return stateOf(d.rootState(p.Doc), slices.Collect(p.Pointer.Tokens()))
+func (d *docs) stateAt(documentPointer DocumentPointer) state {
+	return stateOf(d.rootState(documentPointer.Doc), slices.Collect(documentPointer.Pointer.Tokens()))
 }
 
 // refOf is the $ref n carries, read through id's view as the model reads the

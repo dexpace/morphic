@@ -31,9 +31,9 @@ func TestLoad_ADocumentDeclaringAnotherYAMLVersionIsWarnedInItsEntry(t *testing.
 
 	require.NoError(t, err)
 	var got []string
-	for _, d := range diags {
-		if d.Code == diag.YAMLVersionReading {
-			got = append(got, string(d.Provenance.Pointer)+" "+d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.YAMLVersionReading {
+			got = append(got, string(diagnostic.Provenance.Pointer)+" "+diagnostic.Message)
 		}
 	}
 	const tail = "a character in YAML 1.2, which the compiler reads; YAML 1.1, which the document declares, ends a line there"
@@ -100,9 +100,9 @@ func TestLoad_AStreamOfEmptyDocumentsPastTheBoundIsReported(t *testing.T) {
 // read words.
 func TestExternal_AJSONDocumentPastTheNodeBudgetIsRefusedAsItIsRead(t *testing.T) {
 	t.Parallel()
-	e := newExternal(Options{MaxSourceNodes: budget.AtMost(2)}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{})
+	external := newExternal(Options{MaxSourceNodes: budget.AtMost(2)}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{})
 
-	_, err := e.prepare(t.Context(), "doc.json", "doc.json", []byte(`{"a":[1,2,3]}`))
+	_, err := external.prepare(t.Context(), "doc.json", "doc.json", []byte(`{"a":[1,2,3]}`))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "it holds more than 2 nodes, the node budget")

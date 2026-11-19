@@ -141,36 +141,36 @@ func probe(t *testing.T, name, input string, env ...string) result {
 		require.NoError(t, ctx.Err(), "the child did not finish within %s", childTimeout)
 		require.NoError(t, err, "the child did not start")
 	}
-	r, ok := classify(string(out), code, ctx.Err() != nil)
+	resultValue, ok := classify(string(out), code, ctx.Err() != nil)
 	require.True(t, ok, "child %q ended in a way no outcome names (%v):\n%.2000s", name, err, out)
-	return r
+	return resultValue
 }
 
 // classify reads how a child ended from what it printed, the status it exited
 // with, and whether its timeout fired first. It reports false for an ending no
 // outcome names, such as a fatal error other than a stack overflow.
 func classify(out string, code int, timedOut bool) (result, bool) {
-	r := result{output: out}
+	resultValue := result{output: out}
 	if timedOut {
-		r.outcome = hung
-		return r, true
+		resultValue.outcome = hung
+		return resultValue, true
 	}
 
 	var ok bool
 	switch {
 	case code == 0:
-		r.outcome = returned
-		r.report, ok = quotedAfter(out, reportMark)
+		resultValue.outcome = returned
+		resultValue.report, ok = quotedAfter(out, reportMark)
 	case code == memoryExit:
-		r.outcome = exhausted
-		r.report, ok = lineAfter(out, memoryMark)
+		resultValue.outcome = exhausted
+		resultValue.report, ok = lineAfter(out, memoryMark)
 	case code == 2 && strings.Contains(out, "fatal error: stack overflow"):
-		r.outcome, ok = overflowed, true
+		resultValue.outcome, ok = overflowed, true
 	case code == 2:
-		r.outcome = panicked
-		r.report, ok = lineAfter(out, "panic: ")
+		resultValue.outcome = panicked
+		resultValue.report, ok = lineAfter(out, "panic: ")
 	}
-	return r, ok
+	return resultValue, ok
 }
 
 // lineAfter returns the rest of the first line of out that opens with mark.
@@ -214,16 +214,16 @@ func runChild(name, path string) int {
 	return 0
 }
 
-// recovering runs c over input, reporting a panic it recovers in this
-// goroutine as what c found. A panic that still ends the process happened
+// recovering runs childValue over input, reporting a panic it recovers in this
+// goroutine as what childValue found. A panic that still ends the process happened
 // where no recover in the caller's goroutine reaches.
-func recovering(c child, input []byte) (report string) {
+func recovering(childValue child, input []byte) (report string) {
 	defer func() {
 		if r := recover(); r != nil {
 			report = fmt.Sprint(recoveredMark, r)
 		}
 	}()
-	return c(context.Background(), input)
+	return childValue(context.Background(), input)
 }
 
 // watchMemory ends the process with memoryExit once the runtime holds more

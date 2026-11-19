@@ -154,8 +154,8 @@ func opsByID(t *testing.T, doc *ir.Document, opIDs ...ir.OperationID) map[ir.Ope
 		want[id] = true
 	}
 	out := make(map[ir.OperationID]ir.Operation, len(opIDs))
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, op := range operationGroup.Operations {
 			if want[op.ID] {
 				out[op.ID] = op
 			}

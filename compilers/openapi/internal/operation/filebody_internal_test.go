@@ -38,10 +38,10 @@ func TestLeastOf_StopsAtOther(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			reads := 0
-			c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-			got := leastOf(c, tc.items, func(_ service.Ctx, r fileReading) fileReading {
+			serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+			got := leastOf(serviceContext, tc.items, func(_ service.Ctx, fileReadingValue fileReading) fileReading {
 				reads++
-				return r
+				return fileReadingValue
 			})
 			assert.Equal(t, tc.want, got, "least")
 			assert.Equal(t, tc.reads, reads, "items read")
@@ -61,20 +61,20 @@ func unionSchemas(branches []string, uses int) string {
 	return b.String()
 }
 
-// readAs reads the component name of the document l holds as a body, or as a
+// readAs reads the component name of the document lowererValue holds as a body, or as a
 // part when part is set, through the branch reader of that reading, counting
 // each branch read in reads.
-func readAs(t *testing.T, l *lowerer, name string, part bool, reads *int) fileReading {
+func readAs(t *testing.T, lowererValue *lowerer, name string, part bool, reads *int) fileReading {
 	t.Helper()
-	js, ok := l.ctx.Doc.Components.Schemas.Get(name)
+	js, ok := lowererValue.ctx.Doc.Components.Schemas.Get(name)
 	require.True(t, ok, name)
 	read := readBranch
 	if part {
 		read = readPartBranch
 	}
-	return readSchema(l.ctx, js, branchReading{part: part, read: func(c service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+	return readSchema(lowererValue.ctx, js, branchReading{part: part, read: func(serviceContext service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
 		*reads++
-		return read(c, branch)
+		return read(serviceContext, branch)
 	}})
 }
 
@@ -95,35 +95,35 @@ func TestReadSchema_ReadsAUnionOncePerRun(t *testing.T) {
 	for _, uses := range []int{1, 8} {
 		t.Run(fmt.Sprintf("%d contents", uses), func(t *testing.T) {
 			t.Parallel()
-			l, _ := loweredFor(t, unionSchemas(strs, uses))
+			lowerer, _ := loweredFor(t, unionSchemas(strs, uses))
 			reads := 0
 			for i := range uses {
-				readAs(t, l, fmt.Sprintf("C%d", i), false, &reads)
+				readAs(t, lowerer, fmt.Sprintf("C%d", i), false, &reads)
 			}
 			assert.Equal(t, width, reads, "the union is read once as a body, whoever names it")
-			readAs(t, l, "C0", true, &reads)
+			readAs(t, lowerer, "C0", true, &reads)
 			assert.Equal(t, 2*width, reads, "and once more as a part")
-			readAs(t, l, "C0", true, &reads)
-			readAs(t, l, "C0", false, &reads)
+			readAs(t, lowerer, "C0", true, &reads)
+			readAs(t, lowerer, "C0", false, &reads)
 			assert.Equal(t, 2*width, reads, "and no more for a way it has been read")
 		})
 	}
 
 	branches := []string{"{type: string, format: binary}", "{type: array, items: {type: string, format: binary}}"}
 	fresh := func(part bool) fileReading {
-		l, _ := loweredFor(t, unionSchemas(branches, 1))
-		return readAs(t, l, "C0", part, new(int))
+		lowerer, _ := loweredFor(t, unionSchemas(branches, 1))
+		return readAs(t, lowerer, "C0", part, new(int))
 	}
 	body, part := fresh(false), fresh(true)
 	require.NotEqual(t, body, part, "the union reads differently as a body and as a part")
 	for _, order := range [][]bool{{false, true}, {true, false}} {
-		l, _ := loweredFor(t, unionSchemas(branches, 1))
+		lowerer, _ := loweredFor(t, unionSchemas(branches, 1))
 		for _, asPart := range order {
 			want := body
 			if asPart {
 				want = part
 			}
-			assert.Equal(t, want, readAs(t, l, "C0", asPart, new(int)), "as a part: %v, after %v", asPart, order)
+			assert.Equal(t, want, readAs(t, lowerer, "C0", asPart, new(int)), "as a part: %v, after %v", asPart, order)
 		}
 	}
 }

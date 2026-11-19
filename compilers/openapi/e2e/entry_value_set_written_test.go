@@ -17,9 +17,9 @@ import (
 // entryMessagesAt returns the messages of the findings of diags at at.
 func entryMessagesAt(diags []ir.Diagnostic, at jsontext.Pointer) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == at {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == at {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out
@@ -52,13 +52,13 @@ func TestEntryValueSet_WhatTheSetWritesStaysWhereItIsWritten(t *testing.T) {
 		doc, diags := compileAnnotationSpec(t, "written", conjunctionSpec("3.1.0", schema, "T: {type: object}"))
 		for _, at := range conjunctionPositions {
 			entry := at + "/allOf/1"
-			u, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.Union)
+			union, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.Union)
 			require.True(t, ok, "the enum of objects at %s is a union of literals", at)
-			require.Len(t, u.Variants, 2, at)
-			for i, v := range u.Variants {
+			require.Len(t, union.Variants, 2, at)
+			for i, variant := range union.Variants {
 				want := entry + jsontext.Pointer("/enum/"+strconv.Itoa(i))
-				assert.Equal(t, ir.TypeID("type/anonymous"+string(want)), v.Type.Target, "the literal stands at the entry")
-				assert.Equal(t, want, kindNode(t, doc, v.Type.Target).Common().Provenance.Pointer, at)
+				assert.Equal(t, ir.TypeID("type/anonymous"+string(want)), variant.Type.Target, "the literal stands at the entry")
+				assert.Equal(t, want, kindNode(t, doc, variant.Type.Target).Common().Provenance.Pointer, at)
 			}
 			assert.Equal(t, []string{"heterogeneous or non-scalar enum lowered as a union of literals"},
 				entryMessagesAt(diags, entry), "the info is at the entry writing the enum, at %s", at)

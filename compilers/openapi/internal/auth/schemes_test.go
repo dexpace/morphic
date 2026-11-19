@@ -151,11 +151,11 @@ func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			c := service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{})
-			got, diags := auth.LowerSecuritySchemes(c)
+			serviceContext := service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{})
+			got, diags := auth.LowerSecuritySchemes(serviceContext)
 			assert.Empty(t, got)
 			assert.Empty(t, diags)
-			assert.Nil(t, auth.RegistryOf(c, got).Schemes(), "an empty Auth map would be a field the source never wrote")
+			assert.Nil(t, auth.RegistryOf(serviceContext, got).Schemes(), "an empty Auth map would be a field the source never wrote")
 		})
 	}
 }
@@ -197,13 +197,13 @@ components:
 			assert.Equal(t, ir.AuthKindUnresolved, scheme.Kind)
 			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost"), scheme.Provenance.Pointer)
 
-			d, ok := openapitest.FirstDiag(diags, diag.IncompleteSecurityScheme)
+			diagnostic, ok := openapitest.FirstDiag(diags, diag.IncompleteSecurityScheme)
 			require.True(t, ok, "the entry is reported: %+v", diags)
-			assert.Equal(t, ir.SeverityError, d.Severity)
-			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost"), d.Provenance.Pointer,
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost"), diagnostic.Provenance.Pointer,
 				"reported at the entry, not at the requirement that names it")
 			assert.Equal(t, `security scheme "ghost" has no `+tc.missing+`, so it names no authentication `+
-				`mechanism: it is kept without one, and every requirement naming it is kept`, d.Message,
+				`mechanism: it is kept without one, and every requirement naming it is kept`, diagnostic.Message,
 				"the message states what became of the entry and of the requirements")
 		})
 	}
@@ -429,9 +429,9 @@ components:
 `)
 	assert.Empty(t, doc.Auth[ids.UnresolvedAuth("ghost")].Unmodeled, "nothing was kept, so nothing claims to have been")
 
-	d, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
+	diagnostic, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the loss is reported: %+v", diags)
-	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost/$ref"), d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost/$ref"), diagnostic.Provenance.Pointer)
 }
 
 // TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported pins that a $ref
@@ -509,45 +509,45 @@ func TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive(t *testing.T) {
 		name    string
 		typ     string
 		defines []string
-		check   func(t *testing.T, s ir.AuthScheme)
+		check   func(t *testing.T, authScheme ir.AuthScheme)
 	}{
 		{
 			name: "apiKey", typ: "apiKey", defines: []string{"in", "name"},
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindAPIKey, s.Kind)
-				assert.Equal(t, "header", s.In)
-				assert.Equal(t, "X-Key", s.KeyName)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindAPIKey, authScheme.Kind)
+				assert.Equal(t, "header", authScheme.In)
+				assert.Equal(t, "X-Key", authScheme.KeyName)
 			},
 		},
 		{
 			name: "http", typ: "http", defines: []string{"scheme", "bearerFormat"},
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindCustom, s.Kind)
-				assert.Equal(t, "digest", s.Scheme, "the RFC 7235 token its own type defines")
-				assert.Equal(t, "JWT", s.BearerFormat)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindCustom, authScheme.Kind)
+				assert.Equal(t, "digest", authScheme.Scheme, "the RFC 7235 token its own type defines")
+				assert.Equal(t, "JWT", authScheme.BearerFormat)
 			},
 		},
 		{
 			name: "oauth2", typ: "oauth2", defines: []string{"flows", "oauth2MetadataUrl"},
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindOAuth2, s.Kind)
-				require.Len(t, s.Flows, 1)
-				assert.Equal(t, "https://meta", s.OAuth2MetadataURL)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindOAuth2, authScheme.Kind)
+				require.Len(t, authScheme.Flows, 1)
+				assert.Equal(t, "https://meta", authScheme.OAuth2MetadataURL)
 			},
 		},
 		{
 			name: "openIdConnect", typ: "openIdConnect", defines: []string{"openIdConnectUrl"},
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindOpenIDConnect, s.Kind)
-				assert.Equal(t, "https://oidc", s.OpenIDConnectURL)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindOpenIDConnect, authScheme.Kind)
+				assert.Equal(t, "https://oidc", authScheme.OpenIDConnectURL)
 			},
 		},
 		{
 			// mutualTLS is the whole mechanism; nothing else on the entry is part
 			// of it, so all seven fields are kept raw.
 			name: "mutualTLS", typ: "mutualTLS", defines: nil,
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindMutualTLS, s.Kind)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindMutualTLS, authScheme.Kind)
 			},
 		},
 		{
@@ -555,9 +555,9 @@ func TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive(t *testing.T) {
 			// itself, which takes the one IR field a declared `scheme` would have
 			// reached — so that declaration is kept raw beside the six others.
 			name: "an unrecognised type", typ: "bananas", defines: nil,
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindCustom, s.Kind)
-				assert.Equal(t, "bananas", s.Scheme, "the unrecognised token, not the declared scheme")
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindCustom, authScheme.Kind)
+				assert.Equal(t, "bananas", authScheme.Scheme, "the unrecognised token, not the declared scheme")
 			},
 		},
 	}
@@ -580,9 +580,9 @@ components:
       flows:
         implicit: {authorizationUrl: 'https://a', scopes: {}}
 `)
-			s, ok := doc.Auth[ids.Auth("s")]
+			authScheme, ok := doc.Auth[ids.Auth("s")]
 			require.True(t, ok)
-			tc.check(t, s)
+			tc.check(t, authScheme)
 
 			var wantKept []string
 			for _, f := range everyField {
@@ -590,13 +590,13 @@ components:
 					wantKept = append(wantKept, "openapi:"+f)
 				}
 			}
-			assert.Equal(t, wantKept, unmodeledKeys(s.Unmodeled),
+			assert.Equal(t, wantKept, unmodeledKeys(authScheme.Unmodeled),
 				"every field the type does not define is kept, and no field it does define is kept twice")
 			for _, key := range wantKept {
 				field := strings.TrimPrefix(key, "openapi:")
-				assert.Equal(t, ir.ReasonDegradedLowering, s.Unmodeled[key].Reason,
+				assert.Equal(t, ir.ReasonDegradedLowering, authScheme.Unmodeled[key].Reason,
 					"%s was lowered to a weaker shape, not left unmodelled for want of a field", key)
-				assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s/"+field), s.Unmodeled[key].Provenance.Pointer,
+				assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s/"+field), authScheme.Unmodeled[key].Provenance.Pointer,
 					"the entry locates the field itself, not the scheme that carried it")
 			}
 		})
@@ -617,11 +617,11 @@ components:
   securitySchemes:
     s: {type: mutualTLS, bearerFormat: JWT, x-note: n}
 `)
-	s, ok := doc.Auth[ids.Auth("s")]
+	authScheme, ok := doc.Auth[ids.Auth("s")]
 	require.True(t, ok)
-	assert.Equal(t, []string{"openapi:bearerFormat", "openapi:x-note"}, unmodeledKeys(s.Unmodeled))
-	assert.Equal(t, ir.ReasonVendorExtension, s.Unmodeled["openapi:x-note"].Reason)
-	assert.Equal(t, ir.ReasonDegradedLowering, s.Unmodeled["openapi:bearerFormat"].Reason)
+	assert.Equal(t, []string{"openapi:bearerFormat", "openapi:x-note"}, unmodeledKeys(authScheme.Unmodeled))
+	assert.Equal(t, ir.ReasonVendorExtension, authScheme.Unmodeled["openapi:x-note"].Reason)
+	assert.Equal(t, ir.ReasonDegradedLowering, authScheme.Unmodeled["openapi:bearerFormat"].Reason)
 }
 
 // TestLowerSecuritySchemes_AKeptFieldIsAnnounced pins that a field kept under
@@ -639,11 +639,11 @@ components:
 `)
 	assert.Equal(t, []string{diag.DegradedConstruct}, codesAtPointer(diags, "/components/securitySchemes/s/in"),
 		"the kept field is announced exactly once, the one report of a field OpenAPI bars from no type: %+v", diags)
-	d, ok := openapitest.FirstDiag(diags, diag.DegradedConstruct)
+	diagnostic, ok := openapitest.FirstDiag(diags, diag.DegradedConstruct)
 	require.True(t, ok)
-	assert.Contains(t, d.Message, "in")
-	assert.Contains(t, d.Message, "mutualTLS", "and names the type that gave it no meaning")
-	assert.Equal(t, ir.SeverityInfo, d.Severity, "the field survives, so this records rather than warns")
+	assert.Contains(t, diagnostic.Message, "in")
+	assert.Contains(t, diagnostic.Message, "mutualTLS", "and names the type that gave it no meaning")
+	assert.Equal(t, ir.SeverityInfo, diagnostic.Severity, "the field survives, so this records rather than warns")
 }
 
 // TestLowerSecuritySchemes_ARefdEntryRecordsFieldsWhereTheyAreWritten pins
@@ -670,14 +670,14 @@ components:
 `)
 	const declared = "/components/securitySchemes/target"
 	for _, name := range []string{"alias", "target"} {
-		s, ok := doc.Auth[ids.Auth(name)]
+		authScheme, ok := doc.Auth[ids.Auth(name)]
 		require.True(t, ok, "%s interns", name)
-		assert.Equal(t, jsontext.Pointer("/components/securitySchemes/"+name), s.Provenance.Pointer,
+		assert.Equal(t, jsontext.Pointer("/components/securitySchemes/"+name), authScheme.Provenance.Pointer,
 			"the scheme is named where this document names it")
 		assert.Equal(t, jsontext.Pointer(declared+"/bearerFormat"),
-			s.Unmodeled["openapi:bearerFormat"].Provenance.Pointer,
+			authScheme.Unmodeled["openapi:bearerFormat"].Provenance.Pointer,
 			"the kept field is located where it is written")
-		assert.Equal(t, jsontext.Pointer(declared+"/x-note"), s.Unmodeled["openapi:x-note"].Provenance.Pointer,
+		assert.Equal(t, jsontext.Pointer(declared+"/x-note"), authScheme.Unmodeled["openapi:x-note"].Provenance.Pointer,
 			"and so is the extension beside it")
 	}
 	assert.Empty(t, messagesAtPointer(diags, "/components/securitySchemes/alias"),
@@ -701,18 +701,18 @@ components:
   securitySchemes:
     s: {type: mutualTLS, name: .nan}
 `)
-	s, ok := doc.Auth[ids.Auth("s")]
+	authScheme, ok := doc.Auth[ids.Auth("s")]
 	require.True(t, ok, "the scheme still lowers; only the one field could not be kept")
-	assert.Empty(t, s.Unmodeled, "nothing was kept, so nothing claims to have been")
+	assert.Empty(t, authScheme.Unmodeled, "nothing was kept, so nothing claims to have been")
 
-	d, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
+	diagnostic, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the loss is reported: %+v", diags)
-	assert.Equal(t, ir.SeverityError, d.Severity)
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity)
 	require.Equal(t, []string{diag.UnpreservableConstruct, "openapi/validation/validation-type-mismatch"},
 		codesAtPointer(diags, "/components/securitySchemes/s/name"),
 		"the loss reported at the field exactly once, beside the loader's typing warning, and not also "+
 			"announced as kept: %+v", diags)
-	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s/name"), d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s/name"), diagnostic.Provenance.Pointer)
 }
 
 // TestLowerSecuritySchemes_RefSiteDocsOverrideTheDeclaration pins the auth half

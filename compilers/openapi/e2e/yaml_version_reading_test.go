@@ -99,10 +99,10 @@ func TestCompile_ADocumentDeclaringYAML11IsWarnedAtWhatItReadsOtherwise(t *testi
 
 	require.NotNil(t, doc)
 	got := map[string]string{}
-	for _, d := range byCode(diags, srVersionReading) {
-		assert.Equal(t, ir.SeverityWarning, d.Severity)
-		assert.Equal(t, 0, d.Provenance.Source)
-		got[string(d.Provenance.Pointer)] = d.Message
+	for _, diagnostic := range byCode(diags, srVersionReading) {
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+		assert.Equal(t, 0, diagnostic.Provenance.Source)
+		got[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 	}
 	assert.Equal(t, want, got, "none for 0X1F, abc, the quoted version, the key y or openapi: 3.1.0")
 
@@ -186,10 +186,10 @@ func TestCompile_TheYAML11FixtureIsReadAsYAML12(t *testing.T) {
 		want["/x-flags/"+strconv.Itoa(i)] = true
 	}
 	got := map[string]bool{}
-	for _, d := range diags {
-		assert.Equal(t, srVersionReading, d.Code, "%+v", d)
-		assert.False(t, got[string(d.Provenance.Pointer)], "one warning at %s", d.Provenance.Pointer)
-		got[string(d.Provenance.Pointer)] = true
+	for _, diagnostic := range diags {
+		assert.Equal(t, srVersionReading, diagnostic.Code, "%+v", diagnostic)
+		assert.False(t, got[string(diagnostic.Provenance.Pointer)], "one warning at %s", diagnostic.Provenance.Pointer)
+		got[string(diagnostic.Provenance.Pointer)] = true
 	}
 	assert.Equal(t, want, got, "a warning at each node YAML 1.1 reads otherwise, and none at the hex default")
 

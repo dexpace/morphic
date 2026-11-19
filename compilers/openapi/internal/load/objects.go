@@ -71,29 +71,29 @@ func refKindOf(model any) (reftable.RefKind, bool) {
 func buildObjects(ctx context.Context, bd *typed.Builder, table *reftable.ReferenceTargetTable, media MediaTypes, faults mediaFaults,
 	sibs *Siblings,
 ) []builtObject {
-	o := objectBuild{bd: bd, table: table, media: media, faults: faults, view: nodeview.New(),
+	objectBuildValue := objectBuild{bd: bd, table: table, media: media, faults: faults, view: nodeview.New(),
 		tried: map[objectSite]bool{}, sibs: sibs}
-	for _, l := range table.ObjectLandings() {
-		if !o.build(ctx, l) {
-			return o.failed
+	for _, objectLanding := range table.ObjectLandings() {
+		if !objectBuildValue.build(ctx, objectLanding) {
+			return objectBuildValue.failed
 		}
 	}
-	for _, r := range table.References() {
+	for _, reference := range table.References() {
 		var at []reftable.DocumentPointer
-		if !r.IsSecurityRequirementKey {
-			at = append(at, r.Site)
+		if !reference.IsSecurityRequirementKey {
+			at = append(at, reference.Site)
 		}
-		if r.Chain.Status == reftable.Resolved {
-			at = append(at, r.Chain.End)
+		if reference.Chain.Status == reftable.Resolved {
+			at = append(at, reference.Chain.End)
 		}
-		for _, p := range at {
-			if !o.build(ctx, reftable.ObjectLanding{At: p, Kind: r.Kind, Name: table.Document(p.Doc).Name, Site: r.Site,
+		for _, documentPointer := range at {
+			if !objectBuildValue.build(ctx, reftable.ObjectLanding{At: documentPointer, Kind: reference.Kind, Name: table.Document(documentPointer.Doc).Name, Site: reference.Site,
 				Reached: true}) {
-				return o.failed
+				return objectBuildValue.failed
 			}
 		}
 	}
-	return o.failed
+	return objectBuildValue.failed
 }
 
 // objectBuild is what buildObjects reads and records, and the positions it
@@ -118,40 +118,40 @@ type objectSite struct {
 	kind reftable.RefKind
 }
 
-// build builds the object l stands for, unless one is held there or a build
+// build builds the object objectLanding stands for, unless one is held there or a build
 // was tried there before, and reports whether the building goes on: false
 // once ctx is done.
-func (o *objectBuild) build(ctx context.Context, l reftable.ObjectLanding) bool {
-	key := objectSite{at: l.At, kind: l.Kind}
-	if o.tried[key] || o.bd.HoldsObject(l.At, l.Kind) {
+func (o *objectBuild) build(ctx context.Context, objectLanding reftable.ObjectLanding) bool {
+	key := objectSite{at: objectLanding.At, kind: objectLanding.Kind}
+	if o.tried[key] || o.bd.HoldsObject(objectLanding.At, objectLanding.Kind) {
 		return true
 	}
 	if ctx.Err() != nil {
 		return false
 	}
 	o.tried[key] = true
-	model, items, err := decodeObject(ctx, l.Kind, writtenIn(o.view, o.table, l.At))
+	model, items, err := decodeObject(ctx, objectLanding.Kind, writtenIn(o.view, o.table, objectLanding.At))
 	if err != nil {
-		o.failed = append(o.failed, builtObject{landing: l, err: err})
+		o.failed = append(o.failed, builtObject{landing: objectLanding, err: err})
 		return true
 	}
-	o.bd.Object(model, l.Kind, l.At)
-	indexWalk(o.bd, o.media.within(ctx, items), l.At, o.faults)
-	o.besideRefs(ctx, l, items)
+	o.bd.Object(model, objectLanding.Kind, objectLanding.At)
+	indexWalk(o.bd, o.media.within(ctx, items), objectLanding.At, o.faults)
+	o.besideRefs(ctx, objectLanding, items)
 	return true
 }
 
 // besideRefs models the fields written beside each path item $ref of items,
-// the walk of the object built for l, as the source's own are (Siblings), and
-// indexes each model's walk where it is written, in l's document. A model the
+// the walk of the object built for objectLanding, as the source's own are (Siblings), and
+// indexes each model's walk where it is written, in objectLanding's document. A model the
 // parser faults on is reported as the object landing's failure, once.
-func (o *objectBuild) besideRefs(ctx context.Context, l reftable.ObjectLanding, items iter.Seq[soa.WalkItem]) {
-	first, err := o.sibs.addLanding(ctx, items, l.At.Pointer)
+func (o *objectBuild) besideRefs(ctx context.Context, objectLanding reftable.ObjectLanding, items iter.Seq[soa.WalkItem]) {
+	first, err := o.sibs.addLanding(ctx, items, objectLanding.At.Pointer)
 	for i := first; i < len(o.sibs.list); i++ {
-		indexWalk(o.bd, o.media.within(ctx, o.sibs.modelWalk(ctx, i)), reftable.DocumentPointer{Doc: l.At.Doc}, o.faults)
+		indexWalk(o.bd, o.media.within(ctx, o.sibs.modelWalk(ctx, i)), reftable.DocumentPointer{Doc: objectLanding.At.Doc}, o.faults)
 	}
 	if err != nil {
-		o.failed = append(o.failed, builtObject{landing: l,
+		o.failed = append(o.failed, builtObject{landing: objectLanding,
 			err: fmt.Errorf("the fields written beside its $ref could not be read: %w", err)})
 	}
 }

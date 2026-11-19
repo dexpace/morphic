@@ -66,9 +66,9 @@ func pathItemLayers(use service.Ctx, rp *soa.ReferencedPathItem, usePtr jsontext
 
 // writtenRef is the $ref the reference object hop writes, as the bindings'
 // table read it.
-func writtenRef(c service.Ctx, hop *soa.ReferencedPathItem) string {
-	r, _ := c.Bindings().Reference(hop)
-	return r.Hop.Ref
+func writtenRef(serviceContext service.Ctx, hop *soa.ReferencedPathItem) string {
+	reference, _ := serviceContext.Bindings().Reference(hop)
+	return reference.Hop.Ref
 }
 
 // referent returns the layer of pi, the item a chain ends at through last,
@@ -120,33 +120,33 @@ type itemConstruct struct {
 	rel        jsontext.Pointer
 }
 
-// itemConstructs returns what l declares, in the order its findings are
+// itemConstructs returns what layerValue declares, in the order its findings are
 // reported.
-func itemConstructs(l layer) []itemConstruct {
+func itemConstructs(layerValue layer) []itemConstruct {
 	var out []itemConstruct
 	add := func(kind, name, label string, rel jsontext.Pointer) {
 		out = append(out, itemConstruct{key: constructOf(kind, name), label: label, rel: rel})
 	}
-	for _, po := range pathOperations(l.item) {
+	for _, po := range pathOperations(layerValue.item) {
 		add(constructOperation, string(po.seg), "the "+po.method+" operation", po.seg)
 	}
 	for _, keyword := range pathItemDocKeywords {
-		if declaresText(l.item, keyword) {
+		if declaresText(layerValue.item, keyword) {
 			add(constructDoc, keyword, "the "+keyword, ids.Ptr(keyword))
 		}
 	}
-	if len(l.item.GetServers()) > 0 {
+	if len(layerValue.item.GetServers()) > 0 {
 		add(constructServers, "", "the servers list", ids.Ptr("servers"))
 	}
-	for _, name := range extensionNames(l.item) {
+	for _, name := range extensionNames(layerValue.item) {
 		add(constructExtension, name, "the extension "+strconv.Quote(name), ids.Ptr(name))
 	}
-	for _, key := range slices.Sorted(slices.Values(undeclaredPathItemKeys(l.item))) {
+	for _, key := range slices.Sorted(slices.Values(undeclaredPathItemKeys(layerValue.item))) {
 		add(constructKey, key, "the undeclared key "+strconv.Quote(key), ids.Ptr(key))
 	}
-	for i, rp := range l.item.GetParameters() {
-		if slot, ok := paramKey(l.in.Bindings(), rp); ok {
-			p := componentlookup.Object[soa.Parameter](l.in.Bindings(), rp)
+	for i, rp := range layerValue.item.GetParameters() {
+		if slot, ok := paramKey(layerValue.in.Bindings(), rp); ok {
+			p := componentlookup.Object[soa.Parameter](layerValue.in.Bindings(), rp)
 			out = append(out, itemConstruct{key: paramConstruct(slot),
 				label: fmt.Sprintf("the parameter %q in %s", p.GetName(), p.GetIn()),
 				rel:   ids.Ptr("parameters", strconv.Itoa(i))})
@@ -202,24 +202,24 @@ func precedence(layers []layer) (owners, []ir.Diagnostic) {
 	}
 	decls := make([][]itemConstruct, len(layers))
 	first := make([]map[string]itemConstruct, len(layers))
-	for i, l := range layers {
-		decls[i] = itemConstructs(l)
+	for i, layer := range layers {
+		decls[i] = itemConstructs(layer)
 		first[i] = firstDeclared(decls[i])
 	}
 	owner := owners{}
 	var diags []ir.Diagnostic
-	for i, l := range layers {
-		for _, d := range decls[i] {
-			if _, kept := owner[d.key]; kept {
+	for i, layer := range layers {
+		for _, itemConstruct := range decls[i] {
+			if _, kept := owner[itemConstruct.key]; kept {
 				continue
 			}
-			owner[d.key] = i
+			owner[itemConstruct.key] = i
 			for j := i + 1; j < len(layers); j++ {
-				if other, ok := first[j][d.key]; ok {
-					diags = append(diags, l.in.DiagAt(ir.SeverityWarning, diag.PathItemRefCollision, l.decl+d.rel,
+				if other, ok := first[j][itemConstruct.key]; ok {
+					diags = append(diags, layer.in.DiagAt(ir.SeverityWarning, diag.PathItemRefCollision, layer.decl+itemConstruct.rel,
 						"%s is declared here, beside the path item's $ref, and again at %s in the item it "+
 							"references; OpenAPI leaves which applies undefined, and this mount keeps the one declared here",
-						d.label, layers[j].name+string(other.rel)))
+						itemConstruct.label, layers[j].name+string(other.rel)))
 				}
 			}
 		}
@@ -231,9 +231,9 @@ func precedence(layers []layer) (owners, []ir.Diagnostic) {
 // declares it, which is the one a finding names.
 func firstDeclared(decls []itemConstruct) map[string]itemConstruct {
 	first := make(map[string]itemConstruct, len(decls))
-	for _, d := range decls {
-		if _, seen := first[d.key]; !seen {
-			first[d.key] = d
+	for _, itemConstruct := range decls {
+		if _, seen := first[itemConstruct.key]; !seen {
+			first[itemConstruct.key] = itemConstruct
 		}
 	}
 	return first
@@ -250,9 +250,9 @@ func itemParams(layers []layer) []sourcedParam {
 	}
 	var params []sourcedParam
 	shadowed := map[ids.ParamSlot]bool{}
-	for _, l := range layers {
-		params = appendSourced(l.in.Bindings(), params, l.item.GetParameters(), l.decl, shadowed, &l.in)
-		for key := range shadowedKeys(l.in.Bindings(), l.item.GetParameters()) {
+	for _, layer := range layers {
+		params = appendSourced(layer.in.Bindings(), params, layer.item.GetParameters(), layer.decl, shadowed, &layer.in)
+		for key := range shadowedKeys(layer.in.Bindings(), layer.item.GetParameters()) {
 			shadowed[key] = true
 		}
 	}
@@ -286,9 +286,9 @@ func mountedOperations(layers []layer) []layerOp {
 	declared := make([]map[jsontext.Pointer]pathOperation, len(layers))
 	var extra []jsontext.Pointer
 	listed := map[jsontext.Pointer]bool{}
-	for i, l := range slices.Backward(layers) {
+	for i, layer := range slices.Backward(layers) {
 		declared[i] = map[jsontext.Pointer]pathOperation{}
-		for _, po := range pathOperations(l.item) {
+		for _, po := range pathOperations(layer.item) {
 			declared[i][po.seg] = po
 			if po.additional && !listed[po.seg] {
 				listed[po.seg] = true
@@ -323,11 +323,11 @@ func mountedOperations(layers []layer) []layerOp {
 func itemServers(reg *servers.Registry, layers []layer, owner owners) ([]ir.ServerID, []ir.Diagnostic) {
 	var named []ir.ServerID
 	var diags []ir.Diagnostic
-	for i, l := range layers {
+	for i, layer := range layers {
 		if owner.cedes(i)(constructOf(constructServers, "")) {
 			continue
 		}
-		declared, listDiags := reg.Declared(l.in, l.item.GetServers(), l.decl)
+		declared, listDiags := reg.Declared(layer.in, layer.item.GetServers(), layer.decl)
 		named = append(named, declared...)
 		diags = append(diags, listDiags...)
 	}
@@ -338,8 +338,8 @@ func itemServers(reg *servers.Registry, layers []layer, owner owners) ([]ir.Serv
 // farthest first, as applyPathItem does for one item.
 func applyLayers(layers []layer, owner owners, into carrier) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for k, l := range slices.Backward(layers) {
-		diags = append(diags, applyPathItem(l.in, into, l.item, l.decl, owner.cedes(k))...)
+	for k, layer := range slices.Backward(layers) {
+		diags = append(diags, applyPathItem(layer.in, into, layer.item, layer.decl, owner.cedes(k))...)
 	}
 	return diags
 }

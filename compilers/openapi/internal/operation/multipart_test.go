@@ -185,7 +185,7 @@ func TestContent_MultipartAliasBodyKeyedByAliasedModel(t *testing.T) {
 			form, isModel := typeByName(doc, "Form").(*ir.Model)
 			require.True(t, isModel, "the body model is the component at the end of the chain")
 
-			declared := openapitest.IndexBy(form.Properties, func(p ir.Property) ir.PropertyID { return p.ID })
+			declared := openapitest.IndexBy(form.Properties, func(property ir.Property) ir.PropertyID { return property.ID })
 			require.NotEmpty(t, content.Encoding, "an aliased multipart body still carries per-part encoding")
 			for key := range content.Encoding {
 				assert.Contains(t, declared, key,
@@ -291,8 +291,8 @@ func TestContent_MultipartEncodingVariants(t *testing.T) {
 	for _, name := range []string{"noSchema", "noProps"} {
 		op := openapitest.FindOp(t, doc, name)
 		require.NotNil(t, op.Request, "%s has a request", name)
-		for _, c := range op.Request.Contents {
-			assert.Empty(t, c.Encoding, "%s multipart yields no per-part encoding", name)
+		for _, content := range op.Request.Contents {
+			assert.Empty(t, content.Encoding, "%s multipart yields no per-part encoding", name)
 		}
 	}
 	op := openapitest.FindOp(t, doc, "plainProps")
@@ -1072,8 +1072,8 @@ const (
 // diagMessages joins the messages of diags.
 func diagMessages(diags []ir.Diagnostic) string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		out = append(out, diagnostic.Message)
 	}
 	return strings.Join(out, "\n")
 }
@@ -1195,9 +1195,9 @@ func formContent(t *testing.T, svc ir.Service, response bool) ir.Content {
 // keptEncodingNames returns, sorted, what follows openapi:encoding/ in each
 // Unmodeled key under it: a kept entry's escaped key, or a part's own record
 // such as a/x-k.
-func keptEncodingNames(u ir.Unmodeled) []string {
+func keptEncodingNames(unmodeled ir.Unmodeled) []string {
 	var out []string
-	for key := range u {
+	for key := range unmodeled {
 		if rest, ok := strings.CutPrefix(key, "openapi:encoding/"); ok {
 			out = append(out, rest)
 		}
@@ -1471,13 +1471,13 @@ components:
 				"the parts the walk finds are keyed, and an entry for no part keys nothing")
 			var wantNames []string
 			var wantPointers []jsontext.Pointer
-			for _, e := range tc.kept {
-				key := "openapi:encoding/" + e.token()
-				at := tc.media + "/encoding/" + e.token()
-				wantNames = append(wantNames, e.token())
+			for _, unkeyedEntry := range tc.kept {
+				key := "openapi:encoding/" + unkeyedEntry.token()
+				at := tc.media + "/encoding/" + unkeyedEntry.token()
+				wantNames = append(wantNames, unkeyedEntry.token())
 				wantPointers = append(wantPointers, jsontext.Pointer(at))
 				rec, ok := content.Unmodeled[key]
-				if !assert.True(t, ok, "%s is kept at %s; got %v", e.name, key, keptEncodingNames(content.Unmodeled)) {
+				if !assert.True(t, ok, "%s is kept at %s; got %v", unkeyedEntry.name, key, keptEncodingNames(content.Unmodeled)) {
 					continue
 				}
 				// An entry the walk decides names no property has no effect where it is
@@ -1487,19 +1487,19 @@ components:
 				if tc.open {
 					wantReason = ir.ReasonNoIRHome
 				}
-				assert.Equal(t, wantReason, rec.Reason, "%s: reason", e.name)
-				assert.JSONEq(t, e.value, string(rec.Value), "%s: kept as written", e.name)
-				assert.Equal(t, jsontext.Pointer(at), rec.Provenance.Pointer, "%s: located at the entry", e.name)
+				assert.Equal(t, wantReason, rec.Reason, "%s: reason", unkeyedEntry.name)
+				assert.JSONEq(t, unkeyedEntry.value, string(rec.Value), "%s: kept as written", unkeyedEntry.name)
+				assert.Equal(t, jsontext.Pointer(at), rec.Provenance.Pointer, "%s: located at the entry", unkeyedEntry.name)
 				msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
-				want := unkeyedMessage(e.name)
+				want := unkeyedMessage(unkeyedEntry.name)
 				if tc.file {
-					want = unkeyedFileMessage(e.name)
+					want = unkeyedFileMessage(unkeyedEntry.name)
 				}
-				assert.Equal(t, want, msg, "%s: the one announcement, naming the body's kind", e.name)
+				assert.Equal(t, want, msg, "%s: the one announcement, naming the body's kind", unkeyedEntry.name)
 				if !tc.open {
 					wantPointers = append(wantPointers, jsontext.Pointer(at))
-					assert.Equal(t, unknownKeyMessage(e.name),
-						openapitest.DiagMessageAt(t, diags, diag.UnknownEncodingKey, ir.SeverityWarning, at), "%s: names no property", e.name)
+					assert.Equal(t, unknownKeyMessage(unkeyedEntry.name),
+						openapitest.DiagMessageAt(t, diags, diag.UnknownEncodingKey, ir.SeverityWarning, at), "%s: names no property", unkeyedEntry.name)
 				}
 			}
 			slices.Sort(wantNames)
@@ -1635,9 +1635,9 @@ func TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder(t *testing.T) {
 	}
 	forward, forwardDiags := compile(t, "{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}")
 	reversed, reversedDiags := compile(t, "{oneOf: [{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]}")
-	encodings := func(c ir.Content) map[ir.PropertyID][3]any {
+	encodings := func(content ir.Content) map[ir.PropertyID][3]any {
 		out := map[ir.PropertyID][3]any{}
-		for id, pe := range c.Encoding {
+		for id, pe := range content.Encoding {
 			out[id] = [3]any{pe.ContentTypes, pe.RepeatsPerArrayItem, pe.HasFilename}
 		}
 		return out
@@ -1673,9 +1673,9 @@ func TestPartEncodings_AnUnreadNarrowingIsReported(t *testing.T) {
 		"the model's own part is keyed")
 	assert.Equal(t, []string{"file"}, keptEncodingNames(content.Unmodeled))
 	var warned []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
-			warned = append(warned, string(d.Provenance.Pointer)+": "+d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityWarning {
+			warned = append(warned, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 		}
 	}
 	require.Len(t, warned, 1)
@@ -1712,11 +1712,11 @@ func TestPartEncodings_ANestedKeyNamingNoPropertyIsWarnedOf(t *testing.T) {
 				"{meta: {contentType: multipart/mixed, encoding: {a: {contentType: text/plain}, ghost: {}}}}", ""))
 			openapitest.RequireNoErrorDiags(t, diags)
 			var got []string
-			for _, d := range diags {
-				if d.Code == diag.UnknownEncodingKey {
-					got = append(got, string(d.Provenance.Pointer))
-					assert.Equal(t, ir.SeverityWarning, d.Severity)
-					assert.Contains(t, d.Message, "names no property the part's schema declares")
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.UnknownEncodingKey {
+					got = append(got, string(diagnostic.Provenance.Pointer))
+					assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+					assert.Contains(t, diagnostic.Message, "names no property the part's schema declares")
 				}
 			}
 			want := make([]string, 0, len(tc.warned))
@@ -1810,9 +1810,9 @@ func TestPartEncodings_AnEncodingOutsideAFormIsKeptWhole(t *testing.T) {
 // diagPointersUnder returns the pointer of each of diags beneath prefix, in order.
 func diagPointersUnder(diags []ir.Diagnostic, prefix string) []jsontext.Pointer {
 	var out []jsontext.Pointer
-	for _, d := range diags {
-		if strings.HasPrefix(string(d.Provenance.Pointer), prefix) {
-			out = append(out, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if strings.HasPrefix(string(diagnostic.Provenance.Pointer), prefix) {
+			out = append(out, diagnostic.Provenance.Pointer)
 		}
 	}
 	return out
@@ -1847,15 +1847,15 @@ func TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError(t *te
 					"{type: object, properties: {a: {type: string}}}", fmt.Sprintf(tc.encoding, key), ""))
 				want := []jsontext.Pointer{jsontext.Pointer(media + "/encoding/" + tc.reported(key))}
 				var got []jsontext.Pointer
-				for _, d := range diags {
-					if d.Severity == ir.SeverityError {
-						assert.Equal(t, mismatch, d.Code, "the only error is load's")
-						got = append(got, d.Provenance.Pointer)
+				for _, diagnostic := range diags {
+					if diagnostic.Severity == ir.SeverityError {
+						assert.Equal(t, mismatch, diagnostic.Code, "the only error is load's")
+						got = append(got, diagnostic.Provenance.Pointer)
 					}
 				}
 				assert.Equal(t, want, got, "one error for the entry that is no object")
 				assert.Empty(t, diagPointersUnder(slices.DeleteFunc(slices.Clone(diags),
-					func(d ir.Diagnostic) bool { return d.Code == mismatch }), media+"/encoding/"),
+					func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == mismatch }), media+"/encoding/"),
 					"the lowering adds no finding of its own")
 				assert.Empty(t, keptEncodingNames(formContent(t, svc, false).Unmodeled), "nothing is kept")
 			})
@@ -1942,8 +1942,8 @@ func TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder(t *testing.T) {
 		doc, diags := parseFull(t, src)
 		openapitest.RequireNoErrorDiags(t, diags)
 		out := map[string]ir.Content{}
-		for _, g := range doc.Services[0].Groups {
-			for _, op := range g.Operations {
+		for _, operationGroup := range doc.Services[0].Groups {
+			for _, op := range operationGroup.Operations {
 				out[string(op.ID)] = op.Request.Contents[0]
 			}
 		}
@@ -2130,9 +2130,9 @@ components:
 		assert.Equal(t, "other.yaml "+tc.at, documentOf(rec.Provenance.Source)+" "+string(rec.Provenance.Pointer),
 			"%s: the record is placed where the entry is written", tc.op)
 		var found []string
-		for _, d := range diags {
-			if string(d.Provenance.Pointer) == tc.at {
-				found = append(found, documentOf(d.Provenance.Source)+": "+d.Message)
+		for _, diagnostic := range diags {
+			if string(diagnostic.Provenance.Pointer) == tc.at {
+				found = append(found, documentOf(diagnostic.Provenance.Source)+": "+diagnostic.Message)
 			}
 		}
 		assert.Equal(t, []string{"other.yaml: " + tc.message, "other.yaml: " + unknownKeyMessage(tc.name)}, found,

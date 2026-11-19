@@ -34,15 +34,15 @@ var variantEntrySchemas = []string{
 // holding its variants at the IDs want names in order.
 func requireVariants(t *testing.T, doc *ir.Document, id ir.TypeID, want ...ir.TypeID) *ir.Union {
 	t.Helper()
-	u, ok := kindNode(t, doc, id).(*ir.Union)
+	union, ok := kindNode(t, doc, id).(*ir.Union)
 	require.True(t, ok, "%s is a union", id)
-	got := make([]ir.TypeID, 0, len(u.Variants))
-	for _, v := range u.Variants {
-		got = append(got, v.Type.Target)
+	got := make([]ir.TypeID, 0, len(union.Variants))
+	for _, variant := range union.Variants {
+		got = append(got, variant.Type.Target)
 	}
 	require.Equal(t, want, got, "the variants of %s", id)
-	assert.Empty(t, keptOn(u), "%s keeps nothing its variants hold", id)
-	return u
+	assert.Empty(t, keptOn(union), "%s keeps nothing its variants hold", id)
+	return union
 }
 
 // requireStringLengths holds the Scalar at id to the string lengths given, a
@@ -70,8 +70,8 @@ func TestInlinePrincipal_AReferenceToAVariantEntryNamesWhatTheEntryWrites(t *tes
 		doc, diags := compileUnrefused(t, admissionSpec("3.1.0", "", schemas...))
 		requireErrorsAndWarnings(t, diags, nil)
 		assert.Empty(t, degradedInfoPointers(diags), "nothing is kept for want of a home")
-		for _, d := range diags {
-			assert.NotEqual(t, diag.DegradedConstruct, d.Code, "no report of a keyword kept: %s", d.Message)
+		for _, diagnostic := range diags {
+			assert.NotEqual(t, diag.DegradedConstruct, diagnostic.Code, "no report of a keyword kept: %s", diagnostic.Message)
 		}
 
 		requireVariants(t, doc, componentID("X"), at+"X/type/0", "type/primitive/integer")
@@ -82,9 +82,9 @@ func TestInlinePrincipal_AReferenceToAVariantEntryNamesWhatTheEntryWrites(t *tes
 		requireVariants(t, doc, componentID("Y"), "type/primitive/string", at+"Y/type/1")
 		requireVariants(t, doc, at+"Y/allOf/1", "type/primitive/string", at+"Y/allOf/1/type/1")
 		for _, id := range []ir.TypeID{at + "Y/type/1", at + "Y/allOf/1/type/1"} {
-			m, ok := kindNode(t, doc, id).(*ir.Model)
+			model, ok := kindNode(t, doc, id).(*ir.Model)
 			require.True(t, ok, "%s is the object variant", id)
-			require.Len(t, m.Properties, 1, "%s declares the entry's member", id)
+			require.Len(t, model.Properties, 1, "%s declares the entry's member", id)
 		}
 
 		requireVariants(t, doc, componentID("I"), at+"I/type/0", at+"I/type/1")

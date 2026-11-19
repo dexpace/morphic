@@ -43,11 +43,11 @@ func facts(t *testing.T, report string) map[string]string {
 // counting each root.
 func counted(t *testing.T, roots ...*fixture.Root) map[string]string {
 	t.Helper()
-	c := census.New(fixtureUniverse(t))
-	for _, r := range roots {
-		require.NoError(t, c.AddAny(r))
+	factCensus := census.New(fixtureUniverse(t))
+	for _, root := range roots {
+		require.NoError(t, factCensus.AddAny(root))
 	}
-	return facts(t, c.Report())
+	return facts(t, factCensus.Report())
 }
 
 func TestCensus_CountsAMemberOnlyWhenSet(t *testing.T) {
@@ -175,29 +175,29 @@ func TestCensus_CountsATypeOfAnotherPackageAsNoFact(t *testing.T) {
 
 func TestCensus_RefusesAValueItsDeclarationsDoNotDescribe(t *testing.T) {
 	t.Parallel()
-	u := fixtureUniverse(t)
+	universe := fixtureUniverse(t)
 	for _, tc := range []struct {
 		name     string
 		universe census.Universe
 		root     fixture.Root
 		want     string
 	}{
-		{"a struct with no declaration", u.WithoutStruct("Leaf"), fixture.Root{}, "struct fixture.Leaf"},
-		{"a struct with another number of fields", u.WithFields("Leaf", "Label", "Extra"), fixture.Root{},
+		{"a struct with no declaration", universe.WithoutStruct("Leaf"), fixture.Root{}, "struct fixture.Leaf"},
+		{"a struct with another number of fields", universe.WithFields("Leaf", "Label", "Extra"), fixture.Root{},
 			"struct fixture.Leaf"},
-		{"a field under another name", u.WithFields("Leaf", "Text"), fixture.Root{},
+		{"a field under another name", universe.WithFields("Leaf", "Text"), fixture.Root{},
 			"field 0 of fixture.Leaf is Label, declared as Text"},
-		{"a variant the sum does not declare", u.WithoutVariant("Shape", "Circle", true),
+		{"a variant the sum does not declare", universe.WithoutVariant("Shape", "Circle", true),
 			fixture.Root{Sum: &fixture.Circle{}}, "fixture.Shape holds *fixture.Circle"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := census.New(tc.universe)
-			err := c.AddAny(&tc.root)
+			factCensus := census.New(tc.universe)
+			err := factCensus.AddAny(&tc.root)
 			require.ErrorIs(t, err, census.ErrNoDeclaration)
 			assert.Contains(t, err.Error(), tc.want)
 
-			got := facts(t, c.Report())
+			got := facts(t, factCensus.Report())
 			assert.Equal(t, "0", got["documents"], "a refused document is not counted")
 			assert.Equal(t, "0 0", got["member Root.name"])
 		})
@@ -208,8 +208,8 @@ func TestCensus_StopsAtTheFirstValueItCannotCount(t *testing.T) {
 	t.Parallel()
 	// The variant check fails at Sum, before the walk reaches Shapes, whose
 	// Square would otherwise be counted.
-	c := census.New(fixtureUniverse(t).WithoutVariant("Shape", "Circle", true))
-	err := c.AddAny(&fixture.Root{Sum: &fixture.Circle{}, Shapes: []fixture.Shape{&fixture.Circle{}}})
+	factCensus := census.New(fixtureUniverse(t).WithoutVariant("Shape", "Circle", true))
+	err := factCensus.AddAny(&fixture.Root{Sum: &fixture.Circle{}, Shapes: []fixture.Shape{&fixture.Circle{}}})
 	require.ErrorIs(t, err, census.ErrNoDeclaration)
 	assert.Equal(t, 1, strings.Count(err.Error(), "holds"), "one error, the first: %v", err)
 }
@@ -228,43 +228,43 @@ func TestCensus_CountsDocumentsAndInstancesApart(t *testing.T) {
 
 func TestCensus_CountsRunsThatLoweredToNoDocument(t *testing.T) {
 	t.Parallel()
-	c := census.New(fixtureUniverse(t))
-	c.NoDocument()
-	c.NoDocument()
-	require.NoError(t, c.AddAny(&fixture.Root{}))
+	factCensus := census.New(fixtureUniverse(t))
+	factCensus.NoDocument()
+	factCensus.NoDocument()
+	require.NoError(t, factCensus.AddAny(&fixture.Root{}))
 
-	got := facts(t, c.Report())
+	got := facts(t, factCensus.Report())
 	assert.Equal(t, "2", got["no-document"])
 	assert.Equal(t, "1", got["documents"], "a run with no document is not a document")
 }
 
 func TestCensus_RefusesANilDocument(t *testing.T) {
 	t.Parallel()
-	u, err := universe()
+	universeValue, err := universe()
 	require.NoError(t, err)
-	c := census.New(u)
-	require.ErrorIs(t, c.Add(nil), census.ErrNilDocument)
-	assert.Equal(t, "0", facts(t, c.Report())["documents"], "a refused document is not counted")
+	factCensus := census.New(universeValue)
+	require.ErrorIs(t, factCensus.Add(nil), census.ErrNilDocument)
+	assert.Equal(t, "0", facts(t, factCensus.Report())["documents"], "a refused document is not counted")
 }
 
 func TestCensus_OfTheZeroUniverseCountsNoFact(t *testing.T) {
 	t.Parallel()
-	c := census.New(census.Universe{})
-	require.NoError(t, c.AddAny(&fixture.Root{Name: "n", Sum: &fixture.Circle{}}))
-	require.NoError(t, c.AddAny(&struct{ V any }{V: struct{ W string }{W: "w"}}),
+	factCensus := census.New(census.Universe{})
+	require.NoError(t, factCensus.AddAny(&fixture.Root{Name: "n", Sum: &fixture.Circle{}}))
+	require.NoError(t, factCensus.AddAny(&struct{ V any }{V: struct{ W string }{W: "w"}}),
 		"a value of no package is no fact of the zero universe either")
 
-	assert.Equal(t, "documents 2\nno-document 0\ntruncated 0\n", c.Report())
+	assert.Equal(t, "documents 2\nno-document 0\ntruncated 0\n", factCensus.Report())
 }
 
 // docOf returns a document holding the given type nodes, each filed under an
 // ID made from its kind and position.
 func docOf(nodes ...ir.TypeDef) *ir.Document {
 	reg := ir.TypeRegistry{}
-	for i, n := range nodes {
-		id := ir.TypeID(fmt.Sprintf("type/%s%d", n.Kind(), i))
-		n.Common().ID = id
-		reg[id] = n
+	for i, typeDef := range nodes {
+		id := ir.TypeID(fmt.Sprintf("type/%s%d", typeDef.Kind(), i))
+		typeDef.Common().ID = id
+		reg[id] = typeDef
 	}
 	return &ir.Document{Types: reg}
 }
@@ -272,17 +272,17 @@ func docOf(nodes ...ir.TypeDef) *ir.Document {
 // irCensus returns an empty census of the IR's universe.
 func irCensus(t *testing.T) *census.Census {
 	t.Helper()
-	u, err := universe()
+	universeValue, err := universe()
 	require.NoError(t, err)
-	return census.New(u)
+	return census.New(universeValue)
 }
 
 func TestCensus_CountsTheKindOfEveryTypeDefTheIRDeclares(t *testing.T) {
 	t.Parallel()
-	c := irCensus(t)
+	factCensus := irCensus(t)
 
 	var nodes []ir.TypeDef
-	for fact := range facts(t, c.Report()) {
+	for fact := range facts(t, factCensus.Report()) {
 		spelled, isKind := strings.CutPrefix(fact, "value TypeKind ")
 		if !isKind {
 			continue
@@ -292,9 +292,9 @@ func TestCensus_CountsTheKindOfEveryTypeDefTheIRDeclares(t *testing.T) {
 		nodes = append(nodes, node)
 	}
 	require.NotEmpty(t, nodes)
-	require.NoError(t, c.Add(docOf(nodes...)))
+	require.NoError(t, factCensus.Add(docOf(nodes...)))
 
-	got := facts(t, c.Report())
+	got := facts(t, factCensus.Report())
 	for _, node := range nodes {
 		key := fmt.Sprintf("value TypeKind %q", node.Kind())
 		assert.Equal(t, "1 1", got[key], key)
@@ -305,15 +305,15 @@ func TestCensus_CountsTheKindOfEveryTypeDefTheIRDeclares(t *testing.T) {
 
 func TestCensus_TellsAnExplicitlyEmptyAuthFromAnAbsentOne(t *testing.T) {
 	t.Parallel()
-	c := irCensus(t)
+	factCensus := irCensus(t)
 	ops := []ir.Operation{
 		{},
 		{Auth: []ir.AuthRequirement{}},
 		{Auth: []ir.AuthRequirement{{}}},
 	}
-	require.NoError(t, c.Add(&ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: ops}}}}}))
+	require.NoError(t, factCensus.Add(&ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: ops}}}}}))
 
-	got := facts(t, c.Report())
+	got := facts(t, factCensus.Report())
 	assert.Equal(t, "1 2", got["member Operation.auth"], "public and secured, not inherited")
 	assert.Equal(t, "1 1", got["empty Operation.auth"], "explicitly public")
 	assert.Equal(t, "1 3", got[`value StreamingMode ""`], "a non-streaming operation holds a declared mode")
@@ -322,17 +322,17 @@ func TestCensus_TellsAnExplicitlyEmptyAuthFromAnAbsentOne(t *testing.T) {
 func TestCensus_CountsATruncatedWalkAndKeepsWhatItReached(t *testing.T) {
 	t.Parallel()
 	nested := func(depth int) *ir.Value {
-		v := ir.Value{Kind: ir.ValueNull}
+		value := ir.Value{Kind: ir.ValueNull}
 		for range depth {
-			v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
+			value = ir.Value{Kind: ir.ValueList, List: []ir.Value{value}}
 		}
-		return &v
+		return &value
 	}
-	c := irCensus(t)
-	require.NoError(t, c.Add(docOf(&ir.Model{Examples: []ir.Example{{Value: nested(ir.MaxWalkDepth)}}})))
-	require.NoError(t, c.Add(docOf(&ir.Model{Examples: []ir.Example{{Value: nested(3)}}})))
+	factCensus := irCensus(t)
+	require.NoError(t, factCensus.Add(docOf(&ir.Model{Examples: []ir.Example{{Value: nested(ir.MaxWalkDepth)}}})))
+	require.NoError(t, factCensus.Add(docOf(&ir.Model{Examples: []ir.Example{{Value: nested(3)}}})))
 
-	got := facts(t, c.Report())
+	got := facts(t, factCensus.Report())
 	assert.Equal(t, "2", got["documents"])
 	assert.Equal(t, "1", got["truncated"])
 	assert.Equal(t, "2 2", got["member TypeCommon.examples"], "the truncated document still counts what the walk reached")

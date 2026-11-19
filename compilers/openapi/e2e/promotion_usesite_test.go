@@ -251,8 +251,8 @@ func TestPromotion_AReferentReportsOnceWhereItIsWritten(t *testing.T) {
 		assert.Empty(t, got.inferred, carrier)
 	}
 	at := make([]string, 0, len(diags))
-	for _, d := range diags {
-		at = append(at, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		at = append(at, string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{
 		"/components/schemas/Bad/x-sunset", "/components/schemas/Bad/x-sensitive",
@@ -458,36 +458,36 @@ components:
 func assertPromotionsAgree(t *testing.T, a, b *ir.Document) {
 	t.Helper()
 	for _, name := range []string{"a", "b"} {
-		x, ok := opByName(a, name)
+		operation, ok := opByName(a, name)
 		require.True(t, ok)
-		y, ok := opByName(b, name)
+		irOperation, ok := opByName(b, name)
 		require.True(t, ok)
-		assert.Equal(t, x.Stability, y.Stability, name)
-		assert.Equal(t, x.Deprecation, y.Deprecation, name)
-		assert.Equal(t, x.Provenance.Inferred, y.Provenance.Inferred, name)
-		assert.Equal(t, x.Params[0].Deprecation, y.Params[0].Deprecation, name)
-		assert.Equal(t, x.Params[0].Secret, y.Params[0].Secret, name)
-		assert.Equal(t, x.Params[0].Provenance.Inferred, y.Params[0].Provenance.Inferred, name)
-		assert.Equal(t, x.Responses[0].Headers[0].Deprecation, y.Responses[0].Headers[0].Deprecation, name)
-		assert.Equal(t, x.Responses[0].Headers[0].Secret, y.Responses[0].Headers[0].Secret, name)
+		assert.Equal(t, operation.Stability, irOperation.Stability, name)
+		assert.Equal(t, operation.Deprecation, irOperation.Deprecation, name)
+		assert.Equal(t, operation.Provenance.Inferred, irOperation.Provenance.Inferred, name)
+		assert.Equal(t, operation.Params[0].Deprecation, irOperation.Params[0].Deprecation, name)
+		assert.Equal(t, operation.Params[0].Secret, irOperation.Params[0].Secret, name)
+		assert.Equal(t, operation.Params[0].Provenance.Inferred, irOperation.Params[0].Provenance.Inferred, name)
+		assert.Equal(t, operation.Responses[0].Headers[0].Deprecation, irOperation.Responses[0].Headers[0].Deprecation, name)
+		assert.Equal(t, operation.Responses[0].Headers[0].Secret, irOperation.Responses[0].Headers[0].Secret, name)
 	}
 	for _, id := range []ir.TypeID{componentID("Spent"), componentID("Tok"), componentID("Holder")} {
 		assert.Equal(t, a.Types[id].Common().Deprecation, b.Types[id].Common().Deprecation, id)
 		assert.Equal(t, a.Types[id].Common().Sensitive, b.Types[id].Common().Sensitive, id)
 		assert.Equal(t, a.Types[id].Common().Provenance.Inferred, b.Types[id].Common().Provenance.Inferred, id)
 	}
-	x, ok := a.Types[componentID("Holder")].(*ir.Model)
+	model, ok := a.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
-	y, ok := b.Types[componentID("Holder")].(*ir.Model)
+	irModel, ok := b.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
 	for _, wire := range []string{"s", "t"} {
-		p, ok := propByWire(x, wire)
+		property, ok := propByWire(model, wire)
 		require.True(t, ok)
-		q, ok := propByWire(y, wire)
+		irProperty, ok := propByWire(irModel, wire)
 		require.True(t, ok)
-		assert.Equal(t, p.Deprecation, q.Deprecation, wire)
-		assert.Equal(t, p.Secret, q.Secret, wire)
-		assert.Equal(t, p.Provenance.Inferred, q.Provenance.Inferred, wire)
+		assert.Equal(t, property.Deprecation, irProperty.Deprecation, wire)
+		assert.Equal(t, property.Secret, irProperty.Secret, wire)
+		assert.Equal(t, property.Provenance.Inferred, irProperty.Provenance.Inferred, wire)
 	}
 }
 

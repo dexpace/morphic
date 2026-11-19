@@ -50,17 +50,17 @@ type encodingCarrier struct {
 // so a carrier added to the IR has to reach both.
 func encodingCarriers() []encodingCarrier {
 	return []encodingCarrier{
-		{"Operation.Request", "op/request", true, func(d *ir.Document, p ir.Payload) {
-			firstOp(d).Request = &p
+		{"Operation.Request", "op/request", true, func(document *ir.Document, payload ir.Payload) {
+			firstOp(document).Request = &payload
 		}},
-		{"Response.Payload", "op/responses/0", false, func(d *ir.Document, p ir.Payload) {
-			firstOp(d).Responses = []ir.Response{{Name: ir.Naming{Source: "ok"}, Payload: &p}}
+		{"Response.Payload", "op/responses/0", false, func(document *ir.Document, payload ir.Payload) {
+			firstOp(document).Responses = []ir.Response{{Name: ir.Naming{Source: "ok"}, Payload: &payload}}
 		}},
-		{"ErrorCase.Payload", "op/errors/0", false, func(d *ir.Document, p ir.Payload) {
-			firstOp(d).Errors = []ir.ErrorCase{{Name: ir.Naming{Source: "bad_request"}, Payload: &p}}
+		{"ErrorCase.Payload", "op/errors/0", false, func(document *ir.Document, payload ir.Payload) {
+			firstOp(document).Errors = []ir.ErrorCase{{Name: ir.Naming{Source: "bad_request"}, Payload: &payload}}
 		}},
-		{"Message.Payload", "message/a", false, func(d *ir.Document, p ir.Payload) {
-			putMessage(d, func(m *ir.Message) { m.Payload = p })
+		{"Message.Payload", "message/a", false, func(document *ir.Document, payload ir.Payload) {
+			putMessage(document, func(message *ir.Message) { message.Payload = payload })
 		}},
 	}
 }
@@ -191,9 +191,9 @@ func TestValidate_EncodingKeyThroughComposition(t *testing.T) {
 		name    string
 		compose func(*ir.Model)
 	}{
-		{"base", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "type/parent"} }},
-		{"implements", func(m *ir.Model) { m.Implements = []ir.TypeRef{{Target: "type/parent"}} }},
-		{"mixins", func(m *ir.Model) { m.Mixins = []ir.TypeRef{{Target: "type/parent"}} }},
+		{"base", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "type/parent"} }},
+		{"implements", func(model *ir.Model) { model.Implements = []ir.TypeRef{{Target: "type/parent"}} }},
+		{"mixins", func(model *ir.Model) { model.Mixins = []ir.TypeRef{{Target: "type/parent"}} }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -254,9 +254,9 @@ func TestValidate_EncodingKeyThroughAlias(t *testing.T) {
 				ID:   "type/alias/outer",
 				Base: &ir.TypeRef{Target: tc.base},
 			}
-			c := requestContent(doc)
-			c.Type = ir.TypeRef{Target: "type/alias/outer"}
-			c.Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/a": {RepeatsPerArrayItem: true}}
+			content := requestContent(doc)
+			content.Type = ir.TypeRef{Target: "type/alias/outer"}
+			content.Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/a": {RepeatsPerArrayItem: true}}
 
 			assert.Empty(t, withCode(validated(t, doc), "ir/encoding-key-unknown-property"),
 				"the aliased model declares the part this key names")
@@ -284,9 +284,9 @@ func TestValidate_EncodingKeyThroughCyclicAlias(t *testing.T) {
 		Properties: []ir.Property{{ID: "property/cycle/x", WireName: "x", Type: ir.TypeRef{Target: "type/primitive/string"}}},
 		Base:       &ir.TypeRef{Target: "type/alias/a"}, // closes the cycle back through the aliases.
 	}
-	c := requestContent(doc)
-	c.Type = ir.TypeRef{Target: "type/alias/a"}
-	c.Encoding = map[ir.PropertyID]ir.PartEncoding{"property/cycle/x": {RepeatsPerArrayItem: true}}
+	content := requestContent(doc)
+	content.Type = ir.TypeRef{Target: "type/alias/a"}
+	content.Encoding = map[ir.PropertyID]ir.PartEncoding{"property/cycle/x": {RepeatsPerArrayItem: true}}
 
 	assert.Empty(t, withCode(validated(t, doc), "ir/encoding-key-unknown-property"))
 }
@@ -327,9 +327,9 @@ func TestValidate_EncodingKeyThroughAUnionBody(t *testing.T) {
 				Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/self"}}, {Type: ir.TypeRef{Target: "type/m"}}}}
 			doc.Types["type/loop/a"] = &ir.Scalar{ID: "type/loop/a", Base: &ir.TypeRef{Target: "type/loop/b"}}
 			doc.Types["type/loop/b"] = &ir.Scalar{ID: "type/loop/b", Base: &ir.TypeRef{Target: "type/loop/a"}}
-			c := requestContent(doc)
-			c.Type = ir.TypeRef{Target: tc.target}
-			c.Encoding = map[ir.PropertyID]ir.PartEncoding{tc.key: {RepeatsPerArrayItem: true}}
+			content := requestContent(doc)
+			content.Type = ir.TypeRef{Target: tc.target}
+			content.Encoding = map[ir.PropertyID]ir.PartEncoding{tc.key: {RepeatsPerArrayItem: true}}
 
 			found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
 			if tc.parts {
@@ -361,9 +361,9 @@ func TestValidate_EncodingKeyThroughANarrowingModel(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc := narrowingDoc()
-			c := requestContent(doc)
-			c.Type = ir.TypeRef{Target: tc.target}
-			c.Encoding = map[ir.PropertyID]ir.PartEncoding{tc.key: {RepeatsPerArrayItem: true}}
+			content := requestContent(doc)
+			content.Type = ir.TypeRef{Target: tc.target}
+			content.Encoding = map[ir.PropertyID]ir.PartEncoding{tc.key: {RepeatsPerArrayItem: true}}
 			found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
 			if tc.parts {
 				assert.Empty(t, found)
@@ -415,9 +415,9 @@ func TestValidate_EncodingKeyOnTypeWithoutParts(t *testing.T) {
 			doc := validDoc()
 			doc.Types["type/nil"] = (*ir.Model)(nil) // seeded for every case; only one reaches it.
 			doc.Types["type/opaque"] = &ir.Scalar{ID: "type/opaque"}
-			c := requestContent(doc)
-			c.Type = ir.TypeRef{Target: tc.target}
-			c.Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/a": {RepeatsPerArrayItem: true}}
+			content := requestContent(doc)
+			content.Type = ir.TypeRef{Target: tc.target}
+			content.Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/a": {RepeatsPerArrayItem: true}}
 
 			found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
 			require.Len(t, found, 1, "a type exposing no property resolves no key")
@@ -433,9 +433,9 @@ func TestValidate_EncodingKeyOnTypeWithoutParts(t *testing.T) {
 func TestValidate_EncodingKeyOnAnUndeclaredTypeIsReportedBesideTheDanglingRef(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	c := requestContent(doc)
-	c.Type = ir.TypeRef{Target: "type/missing"}
-	c.Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/a": {RepeatsPerArrayItem: true}}
+	content := requestContent(doc)
+	content.Type = ir.TypeRef{Target: "type/missing"}
+	content.Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/a": {RepeatsPerArrayItem: true}}
 
 	got := irtest.DiagCodes(validated(t, doc))
 	assert.Contains(t, got, "ir/dangling-type-ref")
@@ -593,8 +593,8 @@ func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 	t.Parallel()
 	carriers := encodingCarriers()
 	listed := make([]string, 0, len(carriers))
-	for _, c := range carriers {
-		listed = append(listed, c.field)
+	for _, encodingCarrier := range carriers {
+		listed = append(listed, encodingCarrier.field)
 	}
 	slices.Sort(listed)
 
@@ -612,16 +612,16 @@ func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 // from the ir sources, so a carrier is covered the day it is declared.
 func fieldsCarrying(t *testing.T, node reflect.Type) []string {
 	t.Helper()
-	p, err := decls.Load(node.PkgPath())
+	loadedPackage, err := decls.Load(node.PkgPath())
 	require.NoError(t, err)
-	shape, err := jsonshape.Read(p, "Document")
+	shape, err := jsonshape.Read(loadedPackage, "Document")
 	require.NoError(t, err)
 
 	var found []string
 	for _, typ := range shape.Types {
-		for _, m := range typ.Members {
-			if carries(t, m.Field.Type(), node, 0) {
-				found = append(found, typ.Named.Obj().Name()+"."+m.Field.Name())
+		for _, member := range typ.Members {
+			if carries(t, member.Field.Type(), node, 0) {
+				found = append(found, typ.Named.Obj().Name()+"."+member.Field.Name())
 			}
 		}
 	}

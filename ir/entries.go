@@ -93,43 +93,43 @@ type entryFrame struct {
 // an unexported field is copied entry by entry, as SetIterKey refuses to read
 // one.
 func (s *entryStack) push(v reflect.Value) entryFrame {
-	f := entryFrame{base: len(s.entries)}
+	entryFrameValue := entryFrame{base: len(s.entries)}
 	n := v.Len()
 	if n > 0 && v.CanInterface() {
-		f.store = s.storeFor(v.Type())
-		f.slot = f.store.reserve(n)
+		entryFrameValue.store = s.storeFor(v.Type())
+		entryFrameValue.slot = entryFrameValue.store.reserve(n)
 	}
 	form := formOf(v.Type().Key())
 	// MapRange rather than v.Seq2(), which puts the loop body on the heap.
 	for iter := v.MapRange(); iter.Next(); {
-		k, val := f.copyEntry(iter, len(s.entries)-f.base)
+		k, val := entryFrameValue.copyEntry(iter, len(s.entries)-entryFrameValue.base)
 		s.entries = append(s.entries, entryOf(k, val, form))
 	}
-	f.end = len(s.entries)
-	slices.SortFunc(s.entries[f.base:], compareEntries)
-	return f
+	entryFrameValue.end = len(s.entries)
+	slices.SortFunc(s.entries[entryFrameValue.base:], compareEntries)
+	return entryFrameValue
 }
 
 // entryOf pairs the key k and value val of a map whose keys are held in form.
 func entryOf(k, val reflect.Value, form keyForm) mapEntry {
-	e := mapEntry{key: k, value: val, form: form}
+	mapEntryValue := mapEntry{key: k, value: val, form: form}
 	switch form {
 	case signedKey:
-		e.num = uint64(k.Int())
+		mapEntryValue.num = uint64(k.Int())
 	case unsignedKey:
-		e.num = k.Uint()
+		mapEntryValue.num = k.Uint()
 	case labelledKey:
-		e.label = keyLabel(k)
+		mapEntryValue.label = keyLabel(k)
 	}
-	return e
+	return mapEntryValue
 }
 
-// pop takes f's entries off the stack, which must hold no frame above f, and
+// pop takes entryFrameValue's entries off the stack, which must hold no frame above entryFrameValue, and
 // frees its slots for the next map of its type.
-func (s *entryStack) pop(f entryFrame) {
-	s.entries = s.entries[:f.base]
-	if f.store != nil {
-		f.store.used = f.slot
+func (s *entryStack) pop(entryFrameValue entryFrame) {
+	s.entries = s.entries[:entryFrameValue.base]
+	if entryFrameValue.store != nil {
+		entryFrameValue.store.used = entryFrameValue.slot
 	}
 }
 

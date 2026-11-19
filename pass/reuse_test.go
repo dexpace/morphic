@@ -22,8 +22,8 @@ import (
 // it grew, which the map's limit cannot see.
 func TestReusedMaps_AreEmptiedThroughReusedMapAlone(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
+	loadedPackage, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
 	require.NoError(t, err)
-	assert.Empty(t, p.FuncsUsing(types.Universe.Lookup("clear")), "a map is cleared through reuse.Map alone")
-	assert.Empty(t, p.FuncsUsing(types.Universe.Lookup("delete")), "no check deletes from a map it reads again")
+	assert.Empty(t, loadedPackage.FuncsUsing(types.Universe.Lookup("clear")), "a map is cleared through reuse.Map alone")
+	assert.Empty(t, loadedPackage.FuncsUsing(types.Universe.Lookup("delete")), "no check deletes from a map it reads again")
 }

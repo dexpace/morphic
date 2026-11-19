@@ -56,11 +56,11 @@ func nextCommand(c *cobra.Command, args []string, read func(*pflag.FlagSet, stri
 	var found, refused *cobra.Command
 	foundAt, refusedAt := len(args), len(args)
 	for _, sub := range c.Commands() {
-		at, v := firstWord(sub, args, read)
+		at, argumentsBeforeCommandName := firstWord(sub, args, read)
 		switch {
-		case v == onlyFlags && at < foundAt:
+		case argumentsBeforeCommandName == onlyFlags && at < foundAt:
 			found, foundAt = sub, at
-		case v == unknownFlag && at < refusedAt:
+		case argumentsBeforeCommandName == unknownFlag && at < refusedAt:
 			refused, refusedAt = sub, at
 		}
 	}

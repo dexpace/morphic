@@ -44,16 +44,16 @@ func TestParameter_EncodingJSONContract(t *testing.T) {
 // parameter's own type, and TypeEdges agrees with the reflection walk.
 func TestTypeEdges_ReadsAParametersEncoding(t *testing.T) {
 	t.Parallel()
-	m := irtest.ModelOf("type/m", func(m *ir.Model) {
-		m.Properties = []ir.Property{{ID: "property/f", Type: ir.TypeRef{Target: "type/f"}, Args: []ir.Parameter{{
+	model := irtest.ModelOf("type/m", func(modelValue *ir.Model) {
+		modelValue.Properties = []ir.Property{{ID: "property/f", Type: ir.TypeRef{Target: "type/f"}, Args: []ir.Parameter{{
 			ID: "q/a", Type: ir.TypeRef{Target: "type/arg"},
 			Encoding: &ir.Encoding{WireType: &ir.TypeRef{Target: "type/x"}, Schema: &ir.TypeRef{Target: "type/y"}},
 		}}}}
 	})
 
-	edges := slices.Collect(ir.TypeEdges(m))
+	edges := slices.Collect(ir.TypeEdges(model))
 	for _, id := range []ir.TypeID{"type/f", "type/arg", "type/x", "type/y"} {
 		assert.Contains(t, edges, id)
 	}
-	assert.Empty(t, edgeDiff(m))
+	assert.Empty(t, edgeDiff(model))
 }

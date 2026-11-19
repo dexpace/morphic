@@ -27,16 +27,16 @@ func checkDuplicateMemberIDs(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic
 			continue
 		}
 		seen := members.Emptied()
-		for i, m := range enum.Members {
-			if m.ID == "" {
+		for i, enumMember := range enum.Members {
+			if enumMember.ID == "" {
 				continue
 			}
-			if seen[m.ID] {
+			if seen[enumMember.ID] {
 				at := fmt.Sprintf("%s/members/%d", id, i)
 				diags = append(diags, diag(ir.SeverityError, "pass/duplicate-enum-member-id",
-					fmt.Sprintf("enum %s has more than one member with id %q", id, m.ID), at))
+					fmt.Sprintf("enum %s has more than one member with id %q", id, enumMember.ID), at))
 			}
-			seen[m.ID] = true
+			seen[enumMember.ID] = true
 		}
 	}
 	return diags

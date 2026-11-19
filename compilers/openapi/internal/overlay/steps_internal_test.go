@@ -45,10 +45,10 @@ func chainSource(n int) string {
 // measured by the evaluator itself.
 func needOf(t testing.TB, src, query string) int {
 	t.Helper()
-	q, err := jsonpath.Parse(query)
+	jsonpathQuery, err := jsonpath.Parse(query)
 	require.NoError(t, err)
 	b := budget.New(budget.Unbounded())
-	_, err = q.Select(t.Context(), nodeview.New(), nodeview.DocumentRoot(docOf(t, src)), &b)
+	_, err = jsonpathQuery.Select(t.Context(), nodeview.New(), nodeview.DocumentRoot(docOf(t, src)), &b)
 	require.NoError(t, err)
 	return b.Spent()
 }

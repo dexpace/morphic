@@ -240,14 +240,14 @@ func TestVerify_UndeclaredStabilityIsAViolation(t *testing.T) {
 		edit func(*ir.Document)
 		path string
 	}{
-		{"an operation", func(d *ir.Document) {
-			d.Services[0].Groups[0].Operations[0].Stability = "preview"
+		{"an operation", func(document *ir.Document) {
+			document.Services[0].Groups[0].Operations[0].Stability = "preview"
 		}, op},
-		{"a group", func(d *ir.Document) {
-			d.Services[0].Groups[0].Stability = "GA"
+		{"a group", func(document *ir.Document) {
+			document.Services[0].Groups[0].Stability = "GA"
 		}, "document.Services[0].Groups[0].Stability"},
-		{"a nested group", func(d *ir.Document) {
-			d.Services[0].Groups[0].Groups = []ir.OperationGroup{{ID: "operation-group/x/nested", Stability: "Beta"}}
+		{"a nested group", func(document *ir.Document) {
+			document.Services[0].Groups[0].Groups = []ir.OperationGroup{{ID: "operation-group/x/nested", Stability: "Beta"}}
 		}, "document.Services[0].Groups[0].Groups[0].Stability"},
 	}
 	for _, tc := range tests {
@@ -256,9 +256,9 @@ func TestVerify_UndeclaredStabilityIsAViolation(t *testing.T) {
 			doc := opDoc(ir.Operation{ID: "operation/x/S/op"})
 			tc.edit(doc)
 			var got []string
-			for _, v := range irverify.Verify(doc) {
-				if v.Code == "ir/unknown-stability" {
-					got = append(got, v.Path)
+			for _, violation := range irverify.Verify(doc) {
+				if violation.Code == "ir/unknown-stability" {
+					got = append(got, violation.Path)
 				}
 			}
 			assert.Equal(t, []string{tc.path}, got)

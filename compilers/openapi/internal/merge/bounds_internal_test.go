@@ -34,9 +34,9 @@ func inOrders(t *testing.T, decls []declaration, check func(t *testing.T, ordere
 func propertyBounds(t *testing.T, sets ...*ir.Constraints) []declaration {
 	t.Helper()
 	decls := make([]declaration, len(sets))
-	for i, c := range sets {
+	for i, constraints := range sets {
 		decls[i] = nthDecl(i, primRef(ir.PrimitiveString).Target)
-		decls[i].prop.Constraints = c
+		decls[i].prop.Constraints = constraints
 		decls[i].source = unread(t)
 	}
 	return decls
@@ -77,8 +77,8 @@ func TestFold_ABoundTakesItsTightestValueInEveryOrder(t *testing.T) {
 			t.Parallel()
 			inOrders(t, propertyBounds(t, tc.sets[:]...), func(t *testing.T, ordered []declaration) {
 				t.Helper()
-				g, recorded := stubMerger(narrowingRegistry())
-				got := g.fold(ordered)
+				stubbed, recorded := stubMerger(narrowingRegistry())
+				got := stubbed.fold(ordered)
 
 				assert.Equal(t, tc.want, got.Constraints)
 				assert.Empty(t, *recorded, "a bound the field implies is no disagreement")
@@ -94,9 +94,9 @@ func TestFold_ABoundTakesItsTightestValueInEveryOrder(t *testing.T) {
 func TestFold_ABoundLeavesTheDeclarationsItFoldsAlone(t *testing.T) {
 	t.Parallel()
 	loose, tight := &ir.Constraints{MaxLength: new(int64(9))}, &ir.Constraints{MaxLength: new(int64(2))}
-	g, _ := stubMerger(narrowingRegistry())
+	stubbed, _ := stubMerger(narrowingRegistry())
 
-	got := g.fold(propertyBounds(t, loose, tight))
+	got := stubbed.fold(propertyBounds(t, loose, tight))
 
 	require.NotNil(t, got.Constraints)
 	assert.Equal(t, int64(2), *got.Constraints.MaxLength)
@@ -176,8 +176,8 @@ func TestBoundsBeyond_KeepsWhatTheOtherDoesNotStateAtThatValue(t *testing.T) {
 }
 
 // boundedNodeKinds builds a hoisted node of each kind that holds bounds, written
-// at the nth declaration, holding c and a detail a mint must carry over.
-func boundedNodeKinds() map[string]func(n int, c *ir.Constraints) ir.TypeDef {
+// at the nth declaration, holding constraints and a detail a mint must carry over.
+func boundedNodeKinds() map[string]func(n int, constraints *ir.Constraints) ir.TypeDef {
 	i32 := primRef(ir.PrimitiveInt32)
 	site := func(n int) ir.TypeCommon {
 		return ir.TypeCommon{
@@ -185,18 +185,18 @@ func boundedNodeKinds() map[string]func(n int, c *ir.Constraints) ir.TypeDef {
 			Docs: ir.Docs{Description: "detail"},
 		}
 	}
-	return map[string]func(n int, c *ir.Constraints) ir.TypeDef{
-		"a scalar": func(n int, c *ir.Constraints) ir.TypeDef {
-			return &ir.Scalar{TypeCommon: site(n), Base: &i32, Encoding: &ir.Encoding{Name: "x"}, Constraints: c}
+	return map[string]func(n int, constraints *ir.Constraints) ir.TypeDef{
+		"a scalar": func(n int, constraints *ir.Constraints) ir.TypeDef {
+			return &ir.Scalar{TypeCommon: site(n), Base: &i32, Encoding: &ir.Encoding{Name: "x"}, Constraints: constraints}
 		},
-		"a list": func(n int, c *ir.Constraints) ir.TypeDef {
-			return &ir.List{TypeCommon: site(n), ElementType: i32, Constraints: c}
+		"a list": func(n int, constraints *ir.Constraints) ir.TypeDef {
+			return &ir.List{TypeCommon: site(n), ElementType: i32, Constraints: constraints}
 		},
-		"a map": func(n int, c *ir.Constraints) ir.TypeDef {
-			return &ir.MapT{TypeCommon: site(n), Value: i32, Constraints: c}
+		"a map": func(n int, constraints *ir.Constraints) ir.TypeDef {
+			return &ir.MapT{TypeCommon: site(n), Value: i32, Constraints: constraints}
 		},
-		"a tuple": func(n int, c *ir.Constraints) ir.TypeDef {
-			return &ir.Tuple{TypeCommon: site(n), ElementTypes: []ir.TypeRef{i32}, Constraints: c}
+		"a tuple": func(n int, constraints *ir.Constraints) ir.TypeDef {
+			return &ir.Tuple{TypeCommon: site(n), ElementTypes: []ir.TypeRef{i32}, Constraints: constraints}
 		},
 	}
 }
@@ -206,8 +206,8 @@ func boundedNodeKinds() map[string]func(n int, c *ir.Constraints) ir.TypeDef {
 func nodeDecls(t *testing.T, reg map[ir.TypeID]ir.TypeDef, node func(int, *ir.Constraints) ir.TypeDef, sets ...*ir.Constraints) []declaration {
 	t.Helper()
 	decls := make([]declaration, len(sets))
-	for i, c := range sets {
-		td := node(i, c)
+	for i, constraints := range sets {
+		td := node(i, constraints)
 		reg[td.Common().ID] = td
 		decls[i] = nthDecl(i, td.Common().ID)
 		decls[i].source = unread(t)
@@ -230,10 +230,10 @@ func TestFold_NodesThatMeetStandOnAMintedNode(t *testing.T) {
 			reg := narrowingRegistry()
 			inOrders(t, nodeDecls(t, reg, node, lower, upper), func(t *testing.T, ordered []declaration) {
 				t.Helper()
-				g, recorded := stubMerger(reg)
+				stubbed, recorded := stubMerger(reg)
 				_, field := fieldSpan(ordered)
 
-				got := g.fold(ordered)
+				got := stubbed.fold(ordered)
 
 				require.Equal(t, composedAt(field), got.Type.Target, "the node takes the composed namespace")
 				minted := reg[got.Type.Target]
@@ -271,8 +271,8 @@ func TestFold_TheBoundsOfEveryDeclarationMeetInEveryOrder(t *testing.T) {
 			reg := narrowingRegistry()
 			inOrders(t, nodeDecls(t, reg, node, tc.sets...), func(t *testing.T, ordered []declaration) {
 				t.Helper()
-				g, recorded := stubMerger(reg)
-				got := g.fold(ordered)
+				stubbed, recorded := stubMerger(reg)
+				got := stubbed.fold(ordered)
 
 				assert.Equal(t, tc.want, boundsOf(reg[got.Type.Target]))
 				assert.Empty(t, *recorded)
@@ -290,17 +290,17 @@ func TestFold_ADroppedDeclarationsBoundsStayOffAMintedNode(t *testing.T) {
 	t.Parallel()
 	reg := narrowingRegistry()
 	i32 := primRef(ir.PrimitiveInt32)
-	decls := nodeDecls(t, reg, func(n int, c *ir.Constraints) ir.TypeDef {
-		return &ir.List{ID: ir.TypeID(fmt.Sprintf("type/lists/%d", n)), Anonymous: true, Provenance: ptrAt(declaredAt(n)), ElementType: i32, Constraints: c}
+	decls := nodeDecls(t, reg, func(n int, constraints *ir.Constraints) ir.TypeDef {
+		return &ir.List{ID: ir.TypeID(fmt.Sprintf("type/lists/%d", n)), Anonymous: true, Provenance: ptrAt(declaredAt(n)), ElementType: i32, Constraints: constraints}
 	}, &ir.Constraints{MinItems: new(int64(1))}, &ir.Constraints{MaxItems: new(int64(5))})
 	reg["type/strings"] = &ir.List{ID: "type/strings", Anonymous: true, Provenance: ptrAt(declaredAt(2)), ElementType: primRef(ir.PrimitiveString),
 		Constraints: &ir.Constraints{MaxItems: new(int64(2))}}
 	dropped := nthDecl(2, "type/strings")
 	inOrders(t, append(decls, dropped), func(t *testing.T, ordered []declaration) {
 		t.Helper()
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 
-		got := g.fold(ordered)
+		got := stubbed.fold(ordered)
 
 		assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(5))}, boundsOf(reg[got.Type.Target]))
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(2)))
@@ -331,8 +331,8 @@ func TestFold_ANodeHoldingEveryBoundIsNotMinted(t *testing.T) {
 			nodes := len(reg)
 			inOrders(t, decls, func(t *testing.T, ordered []declaration) {
 				t.Helper()
-				g, recorded := stubMerger(reg)
-				got := g.fold(ordered)
+				stubbed, recorded := stubMerger(reg)
+				got := stubbed.fold(ordered)
 
 				assert.Equal(t, tc.want, got.Type.Target)
 				assert.Len(t, reg, nodes, "nothing is minted")
@@ -365,9 +365,9 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 		reg := narrowingRegistry()
 		decls := mirrored(t, reg, &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"})
 		nodes := len(reg)
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 
-		got := g.fold(decls)
+		got := stubbed.fold(decls)
 
 		assert.Equal(t, decls[1].prop.Type.Target, got.Type.Target, "the later stands")
 		assert.Len(t, reg, nodes, "and nothing is minted for it")
@@ -382,9 +382,9 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 		nodes := mirrored(t, reg, &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"})
 		bare := nthDecl(2, primRef(ir.PrimitiveInt32).Target)
 		bare.prop.Constraints = &ir.Constraints{Pattern: "^b$"}
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 
-		g.fold([]declaration{nodes[0], nodes[1], bare})
+		stubbed.fold([]declaration{nodes[0], nodes[1], bare})
 
 		require.Len(t, *recorded, 1, "the node and the property each meet the one disagreement, whoever each kept it from")
 		assert.Equal(t, declaredAt(0), (*recorded)[0].Provenance.Pointer)
@@ -396,9 +396,9 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 		decls := mirrored(t, reg,
 			&ir.Constraints{Pattern: "^a$", MaxLength: new(int64(9))},
 			&ir.Constraints{Pattern: "^b$", MaxLength: new(int64(3))})
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 
-		got := g.fold(decls)
+		got := stubbed.fold(decls)
 
 		assert.Equal(t, &ir.Constraints{Pattern: "^b$", MaxLength: new(int64(3))}, boundsOf(reg[got.Type.Target]))
 		assert.Equal(t, &ir.Constraints{Pattern: "^b$", MaxLength: new(int64(3))}, got.Constraints)
@@ -450,9 +450,9 @@ func TestFold_AValueIsHeldToTheBoundsOthersBring(t *testing.T) {
 			withValue.prop.Constraints, withValue.prop.Default, withValue.source = tc.own, &tc.value, written(source)
 			other.prop.Constraints = tc.another
 			for _, order := range [][]declaration{{withValue, other}, {other, withValue}} {
-				g, recorded := stubMerger(narrowingRegistry())
+				stubbed, recorded := stubMerger(narrowingRegistry())
 
-				got := g.fold(order)
+				got := stubbed.fold(order)
 
 				if tc.taken {
 					assert.Equal(t, &tc.value, got.Default)
@@ -479,9 +479,9 @@ func TestFold_AnExampleIsHeldToTheBoundsOthersBringAsAWhole(t *testing.T) {
 	withExamples, bound := nthDecl(0, primRef(ir.PrimitiveString).Target), nthDecl(1, primRef(ir.PrimitiveString).Target)
 	withExamples.prop.Examples = []ir.Example{{Value: &fits}, {Value: &past}}
 	bound.prop.Constraints = &ir.Constraints{MaxLength: new(int64(3))}
-	g, recorded := stubMerger(narrowingRegistry())
+	stubbed, recorded := stubMerger(narrowingRegistry())
 
-	got := g.fold([]declaration{withExamples, bound})
+	got := stubbed.fold([]declaration{withExamples, bound})
 
 	assert.Empty(t, got.Examples)
 	require.Len(t, *recorded, 1)
@@ -516,9 +516,9 @@ func TestFold_ANodesBoundsJudgeAValueWrittenAgainstItsOwnKind(t *testing.T) {
 			decls[0].prop.Default, decls[0].source = &tc.value, written(`{"written":"value"}`)
 			inOrders(t, decls, func(t *testing.T, ordered []declaration) {
 				t.Helper()
-				g, recorded := stubMerger(reg)
+				stubbed, recorded := stubMerger(reg)
 
-				got := g.fold(ordered)
+				got := stubbed.fold(ordered)
 
 				if tc.taken {
 					assert.Equal(t, &tc.value, got.Default)
@@ -542,9 +542,9 @@ func TestFold_AValueOfABroaderMemberIsJudgedByTheField(t *testing.T) {
 	fraction := ir.Value{Kind: ir.ValueList, List: []ir.Value{num("1.5")}}
 	broad, narrow := nthDecl(0, "type/list-int"), nthDecl(1, "type/list-i32")
 	broad.prop.Default = &fraction
-	g, recorded := stubMerger(judgeRegistry())
+	stubbed, recorded := stubMerger(judgeRegistry())
 
-	got := g.fold([]declaration{broad, narrow})
+	got := stubbed.fold([]declaration{broad, narrow})
 
 	assert.Equal(t, ir.TypeID("type/list-i32"), got.Type.Target)
 	assert.Nil(t, got.Default)
@@ -571,7 +571,7 @@ func TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth(t *testing.T
 		reg[leaf] = &ir.Primitive{ID: leaf, PrimitiveKind: ir.PrimitiveString}
 	}
 	reads := 0
-	j := typeJudge{
+	typeJudgeValue := typeJudge{
 		resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
 			reads++
 			td, ok := reg[id]
@@ -580,7 +580,7 @@ func TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth(t *testing.T
 		sites: declarationSites{written: [2][]ir.Provenance{sitesAt("/a"), sitesAt("/b")}, walk: &stubWalk{}},
 	}
 
-	rel := j.relate(ref("type/a/0"), ref("type/b/0"))
+	rel := typeJudgeValue.relate(ref("type/a/0"), ref("type/b/0"))
 
 	assert.Equal(t, relUnrelated, rel, "a tuple holding tuples is compared by no position")
 	assert.LessOrEqual(t, reads, 2*width*depth, "the reads grow with the document, not with its width to the depth")
@@ -594,10 +594,10 @@ func TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth(t *testing.T) {
 	reg := judgeRegistry()
 	reg["type/held-min"] = &ir.List{ID: "type/held-min", ElementType: ref("type/tuple-min")}
 	reg["type/held-bare"] = &ir.List{ID: "type/held-bare", ElementType: ref("type/tuple")}
-	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
+	typeJudgeValue := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
 
-	assert.Equal(t, firstTypeIsNarrower, j.relate(ref("type/tuple-min"), ref("type/tuple")), "as a field's own type")
-	assert.Equal(t, relUnrelated, j.relate(ref("type/held-min"), ref("type/held-bare")), "as what a list holds")
+	assert.Equal(t, firstTypeIsNarrower, typeJudgeValue.relate(ref("type/tuple-min"), ref("type/tuple")), "as a field's own type")
+	assert.Equal(t, relUnrelated, typeJudgeValue.relate(ref("type/held-min"), ref("type/held-bare")), "as what a list holds")
 }
 
 // TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn pins whose copies a
@@ -609,9 +609,9 @@ func TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn(t *testing.T) {
 	const elsewhere = 1
 	at := func(n int) ir.Provenance { return ir.Provenance{Source: elsewhere, Pointer: declaredAt(n)} }
 	element := func(id string, n int) *ir.Scalar {
-		p := at(n)
-		p.Pointer += "/items"
-		return &ir.Scalar{ID: ir.TypeID(id), Anonymous: true, Provenance: p, Base: new(primRef(ir.PrimitiveString)), Encoding: &ir.Encoding{Name: "x"}}
+		provenance := at(n)
+		provenance.Pointer += "/items"
+		return &ir.Scalar{ID: ir.TypeID(id), Anonymous: true, Provenance: provenance, Base: new(primRef(ir.PrimitiveString)), Encoding: &ir.Encoding{Name: "x"}}
 	}
 	reg := narrowingRegistry()
 	reg["type/e0"], reg["type/e1"] = element("type/e0", 0), element("type/e1", 1)
@@ -621,9 +621,9 @@ func TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn(t *testing.T) {
 	first, second := nthDecl(0, "type/l0"), nthDecl(1, "type/l1")
 	first.prop.Provenance, second.prop.Provenance = at(0), at(1)
 	first.prop.Default = &value
-	g, recorded := stubMerger(reg)
+	stubbed, recorded := stubMerger(reg)
 
-	got := g.fold([]declaration{first, second})
+	got := stubbed.fold([]declaration{first, second})
 
 	assert.Equal(t, &value, got.Default)
 	assert.Empty(t, *recorded)
@@ -637,9 +637,9 @@ func TestFold_ATypeTheRegistryDoesNotHoldHoldsNoBounds(t *testing.T) {
 	value := str("hello")
 	first, second := nthDecl(0, "type/absent"), nthDecl(1, "type/absent")
 	first.prop.Default = &value
-	g, recorded := stubMerger(narrowingRegistry())
+	stubbed, recorded := stubMerger(narrowingRegistry())
 
-	got := g.fold([]declaration{first, second})
+	got := stubbed.fold([]declaration{first, second})
 
 	assert.Equal(t, &value, got.Default)
 	assert.Equal(t, ir.TypeID("type/absent"), got.Type.Target)

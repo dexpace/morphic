@@ -47,8 +47,8 @@ func checkParamBindings(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic
 	var read bindingMaps
 	ir.ForEachOperation(doc, func(op ir.Operation) {
 		names := read.names.Emptied()
-		for _, p := range op.Params {
-			names[p.ID] = p.Name.Source
+		for _, parameter := range op.Params {
+			names[parameter.ID] = parameter.Name.Source
 		}
 		for i := range op.Bindings.HTTP {
 			diags = append(diags, checkHTTPParamBinding(op, i, names, refs, &read)...)
@@ -120,11 +120,11 @@ func bindingWhere(op ir.OperationID, idx int) string {
 // op placed nowhere on the wire.
 func unboundParamWarnings(op ir.Operation, idx int, bound map[ir.ParameterID]int) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, p := range op.Params {
-		if bound[p.ID] == 0 {
+	for _, parameter := range op.Params {
+		if bound[parameter.ID] == 0 {
 			where := bindingWhere(op.ID, idx)
 			diags = append(diags, diag(ir.SeverityWarning, "pass/param-unbound",
-				fmt.Sprintf("parameter %q on %s is not bound to any HTTP location", p.Name.Source, where),
+				fmt.Sprintf("parameter %q on %s is not bound to any HTTP location", parameter.Name.Source, where),
 				where))
 		}
 	}
@@ -161,11 +161,11 @@ func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 		dst = appendInputRef(dst, pg.InputCursor, "pagination/inputCursor")
 		dst = appendInputRef(dst, pg.InputLimit, "pagination/inputLimit")
 	}
-	if s := op.RequestStream; s != nil && s.Condition != nil {
-		dst = appendInputRef(dst, &s.Condition.Input, "requestStream/condition")
+	if streamDetail := op.RequestStream; streamDetail != nil && streamDetail.Condition != nil {
+		dst = appendInputRef(dst, &streamDetail.Condition.Input, "requestStream/condition")
 	}
-	if s := op.ResponseStream; s != nil && s.Condition != nil {
-		dst = appendInputRef(dst, &s.Condition.Input, "responseStream/condition")
+	if streamDetail := op.ResponseStream; streamDetail != nil && streamDetail.Condition != nil {
+		dst = appendInputRef(dst, &streamDetail.Condition.Input, "responseStream/condition")
 	}
 	if token := op.Idempotency.TokenParam; token != "" {
 		dst = append(dst, paramRef{id: token, field: "idempotency/tokenParam"})
@@ -216,8 +216,8 @@ func checkParamReferences(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnost
 	var carried []paramRef
 	ir.ForEachOperation(doc, func(op ir.Operation) {
 		own := declared.Emptied()
-		for _, p := range op.Params {
-			own[p.ID] = true
+		for _, parameter := range op.Params {
+			own[parameter.ID] = true
 		}
 		carried = appendParamRefs(carried[:0], op)
 		for _, ref := range carried {

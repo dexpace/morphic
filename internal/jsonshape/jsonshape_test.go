@@ -20,9 +20,9 @@ import (
 // load type-checks one of the fixture packages under testdata.
 func load(t *testing.T, name string) *decls.Package {
 	t.Helper()
-	p, err := decls.Load("./testdata/" + name)
+	loadedPackage, err := decls.Load("./testdata/" + name)
 	require.NoError(t, err)
-	return p
+	return loadedPackage
 }
 
 // goodShape is package good's description: every line is an input the encoder
@@ -121,21 +121,21 @@ func TestDescribe_SpellsEveryInput(t *testing.T) {
 // What Describe spells is the same shape.
 func TestRead_HoldsTheShapeAsData(t *testing.T) {
 	t.Parallel()
-	p := load(t, "good")
-	s, err := jsonshape.Read(p, "Root")
+	loadedPackage := load(t, "good")
+	shape, err := jsonshape.Read(loadedPackage, "Root")
 	require.NoError(t, err)
-	desc, err := jsonshape.Describe(p, "Root")
+	desc, err := jsonshape.Describe(loadedPackage, "Root")
 	require.NoError(t, err)
-	assert.Equal(t, desc, s.String())
+	assert.Equal(t, desc, shape.String())
 
 	byName := map[string]jsonshape.Type{}
-	for _, typ := range s.Types {
+	for _, typ := range shape.Types {
 		byName[typ.Named.Obj().Name()] = typ
 	}
 
 	members := make([]string, 0, len(byName["Root"].Members))
-	for _, m := range byName["Root"].Members {
-		members = append(members, fmt.Sprintf("%d %s %q %t %v", m.Index, m.Field.Name(), m.Name, m.Embedded, m.Options))
+	for _, member := range byName["Root"].Members {
+		members = append(members, fmt.Sprintf("%d %s %q %t %v", member.Index, member.Field.Name(), member.Name, member.Embedded, member.Options))
 	}
 	assert.Empty(t, cmp.Diff([]string{
 		`0 Sum "sum" false []`,
@@ -162,8 +162,8 @@ func TestRead_HoldsTheShapeAsData(t *testing.T) {
 	sum := byName["Sum"]
 	assert.Equal(t, "Color", sum.Tag.(*types.Named).Obj().Name())
 	variants := make([]string, 0, len(sum.Variants))
-	for _, v := range sum.Variants {
-		variants = append(variants, fmt.Sprintf("%s %s %t", v.Tag.ExactString(), v.Named.Obj().Name(), v.ByPointer))
+	for _, variant := range sum.Variants {
+		variants = append(variants, fmt.Sprintf("%s %s %t", variant.Tag.ExactString(), variant.Named.Obj().Name(), variant.ByPointer))
 	}
 	assert.Equal(t, []string{`"blue" ByPointer true`, `"red" ByValue false`}, variants)
 	assert.Nil(t, byName["Root"].Tag, "a struct is no sum")
@@ -213,7 +213,7 @@ func TestDescribe_IsDeterministic(t *testing.T) {
 // description that says less than the encoder reads.
 func TestDescribe_Refusals(t *testing.T) {
 	t.Parallel()
-	p := load(t, "bad")
+	loadedPackage := load(t, "bad")
 	for _, tc := range []struct {
 		root, want string
 	}{
@@ -242,7 +242,7 @@ func TestDescribe_Refusals(t *testing.T) {
 	} {
 		t.Run(tc.root, func(t *testing.T) {
 			t.Parallel()
-			got, err := jsonshape.Describe(p, tc.root)
+			got, err := jsonshape.Describe(loadedPackage, tc.root)
 			require.Error(t, err)
 			assert.Empty(t, got)
 			assert.Contains(t, err.Error(), tc.want)
@@ -254,7 +254,7 @@ func TestDescribe_Refusals(t *testing.T) {
 // to read, and a root that names a type with a name.
 func TestDescribe_RefusesARootItCannotRead(t *testing.T) {
 	t.Parallel()
-	p := load(t, "bad")
+	loadedPackage := load(t, "bad")
 	for _, tc := range []struct {
 		name string
 		pkg  *decls.Package
@@ -262,9 +262,9 @@ func TestDescribe_RefusesARootItCannotRead(t *testing.T) {
 		want string
 	}{
 		{"no package", nil, "Root", "jsonshape: no package"},
-		{"an undeclared root", p, "Missing", "declares no type Missing"},
-		{"a function", p, "helper", "declares no type helper"},
-		{"an alias of an unnamed type", p, "Unnamed", "Unnamed is not a named type"},
+		{"an undeclared root", loadedPackage, "Missing", "declares no type Missing"},
+		{"a function", loadedPackage, "helper", "declares no type helper"},
+		{"an alias of an unnamed type", loadedPackage, "Unnamed", "Unnamed is not a named type"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

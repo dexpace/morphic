@@ -19,8 +19,8 @@ import (
 // message "a", and a true flag.
 func oneBound(t *testing.T, name string) *ir.Constraints {
 	t.Helper()
-	c := &ir.Constraints{}
-	f := reflect.ValueOf(c).Elem().FieldByName(name)
+	constraints := &ir.Constraints{}
+	f := reflect.ValueOf(constraints).Elem().FieldByName(name)
 	require.True(t, f.IsValid(), "ir.Constraints declares no field %s", name)
 	switch f.Interface().(type) {
 	case *int64:
@@ -34,7 +34,7 @@ func oneBound(t *testing.T, name string) *ir.Constraints {
 	default:
 		require.Failf(t, "a field of a type this test sets no value of", "%s is a %s", name, f.Type())
 	}
-	return c
+	return constraints
 }
 
 // TestVerify_EachBoundIsHeldToTheKindsThatTakeIt crosses every field of
@@ -55,17 +55,21 @@ func TestVerify_EachBoundIsHeldToTheKindsThatTakeIt(t *testing.T) {
 		takes   []string
 		unasked bool
 	}{
-		{name: "model", node: func(c *ir.Constraints) ir.TypeDef { return &ir.Model{Constraints: c} }, takes: props},
-		{name: "map", node: func(c *ir.Constraints) ir.TypeDef { return &ir.MapT{Value: leafRef, Constraints: c} }, takes: props},
-		{name: "list", node: func(c *ir.Constraints) ir.TypeDef { return &ir.List{ElementType: leafRef, Constraints: c} }, takes: items},
-		{name: "tuple", node: func(c *ir.Constraints) ir.TypeDef {
-			return &ir.Tuple{ElementTypes: []ir.TypeRef{leafRef}, Constraints: c}
+		{name: "model", node: func(constraints *ir.Constraints) ir.TypeDef { return &ir.Model{Constraints: constraints} }, takes: props},
+		{name: "map", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.MapT{Value: leafRef, Constraints: constraints}
+		}, takes: props},
+		{name: "list", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.List{ElementType: leafRef, Constraints: constraints}
 		}, takes: items},
-		{name: "scalar", node: func(c *ir.Constraints) ir.TypeDef {
-			return &ir.Scalar{Base: &leafRef, Constraints: c}
+		{name: "tuple", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.Tuple{ElementTypes: []ir.TypeRef{leafRef}, Constraints: constraints}
+		}, takes: items},
+		{name: "scalar", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.Scalar{Base: &leafRef, Constraints: constraints}
 		}, unasked: true},
-		{name: "union", node: func(c *ir.Constraints) ir.TypeDef {
-			return &ir.Union{Variants: []ir.Variant{{Type: leafRef}}, Constraints: c}
+		{name: "union", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.Union{Variants: []ir.Variant{{Type: leafRef}}, Constraints: constraints}
 		}, unasked: true},
 	}
 	fields := reflect.TypeFor[ir.Constraints]()

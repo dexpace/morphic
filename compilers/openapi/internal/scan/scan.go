@@ -82,7 +82,7 @@ func stepsIn(ctx context.Context, root *yaml.Node, limit int) (map[*yaml.Node]st
 	stack := []*yaml.Node{top}
 	entered, cut := budget.New(budget.AtMost(limit)), false
 	entered.Spend(1)
-	reach := func(n *yaml.Node, s step) {
+	reach := func(n *yaml.Node, stepValue step) {
 		if _, indexed := out[n]; indexed {
 			return
 		}
@@ -90,7 +90,7 @@ func stepsIn(ctx context.Context, root *yaml.Node, limit int) (map[*yaml.Node]st
 			cut = true
 			return
 		}
-		out[n] = s
+		out[n] = stepValue
 		stack = append(stack, n)
 	}
 	for popped := 0; len(stack) > 0; popped++ {
@@ -145,16 +145,16 @@ func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
 	var tokens []string
 	size := 0
 	for at := n; ; {
-		s, ok := steps[at]
+		step, ok := steps[at]
 		if !ok {
 			return ""
 		}
-		if s.holder == nil {
+		if step.holder == nil {
 			break
 		}
-		tokens = append(tokens, s.token)
-		size += len(s.token) + 1
-		at = s.holder
+		tokens = append(tokens, step.token)
+		size += len(step.token) + 1
+		at = step.holder
 	}
 	escaped := strings.NewReplacer("~", "~0", "/", "~1") // RFC 6901, section 3
 	spelled := make([]byte, 0, size)
@@ -193,11 +193,11 @@ func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx
 	surplus, maxBytes budget.Limit,
 ) []ir.Diagnostic {
 	return scanRecovered(whole, func() []ir.Diagnostic {
-		if d, ok := anchorCycle(ctx, tree, idx); ok {
-			return []ir.Diagnostic{d}
+		if diagnostic, ok := anchorCycle(ctx, tree, idx); ok {
+			return []ir.Diagnostic{diagnostic}
 		}
-		if d, ok := aliasAmplification(ctx, tree, idx.Root(), idx.Nodes(), surplus); ok {
-			return []ir.Diagnostic{d}
+		if diagnostic, ok := aliasAmplification(ctx, tree, idx.Root(), idx.Nodes(), surplus); ok {
+			return []ir.Diagnostic{diagnostic}
 		}
 		if added := idx.AliasText(); !maxBytes.Admits(added) {
 			return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, whole,

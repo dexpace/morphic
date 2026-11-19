@@ -14,18 +14,18 @@ import (
 
 // walkSource returns the walk of doc with the fields beside each path item $ref
 // interleaved (Siblings.interleaved), followed by each components/mediaTypes
-// entry m models, at its pointer, and with the model of each Media Type Object
+// entry mediaTypes models, at its pointer, and with the model of each Media Type Object
 // it meets yielded after that object (within), so every pass meets them in the
 // order the source writes them.
-func walkSource(ctx context.Context, doc *soa.OpenAPI, s Siblings, m MediaTypes) iter.Seq[soa.WalkItem] {
+func walkSource(ctx context.Context, doc *soa.OpenAPI, siblings Siblings, mediaTypes MediaTypes) iter.Seq[soa.WalkItem] {
 	items := walk(ctx, doc)
-	if len(s.list) > 0 {
-		items = s.interleaved(ctx, items)
+	if len(siblings.list) > 0 {
+		items = siblings.interleaved(ctx, items)
 	}
-	if len(m.declared) > 0 {
-		items = m.followedByDeclared(ctx, items)
+	if len(mediaTypes.declared) > 0 {
+		items = mediaTypes.followedByDeclared(ctx, items)
 	}
-	return m.within(ctx, items)
+	return mediaTypes.within(ctx, items)
 }
 
 // interleaved yields items and, after each $ref whose fields were modelled where

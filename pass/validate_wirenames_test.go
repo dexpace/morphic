@@ -16,8 +16,8 @@ import (
 func TestValidate_DuplicateWireName(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	m := doc.Types["type/m"].(*ir.Model)
-	m.Properties = append(m.Properties, ir.Property{
+	model := doc.Types["type/m"].(*ir.Model)
+	model.Properties = append(model.Properties, ir.Property{
 		ID: "property/m/b", WireName: "a", Type: ir.TypeRef{Target: "type/primitive/string"},
 	})
 	diags := validated(t, doc)
@@ -68,9 +68,9 @@ func aliasDoc(props ...ir.Property) *ir.Document {
 func ambiguousAliasDiags(t *testing.T, doc *ir.Document) []ir.Diagnostic {
 	t.Helper()
 	var out []ir.Diagnostic
-	for _, d := range validated(t, doc) {
-		if d.Code == "pass/ambiguous-alias" {
-			out = append(out, d)
+	for _, diagnostic := range validated(t, doc) {
+		if diagnostic.Code == "pass/ambiguous-alias" {
+			out = append(out, diagnostic)
 		}
 	}
 	return out

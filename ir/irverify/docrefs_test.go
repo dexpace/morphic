@@ -64,11 +64,11 @@ func TestVerify_DocRefs(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "M", Canonical: "m"}, Docs: tc.docs}
+			model := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "M", Canonical: "m"}, Docs: tc.docs}
 			got := map[string]int{}
-			for _, v := range irverify.Verify(closedDoc(m)) {
-				if strings.Contains(v.Path, ".Refs") {
-					got[v.Code]++
+			for _, violation := range irverify.Verify(closedDoc(model)) {
+				if strings.Contains(violation.Path, ".Refs") {
+					got[violation.Code]++
 				}
 			}
 			if tc.want == nil {

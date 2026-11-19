@@ -37,15 +37,15 @@ func TestNameReader_PlacesANameByItselfWhereOnlyItsHashAgrees(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n := len(tt.parties)
-			r := nameReader{parties: tt.parties, later: make([]int, n), last: make([]int, n), other: make([]int, n)}
+			nameReaderValue := nameReader{parties: tt.parties, later: make([]int, n), last: make([]int, n), other: make([]int, n)}
 			seen := map[uint64]int{}
 			for i := range tt.parties {
-				r.later[i] = -1
-				r.place(tt.by, seen, 7, i)
+				nameReaderValue.later[i] = -1
+				nameReaderValue.place(tt.by, seen, 7, i)
 			}
 
-			assert.Empty(t, cmp.Diff(tt.wantLater, r.later), "each party's next party named alike")
-			assert.Empty(t, cmp.Diff(tt.wantShared, r.shared), "each set's first party, by its second")
+			assert.Empty(t, cmp.Diff(tt.wantLater, nameReaderValue.later), "each party's next party named alike")
+			assert.Empty(t, cmp.Diff(tt.wantShared, nameReaderValue.shared), "each set's first party, by its second")
 		})
 	}
 }

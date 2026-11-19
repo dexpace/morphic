@@ -104,10 +104,10 @@ func TestLoad_AnObjectTheParserFaultsOnIsReportedOnce(t *testing.T) {
 	assert.NotNil(t, doc)
 	assert.Zero(t, countErrorsAt(diags, diag.UnresolvedRef), "%+v", diags)
 	var at []jsontext.Pointer
-	for _, d := range diags {
-		assert.NotEqual(t, diag.Validation, d.Code, "no build failed: %+v", d)
-		if d.Code == diag.Validation+"/validation-type-mismatch" && d.Provenance.Pointer == "/B/$ref" {
-			at = append(at, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.Validation, diagnostic.Code, "no build failed: %+v", diagnostic)
+		if diagnostic.Code == diag.Validation+"/validation-type-mismatch" && diagnostic.Provenance.Pointer == "/B/$ref" {
+			at = append(at, diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.Len(t, at, 1, "the table reports the $ref once: %+v", diags)
@@ -127,8 +127,8 @@ components: {schemas: {S: {type: number, minimum: .5}}}
 	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), Options{})
 
 	require.NoError(t, err)
-	for _, d := range diags {
-		assert.False(t, strings.HasPrefix(d.Code, diag.Validation), "a recoverable literal draws no finding: %+v", d)
+	for _, diagnostic := range diags {
+		assert.False(t, strings.HasPrefix(diagnostic.Code, diag.Validation), "a recoverable literal draws no finding: %+v", diagnostic)
 	}
 }
 
@@ -454,9 +454,9 @@ components:
 // errorSites returns where each error of the given code is reported, in order.
 func errorSites(diags []ir.Diagnostic, code string) []jsontext.Pointer {
 	var sites []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == code && d.Severity == ir.SeverityError {
-			sites = append(sites, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Severity == ir.SeverityError {
+			sites = append(sites, diagnostic.Provenance.Pointer)
 		}
 	}
 	return sites
@@ -465,8 +465,8 @@ func errorSites(diags []ir.Diagnostic, code string) []jsontext.Pointer {
 // countErrors counts the errors among diags, whatever their code.
 func countErrors(diags []ir.Diagnostic) int {
 	var n int
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
 			n++
 		}
 	}

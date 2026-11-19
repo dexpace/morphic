@@ -49,16 +49,16 @@ func TestCompile_AParameterListRepeatingAnEntryIsReportedWhereverItIsWritten(t *
 	_, shared := compileText(t, "shared.yaml", head+"x-shared:\n"+sharedItem("  ")+"paths:\n  /x: {$ref: \"#/x-shared\"}\n", openapi.Options{})
 
 	want := map[string]string{}
-	for _, d := range byCode(direct, duplicateParameter) {
-		want[strings.Replace(string(d.Provenance.Pointer), "/paths/~1x", "/x-shared", 1)] =
-			strings.ReplaceAll(d.Message, "/paths/~1x", "/x-shared")
+	for _, diagnostic := range byCode(direct, duplicateParameter) {
+		want[strings.Replace(string(diagnostic.Provenance.Pointer), "/paths/~1x", "/x-shared", 1)] =
+			strings.ReplaceAll(diagnostic.Message, "/paths/~1x", "/x-shared")
 	}
 	got := map[string]string{}
-	for _, d := range byCode(shared, duplicateParameter) {
-		assert.Equal(t, ir.SeverityError, d.Severity)
-		_, dup := got[string(d.Provenance.Pointer)]
+	for _, diagnostic := range byCode(shared, duplicateParameter) {
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+		_, dup := got[string(diagnostic.Provenance.Pointer)]
 		assert.False(t, dup, "each repeat is reported once: %+v", shared)
-		got[string(d.Provenance.Pointer)] = d.Message
+		got[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 	}
 
 	require.Len(t, want, 2)
@@ -104,10 +104,10 @@ func TestCompile_AListInAnotherDocumentIsCheckedWhereItIsWritten(t *testing.T) {
 	diags := compileBesideExpectingErrors(t, other, root)
 
 	got := map[string][]int{}
-	for _, d := range diags {
-		switch d.Code {
+	for _, diagnostic := range diags {
+		switch diagnostic.Code {
 		case duplicateParameter, duplicateServerName:
-			got[d.Code+" "+string(d.Provenance.Pointer)] = append(got[d.Code+" "+string(d.Provenance.Pointer)], d.Provenance.Source)
+			got[diagnostic.Code+" "+string(diagnostic.Provenance.Pointer)] = append(got[diagnostic.Code+" "+string(diagnostic.Provenance.Pointer)], diagnostic.Provenance.Source)
 		}
 	}
 	require.Len(t, got, 3, "%+v", diags)

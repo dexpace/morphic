@@ -88,12 +88,12 @@ func assertPathItemServersNamed(t *testing.T, doc *ir.Document, op ir.Operation,
 func assertWebhookGroupIsAHint(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	require.Len(t, doc.Services, 1)
-	for _, g := range doc.Services[0].Groups {
-		if g.Name.Hint != "webhooks" {
+	for _, operationGroup := range doc.Services[0].Groups {
+		if operationGroup.Name.Hint != "webhooks" {
 			continue
 		}
-		assert.Empty(t, g.Name.Source, "a group no document declares carries no source spelling")
-		assert.Empty(t, g.Name.Canonical, "and no words derived from one")
+		assert.Empty(t, operationGroup.Name.Source, "a group no document declares carries no source spelling")
+		assert.Empty(t, operationGroup.Name.Canonical, "and no words derived from one")
 		return
 	}
 	t.Fatal("no group carries the webhooks hint")
@@ -208,8 +208,8 @@ func methodsOf(op ir.Operation) []string {
 // one $ref'd declaration apart where a source name cannot.
 func opByID(t *testing.T, doc *ir.Document, id string) ir.Operation {
 	t.Helper()
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, op := range operationGroup.Operations {
 			if string(op.ID) == id {
 				return op
 			}

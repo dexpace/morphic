@@ -19,10 +19,10 @@ import (
 // rather than silently keep the first, empty Visibility.
 func TestFold_VisibilityAdoptedFromRedeclaration(t *testing.T) {
 	t.Parallel()
-	g, _ := stubMerger(nil)
+	stubbed, _ := stubMerger(nil)
 	dst := ir.Property{WireName: "id"}
 
-	dst = foldTwo(g, dst, ir.Property{WireName: "id", Visibility: readOnlyVisibility, Provenance: ptrAt("/other")}, unread(t))
+	dst = foldTwo(stubbed, dst, ir.Property{WireName: "id", Visibility: readOnlyVisibility, Provenance: ptrAt("/other")}, unread(t))
 
 	assert.Equal(t, readOnlyVisibility, dst.Visibility)
 }
@@ -37,10 +37,10 @@ func TestFold_VisibilityAdoptedFromRedeclaration(t *testing.T) {
 // take effect, so it is warned about under its own code.
 func TestFold_DisjointVisibilityIsARestrictionNotAConflict(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(nil)
+	stubbed, recorded := stubMerger(nil)
 	dst := ir.Property{WireName: "id", Visibility: readOnlyVisibility}
 
-	dst = foldTwo(g, dst, ir.Property{WireName: "id", Visibility: writeOnlyVisibility, Provenance: ptrAt("/other")}, unread(t))
+	dst = foldTwo(stubbed, dst, ir.Property{WireName: "id", Visibility: writeOnlyVisibility, Provenance: ptrAt("/other")}, unread(t))
 
 	assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, dst.Visibility)
 	require.Len(t, *recorded, 1, "an emptied visibility set is reported, not passed over in silence")
@@ -68,10 +68,10 @@ func TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(nil)
+			stubbed, recorded := stubMerger(nil)
 			dst := ir.Property{WireName: "id", Visibility: tc.dst}
 
-			dst = foldTwo(g, dst, ir.Property{WireName: "id", Visibility: tc.src, Provenance: ptrAt("/other")}, unread(t))
+			dst = foldTwo(stubbed, dst, ir.Property{WireName: "id", Visibility: tc.src, Provenance: ptrAt("/other")}, unread(t))
 
 			assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, dst.Visibility)
 			assert.Empty(t, *recorded, "None was already the answer; this merge announced nothing new")

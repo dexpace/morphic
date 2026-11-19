@@ -96,10 +96,10 @@ func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		{"misread", false, false},
 		{"plain", false, false},
 	} {
-		p, ok := openapitest.ParamBySource(op, tc.name)
+		parameter, ok := openapitest.ParamBySource(op, tc.name)
 		require.True(t, ok, tc.name)
-		assert.Equal(t, tc.secret, p.Secret, "parameter %s", tc.name)
-		assert.Equal(t, tc.marked, p.Provenance.Inferred == marker, "parameter %s marker", tc.name)
+		assert.Equal(t, tc.secret, parameter.Secret, "parameter %s", tc.name)
+		assert.Equal(t, tc.marked, parameter.Provenance.Inferred == marker, "parameter %s marker", tc.name)
 	}
 	owns, ok := openapitest.ParamBySource(op, "ownsNode")
 	require.True(t, ok)
@@ -107,9 +107,9 @@ func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 2)
-	for _, h := range op.Responses[0].Headers {
-		assert.True(t, h.Secret, h.WireName)
-		assert.Equal(t, marker, h.Provenance.Inferred, h.WireName)
+	for _, header := range op.Responses[0].Headers {
+		assert.True(t, header.Secret, header.WireName)
+		assert.Equal(t, marker, header.Provenance.Inferred, header.WireName)
 	}
 
 	login := secretModel(t, doc, "Login")
@@ -125,11 +125,11 @@ func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		{"misread", false, true},
 		{"plain", false, false},
 	} {
-		p, ok := propByWire(login, tc.wire)
+		property, ok := propByWire(login, tc.wire)
 		require.True(t, ok, tc.wire)
-		assert.Equal(t, tc.secret, p.Secret, "property %s", tc.wire)
-		assert.Equal(t, tc.secret, p.Provenance.Inferred == marker, "property %s marker", tc.wire)
-		_, kept := p.Unmodeled["openapi:x-sensitive"]
+		assert.Equal(t, tc.secret, property.Secret, "property %s", tc.wire)
+		assert.Equal(t, tc.secret, property.Provenance.Inferred == marker, "property %s marker", tc.wire)
+		_, kept := property.Unmodeled["openapi:x-sensitive"]
 		assert.Equal(t, tc.kept, kept, "property %s entry", tc.wire)
 	}
 	ownsProp, ok := propByWire(login, "ownsNode")
@@ -203,25 +203,25 @@ func redactionEntry(node map[string]any) (map[string]any, bool) {
 // mapOf returns the component name as a MapT.
 func mapOf(t *testing.T, doc *ir.Document, name string) *ir.MapT {
 	t.Helper()
-	m, ok := doc.Types[componentID(name)].(*ir.MapT)
+	mapT, ok := doc.Types[componentID(name)].(*ir.MapT)
 	require.True(t, ok, "%s is a map", name)
-	return m
+	return mapT
 }
 
 // listOf returns the component name as a List.
 func listOf(t *testing.T, doc *ir.Document, name string) *ir.List {
 	t.Helper()
-	l, ok := doc.Types[componentID(name)].(*ir.List)
+	list, ok := doc.Types[componentID(name)].(*ir.List)
 	require.True(t, ok, "%s is a list", name)
-	return l
+	return list
 }
 
 // unionOf returns the component name as a Union.
 func unionOf(t *testing.T, doc *ir.Document, name string) *ir.Union {
 	t.Helper()
-	u, ok := doc.Types[componentID(name)].(*ir.Union)
+	union, ok := doc.Types[componentID(name)].(*ir.Union)
 	require.True(t, ok, "%s is a union", name)
-	return u
+	return union
 }
 
 // wireNames spells segments by the wire names of the properties they name,
@@ -230,15 +230,15 @@ func unionOf(t *testing.T, doc *ir.Document, name string) *ir.Union {
 func wireNames(doc *ir.Document, segments []ir.PropertyID) []string {
 	names := map[ir.PropertyID]string{}
 	for _, td := range doc.Types {
-		if m, ok := td.(*ir.Model); ok {
-			for _, p := range m.Properties {
-				names[p.ID] = p.EffectiveWireName()
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				names[property.ID] = property.EffectiveWireName()
 			}
 		}
 	}
 	out := make([]string, len(segments))
-	for i, s := range segments {
-		out[i] = names[s]
+	for i, propertyID := range segments {
+		out[i] = names[propertyID]
 	}
 	return out
 }
@@ -254,9 +254,9 @@ func assertExtensionPagination(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	param := func(op ir.Operation, in *ir.InputPath) string {
 		require.NotNil(t, in)
 		require.NotNil(t, in.Param)
-		for _, p := range op.Params {
-			if p.ID == *in.Param {
-				return p.Name.Source
+		for _, parameter := range op.Params {
+			if parameter.ID == *in.Param {
+				return parameter.Name.Source
 			}
 		}
 		return ""
@@ -312,10 +312,10 @@ func assertExtensionServerName(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		"server/openapi/paths/~1stream/servers/0":     "stream",
 		"server/openapi/paths/~1stream/put/servers/0": "ingest",
 	} {
-		s, ok := doc.Servers[id]
+		server, ok := doc.Servers[id]
 		require.True(t, ok, id)
-		assert.Equal(t, ir.NamingFor(want), s.Name, id)
-		assert.Equal(t, marker, s.Provenance.Inferred, id)
+		assert.Equal(t, ir.NamingFor(want), server.Name, id)
+		assert.Equal(t, marker, server.Provenance.Inferred, id)
 	}
 	unnamed, ok := doc.Servers["server/openapi/servers/1"]
 	require.True(t, ok)

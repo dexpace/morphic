@@ -84,9 +84,9 @@ func TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords(t *testing.T) {
 			what, tc.row.Object, tc.row.Since, declared, tc.row.Since)
 		t.Run(tc.row.Object+"/"+tc.row.Key+"/"+tc.row.Value, func(t *testing.T) {
 			var got []ir.Diagnostic
-			for _, d := range run(t, declared, tc.kind, tc.doc) {
-				if d.Code == diag.LaterVersionConstruct {
-					got = append(got, d)
+			for _, diagnostic := range run(t, declared, tc.kind, tc.doc) {
+				if diagnostic.Code == diag.LaterVersionConstruct {
+					got = append(got, diagnostic)
 				}
 			}
 			require.Len(t, got, 1)
@@ -95,8 +95,8 @@ func TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords(t *testing.T) {
 			assert.Equal(t, "/"+tc.key, string(got[0].Provenance.Pointer))
 		})
 		t.Run(tc.row.Object+"/"+tc.row.Key+"/"+tc.row.Value+" at the minor that added it", func(t *testing.T) {
-			for _, d := range run(t, tc.row.Since+".0", tc.kind, tc.doc) {
-				assert.NotEqual(t, diag.LaterVersionConstruct, d.Code, d.Message)
+			for _, diagnostic := range run(t, tc.row.Since+".0", tc.kind, tc.doc) {
+				assert.NotEqual(t, diag.LaterVersionConstruct, diagnostic.Code, diagnostic.Message)
 			}
 		})
 	}
@@ -131,19 +131,19 @@ func TestCheck_AKeywordALaterDialectAddsIsWarnedOf(t *testing.T) {
 	obj, ok := specrules.Table().Object(specrules.Schema)
 	require.True(t, ok)
 	at30 := map[string]bool{}
-	for _, f := range obj.Fields {
-		if f.Defined.Holds(specrules.V30) {
-			at30[f.Name] = true
+	for _, field := range obj.Fields {
+		if field.Defined.Holds(specrules.V30) {
+			at30[field.Name] = true
 		}
 	}
 	var keywords []string
-	for _, f := range obj.Fields {
-		if f.Defined.Holds(specrules.V31) && !at30[f.Name] {
-			keywords = append(keywords, f.Name)
-			doc := "{" + f.Name + ": " + laterKeywordValue(f) + "}"
+	for _, field := range obj.Fields {
+		if field.Defined.Holds(specrules.V31) && !at30[field.Name] {
+			keywords = append(keywords, field.Name)
+			doc := "{" + field.Name + ": " + laterKeywordValue(field) + "}"
 			want := fmt.Sprintf("field %q of the Schema Object was added in OpenAPI 3.1, and this document declares "+
-				"3.0.3; it is lowered as in an OpenAPI 3.1 document", f.Name)
-			if f.Name == "$schema" {
+				"3.0.3; it is lowered as in an OpenAPI 3.1 document", field.Name)
+			if field.Name == "$schema" {
 				want = "field \"$schema\" of the Schema Object was added in OpenAPI 3.1, and this document declares " +
 					"3.0.3; a 3.0 schema is read in 3.0's own dialect whatever it names, so it is kept verbatim and chooses nothing"
 			}
@@ -151,7 +151,7 @@ func TestCheck_AKeywordALaterDialectAddsIsWarnedOf(t *testing.T) {
 			require.Len(t, diags, 1, doc)
 			assert.Equal(t, diag.LaterVersionConstruct, diags[0].Code, doc)
 			assert.Equal(t, ir.SeverityWarning, diags[0].Severity, doc)
-			assert.Equal(t, "/"+f.Name, string(diags[0].Provenance.Pointer), doc)
+			assert.Equal(t, "/"+field.Name, string(diags[0].Provenance.Pointer), doc)
 			assert.Equal(t, want, diags[0].Message, doc)
 			assert.Empty(t, run(t, "3.1.0", specrules.Schema, doc), "%s at the minor that added it", doc)
 		}
@@ -168,8 +168,8 @@ func TestCheck_AKeywordALaterDialectAddsIsWarnedOf(t *testing.T) {
 			[]finding{findingAtPointer(later, "/const"), findingAtPointer(later, "/prefixItems")}},
 		{"unknown keys are not reported", "3.1.0", specrules.Schema, `{madeUp: 1, x-ext: 2}`, nil},
 	})
-	for _, d := range run(t, "3.0.3", specrules.Schema, `{$ref: '#/a', const: 1}`) {
-		assert.Contains(t, d.Message, "beside the $ref", "the sibling's warning, not the keyword's")
+	for _, diagnostic := range run(t, "3.0.3", specrules.Schema, `{$ref: '#/a', const: 1}`) {
+		assert.Contains(t, diagnostic.Message, "beside the $ref", "the sibling's warning, not the keyword's")
 	}
 }
 
@@ -213,10 +213,10 @@ components:
 func TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct(t *testing.T) {
 	laterAt := func(version string) map[string]string {
 		got := map[string]string{}
-		for _, d := range run(t, version, specrules.Document, "openapi: "+version+"\n"+schemaRefSiblings) {
-			if d.Code == diag.LaterVersionConstruct {
-				assert.Equal(t, ir.SeverityWarning, d.Severity)
-				got[string(d.Provenance.Pointer)] = d.Message
+		for _, diagnostic := range run(t, version, specrules.Document, "openapi: "+version+"\n"+schemaRefSiblings) {
+			if diagnostic.Code == diag.LaterVersionConstruct {
+				assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+				got[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 			}
 		}
 		return got

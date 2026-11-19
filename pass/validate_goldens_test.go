@@ -20,13 +20,13 @@ import (
 func onTheGoldens(t *testing.T, run func(doc *ir.Document) []ir.Diagnostic, keep func(ir.Diagnostic) bool) []string {
 	t.Helper()
 	var out []string
-	for _, d := range sweepDocuments(t) {
-		if d.name == "reachDocument" {
+	for _, sweepDocument := range sweepDocuments(t) {
+		if sweepDocument.name == "reachDocument" {
 			continue
 		}
-		for _, diag := range run(d.doc) {
+		for _, diag := range run(sweepDocument.doc) {
 			if keep(diag) {
-				out = append(out, strings.TrimPrefix(d.name, "../testdata/")+" @ "+diag.Provenance.Node+": "+diag.Message)
+				out = append(out, strings.TrimPrefix(sweepDocument.name, "../testdata/")+" @ "+diag.Provenance.Node+": "+diag.Message)
 			}
 		}
 	}
@@ -40,7 +40,7 @@ func validatesOnce(t *testing.T) func(doc *ir.Document) []ir.Diagnostic {
 
 // withTheCode keeps the findings of code.
 func withTheCode(code string) func(ir.Diagnostic) bool {
-	return func(d ir.Diagnostic) bool { return d.Code == code }
+	return func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == code }
 }
 
 const (
@@ -113,8 +113,8 @@ func TestNames_HeaderCollisionsFireOnTheGoldenHoldingOneAndInheritedPropertiesOn
 		return diags
 	}
 	scope := func(word string) func(ir.Diagnostic) bool {
-		return func(d ir.Diagnostic) bool {
-			return d.Code == "pass/name-collision" && strings.Contains(d.Message, ", "+word)
+		return func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Code == "pass/name-collision" && strings.Contains(diagnostic.Message, ", "+word)
 		}
 	}
 
@@ -123,7 +123,7 @@ func TestNames_HeaderCollisionsFireOnTheGoldenHoldingOneAndInheritedPropertiesOn
 			`response "200", headers 0 ("x-rate") and 1 ("X-Rate") share the neutral name "x_rate", ` +
 			"so a target can tell them apart only by ID",
 	}, onTheGoldens(t, names, scope("response ")))
-	assert.Empty(t, onTheGoldens(t, names, func(d ir.Diagnostic) bool { return strings.Contains(d.Message, "exposed propert") }))
+	assert.Empty(t, onTheGoldens(t, names, func(diagnostic ir.Diagnostic) bool { return strings.Contains(diagnostic.Message, "exposed propert") }))
 	assert.Empty(t, onTheGoldens(t, names, scope("error ")))
 	assert.Empty(t, onTheGoldens(t, names, scope("common error ")))
 	assert.Empty(t, onTheGoldens(t, names, scope("the default response")))

@@ -95,8 +95,8 @@ func TestAuthKind_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := declaredConstsOfType(t, "AuthKind")
 	require.NotEmpty(t, declared, "the ir sources must declare AuthKind constants")
-	for _, c := range declared {
-		assert.True(t, ir.AuthKind(c.Value).Valid(), "declared mechanism %q must be Valid", c.Value)
+	for _, declaredConst := range declared {
+		assert.True(t, ir.AuthKind(declaredConst.Value).Valid(), "declared mechanism %q must be Valid", declaredConst.Value)
 	}
 }
 

@@ -281,9 +281,9 @@ func TestAdmitsFormat_SharesNoStringWithAKind(t *testing.T) {
 		ir.PrimitiveURL:            {"urn:t:23:59:59Z", "http://h/23:59:59Z"},
 	}
 	all := slices.Clone(times)
-	for k, ss := range samples {
+	for primitiveKind, ss := range samples {
 		for _, s := range ss {
-			require.True(t, Admits(k, str(s)), "%q is a value of %s", s, k)
+			require.True(t, Admits(primitiveKind, str(s)), "%q is a value of %s", s, primitiveKind)
 		}
 		all = append(all, ss...)
 	}
@@ -296,15 +296,15 @@ func TestAdmitsFormat_SharesNoStringWithAKind(t *testing.T) {
 	require.NoError(t, err)
 	consts, err := pkg.StringConsts("PrimitiveKind")
 	require.NoError(t, err)
-	for _, c := range consts {
-		k := ir.PrimitiveKind(c.Value)
-		if k == ir.PrimitiveBytes || typeformat.Relate(k, ir.PrimitiveString) != typeformat.ANarrower {
+	for _, declaredConst := range consts {
+		primitiveKind := ir.PrimitiveKind(declaredConst.Value)
+		if primitiveKind == ir.PrimitiveBytes || typeformat.Relate(primitiveKind, ir.PrimitiveString) != typeformat.ANarrower {
 			continue
 		}
-		assert.NotEmpty(t, samples[k], "%s refines string and has no sample", k)
+		assert.NotEmpty(t, samples[primitiveKind], "%s refines string and has no sample", primitiveKind)
 		for _, s := range all {
 			inTime, _ := admitsFormat("time", str(s))
-			assert.False(t, inTime && Admits(k, str(s)), "%q is both a time and a value of %s", s, k)
+			assert.False(t, inTime && Admits(primitiveKind, str(s)), "%q is both a time and a value of %s", s, primitiveKind)
 		}
 	}
 }
@@ -314,9 +314,9 @@ func TestAdmitsFormat_SharesNoStringWithAKind(t *testing.T) {
 func TestAdmits_ReadsAHugeExponentWithoutMaterializingIt(t *testing.T) {
 	t.Parallel()
 	start := time.Now()
-	for _, k := range []ir.PrimitiveKind{ir.PrimitiveInt64, ir.PrimitiveUint64, ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveDecimal128} {
-		assert.False(t, Admits(k, num("1e1000001")), "%s", k)
-		assert.False(t, Admits(k, num("1e99999999999999999999")), "%s", k)
+	for _, primitiveKind := range []ir.PrimitiveKind{ir.PrimitiveInt64, ir.PrimitiveUint64, ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveDecimal128} {
+		assert.False(t, Admits(primitiveKind, num("1e1000001")), "%s", primitiveKind)
+		assert.False(t, Admits(primitiveKind, num("1e99999999999999999999")), "%s", primitiveKind)
 	}
 	assert.Less(t, time.Since(start), 5*time.Second)
 }
@@ -326,15 +326,15 @@ func TestAdmits_ReadsAHugeExponentWithoutMaterializingIt(t *testing.T) {
 // past the exponent range a BigVal holds, and a value that is no number at all.
 func TestDecimalOf_DeclinesWhatIsNoReadableNumber(t *testing.T) {
 	t.Parallel()
-	for _, v := range []ir.Value{num("1p4"), num("1e1000000000000000000"), str("1")} {
-		_, ok := decimalOf(v)
+	for _, value := range []ir.Value{num("1p4"), num("1e1000000000000000000"), str("1")} {
+		_, ok := decimalOf(value)
 
-		assert.False(t, ok, "%v", v)
+		assert.False(t, ok, "%v", value)
 	}
 
-	d, ok := decimalOf(num("1e1000001"))
+	decimal, ok := decimalOf(num("1e1000001"))
 	assert.True(t, ok)
-	assert.Equal(t, int64(1000001), d.Exponent())
+	assert.Equal(t, int64(1000001), decimal.Exponent())
 }
 
 // TestInRange_DeclinesABoundThatReadsAsNoNumber pins the second half of the

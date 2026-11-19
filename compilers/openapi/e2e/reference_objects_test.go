@@ -72,8 +72,8 @@ func (s refSpec) inBothOrders(t *testing.T, check func(t *testing.T, doc *ir.Doc
 // order.
 func sitedFindings(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 	}
 	return out
 }
@@ -176,9 +176,9 @@ func TestReferenceObjects_AnEndingSlashNamesAnEmptyMember(t *testing.T) {
 	for _, where := range []string{"#/", "ext.yaml#/"} {
 		t.Run(where+" none", func(t *testing.T) {
 			t.Parallel()
-			s := refSpec{spec: head + fmt.Sprintf(ops, where) + "x-params:\n  q: " + object + "\n", disk: true,
+			refSpecValue := refSpec{spec: head + fmt.Sprintf(ops, where) + "x-params:\n  q: " + object + "\n", disk: true,
 				others: map[string]string{"ext.yaml": "x-params:\n  q: " + object + "\n"}}
-			s.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+			refSpecValue.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 				t.Helper()
 				assert.Equal(t, []string{"error " + diag.UnresolvedRef + " /paths/~1a/get/parameters/0: unresolved $ref \"" +
 					where + "x-params/q/\": it names nothing in the document it points into"}, placedFindings(diags))
@@ -187,8 +187,8 @@ func TestReferenceObjects_AnEndingSlashNamesAnEmptyMember(t *testing.T) {
 			})
 		})
 	}
-	s := refSpec{spec: head + fmt.Sprintf(ops, "#/") + "x-params:\n  q: {\"\": " + object + ", name: r, in: query, schema: {type: string}}\n"}
-	s.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	otherRefSpec := refSpec{spec: head + fmt.Sprintf(ops, "#/") + "x-params:\n  q: {\"\": " + object + ", name: r, in: query, schema: {type: string}}\n"}
+	otherRefSpec.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		t.Helper()
 		assertNoErrorDiags(t, diags)
 		op, ok := opByName(doc, "a")
@@ -436,9 +436,9 @@ x-raw:
 `}.inBothOrders(t, func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
 		t.Helper()
 		got := sitedFindings(diags)
-		for _, d := range diags {
-			if d.Code == diag.UnresolvedRef {
-				assert.Contains(t, d.Message, ": it names a position that holds no parameter", d.Provenance.Pointer)
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.UnresolvedRef {
+				assert.Contains(t, diagnostic.Message, ": it names a position that holds no parameter", diagnostic.Provenance.Pointer)
 			}
 		}
 		const unresolved = "error " + diag.UnresolvedRef + " /paths/~1a/get/parameters/"
@@ -552,9 +552,9 @@ components:
 			op, ok := opByName(doc, "a")
 			require.True(t, ok)
 			require.Len(t, op.Responses, 1)
-			h, ok := headerByWire(op.Responses[0].Headers, "X-Rate")
+			header, ok := headerByWire(op.Responses[0].Headers, "X-Rate")
 			require.True(t, ok, "the header lowers")
-			assert.Equal(t, ir.TypeID("type/primitive/integer"), h.Type.Target)
+			assert.Equal(t, ir.TypeID("type/primitive/integer"), header.Type.Target)
 			assert.Len(t, firstContent(t, op).Examples, 1, "the example lowers")
 		})
 	})
@@ -663,7 +663,7 @@ x-r:
 // $ref naming another document fails at the source.
 func TestReferenceObjects_AChainCrossesDocuments(t *testing.T) {
 	t.Parallel()
-	s := refSpec{spec: `openapi: 3.1.0
+	refSpecValue := refSpec{spec: `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:
@@ -677,9 +677,9 @@ components:
 `, others: map[string]string{"ext.yaml": "P: {$ref: 'root.yaml#/components/parameters/Q'}\nF: {$ref: '#/Missing'}\n"}}
 	t.Run("read", func(t *testing.T) {
 		t.Parallel()
-		s := s
-		s.disk = true
-		s.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+		refSpec := refSpecValue
+		refSpec.disk = true
+		refSpec.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 			t.Helper()
 			require.Len(t, diags, 1)
 			assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/F"}, ir.Provenance{Source: diags[0].Provenance.Source,
@@ -692,7 +692,7 @@ components:
 	})
 	t.Run("unread", func(t *testing.T) {
 		t.Parallel()
-		s.inBothOrders(t, func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
+		refSpecValue.inBothOrders(t, func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
 			t.Helper()
 			const off = `": it names another document, and external references are not read`
 			assert.Equal(t, []string{
@@ -722,9 +722,9 @@ components:
     S: {$ref: '#/paths/~1a/get/responses/404/content/application~1json/schema'}
 `)
 	assert.Empty(t, diags)
-	s, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")].(*ir.Scalar)
+	scalar, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")].(*ir.Scalar)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("type/anonymous/components/responses/NotFound/content/application~1json/schema"), s.Base.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/responses/NotFound/content/application~1json/schema"), scalar.Base.Target)
 }
 
 // TestReferenceObjects_AnEndInAnotherDocumentIsDeclaredThere pins a schema $ref
@@ -808,8 +808,8 @@ paths:
 		"error " + diag.UnresolvedRef + " /paths/~1a/get/responses/200",
 		"error " + diag.UnresolvedRef + " /paths/~1a/get/responses/201/content/application~1json/schema",
 	}, sitedFindings(diags))
-	for _, d := range diags {
-		assert.Contains(t, d.Message, "https://example.com/api/other.yaml", "both kinds read the URL")
+	for _, diagnostic := range diags {
+		assert.Contains(t, diagnostic.Message, "https://example.com/api/other.yaml", "both kinds read the URL")
 	}
 }
 

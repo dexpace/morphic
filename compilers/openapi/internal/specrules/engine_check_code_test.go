@@ -197,8 +197,8 @@ func TestCheck_EncodingsApplyWhereTheSpecificationSays(t *testing.T) {
 		{"positional encodings under multipart", "3.2.0", specrules.RequestBody, body("multipart/mixed", "prefixEncoding: [], itemEncoding: {}"), nil},
 		{"a component's name is no media type", "3.2.0", specrules.Components, "{mediaTypes: {JSON: {encoding: {}}}}", nil},
 	})
-	for _, d := range run(t, "3.1.0", specrules.RequestBody, body("application/json", "encoding: {}")) {
-		assert.Equal(t, ir.SeverityWarning, d.Severity)
+	for _, diagnostic := range run(t, "3.1.0", specrules.RequestBody, body("application/json", "encoding: {}")) {
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
 	}
 }
 
@@ -226,8 +226,8 @@ func TestCheck_NullableAppliesBesideAType(t *testing.T) {
 			[]finding{findingAtPointer(inert, nullable), findingAtPointer(mismatch, "/$ref")}},
 		{"in 3.1", "3.1.0", specrules.Schema, "{nullable: true}", nil},
 	})
-	for _, d := range run(t, "3.0.3", specrules.Schema, "{nullable: true}") {
-		assert.Equal(t, ir.SeverityWarning, d.Severity)
+	for _, diagnostic := range run(t, "3.0.3", specrules.Schema, "{nullable: true}") {
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
 	}
 }
 

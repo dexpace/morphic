@@ -30,9 +30,9 @@ type tagReadings struct {
 	read map[readKey]tagSet
 }
 
-// readingsOf returns the run's tagReadings, which every copy of c shares.
-func readingsOf(c lowering.Ctx) *tagReadings {
-	return lowering.Settled(c, func() *tagReadings { return &tagReadings{read: map[readKey]tagSet{}} })
+// readingsOf returns the run's tagReadings, which every copy of loweringContext shares.
+func readingsOf(loweringContext lowering.Ctx) *tagReadings {
+	return lowering.Settled(loweringContext, func() *tagReadings { return &tagReadings{read: map[readKey]tagSet{}} })
 }
 
 // stored reports whether r holds a reading, which no settlement rewriting
@@ -48,19 +48,19 @@ func (r *tagReadings) object(reg ir.TypeRegistry, flat ir.Flattening, member ir.
 	if ok {
 		got = r.member(reg, member)
 	}
-	for _, k := range conjunctKeys(reg, flat, name) {
-		got = meet(got, r.fold(reg, k))
+	for _, readKey := range conjunctKeys(reg, flat, name) {
+		got = meet(got, r.fold(reg, readKey))
 	}
 	return got
 }
 
-// member returns what every declaration of p admits, as an instance meets
+// member returns what every declaration of flatProperty admits, as an instance meets
 // them all: the one it takes and those it overrides.
-func (r *tagReadings) member(reg ir.TypeRegistry, p ir.FlatProperty) tagSet {
-	for _, k := range memberKeys(reg, p) {
-		r.fold(reg, k)
+func (r *tagReadings) member(reg ir.TypeRegistry, flatProperty ir.FlatProperty) tagSet {
+	for _, readKey := range memberKeys(reg, flatProperty) {
+		r.fold(reg, readKey)
 	}
-	return r.memberOf(reg, p)
+	return r.memberOf(reg, flatProperty)
 }
 
 // fold reads root and each reading it reaches not read yet, once a run, on
@@ -72,26 +72,26 @@ func (r *tagReadings) fold(reg ir.TypeRegistry, root readKey) tagSet {
 	if got, read := r.read[root]; read {
 		return got
 	}
-	w := componentWalk{index: map[readKey]int{}, low: map[readKey]int{}, opened: map[readKey]readFrame{}}
-	w.enter(reg, root)
-	for len(w.path) > 0 {
-		f := &w.path[len(w.path)-1]
-		if f.next < len(f.kids) {
-			kid := f.kids[f.next]
-			f.next++
+	componentWalkValue := componentWalk{index: map[readKey]int{}, low: map[readKey]int{}, opened: map[readKey]readFrame{}}
+	componentWalkValue.enter(reg, root)
+	for len(componentWalkValue.path) > 0 {
+		readFrame := &componentWalkValue.path[len(componentWalkValue.path)-1]
+		if readFrame.next < len(readFrame.kids) {
+			kid := readFrame.kids[readFrame.next]
+			readFrame.next++
 			if _, read := r.read[kid]; read {
 				continue
 			}
-			if _, seen := w.index[kid]; !seen {
-				w.enter(reg, kid)
+			if _, seen := componentWalkValue.index[kid]; !seen {
+				componentWalkValue.enter(reg, kid)
 				continue
 			}
-			w.low[f.key] = min(w.low[f.key], w.index[kid]) // on the stack, as no component holding it is read
+			componentWalkValue.low[readFrame.key] = min(componentWalkValue.low[readFrame.key], componentWalkValue.index[kid]) // on the stack, as no component holding it is read
 			continue
 		}
-		done := w.leave()
-		if w.low[done.key] == w.index[done.key] {
-			r.readComponent(reg, &w, done.key)
+		done := componentWalkValue.leave()
+		if componentWalkValue.low[done.key] == componentWalkValue.index[done.key] {
+			r.readComponent(reg, &componentWalkValue, done.key)
 		}
 	}
 	return r.read[root]
@@ -110,45 +110,45 @@ const maxComponentSweeps = 64
 // keep their order, so each sweep reads every member off the sweep before,
 // from any value down: each is sound, the last is the answer, and none turns
 // on the order of the members.
-func (r *tagReadings) readComponent(reg ir.TypeRegistry, w *componentWalk, root readKey) {
-	i := len(w.stack) - 1
-	for w.stack[i] != root {
+func (r *tagReadings) readComponent(reg ir.TypeRegistry, componentWalkValue *componentWalk, root readKey) {
+	i := len(componentWalkValue.stack) - 1
+	for componentWalkValue.stack[i] != root {
 		i--
 	}
-	component := w.stack[i:]
+	component := componentWalkValue.stack[i:]
 	if root.object {
-		r.sweep(reg, w, component)
+		r.sweep(reg, componentWalkValue, component)
 	} else {
 		cycle := make(map[readKey]bool, len(component))
-		for _, k := range component {
-			cycle[k] = true
+		for _, readKey := range component {
+			cycle[readKey] = true
 		}
-		for _, k := range component {
-			r.read[k] = r.combine(reg, w.opened[k], cycle)
+		for _, readKey := range component {
+			r.read[readKey] = r.combine(reg, componentWalkValue.opened[readKey], cycle)
 		}
 	}
-	for _, k := range component {
-		delete(w.opened, k)
+	for _, readKey := range component {
+		delete(componentWalkValue.opened, readKey)
 	}
-	w.stack = w.stack[:i]
+	componentWalkValue.stack = componentWalkValue.stack[:i]
 }
 
 // sweep reads each member of the component of object readings off what the
 // sweep before read, the first off any value, until a sweep changes none or
 // maxComponentSweeps are made.
-func (r *tagReadings) sweep(reg ir.TypeRegistry, w *componentWalk, component []readKey) {
-	for _, k := range component {
-		r.read[k] = anything()
+func (r *tagReadings) sweep(reg ir.TypeRegistry, componentWalkValue *componentWalk, component []readKey) {
+	for _, readKey := range component {
+		r.read[readKey] = anything()
 	}
 	next := make([]tagSet, len(component))
 	for range maxComponentSweeps {
-		for i, k := range component {
-			next[i] = r.combine(reg, w.opened[k], nil)
+		for i, readKey := range component {
+			next[i] = r.combine(reg, componentWalkValue.opened[readKey], nil)
 		}
 		changed := false
-		for i, k := range component {
-			if !sameSet(next[i], r.read[k]) {
-				r.read[k], changed = next[i], true
+		for i, readKey := range component {
+			if !sameSet(next[i], r.read[readKey]) {
+				r.read[readKey], changed = next[i], true
 			}
 		}
 		if !changed {
@@ -162,71 +162,71 @@ func sameSet(a, b tagSet) bool {
 	return a.closed == b.closed && a.null == b.null && slices.Equal(a.strings, b.strings)
 }
 
-// combine returns what the reading f opened admits, once each reading it
+// combine returns what the reading readFrameValue opened admits, once each reading it
 // names is read, or is in its component and read as far as readComponent
 // has. A value reading naming a union in cycle, its component, bounds nothing.
-func (r *tagReadings) combine(reg ir.TypeRegistry, f readFrame, cycle map[readKey]bool) tagSet {
-	if !f.key.object {
-		u := unionNode(reg, f.key.id)
-		sets := make([]tagSet, len(u.Variants))
-		for i, v := range u.Variants {
-			if id, _ := throughAliases(reg, v.Type.Target); cycle[readKey{id: id}] {
+func (r *tagReadings) combine(reg ir.TypeRegistry, readFrameValue readFrame, cycle map[readKey]bool) tagSet {
+	if !readFrameValue.key.object {
+		union := unionNode(reg, readFrameValue.key.id)
+		sets := make([]tagSet, len(union.Variants))
+		for i, variant := range union.Variants {
+			if id, _ := throughAliases(reg, variant.Type.Target); cycle[readKey{id: id}] {
 				return anything() // a union on a cycle of unions bounds nothing
 			}
-			sets[i] = r.refOf(reg, v.Type)
+			sets[i] = r.refOf(reg, variant.Type)
 		}
-		return closedJoin(u, sets)
+		return closedJoin(union, sets)
 	}
-	if u := unionNode(reg, f.key.id); u != nil {
-		sets := make([]tagSet, len(u.Variants))
-		for i, v := range u.Variants {
+	if union := unionNode(reg, readFrameValue.key.id); union != nil {
+		sets := make([]tagSet, len(union.Variants))
+		for i, variant := range union.Variants {
 			sets[i] = anything()
-			if k, ok := instanceKey(reg, v.Type.Target, f.key.name); ok {
-				sets[i] = r.read[k]
+			if readKey, ok := instanceKey(reg, variant.Type.Target, readFrameValue.key.name); ok {
+				sets[i] = r.read[readKey]
 			}
 		}
-		return closedJoin(u, sets)
+		return closedJoin(union, sets)
 	}
 	got := anything() // a model's, as no object reading keys another node
-	if p, ok := flatMember(f.flat, f.key.name); ok {
-		got = r.memberOf(reg, p)
+	if flatProperty, ok := flatMember(readFrameValue.flat, readFrameValue.key.name); ok {
+		got = r.memberOf(reg, flatProperty)
 	}
-	for _, k := range conjunctKeys(reg, f.flat, f.key.name) {
-		got = meet(got, r.read[k])
+	for _, readKey := range conjunctKeys(reg, readFrameValue.flat, readFrameValue.key.name) {
+		got = meet(got, r.read[readKey])
 	}
 	return got
 }
 
-// closedJoin is join over the variants of u, or any value for a union not
+// closedJoin is join over the variants of union, or any value for a union not
 // closed.
-func closedJoin(u *ir.Union, sets []tagSet) tagSet {
-	if !u.Closed {
+func closedJoin(union *ir.Union, sets []tagSet) tagSet {
+	if !union.Closed {
 		return anything()
 	}
 	return join(sets)
 }
 
-// refOf returns what a value t names admits, read through alias scalars, with
-// the null t or an alias it is read through admits: what the value reading of
+// refOf returns what a value typeRef names admits, read through alias scalars, with
+// the null typeRef or an alias it is read through admits: what the value reading of
 // a union holds, which fold must have read, and leaf's for any other node,
 // read once a run, as many declarations name one Enum.
-func (r *tagReadings) refOf(reg ir.TypeRegistry, t ir.TypeRef) tagSet {
-	id, null := throughAliases(reg, t.Target)
-	k := readKey{id: id}
-	got, read := r.read[k]
+func (r *tagReadings) refOf(reg ir.TypeRegistry, typeRef ir.TypeRef) tagSet {
+	id, null := throughAliases(reg, typeRef.Target)
+	readKeyValue := readKey{id: id}
+	got, read := r.read[readKeyValue]
 	if !read { // no union, which fold reads first
 		got = leaf(reg[id])
-		r.read[k] = got
+		r.read[readKeyValue] = got
 	}
-	got.null = got.null || null || t.Nullable
+	got.null = got.null || null || typeRef.Nullable
 	return got
 }
 
-// memberOf returns what every declaration of p admits, each as refOf reads it.
-func (r *tagReadings) memberOf(reg ir.TypeRegistry, p ir.FlatProperty) tagSet {
-	got := r.refOf(reg, p.Property.Type)
-	for _, d := range p.Overridden {
-		got = meet(got, r.refOf(reg, d.Property.Type))
+// memberOf returns what every declaration of flatProperty admits, each as refOf reads it.
+func (r *tagReadings) memberOf(reg ir.TypeRegistry, flatProperty ir.FlatProperty) tagSet {
+	got := r.refOf(reg, flatProperty.Property.Type)
+	for _, propertyDecl := range flatProperty.Overridden {
+		got = meet(got, r.refOf(reg, propertyDecl.Property.Type))
 	}
 	return got
 }
@@ -250,13 +250,13 @@ type readFrame struct {
 	flat ir.Flattening
 }
 
-// enter numbers k, stacks it, and puts what it names on the path.
-func (w *componentWalk) enter(reg ir.TypeRegistry, k readKey) {
-	w.index[k], w.low[k] = len(w.index), len(w.index)
-	w.stack = append(w.stack, k)
-	w.path = append(w.path, readFrame{key: k, kids: nil})
-	f := &w.path[len(w.path)-1]
-	f.kids, f.flat = children(reg, k)
+// enter numbers readKeyValue, stacks it, and puts what it names on the path.
+func (w *componentWalk) enter(reg ir.TypeRegistry, readKeyValue readKey) {
+	w.index[readKeyValue], w.low[readKeyValue] = len(w.index), len(w.index)
+	w.stack = append(w.stack, readKeyValue)
+	w.path = append(w.path, readFrame{key: readKeyValue, kids: nil})
+	readFrameValue := &w.path[len(w.path)-1]
+	readFrameValue.kids, readFrameValue.flat = children(reg, readKeyValue)
 }
 
 // leave takes the reading every kid of which is visited off the path, keeps
@@ -272,37 +272,37 @@ func (w *componentWalk) leave() readFrame {
 	return done
 }
 
-// children returns the readings k names, and a model's flattening for an
+// children returns the readings readKeyValue names, and a model's flattening for an
 // object reading of one: a union's variants that are unions, for a value
 // reading; and for an object reading, a model's member's declarations that are
 // unions and the closed unions it composes, or a union's variants that are
 // models or unions.
-func children(reg ir.TypeRegistry, k readKey) ([]readKey, ir.Flattening) {
+func children(reg ir.TypeRegistry, readKeyValue readKey) ([]readKey, ir.Flattening) {
 	var kids []readKey
-	if u := unionNode(reg, k.id); u != nil {
-		for _, v := range u.Variants {
-			if !k.object {
-				if id, _ := throughAliases(reg, v.Type.Target); unionNode(reg, id) != nil {
+	if union := unionNode(reg, readKeyValue.id); union != nil {
+		for _, variant := range union.Variants {
+			if !readKeyValue.object {
+				if id, _ := throughAliases(reg, variant.Type.Target); unionNode(reg, id) != nil {
 					kids = append(kids, readKey{id: id})
 				}
-			} else if kid, ok := instanceKey(reg, v.Type.Target, k.name); ok {
+			} else if kid, ok := instanceKey(reg, variant.Type.Target, readKeyValue.name); ok {
 				kids = append(kids, kid)
 			}
 		}
 		return kids, ir.Flattening{}
 	}
-	flat := ir.FlattenedProperties(reg, k.id) // a model's, as no other reading keys another node
-	if p, ok := flatMember(flat, k.name); ok {
-		kids = memberKeys(reg, p)
+	flat := ir.FlattenedProperties(reg, readKeyValue.id) // a model's, as no other reading keys another node
+	if flatProperty, ok := flatMember(flat, readKeyValue.name); ok {
+		kids = memberKeys(reg, flatProperty)
 	}
-	return append(kids, conjunctKeys(reg, flat, k.name)...), flat
+	return append(kids, conjunctKeys(reg, flat, readKeyValue.name)...), flat
 }
 
-// memberKeys returns the value readings of the unions p's declarations name.
-func memberKeys(reg ir.TypeRegistry, p ir.FlatProperty) []readKey {
+// memberKeys returns the value readings of the unions flatProperty's declarations name.
+func memberKeys(reg ir.TypeRegistry, flatProperty ir.FlatProperty) []readKey {
 	var keys []readKey
-	for _, t := range append([]ir.TypeRef{p.Property.Type}, declTypes(p.Overridden)...) {
-		if id, _ := throughAliases(reg, t.Target); unionNode(reg, id) != nil {
+	for _, typeRef := range append([]ir.TypeRef{flatProperty.Property.Type}, declTypes(flatProperty.Overridden)...) {
+		if id, _ := throughAliases(reg, typeRef.Target); unionNode(reg, id) != nil {
 			keys = append(keys, readKey{id: id})
 		}
 	}
@@ -312,8 +312,8 @@ func memberKeys(reg ir.TypeRegistry, p ir.FlatProperty) []readKey {
 // declTypes returns the type each of decls declares.
 func declTypes(decls []ir.PropertyDecl) []ir.TypeRef {
 	types := make([]ir.TypeRef, len(decls))
-	for i, d := range decls {
-		types[i] = d.Property.Type
+	for i, propertyDecl := range decls {
+		types[i] = propertyDecl.Property.Type
 	}
 	return types
 }

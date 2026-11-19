@@ -17,13 +17,13 @@ import (
 // plus the leaf each target names, so the document is referentially closed and
 // the only thing a violation can be about is the union itself.
 func unionOf(targets ...ir.TypeID) *ir.Document {
-	u := &ir.Union{
+	union := &ir.Union{
 		ID:   "type/x/U",
 		Name: ir.Naming{Source: "U", Canonical: "u"},
 	}
-	types := ir.TypeRegistry{u.ID: u}
+	types := ir.TypeRegistry{union.ID: union}
 	for _, target := range targets {
-		u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: target}})
+		union.Variants = append(union.Variants, ir.Variant{Type: ir.TypeRef{Target: target}})
 		types[target] = &ir.Scalar{
 			ID:   target,
 			Name: ir.Naming{Source: "Leaf", Canonical: "leaf"},
@@ -43,9 +43,9 @@ const (
 func unionViolations(t *testing.T, doc *ir.Document, code string) []irverify.Violation {
 	t.Helper()
 	var out []irverify.Violation
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == code {
-			out = append(out, v)
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == code {
+			out = append(out, violation)
 		}
 	}
 	return out
@@ -137,9 +137,9 @@ func TestVerify_UnionTagModes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := unionOf("type/x/Leaf")
-			u, ok := doc.Types["type/x/U"].(*ir.Union)
+			union, ok := doc.Types["type/x/U"].(*ir.Union)
 			require.True(t, ok)
-			u.WireTagged, u.Discriminator = tc.wireTagged, tc.disc
+			union.WireTagged, union.Discriminator = tc.wireTagged, tc.disc
 
 			got := unionViolations(t, doc, codeUntagged)
 			if !tc.reported {
@@ -159,9 +159,9 @@ func TestVerify_UnionTagModes(t *testing.T) {
 func TestVerify_EmptyUntaggedDiscriminatedUnionReportsBoth(t *testing.T) {
 	t.Parallel()
 	doc := unionOf()
-	u, ok := doc.Types["type/x/U"].(*ir.Union)
+	union, ok := doc.Types["type/x/U"].(*ir.Union)
 	require.True(t, ok)
-	u.Discriminator = &ir.Discriminator{PropertyName: "type"}
+	union.Discriminator = &ir.Discriminator{PropertyName: "type"}
 
 	assert.Len(t, unionViolations(t, doc, codeNoVariants), 1)
 	assert.Len(t, unionViolations(t, doc, codeUntagged), 1)

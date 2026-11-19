@@ -145,9 +145,9 @@ func cycleFixtureFiles() []string {
 // cyclicRefSites returns the pointers diags report a cyclic $ref at, in order.
 func cyclicRefSites(diags []ir.Diagnostic) []string {
 	var sites []string
-	for _, d := range diags {
-		if d.Code == diag.CyclicRef {
-			sites = append(sites, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.CyclicRef {
+			sites = append(sites, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	return sites
@@ -402,8 +402,8 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 			require.NotNil(t, doc, "a loop of schema $refs does not refuse the document")
 
 			got := make([]report, 0, len(diags))
-			for _, d := range diags {
-				got = append(got, report{d.Code, d.Severity, string(d.Provenance.Pointer)})
+			for _, diagnostic := range diags {
+				got = append(got, report{diagnostic.Code, diagnostic.Severity, string(diagnostic.Provenance.Pointer)})
 			}
 			assert.Equal(t, tc.diags, got, "the whole report, in order; got %+v", diags)
 			if tc.why != "" {
@@ -464,13 +464,13 @@ func TestCompile_ALoopThroughAnotherDocumentIsReportedOnce(t *testing.T) {
 			require.NotNil(t, doc, "%s: the rest of the document lowers", tc.name)
 			var sites []ir.Provenance
 			var seen []string
-			for _, d := range diags {
-				if d.Code == diag.CyclicRef {
-					sites = append(sites, d.Provenance)
-					assert.Equal(t, tc.names, strings.Contains(d.Message, " in "+filepath.Join(dir, "other.yaml")),
-						"%s: a member of the other document is named by its name: %s", tc.name, d.Message)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.CyclicRef {
+					sites = append(sites, diagnostic.Provenance)
+					assert.Equal(t, tc.names, strings.Contains(diagnostic.Message, " in "+filepath.Join(dir, "other.yaml")),
+						"%s: a member of the other document is named by its name: %s", tc.name, diagnostic.Message)
 				}
-				seen = append(seen, fmt.Sprintf("%s %d%s %s", d.Code, d.Provenance.Source, d.Provenance.Pointer, d.Message))
+				seen = append(seen, fmt.Sprintf("%s %d%s %s", diagnostic.Code, diagnostic.Provenance.Source, diagnostic.Provenance.Pointer, diagnostic.Message))
 			}
 			assert.Equal(t, []ir.Provenance{tc.site}, sites, "%s, reversed=%t: %+v", tc.name, reversed, diags)
 			slices.Sort(seen)
@@ -497,9 +497,9 @@ func TestCompile_AFailingChainOfReferenceObjectsIsReportedOnce(t *testing.T) {
 				[]compilers.Source{{Path: tc.file + ".yaml", Data: data}}, compilers.Options{})
 			require.NoError(t, err, "a failing reference is a spec problem, not a Go error")
 			var reports []string
-			for _, d := range diags {
-				if d.Severity == ir.SeverityError {
-					reports = append(reports, d.Code+" "+string(d.Provenance.Pointer))
+			for _, diagnostic := range diags {
+				if diagnostic.Severity == ir.SeverityError {
+					reports = append(reports, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 				}
 			}
 			assert.Equal(t, []string{tc.code + " " + tc.at}, reports, "%+v", diags)
@@ -529,9 +529,9 @@ components:
 		[]compilers.Source{{Path: "anchor.yaml", Data: []byte(src)}}, compilers.Options{})
 	require.NoError(t, err, "an unresolved anchor reference is a spec problem, not a Go error")
 	require.NotNil(t, doc, "the document is no longer refused as a cycle")
-	for _, d := range diags {
-		assert.NotEqual(t, diag.CyclicRef, d.Code,
-			"'#x-s' names a $anchor, which the resolver's pointer walk never enters: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.CyclicRef, diagnostic.Code,
+			"'#x-s' names a $anchor, which the resolver's pointer walk never enters: %+v", diagnostic)
 	}
 	openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/A"),
@@ -730,8 +730,8 @@ func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 				[]compilers.Source{{Path: tc.name + ".yaml", Data: []byte(tc.data)}}, compilers.Options{})
 			require.NoError(t, err)
 			assert.NotNil(t, doc, "a legal ref-shaped-data spec must still lower")
-			for _, d := range diags {
-				assert.NotEqualf(t, diag.CyclicRef, d.Code, "must not refuse as a cyclic ref: %+v", d)
+			for _, diagnostic := range diags {
+				assert.NotEqualf(t, diag.CyclicRef, diagnostic.Code, "must not refuse as a cyclic ref: %+v", diagnostic)
 			}
 		})
 	}
@@ -780,9 +780,9 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 		compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "a legal document is still compiled")
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "no diagnostic refuses the source: %+v", d)
-		assert.NotEqual(t, diag.CycleScanFailed, d.Code, "the alias scan completes: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "no diagnostic refuses the source: %+v", diagnostic)
+		assert.NotEqual(t, diag.CycleScanFailed, diagnostic.Code, "the alias scan completes: %+v", diagnostic)
 	}
 }
 
@@ -841,9 +841,9 @@ func TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders(t *testing.T
 				compilers.Options{})
 			require.NoError(t, err, "a failing reference is a spec problem, not a Go error")
 			var sites []string
-			for _, d := range diags {
-				require.Equal(t, diag.UnresolvedRef, d.Code, "%+v", d)
-				sites = append(sites, string(d.Provenance.Pointer))
+			for _, diagnostic := range diags {
+				require.Equal(t, diag.UnresolvedRef, diagnostic.Code, "%+v", diagnostic)
+				sites = append(sites, string(diagnostic.Provenance.Pointer))
 			}
 			assert.Equal(t, []string{"/paths/~1b"}, sites)
 		})

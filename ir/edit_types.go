@@ -79,17 +79,17 @@ func (e *Editor) ReplaceType(td TypeDef) {
 // its key holds to it, is not among them: current may be nil or off its key.
 // Nor is a member's own (withOwnMembers).
 func (e *Editor) replaceable(id TypeID, current, td TypeDef) bool {
-	c := &e.declared
-	c.node = c.scan(c.node[:0], current)
-	c.change = c.scan(c.change[:0], td)
+	idCounts := &e.declared
+	idCounts.node = idCounts.scan(idCounts.node[:0], current)
+	idCounts.change = idCounts.scan(idCounts.change[:0], td)
 	own := declaredID{class: reflect.TypeFor[TypeID](), id: string(id)}
-	if i := slices.Index(c.change, own); i >= 0 {
-		c.change = slices.Delete(c.change, i, i+1)
+	if i := slices.Index(idCounts.change, own); i >= 0 {
+		idCounts.change = slices.Delete(idCounts.change, i, i+1)
 	}
-	c.node = e.withOwnMembers(c.node, td)
-	if added, n, found := c.excess(); found {
+	idCounts.node = e.withOwnMembers(idCounts.node, td)
+	if added, idCount, found := idCounts.excess(); found {
 		e.refuse("replace rejected: the node for %q declares %s; an edit adds no ID",
-			id, n.clause(added, "the node it replaces"))
+			id, idCount.clause(added, "the node it replaces"))
 		return false
 	}
 	return true

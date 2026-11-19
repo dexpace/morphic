@@ -24,23 +24,23 @@ type reading struct {
 	path  []*yaml.Node
 }
 
-// read returns the reading of the way to p, empty for a Namer with no table.
-func (n *Namer) read(p reftable.DocumentPointer) reading {
+// read returns the reading of the way to documentPointer, empty for a Namer with no table.
+func (n *Namer) read(documentPointer reftable.DocumentPointer) reading {
 	if n.table == nil {
 		return reading{}
 	}
-	r := reading{kinds: n.table.Kinds(p)}
-	if p.Doc >= 0 && int(p.Doc) < n.table.Documents() {
-		r.path, _ = n.view(p.Doc).DocumentPath(n.table.Document(p.Doc).Root, p.Pointer)
+	readingValue := reading{kinds: n.table.Kinds(documentPointer)}
+	if documentPointer.Doc >= 0 && int(documentPointer.Doc) < n.table.Documents() {
+		readingValue.path, _ = n.view(documentPointer.Doc).DocumentPath(n.table.Document(documentPointer.Doc).Root, documentPointer.Pointer)
 	}
-	return r
+	return readingValue
 }
 
-// Title returns the name the title of the schema at p gives the node built
+// Title returns the name the title of the schema at documentPointer gives the node built
 // there (titles.at), and false where it gives none, as walking the structure
-// to p reads it.
-func (n *Namer) Title(p reftable.DocumentPointer) (string, bool) {
-	hint, _, titled := n.walk(p)
+// to documentPointer reads it.
+func (n *Namer) Title(documentPointer reftable.DocumentPointer) (string, bool) {
+	hint, _, titled := n.walk(documentPointer)
 	if !titled {
 		return "", false
 	}
@@ -61,22 +61,22 @@ type titles struct {
 }
 
 // at returns the words of the title the schema tokens leads to in doc writes,
-// as r reads the way there, where they name the node built there; union marks
+// as readingValue reads the way there, where they name the node built there; union marks
 // a oneOf or anyOf branch. They name none where the grammar reads no schema
 // there or the document holds no node; at a component schema, which its key
 // names; where the title has no word; and where its words are a component
 // schema's name, or another branch's of the list a branch is in (collides).
 // The position then keeps the name it has without a title.
-func (t *titles) at(doc reftable.DocID, tokens []string, r reading, union bool) string {
+func (t *titles) at(doc reftable.DocID, tokens []string, readingValue reading, union bool) string {
 	k := len(tokens)
-	if k >= len(r.path) || k >= len(r.kinds) || r.kinds[k] != reftable.KindSchema || componentRoot(tokens) {
+	if k >= len(readingValue.path) || k >= len(readingValue.kinds) || readingValue.kinds[k] != reftable.KindSchema || componentRoot(tokens) {
 		return ""
 	}
-	words := t.words(r.path[k])
+	words := t.words(readingValue.path[k])
 	if words == "" || t.componentNames()[words] {
 		return ""
 	}
-	if union && t.collides(doc, tokens, r.path[k-1], words) {
+	if union && t.collides(doc, tokens, readingValue.path[k-1], words) {
 		return ""
 	}
 	return words

@@ -9,15 +9,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// ServerName reads from unmodeled, a server's, the name p's sources of
+// ServerName reads from unmodeled, a server's, the name promoter's sources of
 // TargetServerName state, and marks prov when it returns one. The caller asks
 // only of a server its document names in no other way: a name the document
 // declares is its own, and no key's.
-func ServerName(p Promoter, unmodeled ir.Unmodeled, prov *ir.Provenance) (string, []ir.Diagnostic) {
+func ServerName(promoter Promoter, unmodeled ir.Unmodeled, prov *ir.Provenance) (string, []ir.Diagnostic) {
 	if prov == nil {
 		return "", nil
 	}
-	name, found, diags := firstStated(unmodeled, p.Sources(TargetServerName), textReading(TargetServerName))
+	name, found, diags := firstStated(unmodeled, promoter.Sources(TargetServerName), textReading(TargetServerName))
 	if found {
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
@@ -25,20 +25,20 @@ func ServerName(p Promoter, unmodeled ir.Unmodeled, prov *ir.Provenance) (string
 }
 
 // AllowReserved reports whether the extensions kept in unmodeled, a
-// parameter's, ask by p's sources of TargetAllowReserved for its value's
+// parameter's, ask by promoter's sources of TargetAllowReserved for its value's
 // reserved characters to be sent unescaped, and marks prov when they do. The
 // caller asks only of a parameter writing no `allowReserved`, which decides for
 // itself.
-func AllowReserved(p Promoter, unmodeled ir.Unmodeled, prov *ir.Provenance) (bool, []ir.Diagnostic) {
+func AllowReserved(promoter Promoter, unmodeled ir.Unmodeled, prov *ir.Provenance) (bool, []ir.Diagnostic) {
 	if prov == nil {
 		return false, nil
 	}
-	reserved, _, diags := firstStated(unmodeled, p.Sources(TargetAllowReserved), reading[bool]{
+	reserved, _, diags := firstStated(unmodeled, promoter.Sources(TargetAllowReserved), reading[bool]{
 		target: TargetAllowReserved,
 		want:   "is not a boolean",
 		read: func(src ExtensionSource, raw ir.RawValue) (bool, sourceValueMeaning) {
 			if len(src.Values) > 0 {
-				return listed(p.targets, src, raw)
+				return listed(promoter.targets, src, raw)
 			}
 			return statesBoolean(raw)
 		},
@@ -50,16 +50,16 @@ func AllowReserved(p Promoter, unmodeled ir.Unmodeled, prov *ir.Provenance) (boo
 }
 
 // TokenEndpointAuthMethods reads from unmodeled, an OAuth flow's, the ways a
-// client authenticates to its token endpoint, by p's sources of
+// client authenticates to its token endpoint, by promoter's sources of
 // TargetTokenEndpointAuthMethods, and marks inferred when it returns any. A
 // string is one method and a list of strings several; a list holding empty
 // text or a method twice is a misfit, as the field is a set of names, and so is
 // any other value. Nothing checks a method against the registry, which is open.
-func TokenEndpointAuthMethods(p Promoter, unmodeled ir.Unmodeled, inferred *ir.Inferred) ([]string, []ir.Diagnostic) {
+func TokenEndpointAuthMethods(promoter Promoter, unmodeled ir.Unmodeled, inferred *ir.Inferred) ([]string, []ir.Diagnostic) {
 	if inferred == nil {
 		return nil, nil
 	}
-	text, found, diags := firstStated(unmodeled, p.Sources(TargetTokenEndpointAuthMethods), reading[string]{
+	text, found, diags := firstStated(unmodeled, promoter.Sources(TargetTokenEndpointAuthMethods), reading[string]{
 		target: TargetTokenEndpointAuthMethods,
 		want:   "is neither a method nor a list of distinct methods",
 		read: func(_ ExtensionSource, raw ir.RawValue) (string, sourceValueMeaning) {

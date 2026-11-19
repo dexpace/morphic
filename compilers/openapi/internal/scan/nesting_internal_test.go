@@ -44,11 +44,11 @@ func TestNesting_RefusesPastTheBoundAndNotAtIt(t *testing.T) {
 	assert.False(t, refused, "a document at the bound is admitted")
 
 	past := indexOf(t, []byte(nested("k", MaxNesting+1)+"\n"))
-	d, refused := Nesting(t.Context(), provenance.Tree{}, past)
+	diagnostic, refused := Nesting(t.Context(), provenance.Tree{}, past)
 	require.True(t, refused)
-	assert.Equal(t, diag.SourceTooDeep, d.Code)
-	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Equal(t, fmt.Sprintf("document nests %d levels deep with its aliases expanded, past the %d-level bound", MaxNesting+1, MaxNesting), d.Message)
+	assert.Equal(t, diag.SourceTooDeep, diagnostic.Code)
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+	assert.Equal(t, fmt.Sprintf("document nests %d levels deep with its aliases expanded, past the %d-level bound", MaxNesting+1, MaxNesting), diagnostic.Message)
 }
 
 // TestNesting_SiteIsTheLeastPointerPastTheBound pins where the refusal falls
@@ -59,9 +59,9 @@ func TestNesting_SiteIsTheLeastPointerPastTheBound(t *testing.T) {
 	t.Parallel()
 	deepB, deepA := "b: "+nested("k", 4), "a: [x, "+nested("j", 3)+"]"
 	for _, src := range []string{deepB + "\n" + deepA + "\n", deepA + "\n" + deepB + "\n"} {
-		d, refused := placedNesting(t, src, 3)
+		diagnostic, refused := placedNesting(t, src, 3)
 		require.True(t, refused)
-		assert.Equal(t, jsontext.Pointer("/a/1/j"), d.Provenance.Pointer, "in\n%s", src)
+		assert.Equal(t, jsontext.Pointer("/a/1/j"), diagnostic.Provenance.Pointer, "in\n%s", src)
 	}
 }
 
@@ -91,9 +91,9 @@ func TestDeepSites_NamesWhereEachWayDownPassesTheBound(t *testing.T) {
 			pointers := Pointers(t.Context(), root)
 			var got []jsontext.Pointer
 			for _, site := range deepSites(t.Context(), root, 3) {
-				p, held := pointers(site)
+				pointer, held := pointers(site)
 				require.True(t, held, "a site has a pointer")
-				got = append(got, p)
+				got = append(got, pointer)
 			}
 			assert.ElementsMatch(t, tc.want, got)
 		})
@@ -127,9 +127,9 @@ func TestNesting_CountsTheExpandedTree(t *testing.T) {
 	require.Equal(t, 13, idx.Nesting())
 	require.Less(t, sourcetreestats.Build(t.Context(), idx.Root(), sourcetreestats.MaxIndexedNodes).Nodes(), 40)
 
-	d, refused := placedNesting(t, b.String(), 10)
+	diagnostic, refused := placedNesting(t, b.String(), 10)
 	require.True(t, refused)
-	assert.Equal(t, jsontext.Pointer("/a3/k/k/k"), d.Provenance.Pointer, "the alias carrying a3 past the bound")
+	assert.Equal(t, jsontext.Pointer("/a3/k/k/k"), diagnostic.Provenance.Pointer, "the alias carrying a3 past the bound")
 }
 
 // TestNesting_LeavesARecursiveAnchorToItsOwnRefusal pins that a document whose

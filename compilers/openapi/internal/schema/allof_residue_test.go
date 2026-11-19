@@ -39,15 +39,15 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
+	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok, "S should be a model")
 
-	a, ok := openapitest.PropsByWire(m.Properties)["a"]
+	a, ok := openapitest.PropsByWire(model.Properties)["a"]
 	require.True(t, ok, "the merge still contributes the branch's properties")
 	assert.True(t, a.Required, "and still ORs the branch's required list onto them")
 
-	entry, ok := m.Unmodeled["openapi:allOf/0"]
-	require.True(t, ok, "the branch is kept verbatim; got %+v", m.Unmodeled)
+	entry, ok := model.Unmodeled["openapi:allOf/0"]
+	require.True(t, ok, "the branch is kept verbatim; got %+v", model.Unmodeled)
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, "the reason its unevaluatedProperties has beside the allOf")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/0"), entry.Provenance.Pointer,
 		"the entry locates the branch, not the composed schema")
@@ -58,14 +58,16 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 		assert.Contains(t, string(entry.Value), kept, "the whole branch is preserved")
 	}
 	assert.True(t, slices.ContainsFunc(diagsAtPointer(diags, diag.ValidationOnlyKeyword, "/components/schemas/S/allOf/0"),
-		func(d ir.Diagnostic) bool { return strings.Contains(d.Message, "the branch (unevaluatedProperties)") }),
+		func(diagnostic ir.Diagnostic) bool {
+			return strings.Contains(diagnostic.Message, "the branch (unevaluatedProperties)")
+		}),
 		"the diagnostic names what nothing read: %+v", diags)
-	assert.Equal(t, "BranchDoc", m.Docs.Description)
-	require.NotNil(t, m.Constraints)
-	assert.Equal(t, new(int64(2)), m.Constraints.MinProperties)
+	assert.Equal(t, "BranchDoc", model.Docs.Description)
+	require.NotNil(t, model.Constraints)
+	assert.Equal(t, new(int64(2)), model.Constraints.MinProperties)
 	// What the branch kept whole folds is kept once, inside it.
-	assert.NotContains(t, m.Unmodeled, "openapi:x-vendor")
-	assert.NotContains(t, m.Unmodeled, "openapi:not")
+	assert.NotContains(t, model.Unmodeled, "openapi:x-vendor")
+	assert.NotContains(t, model.Unmodeled, "openapi:not")
 }
 
 // TestAllOf_InlineBranchNonObjectTypeWarns is the worse half of #123: a scalar
@@ -84,13 +86,13 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "T").(*ir.Model)
+	model, ok := typeByName(doc, "T").(*ir.Model)
 	require.True(t, ok, "the composed node is still a model")
-	require.Len(t, m.Properties, 1, "a scalar branch declares no properties to merge")
-	assert.Equal(t, "a", m.Properties[0].WireName)
+	require.Len(t, model.Properties, 1, "a scalar branch declares no properties to merge")
+	assert.Equal(t, "a", model.Properties[0].WireName)
 
-	entry, ok := m.Unmodeled["openapi:allOf/1"]
-	require.True(t, ok, "the whole branch is kept verbatim; got %+v", m.Unmodeled)
+	entry, ok := model.Unmodeled["openapi:allOf/1"]
+	require.True(t, ok, "the whole branch is kept verbatim; got %+v", model.Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"type":"string","nullable":true,"maxLength":3}`, string(entry.Value))
 	assert.Contains(t,
@@ -129,11 +131,11 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m, ok := typeByName(doc, tc.name).(*ir.Model)
+			model, ok := typeByName(doc, tc.name).(*ir.Model)
 			require.True(t, ok, "%s should be a model", tc.name)
 
-			entry, ok := m.Unmodeled["openapi:allOf/1"]
-			require.True(t, ok, "%s keeps the branch verbatim; got %+v", tc.name, m.Unmodeled)
+			entry, ok := model.Unmodeled["openapi:allOf/1"]
+			require.True(t, ok, "%s keeps the branch verbatim; got %+v", tc.name, model.Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.Contains(t, string(entry.Value), `"maxLength":3`,
 				"the payload resolves the reference too, so the branch is recoverable")
@@ -176,9 +178,9 @@ func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"TypedBranch", "UntypedBranch", "RequiredOnlyBranch"} {
-		m, ok := typeByName(doc, name).(*ir.Model)
+		model, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s should be a model", name)
-		assert.Empty(t, m.Unmodeled,
+		assert.Empty(t, model.Unmodeled,
 			"%s: properties, required and a bare `type: object` are merged, not residue", name)
 	}
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
@@ -210,11 +212,11 @@ func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
 		"Unknown":        {"openapi:futureKeyword", `{"some":"thing"}`, diag.UnknownSchemaKeyword, "/allOf/0/futureKeyword"},
 		"NullableBranch": {"openapi:type", `["object","null"]`, diag.DegradedConstruct, "/allOf/0"},
 	} {
-		m, ok := typeByName(doc, name).(*ir.Model)
+		model, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s should be a model", name)
-		require.Len(t, m.Properties, 1, "%s still merges the branch's properties", name)
-		entry, ok := m.Unmodeled[tc.key]
-		require.True(t, ok, "%s keeps the keyword under its own key; got %+v", name, m.Unmodeled)
+		require.Len(t, model.Properties, 1, "%s still merges the branch's properties", name)
+		entry, ok := model.Unmodeled[tc.key]
+		require.True(t, ok, "%s keeps the keyword under its own key; got %+v", name, model.Unmodeled)
 		assert.JSONEq(t, tc.value, string(entry.Value), "%s", name)
 		assert.Contains(t,
 			openapitest.DiagMessageAt(t, diags, tc.code, ir.SeverityInfo, "/components/schemas/"+name+tc.at),
@@ -237,12 +239,12 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "Multi").(*ir.Model)
+	model, ok := typeByName(doc, "Multi").(*ir.Model)
 	require.True(t, ok, "Multi should be a model")
-	require.Len(t, m.Properties, 2, "both branches still merge their properties")
-	require.Len(t, m.Unmodeled, 2, "one entry per branch; got %+v", m.Unmodeled)
-	assert.Contains(t, string(m.Unmodeled["openapi:allOf/0"].Value), `"additionalProperties":false`)
-	assert.Contains(t, string(m.Unmodeled["openapi:allOf/1"].Value), `"patternProperties":`)
+	require.Len(t, model.Properties, 2, "both branches still merge their properties")
+	require.Len(t, model.Unmodeled, 2, "one entry per branch; got %+v", model.Unmodeled)
+	assert.Contains(t, string(model.Unmodeled["openapi:allOf/0"].Value), `"additionalProperties":false`)
+	assert.Contains(t, string(model.Unmodeled["openapi:allOf/1"].Value), `"patternProperties":`)
 
 	for i, want := range []string{"additionalProperties", "patternProperties"} {
 		at := fmt.Sprintf("/components/schemas/Multi/allOf/%d", i)
@@ -275,18 +277,18 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	u, ok := typeByName(doc, "Distributed").(*ir.Union)
+	union, ok := typeByName(doc, "Distributed").(*ir.Union)
 	require.True(t, ok, "Distributed distributes into a union")
-	require.Len(t, u.Variants, 2)
+	require.Len(t, union.Variants, 2)
 
-	for i, v := range u.Variants {
-		variant, ok := doc.Types[v.Type.Target].(*ir.Model)
+	for i, irVariant := range union.Variants {
+		variant, ok := doc.Types[irVariant.Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d is a composed model", i)
 		entry, ok := variant.Unmodeled["openapi:allOf/1"]
 		require.True(t, ok, "variant %d carries the branch residue; got %+v", i, variant.Unmodeled)
 		assert.Contains(t, string(entry.Value), `"description":"BranchDoc"`, "variant %d", i)
 	}
-	assert.Equal(t, "BranchDoc", u.Docs.Description)
+	assert.Equal(t, "BranchDoc", union.Docs.Description)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo),
 		"one branch, one diagnostic, however many variants carry it; got %+v", diags)
 }
@@ -325,11 +327,11 @@ func TestAllOf_AnUnpreservableUncomposedRefIsNotAnnounced(t *testing.T) {
         - {type: object, properties: {a: {type: string}}}
 `))
 
-	m, ok := typeByName(doc, "M").(*ir.Model)
+	model, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok, "the conjuncts share no value, so the allOf composes")
-	assert.Nil(t, m.Base, "a model composes no string")
-	assert.Contains(t, m.Unmodeled, "openapi:$ref", "the reference converts")
-	assert.NotContains(t, m.Unmodeled, "openapi:allOf/0", "the rest of the entry, which folds, is no residue")
+	assert.Nil(t, model.Base, "a model composes no string")
+	assert.Contains(t, model.Unmodeled, "openapi:$ref", "the reference converts")
+	assert.NotContains(t, model.Unmodeled, "openapi:allOf/0", "the rest of the entry, which folds, is no residue")
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 		"/components/schemas/M/allOf/0"), `extension "x-t" could not be serialized`)
 	assert.Len(t, openapitest.PreservationClaims(diags), 1, "only the reference is announced")
@@ -344,9 +346,9 @@ func TestAllOf_ANullTypeExcludesNoObject(t *testing.T) {
 	_, diags := parseFull(t, openapitest.ComponentSpec(`    S: {allOf: [{type: null, minItems: 1}, {properties: {p: {}}}]}
 `))
 	var severities []ir.Severity
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "inline") {
-			severities = append(severities, d.Severity)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && strings.Contains(diagnostic.Message, "inline") {
+			severities = append(severities, diagnostic.Severity)
 		}
 	}
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severities)
@@ -430,23 +432,23 @@ func TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase(t *testing.T) 
         - {type: object, properties: {b: {type: string}}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "M").(*ir.Model)
+	model, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, "d", m.Docs.Description)
-	n := typeByName(doc, "N").Common()
-	assert.Equal(t, "d", n.Docs.Description)
-	assert.JSONEq(t, `{"$ref":"https://ex.test/b/n.json"}`, string(n.Unmodeled["openapi:not"].Value))
-	assert.Equal(t, typeByName(doc, "A").Common().ID, openapitest.PropsByWire(m.Properties)["a"].Type.Target)
-	s, ok := typeByName(doc, "S").(*ir.Scalar)
+	assert.Equal(t, "d", model.Docs.Description)
+	typeCommon := typeByName(doc, "N").Common()
+	assert.Equal(t, "d", typeCommon.Docs.Description)
+	assert.JSONEq(t, `{"$ref":"https://ex.test/b/n.json"}`, string(typeCommon.Unmodeled["openapi:not"].Value))
+	assert.Equal(t, typeByName(doc, "A").Common().ID, openapitest.PropsByWire(model.Properties)["a"].Type.Target)
+	scalar, ok := typeByName(doc, "S").(*ir.Scalar)
 	require.True(t, ok)
-	require.NotNil(t, s.Constraints)
-	require.NotNil(t, s.Constraints.MinLength)
-	require.NotNil(t, s.Constraints.MaxLength)
-	assert.Equal(t, int64(1), *s.Constraints.MinLength)
-	assert.Equal(t, int64(5), *s.Constraints.MaxLength)
-	assert.NotContains(t, s.Unmodeled, "openapi:not", "its entries write $id apart, so each is kept whole, holding its not")
-	assert.Contains(t, string(s.Unmodeled["openapi:allOf/0"].Value), `"not":{"const":"q"}`)
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "against another base")
+	require.NotNil(t, scalar.Constraints)
+	require.NotNil(t, scalar.Constraints.MinLength)
+	require.NotNil(t, scalar.Constraints.MaxLength)
+	assert.Equal(t, int64(1), *scalar.Constraints.MinLength)
+	assert.Equal(t, int64(5), *scalar.Constraints.MaxLength)
+	assert.NotContains(t, scalar.Unmodeled, "openapi:not", "its entries write $id apart, so each is kept whole, holding its not")
+	assert.Contains(t, string(scalar.Unmodeled["openapi:allOf/0"].Value), `"not":{"const":"q"}`)
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "against another base")
 	}
 }

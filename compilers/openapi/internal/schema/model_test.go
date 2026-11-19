@@ -33,14 +33,14 @@ func TestModel_PlainRequiredUndeclaredPropertyLandsInRequires(t *testing.T) {
         id: {type: integer}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
-	m, ok := doc.Types[componentID("Plain")].(*ir.Model)
+	model, ok := doc.Types[componentID("Plain")].(*ir.Model)
 	require.True(t, ok, "Plain should be a model")
-	require.Len(t, m.Properties, 1)
-	assert.True(t, m.Properties[0].Required, "id is declared, so it is required on its property")
-	assert.Equal(t, []string{"ghost"}, m.Requires, "ghost is listed once, however often it is written")
-	for _, d := range diags {
-		assert.True(t, strings.HasPrefix(d.Code, diag.Validation),
-			"the repeat draws the validation's finding, and the lowering adds none: %+v", d)
+	require.Len(t, model.Properties, 1)
+	assert.True(t, model.Properties[0].Required, "id is declared, so it is required on its property")
+	assert.Equal(t, []string{"ghost"}, model.Requires, "ghost is listed once, however often it is written")
+	for _, diagnostic := range diags {
+		assert.True(t, strings.HasPrefix(diagnostic.Code, diag.Validation),
+			"the repeat draws the validation's finding, and the lowering adds none: %+v", diagnostic)
 	}
 }
 
@@ -57,10 +57,10 @@ func TestModel_FourOptionalityStates(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, m.Properties, 4)
-	byName := openapitest.PropsByWire(m.Properties)
+	require.Len(t, model.Properties, 4)
+	byName := openapitest.PropsByWire(model.Properties)
 	assert.True(t, byName["reqPlain"].Required)
 	assert.False(t, byName["reqPlain"].Type.Nullable)
 	assert.True(t, byName["reqNull"].Required)
@@ -80,8 +80,8 @@ func TestModel_AdditionalPropertiesFalseClosed(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	assert.Equal(t, ir.AdditionalClosed, m.Additional)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	assert.Equal(t, ir.AdditionalClosed, model.Additional)
 }
 
 // TestObject_MapAndNothingElseLowersToMapT pins docs/ir/containers.md at the
@@ -154,12 +154,12 @@ func TestObject_ACatchAllBesideARequiredNameStaysAModel(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(spec))
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "got %T", doc.Types[componentID("S")])
-			assert.Equal(t, []string{"a"}, m.Requires)
-			require.NotNil(t, m.AdditionalProperties)
-			assert.Equal(t, &ir.TypeRef{Target: "type/primitive/string"}, m.AdditionalProperties.Value)
-			assert.NotContains(t, m.Unmodeled, "openapi:required")
+			assert.Equal(t, []string{"a"}, model.Requires)
+			require.NotNil(t, model.AdditionalProperties)
+			assert.Equal(t, &ir.TypeRef{Target: "type/primitive/string"}, model.AdditionalProperties.Value)
+			assert.NotContains(t, model.Unmodeled, "openapi:required")
 			assert.Empty(t, diags)
 		})
 	}
@@ -198,9 +198,9 @@ func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(base+"    S: "+tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "got %T", doc.Types[componentID("S")])
-			assert.Empty(t, cmp.Diff(tc.catchAll, m.AdditionalProperties))
+			assert.Empty(t, cmp.Diff(tc.catchAll, model.AdditionalProperties))
 		})
 	}
 }
@@ -228,12 +228,12 @@ func TestModel_PatternPropertiesOrder(t *testing.T) {
 `, tc.patterns[0], tc.patterns[1]))
 			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "got %T", doc.Types[componentID("S")])
-			require.NotNil(t, m.AdditionalProperties)
+			require.NotNil(t, model.AdditionalProperties)
 			var got []string
-			for _, p := range m.AdditionalProperties.Patterns {
-				got = append(got, p.Pattern)
+			for _, patternProperties := range model.AdditionalProperties.Patterns {
+				got = append(got, patternProperties.Pattern)
 			}
 			assert.Equal(t, tc.patterns, got)
 		})
@@ -283,16 +283,16 @@ func TestModel_UnevaluatedPropertiesClosedAfterComposition(t *testing.T) {
 			doc, diags := parseFull(t, openapitest.ComponentSpec("    S: "+tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, irverify.Verify(doc), "the IR holds its invariants")
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "got %T", doc.Types[componentID("S")])
-			assert.Equal(t, tc.mode, m.Additional)
-			assert.Empty(t, cmp.Diff(tc.catchAll, m.AdditionalProperties))
+			assert.Equal(t, tc.mode, model.Additional)
+			assert.Empty(t, cmp.Diff(tc.catchAll, model.AdditionalProperties))
 			if tc.kept == "" {
-				assert.NotContains(t, m.Unmodeled, "openapi:unevaluated", "a closure the model holds is kept nowhere else")
+				assert.NotContains(t, model.Unmodeled, "openapi:unevaluated", "a closure the model holds is kept nowhere else")
 				return
 			}
-			require.Contains(t, m.Unmodeled, "openapi:unevaluated")
-			assert.Equal(t, tc.kept, string(m.Unmodeled["openapi:unevaluated"].Value))
+			require.Contains(t, model.Unmodeled, "openapi:unevaluated")
+			assert.Equal(t, tc.kept, string(model.Unmodeled["openapi:unevaluated"].Value))
 		})
 	}
 }

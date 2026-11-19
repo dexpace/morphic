@@ -37,15 +37,15 @@ func prefixHeaderTypes() ir.TypeRegistry {
 }
 
 // prefixHeaderViolations returns the paths checkPrefixHeaders reports for a
-// response declaring h, each prefixed by its code.
-func prefixHeaderViolations(h ir.Header) []string {
-	doc := opDoc(ir.Operation{ID: "operation/x/S/op", Responses: []ir.Response{{Headers: []ir.Header{h}}}})
+// response declaring header, each prefixed by its code.
+func prefixHeaderViolations(header ir.Header) []string {
+	doc := opDoc(ir.Operation{ID: "operation/x/S/op", Responses: []ir.Response{{Headers: []ir.Header{header}}}})
 	doc.Types = prefixHeaderTypes()
 	var got []string
-	for _, v := range irverify.Verify(doc) {
+	for _, violation := range irverify.Verify(doc) {
 		for _, code := range prefixHeaderCodes {
-			if v.Code == code {
-				got = append(got, code+" "+v.Path)
+			if violation.Code == code {
+				got = append(got, code+" "+violation.Path)
 			}
 		}
 	}

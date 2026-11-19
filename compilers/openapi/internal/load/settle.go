@@ -16,11 +16,11 @@ import (
 // (setAside). A document whose Schema Objects wait for their dialect
 // (judgeSchemas) is not judged whole yet, so its values are turned once they
 // are, before any landing is built (loading.bindRefs).
-func settle(j judgment, a *aside) {
-	if len(j.pending) == 0 {
-		turnRefused(j)
+func settle(judgmentValue judgment, a *aside) {
+	if len(judgmentValue.pending) == 0 {
+		turnRefused(judgmentValue)
 	}
-	setAside(j, a)
+	setAside(judgmentValue, a)
 }
 
 // turnRefused reads each value the table refused as the wrong type, and
@@ -28,10 +28,10 @@ func settle(j judgment, a *aside) {
 // reader, for good (docs/compilers/openapi.md#validation); a verbatim copy
 // renders what the source wrote (nodeview.Written). It reports whether it
 // turned any.
-func turnRefused(j judgment) bool {
+func turnRefused(judgmentValue judgment) bool {
 	turned := false
-	for n := range j.refused {
-		if !j.accepted[n] {
+	for n := range judgmentValue.refused {
+		if !judgmentValue.accepted[n] {
 			nodeview.Unread(n)
 			turned = true
 		}
@@ -45,8 +45,8 @@ func turnRefused(j judgment) bool {
 // names nothing, and a Path Item's ill-typed $ref and an additionalOperations
 // entry that is no mapping are absent. A second call sets aside what a later
 // turn left so.
-func setAside(j judgment, a *aside) {
-	for _, ref := range j.referenced {
+func setAside(judgmentValue judgment, a *aside) {
+	for _, ref := range judgmentValue.referenced {
 		v := nodeview.Child(ref, "$ref")
 		switch {
 		case v == nil || !isNullNode(v):
@@ -58,7 +58,7 @@ func setAside(j judgment, a *aside) {
 			a.standIn(ref)
 		}
 	}
-	for key := range j.seen {
+	for key := range judgmentValue.seen {
 		if key.kind == specrules.PathItem {
 			asidePathItem(key.node, a)
 		}

@@ -27,37 +27,37 @@ type dynamicRef struct {
 	node    *yaml.Node
 }
 
-// dynamicRefOf returns the dynamic reference s, read at pointer of c's
+// dynamicRefOf returns the dynamic reference schema, read at pointer of loweringContext's
 // document, writes, and false for none: a $dynamicRef in any dialect, as
 // 2020-12 reads one in a schema whose dialect lacks it, else a $recursiveRef
-// where the rows of the dialect s is read in define it, as 2019-09's do
+// where the rows of the dialect schema is read in define it, as 2019-09's do
 // (docs/compilers/openapi.md#dynamic-ref).
-func dynamicRefOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (dynamicRef, bool) {
-	if n := keyNode(s, "$dynamicRef"); n != nil {
+func dynamicRefOf(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (dynamicRef, bool) {
+	if n := keyNode(schema, "$dynamicRef"); n != nil {
 		return dynamicRef{keyword: "$dynamicRef", node: n}, true
 	}
-	n := keyNode(s, "$recursiveRef")
-	if n == nil || !c.Rules().At(c.Position(pointer)).Defines("$recursiveRef") {
+	n := keyNode(schema, "$recursiveRef")
+	if n == nil || !loweringContext.Rules().At(loweringContext.Position(pointer)).Defines("$recursiveRef") {
 		return dynamicRef{}, false
 	}
 	return dynamicRef{keyword: "$recursiveRef", node: n}, true
 }
 
-// dynamicTarget is the position the dynamic reference s writes at pointer
+// dynamicTarget is the position the dynamic reference schema writes at pointer
 // names, as dynamicExpansion reads it but for the check that its expansions
 // close no cycle, which walks their whole chain. A reader following it as a
 // conjunct edge, as admissionOf does, cuts such a cycle as it cuts one of
 // $refs.
-func dynamicTarget(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (reftable.DocumentPointer, bool) {
-	ref, _, ok := expandableRef(c, s, pointer)
+func dynamicTarget(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (reftable.DocumentPointer, bool) {
+	ref, _, ok := expandableRef(loweringContext, schema, pointer)
 	if !ok {
 		return reftable.DocumentPointer{}, false
 	}
-	at, _, ok := dynamicTargetOf(c, ref, c.Position(pointer))
+	at, _, ok := dynamicTargetOf(loweringContext, ref, loweringContext.Position(pointer))
 	return at, ok
 }
 
-// dynamicExpansion resolves the dynamic reference s writes at pointer to the
+// dynamicExpansion resolves the dynamic reference schema writes at pointer to the
 // position it names, or reports why it is irreducible. Expansion and
 // preservation both decide through it.
 //
@@ -68,30 +68,30 @@ func dynamicTarget(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 // a $ref to that position resolves to (resolvesAt). One closing a cycle of
 // expansions is irreducible (dynamicChainVerdict). One naming no
 // $dynamicAnchor is a reference site (typed.Bindings.RefKeyword).
-func dynamicExpansion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (at reftable.DocumentPointer, why string, ok bool) {
-	ref, why, ok := expandableRef(c, s, pointer)
+func dynamicExpansion(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (at reftable.DocumentPointer, why string, ok bool) {
+	ref, why, ok := expandableRef(loweringContext, schema, pointer)
 	if !ok {
 		return reftable.DocumentPointer{}, why, false
 	}
-	from := c.Position(pointer)
-	if at, why, ok = dynamicTargetOf(c, ref, from); !ok {
+	from := loweringContext.Position(pointer)
+	if at, why, ok = dynamicTargetOf(loweringContext, ref, from); !ok {
 		return reftable.DocumentPointer{}, why, false
 	}
-	if why, ok = dynamicChainVerdict(c, at, from); !ok {
+	if why, ok = dynamicChainVerdict(loweringContext, at, from); !ok {
 		return reftable.DocumentPointer{}, why, false
 	}
 	return at, "", true
 }
 
-// expandableRef returns the dynamic reference s, read at pointer, writes, or
+// expandableRef returns the dynamic reference schema, read at pointer, writes, or
 // why none can expand: none is written, it is co-declared with what an
 // expansion cannot carry, or its value is no string.
-func expandableRef(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (dynamicRef, string, bool) {
-	ref, ok := dynamicRefOf(c, s, pointer)
+func expandableRef(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (dynamicRef, string, bool) {
+	ref, ok := dynamicRefOf(loweringContext, schema, pointer)
 	switch {
 	case !ok:
 		return dynamicRef{}, "no dynamic reference is written here", false
-	case dynamicRefSiblings(s):
+	case dynamicRefSiblings(schema):
 		return dynamicRef{}, "it is co-declared with another applicator, which the IR cannot intersect with it", false
 	case ref.node.Kind != yaml.ScalarNode:
 		return dynamicRef{}, "its value is not a reference string", false
@@ -105,22 +105,22 @@ func expandableRef(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 // $dynamicAnchor of its name its document declares, in its own resource, and
 // for a $recursiveRef the root of its resource (recursiveTarget); each where a
 // schema stands to resolve to.
-func dynamicTargetOf(c lowering.Ctx, ref dynamicRef, from reftable.DocumentPointer) (reftable.DocumentPointer, string, bool) {
+func dynamicTargetOf(loweringContext lowering.Ctx, ref dynamicRef, from reftable.DocumentPointer) (reftable.DocumentPointer, string, bool) {
 	if ref.keyword == "$recursiveRef" {
-		return recursiveTarget(c, ref.node.Value, from)
+		return recursiveTarget(loweringContext, ref.node.Value, from)
 	}
 	name, why, ok := reftable.DynamicFragment(ref.node.Value)
 	var at reftable.DocumentPointer
 	if ok {
-		at, why, ok = soleAnchorSite(c, name)
+		at, why, ok = soleAnchorSite(loweringContext, name)
 	}
 	if !ok {
 		return reftable.DocumentPointer{}, why, false
 	}
-	if why, ok = sameResource(c, from, at); !ok {
+	if why, ok = sameResource(loweringContext, from, at); !ok {
 		return reftable.DocumentPointer{}, why, false
 	}
-	if !resolvesAt(c, at) {
+	if !resolvesAt(loweringContext, at) {
 		return reftable.DocumentPointer{}, fmt.Sprintf("$dynamicAnchor %q is declared at %q, where no schema could be built",
 			name, at.Pointer), false
 	}
@@ -133,19 +133,19 @@ func dynamicTargetOf(c lowering.Ctx, ref dynamicRef, from reftable.DocumentPoint
 // that root declares $recursiveAnchor true, the target is the outermost schema
 // of the dynamic scope declaring it too, which is that root only where every
 // declaration of the document lies in its resource (recursiveScope).
-func recursiveTarget(c lowering.Ctx, value string, from reftable.DocumentPointer) (reftable.DocumentPointer, string, bool) {
+func recursiveTarget(loweringContext lowering.Ctx, value string, from reftable.DocumentPointer) (reftable.DocumentPointer, string, bool) {
 	if strings.TrimSpace(value) != "#" {
 		return reftable.DocumentPointer{}, fmt.Sprintf(`its value is %q, and JSON Schema 2019-09 defines it only for "#"`, value), false
 	}
-	root, known := c.Bindings().Table().Resource(from)
+	root, known := loweringContext.Bindings().Table().Resource(from)
 	switch {
 	case !known:
 		return reftable.DocumentPointer{}, fmt.Sprintf("a schema at or above %q merges past the levels the compiler expands, which "+
 			"may hide an identifier starting a schema resource of its own", from.Pointer), false
-	case !resolvesAt(c, root):
+	case !resolvesAt(loweringContext, root):
 		return reftable.DocumentPointer{}, unresolvedRoot(root), false
 	}
-	if why, ok := recursiveScope(c, root); !ok {
+	if why, ok := recursiveScope(loweringContext, root); !ok {
 		return reftable.DocumentPointer{}, why, false
 	}
 	return root, "", true
@@ -170,8 +170,8 @@ func unresolvedRoot(root reftable.DocumentPointer) string {
 // root, so none is in its dynamic scope and the outermost on any path is root.
 // A document whose identifiers were not read whole may hide another, which
 // must not read as none.
-func recursiveScope(c lowering.Ctx, root reftable.DocumentPointer) (string, bool) {
-	declared, reached, known := c.Bindings().Table().RecursiveAnchor(root)
+func recursiveScope(loweringContext lowering.Ctx, root reftable.DocumentPointer) (string, bool) {
+	declared, reached, known := loweringContext.Bindings().Table().RecursiveAnchor(root)
 	switch {
 	case !known:
 		return "this document's identifiers were not read whole, so $recursiveAnchor is not known to be declared " +
@@ -186,7 +186,7 @@ func recursiveScope(c lowering.Ctx, root reftable.DocumentPointer) (string, bool
 	}
 }
 
-// dynamicRefSiblings reports whether s writes anything beside its $dynamicRef
+// dynamicRefSiblings reports whether schema writes anything beside its $dynamicRef
 // that the expansion would have to intersect with. JSON Schema conjoins
 // keywords and the IR has no node that intersects a reference with a shape, so
 // any of these makes the reference irreducible; expanding regardless would
@@ -195,21 +195,21 @@ func recursiveScope(c lowering.Ctx, root reftable.DocumentPointer) (string, bool
 // It counts narrowingKeywords as well as shapeKeywords, for the reason the
 // former record: an expansion takes the target whole, so a keyword it cannot
 // carry is lost whether or not it declares a shape by itself.
-func dynamicRefSiblings(s *statement.Schema) bool {
-	if refWritten(s) || declaresUnion(s) {
+func dynamicRefSiblings(schema *statement.Schema) bool {
+	if refWritten(schema) || declaresUnion(schema) {
 		return true
 	}
-	return writesSiblingKeyword(s)
+	return writesSiblingKeyword(schema)
 }
 
-// soleAnchorSite returns the one position of c's document declaring the named
+// soleAnchorSite returns the one position of loweringContext's document declaring the named
 // $dynamicAnchor, or the reason no single declaration answers for it. Two
 // declarations put the target back under the evaluation path's control, which no
 // static lowering can resolve, as does a resource of another document declaring
 // the name that reaches it, and an incomplete read may hide a second, which an
 // expansion would then rest on unverified (docs/compilers/openapi.md#dynamic-ref).
-func soleAnchorSite(c lowering.Ctx, name string) (reftable.DocumentPointer, string, bool) {
-	anchor := c.DynamicAnchor(name)
+func soleAnchorSite(loweringContext lowering.Ctx, name string) (reftable.DocumentPointer, string, bool) {
+	anchor := loweringContext.DynamicAnchor(name)
 	switch {
 	case anchor.Count > 1:
 		return reftable.DocumentPointer{}, fmt.Sprintf("$dynamicAnchor %q is declared %d times, so the target depends on the "+
@@ -235,7 +235,7 @@ func soleAnchorSite(c lowering.Ctx, name string) (reftable.DocumentPointer, stri
 // so the whole cycle is preserved.
 //
 // The loop is bounded: each turn returns or adds a position to seen.
-func dynamicChainVerdict(c lowering.Ctx, at, from reftable.DocumentPointer) (string, bool) {
+func dynamicChainVerdict(loweringContext lowering.Ctx, at, from reftable.DocumentPointer) (string, bool) {
 	seen := map[reftable.DocumentPointer]bool{}
 	for cur := at; !seen[cur]; {
 		if cur == from {
@@ -243,7 +243,7 @@ func dynamicChainVerdict(c lowering.Ctx, at, from reftable.DocumentPointer) (str
 				"leaving a type whose own base chain never terminates", from.Pointer), false
 		}
 		seen[cur] = true
-		next, hops := dynamicHop(c, cur)
+		next, hops := dynamicHop(loweringContext, cur)
 		if !hops {
 			break
 		}
@@ -257,8 +257,8 @@ func dynamicChainVerdict(c lowering.Ctx, at, from reftable.DocumentPointer) (str
 // hide an identifier, which must not read as none. A dynamic reference is
 // first resolved against its own resource's base (JSON Schema 2020-12
 // §8.2.3.2), so an anchor in another resource is not the one it names.
-func sameResource(c lowering.Ctx, from, at reftable.DocumentPointer) (string, bool) {
-	table := c.Bindings().Table()
+func sameResource(loweringContext lowering.Ctx, from, at reftable.DocumentPointer) (string, bool) {
+	table := loweringContext.Bindings().Table()
 	own, knownOwn := table.Resource(from)
 	theirs, knownTheirs := table.Resource(at)
 	switch {
@@ -279,64 +279,64 @@ func sameResource(c lowering.Ctx, from, at reftable.DocumentPointer) (string, bo
 // dynamic reference of its own expands, as dynamicTargetOf names it. Anything
 // else ends the chain: a position that lowers to a shape rather than to
 // another reference cannot extend a cycle of references.
-func dynamicHop(c lowering.Ctx, at reftable.DocumentPointer) (reftable.DocumentPointer, bool) {
-	if e, ok := c.Bindings().Table().Entry(at); ok {
-		return e.Chain.End, e.Chain.Status == reftable.Resolved
+func dynamicHop(loweringContext lowering.Ctx, at reftable.DocumentPointer) (reftable.DocumentPointer, bool) {
+	if referenceSite, ok := loweringContext.Bindings().Table().Entry(at); ok {
+		return referenceSite.Chain.End, referenceSite.Chain.Status == reftable.Resolved
 	}
-	s := annotation.At(c.Statements().At(at)).Node
-	if !stated(s) {
+	schema := annotation.At(loweringContext.Statements().At(at)).Node
+	if !stated(schema) {
 		return reftable.DocumentPointer{}, false
 	}
-	ref, _, ok := expandableRef(c, s, at.Pointer)
+	ref, _, ok := expandableRef(loweringContext, schema, at.Pointer)
 	if !ok {
 		return reftable.DocumentPointer{}, false
 	}
-	next, _, ok := dynamicTargetOf(c, ref, at)
+	next, _, ok := dynamicTargetOf(loweringContext, ref, at)
 	return next, ok
 }
 
-// recordUnexpandedDynamicRef keeps a dynamic reference verbatim on p, under
+// recordUnexpandedDynamicRef keeps a dynamic reference verbatim on unmodeled, under
 // the keyword it is written as, when it was not expanded, so the reference
 // survives the position lowering without it (the irreducible half of
 // docs/compilers/openapi.md#dynamic-ref). An expanded one is already the
 // position's type and must not also be preserved — that would tell a consumer
-// the compiler ignored it — and one s is a reference site under
+// the compiler ignored it — and one schema is a reference site under
 // (typed.Bindings.RefKeyword) is the $ref it spells, resolved as one.
-func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	ref, written := dynamicRefOf(c, s, pointer)
-	if !written || s.Ref != nil && s.Ref.Keyword == ref.keyword {
+func recordUnexpandedDynamicRef(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	ref, written := dynamicRefOf(loweringContext, schema, pointer)
+	if !written || schema.Ref != nil && schema.Ref.Keyword == ref.keyword {
 		return nil
 	}
-	_, why, expanded := dynamicExpansion(c, s, pointer)
+	_, why, expanded := dynamicExpansion(loweringContext, schema, pointer)
 	if expanded {
 		return nil
 	}
-	kept, diags := annotation.PreserveSchemaKeyword(p, s, ref.keyword, ir.ReasonDegradedLowering, pointer, c.Place())
+	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, schema, ref.keyword, ir.ReasonDegradedLowering, pointer, loweringContext.Place())
 	if kept {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(ref.keyword),
+		diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(ref.keyword),
 			"%s was not expanded because %s; it is kept verbatim under Unmodeled", ref.keyword, why))
 	}
 	return diags
 }
 
-// dynamicExpanded reports the expansion of the dynamic reference s writes at
+// dynamicExpanded reports the expansion of the dynamic reference schema writes at
 // pointer to target, at the keyword it is written as.
-func dynamicExpanded(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeID) ir.Diagnostic {
-	ref, _ := dynamicRefOf(c, s, pointer)
+func dynamicExpanded(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeID) ir.Diagnostic {
+	ref, _ := dynamicRefOf(loweringContext, schema, pointer)
 	what := "the one matching $dynamicAnchor in this document"
 	if ref.keyword == "$recursiveRef" {
 		what = "the root of the schema resource it is written in"
 	}
-	return c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr(ref.keyword), "%s expanded to %q, %s",
+	return loweringContext.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr(ref.keyword), "%s expanded to %q, %s",
 		ref.keyword, target, what)
 }
 
-// declaresDynamicRef reports whether s writes a $dynamicRef or a $recursiveRef,
+// declaresDynamicRef reports whether schema writes a $dynamicRef or a $recursiveRef,
 // so a position that wrote one owns a node to keep an unexpanded reference on.
 // It reads either keyword in any dialect, so a reader asking it with no
 // context to read the dialect by takes a $recursiveRef 2020-12 does not define
 // as dynamic too, which each errs safely on: it keeps a composition it would
 // refine, or a node it would leave the alias to.
-func declaresDynamicRef(s *statement.Schema) bool {
-	return hasKey(s, "$dynamicRef") || hasKey(s, "$recursiveRef")
+func declaresDynamicRef(schema *statement.Schema) bool {
+	return hasKey(schema, "$dynamicRef") || hasKey(schema, "$recursiveRef")
 }

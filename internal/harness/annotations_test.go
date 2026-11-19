@@ -35,9 +35,9 @@ func TestCells_IsFullCrossProduct(t *testing.T) {
 	assert.Len(t, cells, len(harness.Annotations())*len(harness.SiteKinds()))
 
 	seen := make(map[harness.Cell]bool, len(cells))
-	for _, c := range cells {
-		require.False(t, seen[c], "duplicate cell %+v", c)
-		seen[c] = true
+	for _, cell := range cells {
+		require.False(t, seen[cell], "duplicate cell %+v", cell)
+		seen[cell] = true
 	}
 }
 
@@ -104,20 +104,20 @@ func TestConstBlock_TiesToAnnotationsAndSiteKinds(t *testing.T) {
 // vocabulary without ever being compared against Annotations()/SiteKinds().
 func TestConstBlock_VocabularyFilesHoldNothingElse(t *testing.T) {
 	t.Parallel()
-	p, err := harnessPackage()
+	loadedPackage, err := harnessPackage()
 	require.NoError(t, err)
 
 	vocabulary := make([]*types.Named, 0, 2)
 	homes := make(map[string]bool, 2)
 	for _, name := range []string{annotationTypeName, siteKindTypeName} {
-		named, namedErr := p.Named(name)
+		named, namedErr := loadedPackage.Named(name)
 		require.NoError(t, namedErr)
 		vocabulary = append(vocabulary, named)
-		homes[p.Fset.Position(named.Obj().Pos()).Filename] = true
+		homes[loadedPackage.Fset.Position(named.Obj().Pos()).Filename] = true
 	}
 
-	for c := range p.Objects[*types.Const]() {
-		if !homes[p.Fset.Position(c.Pos()).Filename] {
+	for c := range loadedPackage.Objects[*types.Const]() {
+		if !homes[loadedPackage.Fset.Position(c.Pos()).Filename] {
 			continue
 		}
 		ofVocabulary := slices.ContainsFunc(vocabulary, func(named *types.Named) bool {
@@ -132,15 +132,15 @@ func TestConstBlock_VocabularyFilesHoldNothingElse(t *testing.T) {
 // declares with the named type, in declaration order.
 func declaredValues(t *testing.T, typeName string) []string {
 	t.Helper()
-	p, err := harnessPackage()
+	loadedPackage, err := harnessPackage()
 	require.NoError(t, err)
-	consts, err := p.StringConsts(typeName)
+	consts, err := loadedPackage.StringConsts(typeName)
 	require.NoError(t, err)
 	require.NotEmpty(t, consts, "the harness package must declare %s constants", typeName)
 
 	out := make([]string, len(consts))
-	for i, c := range consts {
-		out[i] = c.Value
+	for i, declaredConst := range consts {
+		out[i] = declaredConst.Value
 	}
 	return out
 }

@@ -59,7 +59,7 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			diags := NewChecker().Check(t.Context(), openapitest.YAMLDocument(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.limit,
-				Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }})
+				Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} }})
 			if tc.at == "" {
 				assert.Empty(t, diags)
 				return
@@ -81,9 +81,9 @@ func TestKeyPlace_NamesNoPointerItCannotDerive(t *testing.T) {
 		Locate: func(jsontext.Pointer) ir.Provenance { return ir.Provenance{Position: ir.Position{Line: 1}} },
 	})
 	var places []ir.Provenance
-	for _, d := range diags {
-		if d.Code == diag.UnknownObjectKey {
-			places = append(places, d.Provenance)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnknownObjectKey {
+			places = append(places, diagnostic.Provenance)
 		}
 	}
 	assert.Equal(t, []ir.Provenance{
@@ -94,20 +94,20 @@ func TestKeyPlace_NamesNoPointerItCannotDerive(t *testing.T) {
 
 // TestCheck_DefaultsFillTheUnsetOptions pins the options a caller may leave out.
 func TestCheck_DefaultsFillTheUnsetOptions(t *testing.T) {
-	c := NewChecker()
+	checker := NewChecker()
 	doc := openapitest.YAMLDocument(t, "openapi: 3.1.0\ninfo: {title: t}\n")
-	got := c.Check(t.Context(), doc, "3.1.0", Options{})
+	got := checker.Check(t.Context(), doc, "3.1.0", Options{})
 	require.NotEmpty(t, got, "the document is read from its root")
-	for _, d := range got {
-		assert.Equal(t, ir.Provenance{}, d.Provenance, "unset Locate places nothing")
+	for _, diagnostic := range got {
+		assert.Equal(t, ir.Provenance{}, diagnostic.Provenance, "unset Locate places nothing")
 	}
 	var placed []jsontext.Pointer
-	c.Check(t.Context(), doc, "3.1.0", Options{Locate: func(p jsontext.Pointer) ir.Provenance {
-		placed = append(placed, p)
+	checker.Check(t.Context(), doc, "3.1.0", Options{Locate: func(pointer jsontext.Pointer) ir.Provenance {
+		placed = append(placed, pointer)
 		return ir.Provenance{}
 	}})
 	assert.NotEmpty(t, placed)
-	assert.Empty(t, c.Check(t.Context(), nil, "3.1.0", Options{}), "nothing to read")
+	assert.Empty(t, checker.Check(t.Context(), nil, "3.1.0", Options{}), "nothing to read")
 }
 
 // TestCheck_MergedAndAliasedMappingsAreRead pins that objects are read through
@@ -205,12 +205,12 @@ func TestOutsideRuleset_IsFalseForAnAbsentNodeAndTrueForATagOutsideIt(t *testing
 // placed is not seen. A merge key is no key the mapping writes itself.
 func TestKeyPlacer_ReadsTheMappingOnce(t *testing.T) {
 	doc := openapitest.YAMLDocument(t, "x-m: &m 1\n<<: {c: 2}\na: *m\n")
-	located := func(p jsontext.Pointer) ir.Provenance {
-		return ir.Provenance{Pointer: p, Position: ir.Position{Line: 99}}
+	located := func(pointer jsontext.Pointer) ir.Provenance {
+		return ir.Provenance{Pointer: pointer, Position: ir.Position{Line: 99}}
 	}
-	w := &walker{}
-	w.locate = located
-	places := newKeyPlacer(w, doc.Content[0], "")
+	walkerValue := &walker{}
+	walkerValue.locate = located
+	places := newKeyPlacer(walkerValue, doc.Content[0], "")
 	assert.Equal(t, ir.Provenance{Pointer: "/a", Position: ir.Position{Line: 3, Column: 4}}, places.place("a"))
 	assert.Equal(t, ir.Provenance{Pointer: "/c", Position: ir.Position{Line: 99}}, places.place("c"))
 
@@ -229,13 +229,13 @@ func TestKeyPlacer_ReadsTheMappingOnce(t *testing.T) {
 func TestKeyPlacer_PlacesAKeyWhoseValueIsAnchoredAtItsOwn(t *testing.T) {
 	t.Parallel()
 	doc := openapitest.YAMLDocument(t, "b: &m 1\na: *m\n")
-	w := &walker{}
-	w.locate = func(p jsontext.Pointer) ir.Provenance {
-		if p == "" {
+	walkerValue := &walker{}
+	walkerValue.locate = func(pointer jsontext.Pointer) ir.Provenance {
+		if pointer == "" {
 			return ir.Provenance{}
 		}
 		return ir.Provenance{Pointer: "/a"}
 	}
-	places := newKeyPlacer(w, doc.Content[0], "")
+	places := newKeyPlacer(walkerValue, doc.Content[0], "")
 	assert.Equal(t, ir.Provenance{Pointer: "/b", Position: ir.Position{Line: 1, Column: 4}}, places.place("b"))
 }

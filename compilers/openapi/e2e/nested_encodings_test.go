@@ -203,9 +203,9 @@ x-defs:
 	require.NotNil(t, doc)
 	refs := unresolvedRefs(diags)
 	got := make([]string, 0, len(refs))
-	for _, d := range refs {
-		assert.Contains(t, d.Message, "holds no schema", d.Provenance.Pointer)
-		got = append(got, string(d.Provenance.Pointer))
+	for _, diagnostic := range refs {
+		assert.Contains(t, diagnostic.Message, "holds no schema", diagnostic.Provenance.Pointer)
+		got = append(got, string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{"/components/schemas/Nested", "/components/schemas/Extension"}, got)
 	for _, schema := range []string{at, "/x-defs/X/schema"} {
@@ -239,9 +239,9 @@ func TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding(t *testing
 				want = append(want, h+header.below)
 			}
 			var got []string
-			for _, d := range unresolvedRefs(diags) {
-				assert.Equal(t, ir.SeverityError, d.Severity, "%s %s", version, d.Provenance.Pointer)
-				got = append(got, string(d.Provenance.Pointer))
+			for _, diagnostic := range unresolvedRefs(diags) {
+				assert.Equal(t, ir.SeverityError, diagnostic.Severity, "%s %s", version, diagnostic.Provenance.Pointer)
+				got = append(got, string(diagnostic.Provenance.Pointer))
 			}
 			assert.ElementsMatch(t, want, got, "%s, each header %s", version, header.body)
 			for _, nested := range []string{"/doc/encoding", "/parts/prefixEncoding", "/parts/itemEncoding"} {

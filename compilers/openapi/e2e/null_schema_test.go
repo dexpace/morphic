@@ -26,15 +26,15 @@ import (
 func assertOnlyLoadReportsNull(t *testing.T, diags []ir.Diagnostic, pointer jsontext.Pointer, want ir.Severity) {
 	t.Helper()
 	var at []ir.Diagnostic
-	for _, d := range diags {
-		if d.Provenance.Pointer == pointer {
-			at = append(at, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == pointer {
+			at = append(at, diagnostic)
 		}
 	}
 	require.NotEmpty(t, at, "no validation finding at %q: %+v", pointer, diags)
-	for _, d := range at {
-		assert.Equal(t, want, d.Severity, "%+v", d)
-		assert.True(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "only the load phase reports here: %+v", d)
+	for _, diagnostic := range at {
+		assert.Equal(t, want, diagnostic.Severity, "%+v", diagnostic)
+		assert.True(t, strings.HasPrefix(diagnostic.Code, diag.Validation+"/"), "only the load phase reports here: %+v", diagnostic)
 	}
 }
 
@@ -80,13 +80,13 @@ components:
 		assert.Empty(t, b.Additional, "a null branch closes nothing")
 		assert.NotContains(t, b.Unmodeled, "openapi:allOf/0", "and keeps nothing")
 
-		c, ok := typeByName(doc, "C").(*ir.Scalar)
+		scalar, ok := typeByName(doc, "C").(*ir.Scalar)
 		require.True(t, ok)
-		assert.Equal(t, &top, c.Base, "a component written null is a scalar alias over the top type")
+		assert.Equal(t, &top, scalar.Base, "a component written null is a scalar alias over the top type")
 
-		l, ok := typeByName(doc, "L").(*ir.List)
+		list, ok := typeByName(doc, "L").(*ir.List)
 		require.True(t, ok)
-		assert.Equal(t, top, l.ElementType, "items written null is an absent items")
+		assert.Equal(t, top, list.ElementType, "items written null is an absent items")
 	})
 
 	t.Run("in a parameter, a header and a media type", func(t *testing.T) {
@@ -170,8 +170,8 @@ func TestCompile_AValueThatIsNoSchemaInAnotherDocumentIsNoSchema(t *testing.T) {
 
 			var model *ir.Model
 			for id, def := range doc.Types {
-				if m, ok := def.(*ir.Model); ok && strings.HasSuffix(string(id), "other.yaml/S") {
-					model = m
+				if irModel, ok := def.(*ir.Model); ok && strings.HasSuffix(string(id), "other.yaml/S") {
+					model = irModel
 				}
 			}
 			require.NotNil(t, model, "the file's schema lowers to a model")

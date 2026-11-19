@@ -54,19 +54,19 @@ func TestMinor_StringSpellsTheMinor(t *testing.T) {
 	assert.Equal(t, "none", specrules.Minor(0).String())
 }
 
-// validSpan reports whether s is empty or runs forward over the minors the
+// validSpan reports whether minorVersionRange is empty or runs forward over the minors the
 // table covers, which every span a row writes must be.
-func validSpan(s specrules.MinorVersionRange) bool {
-	if s.Since == 0 {
-		return s.Until == 0
+func validSpan(minorVersionRange specrules.MinorVersionRange) bool {
+	if minorVersionRange.Since == 0 {
+		return minorVersionRange.Until == 0
 	}
 	last := slices.Max(minors())
-	return s.Since <= last && s.Until <= last && (s.Until == 0 || s.Until >= s.Since)
+	return minorVersionRange.Since <= last && minorVersionRange.Until <= last && (minorVersionRange.Until == 0 || minorVersionRange.Until >= minorVersionRange.Since)
 }
 
 // overlaps reports whether the two spans share a minor.
 func overlaps(a, b specrules.MinorVersionRange) bool {
-	return slices.ContainsFunc(minors(), func(m specrules.Minor) bool { return a.Holds(m) && b.Holds(m) })
+	return slices.ContainsFunc(minors(), func(minor specrules.Minor) bool { return a.Holds(minor) && b.Holds(minor) })
 }
 
 // TestSpan_HoldsTheMinorsItNames walks every constructor over every minor.
@@ -83,8 +83,8 @@ func TestSpan_HoldsTheMinorsItNames(t *testing.T) {
 		{"zero", specrules.MinorVersionRange{}, [3]bool{false, false, false}},
 	}
 	for _, tc := range tests {
-		for i, m := range []specrules.Minor{specrules.V30, specrules.V31, specrules.V32} {
-			assert.Equal(t, tc.want[i], tc.span.Holds(m), "%s at %s", tc.name, m)
+		for i, minor := range []specrules.Minor{specrules.V30, specrules.V31, specrules.V32} {
+			assert.Equal(t, tc.want[i], tc.span.Holds(minor), "%s at %s", tc.name, minor)
 		}
 		assert.True(t, validSpan(tc.span), tc.name)
 	}

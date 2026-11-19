@@ -53,7 +53,7 @@ type correlations struct {
 type candidate struct {
 	key    string
 	id     string
-	expand func(c *correlator, key string)
+	expand func(correlatorValue *correlator, key string)
 }
 
 // correlator settles every entity's key in key order. An entity takes the
@@ -77,14 +77,14 @@ func newCorrelations(doc *ir.Document) *correlations {
 	if doc == nil {
 		return out
 	}
-	c := &correlator{
+	correlatorValue := &correlator{
 		doc: doc, settled: map[string]bool{}, out: out,
 		inline: inlineConjuncts(doc.Types), ops: map[ir.OperationID]*ir.Operation{},
 	}
-	c.seedLayer()
-	c.seedTypes()
-	for c.pending.Len() > 0 {
-		c.settle(c.popLeast())
+	correlatorValue.seedLayer()
+	correlatorValue.seedTypes()
+	for correlatorValue.pending.Len() > 0 {
+		correlatorValue.settle(correlatorValue.popLeast())
 	}
 	return out
 }

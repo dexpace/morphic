@@ -48,9 +48,9 @@ func resolve(t *testing.T, doc *ir.Document, ids []ir.ServerID) []ir.Server {
 	t.Helper()
 	out := make([]ir.Server, 0, len(ids))
 	for _, id := range ids {
-		s, ok := doc.Servers[id]
+		server, ok := doc.Servers[id]
 		require.True(t, ok, "%s names no registered server", id)
-		out = append(out, s)
+		out = append(out, server)
 	}
 	return out
 }
@@ -220,8 +220,8 @@ func TestServerName_CollidesOnPunctuationAlone(t *testing.T) {
 func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	got, diags := reg.Declared(c, []*soa.Server{nil, {URL: "https://x.example.com"}}, "/paths/~1a")
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	got, diags := reg.Declared(serviceContext, []*soa.Server{nil, {URL: "https://x.example.com"}}, "/paths/~1a")
 
 	assert.Empty(t, diags)
 	assert.Equal(t, []ir.ServerID{"server/openapi/paths/~1a/servers/1"}, got)
@@ -236,8 +236,8 @@ func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 func TestRegistry_DeclaredEveryEntryNilIsNil(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	got, diags := reg.Declared(c, []*soa.Server{nil, nil}, "")
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	got, diags := reg.Declared(serviceContext, []*soa.Server{nil, nil}, "")
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 	assert.Nil(t, reg.Servers())
@@ -250,8 +250,8 @@ func TestServerVariables_NilEntrySkipped(t *testing.T) {
 		sequencedmap.NewElem("keep", &soa.ServerVariable{}),
 	)
 	reg := servers.NewRegistry()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	got, diags := reg.Declared(c, []*soa.Server{{URL: "https://x", Variables: vars}}, "")
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	got, diags := reg.Declared(serviceContext, []*soa.Server{{URL: "https://x", Variables: vars}}, "")
 	assert.Empty(t, diags)
 	require.Len(t, got, 1)
 	srv := reg.Servers()[got[0]]
@@ -351,22 +351,22 @@ paths: {}
 // registered and reports nothing, without lowering the declaration again.
 func TestRegistry_DeclaredSecondReachLowersNothing(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, `openapi: 3.1.0
+	serviceContext := servicetest.Context(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:
     servers: [{url: https://a.example, x-n: .nan}]
     get: {responses: {"200": {description: ok}}}
 `, service.Policy{Grouping: service.GroupByTags})
-	item, ok := c.Doc.GetPaths().Get("/a")
+	item, ok := serviceContext.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
 	list := item.GetObject().GetServers()
 	require.Len(t, list, 1)
 
 	reg := servers.NewRegistry()
-	first, diags := reg.Declared(c, list, "/paths/~1a")
+	first, diags := reg.Declared(serviceContext, list, "/paths/~1a")
 	require.Len(t, diags, 1, "the first reach lowers the server and reports the extension it cannot keep")
-	again, diags := reg.Declared(c, list, "/paths/~1a")
+	again, diags := reg.Declared(serviceContext, list, "/paths/~1a")
 	assert.Equal(t, first, again, "the second reach names the same server")
 	assert.Empty(t, diags, "and reports nothing, having lowered nothing")
 	assert.Len(t, reg.Servers(), 1)
@@ -390,14 +390,14 @@ func TestRegistry_ServersHandsOverACopy(t *testing.T) {
 // writing nothing into the caller's map.
 func TestRegistry_ReopenRegistersBesideWhatItHolds(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	first := servers.NewRegistry()
-	_, diags := first.Root(c)
+	_, diags := first.Root(serviceContext)
 	require.Empty(t, diags)
 	held := first.Servers()
 
 	reg := servers.Reopen(held)
-	id, diags := reg.At(c, &soa.Server{URL: "https://next.example"}, "/x/server")
+	id, diags := reg.At(serviceContext, &soa.Server{URL: "https://next.example"}, "/x/server")
 	require.Empty(t, diags)
 	assert.Equal(t, []ir.ServerID{"server/default", id}, slices.Sorted(maps.Keys(reg.Servers())))
 	assert.Equal(t, []ir.ServerID{"server/default"}, slices.Sorted(maps.Keys(held)), "the caller's map is untouched")
@@ -423,8 +423,8 @@ paths: {}
 	srvs := serviceServers(t, doc)
 	require.Len(t, srvs, 1)
 	got := map[string]*string{}
-	for _, v := range srvs[0].Variables {
-		got[v.Name] = v.Default
+	for _, serverVariable := range srvs[0].Variables {
+		got[serverVariable.Name] = serverVariable.Default
 	}
 	assert.Equal(t, map[string]*string{"base": new(""), "v": new("v1"), "w": nil}, got)
 }
@@ -457,10 +457,10 @@ paths:
 		"server/openapi/servers/2":           {ir.Naming{Hint: "https_c_example"}, false},
 		"server/openapi/paths/~1x/servers/0": {ir.NamingFor("stream"), true},
 	} {
-		s, ok := doc.Servers[id]
+		server, ok := doc.Servers[id]
 		require.True(t, ok, id)
-		assert.Equal(t, want.name, s.Name, id)
-		assert.Equal(t, want.marked, s.Provenance.Inferred == promotion.ExtensionPromotionHeuristic, id)
-		assert.Contains(t, s.Unmodeled, "openapi:x-fern-server-name", "%s keeps the key it read", id)
+		assert.Equal(t, want.name, server.Name, id)
+		assert.Equal(t, want.marked, server.Provenance.Inferred == promotion.ExtensionPromotionHeuristic, id)
+		assert.Contains(t, server.Unmodeled, "openapi:x-fern-server-name", "%s keeps the key it read", id)
 	}
 }

@@ -49,8 +49,8 @@ func (l *askLog) names() []string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	out := make([]string, 0, len(l.reads))
-	for _, r := range l.reads {
-		out = append(out, r.name)
+	for _, ask := range l.reads {
+		out = append(out, ask.name)
 	}
 	return out
 }
@@ -122,8 +122,8 @@ func TestBind_AChainOfDeclaringDocumentsCostsWorkLinearInItsLength(t *testing.T)
 
 	table := laddered(t, 100, "", &askLog{})
 	assert.Equal(t, 101, table.Documents(), "the source and one document per rung")
-	for _, e := range table.Entries() {
-		assert.Equal(t, reftable.Resolved, e.Chain.Status, "%v", e.Site)
+	for _, referenceSite := range table.Entries() {
+		assert.Equal(t, reftable.Resolved, referenceSite.Chain.Status, "%v", referenceSite.Site)
 	}
 	assert.Zero(t, table.Passes()-1, "the chain is answered in one pass, not one per link")
 }
@@ -140,8 +140,8 @@ func TestBind_AChainOfDeclaringURLsCostsWorkLinearAndEachIsRequestedOnce(t *test
 
 	var log askLog
 	table := laddered(t, 50, base, &log)
-	for _, e := range table.Entries() {
-		assert.Equal(t, reftable.Resolved, e.Chain.Status, "%v", e.Site)
+	for _, referenceSite := range table.Entries() {
+		assert.Equal(t, reftable.Resolved, referenceSite.Chain.Status, "%v", referenceSite.Site)
 	}
 	count := map[string]int{}
 	for _, name := range log.names() {
@@ -172,8 +172,8 @@ func TestBind_HeldDocumentsDeclaringEachOthersURIAreAnsweredInEitherOrder(t *tes
 		var log askLog
 		table := bound(t, head+"components:\n  schemas:\n"+schemas, log.opening(t, self, docs))
 		assert.ElementsMatch(t, []string{"https://x.test/u1", "https://x.test/u2"}, log.names())
-		for _, r := range log.reads {
-			assert.Equal(t, "spec.yaml", r.from, "the source asked for %s", r.name)
+		for _, ask := range log.reads {
+			assert.Equal(t, "spec.yaml", ask.from, "the source asked for %s", ask.name)
 		}
 		u1 := docNamed(t, table, "https://x.test/u1")
 		assert.Equal(t, reftable.DocumentPointer{Doc: u1, Pointer: "/S"}, entryAt(t, table, "/components/schemas/B").Hop.Target)

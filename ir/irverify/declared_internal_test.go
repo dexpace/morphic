@@ -84,16 +84,16 @@ func TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode(t *testing.T) {
 	keyed := ir.KeyedClasses()
 	var want []string
 	for i, path := range found.Paths() {
-		if d := decls[i]; !keyed[d.Class] {
-			want = append(want, "ir/empty-"+ir.RefNoun(d.Class)+"-id "+path.String())
+		if idDeclaration := decls[i]; !keyed[idDeclaration.Class] {
+			want = append(want, "ir/empty-"+ir.RefNoun(idDeclaration.Class)+"-id "+path.String())
 		}
 	}
 	require.NotEmpty(t, want, "the fixture must declare a class Document keys no map by")
 
 	reported := declaredIDViolations(idBearingDoc(false))
 	got := make([]string, 0, len(reported))
-	for _, v := range reported {
-		got = append(got, v.Code+" "+v.Path)
+	for _, violation := range reported {
+		got = append(got, violation.Code+" "+violation.Path)
 	}
 	assert.Empty(t, cmp.Diff(want, got),
 		"this check and ir.IDDeclarations must find the same declarations (-ir +irverify)")
@@ -161,8 +161,8 @@ func TestCheckDeclaredIDs_MapKeyedClassesAreLeftToTheRegistryRule(t *testing.T) 
 	assert.Empty(t, declaredIDViolations(doc))
 
 	codes := map[string]bool{}
-	for _, v := range Verify(doc) {
-		codes[v.Code] = true
+	for _, violation := range Verify(doc) {
+		codes[violation.Code] = true
 	}
 	for _, noun := range []string{"type", "channel", "message", "auth"} {
 		assert.True(t, codes["ir/empty-"+noun+"-id"],
@@ -182,8 +182,8 @@ func TestVerify_ReportsEmptyDeclaredIDs(t *testing.T) {
 
 	found := Verify(doc)
 	codes := make([]string, 0, len(found))
-	for _, v := range found {
-		codes = append(codes, v.Code)
+	for _, violation := range found {
+		codes = append(codes, violation.Code)
 	}
 	assert.Contains(t, codes, "ir/empty-service-id")
 	assert.Contains(t, codes, "ir/empty-group-id")

@@ -40,11 +40,11 @@ func TestReplacementCarriers_AreEveryOneTheIRDeclares(t *testing.T) {
 		classes[class.Name()] = true
 	}
 	fields := map[string]map[string]string{}
-	for _, f := range declaredFields(t) {
-		if fields[f.owner] == nil {
-			fields[f.owner] = map[string]string{}
+	for _, declaredField := range declaredFields(t) {
+		if fields[declaredField.owner] == nil {
+			fields[declaredField.owner] = map[string]string{}
 		}
-		fields[f.owner][f.field.Name()] = types.TypeString(f.field.Type(), func(*types.Package) string { return "" })
+		fields[declaredField.owner][declaredField.field.Name()] = types.TypeString(declaredField.field.Type(), func(*types.Package) string { return "" })
 	}
 	var declared []string
 	for owner, fs := range fields {

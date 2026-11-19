@@ -19,12 +19,12 @@ import (
 // name it nothing rather than read past the pointer's start.
 func TestOwnerOf_NamesOnlyAMediaTypeAContentMapHolds(t *testing.T) {
 	t.Parallel()
-	n := New(nil, true)
-	hint, ok := n.ownerOf(reftable.Source, []string{"schema"}, []reftable.Kind{reftable.KindMediaType, reftable.KindSchema}, 0)
+	namer := New(nil, true)
+	hint, ok := namer.ownerOf(reftable.Source, []string{"schema"}, []reftable.Kind{reftable.KindMediaType, reftable.KindSchema}, 0)
 	assert.False(t, ok, "a media type no content map holds")
 	assert.Empty(t, hint)
 
-	hint, ok = n.contentOwner(reftable.Source, "/x", reftable.KindOther)
+	hint, ok = namer.contentOwner(reftable.Source, "/x", reftable.KindOther)
 	assert.False(t, ok, "content held by no object the grammar names")
 	assert.Empty(t, hint)
 }

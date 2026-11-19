@@ -36,9 +36,9 @@ var irPackage = sync.OnceValues(func() (*decls.Package, error) {
 // irDecls returns the ir package, type-checked.
 func irDecls(t *testing.T) *decls.Package {
 	t.Helper()
-	p, err := irPackage()
+	loadedPackage, err := irPackage()
 	require.NoError(t, err)
-	return p
+	return loadedPackage
 }
 
 // declaredConstsOfType returns every constant of the named type the ir package
@@ -71,7 +71,7 @@ func parseVersion(s string) (semver, bool) {
 	if len(parts) != len(semver{}) {
 		return semver{}, false
 	}
-	var v semver
+	var semverValue semver
 	for i, part := range parts {
 		if part == "" || len(part) > 9 || (len(part) > 1 && part[0] == '0') || strings.Trim(part, "0123456789") != "" {
 			return semver{}, false
@@ -80,9 +80,9 @@ func parseVersion(s string) (semver, bool) {
 		if err != nil {
 			return semver{}, false
 		}
-		v[i] = n
+		semverValue[i] = n
 	}
-	return v, true
+	return semverValue, true
 }
 
 // compareVersions orders two versions by precedence. One that does not parse
@@ -439,26 +439,26 @@ type testingT interface {
 // zero, and is asserted in both directions, so it cannot outlive its reason.
 // The walk reads the struct's own fields alone, not the fields of a value one
 // of them holds.
-func assertNoFieldZero(t testingT, v any, zeroOK ...zeroField) {
-	t.Helper()
+func assertNoFieldZero(testingTValue testingT, v any, zeroOK ...zeroField) {
+	testingTValue.Helper()
 	rv := reflect.Indirect(reflect.ValueOf(v))
-	require.Equal(t, reflect.Struct, rv.Kind(), "a populated value must be a struct or a pointer to one")
-	require.Positive(t, rv.NumField(), "a struct with no fields witnesses nothing")
+	require.Equal(testingTValue, reflect.Struct, rv.Kind(), "a populated value must be a struct or a pointer to one")
+	require.Positive(testingTValue, rv.NumField(), "a struct with no fields witnesses nothing")
 	exempt := make(map[string]string, len(zeroOK))
-	for _, z := range zeroOK {
-		field, ok := rv.Type().FieldByName(z.name)
-		require.Truef(t, ok && len(field.Index) == 1, "%s declares no field %s of its own", rv.Type().Name(), z.name)
-		exempt[z.name] = z.why
+	for _, zeroField := range zeroOK {
+		field, ok := rv.Type().FieldByName(zeroField.name)
+		require.Truef(testingTValue, ok && len(field.Index) == 1, "%s declares no field %s of its own", rv.Type().Name(), zeroField.name)
+		exempt[zeroField.name] = zeroField.why
 	}
-	require.Len(t, exempt, len(zeroOK), "each field is listed once")
+	require.Len(testingTValue, exempt, len(zeroOK), "each field is listed once")
 	for field, value := range rv.Fields() {
 		if why, ok := exempt[field.Name]; ok {
-			assert.Truef(t, value.IsZero(),
+			assert.Truef(testingTValue, value.IsZero(),
 				"%s.%s is listed as deliberately zero (%s) but the value sets it; drop the entry",
 				rv.Type().Name(), field.Name, why)
 			continue
 		}
-		assert.Falsef(t, value.IsZero(), "%s.%s is left zero, so a round trip of the value says nothing of it",
+		assert.Falsef(testingTValue, value.IsZero(), "%s.%s is left zero, so a round trip of the value says nothing of it",
 			rv.Type().Name(), field.Name)
 	}
 }
@@ -593,16 +593,16 @@ func declaredIDs(doc *ir.Document) ([]declaredAt, bool) {
 	return out, truncated
 }
 
-// flatLines renders each member of f on one line: the declaration it takes as
+// flatLines renders each member of flattening on one line: the declaration it takes as
 // ID@owner, each it overrides after a <, "required" when an instance must
 // carry it, "secret" when its value is redacted, and the message of its
 // deprecation where it has one.
-func flatLines(f ir.Flattening) []string {
-	out := make([]string, 0, len(f.Properties))
-	for _, fp := range f.Properties {
+func flatLines(flattening ir.Flattening) []string {
+	out := make([]string, 0, len(flattening.Properties))
+	for _, fp := range flattening.Properties {
 		line := fmt.Sprintf("%s@%s", fp.Property.ID, fp.Owner)
-		for _, d := range fp.Overridden {
-			line += fmt.Sprintf(" < %s@%s", d.Property.ID, d.Owner)
+		for _, propertyDecl := range fp.Overridden {
+			line += fmt.Sprintf(" < %s@%s", propertyDecl.Property.ID, propertyDecl.Owner)
 		}
 		if fp.Required {
 			line += " required"
@@ -641,22 +641,22 @@ func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 	}
 
 	for _, td := range doc.Types {
-		m, ok := td.(*ir.Model)
-		if !ok || m == nil {
+		model, ok := td.(*ir.Model)
+		if !ok || model == nil {
 			continue
 		}
-		for i := range m.Properties {
-			digit := int(m.Properties[i].ID[len(m.Properties[i].ID)-1] - '0')
-			m.Properties[i].WireName = fmt.Sprintf("w%d", digit%3)
-			m.Properties[i].Required = digit == 1 || digit == 4
-			m.Properties[i].Secret = digit == 6
-			m.Properties[i].Type = ir.TypeRef{Target: typeOf[digit]}
+		for i := range model.Properties {
+			digit := int(model.Properties[i].ID[len(model.Properties[i].ID)-1] - '0')
+			model.Properties[i].WireName = fmt.Sprintf("w%d", digit%3)
+			model.Properties[i].Required = digit == 1 || digit == 4
+			model.Properties[i].Secret = digit == 6
+			model.Properties[i].Type = ir.TypeRef{Target: typeOf[digit]}
 			if digit == 3 || digit == 5 {
-				m.Properties[i].Deprecation = &ir.Deprecation{Message: fmt.Sprintf("%s@%s", m.Properties[i].ID, m.ID)}
+				model.Properties[i].Deprecation = &ir.Deprecation{Message: fmt.Sprintf("%s@%s", model.Properties[i].ID, model.ID)}
 			}
 		}
-		if len(m.Properties) == 1 {
-			m.Requires = []string{"w2", "zz"}
+		if len(model.Properties) == 1 {
+			model.Requires = []string{"w2", "zz"}
 		}
 	}
 	return doc, types
@@ -702,7 +702,7 @@ func composition(types ir.TypeRegistry, root ir.TypeID) (map[ir.TypeID]*ir.Model
 	models := map[ir.TypeID]*ir.Model{}
 	unflattened := map[ir.TypeID]bool{}
 	queue := []ir.TypeID{standsFor(types, root)}
-	if m, ok := types[queue[0]].(*ir.Model); !ok || m == nil {
+	if model, ok := types[queue[0]].(*ir.Model); !ok || model == nil {
 		return models, unflattened
 	}
 	for len(queue) > 0 {
@@ -711,9 +711,9 @@ func composition(types ir.TypeRegistry, root ir.TypeID) (map[ir.TypeID]*ir.Model
 		if _, seen := models[id]; seen {
 			continue
 		}
-		m := types[id].(*ir.Model)
-		models[id] = m
-		for _, target := range entries(m) {
+		model := types[id].(*ir.Model)
+		models[id] = model
+		for _, target := range entries(model) {
 			end := standsFor(types, target)
 			if pm, ok := types[end].(*ir.Model); ok && pm != nil {
 				queue = append(queue, end)
@@ -729,8 +729,8 @@ func composition(types ir.TypeRegistry, root ir.TypeID) (map[ir.TypeID]*ir.Model
 // itself only when a cycle leads back.
 func composedBelow(types ir.TypeRegistry, id ir.TypeID) map[ir.TypeID]bool {
 	below := map[ir.TypeID]bool{}
-	m, _ := types[id].(*ir.Model)
-	queue := entriesOf(types, m)
+	model, _ := types[id].(*ir.Model)
+	queue := entriesOf(types, model)
 	for len(queue) > 0 {
 		next := queue[0]
 		queue = queue[1:]
@@ -744,14 +744,14 @@ func composedBelow(types ir.TypeRegistry, id ir.TypeID) map[ir.TypeID]bool {
 	return below
 }
 
-// entriesOf returns the live models m's entries compose in, read through alias
+// entriesOf returns the live models model's entries compose in, read through alias
 // scalars.
-func entriesOf(types ir.TypeRegistry, m *ir.Model) []ir.TypeID {
-	if m == nil {
+func entriesOf(types ir.TypeRegistry, model *ir.Model) []ir.TypeID {
+	if model == nil {
 		return nil
 	}
 	var out []ir.TypeID
-	for _, target := range entries(m) {
+	for _, target := range entries(model) {
 		end := standsFor(types, target)
 		if pm, ok := types[end].(*ir.Model); ok && pm != nil {
 			out = append(out, end)
@@ -760,15 +760,15 @@ func entriesOf(types ir.TypeRegistry, m *ir.Model) []ir.TypeID {
 	return out
 }
 
-// entries returns the targets of m's set Base, Implements and Mixins.
-func entries(m *ir.Model) []ir.TypeID {
+// entries returns the targets of model's set Base, Implements and Mixins.
+func entries(model *ir.Model) []ir.TypeID {
 	var out []ir.TypeID
-	if m.Base != nil && m.Base.Target != "" {
-		out = append(out, m.Base.Target)
+	if model.Base != nil && model.Base.Target != "" {
+		out = append(out, model.Base.Target)
 	}
-	for _, r := range append(slices.Clone(m.Implements), m.Mixins...) {
-		if r.Target != "" {
-			out = append(out, r.Target)
+	for _, typeRef := range append(slices.Clone(model.Implements), model.Mixins...) {
+		if typeRef.Target != "" {
+			out = append(out, typeRef.Target)
 		}
 	}
 	return out

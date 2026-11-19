@@ -29,12 +29,12 @@ import (
 // operation with no binding.
 func TestApplyPathItemDocs_WritesTheBindingItIsGiven(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	summary, description := "documented", "at length"
 	item := &soa.PathItem{Summary: &summary, Description: &description}
 	var kept ir.Unmodeled
 	var docs ir.Docs
-	diags := applyPathItemDocs(l.ctx, onOperations(&kept, &docs), item, "/paths/~1a", owners{}.cedes(0))
+	diags := applyPathItemDocs(lowerer.ctx, onOperations(&kept, &docs), item, "/paths/~1a", owners{}.cedes(0))
 
 	bound := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{}, {}}}}
 	diags = append(diags, keepOn(bound, kept, docs)...)
@@ -59,10 +59,10 @@ func TestApplyPathItemDocs_WritesTheBindingItIsGiven(t *testing.T) {
 // with GetSummary non-empty.
 func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	summary, description := "documented", "at length"
 	var kept ir.Unmodeled
-	diags := applyPathItemDocs(l.ctx, onNearestNode(&kept, "/paths/~1a"),
+	diags := applyPathItemDocs(lowerer.ctx, onNearestNode(&kept, "/paths/~1a"),
 		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a", owners{}.cedes(0))
 	assert.Nil(t, kept, "documentation with no raw node is not preserved")
 	assert.Empty(t, diags)

@@ -37,9 +37,9 @@ var relationRoots = map[ir.PrimitiveKind]string{
 
 func irDeclared(t *testing.T) *decls.Package {
 	t.Helper()
-	p, err := decls.Load("github.com/dexpace/morphic/ir")
+	loadedPackage, err := decls.Load("github.com/dexpace/morphic/ir")
 	require.NoError(t, err)
-	return p
+	return loadedPackage
 }
 
 func declaredKinds(t *testing.T) []ir.PrimitiveKind {
@@ -47,16 +47,16 @@ func declaredKinds(t *testing.T) []ir.PrimitiveKind {
 	consts, err := irDeclared(t).StringConsts("PrimitiveKind")
 	require.NoError(t, err)
 	kinds := make([]ir.PrimitiveKind, 0, len(consts))
-	for _, c := range consts {
-		kinds = append(kinds, ir.PrimitiveKind(c.Value))
+	for _, declaredConst := range consts {
+		kinds = append(kinds, ir.PrimitiveKind(declaredConst.Value))
 	}
 	require.NotEmpty(t, kinds)
 	return kinds
 }
 
-func spelled(k ir.PrimitiveKind) bool {
+func spelled(primitiveKind ir.PrimitiveKind) bool {
 	for _, prim := range typeformat.FormatTable {
-		if prim == k {
+		if prim == primitiveKind {
 			return true
 		}
 	}
@@ -123,10 +123,10 @@ func loweredStringFormat(t *testing.T, format string) ir.PrimitiveKind {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	require.Empty(t, diags, "the format is homed, so nothing is reported")
-	h, ok := doc.Types["type/openapi/components/schemas/H"].(*ir.Model)
+	model, ok := doc.Types["type/openapi/components/schemas/H"].(*ir.Model)
 	require.True(t, ok, "H lowers to a model")
-	require.Len(t, h.Properties, 1)
-	prim, ok := doc.Types[h.Properties[0].Type.Target].(*ir.Primitive)
+	require.Len(t, model.Properties, 1)
+	prim, ok := doc.Types[model.Properties[0].Type.Target].(*ir.Primitive)
 	require.True(t, ok, "%s resolves to a shared primitive", format)
 	return prim.PrimitiveKind
 }
@@ -159,16 +159,16 @@ func TestFormatTable_EveryRowNarrowsItsBareType(t *testing.T) {
 func TestFormatTable_EveryRelatedKindIsSpelledOrAHop(t *testing.T) {
 	t.Parallel()
 	kinds := declaredKinds(t)
-	for _, k := range kinds {
-		for _, p := range coveringKinds(kinds, k) {
-			for _, end := range []ir.PrimitiveKind{k, p} {
+	for _, primitiveKind := range kinds {
+		for _, irPrimitiveKind := range coveringKinds(kinds, primitiveKind) {
+			for _, end := range []ir.PrimitiveKind{primitiveKind, irPrimitiveKind} {
 				_, hop := hopOnly[end]
 				assert.True(t, spelled(end) || hop, "%s on an edge is spelled by no row and is no listed hop", end)
 			}
 		}
 	}
-	for k, why := range hopOnly {
-		assert.False(t, spelled(k), "hop %s (%s) is spelled by a row, so it is no hop", k, why)
+	for primitiveKind, why := range hopOnly {
+		assert.False(t, spelled(primitiveKind), "hop %s (%s) is spelled by a row, so it is no hop", primitiveKind, why)
 	}
 }
 
@@ -177,16 +177,16 @@ func TestFormatTable_EveryRelatedKindIsSpelledOrAHop(t *testing.T) {
 func TestRelation_EveryDeclaredKindIsRelatedOrARoot(t *testing.T) {
 	t.Parallel()
 	kinds := declaredKinds(t)
-	for _, k := range kinds {
+	for _, primitiveKind := range kinds {
 		related := false
 		for _, other := range kinds {
-			related = related || (other != ir.PrimitiveAny && typeformat.Narrows(k, other))
+			related = related || (other != ir.PrimitiveAny && typeformat.Narrows(primitiveKind, other))
 		}
-		_, root := relationRoots[k]
-		assert.Equal(t, !root, related, "%s must narrow a kind or be a listed root, not both", k)
+		_, root := relationRoots[primitiveKind]
+		assert.Equal(t, !root, related, "%s must narrow a kind or be a listed root, not both", primitiveKind)
 	}
-	for r, why := range relationRoots {
-		assert.True(t, r.Valid(), "root %q (%s) must be a declared kind", r, why)
+	for primitiveKind, why := range relationRoots {
+		assert.True(t, primitiveKind.Valid(), "root %q (%s) must be a declared kind", primitiveKind, why)
 	}
 }
 
@@ -198,18 +198,18 @@ func TestRelation_LongestChainFitsTheCap(t *testing.T) {
 	require.NoError(t, err)
 
 	kinds := declaredKinds(t)
-	var longest func(k ir.PrimitiveKind, depth int) int
-	longest = func(k ir.PrimitiveKind, depth int) int {
+	var longest func(primitiveKind ir.PrimitiveKind, depth int) int
+	longest = func(primitiveKind ir.PrimitiveKind, depth int) int {
 		require.LessOrEqual(t, int64(depth), limit, "a chain past the cap: a cycle or a cap too low")
 		best := 0
-		for _, p := range coveringKinds(kinds, k) {
-			best = max(best, 1+longest(p, depth+1))
+		for _, irPrimitiveKind := range coveringKinds(kinds, primitiveKind) {
+			best = max(best, 1+longest(irPrimitiveKind, depth+1))
 		}
 		return best
 	}
 	chain := 0
-	for _, k := range kinds {
-		chain = max(chain, longest(k, 0))
+	for _, primitiveKind := range kinds {
+		chain = max(chain, longest(primitiveKind, 0))
 	}
 	assert.LessOrEqual(t, chain, int(limit))
 }
@@ -248,8 +248,8 @@ func TestNarrows_HoldsEveryContainment(t *testing.T) {
 		assert.False(t, typeformat.Narrows(p[1], p[0]), "%s does not narrow %s", p[1], p[0])
 	}
 
-	for _, k := range declaredKinds(t) {
-		assert.False(t, typeformat.Narrows(k, k), "%s is not strictly narrower than itself", k)
+	for _, primitiveKind := range declaredKinds(t) {
+		assert.False(t, typeformat.Narrows(primitiveKind, primitiveKind), "%s is not strictly narrower than itself", primitiveKind)
 	}
 }
 
@@ -379,22 +379,22 @@ func documentedEncodings(t *testing.T) []string {
 	return names
 }
 
-// coveringKinds returns the kinds immediately above k by value domain: those k
+// coveringKinds returns the kinds immediately above primitiveKind by value domain: those primitiveKind
 // is strictly within, with no declared kind between, and never the top type.
 // It reads the containment through the exported StrictlyWithin, which is what
 // the unexported edge table in ir yields.
-func coveringKinds(kinds []ir.PrimitiveKind, k ir.PrimitiveKind) []ir.PrimitiveKind {
+func coveringKinds(kinds []ir.PrimitiveKind, primitiveKind ir.PrimitiveKind) []ir.PrimitiveKind {
 	var out []ir.PrimitiveKind
-	for _, p := range kinds {
-		if p == ir.PrimitiveAny || !k.StrictlyWithin(p) {
+	for _, irPrimitiveKind := range kinds {
+		if irPrimitiveKind == ir.PrimitiveAny || !primitiveKind.StrictlyWithin(irPrimitiveKind) {
 			continue
 		}
 		between := false
-		for _, m := range kinds {
-			between = between || (m != ir.PrimitiveAny && k.StrictlyWithin(m) && m.StrictlyWithin(p))
+		for _, primitiveKindValue := range kinds {
+			between = between || (primitiveKindValue != ir.PrimitiveAny && primitiveKind.StrictlyWithin(primitiveKindValue) && primitiveKindValue.StrictlyWithin(irPrimitiveKind))
 		}
 		if !between {
-			out = append(out, p)
+			out = append(out, irPrimitiveKind)
 		}
 	}
 	return out

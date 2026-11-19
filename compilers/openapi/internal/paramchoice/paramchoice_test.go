@@ -49,10 +49,10 @@ func compile(t *testing.T, src string) (ir.Operation, map[string]string) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	found := map[string]string{}
-	for _, d := range diags {
-		if d.Code == diag.UnpromotedExtension {
-			assert.Equal(t, ir.SeverityInfo, d.Severity)
-			found[string(d.Provenance.Pointer)] = d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnpromotedExtension {
+			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+			found[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 		}
 	}
 	return openapitest.FindOp(t, doc, "getR"), found

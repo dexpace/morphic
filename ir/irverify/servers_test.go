@@ -43,26 +43,26 @@ func TestVerify_ServersAreHeldToTheIDRules(t *testing.T) {
 
 	for _, tc := range []struct {
 		name, code string
-		plant      func(d *ir.Document)
+		plant      func(document *ir.Document)
 	}{
-		{"registry key disagrees with the ID", "ir/server-id-mismatch", func(d *ir.Document) {
-			s := d.Servers["server/default"]
-			s.ID = "server/default/other"
-			d.Servers["server/default"] = s
+		{"registry key disagrees with the ID", "ir/server-id-mismatch", func(document *ir.Document) {
+			server := document.Servers["server/default"]
+			server.ID = "server/default/other"
+			document.Servers["server/default"] = server
 		}},
-		{"ID path disagrees with the pointer", "ir/id-provenance-disagreement", func(d *ir.Document) {
-			s := d.Servers["server/x/servers/0"]
-			s.Provenance.Pointer = "/servers/1"
-			d.Servers["server/x/servers/0"] = s
+		{"ID path disagrees with the pointer", "ir/id-provenance-disagreement", func(document *ir.Document) {
+			server := document.Servers["server/x/servers/0"]
+			server.Provenance.Pointer = "/servers/1"
+			document.Servers["server/x/servers/0"] = server
 		}},
-		{"malformed ID", "ir/id-malformed", func(d *ir.Document) {
-			d.Servers["server/"] = ir.Server{ID: "server/", Name: named("bad")}
+		{"malformed ID", "ir/id-malformed", func(document *ir.Document) {
+			document.Servers["server/"] = ir.Server{ID: "server/", Name: named("bad")}
 		}},
-		{"a scope names no registered server", "ir/dangling-server-ref", func(d *ir.Document) {
-			d.Services[0].Servers = append(d.Services[0].Servers, "server/x/ghost")
+		{"a scope names no registered server", "ir/dangling-server-ref", func(document *ir.Document) {
+			document.Services[0].Servers = append(document.Services[0].Servers, "server/x/ghost")
 		}},
-		{"a scope names an empty ID", "ir/empty-server-ref", func(d *ir.Document) {
-			d.Services[0].Groups[0].Operations[0].Servers = []ir.ServerID{""}
+		{"a scope names an empty ID", "ir/empty-server-ref", func(document *ir.Document) {
+			document.Services[0].Groups[0].Operations[0].Servers = []ir.ServerID{""}
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

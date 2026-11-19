@@ -75,7 +75,7 @@ type Interned struct {
 // typed nil pointer, is skipped rather than dereferenced, since a malformed
 // registry is what pass.Validate and irverify exist to report.
 func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) Explanation {
-	e := Explanation{Pointer: pointer}
+	explanation := Explanation{Pointer: pointer}
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
 		if ir.IsNilTypeDef(td) {
@@ -87,21 +87,21 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) 
 		}
 		// The first node at the pointer, in ID order, names it: several can
 		// share one, and the answer must not follow map order (invariant 7).
-		if e.Node == nil && stampedAt(prov, pointer) {
-			e.Node = &Interned{Pointer: pointer, ID: id, Kind: td.Kind()}
+		if explanation.Node == nil && stampedAt(prov, pointer) {
+			explanation.Node = &Interned{Pointer: pointer, ID: id, Kind: td.Kind()}
 		}
 		if prov.Pointer != pointer && pointer.Contains(prov.Pointer) {
-			e.Below = append(e.Below, Interned{Pointer: prov.Pointer, ID: id, Kind: td.Kind()})
+			explanation.Below = append(explanation.Below, Interned{Pointer: prov.Pointer, ID: id, Kind: td.Kind()})
 		}
 	}
-	slices.SortStableFunc(e.Below, func(a, b Interned) int { return cmp.Compare(a.Pointer, b.Pointer) })
-	for _, d := range diags {
-		if inSource(d.Provenance.Source) && stampedAt(d.Provenance, pointer) {
-			e.Diagnostics = append(e.Diagnostics, d)
+	slices.SortStableFunc(explanation.Below, func(a, b Interned) int { return cmp.Compare(a.Pointer, b.Pointer) })
+	for _, diagnostic := range diags {
+		if inSource(diagnostic.Provenance.Source) && stampedAt(diagnostic.Provenance, pointer) {
+			explanation.Diagnostics = append(explanation.Diagnostics, diagnostic)
 		}
 	}
-	e.Unmodeled, e.Truncated = keptAtOrBelow(doc, pointer)
-	return e
+	explanation.Unmodeled, explanation.Truncated = keptAtOrBelow(doc, pointer)
+	return explanation
 }
 
 // unmodeledType is the type of the maps keptAtOrBelow reads.
@@ -145,56 +145,56 @@ func inSource(source int) bool {
 	return source == 0
 }
 
-// WriteExplanation writes e to w as the lines --explain prints: the
+// WriteExplanation writes explanation to w as the lines --explain prints: the
 // coordinate, the node at it or a line saying the document holds none, what is
 // interned below it and what is kept unmodeled at or below it when anything
 // is, and its diagnostics, every string a spec can write escaped (printable).
 // It stops at the first write that fails and returns that write's error, and
 // refuses a nil w.
-func WriteExplanation(w io.Writer, e Explanation) error {
+func WriteExplanation(w io.Writer, explanation Explanation) error {
 	if w == nil {
 		return errNoWriter
 	}
 	lw := &lineWriter{w: w}
-	shown := printable(string(e.Pointer))
-	if e.Pointer == "" {
+	shown := printable(string(explanation.Pointer))
+	if explanation.Pointer == "" {
 		shown = `"" (the whole document)` // printed bare, the root reads as a missing argument
 	}
 	lw.printf("coordinate %s\n", shown)
 
-	if e.Node != nil {
-		lw.printf("  node %s (%s)\n", printable(string(e.Node.ID)), printable(string(e.Node.Kind)))
+	if explanation.Node != nil {
+		lw.printf("  node %s (%s)\n", printable(string(explanation.Node.ID)), printable(string(explanation.Node.Kind)))
 	} else {
 		lw.printf("  the document holds no type node at this coordinate\n")
 	}
 
-	if len(e.Below) > 0 {
-		lw.printf("  interned below it (%d):\n", len(e.Below))
-		for _, c := range e.Below {
-			lw.printf("    %s -> %s (%s)\n", printable(string(c.Pointer)), printable(string(c.ID)), printable(string(c.Kind)))
+	if len(explanation.Below) > 0 {
+		lw.printf("  interned below it (%d):\n", len(explanation.Below))
+		for _, interned := range explanation.Below {
+			lw.printf("    %s -> %s (%s)\n", printable(string(interned.Pointer)), printable(string(interned.ID)), printable(string(interned.Kind)))
 		}
 	}
 
-	writeKept(lw, e)
+	writeKept(lw, explanation)
 
-	lw.printf("  diagnostics (%d):\n", len(e.Diagnostics))
-	for _, d := range e.Diagnostics {
-		lw.printf("    %s %s: %s\n", printable(string(d.Severity)), printable(d.Code), printable(d.Message))
+	lw.printf("  diagnostics (%d):\n", len(explanation.Diagnostics))
+	for _, diagnostic := range explanation.Diagnostics {
+		lw.printf("    %s %s: %s\n", printable(string(diagnostic.Severity)), printable(diagnostic.Code), printable(diagnostic.Message))
 	}
 	return lw.err
 }
 
-// writeKept writes e's Unmodeled entries, a line each, when it has any, and a
+// writeKept writes explanation's Unmodeled entries, a line each, when it has any, and a
 // line saying the list can lack some when the walk was truncated.
-func writeKept(lw *lineWriter, e Explanation) {
-	if len(e.Unmodeled) > 0 {
-		lw.printf("  kept unmodeled at or below it (%d):\n", len(e.Unmodeled))
-		for _, k := range e.Unmodeled {
+func writeKept(lw *lineWriter, explanation Explanation) {
+	if len(explanation.Unmodeled) > 0 {
+		lw.printf("  kept unmodeled at or below it (%d):\n", len(explanation.Unmodeled))
+		for _, kept := range explanation.Unmodeled {
 			lw.printf("    %s -> %s (%s) on %s\n",
-				printable(string(k.Pointer)), printable(k.Key), printable(string(k.Reason)), printable(k.Holder))
+				printable(string(kept.Pointer)), printable(kept.Key), printable(string(kept.Reason)), printable(kept.Holder))
 		}
 	}
-	if e.Truncated {
+	if explanation.Truncated {
 		lw.printf("  the document nests deeper than the walk reads, so more may be kept below\n")
 	}
 }

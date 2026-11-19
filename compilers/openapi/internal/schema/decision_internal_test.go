@@ -20,15 +20,15 @@ import (
 // composes, or may not refine, gives its readers no refinement to read.
 func TestRefinementOf_AnUnrefinedSchemaHoldsNothing(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object, properties: {a: {type: string}}}
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object, properties: {a: {type: string}}}
     T: {allOf: [{$ref: '#/components/schemas/Obj'}, {properties: {b: {type: string}}}]}
     U: {type: string}
 `))
 	for _, name := range []string{"T", "U"} {
-		r, refined := refinementOf(l.Ctx, StatedIn(l, componentSchema(t, l, name)), jsontext.Pointer("/components/schemas/"+name))
+		refinement, refined := refinementOf(lowerer.Ctx, StatedIn(lowerer, componentSchema(t, lowerer, name)), jsontext.Pointer("/components/schemas/"+name))
 		assert.False(t, refined, name)
-		assert.Empty(t, r.comp.branches, "%s: no branch list is built", name)
-		assert.Nil(t, r.principal, name)
+		assert.Empty(t, refinement.comp.branches, "%s: no branch list is built", name)
+		assert.Nil(t, refinement.principal, name)
 	}
 }
 
@@ -36,14 +36,14 @@ func TestRefinementOf_AnUnrefinedSchemaHoldsNothing(t *testing.T) {
 // decision with no pointer takes for an index, and none for -1.
 func TestBranchStatement_ReadsTheBranchAtAnIndex(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Port: {type: integer}
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Port: {type: integer}
     T: {allOf: [{description: d}, {$ref: '#/components/schemas/Port'}]}
 `))
-	s := StatedIn(l, componentSchema(t, l, "T"))
-	assert.Nil(t, branchStatement(l.Ctx, s, -1))
-	got := branchStatement(l.Ctx, s, 1)
+	schema := StatedIn(lowerer, componentSchema(t, lowerer, "T"))
+	assert.Nil(t, branchStatement(lowerer.Ctx, schema, -1))
+	got := branchStatement(lowerer.Ctx, schema, 1)
 	require.NotNil(t, got)
-	assert.Same(t, allOfBranches(l.Ctx, s, "").branches[1].schema, got)
+	assert.Same(t, allOfBranches(lowerer.Ctx, schema, "").branches[1].schema, got)
 	assert.NotNil(t, got.Ref, "the entry at 1 is the $ref")
 }
 
@@ -54,7 +54,7 @@ func TestBranchStatement_ReadsTheBranchAtAnIndex(t *testing.T) {
 // named as a carrier's collection is, nor a schema no binding places.
 func TestCarriedAt_ReadsWhereASchemaIsWritten(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, `openapi: 3.1.0
+	lowerer, _ := LoweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
   /x:
@@ -80,10 +80,10 @@ components:
 		"/components/schemas/parameters/$defs/schema":                  false,
 		"/components/schemas/headers/patternProperties/schema":         false,
 	} {
-		st := l.Ctx.Statements().At(reftable.DocumentPointer{Pointer: at})
+		st := lowerer.Ctx.Statements().At(reftable.DocumentPointer{Pointer: at})
 		require.Equal(t, statement.Stated, st.Truth, "%s is written", at)
-		assert.Equal(t, want, carriedAt(l.Ctx, st.Schema), at)
+		assert.Equal(t, want, carriedAt(lowerer.Ctx, st.Schema), at)
 	}
 	js := &oas3.JSONSchema[oas3.Referenceable]{}
-	assert.False(t, carriedAt(l.Ctx, StandaloneSchema(js.GetSchema())), "a schema no binding places is held by none")
+	assert.False(t, carriedAt(lowerer.Ctx, StandaloneSchema(js.GetSchema())), "a schema no binding places is held by none")
 }

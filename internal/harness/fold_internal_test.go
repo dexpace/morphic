@@ -79,33 +79,33 @@ func carrying(kind string, decorated bool) *ir.Document {
 	notes := annotated(decID, "d")
 	notes.Availability, notes.Unmodeled = nil, nil
 	ref := ir.TypeRef{Target: objID}
-	var p ir.Property
+	var property ir.Property
 	if decorated {
 		ref.Target = decID
 	} else {
-		p = ir.Property{Docs: notes.Docs, Deprecation: notes.Deprecation, Examples: notes.Examples}
+		property = ir.Property{Docs: notes.Docs, Deprecation: notes.Deprecation, Examples: notes.Examples}
 	}
-	p.ID, p.Type = "property/x/Use/p", ref
+	property.ID, property.Type = "property/x/Use/p", ref
 	doc := listOf(nil)
 	if decorated {
 		doc.Types[decID] = &ir.Scalar{TypeCommon: notes, Base: &ir.TypeRef{Target: objID}}
 	}
 	switch kind {
 	case "property":
-		doc.Types[holderID] = &ir.Model{ID: holderID, Properties: []ir.Property{p}}
+		doc.Types[holderID] = &ir.Model{ID: holderID, Properties: []ir.Property{property}}
 	case "header":
 		doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{
-			{ID: "operation/x", Responses: []ir.Response{{Headers: []ir.Header{{Property: p}}}}},
+			{ID: "operation/x", Responses: []ir.Response{{Headers: []ir.Header{{Property: property}}}}},
 		}}}}}
 	case "parameter":
 		doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{
-			{ID: "operation/x", Params: []ir.Parameter{{ID: "parameter/x", Type: p.Type, Docs: p.Docs, Deprecation: p.Deprecation,
-				Examples: p.Examples, Availability: p.Availability, Unmodeled: p.Unmodeled}}},
+			{ID: "operation/x", Params: []ir.Parameter{{ID: "parameter/x", Type: property.Type, Docs: property.Docs, Deprecation: property.Deprecation,
+				Examples: property.Examples, Availability: property.Availability, Unmodeled: property.Unmodeled}}},
 		}}}}}
 	default:
 		doc.Types[holderID] = &ir.Union{ID: holderID, Variants: []ir.Variant{{
-			Type: p.Type, Docs: p.Docs, Deprecation: p.Deprecation, Examples: p.Examples, Availability: p.Availability,
-			Unmodeled: p.Unmodeled,
+			Type: property.Type, Docs: property.Docs, Deprecation: property.Deprecation, Examples: property.Examples, Availability: property.Availability,
+			Unmodeled: property.Unmodeled,
 		}}}
 	}
 	return doc
@@ -125,20 +125,20 @@ func TestFolded_ACarrierHoldsWhatItsDecoratorHeld(t *testing.T) {
 
 // keepOn sets the Availability and Unmodeled of the carrier of kind in a
 // document carrying builds.
-func keepOn(doc *ir.Document, kind string, a *ir.Availability, u ir.Unmodeled) {
+func keepOn(doc *ir.Document, kind string, a *ir.Availability, unmodeled ir.Unmodeled) {
 	switch kind {
 	case "property":
-		p := &doc.Types[holderID].(*ir.Model).Properties[0]
-		p.Availability, p.Unmodeled = a, u
+		property := &doc.Types[holderID].(*ir.Model).Properties[0]
+		property.Availability, property.Unmodeled = a, unmodeled
 	case "header":
-		h := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
-		h.Availability, h.Unmodeled = a, u
+		header := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
+		header.Availability, header.Unmodeled = a, unmodeled
 	case "parameter":
-		p := &doc.Services[0].Groups[0].Operations[0].Params[0]
-		p.Availability, p.Unmodeled = a, u
+		parameter := &doc.Services[0].Groups[0].Operations[0].Params[0]
+		parameter.Availability, parameter.Unmodeled = a, unmodeled
 	default:
-		v := &doc.Types[holderID].(*ir.Union).Variants[0]
-		v.Availability, v.Unmodeled = a, u
+		variant := &doc.Types[holderID].(*ir.Union).Variants[0]
+		variant.Availability, variant.Unmodeled = a, unmodeled
 	}
 }
 
@@ -171,11 +171,11 @@ func TestFolded_ACarrierLeavesWhatTheCollapseLeaves(t *testing.T) {
 // hold kept on each.
 func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 	doc := carrying("property", true)
-	p := &doc.Types[holderID].(*ir.Model).Properties[0]
-	p.Docs = ir.Docs{Summary: "own", Refs: []ir.DocRef{{Type: objID}}}
-	p.Examples = []ir.Example{{Name: "own"}}
-	p.Deprecation = &ir.Deprecation{Since: "own"}
-	p.Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonOutOfScope, Value: ir.RawValue(`1`)}}
+	property := &doc.Types[holderID].(*ir.Model).Properties[0]
+	property.Docs = ir.Docs{Summary: "own", Refs: []ir.DocRef{{Type: objID}}}
+	property.Examples = []ir.Example{{Name: "own"}}
+	property.Deprecation = &ir.Deprecation{Since: "own"}
+	property.Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonOutOfScope, Value: ir.RawValue(`1`)}}
 	dec := doc.Types[decID].Common()
 	dec.Docs.Summary, dec.Docs.ExternalDocs = "theirs", []ir.Link{{URL: "https://example.com"}}
 	dec.Unmodeled = annotated(decID, "d").Unmodeled
@@ -201,7 +201,7 @@ func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 		ExternalDocs: []ir.Link{{URL: "https://example.com"}}}, got.Properties[0].Docs)
 	assert.Equal(t, &ir.Deprecation{Message: "d", Since: "own"}, got.Properties[0].Deprecation)
 	assert.Equal(t, []ir.Example{{Name: "own"}}, got.Properties[0].Examples)
-	assert.Equal(t, p.Unmodeled, ir.Unmodeled(got.Properties[0].Unmodeled), "the carrier's own")
+	assert.Equal(t, property.Unmodeled, ir.Unmodeled(got.Properties[0].Unmodeled), "the carrier's own")
 	assert.Equal(t, dec.Unmodeled, ir.Unmodeled(got.Properties[0].Decorator.Unmodeled), "the decorator's, beside it")
 }
 
@@ -209,17 +209,17 @@ func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 func carrierSlots(doc *ir.Document, kind string) slots {
 	switch kind {
 	case "property":
-		p := &doc.Types[holderID].(*ir.Model).Properties[0]
-		return slots{ref: &p.Type, docs: &p.Docs, deprecation: &p.Deprecation, examples: &p.Examples}
+		property := &doc.Types[holderID].(*ir.Model).Properties[0]
+		return slots{ref: &property.Type, docs: &property.Docs, deprecation: &property.Deprecation, examples: &property.Examples}
 	case "header":
-		h := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
-		return slots{ref: &h.Type, docs: &h.Docs, deprecation: &h.Deprecation, examples: &h.Examples}
+		header := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
+		return slots{ref: &header.Type, docs: &header.Docs, deprecation: &header.Deprecation, examples: &header.Examples}
 	case "parameter":
-		p := &doc.Services[0].Groups[0].Operations[0].Params[0]
-		return slots{ref: &p.Type, docs: &p.Docs, deprecation: &p.Deprecation, examples: &p.Examples}
+		parameter := &doc.Services[0].Groups[0].Operations[0].Params[0]
+		return slots{ref: &parameter.Type, docs: &parameter.Docs, deprecation: &parameter.Deprecation, examples: &parameter.Examples}
 	default:
-		v := &doc.Types[holderID].(*ir.Union).Variants[0]
-		return slots{ref: &v.Type, docs: &v.Docs, deprecation: &v.Deprecation, examples: &v.Examples}
+		variant := &doc.Types[holderID].(*ir.Union).Variants[0]
+		return slots{ref: &variant.Type, docs: &variant.Docs, deprecation: &variant.Deprecation, examples: &variant.Examples}
 	}
 }
 
@@ -242,10 +242,10 @@ func TestFolded_ACarrierTakesTheDocsOfWhatItsDecoratorStandsFor(t *testing.T) {
 			}
 			dec := decorated.Types[decID].Common()
 			dec.Deprecation, dec.Examples = nil, nil
-			s := carrierSlots(plain, c.kind)
-			*s.deprecation, *s.examples = nil, nil
+			slots := carrierSlots(plain, c.kind)
+			*slots.deprecation, *slots.examples = nil, nil
 			if c.takesFallback {
-				s.docs.Summary, *s.deprecation = "obj", &ir.Deprecation{Message: "obj"}
+				slots.docs.Summary, *slots.deprecation = "obj", &ir.Deprecation{Message: "obj"}
 			}
 
 			assert.Empty(t, cmp.Diff(foldedText(t, plain), foldedText(t, decorated)))

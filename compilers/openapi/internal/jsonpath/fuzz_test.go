@@ -45,12 +45,12 @@ func suiteSelectors(f *testing.F) []string {
 	return out
 }
 
-// within evaluates q over root within fuzzSteps, requiring that it spends no
+// within evaluates query over root within fuzzSteps, requiring that it spends no
 // more and that only a bound refuses it.
-func within(t *testing.T, q jsonpath.Query, root *yaml.Node) ([]jsonpath.Located, bool) {
+func within(t *testing.T, query jsonpath.Query, root *yaml.Node) ([]jsonpath.Located, bool) {
 	t.Helper()
 	b := budget.New(budget.AtMost(fuzzSteps))
-	got, err := q.Select(t.Context(), nodeview.New(), root, &b)
+	got, err := query.Select(t.Context(), nodeview.New(), root, &b)
 	require.LessOrEqual(t, b.Spent(), fuzzSteps)
 	if err != nil {
 		require.True(t, errors.Is(err, jsonpath.ErrSteps) || errors.Is(err, jsonpath.ErrMergeBound), "%v", err)
@@ -69,24 +69,24 @@ func FuzzParse_NamesEachResultByAQueryForIt(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, text string) {
 		root := readTree(t, `{a: [1, b, {c: 2}], d: {e: null, 'f g': true, "h'": [[]]}, i: j}`)
-		q, err := jsonpath.Parse(text)
+		query, err := jsonpath.Parse(text)
 		if err != nil {
 			_, syntax := errors.AsType[*jsonpath.SyntaxError](err)
 			require.True(t, syntax, "%v", err)
 			return
 		}
-		got, ok := within(t, q, root)
+		got, ok := within(t, query, root)
 		if !ok {
 			return
 		}
-		for _, l := range got[:min(len(got), 64)] {
-			path := l.Path.String()
+		for _, located := range got[:min(len(got), 64)] {
+			path := located.Path.String()
 			back, err := jsonpath.Parse(path)
 			require.NoError(t, err, path)
 			again, ok := within(t, back, root)
 			require.True(t, ok, path)
 			require.Len(t, again, 1, path)
-			require.Same(t, l.Node, again[0].Node, path)
+			require.Same(t, located.Node, again[0].Node, path)
 			require.Equal(t, path, again[0].Path.String())
 		}
 	})
@@ -138,10 +138,10 @@ func sharedSource(seed uint64) string {
 func selection(t *testing.T, got []jsonpath.Located) []string {
 	t.Helper()
 	out := make([]string, 0, len(got))
-	for _, l := range got {
+	for _, located := range got {
 		var v any
-		require.NoError(t, l.Node.Decode(&v))
-		out = append(out, fmt.Sprintf("%s = %#v", l.Path.String(), v))
+		require.NoError(t, located.Node.Decode(&v))
+		out = append(out, fmt.Sprintf("%s = %#v", located.Path.String(), v))
 	}
 	slices.Sort(out)
 	return out
@@ -157,7 +157,7 @@ func FuzzSelect_ReadsASharedValueAsItsExpansion(f *testing.F) {
 		f.Add(s, uint64(i))
 	}
 	f.Fuzz(func(t *testing.T, text string, seed uint64) {
-		q, err := jsonpath.Parse(text)
+		query, err := jsonpath.Parse(text)
 		if err != nil {
 			return
 		}
@@ -167,8 +167,8 @@ func FuzzSelect_ReadsASharedValueAsItsExpansion(f *testing.F) {
 		expanded, err := yaml.Marshal(value)
 		require.NoError(t, err)
 
-		got, ok := within(t, q, readTree(t, src))
-		want, twinOK := within(t, q, readTree(t, string(expanded)))
+		got, ok := within(t, query, readTree(t, src))
+		want, twinOK := within(t, query, readTree(t, string(expanded)))
 		if !ok || !twinOK {
 			return
 		}

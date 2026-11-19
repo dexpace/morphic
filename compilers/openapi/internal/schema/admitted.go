@@ -23,12 +23,12 @@ type scalarForm struct {
 	listed  bool
 }
 
-// narrows reports whether f is the form g is, or a narrower one.
-func (f scalarForm) narrows(g scalarForm) bool {
-	if f.spelled == g.spelled {
+// narrows reports whether f is the form scalarFormValue is, or a narrower one.
+func (f scalarForm) narrows(scalarFormValue scalarForm) bool {
+	if f.spelled == scalarFormValue.spelled {
 		return true
 	}
-	return f.listed && g.listed && typeformat.Relate(f.prim, g.prim) == typeformat.ANarrower
+	return f.listed && scalarFormValue.listed && typeformat.Relate(f.prim, scalarFormValue.prim) == typeformat.ANarrower
 }
 
 // admitted is what a schema's keywords leave an instance able to be: its kinds,
@@ -226,7 +226,7 @@ func (a admitted) narrowedTo(joint admitted) bool {
 // formsWithin reports whether a is held to some form narrowing each of b's.
 func (a admitted) formsWithin(b admitted) bool {
 	for _, want := range b.forms {
-		if !slices.ContainsFunc(a.forms, func(f scalarForm) bool { return f.narrows(want) }) {
+		if !slices.ContainsFunc(a.forms, func(scalarFormValue scalarForm) bool { return scalarFormValue.narrows(want) }) {
 			return false
 		}
 	}

@@ -37,16 +37,16 @@ var (
 // (TestObjectFields_ReadsEveryObjectOfTheTable).
 func objectFields(spec specrules.Spec) map[state]map[string]state {
 	out := make(map[state]map[string]state, len(kindStates))
-	for kind, s := range kindStates {
-		if _, container := entries[s]; container || s == sSchema {
+	for kind, stateValue := range kindStates {
+		if _, container := entries[stateValue]; container || stateValue == sSchema {
 			continue
 		}
-		o, _ := spec.Object(kind)
-		fs := make(map[string]state, len(o.Fields))
-		for _, f := range o.Fields {
-			fs[f.Name] = leads(f.Shape, f.Of)
+		object, _ := spec.Object(kind)
+		fs := make(map[string]state, len(object.Fields))
+		for _, field := range object.Fields {
+			fs[field.Name] = leads(field.Shape, field.Of)
 		}
-		out[s] = fs
+		out[stateValue] = fs
 	}
 	return out
 }
@@ -64,8 +64,8 @@ func leads(shape specrules.Shape, of specrules.Kind) state {
 	case specrules.RawMap, specrules.RawList:
 		return sRawEntries
 	case specrules.Nested:
-		if s, ok := kindStates[of]; ok {
-			return s
+		if state, ok := kindStates[of]; ok {
+			return state
 		}
 	case specrules.Map:
 		return containerOf(mapsOf, of)
@@ -78,9 +78,9 @@ func leads(shape specrules.Shape, of specrules.Kind) state {
 // containerOf is the container state in gives for the state an object of kind
 // of is read at, or sObject where the binder reads no such container.
 func containerOf(in map[state]state, of specrules.Kind) state {
-	if s, ok := kindStates[of]; ok {
-		if c, ok := in[s]; ok {
-			return c
+	if state, ok := kindStates[of]; ok {
+		if stateValue, ok := in[state]; ok {
+			return stateValue
 		}
 	}
 	return sObject

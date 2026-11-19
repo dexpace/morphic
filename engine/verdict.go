@@ -97,18 +97,18 @@ func unknownFailOn(s string) error {
 // hear about whatever gate they chose.
 func (t threshold) verdict(doc *ir.Document, findings []triage.Finding) (bool, error) {
 	failed := doc == nil
-	for _, f := range findings {
-		d := f.Diagnostic
-		if !d.Severity.Valid() {
+	for _, finding := range findings {
+		diagnostic := finding.Diagnostic
+		if !diagnostic.Severity.Valid() {
 			return false, fmt.Errorf("engine: diagnostic %q has severity %q: %w",
-				d.Code, d.Severity, errUnknownSeverity)
+				diagnostic.Code, diagnostic.Severity, errUnknownSeverity)
 		}
-		rank, ranked := f.Severity.Rank()
+		rank, ranked := finding.Severity.Rank()
 		if !ranked {
 			return false, fmt.Errorf("engine: diagnostic %q is rated at severity %q: %w",
-				d.Code, f.Severity, errUnknownSeverity)
+				diagnostic.Code, finding.Severity, errUnknownSeverity)
 		}
-		failed = failed || !f.Accepted && threshold(rank) >= t
+		failed = failed || !finding.Accepted && threshold(rank) >= t
 	}
 	return failed, nil
 }

@@ -21,8 +21,8 @@ import (
 func TestValidate_ArgsOutsideGraphQL(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	m := doc.Types["type/m"].(*ir.Model)
-	m.Properties[0].Args = []ir.Parameter{
+	model := doc.Types["type/m"].(*ir.Model)
+	model.Properties[0].Args = []ir.Parameter{
 		{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "type/primitive/string"}},
 	}
 	diags := validated(t, doc)
@@ -188,9 +188,9 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 		}
 	}
 	withArgs := func(doc *ir.Document) *ir.Document {
-		m, ok := doc.Types["type/m"].(*ir.Model)
+		model, ok := doc.Types["type/m"].(*ir.Model)
 		require.True(t, ok)
-		m.Properties[0].Args = []ir.Parameter{
+		model.Properties[0].Args = []ir.Parameter{
 			{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "type/primitive/string"}},
 		}
 		return doc
@@ -213,12 +213,12 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 // ir.MaxWalkDepth's to hold; this is the reporting half.
 func TestCheckDanglingRefs_DeepValueTreeIsTruncated(t *testing.T) {
 	t.Parallel()
-	v := ir.Value{Kind: ir.ValueNull}
+	value := ir.Value{Kind: ir.ValueNull}
 	for range ir.MaxWalkDepth {
-		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
+		value = ir.Value{Kind: ir.ValueList, List: []ir.Value{value}}
 	}
-	m := &ir.Model{ID: "type/m", Examples: []ir.Example{{Value: &v}}}
-	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+	model := &ir.Model{ID: "type/m", Examples: []ir.Example{{Value: &value}}}
+	doc := &ir.Document{Types: ir.TypeRegistry{model.ID: model}}
 
 	diags := danglingRefs(t, doc)
 	require.NotEmpty(t, diags)
@@ -245,9 +245,9 @@ func TestAppendTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
 // A position only an operation holds is no field of a kind: this cannot reach it.
 func TestAppendTypeIDs_ReadsWhatTheTypeGraphReads(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load(reflect.TypeFor[ir.Document]().PkgPath())
+	loadedPackage, err := decls.Load(reflect.TypeFor[ir.Document]().PkgPath())
 	require.NoError(t, err)
-	kinds, err := p.StringConsts("TypeKind")
+	kinds, err := loadedPackage.StringConsts("TypeKind")
 	require.NoError(t, err)
 	require.NotEmpty(t, kinds, "the ir package must declare its type kinds")
 	for _, kind := range kinds {

@@ -13,15 +13,15 @@ import (
 // node. Its depth is the parse's, which maxDepth bounds, so evaluating it by
 // recursion is bounded too.
 type logical interface {
-	holds(ctx context.Context, e *evaluator, at Located) (bool, error)
+	holds(ctx context.Context, evaluatorValue *evaluator, at Located) (bool, error)
 }
 
 // anyOf holds where one of its terms does, read in order.
 type anyOf []logical
 
-func (l anyOf) holds(ctx context.Context, e *evaluator, at Located) (bool, error) {
+func (l anyOf) holds(ctx context.Context, evaluatorValue *evaluator, at Located) (bool, error) {
 	for _, term := range l {
-		if held, err := term.holds(ctx, e, at); err != nil || held {
+		if held, err := term.holds(ctx, evaluatorValue, at); err != nil || held {
 			return held, err
 		}
 	}
@@ -31,9 +31,9 @@ func (l anyOf) holds(ctx context.Context, e *evaluator, at Located) (bool, error
 // allOf holds where every one of its terms does, read in order.
 type allOf []logical
 
-func (l allOf) holds(ctx context.Context, e *evaluator, at Located) (bool, error) {
+func (l allOf) holds(ctx context.Context, evaluatorValue *evaluator, at Located) (bool, error) {
 	for _, term := range l {
-		if held, err := term.holds(ctx, e, at); err != nil || !held {
+		if held, err := term.holds(ctx, evaluatorValue, at); err != nil || !held {
 			return false, err
 		}
 	}
@@ -43,25 +43,25 @@ func (l allOf) holds(ctx context.Context, e *evaluator, at Located) (bool, error
 // negation holds where inner does not.
 type negation struct{ inner logical }
 
-func (n negation) holds(ctx context.Context, e *evaluator, at Located) (bool, error) {
-	held, err := n.inner.holds(ctx, e, at)
+func (n negation) holds(ctx context.Context, evaluatorValue *evaluator, at Located) (bool, error) {
+	held, err := n.inner.holds(ctx, evaluatorValue, at)
 	return !held && err == nil, err
 }
 
 // exists is a test of a query: it holds where the query selects a node.
 type exists struct{ query subquery }
 
-func (x exists) holds(ctx context.Context, e *evaluator, at Located) (bool, error) {
-	nodes, err := e.nodesOf(ctx, x.query, at)
-	e.release(len(nodes))
+func (x exists) holds(ctx context.Context, evaluatorValue *evaluator, at Located) (bool, error) {
+	nodes, err := evaluatorValue.nodesOf(ctx, x.query, at)
+	evaluatorValue.release(len(nodes))
 	return len(nodes) > 0, err
 }
 
 // truth is a test of a function whose result is LogicalType.
 type truth struct{ call *call }
 
-func (t truth) holds(ctx context.Context, e *evaluator, at Located) (bool, error) {
-	return e.callTruth(ctx, t.call, at)
+func (t truth) holds(ctx context.Context, evaluatorValue *evaluator, at Located) (bool, error) {
+	return evaluatorValue.callTruth(ctx, t.call, at)
 }
 
 // compareOp is a comparison's operator.
@@ -82,29 +82,29 @@ type comparison struct {
 	op          compareOp
 }
 
-func (c comparison) holds(ctx context.Context, e *evaluator, at Located) (bool, error) {
-	a, err := e.valueOf(ctx, c.left, at)
+func (c comparison) holds(ctx context.Context, evaluatorValue *evaluator, at Located) (bool, error) {
+	a, err := evaluatorValue.valueOf(ctx, c.left, at)
 	if err != nil {
 		return false, err
 	}
-	b, err := e.valueOf(ctx, c.right, at)
+	b, err := evaluatorValue.valueOf(ctx, c.right, at)
 	if err != nil {
 		return false, err
 	}
 	switch c.op {
 	case opEqual:
-		return e.equal(ctx, a, b)
+		return evaluatorValue.equal(ctx, a, b)
 	case opNotEqual:
-		same, err := e.equal(ctx, a, b)
+		same, err := evaluatorValue.equal(ctx, a, b)
 		return !same && err == nil, err
 	case opLess:
-		return e.less(ctx, a, b)
+		return evaluatorValue.less(ctx, a, b)
 	case opGreater:
-		return e.less(ctx, b, a)
+		return evaluatorValue.less(ctx, b, a)
 	case opLessEqual:
-		return e.lessOrEqual(ctx, a, b)
+		return evaluatorValue.lessOrEqual(ctx, a, b)
 	default:
-		return e.lessOrEqual(ctx, b, a)
+		return evaluatorValue.lessOrEqual(ctx, b, a)
 	}
 }
 
@@ -144,38 +144,38 @@ type subquery struct {
 
 // singular reports whether q selects at most one node by its form alone.
 func (q subquery) singular() bool {
-	for _, s := range q.segments {
-		if !s.singular {
+	for _, segment := range q.segments {
+		if !segment.singular {
 			return false
 		}
 	}
 	return true
 }
 
-// nodesOf evaluates q with at as the current node, returning a nodelist the
+// nodesOf evaluates subqueryValue with at as the current node, returning a nodelist the
 // caller releases once it has read it.
-func (e *evaluator) nodesOf(ctx context.Context, q subquery, at Located) ([]Located, error) {
+func (e *evaluator) nodesOf(ctx context.Context, subqueryValue subquery, at Located) ([]Located, error) {
 	from := at
-	if !q.relative {
+	if !subqueryValue.relative {
 		from = Located{Node: e.root}
 	}
-	return e.run(ctx, q.segments, from)
+	return e.run(ctx, subqueryValue.segments, from)
 }
 
-// valueOf evaluates o, a comparable or a ValueType argument, to its value.
-func (e *evaluator) valueOf(ctx context.Context, o operand, at Located) (jsonValue, error) {
-	switch o.kind {
+// valueOf evaluates operandValue, a comparable or a ValueType argument, to its value.
+func (e *evaluator) valueOf(ctx context.Context, operandValue operand, at Located) (jsonValue, error) {
+	switch operandValue.kind {
 	case opLiteral:
-		return jsonValue{kind: valueScalar, lit: o.lit}, nil
+		return jsonValue{kind: valueScalar, lit: operandValue.lit}, nil
 	case opQuery:
-		nodes, err := e.nodesOf(ctx, o.query, at)
+		nodes, err := e.nodesOf(ctx, operandValue.query, at)
 		e.release(len(nodes))
 		if err != nil || len(nodes) == 0 {
 			return jsonValue{}, err
 		}
 		return jsonValue{kind: valueNode, node: nodes[0].Node}, nil
 	default:
-		return e.callValue(ctx, o.call, at)
+		return e.callValue(ctx, operandValue.call, at)
 	}
 }
 

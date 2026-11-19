@@ -58,7 +58,7 @@ func sameValues(a, b admitted) bool {
 
 // mostWithin returns the conjuncts naming a kind that lie within the most
 // conjuncts, in the order written.
-func mostWithin(w *admissionReader, conjuncts []conjunct) []*conjunct {
+func mostWithin(admissionReaderValue *admissionReader, conjuncts []conjunct) []*conjunct {
 	var tied []*conjunct
 	most := 0
 	for i := range conjuncts {
@@ -66,7 +66,7 @@ func mostWithin(w *admissionReader, conjuncts []conjunct) []*conjunct {
 		if !cj.says {
 			continue
 		}
-		switch n := w.conesOver(conjuncts, cj.read); {
+		switch n := admissionReaderValue.conesOver(conjuncts, cj.read); {
 		case n > most:
 			tied, most = append(tied[:0], cj), n
 		case n == most:
@@ -87,10 +87,10 @@ func strongest(tied []*conjunct) []*conjunct {
 
 // admitAlike reports whether each of tied lies within every other: what they admit
 // is one, so far as a reading holds it.
-func admitAlike(w *admissionReader, tied []*conjunct) bool {
+func admitAlike(admissionReaderValue *admissionReader, tied []*conjunct) bool {
 	first := tied[0].read
 	return !slices.ContainsFunc(tied[1:], func(cj *conjunct) bool {
-		return !w.within(first, cj.read) || !w.within(cj.read, first)
+		return !admissionReaderValue.within(first, cj.read) || !admissionReaderValue.within(cj.read, first)
 	})
 }
 
@@ -100,15 +100,15 @@ func admitAlike(w *admissionReader, tied []*conjunct) bool {
 // again, else none, as no rule ranks their branches, and the keywords beside
 // the allOf decide (docs/compilers/openapi.md#allof-refinement). A tie of no
 // conjunct leaves those keywords too.
-func untie(w *admissionReader, conjuncts []conjunct, tied []*conjunct) *conjunct {
+func untie(admissionReaderValue *admissionReader, conjuncts []conjunct, tied []*conjunct) *conjunct {
 	switch {
 	case len(tied) == 0:
 		return &conjuncts[0]
 	case len(tied) == 1:
 		return tied[0]
 	case tied[0].form == formWords:
-		return untieWords(w, &conjuncts[0], tied)
-	case writtenAlike(w, tied):
+		return untieWords(admissionReaderValue, &conjuncts[0], tied)
+	case writtenAlike(admissionReaderValue, tied):
 		return tied[0]
 	default:
 		return &conjuncts[0]
@@ -117,9 +117,9 @@ func untie(w *admissionReader, conjuncts []conjunct, tied []*conjunct) *conjunct
 
 // writtenAlike reports whether each of tied is an allOf branch written as the
 // first is (sameText): one schema written several times.
-func writtenAlike(w *admissionReader, tied []*conjunct) bool {
+func writtenAlike(admissionReaderValue *admissionReader, tied []*conjunct) bool {
 	return !slices.ContainsFunc(tied, func(cj *conjunct) bool {
-		return cj.branch == nil || !sameText(w.c, tied[0].branch.schema, cj.branch.schema)
+		return cj.branch == nil || !sameText(admissionReaderValue.c, tied[0].branch.schema, cj.branch.schema)
 	})
 }
 
@@ -134,7 +134,7 @@ var principalKeywords = slices.Concat([]string{"items", "prefixItems", "addition
 // alike, one is elected, and where none does, none is, and beside, the
 // keywords beside the allOf, decide. Where nothing tells them apart, beside
 // stands if tied, else the least text (leastText).
-func untieWords(w *admissionReader, beside *conjunct, tied []*conjunct) *conjunct {
+func untieWords(admissionReaderValue *admissionReader, beside *conjunct, tied []*conjunct) *conjunct {
 	most := slices.MaxFunc(tied, func(a, b *conjunct) int {
 		return countKeys(a.schema, principalKeywords) - countKeys(b.schema, principalKeywords)
 	})
@@ -145,14 +145,14 @@ func untieWords(w *admissionReader, beside *conjunct, tied []*conjunct) *conjunc
 	if slices.Contains(tied, beside) {
 		return beside
 	}
-	return leastText(w, tied)
+	return leastText(admissionReaderValue, tied)
 }
 
-// countKeys counts the keys of keys s writes (hasKey).
-func countKeys(s *statement.Schema, keys []string) int {
+// countKeys counts the keys of keys schema writes (hasKey).
+func countKeys(schema *statement.Schema, keys []string) int {
 	n := 0
 	for _, key := range keys {
-		if hasKey(s, key) {
+		if hasKey(schema, key) {
 			n++
 		}
 	}
@@ -172,10 +172,10 @@ func writesWithin(a, b *statement.Schema) bool {
 // node stands, and the text, its keys sorted, reads no order the branches are
 // written in. Of a schema written twice, the first copy stands for both, the
 // one place order shows, and only in that node's pointer.
-func leastText(w *admissionReader, tied []*conjunct) *conjunct {
+func leastText(admissionReaderValue *admissionReader, tied []*conjunct) *conjunct {
 	best := tied[0]
 	for _, cj := range tied[1:] {
-		if bytes.Compare(writtenText(w.c, cj.branch.schema), writtenText(w.c, best.branch.schema)) < 0 {
+		if bytes.Compare(writtenText(admissionReaderValue.c, cj.branch.schema), writtenText(admissionReaderValue.c, best.branch.schema)) < 0 {
 			best = cj
 		}
 	}
@@ -187,11 +187,11 @@ func leastText(w *admissionReader, tied []*conjunct) *conjunct {
 // writing it: a $ref's name stays put under edits to what it names, so no
 // order written decides. Of a $ref written twice alike, the first copy stands
 // for both, and keepsAtOutcome keeps neither.
-func narrowestRef(w *admissionReader, conjuncts []conjunct, refs []*conjunct) *conjunct {
-	best, most := refs[0], w.conesOver(conjuncts, refs[0].read)
+func narrowestRef(admissionReaderValue *admissionReader, conjuncts []conjunct, refs []*conjunct) *conjunct {
+	best, most := refs[0], admissionReaderValue.conesOver(conjuncts, refs[0].read)
 	for _, ref := range refs[1:] {
-		n := w.conesOver(conjuncts, ref.read)
-		if n > most || n == most && refBefore(w, ref, best) {
+		n := admissionReaderValue.conesOver(conjuncts, ref.read)
+		if n > most || n == most && refBefore(admissionReaderValue, ref, best) {
 			best, most = ref, n
 		}
 	}
@@ -200,11 +200,11 @@ func narrowestRef(w *admissionReader, conjuncts []conjunct, refs []*conjunct) *c
 
 // refBefore reports whether the $ref conjunct a goes before b where both lie
 // within as many conjuncts: by reference text, then by the text of the entry.
-func refBefore(w *admissionReader, a, b *conjunct) bool {
+func refBefore(admissionReaderValue *admissionReader, a, b *conjunct) bool {
 	if order := strings.Compare(refText(a), refText(b)); order != 0 {
 		return order < 0
 	}
-	return bytes.Compare(writtenText(w.c, a.branch.schema), writtenText(w.c, b.branch.schema)) < 0
+	return bytes.Compare(writtenText(admissionReaderValue.c, a.branch.schema), writtenText(admissionReaderValue.c, b.branch.schema)) < 0
 }
 
 // refText is the reference the $ref conjunct cj writes, as written.
@@ -225,7 +225,7 @@ func (w *admissionReader) narrowsAll(conjuncts []conjunct, i int, refs []*conjun
 		return false
 	}
 	for j := range conjuncts {
-		if o := &conjuncts[j]; j != i && (!cj.read.kindsWithin(o.read) || !w.setWithin(cj.read, o.read)) {
+		if conjunct := &conjuncts[j]; j != i && (!cj.read.kindsWithin(conjunct.read) || !w.setWithin(cj.read, conjunct.read)) {
 			return false
 		}
 	}

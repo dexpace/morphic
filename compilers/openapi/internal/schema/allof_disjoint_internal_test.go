@@ -44,7 +44,7 @@ func TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing(t *testing.T) {
 		"Short0": true, "U": true, "AliasU": true, "W": true, "AliasW": true, "Str": false, "Beside": false, "Long0": false,
 		"T": false,
 	}
-	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    F: false
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    F: false
     T: true
     Str: {type: string}
     S: {type: string, enum: [1]}
@@ -60,8 +60,8 @@ func TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing(t *testing.T) {
     Beside: {$ref: '#/components/schemas/Str', type: object}
 `+aliasChain("Short", maxAdmissionReads-1, "F")+aliasChain("Long", maxAdmissionReads, "F")))
 	for name, want := range rows {
-		st := l.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
-		assert.Equal(t, want, toldWhereWritten(l.Ctx, st), name)
+		st := lowerer.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		assert.Equal(t, want, toldWhereWritten(lowerer.Ctx, st), name)
 	}
 }
 
@@ -100,13 +100,13 @@ func TestInstanceWords_NamesEverySetOfKinds(t *testing.T) {
 // branch's read is cut short on a cycle, which admits more than it reads.
 func TestUnionApartFromBody_ReadsKindsAndACutReadSharesOne(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Cyc: {allOf: [{$ref: '#/components/schemas/Cyc'}]}
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Cyc: {allOf: [{$ref: '#/components/schemas/Cyc'}]}
     Apart: {type: string, anyOf: [{type: integer}]}
     Shared: {type: string, anyOf: [{type: string}, {type: integer}]}
     Cut: {type: string, anyOf: [{type: integer}, {$ref: '#/components/schemas/Cyc'}]}
 `))
 	for name, want := range map[string]bool{"Apart": true, "Shared": false, "Cut": false} {
-		st := l.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
-		assert.Equal(t, want, unionApartFromBody(l.Ctx, st.Schema), name)
+		st := lowerer.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		assert.Equal(t, want, unionApartFromBody(lowerer.Ctx, st.Schema), name)
 	}
 }

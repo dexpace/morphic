@@ -68,26 +68,26 @@ type nullableFacts struct {
 // one info, of the null read in, and a null is the keyword left out.
 func factsOfNullable(i int, policyOn bool) nullableFacts {
 	v := nullableValues[i]
-	f := nullableFacts{kept: map[string]string{}, infos: map[string][]jsontext.Pointer{}, reasons: map[string]ir.UnmodeledReason{}}
+	nullableFactsValue := nullableFacts{kept: map[string]string{}, infos: map[string][]jsontext.Pointer{}, reasons: map[string]ir.UnmodeledReason{}}
 	at := func(name string) jsontext.Pointer {
 		return jsontext.Pointer(fmt.Sprintf("/components/schemas/%s%d", name, i))
 	}
 	switch {
 	case v.leftOut:
-		return f
+		return nullableFactsValue
 	case policyOn && v.read:
-		f.infos[diag.InferredNullable] = []jsontext.Pointer{
+		nullableFactsValue.infos[diag.InferredNullable] = []jsontext.Pointer{
 			at("A") + "/allOf/1/nullable", at("C") + "/nullable", at("P") + "/properties/p/nullable", at("R") + "/properties/r/nullable",
 		}
-		return f
+		return nullableFactsValue
 	}
 	for _, letter := range []string{"A", "C", "P", "R"} {
-		f.kept[letter], f.reasons[letter] = v.json, ir.ReasonOutOfScope
+		nullableFactsValue.kept[letter], nullableFactsValue.reasons[letter] = v.json, ir.ReasonOutOfScope
 	}
-	f.infos[diag.UnknownSchemaKeyword] = []jsontext.Pointer{
+	nullableFactsValue.infos[diag.UnknownSchemaKeyword] = []jsontext.Pointer{
 		at("A") + "/allOf/1/nullable", at("C") + "/nullable", at("P") + "/properties/p/nullable", at("R") + "/properties/r/nullable",
 	}
-	return f
+	return nullableFactsValue
 }
 
 // nullableEntries returns the Unmodeled entry the position kept for its
@@ -97,20 +97,20 @@ func factsOfNullable(i int, policyOn bool) nullableFacts {
 func nullableEntries(t *testing.T, doc *ir.Document, i int) map[string]ir.UnmodeledEntry {
 	t.Helper()
 	out := map[string]ir.UnmodeledEntry{}
-	if e, ok := doc.Types[componentID(fmt.Sprintf("C%d", i))].Common().Unmodeled["openapi:nullable"]; ok {
-		out["C"] = e
+	if unmodeledEntry, ok := doc.Types[componentID(fmt.Sprintf("C%d", i))].Common().Unmodeled["openapi:nullable"]; ok {
+		out["C"] = unmodeledEntry
 	}
 	for letter, prop := range map[string]string{"P": "p", "R": "r"} {
 		model, ok := doc.Types[componentID(fmt.Sprintf("%s%d", letter, i))].(*ir.Model)
 		require.True(t, ok, "%s%d lowers to a model", letter, i)
-		p := openapitest.PropsByWire(model.Properties)[prop]
-		if e, ok := p.Unmodeled["openapi:nullable"]; ok {
-			out[letter] = e
+		property := openapitest.PropsByWire(model.Properties)[prop]
+		if unmodeledEntry, ok := property.Unmodeled["openapi:nullable"]; ok {
+			out[letter] = unmodeledEntry
 		}
 		assert.NotContains(t, model.Unmodeled, "openapi:nullable", "%s%d keeps it beside the property", letter, i)
 	}
-	if e, ok := doc.Types[componentID(fmt.Sprintf("A%d", i))].Common().Unmodeled["openapi:nullable"]; ok {
-		out["A"] = e
+	if unmodeledEntry, ok := doc.Types[componentID(fmt.Sprintf("A%d", i))].Common().Unmodeled["openapi:nullable"]; ok {
+		out["A"] = unmodeledEntry
 	}
 	return out
 }

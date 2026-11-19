@@ -176,7 +176,7 @@ func TestForEachGroup_VisitsEachGroupBeforeThoseItNests(t *testing.T) {
 		{Groups: []ir.OperationGroup{{ID: "c"}}},
 	}}
 	var got []ir.GroupID
-	truncated := ir.ForEachGroup(doc, func(g ir.OperationGroup) { got = append(got, g.ID) })
+	truncated := ir.ForEachGroup(doc, func(operationGroup ir.OperationGroup) { got = append(got, operationGroup.ID) })
 	assert.False(t, truncated)
 	assert.Equal(t, []ir.GroupID{"a", "a/1", "a/1/1", "a/2", "b", "c"}, got)
 }

@@ -78,8 +78,8 @@ func TestMeasureDocComments_ReachesEveryDocPosition(t *testing.T) {
 	require.NoError(t, err)
 
 	got := map[string]int{}
-	for _, d := range docs {
-		got[d.key()] = d.words
+	for _, measuredDoc := range docs {
+		got[measuredDoc.key()] = measuredDoc.words
 	}
 	over := maxDocCommentWords + 1
 	want := map[string]int{
@@ -294,12 +294,12 @@ func measureDocComments(root string) ([]measuredDoc, error) {
 		if err != nil {
 			return err
 		}
-		for _, c := range docComments(f) {
+		for _, docComment := range docComments(f) {
 			docs = append(docs, measuredDoc{
 				file:  filepath.ToSlash(rel),
-				name:  c.name,
-				line:  fset.Position(c.doc.Pos()).Line,
-				words: docWords(c.doc.Text()),
+				name:  docComment.name,
+				line:  fset.Position(docComment.doc.Pos()).Line,
+				words: docWords(docComment.doc.Text()),
 			})
 		}
 		return nil
@@ -313,19 +313,19 @@ func measureDocComments(root string) ([]measuredDoc, error) {
 func docCommentViolations(docs []measuredDoc, allowed map[string]longDoc) []string {
 	var out []string
 	needed := map[string]bool{}
-	for _, d := range docs {
-		if d.words <= maxDocCommentWords {
+	for _, measuredDoc := range docs {
+		if measuredDoc.words <= maxDocCommentWords {
 			continue
 		}
-		entry, excused := allowed[d.key()]
-		needed[d.key()] = excused
+		entry, excused := allowed[measuredDoc.key()]
+		needed[measuredDoc.key()] = excused
 		switch {
 		case !excused:
 			out = append(out, fmt.Sprintf("%s:%d: %s: doc comment is %d words; the cap is %d",
-				d.file, d.line, d.name, d.words, maxDocCommentWords))
-		case d.words > entry.words:
+				measuredDoc.file, measuredDoc.line, measuredDoc.name, measuredDoc.words, maxDocCommentWords))
+		case measuredDoc.words > entry.words:
 			out = append(out, fmt.Sprintf("%s:%d: %s: doc comment is %d words; its longDocComments entry allows %d",
-				d.file, d.line, d.name, d.words, entry.words))
+				measuredDoc.file, measuredDoc.line, measuredDoc.name, measuredDoc.words, entry.words))
 		}
 	}
 	for _, key := range slices.Sorted(maps.Keys(allowed)) {
@@ -360,7 +360,7 @@ func docComments(f *ast.File) []docComment {
 		default: // *ast.BadDecl: the parse already failed
 		}
 	}
-	return slices.DeleteFunc(out, func(c docComment) bool { return c.doc == nil })
+	return slices.DeleteFunc(out, func(docCommentValue docComment) bool { return docCommentValue.doc == nil })
 }
 
 // funcName names a function, or a method by its receiver's type.

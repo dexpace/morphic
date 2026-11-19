@@ -188,8 +188,8 @@ func TestKeyOf_AKeyThatIsNoScalarNamesNoKey(t *testing.T) {
 	}
 	got := nodeview.Pairs(root)
 	names := make([]string, 0, len(got))
-	for _, p := range got {
-		names = append(names, p.Key)
+	for _, pair := range got {
+		names = append(names, pair.Key)
 	}
 	assert.Equal(t, []string{"k", "z"}, names, "the entries with such keys are left out")
 	assert.Nil(t, nodeview.Child(root, ""), "and no entry stands for the key \"\"")
@@ -204,8 +204,8 @@ func TestKeyOf_AnAliasOfAScalarKeyStillNamesIt(t *testing.T) {
 
 	pairs := nodeview.Pairs(root)
 	names := make([]string, 0, len(pairs))
-	for _, p := range pairs {
-		names = append(names, p.Key)
+	for _, pair := range pairs {
+		names = append(names, pair.Key)
 	}
 
 	assert.Equal(t, []string{"x", "name"}, names)

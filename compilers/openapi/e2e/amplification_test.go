@@ -39,10 +39,10 @@ func TestCompile_AliasBombDoesNotExhaustMemory(t *testing.T) {
 
 	const bound = 5 * time.Second
 	select {
-	case r := <-done:
-		require.NoError(t, r.err, "an alias bomb is a spec problem, not a Go error")
-		assert.Nil(t, r.doc, "the compiler refuses to lower an amplifying document")
-		openapitest.AssertHasCode(t, r.diags, diag.AliasAmplification, ir.SeverityError)
+	case result := <-done:
+		require.NoError(t, result.err, "an alias bomb is a spec problem, not a Go error")
+		assert.Nil(t, result.doc, "the compiler refuses to lower an amplifying document")
+		openapitest.AssertHasCode(t, result.diags, diag.AliasAmplification, ir.SeverityError)
 	case <-time.After(bound):
 		t.Fatalf("Compile did not return within %v — the bomb likely reached soa.Unmarshal", bound)
 	}
@@ -87,15 +87,15 @@ func TestCompile_SharedCompositionAncestorsDoNotAmplify(t *testing.T) {
 
 	const bound = 10 * time.Second
 	select {
-	case r := <-done:
-		require.NoError(t, r.err)
-		require.NotNil(t, r.doc, "a diamond composition is ordinary input, not a refusal")
-		leaf, ok := r.doc.Types[ir.TypeID("type/openapi/components/schemas/"+prev)].(*ir.Model)
+	case result := <-done:
+		require.NoError(t, result.err)
+		require.NotNil(t, result.doc, "a diamond composition is ordinary input, not a refusal")
+		leaf, ok := result.doc.Types[ir.TypeID("type/openapi/components/schemas/"+prev)].(*ir.Model)
 		require.True(t, ok, "the deepest subtype lowers to a model")
 		assert.Equal(t, prev, leaf.DiscriminatorValue,
 			"and still answers to the tag its distant ancestor spells for it")
 		require.NotNil(t, leaf.Base, "its parent takes part in Root's hierarchy, so it is the Base")
-		assert.True(t, ir.IsSubtype(r.doc, leaf.ID, "type/openapi/components/schemas/Root"))
+		assert.True(t, ir.IsSubtype(result.doc, leaf.ID, "type/openapi/components/schemas/Root"))
 	case <-time.After(bound):
 		t.Fatalf("compiling %d levels of shared ancestors did not finish within %v — "+
 			"the discriminator ancestor walk is revisiting schemas it has already seen", levels, bound)

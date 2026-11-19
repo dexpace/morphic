@@ -52,7 +52,7 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 	assert.Equal(t, ir.HTTPLocationHeader, bindings["X-Trace"].Location)
 	assert.Equal(t, ir.HTTPLocationCookie, bindings["session"].Location)
 
-	params := openapitest.IndexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
+	params := openapitest.IndexBy(op.Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 	assert.True(t, params["id"].Required, "path params are always required")
 	require.NotNil(t, params["limit"].Default)
 	assert.Equal(t, ir.BigVal("20"), params["limit"].Default.Number)
@@ -101,10 +101,10 @@ func TestParams_UnconvertibleExampleDiagnosed(t *testing.T) {
 	require.Len(t, op.Params, 1)
 	assert.Empty(t, op.Params[0].Examples, "the unconvertible example is skipped, not appended")
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
-	d, ok := openapitest.FirstDegradedWarning(diags)
+	diagnostic, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, jsontext.Pointer("/paths/~1items/get/parameters/0/example"), d.Provenance.Pointer)
-	assert.Contains(t, d.Message, "example:")
+	assert.Equal(t, jsontext.Pointer("/paths/~1items/get/parameters/0/example"), diagnostic.Provenance.Pointer)
+	assert.Contains(t, diagnostic.Message, "example:")
 }
 
 const paramSpec = `openapi: 3.1.0
@@ -155,7 +155,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.Equal(t, "deepObject", byName["filter"].Style)
 	assert.Equal(t, "application/json", byName["complex"].ContentType)
 
-	logical := openapitest.IndexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
+	logical := openapitest.IndexBy(op.Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 	assert.True(t, logical["id"].Required, "path param always required")
 	require.NotNil(t, logical["q"].Deprecation)
 	assert.NotEmpty(t, logical["q"].Examples)
@@ -247,7 +247,7 @@ func TestParams_ProvenanceIsTheDeclaringPosition(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	getPet := openapitest.FindOp(t, doc, "getPet")
 	deletePet := openapitest.FindOp(t, doc, "deletePet")
-	byName := openapitest.IndexBy(getPet.Params, func(p ir.Parameter) string { return p.Name.Source })
+	byName := openapitest.IndexBy(getPet.Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 	require.Len(t, byName, 3, "two declared plus the inherited path-item one")
 
 	assert.Equal(t, jsontext.Pointer("/paths/~1pets~1{petId}/get/parameters/0"), byName["fields"].Provenance.Pointer,
@@ -262,9 +262,9 @@ func TestParams_ProvenanceIsTheDeclaringPosition(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer(pathItem), deletePet.Params[0].Provenance.Pointer,
 		"and both operations on the path name the one declaration, not one pointer each")
 
-	for name, p := range byName {
-		assert.Equal(t, 0, p.Provenance.Source, "%s addresses the compiled source", name)
-		assert.Empty(t, p.Provenance.Inferred, "%s is declared, not inferred", name)
+	for name, parameter := range byName {
+		assert.Equal(t, 0, parameter.Provenance.Source, "%s addresses the compiled source", name)
+		assert.Empty(t, parameter.Provenance.Inferred, "%s is declared, not inferred", name)
 	}
 }
 
@@ -339,8 +339,8 @@ func TestParams_AllowEmptyValueLowers(t *testing.T) {
 	assert.True(t, byWire["on"].AllowEmptyValue)
 	assert.False(t, byWire["off"].AllowEmptyValue)
 	assert.False(t, byWire["silent"].AllowEmptyValue)
-	for _, p := range op.Params {
-		assert.NotContains(t, p.Unmodeled, "openapi:allowEmptyValue", "%s keeps nothing verbatim", p.Name.Source)
+	for _, parameter := range op.Params {
+		assert.NotContains(t, parameter.Unmodeled, "openapi:allowEmptyValue", "%s keeps nothing verbatim", parameter.Name.Source)
 	}
 	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "nothing is degraded: %+v", diags)
 }

@@ -70,7 +70,7 @@ type memberKey struct {
 // New returns a Document over doc, whose registry and service tree are whole,
 // that has indexed nothing yet.
 func New(doc *ir.Document) *CompiledDocumentView {
-	w := &CompiledDocumentView{
+	compiledDocumentView := &CompiledDocumentView{
 		Types:   doc.Types,
 		Auth:    doc.Auth,
 		names:   ir.NewMemberReader(doc.Types),
@@ -81,9 +81,9 @@ func New(doc *ir.Document) *CompiledDocumentView {
 		flatten: ir.FlattenedProperties,
 	}
 	for i := range doc.Services {
-		w.Ops = append(w.Ops, operations(&doc.Services[i])...)
+		compiledDocumentView.Ops = append(compiledDocumentView.Ops, operations(&doc.Services[i])...)
 	}
-	return w
+	return compiledDocumentView
 }
 
 // Stands returns the type id stands for, read through at most MaxAliasHops
@@ -111,17 +111,17 @@ func (w *CompiledDocumentView) Stands(id ir.TypeID) ir.TypeDef {
 // the model's composition, so a model read for n names costs n walks (#1955).
 func (w *CompiledDocumentView) Member(id ir.TypeID, wire string) (*ir.Property, bool) {
 	key := memberKey{id: id, wire: wire}
-	if p, read := w.taken[key]; read {
-		return p, p != nil
+	if property, read := w.taken[key]; read {
+		return property, property != nil
 	}
-	var p *ir.Property
-	if m, ok := w.Stands(id).(*ir.Model); ok {
-		if decl, held := w.names.Member(m.ID, wire); held {
-			p = decl.Property
+	var irProperty *ir.Property
+	if model, ok := w.Stands(id).(*ir.Model); ok {
+		if decl, held := w.names.Member(model.ID, wire); held {
+			irProperty = decl.Property
 		}
 	}
-	w.taken[key] = p
-	return p, p != nil
+	w.taken[key] = irProperty
+	return irProperty, irProperty != nil
 }
 
 // Walk returns the property each token names, from the model root through the
@@ -146,21 +146,21 @@ func (w *CompiledDocumentView) Walk(root ir.TypeID, tokens []string) ([]ir.Prope
 // each model once, however many aliases name it, for a step that reads every
 // member; one asking for a name reads it with Member, which flattens nothing.
 func (w *CompiledDocumentView) Members(id ir.TypeID) []*ir.Property {
-	m, ok := w.Stands(id).(*ir.Model)
+	model, ok := w.Stands(id).(*ir.Model)
 	if !ok {
 		return nil
 	}
-	if props, read := w.members[m.ID]; read {
+	if props, read := w.members[model.ID]; read {
 		return props
 	}
 	var props []*ir.Property
-	if flat := w.flatten(w.Types, m.ID); len(flat.Properties) > 0 {
+	if flat := w.flatten(w.Types, model.ID); len(flat.Properties) > 0 {
 		props = make([]*ir.Property, len(flat.Properties))
 		for i := range flat.Properties {
 			props[i] = flat.Properties[i].Property
 		}
 	}
-	w.members[m.ID] = props
+	w.members[model.ID] = props
 	return props
 }
 
@@ -184,9 +184,9 @@ func (w *CompiledDocumentView) Header(at ResponseKey, headers []ir.Header, name 
 	if !indexed {
 		byName = make(map[string][]ir.PropertyID, len(headers))
 		for i := range headers {
-			p := &headers[i].Property
-			key := strings.ToLower(p.EffectiveWireName())
-			byName[key] = append(byName[key], p.ID)
+			property := &headers[i].Property
+			key := strings.ToLower(property.EffectiveWireName())
+			byName[key] = append(byName[key], property.ID)
 		}
 		w.headers[at] = byName
 	}

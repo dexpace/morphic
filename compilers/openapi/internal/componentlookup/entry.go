@@ -38,15 +38,15 @@ func ObjectAt[T, S any, R interface {
 	*S
 	Referenced[T]
 }](scope Scope, ref R, use reftable.DocumentPointer) (*T, reftable.DocumentPointer) {
-	obj, r := objectAt[T, S](scope.Bindings, ref)
-	if obj == nil || r == nil {
+	obj, reference := objectAt[T, S](scope.Bindings, ref)
+	if obj == nil || reference == nil {
 		return obj, use
 	}
 	for _, hop := range Hops[T, S](scope.Bindings, ref) {
 		scope.Reached.noteSource(hop.At)
 	}
-	scope.Reached.noteSource(r.Chain.End)
-	return obj, r.Chain.End
+	scope.Reached.noteSource(reference.Chain.End)
+	return obj, reference.Chain.End
 }
 
 // objectAt is Object with the table's entry for ref's Reference Object, or nil
@@ -58,16 +58,16 @@ func objectAt[T, S any, R interface {
 	if ref == nil {
 		return nil, nil
 	}
-	r, ok := b.Reference(ref)
+	reference, ok := b.Reference(ref)
 	if !ok {
 		return ref.GetObject(), nil
 	}
-	if r.Chain.Status != reftable.Resolved {
-		return nil, &r
+	if reference.Chain.Status != reftable.Resolved {
+		return nil, &reference
 	}
-	end, ok := b.ObjectAt(r.Chain.End, r.Kind).(R)
+	end, ok := b.ObjectAt(reference.Chain.End, reference.Kind).(R)
 	if !ok {
-		return nil, &r
+		return nil, &reference
 	}
-	return end.GetObject(), &r
+	return end.GetObject(), &reference
 }

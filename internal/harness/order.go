@@ -56,27 +56,27 @@ func orderInvariant(ctx context.Context, spec string, data []byte, compiled bool
 		})
 }
 
-// comparePermuted is o's verdict on a source whose re-encoding is baseline and
+// comparePermuted is oracle's verdict on a source whose re-encoding is baseline and
 // whose permutation is permuted: it compiles both and judge gives the verdict
 // on the two. It declines a baseline no compiler takes, or one refused where
 // the source compiled.
-func comparePermuted(ctx context.Context, o Oracle, spec string, baseline, permuted []byte, compiled bool,
+func comparePermuted(ctx context.Context, oracle Oracle, spec string, baseline, permuted []byte, compiled bool,
 	judge func(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) Verdict,
 ) Verdict {
 	doc, diags, err := compile(ctx, spec, baseline, passes())
 	if errors.Is(err, errUnrecognized) {
-		return declined(o, DeclineReencodingNoSpec)
+		return declined(oracle, DeclineReencodingNoSpec)
 	}
 	if err != nil {
 		// A Go error is never the spec's, so it is reported, as on the other arm.
-		return found(o, "compile re-encoded: "+err.Error())
+		return found(oracle, "compile re-encoded: "+err.Error())
 	}
 	if doc == nil && compiled {
-		return declined(o, DeclineReencodingRefused)
+		return declined(oracle, DeclineReencodingRefused)
 	}
 	other, otherDiags, err := compile(ctx, spec, permuted, passes())
 	if err != nil {
-		return found(o, "recompile permuted: "+err.Error())
+		return found(oracle, "recompile permuted: "+err.Error())
 	}
 	return judge(doc, diags, other, otherDiags)
 }
@@ -153,8 +153,8 @@ func sameDocument(first, second *ir.Document) (string, bool) {
 // are left out, which a permutation moves by design, keeping whether it has any.
 func diagnosticSet(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, diagnosticKey(d))
+	for _, diagnostic := range diags {
+		out = append(out, diagnosticKey(diagnostic))
 	}
 	slices.Sort(out)
 	return out
@@ -162,16 +162,16 @@ func diagnosticSet(diags []ir.Diagnostic) []string {
 
 // diagnosticKey is what diagnosticSet compares of one diagnostic: all but its
 // message and its positions, what else it concerns included, entry by entry.
-func diagnosticKey(d ir.Diagnostic) string {
-	p := d.Provenance
-	positioned := p.Position != ir.Position{}
+func diagnosticKey(diagnostic ir.Diagnostic) string {
+	provenance := diagnostic.Provenance
+	positioned := provenance.Position != ir.Position{}
 	var key strings.Builder
 	fmt.Fprintf(&key, "%s\x00%s\x00%s\x00%t\x00%s\x00%d\x00%d\x00%s",
-		d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source, p.WrittenBy, p.Inferred)
-	for _, r := range d.Related {
-		q := r.Provenance
+		diagnostic.Severity, diagnostic.Code, provenance.Pointer, positioned, provenance.Node, provenance.Source, provenance.WrittenBy, provenance.Inferred)
+	for _, related := range diagnostic.Related {
+		irProvenance := related.Provenance
 		fmt.Fprintf(&key, "\x00%s\x00%s\x00%t\x00%s\x00%d\x00%d\x00%s",
-			r.Role, q.Pointer, q.Position != ir.Position{}, q.Node, q.Source, q.WrittenBy, q.Inferred)
+			related.Role, irProvenance.Pointer, irProvenance.Position != ir.Position{}, irProvenance.Node, irProvenance.Source, irProvenance.WrittenBy, irProvenance.Inferred)
 	}
 	return key.String()
 }
@@ -233,18 +233,18 @@ func orderFree(arrange func(elems [][]byte) []byte) *json.Marshalers {
 		sortedElements[ir.Header](arrange),
 		// The service tree's elements are read by value, never through a generic
 		// of this module, whose writes the lint keeping them in ir cannot read.
-		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.Operation) error {
-			return writeOrderFree(enc, len(v), func(i int) any { return v[i] }, arrange)
+		json.MarshalToFunc(func(enc *jsontext.Encoder, operations []ir.Operation) error {
+			return writeOrderFree(enc, len(operations), func(i int) any { return operations[i] }, arrange)
 		}),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.OperationGroup) error {
-			return writeOrderFree(enc, len(v), func(i int) any { return v[i] }, arrange)
+		json.MarshalToFunc(func(enc *jsontext.Encoder, operationGroups []ir.OperationGroup) error {
+			return writeOrderFree(enc, len(operationGroups), func(i int) any { return operationGroups[i] }, arrange)
 		}),
 		sortedElements[ir.PatternProperties](arrange),
 		sortedElements[ir.Field](arrange),
 		sortedElements[ir.ServerVariable](arrange),
 		sortedElements[ir.OAuthScope](arrange),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.Example) error {
-			return sortedExamples(enc, v, arrange)
+		json.MarshalToFunc(func(enc *jsontext.Encoder, examples []ir.Example) error {
+			return sortedExamples(enc, examples, arrange)
 		}),
 		sortedElements[ir.Content](arrange),
 		sortedElements[ir.Response](arrange),
@@ -271,11 +271,11 @@ func sortedElements[T any](arrange func(elems [][]byte) []byte) *json.Marshalers
 // element of a schema's `examples` array, which no mapping orders. A mapping
 // entry keyed by the empty string is unnamed too, so a list holding a named one
 // is arranged whole, unnamed ones among it included.
-func sortedExamples(enc *jsontext.Encoder, v []ir.Example, arrange func(elems [][]byte) []byte) error {
-	if !slices.ContainsFunc(v, func(e ir.Example) bool { return e.Name != "" }) {
+func sortedExamples(enc *jsontext.Encoder, examples []ir.Example, arrange func(elems [][]byte) []byte) error {
+	if !slices.ContainsFunc(examples, func(example ir.Example) bool { return example.Name != "" }) {
 		return errors.ErrUnsupported
 	}
-	return writeOrderFree(enc, len(v), func(i int) any { return &v[i] }, arrange)
+	return writeOrderFree(enc, len(examples), func(i int) any { return &examples[i] }, arrange)
 }
 
 // writeOrderFree writes the n elements at gives as arrange writes their

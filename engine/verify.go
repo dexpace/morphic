@@ -58,8 +58,8 @@ type VerifyError struct {
 func (e *VerifyError) Error() string {
 	listed := min(len(e.Violations), maxListed)
 	parts := make([]string, 0, listed+1)
-	for _, v := range e.Violations[:listed] {
-		parts = append(parts, fmt.Sprintf("%s at %.*q", v.Code, maxPath, v.Path))
+	for _, violation := range e.Violations[:listed] {
+		parts = append(parts, fmt.Sprintf("%s at %.*q", violation.Code, maxPath, violation.Path))
 	}
 	if more := len(e.Violations) - listed; more > 0 {
 		parts = append(parts, fmt.Sprintf("and %d more", more))

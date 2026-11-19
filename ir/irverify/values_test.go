@@ -15,21 +15,21 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// valueDoc embeds v as the one property default of an otherwise sound
+// valueDoc embeds value as the one property default of an otherwise sound
 // document — a model referencing itself as its one property's type, the way
-// bigValCarriers does, so nothing but v is open to question.
-func valueDoc(v ir.Value) *ir.Document {
-	m := &ir.Model{
+// bigValCarriers does, so nothing but value is open to question.
+func valueDoc(value ir.Value) *ir.Document {
+	model := &ir.Model{
 		ID:   "type/x/M",
 		Name: named("m"),
 		Properties: []ir.Property{{
 			ID:      "property/x/M/f",
 			Name:    named("f"),
 			Type:    ir.TypeRef{Target: "type/x/M"},
-			Default: &v,
+			Default: &value,
 		}},
 	}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 }
 
 // valueDocPath is the path valueDoc's Default value sits at, before any of the
@@ -41,63 +41,63 @@ const valueDocPath = "document.Types[type/x/M].Properties[0].Default"
 // an example's value fields is a carrier of its own, so the caller says which
 // one holds the value.
 func exampleDoc(ex ir.Example) *ir.Document {
-	m := &ir.Model{
+	model := &ir.Model{
 		ID:       "type/x/M",
 		Name:     named("m"),
 		Examples: []ir.Example{ex},
 	}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 }
 
-// literalCarrierDoc embeds v as the constant value of an otherwise sound
+// literalCarrierDoc embeds value as the constant value of an otherwise sound
 // Literal type — the const/literal-value carrier.
-func literalCarrierDoc(v ir.Value) *ir.Document {
-	l := &ir.Literal{ID: "type/x/L", Name: named("l"), Value: v}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{l.ID: l}}
+func literalCarrierDoc(value ir.Value) *ir.Document {
+	literal := &ir.Literal{ID: "type/x/L", Name: named("l"), Value: value}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{literal.ID: literal}}
 }
 
-// enumMemberCarrierDoc embeds v as the one member value of an otherwise sound
+// enumMemberCarrierDoc embeds value as the one member value of an otherwise sound
 // Enum type.
-func enumMemberCarrierDoc(v ir.Value) *ir.Document {
-	e := &ir.Enum{
+func enumMemberCarrierDoc(value ir.Value) *ir.Document {
+	enum := &ir.Enum{
 		ID:        "type/x/E",
 		Name:      named("e"),
 		ValueType: ir.PrimitiveString,
-		Members:   []ir.EnumMember{{Name: named("m"), Value: v}},
+		Members:   []ir.EnumMember{{Name: named("m"), Value: value}},
 	}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{e.ID: e}}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{enum.ID: enum}}
 }
 
-// streamConditionCarrierDoc carries v as the value a request body member holds
+// streamConditionCarrierDoc carries value as the value a request body member holds
 // to ask for an operation's stream.
-func streamConditionCarrierDoc(v ir.Value) *ir.Document {
+func streamConditionCarrierDoc(value ir.Value) *ir.Document {
 	doc := otpCarrierDoc(ir.Value{Kind: ir.ValueNull})
 	op := &doc.Services[0].Groups[0].Operations[0]
 	op.Bindings = ir.OpBindings{}
 	op.Request = &ir.Payload{}
 	op.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{
-		Input: ir.InputPath{Segments: []ir.PropertyID{"property/x/Body/stream"}}, Value: v,
+		Input: ir.InputPath{Segments: []ir.PropertyID{"property/x/Body/stream"}}, Value: value,
 	}}
 	return doc
 }
 
-// linkConstantCarrierDoc gives the operation a response whose link passes v to
+// linkConstantCarrierDoc gives the operation a response whose link passes value to
 // the operation's own parameter.
-func linkConstantCarrierDoc(v ir.Value) *ir.Document {
+func linkConstantCarrierDoc(value ir.Value) *ir.Document {
 	doc := parameterCarrierDoc(ir.Value{Kind: ir.ValueNull})
 	op := &doc.Services[0].Groups[0].Operations[0]
 	op.Params[0].ID, op.Params[0].Default = "parameter/x/Get/q", nil
 	op.Responses = []ir.Response{{Links: []ir.OperationLink{{
 		Name: named("again"), Operation: op.ID,
-		Params: []ir.LinkParam{{Param: op.Params[0].ID, Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}}},
+		Params: []ir.LinkParam{{Param: op.Params[0].ID, Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: &value}}},
 	}}}}
 	return doc
 }
 
-// otpCarrierDoc embeds v as the request tag of one OTP-bound operation, nested
+// otpCarrierDoc embeds value as the request tag of one OTP-bound operation, nested
 // under one service and one group and reached through Document.Services rather
 // than Document.Types, where a walk scoped to Types would never reach it.
-func otpCarrierDoc(v ir.Value) *ir.Document {
+func otpCarrierDoc(value ir.Value) *ir.Document {
 	const ch ir.ChannelID = "c/x/Proc"
 	op := ir.Operation{
 		ID:   "operation/x/Call",
@@ -106,7 +106,7 @@ func otpCarrierDoc(v ir.Value) *ir.Document {
 			Behaviour:  "gen_server",
 			Kind:       "call",
 			Process:    ch,
-			RequestTag: &v,
+			RequestTag: &value,
 		}},
 	}
 	return &ir.Document{
@@ -124,13 +124,13 @@ func otpCarrierDoc(v ir.Value) *ir.Document {
 	}
 }
 
-// parameterCarrierDoc embeds v as the default of one operation's one parameter,
+// parameterCarrierDoc embeds value as the default of one operation's one parameter,
 // which like the OTP request tag is reached only through Document.Services.
-func parameterCarrierDoc(v ir.Value) *ir.Document {
+func parameterCarrierDoc(value ir.Value) *ir.Document {
 	op := ir.Operation{
 		ID:     "operation/x/Get",
 		Name:   named("get"),
-		Params: []ir.Parameter{{Name: named("q"), Default: &v}},
+		Params: []ir.Parameter{{Name: named("q"), Default: &value}},
 	}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
@@ -146,22 +146,22 @@ func parameterCarrierDoc(v ir.Value) *ir.Document {
 	}
 }
 
-// templateArgCarrierDoc embeds v as the one value argument of a model's
+// templateArgCarrierDoc embeds value as the one value argument of a model's
 // template instantiation, a TypeSpec valueof parameter.
-func templateArgCarrierDoc(v ir.Value) *ir.Document {
-	m := &ir.Model{
+func templateArgCarrierDoc(value ir.Value) *ir.Document {
+	model := &ir.Model{
 		ID:            "type/x/M",
 		Name:          named("m"),
-		Instantiation: &ir.TemplateInstantiation{Template: "T", Args: []ir.TemplateArg{{Value: &v}}},
+		Instantiation: &ir.TemplateInstantiation{Template: "T", Args: []ir.TemplateArg{{Value: &value}}},
 	}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 }
 
 // valueCarrierCase is one field the IR carries a Value in: a document that
 // plants v there, and the path the walk reaches v at.
 type valueCarrierCase struct {
 	carrier string // "Type.Field", as irverify.ValueCarriers names it
-	doc     func(v ir.Value) *ir.Document
+	doc     func(value ir.Value) *ir.Document
 	path    string
 }
 
@@ -175,25 +175,25 @@ func valueCarrierCases() []valueCarrierCase {
 			carrier: "Parameter.Default", doc: parameterCarrierDoc,
 			path: "document.Services[0].Groups[0].Operations[0].Params[0].Default",
 		},
-		{carrier: "Example.Value", path: example + ".Value", doc: func(v ir.Value) *ir.Document {
-			return exampleDoc(ir.Example{Name: "ex", Value: &v})
+		{carrier: "Example.Value", path: example + ".Value", doc: func(value ir.Value) *ir.Document {
+			return exampleDoc(ir.Example{Name: "ex", Value: &value})
 		}},
-		{carrier: "Example.Headers", path: example + ".Headers", doc: func(v ir.Value) *ir.Document {
-			return exampleDoc(ir.Example{Name: "ex", Headers: &v})
+		{carrier: "Example.Headers", path: example + ".Headers", doc: func(value ir.Value) *ir.Document {
+			return exampleDoc(ir.Example{Name: "ex", Headers: &value})
 		}},
-		{carrier: "ScenarioInput.Params", path: example + ".Input.Params[parameter/x/q]", doc: func(v ir.Value) *ir.Document {
+		{carrier: "ScenarioInput.Params", path: example + ".Input.Params[parameter/x/q]", doc: func(value ir.Value) *ir.Document {
 			return exampleDoc(ir.Example{Name: "ex", Input: &ir.ScenarioInput{
-				Params: map[ir.ParameterID]ir.Value{"parameter/x/q": v},
+				Params: map[ir.ParameterID]ir.Value{"parameter/x/q": value},
 			}})
 		}},
-		{carrier: "ScenarioInput.Body", path: example + ".Input.Body", doc: func(v ir.Value) *ir.Document {
-			return exampleDoc(ir.Example{Name: "ex", Input: &ir.ScenarioInput{Body: &v}})
+		{carrier: "ScenarioInput.Body", path: example + ".Input.Body", doc: func(value ir.Value) *ir.Document {
+			return exampleDoc(ir.Example{Name: "ex", Input: &ir.ScenarioInput{Body: &value}})
 		}},
-		{carrier: "Example.Output", path: example + ".Output", doc: func(v ir.Value) *ir.Document {
-			return exampleDoc(ir.Example{Name: "ex", Output: &v})
+		{carrier: "Example.Output", path: example + ".Output", doc: func(value ir.Value) *ir.Document {
+			return exampleDoc(ir.Example{Name: "ex", Output: &value})
 		}},
-		{carrier: "ErrorExample.Content", path: example + ".Error.Content", doc: func(v ir.Value) *ir.Document {
-			return exampleDoc(ir.Example{Name: "ex", Error: &ir.ErrorExample{Content: v}})
+		{carrier: "ErrorExample.Content", path: example + ".Error.Content", doc: func(value ir.Value) *ir.Document {
+			return exampleDoc(ir.Example{Name: "ex", Error: &ir.ErrorExample{Content: value}})
 		}},
 		{carrier: "Literal.Value", doc: literalCarrierDoc, path: "document.Types[type/x/L].Value"},
 		{carrier: "EnumMember.Value", doc: enumMemberCarrierDoc, path: "document.Types[type/x/E].Members[0].Value"},
@@ -235,12 +235,12 @@ type valueLoc struct {
 // produce, as both a cmp.Diff-able projection (locs) and the full Violations a
 // case can still inspect for message content (full).
 func valueViolations(doc *ir.Document) (locs []valueLoc, full []irverify.Violation) {
-	for _, v := range verifyDeclared(doc) {
-		if !valueCodes[v.Code] {
+	for _, violation := range verifyDeclared(doc) {
+		if !valueCodes[violation.Code] {
 			continue
 		}
-		locs = append(locs, valueLoc{Code: v.Code, Path: v.Path})
-		full = append(full, v)
+		locs = append(locs, valueLoc{Code: violation.Code, Path: violation.Path})
+		full = append(full, violation)
 	}
 	return locs, full
 }
@@ -323,8 +323,8 @@ func TestVerify_StrayValuePayloadIsAViolation(t *testing.T) {
 // nothing selected, every payload that is set is stray, not just one of them.
 func TestVerify_NullValueWithPayloadIsAViolation(t *testing.T) {
 	t.Parallel()
-	v := ir.Value{Kind: ir.ValueNull, Bool: true, String: "x"}
-	locs, full := valueViolations(valueDoc(v))
+	value := ir.Value{Kind: ir.ValueNull, Bool: true, String: "x"}
+	locs, full := valueViolations(valueDoc(value))
 	want := []valueLoc{
 		{Code: "ir/value-stray-payload", Path: valueDocPath + ".Bool"},
 		{Code: "ir/value-stray-payload", Path: valueDocPath + ".String"},
@@ -416,8 +416,8 @@ func TestVerify_UnknownValueKindIsAViolation(t *testing.T) {
 
 	t.Run("empty kind despite payloads set", func(t *testing.T) {
 		t.Parallel()
-		v := ir.Value{Kind: ir.ValueKind(""), Bool: true, String: "y", List: []ir.Value{{Kind: ir.ValueNull}}}
-		locs, full := valueViolations(valueDoc(v))
+		value := ir.Value{Kind: ir.ValueKind(""), Bool: true, String: "y", List: []ir.Value{{Kind: ir.ValueNull}}}
+		locs, full := valueViolations(valueDoc(value))
 		want := []valueLoc{{Code: "ir/unknown-value-kind", Path: valueDocPath + ".Kind"}}
 		assert.Empty(t, cmp.Diff(want, locs))
 		require.Len(t, full, 1)
@@ -426,8 +426,8 @@ func TestVerify_UnknownValueKindIsAViolation(t *testing.T) {
 
 	t.Run("undeclared kind despite a payload set", func(t *testing.T) {
 		t.Parallel()
-		v := ir.Value{Kind: ir.ValueKind("weird"), List: []ir.Value{{Kind: ir.ValueNull}}}
-		locs, full := valueViolations(valueDoc(v))
+		value := ir.Value{Kind: ir.ValueKind("weird"), List: []ir.Value{{Kind: ir.ValueNull}}}
+		locs, full := valueViolations(valueDoc(value))
 		want := []valueLoc{{Code: "ir/unknown-value-kind", Path: valueDocPath + ".Kind"}}
 		assert.Empty(t, cmp.Diff(want, locs))
 		require.Len(t, full, 1)
@@ -438,8 +438,8 @@ func TestVerify_UnknownValueKindIsAViolation(t *testing.T) {
 	// message has to stay valid UTF-8 even when the kind it quotes is not.
 	t.Run("ill-formed kind keeps the message valid UTF-8 (GitHub #400)", func(t *testing.T) {
 		t.Parallel()
-		v := ir.Value{Kind: ir.ValueKind("\xff")}
-		locs, full := valueViolations(valueDoc(v))
+		value := ir.Value{Kind: ir.ValueKind("\xff")}
+		locs, full := valueViolations(valueDoc(value))
 		want := []valueLoc{{Code: "ir/unknown-value-kind", Path: valueDocPath + ".Kind"}}
 		assert.Empty(t, cmp.Diff(want, locs))
 		require.Len(t, full, 1)
@@ -454,8 +454,8 @@ func TestVerify_UnknownValueKindIsAViolation(t *testing.T) {
 // from one that never populated the field at all.
 func TestVerify_EmptyNonNilUnselectedSliceIsClean(t *testing.T) {
 	t.Parallel()
-	v := ir.Value{Kind: ir.ValueString, String: "x", List: []ir.Value{}}
-	locs, _ := valueViolations(valueDoc(v))
+	value := ir.Value{Kind: ir.ValueString, String: "x", List: []ir.Value{}}
+	locs, _ := valueViolations(valueDoc(value))
 	assert.Empty(t, locs)
 }
 

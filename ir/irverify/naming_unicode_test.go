@@ -19,10 +19,10 @@ import (
 func TestVerify_NoLowercaseRunesAreNeutral(t *testing.T) {
 	t.Parallel()
 	for _, canon := range []string{"ℤ", "\U0001D400", "count_ℤ"} {
-		m := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "M", Canonical: canon}}
-		doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
-		for _, v := range verifyDeclared(doc) {
-			assert.NotEqualf(t, "ir/naming-cased", v.Code, "no-lowercase rune %q must be neutral", canon)
+		model := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "M", Canonical: canon}}
+		doc := &ir.Document{Types: ir.TypeRegistry{model.ID: model}}
+		for _, violation := range verifyDeclared(doc) {
+			assert.NotEqualf(t, "ir/naming-cased", violation.Code, "no-lowercase rune %q must be neutral", canon)
 		}
 	}
 }
@@ -31,11 +31,11 @@ func TestVerify_NoLowercaseRunesAreNeutral(t *testing.T) {
 // would still change is reported — the check did not become permissive.
 func TestVerify_TrulyCasedCanonicalStillFlagged(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "M", Canonical: "userID"}}
-	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+	model := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "M", Canonical: "userID"}}
+	doc := &ir.Document{Types: ir.TypeRegistry{model.ID: model}}
 	var found bool
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == "ir/naming-cased" {
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == "ir/naming-cased" {
 			found = true
 		}
 	}

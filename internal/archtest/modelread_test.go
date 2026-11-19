@@ -113,15 +113,15 @@ func sortPositions(at []token.Position) {
 	})
 }
 
-// bridgeUses returns where p names one of the statement's bridges.
-func bridgeUses(p *decls.Package) []token.Position {
+// bridgeUses returns where loadedPackage names one of the statement's bridges.
+func bridgeUses(loadedPackage *decls.Package) []token.Position {
 	var out []token.Position
-	for id, obj := range p.Info.Uses {
+	for id, obj := range loadedPackage.Info.Uses {
 		fn, ok := obj.(*types.Func)
 		if !ok || fn.Pkg() == nil || fn.Pkg().Path() != statementPackage || !slices.Contains(bridges, fn.Name()) {
 			continue
 		}
-		out = append(out, p.Fset.Position(id.Pos()))
+		out = append(out, loadedPackage.Fset.Position(id.Pos()))
 	}
 	sortPositions(out)
 	return out
@@ -240,21 +240,21 @@ func pointee(t types.Type) types.Type {
 	}
 }
 
-// modelSelections returns where p selects a member of one of m's types
+// modelSelections returns where loadedPackage selects a member of one of schemaModelValue's types
 // (reaches), by member, whatever type declares the member, so one promoted
 // from an embedded model counts: a field, a method value or call, and a method
 // expression. A call through an interface or a type parameter and a library
-// function handed a schema select no member of m's types, and holds does not
+// function handed a schema select no member of schemaModelValue's types, and holds does not
 // recognize a type defined over one, such as `type s oas3.Schema`: none of
 // these is counted. It leaves out those in the file adapter names and returns
 // how many there were.
-func modelSelections(p *decls.Package, m schemaModel, adapter string) (outside map[string][]token.Position, inAdapter int) {
+func modelSelections(loadedPackage *decls.Package, schemaModelValue schemaModel, adapter string) (outside map[string][]token.Position, inAdapter int) {
 	outside = map[string][]token.Position{}
-	for expr, sel := range p.Info.Selections {
-		if !m.reaches(sel) {
+	for expr, sel := range loadedPackage.Info.Selections {
+		if !schemaModelValue.reaches(sel) {
 			continue
 		}
-		pos := p.Fset.Position(expr.Sel.Pos())
+		pos := loadedPackage.Fset.Position(expr.Sel.Pos())
 		if pos.Filename == adapter {
 			inAdapter++
 			continue
@@ -282,11 +282,11 @@ func TestModelReads_HeldToTheBaseline(t *testing.T) {
 
 	sites := map[string]map[string][]string{}
 	inAdapter := 0
-	for _, p := range pkgs {
-		rel := strings.TrimPrefix(p.Types.Path(), module+"/")
-		outside, inside := modelSelections(p, parserSchema, adapter)
+	for _, loadedPackage := range pkgs {
+		rel := strings.TrimPrefix(loadedPackage.Types.Path(), module+"/")
+		outside, inside := modelSelections(loadedPackage, parserSchema, adapter)
 		inAdapter += inside
-		if at := bridgeUses(p); len(at) > 0 {
+		if at := bridgeUses(loadedPackage); len(at) > 0 {
 			outside[bridgeKey] = at
 		}
 		for member, at := range outside {
@@ -411,15 +411,15 @@ func TestModelSelections_PlantedSpellingsAreCounted(t *testing.T) {
 	assert.Equal(t, 2, inAdapter, "the adapter's reads are its own")
 }
 
-// holdingExpressions returns where p has an expression whose type mentions one
-// of m's types, in source order. An expression is a name, a call, a selector
+// holdingExpressions returns where loadedPackage has an expression whose type mentions one
+// of schemaModelValue's types, in source order. An expression is a name, a call, a selector
 // or a type written out, so one with a type inferred from a call is found
 // where it is first used.
-func holdingExpressions(p *decls.Package, m schemaModel) []token.Position {
+func holdingExpressions(loadedPackage *decls.Package, schemaModelValue schemaModel) []token.Position {
 	var out []token.Position
-	for expr, tv := range p.Info.Types {
-		if tv.Type != nil && m.mentions(tv.Type) {
-			out = append(out, p.Fset.Position(expr.Pos()))
+	for expr, tv := range loadedPackage.Info.Types {
+		if tv.Type != nil && schemaModelValue.mentions(tv.Type) {
+			out = append(out, loadedPackage.Fset.Position(expr.Pos()))
 		}
 	}
 	sortPositions(out)
@@ -438,10 +438,10 @@ func TestModelHolders_NoOtherPackageHoldsAParserSchema(t *testing.T) {
 	root := irtest.RepoRoot(t)
 
 	loaded := map[string]bool{}
-	for _, p := range pkgs {
-		rel := strings.TrimPrefix(p.Types.Path(), module+"/")
+	for _, loadedPackage := range pkgs {
+		rel := strings.TrimPrefix(loadedPackage.Types.Path(), module+"/")
 		loaded[rel] = true
-		at := holdingExpressions(p, parserSchema)
+		at := holdingExpressions(loadedPackage, parserSchema)
 		reason, listed := modelHolders[rel]
 		switch {
 		case !listed && len(at) > 0:
@@ -470,12 +470,12 @@ func TestModelReads_StatementReadsTheModelInItsAdapterAlone(t *testing.T) {
 	adapter := filepath.Join(root, "compilers", "openapi", "internal", "statement", "model.go")
 
 	var found bool
-	for _, p := range pkgs {
-		if p.Types.Path() != statementPackage {
+	for _, loadedPackage := range pkgs {
+		if loadedPackage.Types.Path() != statementPackage {
 			continue
 		}
 		found = true
-		outside, inside := modelSelections(p, parserSchema, adapter)
+		outside, inside := modelSelections(loadedPackage, parserSchema, adapter)
 		assert.Positive(t, inside, "model.go reads none of the parser's schema types")
 		for member, at := range outside {
 			for _, pos := range at {

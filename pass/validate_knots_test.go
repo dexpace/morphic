@@ -30,7 +30,7 @@ func composed(id string, base *ir.TypeRef, props ...ir.Property) *ir.Model {
 
 // needs is the property of the ID id of the type typ, required.
 func needs(id string, typ ir.TypeRef) ir.Property {
-	return prop(id, typ, func(p *ir.Property) { p.Required = true })
+	return prop(id, typ, func(property *ir.Property) { property.Required = true })
 }
 
 // noFiniteValueDoc is valueDoc holding defs.
@@ -50,7 +50,7 @@ func noFiniteValueDoc(defs ...ir.TypeDef) *ir.Document {
 // of bases draws the one code.
 func TestValidate_ACompositionCycleIsReportedAtEachTypeOfIt(t *testing.T) {
 	t.Parallel()
-	cyclic := func(id string) *ir.TypeRef { r := ref(id); return &r }
+	cyclic := func(id string) *ir.TypeRef { typeRef := ref(id); return &typeRef }
 	doc := noFiniteValueDoc(
 		composed("type/a", cyclic("type/b")), composed("type/b", cyclic("type/a")), composed("type/c", cyclic("type/c")), composed("type/d", cyclic("type/a")),
 	)
@@ -224,9 +224,9 @@ func TestValidate_TheTypeCyclesAreReportedInIDOrderCompositionFirst(t *testing.T
 // onlyNoFiniteValueFindings returns the findings of the two type cycle codes, in the order drawn.
 func onlyNoFiniteValueFindings(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == cycleCode || d.Code == finiteCode {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == cycleCode || diagnostic.Code == finiteCode {
+			out = append(out, diagnostic)
 		}
 	}
 	return out

@@ -139,18 +139,18 @@ func TestUnknownKeywordsIn_UnpreservableValueIsReportedNotKept(t *testing.T) {
 // pointer beneath the schema, never passed over (docs/compilers/openapi.md#unknown-keys).
 func TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable(t *testing.T) {
 	t.Parallel()
-	s := standaloneSchema(schemaFromYAML(t, pastMergeBound("{notAKeyword: 7, type: string}")))
-	_, listed := s.Key("notAKeyword")
+	schema := standaloneSchema(schemaFromYAML(t, pastMergeBound("{notAKeyword: 7, type: string}")))
+	_, listed := schema.Key("notAKeyword")
 	require.False(t, listed, "the statement's keys stop at the bound")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/A", sourced(0))
+	diags := UnknownKeywordsIn(&got, schema, "/A", sourced(0))
 
 	assert.Empty(t, got, "no node of it is reached")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnknownKeyUnreachable, diags[0].Code)
 	assert.Equal(t, ir.Provenance{Pointer: "/A/notAKeyword"}, diags[0].Provenance)
-	assert.True(t, WritesUnknownKeyword(s), "and a position writing one holds a node for its report")
+	assert.True(t, WritesUnknownKeyword(schema), "and a position writing one holds a node for its report")
 }
 
 // TestUnknownKeysUnder_KeysBeneathTheScopeAndSorted pins the OpenAPI-object
@@ -384,11 +384,11 @@ func TestTakeString_UnkeepableValueIsReportedAndRead(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("k: {a: .nan}"), &root))
-	var p ir.Unmodeled
-	got, read, diags := TakeString(&p, &root, "k", nil, sourced(0), "/o", "")
+	var unmodeled ir.Unmodeled
+	got, read, diags := TakeString(&unmodeled, &root, "k", nil, sourced(0), "/o", "")
 	assert.Empty(t, got)
 	assert.True(t, read)
-	assert.Empty(t, p)
+	assert.Empty(t, unmodeled)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
 }
@@ -447,16 +447,16 @@ func TestTakeString_DecodesAsTheParserDoes(t *testing.T) {
 
 			var root yaml.Node
 			require.NoError(t, yaml.Unmarshal([]byte("a: &x hello\nk: "+tc.value), &root))
-			var p ir.Unmodeled
-			got, read, diags := TakeString(&p, &root, "k", nil, sourced(0), "/o", "s")
+			var unmodeled ir.Unmodeled
+			got, read, diags := TakeString(&unmodeled, &root, "k", nil, sourced(0), "/o", "s")
 			assert.Equal(t, parsed, got)
 			assert.True(t, read)
 			if decodes {
-				assert.Empty(t, p)
+				assert.Empty(t, unmodeled)
 				assert.Empty(t, diags)
 				return
 			}
-			entry, ok := p["openapi:s/k"]
+			entry, ok := unmodeled["openapi:s/k"]
 			require.True(t, ok)
 			assert.JSONEq(t, tc.kept, string(entry.Value))
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
@@ -497,16 +497,16 @@ func TestTakeString_AppliesValidAndReadsAsTheParserDoes(t *testing.T) {
 			t.Parallel()
 			var root yaml.Node
 			require.NoError(t, yaml.Unmarshal([]byte(tc.src), &root))
-			var p ir.Unmodeled
-			got, read, diags := TakeString(&p, &root, "k", tc.valid, sourced(0), "/o", "s")
+			var unmodeled ir.Unmodeled
+			got, read, diags := TakeString(&unmodeled, &root, "k", tc.valid, sourced(0), "/o", "s")
 			assert.Equal(t, tc.want, got)
 			assert.Equal(t, tc.read, read)
 			if tc.kept == "" {
-				assert.Empty(t, p)
+				assert.Empty(t, unmodeled)
 				assert.Empty(t, diags)
 				return
 			}
-			entry, ok := p["openapi:s/k"]
+			entry, ok := unmodeled["openapi:s/k"]
 			require.True(t, ok)
 			assert.JSONEq(t, tc.kept, string(entry.Value))
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
@@ -540,8 +540,8 @@ func TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep(t *testing.T) {
 			t.Parallel()
 			s := schemaFromYAML(t, tc.schema)
 			assert.Equal(t, tc.want, WritesUnknownKeyword(standaloneSchema(s)))
-			assert.Equal(t, tc.want, slices.ContainsFunc(standaloneSchema(s).Keys, func(k statement.Key) bool {
-				return UnknownKeyword(standaloneSchema(s), k.Name)
+			assert.Equal(t, tc.want, slices.ContainsFunc(standaloneSchema(s).Keys, func(key statement.Key) bool {
+				return UnknownKeyword(standaloneSchema(s), key.Name)
 			}), "a keyword of it answers alike")
 			var kept ir.Unmodeled
 			UnknownKeywordsIn(&kept, standaloneSchema(s), "/s", sourced(0))

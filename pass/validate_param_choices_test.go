@@ -54,8 +54,8 @@ func TestValidate_ParamChoiceNamesItsOwnOperation(t *testing.T) {
 
 			diags := validated(t, docWithOperations(get, post))
 			assert.Equal(t, tc.want, mismatchesAt(diags))
-			for _, d := range withCode(diags, "pass/param-binding-mismatch") {
-				assert.Equal(t, ir.SeverityError, d.Severity, d.Message)
+			for _, diagnostic := range withCode(diags, "pass/param-binding-mismatch") {
+				assert.Equal(t, ir.SeverityError, diagnostic.Severity, diagnostic.Message)
 			}
 		})
 	}

@@ -28,8 +28,8 @@ const MaxTreeDepth = 64
 // SpecFiles returns every spec under root, in filepath.WalkDir's lexical order:
 // a .yaml, .yml or .json file that is no .golden.json IR snapshot, the filter
 // internal/harness sweeps a directory with.
-func SpecFiles(t TB, root string) []string {
-	t.Helper()
+func SpecFiles(tb TB, root string) []string {
+	tb.Helper()
 	var files []string
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || strings.HasSuffix(p, ".golden.json") {
@@ -42,11 +42,11 @@ func SpecFiles(t TB, root string) []string {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("reading the specs under %s: %v", root, err)
+		tb.Fatalf("reading the specs under %s: %v", root, err)
 		return nil
 	}
 	if len(files) == 0 {
-		t.Fatalf("no spec under %s", root)
+		tb.Fatalf("no spec under %s", root)
 	}
 	return files
 }
@@ -57,11 +57,11 @@ func SpecFiles(t TB, root string) []string {
 // each of those with a token appended that names nothing, an index, the empty
 // key, an escape or a schema keyword. A read that answers otherwise than the
 // library's at any of them shows.
-func Positions(ctx context.Context, t TB, doc *soa.OpenAPI) []jsontext.Pointer {
-	t.Helper()
+func Positions(ctx context.Context, tb TB, doc *soa.OpenAPI) []jsontext.Pointer {
+	tb.Helper()
 	var tree []jsontext.Pointer
 	var refs []written
-	if !treePaths(t, doc.GetRootNode(), "", &tree, &refs, 0) {
+	if !treePaths(tb, doc.GetRootNode(), "", &tree, &refs, 0) {
 		return nil
 	}
 	var bases []jsontext.Pointer
@@ -77,9 +77,9 @@ func Positions(ctx context.Context, t TB, doc *soa.OpenAPI) []jsontext.Pointer {
 	var out []jsontext.Pointer
 	for _, base := range bases {
 		for _, extra := range []jsontext.Pointer{"", "/0", "/x", "/", "/~1", "/properties"} {
-			if p := base + extra; !seen[p] {
-				seen[p] = true
-				out = append(out, p)
+			if pointer := base + extra; !seen[pointer] {
+				seen[pointer] = true
+				out = append(out, pointer)
 			}
 		}
 	}
@@ -112,12 +112,12 @@ func throughReference(ref written, tree []jsontext.Pointer) []jsontext.Pointer {
 
 // treePaths appends the pointer of each node in the tree under n, below at, to
 // out, and each $ref it writes to refs, and reports false once past
-// MaxTreeDepth, which fails t. A model's tree is the mapping it was built
+// MaxTreeDepth, which fails tb. A model's tree is the mapping it was built
 // from, and one built in code has none.
-func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer, refs *[]written, depth int) bool {
-	t.Helper()
+func treePaths(tb TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer, refs *[]written, depth int) bool {
+	tb.Helper()
 	if depth >= MaxTreeDepth {
-		t.Fatalf("the tree under %q nests past %d levels", at, MaxTreeDepth)
+		tb.Fatalf("the tree under %q nests past %d levels", at, MaxTreeDepth)
 		return false
 	}
 	if n == nil {
@@ -147,9 +147,9 @@ func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer,
 	for i, c := range children {
 		// The library's escaper keeps a byte that is no UTF-8, which AppendToken
 		// would spell as U+FFFD, a key the library never compares.
-		p := jsontext.Pointer(string(at) + "/" + jsonpointer.EscapeString(tokens[i]))
-		*out = append(*out, p)
-		if !treePaths(t, c, p, out, refs, depth+1) {
+		pointer := jsontext.Pointer(string(at) + "/" + jsonpointer.EscapeString(tokens[i]))
+		*out = append(*out, pointer)
+		if !treePaths(tb, c, pointer, out, refs, depth+1) {
 			return false
 		}
 	}

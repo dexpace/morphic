@@ -31,24 +31,24 @@ func retainedSections() []string {
 // of its target into the IR. A section is read as the parser reads it, through `<<` merge keys,
 // so a merged-in entry is kept under its own name. One whose $ref names
 // nothing is kept too, as written.
-func retainUnreferencedComponents(c service.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
+func retainUnreferencedComponents(serviceContext service.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
 	view := nodeview.New()
-	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")
+	components := view.ChildByToken(nodeview.DocumentRoot(serviceContext.Doc.GetRootNode()), "components")
 	var out ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, section := range retainedSections() {
 		for _, entry := range view.MappingPairs(view.ChildByToken(nodeview.Deref(components), section)) {
 			pointer := ids.Ptr("components", section, entry.Key)
-			if c.Reached(pointer) {
+			if serviceContext.Reached(pointer) {
 				continue
 			}
 			_, keptDiags := annotation.PreserveNodeInto(&out, "openapi:"+ids.Scope("components", section, entry.Key),
-				entry.Val, ir.ReasonNoIRHome, c.Place().At(pointer))
+				entry.Val, ir.ReasonNoIRHome, serviceContext.Place().At(pointer))
 			diags = append(diags, keptDiags...)
 		}
 	}
 	if view.Exhausted() {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, ids.Ptr("components"),
+		diags = append(diags, serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, ids.Ptr("components"),
 			"components merges through `<<` deeper than %d levels; entries past that are not kept", nodeview.MergeDepthLimit))
 	}
 	return out, diags

@@ -26,11 +26,11 @@ import (
 // it reports and the declarations the settlement read.
 func settledUnder(t *testing.T, schemas string, limit budget.Limit) (*ir.Document, []ir.Diagnostic, int) {
 	t.Helper()
-	l, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas))
-	membersOf(l.Ctx).reads = budget.New(limit)
-	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
-	doc := l.Document(t)
-	return doc, append(diags, l.Diags.List()...), membersOf(l.Ctx).reads.Spent()
+	lowerer, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas))
+	membersOf(lowerer.Ctx).reads = budget.New(limit)
+	lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	doc := lowerer.Document(t)
+	return doc, append(diags, lowerer.Diags.List()...), membersOf(lowerer.Ctx).reads.Spent()
 }
 
 // hierarchy is n models, each composing the one before it and, where wide, the
@@ -71,11 +71,11 @@ func TestMembers_ADeclarationASettledModelHoldsKeepsWhereItsTypeIsWritten(t *tes
 	rec := &members{tables: map[ir.TypeID]merge.RedeclaredWireNameTable{"type/K": {"b": {PropertyDecl: held, TypeAt: typeAt}}}}
 
 	assert.Equal(t, typeAt, rec.declared(held).TypeAt, "as its settlement left it")
-	for name, d := range map[string]ir.PropertyDecl{
+	for name, propertyDecl := range map[string]ir.PropertyDecl{
 		"a model with no table":              {Owner: "type/L", Property: &other},
 		"another declaration under its name": {Owner: "type/K", Property: &other},
 	} {
-		assert.Equal(t, []ir.Provenance{other.Provenance}, rec.declared(d).TypeAt, name)
+		assert.Equal(t, []ir.Provenance{other.Provenance}, rec.declared(propertyDecl).TypeAt, name)
 	}
 }
 
@@ -118,15 +118,15 @@ func TestMembers_ReadsPastTheBudgetFoldTheirOwnDeclarationsAlone(t *testing.T) {
 
 	cut := 1
 	for ; cut < 40; cut++ {
-		m, isModel := doc.Types[ir.TypeID(fmt.Sprintf("type/openapi/components/schemas/A%d", cut))].(*ir.Model)
+		model, isModel := doc.Types[ir.TypeID(fmt.Sprintf("type/openapi/components/schemas/A%d", cut))].(*ir.Model)
 		require.True(t, isModel)
-		if m.Properties[0].Type.Target == "type/primitive/number" {
+		if model.Properties[0].Type.Target == "type/primitive/number" {
 			break
 		}
 	}
-	for _, d := range diags {
-		if d.Code == diag.BudgetExceeded {
-			assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/A%d", cut)), d.Provenance.Pointer,
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.BudgetExceeded {
+			assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/A%d", cut)), diagnostic.Provenance.Pointer,
 				"at the first model left with its own")
 		}
 	}
@@ -215,14 +215,14 @@ func TestMembers_ABaseComposedBesideItsHierarchyBringsNothingAtAnyDepth(t *testi
 		doc, diags, _ := settledUnder(t, deepLeaf(depth), budget.Unbounded())
 
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := doc.Types["type/openapi/components/schemas/M"].(*ir.Model)
+		model, ok := doc.Types["type/openapi/components/schemas/M"].(*ir.Model)
 		require.True(t, ok)
-		assert.Empty(t, m.Properties, "at depth %d", depth)
+		assert.Empty(t, model.Properties, "at depth %d", depth)
 		flat := ir.FlattenedProperties(doc.Types, "type/openapi/components/schemas/M")
 		require.Len(t, flat.Properties, 1, "at depth %d", depth)
 		assert.Equal(t, "leaf", flat.Properties[0].Property.Docs.Description, "at depth %d", depth)
-		for _, d := range diags {
-			assert.NotContains(t, string(d.Provenance.Pointer), "/components/schemas/M", "at depth %d", depth)
+		for _, diagnostic := range diags {
+			assert.NotContains(t, string(diagnostic.Provenance.Pointer), "/components/schemas/M", "at depth %d", depth)
 		}
 	}
 }
@@ -268,11 +268,11 @@ func TestMembers_ACutTellingDeclarationsApartFallsAlikeInEveryRun(t *testing.T) 
 	_, _, all := settledUnder(t, twoDeepLeaves(100), budget.Unbounded())
 	declared := func() []string {
 		doc, _, _ := settledUnder(t, twoDeepLeaves(100), budget.AtMost(all-60))
-		m, ok := doc.Types["type/openapi/components/schemas/M"].(*ir.Model)
+		model, ok := doc.Types["type/openapi/components/schemas/M"].(*ir.Model)
 		require.True(t, ok)
-		wires := make([]string, 0, len(m.Properties))
-		for _, p := range m.Properties {
-			wires = append(wires, p.WireName)
+		wires := make([]string, 0, len(model.Properties))
+		for _, property := range model.Properties {
+			wires = append(wires, property.WireName)
 		}
 		return wires
 	}
@@ -324,12 +324,12 @@ func TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk(t *testing.T) {
 func TestMembers_TheSettlementAsksItsContextBeforeEachModel(t *testing.T) {
 	t.Parallel()
 	finish := func(models, left int) (asked, settledAtRefusal, settled int) {
-		l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", hierarchy(models+1, false, false)))
-		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
-		rec := membersOf(l.Ctx)
+		lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", hierarchy(models+1, false, false)))
+		lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+		rec := membersOf(lowerer.Ctx)
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
 		ctx.OnRefuse = func() { settledAtRefusal = len(rec.settled) }
-		l.Types.Finish(ctx)
+		lowerer.Types.Finish(ctx)
 		return ctx.Calls, settledAtRefusal, len(rec.settled)
 	}
 

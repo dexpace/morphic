@@ -228,8 +228,8 @@ func requireEntryNodeAt(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, a
 	refAt := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", ref))
 	assert.Equal(t, refAt, entry.Provenance.Pointer, "the entry kept is the one writing the $ref")
 	n := 0
-	for _, p := range degradedUnder(diags, at) {
-		if p == refAt {
+	for _, pointer := range degradedUnder(diags, at) {
+		if pointer == refAt {
 			n++
 		}
 	}
@@ -328,18 +328,18 @@ func TestEntryValueSet_AReferenceToThePositionReadsItsNode(t *testing.T) {
 				assert.Equal(t, ir.KindEnum, kindNode(t, doc, position).Kind(), "the position's node")
 				assert.Equal(t, ir.KindEnum, kindNode(t, doc, componentID("Comp")).Kind(), "the component is the enum")
 				holder := requireEntryModelOf(t, doc, "Holder")
-				p, ok := propByWire(holder, "p")
+				property, ok := propByWire(holder, "p")
 				require.True(t, ok)
-				assert.Equal(t, position, p.Type.Target)
-				assert.Empty(t, p.Unmodeled, "the property keeps nothing the enum holds")
+				assert.Equal(t, position, property.Type.Target)
+				assert.Empty(t, property.Unmodeled, "the property keeps nothing the enum holds")
 
 				requireEntryScalarOver(t, doc, "ToPosition", position)
 				requireEntryScalarOver(t, doc, "ToComp", componentID("Comp"))
 				uses := requireEntryModelOf(t, doc, "Uses")
-				q, _ := propByWire(uses, "q")
-				r, _ := propByWire(uses, "r")
-				assert.Equal(t, position, q.Type.Target)
-				assert.Equal(t, componentID("Comp"), r.Type.Target)
+				irProperty, _ := propByWire(uses, "q")
+				propertyValue, _ := propByWire(uses, "r")
+				assert.Equal(t, position, irProperty.Type.Target)
+				assert.Equal(t, componentID("Comp"), propertyValue.Type.Target)
 			})
 		})
 	}

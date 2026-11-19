@@ -561,9 +561,9 @@ func TestInferWalks_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 // /name.
 func reportsAt(diags []ir.Diagnostic, name string) []string {
 	var out []string
-	for _, d := range diags {
-		if strings.HasPrefix(string(d.Provenance.Pointer), "/paths/~1"+name+"/") {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/paths/~1"+name+"/") {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out
@@ -589,11 +589,11 @@ func getPath(name, ext, params, headers, body string) string {
 func spoken(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) map[string]string {
 	t.Helper()
 	codes := map[string][]string{}
-	for _, d := range diags {
-		at, ok := strings.CutPrefix(string(d.Provenance.Pointer), "/paths/~1")
-		require.True(t, ok, "a finding outside every path item: %+v", d)
+	for _, diagnostic := range diags {
+		at, ok := strings.CutPrefix(string(diagnostic.Provenance.Pointer), "/paths/~1")
+		require.True(t, ok, "a finding outside every path item: %+v", diagnostic)
 		name, _, _ := strings.Cut(at, "/")
-		codes[name] = append(codes[name], strings.TrimPrefix(d.Code, "openapi/"))
+		codes[name] = append(codes[name], strings.TrimPrefix(diagnostic.Code, "openapi/"))
 	}
 	out := map[string]string{}
 	for _, op := range doc.Services[0].Groups[0].Operations {

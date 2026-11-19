@@ -138,20 +138,20 @@ func EmptyEitherSchema() *oas3.JSONSchema[oas3.Referenceable] {
 
 // YAMLNode parses a YAML snippet and returns its root value node (the document
 // node's single content child), matching what schema fields expose.
-func YAMLNode(t TB, src string) *yaml.Node {
-	t.Helper()
+func YAMLNode(tb TB, src string) *yaml.Node {
+	tb.Helper()
 	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
-	require.Len(t, doc.Content, 1, "expected a single document node")
+	require.NoError(tb, yaml.Unmarshal([]byte(src), &doc))
+	require.Len(tb, doc.Content, 1, "expected a single document node")
 	return doc.Content[0]
 }
 
 // YAMLDocument parses src as a document tree and returns its document node, the
 // node a loader indexes and hands on.
-func YAMLDocument(t TB, src string) *yaml.Node {
-	t.Helper()
+func YAMLDocument(tb TB, src string) *yaml.Node {
+	tb.Helper()
 	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
+	require.NoError(tb, yaml.Unmarshal([]byte(src), &root))
 	return &root
 }
 
@@ -169,12 +169,12 @@ func ClearAnchors(root *yaml.Node) {
 
 // SchemaFromYAML unmarshals body as a JSONSchema, keeping the reference and
 // boolean forms a bare *oas3.Schema cannot represent.
-func SchemaFromYAML(ctx context.Context, t TB, body string) *oas3.JSONSchema[oas3.Referenceable] {
-	t.Helper()
+func SchemaFromYAML(ctx context.Context, tb TB, body string) *oas3.JSONSchema[oas3.Referenceable] {
+	tb.Helper()
 	js := &oas3.JSONSchema[oas3.Referenceable]{}
 	valErrs, err := marshaller.Unmarshal(ctx, strings.NewReader(body), js)
-	require.NoError(t, err)
-	require.Empty(t, valErrs, "the fixture parses cleanly")
+	require.NoError(tb, err)
+	require.Empty(tb, valErrs, "the fixture parses cleanly")
 	return js
 }
 

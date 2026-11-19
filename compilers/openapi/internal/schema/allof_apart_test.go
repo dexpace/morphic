@@ -58,16 +58,16 @@ func TestAllOf_ValueSetsSharingNoMemberWarnOnce(t *testing.T) {
 			assert.Contains(t, warnings[0].Message, "share no value ("+tc.names+")")
 			assert.Contains(t, warnings[0].Message, "which "+tc.shape+" cannot state")
 			assert.Len(t, warningsAt(diags), 1, "no other warning: %+v", diags)
-			s := typeByName(doc, "S")
-			require.NotNil(t, s)
-			assert.Equal(t, tc.kind, s.Kind())
-			if scalar, ok := s.(*ir.Scalar); ok && tc.shape == "the top type it lowered as" {
+			typeDef := typeByName(doc, "S")
+			require.NotNil(t, typeDef)
+			assert.Equal(t, tc.kind, typeDef.Kind())
+			if scalar, ok := typeDef.(*ir.Scalar); ok && tc.shape == "the top type it lowered as" {
 				require.NotNil(t, scalar.Base)
 				assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveAny), scalar.Base.Target, "no kind is claimed")
 				for i := range strings.Count(tc.schema, "}, {") + 1 {
 					entry := fmt.Sprintf("/components/schemas/S/allOf/%d", i)
-					assert.True(t, slices.ContainsFunc(slices.Collect(maps.Values(scalar.Unmodeled)), func(e ir.UnmodeledEntry) bool {
-						return strings.HasPrefix(string(e.Provenance.Pointer), entry)
+					assert.True(t, slices.ContainsFunc(slices.Collect(maps.Values(scalar.Unmodeled)), func(unmodeledEntry ir.UnmodeledEntry) bool {
+						return strings.HasPrefix(string(unmodeledEntry.Provenance.Pointer), entry)
 					}), "the entry at %s is kept", entry)
 				}
 			}
@@ -111,9 +111,9 @@ func TestAllOf_ValueSetsSharingNoMemberReportAlikeInEitherOrder(t *testing.T) {
 // warningsAt returns the warnings among diags.
 func warningsAt(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -133,9 +133,9 @@ func TestAllOf_ARefAmongValueSetsSharingNoMemberIsKept(t *testing.T) {
 	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveAny), scalar.Base.Target)
 	assert.Contains(t, scalar.Unmodeled, "openapi:$ref")
 	var why []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/components/schemas/S/allOf/0" {
-			why = append(why, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/components/schemas/S/allOf/0" {
+			why = append(why, diagnostic.Message)
 		}
 	}
 	require.Len(t, why, 1)

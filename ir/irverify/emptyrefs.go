@@ -25,8 +25,8 @@ func checkEmptyRefs(*ir.Document) walkCheck {
 				return nil
 			}
 			vs := make([]Violation, 0, len(empty))
-			for _, r := range empty {
-				vs = append(vs, Violation{Code: r.Code(), Message: r.Message(), Path: r.Path})
+			for _, emptyReference := range empty {
+				vs = append(vs, Violation{Code: emptyReference.Code(), Message: emptyReference.Message(), Path: emptyReference.Path})
 			}
 			return vs
 		},

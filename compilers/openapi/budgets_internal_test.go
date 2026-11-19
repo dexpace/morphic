@@ -64,9 +64,9 @@ func compileBounded(t *testing.T, src string, limits Limits) (*ir.Document, []ir
 // messageOf returns the message of the first diagnostic carrying code.
 func messageOf(t *testing.T, diags []ir.Diagnostic, code string) string {
 	t.Helper()
-	for _, d := range diags {
-		if d.Code == code {
-			return d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			return diagnostic.Message
 		}
 	}
 	t.Fatalf("no diagnostic with code %q in %+v", code, diags)
@@ -251,10 +251,10 @@ func TestCompile_AnUnboundedAliasBudgetStillRefusesABomb(t *testing.T) {
 func TestLoadOptions_ReadsEachBudgetAsLimitsSpellsIt(t *testing.T) {
 	t.Parallel()
 	src := compilers.Source{Path: "spec.yaml"}
-	resolved := func(l Limits) []budget.Limit {
-		o := Options{Limits: l}.withDefaults()
-		phase := loadOptions(o, nil, src)
-		lowered := loweringPolicy(o)
+	resolved := func(limits Limits) []budget.Limit {
+		options := Options{Limits: limits}.withDefaults()
+		phase := loadOptions(options, nil, src)
+		lowered := loweringPolicy(options)
 		return []budget.Limit{phase.MaxSourceBytes, phase.MaxSourceNodes, lowered.Schema.Limits.MaxEnumMembers,
 			phase.MaxAliasSurplus, phase.MaxExternalDocuments, lowered.MaxReferenceExpansion}
 	}

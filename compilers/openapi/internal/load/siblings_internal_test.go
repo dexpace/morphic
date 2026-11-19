@@ -81,17 +81,17 @@ func TestModelSiblings_ModelsWhatTheTableReadsAsAReference(t *testing.T) {
 	assert.Equal(t, "beside", a.Item.GetSummary())
 	require.NotNil(t, a.Item.Put(), "the operation beside the $ref is modelled")
 
-	d, ok := sibs.Of(pathEntry(t, doc, "/d"))
+	sibling, ok := sibs.Of(pathEntry(t, doc, "/d"))
 	require.True(t, ok, "an alias reaches the same mapping")
-	assert.Same(t, a.Item, d.Item, "and the same model, built once")
+	assert.Same(t, a.Item, sibling.Item, "and the same model, built once")
 
 	_, ok = sibs.Of(pathEntry(t, doc, "/c"))
 	assert.False(t, ok, "a $ref with nothing beside it has no model")
 	_, ok = sibs.Of(pathEntry(t, doc, "/b"))
 	assert.False(t, ok, "an inline item is no reference")
-	m, ok := sibs.Of(pathEntry(t, doc, "/m"))
+	siblingValue, ok := sibs.Of(pathEntry(t, doc, "/m"))
 	require.True(t, ok, "a $ref a merge key supplies is a reference, as the table reads one")
-	assert.NotNil(t, m.Item.Post(), "the operation beside it is modelled")
+	assert.NotNil(t, siblingValue.Item.Post(), "the operation beside it is modelled")
 
 	cb, ok := a.Item.Put().GetCallbacks().Get("cb")
 	require.True(t, ok)
@@ -125,9 +125,9 @@ paths:
 		require.NotNil(t, doc)
 
 		lines := map[int]int{}
-		for _, d := range diags {
-			if d.Code == diag.Validation+"/validation-type-mismatch" {
-				lines[d.Provenance.Position.Line]++
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.Validation+"/validation-type-mismatch" {
+				lines[diagnostic.Provenance.Position.Line]++
 			}
 		}
 		assert.Equal(t, map[int]int{6: 1, 7: 1, 8: 1}, lines,
@@ -146,10 +146,10 @@ func TestSiblingsFrom_AParserFaultIsReportedOnce(t *testing.T) {
 	}
 	sibs, faults := siblingsFrom(t.Context(), soa.Walk(t.Context(), doc), provenance.Tree{}, faulting)
 	require.Len(t, faults, 2, "/a and its alias /d are one mapping, and /m another")
-	for _, f := range faults {
-		assert.Equal(t, diag.Validation, f.Code)
-		assert.Equal(t, ir.SeverityError, f.Severity)
-		assert.Contains(t, f.Message, "parser panicked: boom")
+	for _, diagnostic := range faults {
+		assert.Equal(t, diag.Validation, diagnostic.Code)
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+		assert.Contains(t, diagnostic.Message, "parser panicked: boom")
 	}
 	assert.Equal(t, 5, faults[0].Provenance.Position.Line, "sited where the use site is written")
 
@@ -321,8 +321,8 @@ rows:
 			continue
 		}
 		var keys []string
-		for _, p := range nodeview.Pairs(fields) {
-			keys = append(keys, p.Key)
+		for _, pair := range nodeview.Pairs(fields) {
+			keys = append(keys, pair.Key)
 		}
 		assert.ElementsMatch(t, want, keys, "row %d: what the copy holds, merges read", i)
 	}
@@ -362,10 +362,10 @@ paths:
 		require.NotNil(t, doc, "%s: the document still loads", beside)
 
 		var mismatches []ir.Diagnostic
-		for _, d := range diags {
-			assert.NotContains(t, d.Message, "could not be read", "%s: no fault of the parser is reported", beside)
-			if d.Code == diag.Validation+"/validation-type-mismatch" {
-				mismatches = append(mismatches, d)
+		for _, diagnostic := range diags {
+			assert.NotContains(t, diagnostic.Message, "could not be read", "%s: no fault of the parser is reported", beside)
+			if diagnostic.Code == diag.Validation+"/validation-type-mismatch" {
+				mismatches = append(mismatches, diagnostic)
 			}
 		}
 		require.Len(t, mismatches, 1, "%s: reported once: %+v", beside, diags)
@@ -392,9 +392,9 @@ paths:
 	require.NoError(t, err)
 
 	var lines []int
-	for _, d := range diags {
-		if strings.HasPrefix(d.Code, diag.Validation+"/") {
-			lines = append(lines, d.Provenance.Position.Line)
+	for _, diagnostic := range diags {
+		if strings.HasPrefix(diagnostic.Code, diag.Validation+"/") {
+			lines = append(lines, diagnostic.Provenance.Position.Line)
 		}
 	}
 	assert.Equal(t, []int{6, 8}, lines, "the finding beside the $ref first, as the source writes it")
@@ -456,9 +456,9 @@ func TestLoad_ASiblingsExternalReferenceIsReadAsAnyOther(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var at []ir.Diagnostic
-			for _, d := range loadSiblingFixture(t, siblingExternalMain, tc.target, tc.opts) {
-				if d.Provenance.Source == tc.at.Source && d.Provenance.Pointer == tc.at.Pointer {
-					at = append(at, d)
+			for _, diagnostic := range loadSiblingFixture(t, siblingExternalMain, tc.target, tc.opts) {
+				if diagnostic.Provenance.Source == tc.at.Source && diagnostic.Provenance.Pointer == tc.at.Pointer {
+					at = append(at, diagnostic)
 				}
 			}
 			require.Len(t, at, 1, "one finding, where it is placed")

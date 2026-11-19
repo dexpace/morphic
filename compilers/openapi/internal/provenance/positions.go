@@ -52,12 +52,12 @@ func (p *Positions) Root() *Position { return &p.root }
 // Child returns the position token leads to from holder, recording it the
 // first time it is asked for. holder must be one of p's positions.
 func (p *Positions) Child(holder *Position, token string) *Position {
-	s := step{holder: holder, token: token}
-	if at, ok := p.steps[s]; ok {
+	stepValue := step{holder: holder, token: token}
+	if at, ok := p.steps[stepValue]; ok {
 		return at
 	}
 	at := &Position{holder: holder, token: token}
-	p.steps[s] = at
+	p.steps[stepValue] = at
 	return at
 }
 

@@ -22,9 +22,9 @@ type route struct {
 // callback's is a runtime expression, so neither is counted.
 func (g *serviceGroups) markSharedRoutes() {
 	routed := map[route]int{}
-	g.eachRoutedBinding(func(_ *ir.HTTPBinding, r route) { routed[r]++ })
-	g.eachRoutedBinding(func(hb *ir.HTTPBinding, r route) {
-		if routed[r] > 1 {
+	g.eachRoutedBinding(func(_ *ir.HTTPBinding, routeValue route) { routed[routeValue]++ })
+	g.eachRoutedBinding(func(hb *ir.HTTPBinding, routeValue route) {
+		if routed[routeValue] > 1 {
 			hb.SharedRoute = true
 		}
 	})

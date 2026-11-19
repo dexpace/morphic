@@ -117,8 +117,8 @@ func TestHTTPInbound_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := declaredConstsOfType(t, "HTTPInbound")
 	require.NotEmpty(t, declared, "the ir sources must declare HTTPInbound constants")
-	for _, c := range declared {
-		assert.True(t, ir.HTTPInbound(c.Value).Valid(), "declared kind %q must be Valid", c.Value)
+	for _, declaredConst := range declared {
+		assert.True(t, ir.HTTPInbound(declaredConst.Value).Valid(), "declared kind %q must be Valid", declaredConst.Value)
 	}
 	assert.True(t, ir.HTTPInbound("").Valid(), "a request the client sends")
 }

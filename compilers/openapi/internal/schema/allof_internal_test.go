@@ -44,20 +44,20 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 
 			doc, diags := LowerSpec(t, openapitest.ComponentSpec(b.String()))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/M")].(*ir.Model)
+			model, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/M")].(*ir.Model)
 			require.True(t, ok, "M should be a model")
 			if tc.flat {
-				require.NotNil(t, m.Base, "the ref at the bottom is classified")
-				assert.Equal(t, ir.TypeID("type/openapi/components/schemas/A"), m.Base.Target)
-				assert.Empty(t, m.Unmodeled)
+				require.NotNil(t, model.Base, "the ref at the bottom is classified")
+				assert.Equal(t, ir.TypeID("type/openapi/components/schemas/A"), model.Base.Target)
+				assert.Empty(t, model.Unmodeled)
 				return
 			}
-			assert.Nil(t, m.Base, "the ref sits inside the wrapper kept verbatim")
+			assert.Nil(t, model.Base, "the ref sits inside the wrapper kept verbatim")
 			path := strings.TrimSuffix(strings.Repeat("allOf/0/", statement.MaxFlattenDepth+1), "/")
-			entry, ok := m.Unmodeled["openapi:"+path]
-			require.True(t, ok, "the wrapper at the cap is kept under its path; got %v", m.Unmodeled)
+			entry, ok := model.Unmodeled["openapi:"+path]
+			require.True(t, ok, "the wrapper at the cap is kept under its path; got %v", model.Unmodeled)
 			assert.Equal(t, jsontext.Pointer("/components/schemas/M/"+path), entry.Provenance.Pointer)
-			assert.Len(t, m.Unmodeled, 1)
+			assert.Len(t, model.Unmodeled, 1)
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/"+path)
 			assert.Equal(t, "inline allOf branch is nested past the flattening depth of "+strconv.Itoa(statement.MaxFlattenDepth)+
@@ -71,7 +71,7 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 // composed schema, and that a wrapper follows its own branches.
 func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    M:
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    M:
       allOf:
         - {type: object}
         - allOf:
@@ -80,9 +80,9 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
                 - {type: object}
                 - {type: object}
 `))
-	decl, ok := l.Doc.Components.Schemas.Get("M")
+	decl, ok := lowerer.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
-	comp := allOfBranches(l.Ctx, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/M")
+	comp := allOfBranches(lowerer.Ctx, lowerer.Ctx.Statements().Of(decl).Schema, "/components/schemas/M")
 	entries := comp.branches
 	require.Len(t, entries, 6, "four inline branches and two wrappers")
 	wantKeys := []string{
@@ -94,9 +94,9 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 		"openapi:allOf/1",
 	}
 	var inline int
-	for i, e := range entries {
-		assert.Equal(t, wantKeys[i], comp.branchKey(e.pointer))
-		if !e.wrapper {
+	for i, allOfBranch := range entries {
+		assert.Equal(t, wantKeys[i], comp.branchKey(allOfBranch.pointer))
+		if !allOfBranch.wrapper {
 			inline++
 		}
 	}
@@ -109,7 +109,7 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 // included, and ends when the loop reading it breaks.
 func TestAllOfRefBranches_StopsWhenTheConsumerDoes(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    A: {type: object}
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    A: {type: object}
     B: {type: object}
     M:
       allOf:
@@ -118,17 +118,17 @@ func TestAllOfRefBranches_StopsWhenTheConsumerDoes(t *testing.T) {
         - {type: object}
         - {$ref: '#/components/schemas/B'}
 `))
-	s := StatedIn(l, componentSchema(t, l, "M"))
+	schema := StatedIn(lowerer, componentSchema(t, lowerer, "M"))
 	var all []*statement.Statement
-	for b := range allOfRefBranches(l.Ctx, s) {
+	for b := range allOfRefBranches(lowerer.Ctx, schema) {
 		all = append(all, b)
 	}
 	require.Len(t, all, 2, "the nested $ref and the one beside it")
-	assert.Equal(t, StatedIn(l, componentSchema(t, l, "A")), refBranchTarget(l.Ctx, all[0]))
-	assert.Equal(t, StatedIn(l, componentSchema(t, l, "B")), refBranchTarget(l.Ctx, all[1]))
+	assert.Equal(t, StatedIn(lowerer, componentSchema(t, lowerer, "A")), refBranchTarget(lowerer.Ctx, all[0]))
+	assert.Equal(t, StatedIn(lowerer, componentSchema(t, lowerer, "B")), refBranchTarget(lowerer.Ctx, all[1]))
 
 	var seen int
-	for range allOfRefBranches(l.Ctx, s) {
+	for range allOfRefBranches(lowerer.Ctx, schema) {
 		seen++
 		break
 	}

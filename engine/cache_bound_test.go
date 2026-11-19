@@ -35,21 +35,21 @@ type boundReader struct {
 func (r *boundReader) ReadDocument(_ context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	d, ok := r.docs[req.Location]
+	boundDoc, ok := r.docs[req.Location]
 	switch {
 	case !ok:
 		return compilers.DocumentRead{}, fmt.Errorf("no document %s", req.Location)
-	case !r.lax && req.Reach != compilers.SpaceUnstated && d.bound > req.Reach:
-		return compilers.DocumentRead{}, &compilers.AddressSpaceError{Address: req.Location, Space: d.bound}
+	case !r.lax && req.Reach != compilers.SpaceUnstated && boundDoc.bound > req.Reach:
+		return compilers.DocumentRead{}, &compilers.AddressSpaceError{Address: req.Location, Space: boundDoc.bound}
 	}
-	return compilers.DocumentRead{Data: []byte(d.data), Space: d.space, Bound: d.bound}, nil
+	return compilers.DocumentRead{Data: []byte(boundDoc.data), Space: boundDoc.space, Bound: boundDoc.bound}, nil
 }
 
 // set replaces the document at location and whether reaches are ignored.
-func (r *boundReader) set(location string, d boundDoc, lax bool) {
+func (r *boundReader) set(location string, boundDocValue boundDoc, lax bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.docs[location], r.lax = d, lax
+	r.docs[location], r.lax = boundDocValue, lax
 }
 
 // TestWithCache_AReadIsReplayedWithItsSpaceAndBound pins that a run answered

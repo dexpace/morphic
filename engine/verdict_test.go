@@ -101,8 +101,8 @@ func TestEngine_RunVerdict(t *testing.T) {
 	}
 	for _, failOn := range thresholds {
 		for _, sevs := range lists {
-			want := slices.ContainsFunc(sevs, func(s ir.Severity) bool {
-				return slices.Contains(failing[failOn], s)
+			want := slices.ContainsFunc(sevs, func(severity ir.Severity) bool {
+				return slices.Contains(failing[failOn], severity)
 			})
 			t.Run(fmt.Sprintf("fail-on=%q/%v", failOn, sevs), func(t *testing.T) {
 				t.Parallel()
@@ -424,8 +424,8 @@ func TestEngine_RunListsEachFindingAsRated(t *testing.T) {
 	res := runTriaged(t, "", rules, placedAt(ir.SeverityError, "/b"), placedAt(ir.SeverityError, "/a"))
 
 	require.Len(t, res.Findings, len(res.Diagnostics))
-	for i, f := range res.Findings {
-		assert.Equal(t, res.Diagnostics[i], f.Diagnostic, "finding %d", i)
+	for i, finding := range res.Findings {
+		assert.Equal(t, res.Diagnostics[i], finding.Diagnostic, "finding %d", i)
 	}
 	assert.Equal(t, ir.SeverityWarning, res.Findings[0].Severity)
 	assert.Equal(t, "lowered", res.Findings[0].Rule.Reason)
@@ -483,12 +483,12 @@ func TestEngine_RunRefusesAnUnknownSeverityWhateverItIsRated(t *testing.T) {
 // below every threshold, it would pass every gate.
 func TestVerdict_RefusesARatingNoThresholdRanks(t *testing.T) {
 	t.Parallel()
-	d := placedAt(ir.SeverityError, "/a")
-	_, err := engine.Verdict("", &ir.Document{}, []triage.Finding{{Diagnostic: d, Severity: "fatal"}})
+	diagnostic := placedAt(ir.SeverityError, "/a")
+	_, err := engine.Verdict("", &ir.Document{}, []triage.Finding{{Diagnostic: diagnostic, Severity: "fatal"}})
 	require.ErrorIs(t, err, engine.ErrUnknownSeverity)
 	assert.Contains(t, err.Error(), `diagnostic "x/finding" is rated at severity "fatal"`)
 
-	failed, err := engine.Verdict("", &ir.Document{}, []triage.Finding{{Diagnostic: d, Severity: ir.SeverityError}})
+	failed, err := engine.Verdict("", &ir.Document{}, []triage.Finding{{Diagnostic: diagnostic, Severity: ir.SeverityError}})
 	require.NoError(t, err)
 	assert.True(t, failed)
 }

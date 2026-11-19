@@ -23,7 +23,7 @@ import (
 // the stricter, is discarded and must be announced.
 func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(nil)
+	stubbed, recorded := stubMerger(nil)
 	dst := ir.Property{
 		WireName:    "age",
 		Provenance:  ir.Provenance{Pointer: "/components/schemas/A/properties/age"},
@@ -35,7 +35,7 @@ func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 		Constraints: &ir.Constraints{Pattern: "^b$"},
 	}
 
-	dst = foldTwo(g, dst, src, written(`{"pattern":"^b$"}`))
+	dst = foldTwo(stubbed, dst, src, written(`{"pattern":"^b$"}`))
 
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, "^b$", dst.Constraints.Pattern, "the later pattern is kept")
@@ -54,7 +54,7 @@ func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 // unresolved and falling through to the structural comparison.
 func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 	t.Parallel()
-	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+	stubbed, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"type/enum": &ir.Enum{ID: "type/enum", ValueType: ir.PrimitiveString},
 		"type/alias": &ir.Scalar{
 			ID:   "type/alias",
@@ -62,12 +62,12 @@ func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 		},
 	})
 
-	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "type/enum"})
+	kind, ok := judge(stubbed).kindOf(ir.TypeRef{Target: "type/enum"})
 	require.True(t, ok)
 	assert.Equal(t, ir.PrimitiveString, kind.prim)
 	assert.Empty(t, kind.format)
 
-	kind, ok = judge(g).kindOf(ir.TypeRef{Target: "type/alias"})
+	kind, ok = judge(stubbed).kindOf(ir.TypeRef{Target: "type/alias"})
 	require.True(t, ok, "a scalar's Base chain is followed to the enum behind it")
 	assert.Equal(t, ir.PrimitiveString, kind.prim)
 	assert.Empty(t, kind.format)
@@ -98,7 +98,7 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+			stubbed, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 				"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 			})
 			dst, src := tc.dst, tc.src
@@ -108,19 +108,19 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 			src.Provenance = ir.Provenance{Source: 1, Pointer: "/allOf/1/properties/id"}
 			want := tc.src
 
-			dst = foldTwo(g, dst, src, unread(t))
+			dst = foldTwo(stubbed, dst, src, unread(t))
 
 			assert.Equal(t, want.Default, dst.Default, "the later declaration keeps its default")
 			assert.Equal(t, want.Examples, dst.Examples, "and its examples")
 			assert.Equal(t, want.Deprecation, dst.Deprecation, "and its deprecation")
 			assert.Equal(t, want.XML, dst.XML, "and its xml hints")
 			require.Len(t, *recorded, 1, "one detail disagreed, one diagnostic; got %v", *recorded)
-			d := (*recorded)[0]
-			assert.Equal(t, ir.SeverityInfo, d.Severity)
-			assert.Equal(t, diag.DegradedConstruct, d.Code)
-			assert.Equal(t, jsontext.Pointer("/allOf/0/properties/id"), d.Provenance.Pointer)
-			assert.Contains(t, d.Message, `"id"`)
-			assert.Contains(t, d.Message, tc.detail, "the message names the detail that disagreed")
+			diagnostic := (*recorded)[0]
+			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+			assert.Equal(t, diag.DegradedConstruct, diagnostic.Code)
+			assert.Equal(t, jsontext.Pointer("/allOf/0/properties/id"), diagnostic.Provenance.Pointer)
+			assert.Contains(t, diagnostic.Message, `"id"`)
+			assert.Contains(t, diagnostic.Message, tc.detail, "the message names the detail that disagreed")
 			assert.Equal(t, ir.Unmodeled{
 				losingDeclarationKey + "/allOf/0/properties/id": {
 					Reason:     ir.ReasonDegradedLowering,
@@ -137,7 +137,7 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 // keeping one would be noise. The source is unread, which is the proof.
 func TestFold_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+	stubbed, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 	})
 	detail := func() ir.Property {
@@ -153,7 +153,7 @@ func TestFold_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 	}
 	dst := detail()
 
-	dst = foldTwo(g, dst, detail(), unread(t))
+	dst = foldTwo(stubbed, dst, detail(), unread(t))
 
 	assert.Empty(t, *recorded)
 	assert.Empty(t, dst.Unmodeled)
@@ -165,14 +165,14 @@ func TestFold_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 // construct reached the IR in no form — rather than left to the announcement.
 func TestFold_AnUnrenderableLoserIsAnError(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+	stubbed, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
 		"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 	})
 	loser := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/str"}, Provenance: ptrAt("/a")}
 	winner := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/int"}, Provenance: ptrAt("/b")}
 
-	dst := g.fold([]declaration{
+	dst := stubbed.fold([]declaration{
 		{prop: loser, source: func() (ir.RawValue, error) { return nil, errors.New("no such node") }},
 		{prop: winner, source: unread(t)},
 	})
@@ -187,19 +187,19 @@ func TestFold_AnUnrenderableLoserIsAnError(t *testing.T) {
 // narrowingRegistry holds one bare primitive per kind the narrowing tests pair.
 func narrowingRegistry() map[ir.TypeID]ir.TypeDef {
 	reg := map[ir.TypeID]ir.TypeDef{}
-	for _, k := range []ir.PrimitiveKind{
+	for _, primitiveKind := range []ir.PrimitiveKind{
 		ir.PrimitiveNumber, ir.PrimitiveInteger, ir.PrimitiveInt32, ir.PrimitiveInt64, ir.PrimitiveString, ir.PrimitiveDatetimeOffset,
 		ir.PrimitiveURL, ir.PrimitiveFloat64, ir.PrimitiveUUID, ir.PrimitiveUint32, ir.PrimitiveBytes,
 		ir.PrimitiveUint8, ir.PrimitiveInt16, ir.PrimitiveAny, ir.PrimitiveBool, ir.PrimitiveFloat32, ir.PrimitiveTime, ir.PrimitiveDatetime,
 	} {
-		id := ir.TypeID("type/primitive/" + string(k))
-		reg[id] = &ir.Primitive{ID: id, PrimitiveKind: k}
+		id := ir.TypeID("type/primitive/" + string(primitiveKind))
+		reg[id] = &ir.Primitive{ID: id, PrimitiveKind: primitiveKind}
 	}
 	return reg
 }
 
-func primRef(k ir.PrimitiveKind) ir.TypeRef {
-	return ir.TypeRef{Target: ir.TypeID("type/primitive/" + string(k))}
+func primRef(primitiveKind ir.PrimitiveKind) ir.TypeRef {
+	return ir.TypeRef{Target: ir.TypeID("type/primitive/" + string(primitiveKind))}
 }
 
 // TestFold_AnInadmissibleValueIsKeptNotAdopted pins that no
@@ -224,33 +224,36 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 		raw           string
 	}{
 		{"fractional default", ir.PrimitiveNumber, ir.PrimitiveInteger,
-			func(p *ir.Property) { p.Default = &half; p.Examples = []ir.Example{{Value: &half}} }, "default",
+			func(property *ir.Property) {
+				property.Default = &half
+				property.Examples = []ir.Example{{Value: &half}}
+			}, "default",
 			`{"type":"number","default":1.5,"examples":[1.5]}`},
 		{"out of range default", ir.PrimitiveInt64, ir.PrimitiveInt32,
-			func(p *ir.Property) { p.Default = &big }, "default", `{"type":"integer","format":"int64","default":5000000000}`},
+			func(property *ir.Property) { property.Default = &big }, "default", `{"type":"integer","format":"int64","default":5000000000}`},
 		{"non uuid example", ir.PrimitiveString, ir.PrimitiveUUID,
-			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &hello}} }, "examples", `{"type":"string","examples":["hello"]}`},
+			func(property *ir.Property) { property.Examples = []ir.Example{{Value: &hello}} }, "examples", `{"type":"string","examples":["hello"]}`},
 		{"non url default", ir.PrimitiveString, ir.PrimitiveURL,
-			func(p *ir.Property) { p.Default = &badURL }, "default", `{"type":"string","default":"mailto:a b"}`},
+			func(property *ir.Property) { property.Default = &badURL }, "default", `{"type":"string","default":"mailto:a b"}`},
 		{"comma fraction time example", ir.PrimitiveString, ir.PrimitiveTime,
-			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &commaTime}} }, "examples",
+			func(property *ir.Property) { property.Examples = []ir.Example{{Value: &commaTime}} }, "examples",
 			`{"type":"string","examples":["23:59:59,5"]}`},
 		{"offset hour 24 date time example", ir.PrimitiveString, ir.PrimitiveDatetimeOffset,
-			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &offsetDate}} }, "examples",
+			func(property *ir.Property) { property.Examples = []ir.Example{{Value: &offsetDate}} }, "examples",
 			`{"type":"string","examples":["2024-01-01T00:00:00+24:00"]}`},
 		{"null default", ir.PrimitiveNumber, ir.PrimitiveInteger,
-			func(p *ir.Property) { p.Default = &null; p.Type.Nullable = true }, "default", `{"type":["number","null"],"default":null}`},
+			func(property *ir.Property) { property.Default = &null; property.Type.Nullable = true }, "default", `{"type":["number","null"],"default":null}`},
 	} {
 		var merged [2]ir.Property
 		var diags [2][]ir.Diagnostic
 		for i, broadFirst := range []bool{true, false} {
 			reg := narrowingRegistry()
-			g, recorded := stubMerger(reg)
+			stubbed, recorded := stubMerger(reg)
 			broad := ir.Property{WireName: "p", Type: primRef(tc.broad), Provenance: ptrAt(broadPtr)}
 			tc.decorate(&broad)
 			narrow := ir.Property{WireName: "p", Type: primRef(tc.narrow), Provenance: ptrAt(narrowPtr)}
-			m := &ir.Model{}
-			idx, settle := indexOver(m, g)
+			model := &ir.Model{}
+			idx, settle := indexOver(model, stubbed)
 			first, second := broad, narrow
 			firstSrc, secondSrc := written(tc.raw), unread(t)
 			if !broadFirst {
@@ -262,8 +265,8 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 			idx.MergeProperty(second, secondSrc, "")
 			settle()
 
-			require.Len(t, m.Properties, 1, "%s", tc.name)
-			merged[i], diags[i] = m.Properties[0], *recorded
+			require.Len(t, model.Properties, 1, "%s", tc.name)
+			merged[i], diags[i] = model.Properties[0], *recorded
 		}
 		for i := range merged {
 			got := merged[i]
@@ -392,26 +395,26 @@ type decl struct {
 func mergeDecls(t *testing.T, decls ...decl) (ir.Property, []ir.Diagnostic) {
 	t.Helper()
 	reg := narrowingRegistry()
-	g, recorded := stubMerger(reg)
-	m := &ir.Model{}
-	idx, settle := indexOver(m, g)
-	for _, d := range decls {
-		p := ir.Property{WireName: "p", Type: primRef(d.kind), Default: d.def, Provenance: ptrAt(d.ptr)}
-		p.Type.Nullable = d.nullable
-		for i := range d.examples {
-			p.Examples = append(p.Examples, ir.Example{Value: &d.examples[i]})
+	stubbed, recorded := stubMerger(reg)
+	model := &ir.Model{}
+	idx, settle := indexOver(model, stubbed)
+	for _, decl := range decls {
+		property := ir.Property{WireName: "p", Type: primRef(decl.kind), Default: decl.def, Provenance: ptrAt(decl.ptr)}
+		property.Type.Nullable = decl.nullable
+		for i := range decl.examples {
+			property.Examples = append(property.Examples, ir.Example{Value: &decl.examples[i]})
 		}
-		idx.MergeProperty(p, written(d.raw), "")
+		idx.MergeProperty(property, written(decl.raw), "")
 	}
 	settle()
-	require.Len(t, m.Properties, 1)
-	return m.Properties[0], *recorded
+	require.Len(t, model.Properties, 1)
+	return model.Properties[0], *recorded
 }
 
 // entry is the Unmodeled entry a kept declaration lands as.
-func entry(d decl) ir.Unmodeled {
-	return ir.Unmodeled{losingDeclarationKey + string(d.ptr): {
-		Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(d.raw), Provenance: ptrAt(d.ptr),
+func entry(declValue decl) ir.Unmodeled {
+	return ir.Unmodeled{losingDeclarationKey + string(declValue.ptr): {
+		Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(declValue.raw), Provenance: ptrAt(declValue.ptr),
 	}}
 }
 
@@ -458,13 +461,13 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 	half, two := num("1.5"), num("2.5")
 	for _, kw := range []string{"default", "examples"} {
 		writer := func(name string) decl {
-			d := decl{kind: ir.PrimitiveNumber, raw: `{"writer":"` + name + `"}`}
+			declValue := decl{kind: ir.PrimitiveNumber, raw: `{"writer":"` + name + `"}`}
 			if kw == "default" {
-				d.def = &half
+				declValue.def = &half
 			} else {
-				d.examples = []ir.Value{two}
+				declValue.examples = []ir.Value{two}
 			}
-			return d
+			return declValue
 		}
 		decls := map[string]decl{"a": writer("a"), "b": writer("b"), "c": {kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}}
 		for _, order := range []string{"abc", "acb", "bac", "bca", "cab", "cba"} {
@@ -472,12 +475,12 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 			want := ir.Unmodeled{}
 			var wantPtrs []jsontext.Pointer
 			for i, name := range order {
-				d := decls[string(name)]
-				d.ptr = jsontext.Pointer("/allOf/" + string(rune('0'+i)))
-				placed = append(placed, d)
+				decl := decls[string(name)]
+				decl.ptr = jsontext.Pointer("/allOf/" + string(rune('0'+i)))
+				placed = append(placed, decl)
 				if name != 'c' {
-					want[losingDeclarationKey+string(d.ptr)] = entry(d)[losingDeclarationKey+string(d.ptr)]
-					wantPtrs = append(wantPtrs, d.ptr)
+					want[losingDeclarationKey+string(decl.ptr)] = entry(decl)[losingDeclarationKey+string(decl.ptr)]
+					wantPtrs = append(wantPtrs, decl.ptr)
 				}
 			}
 			label := kw + " " + order
@@ -487,9 +490,9 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 			assert.Empty(t, got.Examples, label)
 			assert.Equal(t, want, got.Unmodeled, "%s: both writers are kept, and only they", label)
 			gotPtrs := make([]jsontext.Pointer, 0, len(diags))
-			for _, d := range diags {
-				gotPtrs = append(gotPtrs, d.Provenance.Pointer)
-				assert.Contains(t, d.Message, kw, label)
+			for _, diagnostic := range diags {
+				gotPtrs = append(gotPtrs, diagnostic.Provenance.Pointer)
+				assert.Contains(t, diagnostic.Message, kw, label)
 			}
 			assert.ElementsMatch(t, wantPtrs, gotPtrs, "%s: and both are reported", label)
 		}
@@ -558,10 +561,10 @@ func TestFold_ALowerCaseDateTimeIsAdopted(t *testing.T) {
 // no form, rather than dropped silently.
 func TestFold_ADeclarationWithNoSourceIsReportedUnkeepable(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(narrowingRegistry())
+	stubbed, recorded := stubMerger(narrowingRegistry())
 	half := num("1.5")
 
-	got := g.fold([]declaration{
+	got := stubbed.fold([]declaration{
 		{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveNumber), Default: &half, Provenance: ptrAt("/a")}},
 		{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveInteger), Provenance: ptrAt("/b")}, source: unread(t)},
 	})

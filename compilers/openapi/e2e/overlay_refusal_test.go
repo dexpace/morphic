@@ -144,9 +144,9 @@ func overlaysAround(mapping, member, sibling, value, inside string) map[string]s
 // info.
 func findingsAbove(diags []ir.Diagnostic) map[string]bool {
 	out := map[string]bool{}
-	for _, d := range diags {
-		if d.Severity != ir.SeverityInfo {
-			out[d.Code+" "+string(d.Provenance.Pointer)] = true
+	for _, diagnostic := range diags {
+		if diagnostic.Severity != ir.SeverityInfo {
+			out[diagnostic.Code+" "+string(diagnostic.Provenance.Pointer)] = true
 		}
 	}
 	return out
@@ -155,8 +155,8 @@ func findingsAbove(diags []ir.Diagnostic) map[string]bool {
 // codesOf returns the code of each finding of diags.
 func codesOf(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Code)
+	for _, diagnostic := range diags {
+		out = append(out, diagnostic.Code)
 	}
 	return out
 }

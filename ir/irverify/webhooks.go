@@ -102,7 +102,9 @@ func checkCallbacks(*ir.Document) walkCheck {
 			}
 			return true
 		},
-		report: func(d declarations) []Violation { return callbackDisagreements(d, marked, listed) },
+		report: func(declarationsValue declarations) []Violation {
+			return callbackDisagreements(declarationsValue, marked, listed)
+		},
 	}
 }
 
@@ -128,8 +130,8 @@ func noteCallbacks(op *ir.Operation, path ir.WalkPath, marked, listed map[ir.Ope
 // binding lists, then each listed operation the walk declared that is not
 // marked, each in byte order of its ID. A walk cut short read part of the
 // bindings, so it claims neither, and the cut is reported.
-func callbackDisagreements(d declarations, marked, listed map[ir.OperationID]string) []Violation {
-	if d.truncated {
+func callbackDisagreements(declarationsValue declarations, marked, listed map[ir.OperationID]string) []Violation {
+	if declarationsValue.truncated {
 		return nil
 	}
 	var vs []Violation
@@ -146,7 +148,7 @@ func callbackDisagreements(d declarations, marked, listed map[ir.OperationID]str
 		return vs
 	}
 	held := map[ir.OperationID]bool{}
-	for _, decl := range d.list() {
+	for _, decl := range declarationsValue.list() {
 		if decl.Class == opIDType {
 			held[ir.OperationID(decl.ID)] = true
 		}

@@ -240,8 +240,8 @@ func TestPromote_ReportsEachValueAKeyHolds(t *testing.T) {
 	}
 
 	for _, at := range keyPositions() {
-		for _, v := range values {
-			t.Run(at.name+", "+v.name, func(t *testing.T) {
+		for _, keyValue := range values {
+			t.Run(at.name+", "+keyValue.name, func(t *testing.T) {
 				t.Parallel()
 				other := "next"
 				if at.page {
@@ -254,27 +254,27 @@ paths:
     get:
       operationId: x
 `+at.op+"\ncomponents:\n  schemas:\n"+at.components+`    Page: {type: object, properties: {next: {type: string}}}
-`, "V", strings.ReplaceAll(v.value, "OTHER", other))
+`, "V", strings.ReplaceAll(keyValue.value, "OTHER", other))
 				spoke, ops, reports := promoteStated(t, spec, pagePolicy())
 				assert.Equal(t, []string{"x"}, spoke, "a key written speaks, whatever it holds")
 				assert.Nil(t, ops["x"].Pagination)
 				assert.NotContains(t, ops["x"].Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
 
-				want, pointer := v.expression, at.at
+				want, pointer := keyValue.expression, at.at
 				reach := ", and as the key is written, no pagination is inferred for the operation"
 				if at.mark {
-					want, reach = v.mark, ", and as the key is written, no pagination is inferred for an operation reaching it"
+					want, reach = keyValue.mark, ", and as the key is written, no pagination is inferred for an operation reaching it"
 				}
 				switch {
 				case want == "":
 					assert.Empty(t, reports)
 					return
-				case v.value == "true" && !at.mark:
+				case keyValue.value == "true" && !at.mark:
 					want, reach = `extension "x-page" is true, which reads the walk its path item, else the document's `+
 						`root, states under the same key, and neither writes one`, ", so no pagination is inferred for the operation"
-				case v.atMember && at.mark:
+				case keyValue.atMember && at.mark:
 					pointer += "/purpose"
-				case v.atMember:
+				case keyValue.atMember:
 					pointer += "/cursor"
 				}
 				assert.Equal(t, []string{pointer + ": " + want + reach}, reports)
@@ -294,17 +294,17 @@ func promoteStated(t *testing.T, spec string, policy promotion.ExtensionPromotio
 		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	p := promotion.New(policy)
-	stated, diags := pagination.Promote(p, compileddoc.New(doc), nil)
+	promoter := promotion.New(policy)
+	stated, diags := pagination.Promote(promoter, compileddoc.New(doc), nil)
 	reports := make([]string, 0, len(diags))
-	for _, d := range diags {
-		require.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
+	for _, diagnostic := range diags {
+		require.Equal(t, ir.SeverityInfo, diagnostic.Severity, "%+v", diagnostic)
 		code := "openapi/degraded-construct"
-		if strings.Contains(d.Message, "which reads the walk") {
+		if strings.Contains(diagnostic.Message, "which reads the walk") {
 			code = "openapi/unpromoted-extension"
 		}
-		require.Equal(t, code, d.Code, "%+v", d)
-		reports = append(reports, string(d.Provenance.Pointer)+": "+d.Message)
+		require.Equal(t, code, diagnostic.Code, "%+v", diagnostic)
+		reports = append(reports, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 	}
 	slices.Sort(reports)
 	ops := map[string]*ir.Operation{}
@@ -365,8 +365,8 @@ func TestPromote_ReadsNoOperationHoldingOne(t *testing.T) {
 	doc, op, _ := compilePaged(t, "      x-page: {link: $response.next}\n"+pageResponse, pagePolicy())
 	require.NotNil(t, op.Pagination)
 	held := doc.Services[0].Groups[0].Operations[0].Pagination
-	p := promotion.New(pagePolicy())
-	stated, diags := pagination.Promote(p, compileddoc.New(doc), nil)
+	promoter := promotion.New(pagePolicy())
+	stated, diags := pagination.Promote(promoter, compileddoc.New(doc), nil)
 	assert.Empty(t, stated)
 	assert.Empty(t, diags)
 	assert.Same(t, held, doc.Services[0].Groups[0].Operations[0].Pagination)

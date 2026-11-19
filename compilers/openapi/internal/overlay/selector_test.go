@@ -293,10 +293,10 @@ func TestReadSelector_NotesAPatternWhoseAnchorIsReadAsOne(t *testing.T) {
 
 		got := slices.DeleteFunc(codes(diags), func(c string) bool { return c == "info "+diag.OverlayReplacedValue })
 		assert.ElementsMatch(t, want, got, "%s: %+v", pattern, diags)
-		for _, d := range diags {
-			if d.Code == diag.OverlayAnchoredPattern {
-				assert.Equal(t, "/actions/0", string(d.Provenance.Pointer), pattern)
-				assert.Regexp(t, `write \[(\$|\\\^)\] to match it`, d.Message, pattern)
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.OverlayAnchoredPattern {
+				assert.Equal(t, "/actions/0", string(diagnostic.Provenance.Pointer), pattern)
+				assert.Regexp(t, `write \[(\$|\\\^)\] to match it`, diagnostic.Message, pattern)
 			}
 		}
 	}

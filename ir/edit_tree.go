@@ -9,8 +9,8 @@ package ir
 // it is read and never changed; UpdateService changes a copy. An ID the edit
 // holds several services at holds none.
 func (e *Editor) Service(id ServiceID) (Service, bool) {
-	if n, held := e.indexed().find(serviceNode, string(id)); held == 1 {
-		return e.tree.serviceOf(n), true
+	if treeNode, held := e.indexed().find(serviceNode, string(id)); held == 1 {
+		return e.tree.serviceOf(treeNode), true
 	}
 	return Service{}, false
 }
@@ -21,28 +21,28 @@ func (e *Editor) Service(id ServiceID) (Service, bool) {
 // an id and a change, an id the edit holds several services at, and a change
 // setting Groups.
 func (e *Editor) UpdateService(id ServiceID, change func(*Service)) {
-	n, ok := e.nodeAt("update", serviceNode, string(id))
+	treeNode, ok := e.nodeAt("update", serviceNode, string(id))
 	if !ok {
 		return
 	}
-	own := *n.service
+	own := *treeNode.service
 	own.Groups = nil
 	next, taken := updated(e, serviceKind(), string(id), subjectAt(id), &own, change)
 	if !taken {
 		return
 	}
-	next.Groups = n.service.Groups
-	n.service = new(*next)
-	e.tree.touch(n)
+	next.Groups = treeNode.service.Groups
+	treeNode.service = new(*next)
+	e.tree.touch(treeNode)
 }
 
 // serviceKind is what an update knows of a service.
 func serviceKind() nodeKind[*Service] {
 	return nodeKind[*Service]{
 		method: "UpdateService",
-		id:     func(s *Service) string { return string(s.ID) },
-		keyed: func(s *Service) string {
-			if s.Groups != nil {
+		id:     func(service *Service) string { return string(service.ID) },
+		keyed: func(service *Service) string {
+			if service.Groups != nil {
 				return "Groups"
 			}
 			return ""
@@ -53,8 +53,8 @@ func serviceKind() nodeKind[*Service] {
 // RemoveService removes the service at id, with the groups and operations it
 // holds. It refuses an id the edit holds no service at, or several.
 func (e *Editor) RemoveService(id ServiceID) {
-	if n, ok := e.nodeAt("remove", serviceNode, string(id)); ok {
-		e.tree.remove(n)
+	if treeNode, ok := e.nodeAt("remove", serviceNode, string(id)); ok {
+		e.tree.remove(treeNode)
 	}
 }
 
@@ -65,8 +65,8 @@ func (e *Editor) RemoveService(id ServiceID) {
 // copy. An ID the edit holds several groups at holds none, and nor does one
 // ForEachGroup does not reach.
 func (e *Editor) Group(id GroupID) (OperationGroup, bool) {
-	if n, held := e.indexed().find(groupNode, string(id)); held == 1 {
-		return e.tree.groupOf(n), true
+	if treeNode, held := e.indexed().find(groupNode, string(id)); held == 1 {
+		return e.tree.groupOf(treeNode), true
 	}
 	return OperationGroup{}, false
 }
@@ -77,31 +77,31 @@ func (e *Editor) Group(id GroupID) (OperationGroup, bool) {
 // UpdateType refuses of an id and a change, an id the edit holds several groups
 // at, and a change setting Groups or Operations.
 func (e *Editor) UpdateGroup(id GroupID, change func(*OperationGroup)) {
-	n, ok := e.nodeAt("update", groupNode, string(id))
+	treeNode, ok := e.nodeAt("update", groupNode, string(id))
 	if !ok {
 		return
 	}
-	own := *n.group
+	own := *treeNode.group
 	own.Groups, own.Operations = nil, nil
 	next, taken := updated(e, groupKind(), string(id), subjectAt(id), &own, change)
 	if !taken {
 		return
 	}
-	next.Groups, next.Operations = n.group.Groups, n.group.Operations
-	n.group = new(*next)
-	e.tree.touch(n)
+	next.Groups, next.Operations = treeNode.group.Groups, treeNode.group.Operations
+	treeNode.group = new(*next)
+	e.tree.touch(treeNode)
 }
 
 // groupKind is what an update knows of an operation group.
 func groupKind() nodeKind[*OperationGroup] {
 	return nodeKind[*OperationGroup]{
 		method: "UpdateGroup",
-		id:     func(g *OperationGroup) string { return string(g.ID) },
-		keyed: func(g *OperationGroup) string {
+		id:     func(operationGroup *OperationGroup) string { return string(operationGroup.ID) },
+		keyed: func(operationGroup *OperationGroup) string {
 			switch {
-			case g.Groups != nil:
+			case operationGroup.Groups != nil:
 				return "Groups"
-			case g.Operations != nil:
+			case operationGroup.Operations != nil:
 				return "Operations"
 			default:
 				return ""
@@ -114,8 +114,8 @@ func groupKind() nodeKind[*OperationGroup] {
 // operations it holds; the group or service holding it stays, even emptied. It
 // refuses an id the edit holds no group at, or several.
 func (e *Editor) RemoveGroup(id GroupID) {
-	if n, ok := e.nodeAt("remove", groupNode, string(id)); ok {
-		e.tree.remove(n)
+	if treeNode, ok := e.nodeAt("remove", groupNode, string(id)); ok {
+		e.tree.remove(treeNode)
 	}
 }
 
@@ -124,8 +124,8 @@ func (e *Editor) RemoveGroup(id GroupID) {
 // several operations at holds none, and nor does one ForEachOperation does not
 // reach.
 func (e *Editor) Operation(id OperationID) (Operation, bool) {
-	if n, held := e.indexed().find(operationNode, string(id)); held == 1 {
-		return *n.operation, true
+	if treeNode, held := e.indexed().find(operationNode, string(id)); held == 1 {
+		return *treeNode.operation, true
 	}
 	return Operation{}, false
 }
@@ -135,13 +135,13 @@ func (e *Editor) Operation(id OperationID) (Operation, bool) {
 // UpdateType refuses of an id and a change, and an id the edit holds several
 // operations at.
 func (e *Editor) UpdateOperation(id OperationID, change func(*Operation)) {
-	n, ok := e.nodeAt("update", operationNode, string(id))
+	treeNode, ok := e.nodeAt("update", operationNode, string(id))
 	if !ok {
 		return
 	}
-	if next, taken := updated(e, operationKind(), string(id), subjectAt(id), n.operation, change); taken {
-		n.operation = new(*next)
-		e.tree.touch(n)
+	if next, taken := updated(e, operationKind(), string(id), subjectAt(id), treeNode.operation, change); taken {
+		treeNode.operation = new(*next)
+		e.tree.touch(treeNode)
 	}
 }
 
@@ -156,8 +156,8 @@ func operationKind() nodeKind[*Operation] {
 // RemoveOperation removes the operation at id; the group holding it stays,
 // even emptied. It refuses an id the edit holds no operation at, or several.
 func (e *Editor) RemoveOperation(id OperationID) {
-	if n, ok := e.nodeAt("remove", operationNode, string(id)); ok {
-		e.tree.remove(n)
+	if treeNode, ok := e.nodeAt("remove", operationNode, string(id)); ok {
+		e.tree.remove(treeNode)
 	}
 }
 
@@ -170,11 +170,11 @@ func (e *Editor) nodeAt(verb string, class treeClass, id string) (*treeNode, boo
 	if !e.open(verb, at) {
 		return nil, false
 	}
-	n, held := e.indexed().find(class, id)
+	treeNodeValue, held := e.indexed().find(class, id)
 	noun := string(class)
 	switch {
 	case held == 1:
-		return n, true
+		return treeNodeValue, true
 	case held > 1:
 		e.refuse("%s rejected: %d %ss have the ID %s, so the edit cannot tell which to %s", verb, held, noun, at, verb)
 	case e.tree.cut:

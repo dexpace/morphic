@@ -26,8 +26,8 @@ type descentRef struct {
 // reports true. It reports false without recording when the traversal already
 // is: the reference contains itself, and entering it again would never end.
 func (d *descent) enter(ptr any, n int) bool {
-	for _, r := range d.inside {
-		if r.ptr == ptr && r.n == n {
+	for _, descentRef := range d.inside {
+		if descentRef.ptr == ptr && descentRef.n == n {
 			return false
 		}
 	}

@@ -90,32 +90,32 @@ func readSpec(t *testing.T) []rule {
 func parseSpec(text string) ([]rule, []string) {
 	entries, problems := keydoc.Parse(text, casesField, codesField, testsField, statusField)
 	rules := make([]rule, 0, len(entries))
-	for _, e := range entries {
-		r := rule{key: e.Key, line: e.Line, text: e.Text}
-		for _, f := range e.Fields {
-			if f.Text() == "" {
-				problems = append(problems, fmt.Sprintf("line %d: %s writes %q naming nothing", f.Line, r.key, f.Name))
+	for _, entry := range entries {
+		ruleValue := rule{key: entry.Key, line: entry.Line, text: entry.Text}
+		for _, field := range entry.Fields {
+			if field.Text() == "" {
+				problems = append(problems, fmt.Sprintf("line %d: %s writes %q naming nothing", field.Line, ruleValue.key, field.Name))
 				continue
 			}
-			if f.Name == statusField {
-				r.status = f.Text()
+			if field.Name == statusField {
+				ruleValue.status = field.Text()
 				continue
 			}
-			spans := keydoc.Spans(f.Text())
-			switch f.Name {
+			spans := keydoc.Spans(field.Text())
+			switch field.Name {
 			case casesField:
-				r.cases = spans
+				ruleValue.cases = spans
 			case codesField:
-				r.codes = spans
+				ruleValue.codes = spans
 			default:
-				r.tests = spans
+				ruleValue.tests = spans
 			}
-			if strings.Trim(codeSpanText.ReplaceAllString(f.Text(), ""), ", ") != "" {
+			if strings.Trim(codeSpanText.ReplaceAllString(field.Text(), ""), ", ") != "" {
 				problems = append(problems, fmt.Sprintf("line %d: %s writes prose in %q, which lists spans of code "+
-					"alone", f.Line, r.key, f.Name))
+					"alone", field.Line, ruleValue.key, field.Name))
 			}
 		}
-		rules = append(rules, r)
+		rules = append(rules, ruleValue)
 	}
 	return rules, problems
 }
@@ -135,18 +135,18 @@ func TestLoweringSpec_RulesAreKeyedAndCarryEvidence(t *testing.T) {
 func evidenceProblems(rules []rule) []string {
 	var problems []string
 	seen := map[string]int{}
-	for _, r := range rules {
-		if first, dup := seen[r.key]; dup {
-			problems = append(problems, fmt.Sprintf("line %d: %s repeats the key of line %d", r.line, r.key, first))
+	for _, rule := range rules {
+		if first, dup := seen[rule.key]; dup {
+			problems = append(problems, fmt.Sprintf("line %d: %s repeats the key of line %d", rule.line, rule.key, first))
 		}
-		seen[r.key] = r.line
-		if len(r.cases) == 0 && len(r.tests) == 0 && r.status == "" {
+		seen[rule.key] = rule.line
+		if len(rule.cases) == 0 && len(rule.tests) == 0 && rule.status == "" {
 			problems = append(problems, fmt.Sprintf("line %d: %s names no case or test that pins it, "+
-				"and no Status saying what it leaves open", r.line, r.key))
+				"and no Status saying what it leaves open", rule.line, rule.key))
 		}
-		if r.status != "" && !statusTracker.MatchString(r.status) {
+		if rule.status != "" && !statusTracker.MatchString(rule.status) {
 			problems = append(problems, fmt.Sprintf("line %d: %s writes a Status that names no issue (#N) "+
-				"or milestone tracking it", r.line, r.key))
+				"or milestone tracking it", rule.line, rule.key))
 		}
 	}
 	return problems
@@ -166,17 +166,17 @@ func TestLoweringSpec_TextStatesEachCodeAndNoIssue(t *testing.T) {
 // a span of code, and each issue number its text writes outside one.
 func textProblems(rules []rule) []string {
 	var problems []string
-	for _, r := range rules {
-		spans := keydoc.Spans(r.text)
-		for _, c := range r.codes {
+	for _, rule := range rules {
+		spans := keydoc.Spans(rule.text)
+		for _, c := range rule.codes {
 			if !slices.Contains(spans, c) {
 				problems = append(problems, fmt.Sprintf("line %d: %s lists %q, which its text never writes "+
-					"as `%s` where it says when the code fires", r.line, r.key, c, c))
+					"as `%s` where it says when the code fires", rule.line, rule.key, c, c))
 			}
 		}
-		if m := issueRef.FindStringSubmatch(codeSpanText.ReplaceAllString(r.text, "")); m != nil {
+		if m := issueRef.FindStringSubmatch(codeSpanText.ReplaceAllString(rule.text, "")); m != nil {
 			problems = append(problems, fmt.Sprintf("line %d: %s names %s in its text; an issue belongs in "+
-				"its Status", r.line, r.key, m[1]))
+				"its Status", rule.line, rule.key, m[1]))
 		}
 	}
 	return problems
@@ -198,9 +198,9 @@ func TestLoweringSpec_CasesAreTheCorpus(t *testing.T) {
 // case of corpus no rule names.
 func caseProblems(rules []rule, corpus map[string]bool) []string {
 	named := map[string][]string{}
-	for _, r := range rules {
-		for _, c := range r.cases {
-			named[c] = append(named[c], r.key)
+	for _, rule := range rules {
+		for _, c := range rule.cases {
+			named[c] = append(named[c], rule.key)
 		}
 	}
 	var problems []string
@@ -232,9 +232,9 @@ func TestLoweringSpec_CodesAreDeclared(t *testing.T) {
 // names and outside does not list.
 func codeProblems(rules []rule, declared map[string]bool, outside map[string]string) []string {
 	named := map[string][]string{}
-	for _, r := range rules {
-		for _, c := range r.codes {
-			named[c] = append(named[c], r.key)
+	for _, rule := range rules {
+		for _, c := range rule.codes {
+			named[c] = append(named[c], rule.key)
 		}
 	}
 	var problems []string
@@ -274,10 +274,10 @@ func codesOutsideTheRules() map[string]string {
 // diag package declares, read off the type checker as diag's own pin reads it.
 func declaredDiagCodes(t *testing.T) map[string]bool {
 	t.Helper()
-	p, err := decls.Load(diagPackage)
+	loadedPackage, err := decls.Load(diagPackage)
 	require.NoError(t, err)
 	out := map[string]bool{}
-	for c := range p.Objects[*types.Const]() {
+	for c := range loadedPackage.Objects[*types.Const]() {
 		if c.Exported() && c.Val().Kind() == constant.String {
 			out[constant.StringVal(c.Val())] = true
 		}
@@ -300,25 +300,25 @@ func TestLoweringSpec_TestsAreDeclared(t *testing.T) {
 func testProblems(rules []rule, funcsOf func(pkg string) (map[string]bool, error)) []string {
 	declared := map[string]map[string]bool{}
 	var problems []string
-	for _, r := range rules {
-		for _, name := range r.tests {
+	for _, rule := range rules {
+		for _, name := range rule.tests {
 			m := testName.FindStringSubmatch(name)
 			if m == nil {
 				problems = append(problems, fmt.Sprintf("line %d: %s names %q, which is not package.TestName",
-					r.line, r.key, name))
+					rule.line, rule.key, name))
 				continue
 			}
 			pkg, fn := m[1], m[2]
 			if _, read := declared[pkg]; !read {
 				funcs, err := funcsOf(pkg)
 				if err != nil {
-					problems = append(problems, fmt.Sprintf("line %d: %s names %q: %v", r.line, r.key, name, err))
+					problems = append(problems, fmt.Sprintf("line %d: %s names %q: %v", rule.line, rule.key, name, err))
 				}
 				declared[pkg] = funcs
 			}
 			if declared[pkg] != nil && !declared[pkg][fn] {
 				problems = append(problems, fmt.Sprintf("line %d: %s names %q, which %s does not declare",
-					r.line, r.key, name, packageDir(pkg)))
+					rule.line, rule.key, name, packageDir(pkg)))
 			}
 		}
 	}
@@ -402,14 +402,14 @@ func TestLoweringSpec_CitationsNameARule(t *testing.T) {
 // citationProblems reports each citation naming no rule.
 func citationProblems(rules []rule, cites []keydoc.Citation) []string {
 	keys := map[string]bool{}
-	for _, r := range rules {
-		keys[r.key] = true
+	for _, rule := range rules {
+		keys[rule.key] = true
 	}
 	var problems []string
-	for _, c := range cites {
-		if !keys[c.Key] {
+	for _, citation := range cites {
+		if !keys[citation.Key] {
 			problems = append(problems, fmt.Sprintf("%s:%d cites %q, which is no rule of %s",
-				c.Path, c.Line, c.Key, specDoc))
+				citation.Path, citation.Line, citation.Key, specDoc))
 		}
 	}
 	return problems

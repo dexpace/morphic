@@ -254,8 +254,8 @@ func TestEntryClosure_AClosureOfTheOnlyEntryDeclaringMembersIsTyped(t *testing.T
 								assert.Nil(t, model.Base, "no base at %s", at)
 							}
 							var got []string
-							for _, p := range model.Properties {
-								got = append(got, p.WireName)
+							for _, property := range model.Properties {
+								got = append(got, property.WireName)
 							}
 							assert.Equal(t, tc.props, got, "the members declared at %s", at)
 							assert.Empty(t, keptUnder(doc, at), "nothing is kept at %s", at)
@@ -340,7 +340,7 @@ func TestEntryClosure_ABesideClosureReadingAnotherConjunctsMembersIsKept(t *test
 							assert.Equal(t, entryKept(tc.key), keptOn(model), "what the model keeps at %s", at)
 							assert.Len(t, entryKeptUnder(doc, at), 1, "nothing else is kept at %s", at)
 							assert.Len(t, degradedUnder(diags, at), 1, "one info at %s", at)
-							assert.True(t, slices.ContainsFunc(model.Properties, func(p ir.Property) bool { return p.WireName == "b" }), at)
+							assert.True(t, slices.ContainsFunc(model.Properties, func(property ir.Property) bool { return property.WireName == "b" }), at)
 						}
 					})
 				})

@@ -73,9 +73,9 @@ func TestOneOf_TheWarningOfADeadBranchSaysWhereTheUnionIs(t *testing.T) {
 	} {
 		reports := diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/"+name)
 		var warned []string
-		for _, d := range reports {
-			if d.Severity == ir.SeverityWarning {
-				warned = append(warned, d.Message)
+		for _, diagnostic := range reports {
+			if diagnostic.Severity == ir.SeverityWarning {
+				warned = append(warned, diagnostic.Message)
 			}
 		}
 		require.Len(t, warned, 1, name)

@@ -12,11 +12,11 @@ func componentObjects() []Object {
 func componentsObject() Object {
 	c := sectioned("Components Object")
 	names := c(V30, "All the fixed fields declared above are objects that MUST use keys that match the regular expression")
-	keyed := func(name string, k Kind, sentence string) Field {
-		return mapOf(name, k, c(V30, sentence)).keyed(ComponentName, names)
+	keyed := func(name string, kind Kind, sentence string) Field {
+		return mapOf(name, kind, c(V30, sentence)).keyed(ComponentName, names)
 	}
-	added := func(name string, k Kind, m Minor, sentence string) Field {
-		return mapOf(name, k, c(m, sentence)).during(From(m)).keyed(ComponentName, names)
+	added := func(name string, kind Kind, minor Minor, sentence string) Field {
+		return mapOf(name, kind, c(minor, sentence)).during(From(minor)).keyed(ComponentName, names)
 	}
 	return Object{
 		Kind: Components, Name: "Components Object", Extensible: true,

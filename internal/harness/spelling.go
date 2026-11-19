@@ -33,7 +33,7 @@ const maxSpellingDepth = 2 * maxReverseDepth
 // compare alike whatever the case says. A compile's error, a document that
 // does not encode and a partner the product writes nothing for are faults, and
 // a panic.
-func spelled(ctx context.Context, s *shard, at []int, doc CaseDocument) Verdict {
+func spelled(ctx context.Context, shardValue *shard, at []int, doc CaseDocument) Verdict {
 	eq := doc.Equal
 	if eq == nil {
 		return declined(OracleSpelling, DeclineNoPartner)
@@ -41,11 +41,11 @@ func spelled(ctx context.Context, s *shard, at []int, doc CaseDocument) Verdict 
 	if eq.Relocate == nil || eq.Rule == "" {
 		panic(fmt.Sprintf("harness: case %v names a partner with no relocation or no rule", at))
 	}
-	mine, ok := s.compile(ctx, at)
+	mine, ok := shardValue.compile(ctx, at)
 	if !ok {
 		panic(fmt.Sprintf("harness: case %v writes nothing to compile", at))
 	}
-	theirs, ok := s.compile(ctx, eq.To)
+	theirs, ok := shardValue.compile(ctx, eq.To)
 	if !ok {
 		panic(fmt.Sprintf("harness: case %v names the partner %v, which writes nothing", at, eq.To))
 	}
@@ -68,7 +68,7 @@ func spelled(ctx context.Context, s *shard, at []int, doc CaseDocument) Verdict 
 	}
 	diags, lost := comparableDiagnostics(mine.diags, theirs.diags, eq)
 	if what := differsIn(a, b, diags, lost); what != "" {
-		partner, _ := s.cases.Write(slices.Clone(eq.To))
+		partner, _ := shardValue.cases.Write(slices.Clone(eq.To))
 		return found(OracleSpelling, spellingDetail(what, eq.Rule, a, b, diags, doc, partner))
 	}
 	return passed(OracleSpelling)
@@ -206,8 +206,8 @@ func takeOut(diags []ir.Diagnostic, stated []Stated) ([]ir.Diagnostic, []string)
 	left := slices.Clone(diags)
 	var lost []string
 	for _, st := range stated {
-		i := slices.IndexFunc(left, func(d ir.Diagnostic) bool {
-			return d.Severity == st.Severity && d.Code == st.Code && d.Provenance.Pointer == st.Pointer
+		i := slices.IndexFunc(left, func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Severity == st.Severity && diagnostic.Code == st.Code && diagnostic.Provenance.Pointer == st.Pointer
 		})
 		if i < 0 {
 			lost = append(lost, "stated:"+st.Code)
@@ -221,10 +221,10 @@ func takeOut(diags []ir.Diagnostic, stated []Stated) ([]ir.Diagnostic, []string)
 // relocatedSet is diagnosticSet of diags, each pointer and node relocated.
 func relocatedSet(diags []ir.Diagnostic, relocate func(string) string) []string {
 	moved := make([]ir.Diagnostic, len(diags))
-	for i, d := range diags {
-		d.Provenance.Pointer = jsontext.Pointer(relocate(string(d.Provenance.Pointer)))
-		d.Provenance.Node = relocate(d.Provenance.Node)
-		moved[i] = d
+	for i, diagnostic := range diags {
+		diagnostic.Provenance.Pointer = jsontext.Pointer(relocate(string(diagnostic.Provenance.Pointer)))
+		diagnostic.Provenance.Node = relocate(diagnostic.Provenance.Node)
+		moved[i] = diagnostic
 	}
 	return diagnosticSet(moved)
 }
@@ -308,7 +308,7 @@ func memberPlace(at, name string, a, b any) string {
 
 // differingCodes returns, sorted, each code whose reports differ between the
 // two sides.
-func differingCodes(d diagnosed) []string {
+func differingCodes(diagnosedValue diagnosed) []string {
 	// A key is diagnosticKey's: the severity, then the code, each ended by a NUL.
 	byCode := func(set []string) map[string][]string {
 		out := map[string][]string{}
@@ -319,7 +319,7 @@ func differingCodes(d diagnosed) []string {
 		}
 		return out
 	}
-	mine, theirs := byCode(d.mine), byCode(d.theirs)
+	mine, theirs := byCode(diagnosedValue.mine), byCode(diagnosedValue.theirs)
 	var codes []string
 	for _, code := range slices.Sorted(maps.Keys(union(mine, theirs))) {
 		if !slices.Equal(mine[code], theirs[code]) {
@@ -336,8 +336,8 @@ func spellingDetail(what, rule string, a, b any, diags diagnosed, mine, partner 
 	out.WriteString(what + "\n" + rule + "\n")
 	out.WriteString(lineDifference(indented(b), indented(a)))
 	out.WriteString(lineDifference(diags.theirs, diags.mine))
-	for _, d := range []CaseDocument{mine, partner} {
-		for _, src := range d.Sources {
+	for _, caseDocument := range []CaseDocument{mine, partner} {
+		for _, src := range caseDocument.Sources {
 			out.WriteString("--- " + src.Path + "\n" + string(src.Data) + "\n")
 		}
 	}
@@ -348,8 +348,8 @@ func spellingDetail(what, rule string, a, b any, diags diagnosed, mine, partner 
 // saying why it does not encode, as one a relocation made invalid UTF-8.
 func indented(tree any) []string {
 	b, err := json.Marshal(tree, json.Deterministic(true), jsontext.WithIndent("  "),
-		json.WithMarshalers(json.MarshalToFunc(func(enc *jsontext.Encoder, n number) error {
-			return enc.WriteValue(jsontext.Value(n))
+		json.WithMarshalers(json.MarshalToFunc(func(enc *jsontext.Encoder, numberValue number) error {
+			return enc.WriteValue(jsontext.Value(numberValue))
 		})))
 	if err != nil {
 		return []string{"does not encode: " + err.Error()}

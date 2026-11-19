@@ -58,7 +58,7 @@ func (o *operationIDClaims) add(src *soa.Operation, ptrs opPointers) {
 // report judges every operationId claimed more than once, in first-claim order.
 // The document's text is read only once an id is claimed twice, which most
 // documents never do.
-func (o *operationIDClaims) report(c service.Ctx) []ir.Diagnostic {
+func (o *operationIDClaims) report(serviceContext service.Ctx) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var written *writtenTree
 	for _, name := range o.names {
@@ -67,9 +67,9 @@ func (o *operationIDClaims) report(c service.Ctx) []ir.Diagnostic {
 			continue
 		}
 		if written == nil {
-			written = newWrittenTree(c.Doc.GetRootNode())
+			written = newWrittenTree(serviceContext.Doc.GetRootNode())
 		}
-		diags = append(diags, judge(c, name, declarations(claims, written))...)
+		diags = append(diags, judge(serviceContext, name, declarations(claims, written))...)
 	}
 	return diags
 }
@@ -92,18 +92,18 @@ type declaration struct {
 // merge key) is a warning at each mount but its first, the one where it is
 // written when it has one. The document writes the id once, but an emitter
 // renders every mount under one identifier.
-func judge(c service.Ctx, name string, decls []declaration) []ir.Diagnostic {
+func judge(serviceContext service.Ctx, name string, decls []declaration) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for i, d := range decls {
+	for i, declaration := range decls {
 		if i > 0 {
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.ConflictingOperationID, d.at,
+			diags = append(diags, serviceContext.DiagAt(ir.SeverityError, diag.ConflictingOperationID, declaration.at,
 				"operationId %q is also used by the operation declared at %s; "+
 					"OpenAPI requires it to be unique across the API", name, decls[0].at))
 		}
-		for _, again := range d.mounts[1:] {
-			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DuplicateOperationID, again,
+		for _, again := range declaration.mounts[1:] {
+			diags = append(diags, serviceContext.DiagAt(ir.SeverityWarning, diag.DuplicateOperationID, again,
 				"operationId %q is also used by the operation at %s: both mount one declaration, "+
-					"and OpenAPI requires the id to be unique across the API", name, d.mounts[0]))
+					"and OpenAPI requires the id to be unique across the API", name, declaration.mounts[0]))
 		}
 	}
 	return diags
@@ -237,11 +237,11 @@ type disjointSets struct {
 }
 
 func newDisjointSets(n int) *disjointSets {
-	d := &disjointSets{set: make([]int, n), members: make([][]int, n)}
+	disjointSetsValue := &disjointSets{set: make([]int, n), members: make([][]int, n)}
 	for i := range n {
-		d.set[i], d.members[i] = i, []int{i}
+		disjointSetsValue.set[i], disjointSetsValue.members[i] = i, []int{i}
 	}
-	return d
+	return disjointSetsValue
 }
 
 // union merges the sets holding items a and b. The smaller set's items move, so

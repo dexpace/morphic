@@ -16,8 +16,8 @@ import (
 // every definition, under the ID it carries.
 func TestDocOf_KeysEachDefinitionByItsOwnID(t *testing.T) {
 	t.Parallel()
-	m, s := irtest.ModelOf("type/x/M", nil), irtest.ScalarOf("type/x/S", "")
-	assert.Equal(t, ir.TypeRegistry{"type/x/M": m, "type/x/S": s}, irtest.DocOf(m, s).Types)
+	model, scalar := irtest.ModelOf("type/x/M", nil), irtest.ScalarOf("type/x/S", "")
+	assert.Equal(t, ir.TypeRegistry{"type/x/M": model, "type/x/S": scalar}, irtest.DocOf(model, scalar).Types)
 	assert.Empty(t, irtest.DocOf().Types)
 }
 
@@ -28,9 +28,9 @@ func TestModelOf_ShapesTheModelOnlyThroughMutate(t *testing.T) {
 	assert.Equal(t, &ir.Model{ID: "type/x/M"}, irtest.ModelOf("type/x/M", nil))
 
 	var seen ir.TypeID
-	got := irtest.ModelOf("type/x/M", func(m *ir.Model) {
-		seen = m.ID
-		m.Mixins = irtest.RefsTo("type/x/A")
+	got := irtest.ModelOf("type/x/M", func(model *ir.Model) {
+		seen = model.ID
+		model.Mixins = irtest.RefsTo("type/x/A")
 	})
 	assert.Equal(t, ir.TypeID("type/x/M"), seen)
 	assert.Equal(t, &ir.Model{ID: "type/x/M", Mixins: []ir.TypeRef{{Target: "type/x/A"}}}, got)

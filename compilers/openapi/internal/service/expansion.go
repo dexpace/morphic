@@ -40,9 +40,9 @@ type measuredDeclaration struct {
 	beside bool
 }
 
-// newExpansion returns an expansion charging against l.
-func newExpansion(l budget.Limit) *expansion {
-	return &expansion{spent: budget.New(l), weights: map[measuredDeclaration]int{}}
+// newExpansion returns an expansion charging against limit.
+func newExpansion(limit budget.Limit) *expansion {
+	return &expansion{spent: budget.New(limit), weights: map[measuredDeclaration]int{}}
 }
 
 // admit charges one copy of the declaration whose node is end, and of each hop
@@ -89,27 +89,27 @@ func (e *expansion) spend(raw int) {
 }
 
 // ChargeExpansionAt charges the expansion one more copy of the declaration at
-// node, written at at in c's document, that a lowering makes with no $ref
+// node, written at at in serviceContext's document, that a lowering makes with no $ref
 // naming it: an inline parameter of a path item, at each additionalOperations
 // entry that takes it (GitHub #1428). It weighs the copy as Declared weighs a
 // $ref's. Whether the copies have crossed the budget is ExpansionCrossed's to
 // say.
-func ChargeExpansionAt(c Ctx, at jsontext.Pointer, node *yaml.Node) {
-	c.expansion.admit(readingOf(c, at), node)
+func ChargeExpansionAt(serviceContext Ctx, at jsontext.Pointer, node *yaml.Node) {
+	serviceContext.expansion.admit(readingOf(serviceContext, at), node)
 }
 
 // ChargeExpansion charges the expansion raw more bytes that a lowering copies
 // as raw values with no $ref naming them: what a path item keeps onto each of
 // its additionalOperations entries, and the servers it names on them.
-func ChargeExpansion(c Ctx, raw int) {
-	c.expansion.spend(raw)
+func ChargeExpansion(serviceContext Ctx, raw int) {
+	serviceContext.expansion.spend(raw)
 }
 
 // ExpansionCrossed reports whether the copies made so far weigh past the
 // budget, for a lowering to ask before it makes one more: the document is then
 // refused (Ctx.ExpansionRefusal), so nothing more need copy.
-func ExpansionCrossed(c Ctx) bool {
-	return c.expansion.spent.Exhausted()
+func ExpansionCrossed(serviceContext Ctx) bool {
+	return serviceContext.expansion.spent.Exhausted()
 }
 
 // chainable is a reference-or-inline entry whose chain Declared reads: the
@@ -121,11 +121,11 @@ type chainable[T, S any] interface {
 	GetCoreAny() any
 }
 
-// readingOf returns how the grammar reads what a $ref written at usePtr in c's
+// readingOf returns how the grammar reads what a $ref written at usePtr in serviceContext's
 // document names: as the object it reads there, or as raw YAML, weighed whole,
-// where c holds no table or reads there no object a $ref can name.
-func readingOf(c Ctx, usePtr jsontext.Pointer) reftable.Reading {
-	if at := c.Bindings().Table().ReadingAt(c.Position(usePtr)); at.Referable() {
+// where serviceContext holds no table or reads there no object a $ref can name.
+func readingOf(serviceContext Ctx, usePtr jsontext.Pointer) reftable.Reading {
+	if at := serviceContext.Bindings().Table().ReadingAt(serviceContext.Position(usePtr)); at.Referable() {
 		return at
 	}
 	return reftable.Reading{}
@@ -138,8 +138,8 @@ func readingOf(c Ctx, usePtr jsontext.Pointer) reftable.Reading {
 // its $ref is kept on each node the use lowers to, so it is charged as a hop's
 // is, and a bare ref one node. A hop whose core holds no node, as the library's
 // own GetRootNode reads one, adds none.
-func copied[T, S any, R chainable[T, S]](c Ctx, ref R) []*yaml.Node {
-	hops := componentlookup.Hops[T, S](c.Bindings(), ref)
+func copied[T, S any, R chainable[T, S]](serviceContext Ctx, ref R) []*yaml.Node {
+	hops := componentlookup.Hops[T, S](serviceContext.Bindings(), ref)
 	nodes := appendRoot(make([]*yaml.Node, 0, 1+len(hops)), ref.GetCoreAny())
 	for _, hop := range hops {
 		nodes = appendRoot(nodes, hop.Ref.GetCoreAny())
@@ -213,21 +213,21 @@ func weightBeside(hop *yaml.Node, at reftable.Reading, within budget.Limit) int 
 func weigh(stack []frame, left int) int {
 	weight := 0
 	for len(stack) > 0 && left > 0 {
-		f := stack[len(stack)-1]
+		frame := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		n := expanded(f.node)
+		n := expanded(frame.node)
 		if n == nil {
 			continue
 		}
 		left--
 		weight++
 		switch {
-		case f.at.Schema():
+		case frame.at.Schema():
 			// What it holds lowers once, to the type, not at each copy.
 		case n.Kind == yaml.ScalarNode:
 			weight += len(n.Value)
 		default:
-			stack = beneath(stack, n, f.at)
+			stack = beneath(stack, n, frame.at)
 		}
 	}
 	return weight

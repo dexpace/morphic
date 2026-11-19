@@ -39,11 +39,11 @@ func TestCompile_AnEntryUnionNoBranchOfWhichLivesIsKeptOnTheEntry(t *testing.T) 
 					doc, diags := compileAnnotationSpec(t, "entry", spec)
 					requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct,
 						pointer: "/components/schemas/P", contains: []string{"share no value"}}})
-					m, ok := typeByName(doc, "P").(*ir.Model)
+					model, ok := typeByName(doc, "P").(*ir.Model)
 					require.True(t, ok, "the schema is the Model its other entry gives")
-					require.NotNil(t, m.Base)
-					assert.Equal(t, componentID("Obj"), m.Base.Target)
-					kept, ok := m.Unmodeled["openapi:"+keyword]
+					require.NotNil(t, model.Base)
+					assert.Equal(t, componentID("Obj"), model.Base.Target)
+					kept, ok := model.Unmodeled["openapi:"+keyword]
 					require.True(t, ok, "the union is kept on the entry")
 					assert.Equal(t, "/components/schemas/P/allOf/1/"+keyword, string(kept.Provenance.Pointer))
 					for id := range doc.Types {
@@ -67,9 +67,9 @@ func TestCompile_ABodyBesideANullBranchAndNoLiveOneAdmitsNull(t *testing.T) {
 	_, diags := compileAnnotationSpec(t, "nullbranch", spec)
 	requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct, pointer: "/components/schemas/S",
 		contains: []string{"none of its 2 branches but a null one", "no instance but null satisfies this schema"}}})
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/components/schemas/S" {
-			assert.NotContains(t, d.Message, "no instance satisfies", "null satisfies it: %s", d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/components/schemas/S" {
+			assert.NotContains(t, diagnostic.Message, "no instance satisfies", "null satisfies it: %s", diagnostic.Message)
 		}
 	}
 }
@@ -104,11 +104,11 @@ func TestCompile_AnEntryUnionBesideARestAdmittingNullIsKeptAndWarns(t *testing.T
 							pointer: "/components/schemas/P", contains: []string{
 								"the conjuncts of this allOf share no value (allOf/0: object, allOf/1: string or boolean)",
 								"so no instance satisfies this schema"}}})
-						m, ok := typeByName(doc, "P").(*ir.Model)
+						model, ok := typeByName(doc, "P").(*ir.Model)
 						require.True(t, ok, "the schema is the Model the rest of its allOf gives")
-						require.NotNil(t, m.Base)
-						assert.Equal(t, componentID("ON"), m.Base.Target)
-						kept, ok := m.Unmodeled["openapi:"+keyword]
+						require.NotNil(t, model.Base)
+						assert.Equal(t, componentID("ON"), model.Base.Target)
+						kept, ok := model.Unmodeled["openapi:"+keyword]
 						require.True(t, ok, "the union is kept on the entry")
 						assert.Equal(t, "/components/schemas/P/allOf/1/"+keyword, string(kept.Provenance.Pointer))
 					})

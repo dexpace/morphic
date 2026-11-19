@@ -19,7 +19,7 @@ import (
 // literal. Both carriers are reached, a Value's Num and a bound held by
 // pointer. It is not run in parallel: AllocsPerRun measures the process.
 func TestCheckBigVals_VisitingCostsNoAllocation(t *testing.T) {
-	bound := func(s ir.BigVal) *ir.BigVal { return &s }
+	bound := func(bigVal ir.BigVal) *ir.BigVal { return &bigVal }
 	nums := []ir.BigVal{"0", "-0", "42", "-1.5", "2.5E-3", "1e+10", "12345678901234567890.12345678901234567890"}
 	values := make([]ir.Value, 0, len(nums))
 	for _, num := range nums {

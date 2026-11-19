@@ -31,10 +31,10 @@ type valueSetSite struct {
 	member  bool
 }
 
-// standingValueSet is the site of the value set s, written at pointer, lowers
+// standingValueSet is the site of the value set schema, written at pointer, lowers
 // to, its node standing where st says.
-func standingValueSet(s *statement.Schema, pointer jsontext.Pointer, st stand) valueSetSite {
-	return valueSetSite{set: s, written: pointer, at: st}
+func standingValueSet(schema *statement.Schema, pointer jsontext.Pointer, st stand) valueSetSite {
+	return valueSetSite{set: schema, written: pointer, at: st}
 }
 
 // finishedBy returns vs, its node finished by fin.
@@ -58,7 +58,7 @@ func (vs valueSetSite) pointer() jsontext.Pointer {
 // narrowed by every conjunct where its position refines (conjunctPrim), fits
 // saying which primitives the values are of. The position is the stand's, else
 // the set's own; a member has none.
-func (vs valueSetSite) valueType(c lowering.Ctx, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
+func (vs valueSetSite) valueType(loweringContext lowering.Ctx, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
 	if vs.member {
 		return own
 	}
@@ -66,91 +66,91 @@ func (vs valueSetSite) valueType(c lowering.Ctx, own ir.PrimitiveKind, fits func
 	if vs.at.of != nil {
 		position = vs.at.of
 	}
-	r, refines := refinementOf(c, position, vs.pointer())
+	refinement, refines := refinementOf(loweringContext, position, vs.pointer())
 	if !refines {
 		return own
 	}
-	return conjunctPrim(c, r, position, own, fits)
+	return conjunctPrim(loweringContext, refinement, position, own, fits)
 }
 
-// valueSetPrincipal returns the inline principal of r that lowers to a value
+// valueSetPrincipal returns the inline principal of refinementValue that lowers to a value
 // set, an enum, a const or a type of null alone, whose node stands at the
-// position, and false where r's principal is none, a $ref, or another schema.
-func valueSetPrincipal(r refinement) (allOfBranch, bool) {
-	e := r.principal
-	if e == nil || e.schema.Ref != nil {
+// position, and false where refinementValue's principal is none, a $ref, or another schema.
+func valueSetPrincipal(refinementValue refinement) (allOfBranch, bool) {
+	allOfBranchValue := refinementValue.principal
+	if allOfBranchValue == nil || allOfBranchValue.schema.Ref != nil {
 		return allOfBranch{}, false
 	}
-	if won := principalDispatch(*e).won; won == "const" || won == "enum" || won == "" && nullAlone(e.schema.Schema) {
-		return *e, true
+	if won := principalDispatch(*allOfBranchValue).won; won == "const" || won == "enum" || won == "" && nullAlone(allOfBranchValue.schema.Schema) {
+		return *allOfBranchValue, true
 	}
 	return allOfBranch{}, false
 }
 
-// nullAlone reports whether s writes a type naming null alone, which lowers
+// nullAlone reports whether schema writes a type naming null alone, which lowers
 // to the value set of null (lowerNullAlone).
-func nullAlone(s *statement.Schema) bool {
-	return writesType(s) && len(effectiveTypes(s)) == 0
+func nullAlone(schema *statement.Schema) bool {
+	return writesType(schema) && len(effectiveTypes(schema)) == 0
 }
 
-// electedSet names the keyword of the value set r, a refinement of s whose
+// electedSet names the keyword of the value set refinementValue, a refinement of schema whose
 // conjuncts share no value, is elected for: its inline principal's, else the
 // one written beside the allOf, an enum or a const either way (setElected).
-func electedSet(r refinement, s *statement.Schema) string {
-	if e, ok := valueSetPrincipal(r); ok {
-		return principalDispatch(e).won
+func electedSet(refinementValue refinement, schema *statement.Schema) string {
+	if allOfBranch, ok := valueSetPrincipal(refinementValue); ok {
+		return principalDispatch(allOfBranch).won
 	}
-	return dispatchOf(s).besideAllOf().won
+	return dispatchOf(schema).besideAllOf().won
 }
 
-// principalDispatch is the election of the inline principal e's own keywords:
+// principalDispatch is the election of the inline principal allOfBranchValue's own keywords:
 // a flattened wrapper's allOf is no rival of its value set, its entries being
 // conjuncts of the position (allOfBranches).
-func principalDispatch(e allOfBranch) dispatch {
-	d := dispatchOf(e.schema.Schema)
-	if e.wrapper {
-		return d.besideAllOf()
+func principalDispatch(allOfBranchValue allOfBranch) dispatch {
+	dispatchValue := dispatchOf(allOfBranchValue.schema.Schema)
+	if allOfBranchValue.wrapper {
+		return dispatchValue.besideAllOf()
 	}
-	return d
+	return dispatchValue
 }
 
-// lowerPrincipalValueSet lowers the value set e, r's inline principal, writes
-// at pointer, the position s is written at, so one node stands for the
+// lowerPrincipalValueSet lowers the value set allOfBranchValue, r's inline principal, writes
+// at pointer, the position schema is written at, so one node stands for the
 // position whichever conjunct decides it (docs/compilers/openapi.md#allof-refinement).
-// What e writes beside its set that the node has no field for is kept on it,
+// What allOfBranchValue writes beside its set that the node has no field for is kept on it,
 // each keyword at its own pointer, as on any node a schema lowers to, before
 // fin finishes it.
-func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Schema, e allOfBranch, pointer jsontext.Pointer,
+func lowerPrincipalValueSet(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, allOfBranchValue allOfBranch, pointer jsontext.Pointer,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
-	bs := e.schema.Schema
-	d := principalDispatch(e)
+	bs := allOfBranchValue.schema.Schema
+	dispatch := principalDispatch(allOfBranchValue)
 	var kept, own finished
-	st := stand{of: s, at: pointer}
+	st := stand{of: schema, at: pointer}
 	// The position's own keywords type the value set as a conjunct does, and
 	// its census keeps what they leave before the principal's keeps its own.
 	outside := own.on(func(td ir.TypeDef) []ir.Diagnostic {
-		return keepUnread(c, ts, s, pointer, td, dispatchOf(s).besideAllOf(), valueSetReads(s, td), stand{}, nil, nil)
+		return keepUnread(loweringContext, ts, schema, pointer, td, dispatchOf(schema).besideAllOf(), valueSetReads(schema, td), stand{}, nil, nil)
 	}).then(fin)
 	var heldBack []ir.Diagnostic
 	position := finisher(func(td ir.TypeDef, read keySet, held *principalKept) {
-		heldBack = keepBuiltAround(c, st, td, read, held, bs, e.pointer, outside)
+		heldBack = keepBuiltAround(loweringContext, st, td, read, held, bs, allOfBranchValue.pointer, outside)
 	})
-	site := valueSetSite{set: bs, written: e.pointer, at: st, finish: func(td ir.TypeDef, read keySet, held *principalKept) {
-		kept.diags = keepUnread(c, ts, bs, e.pointer, td, d, read, st, held, position)
+	site := valueSetSite{set: bs, written: allOfBranchValue.pointer, at: st, finish: func(td ir.TypeDef, read keySet, held *principalKept) {
+		kept.diags = keepUnread(loweringContext, ts, bs, allOfBranchValue.pointer, td, dispatch, read, st, held, position)
 	}}
 	var id ir.TypeID
 	var built []ir.Diagnostic
-	switch d.won {
+	switch dispatch.won {
 	case "const":
-		id, built = lowerConst(c, ts, site)
+		id, built = lowerConst(loweringContext, ts, site)
 	case "enum":
-		id, built = lowerEnum(c, ts, site)
+		id, built = lowerEnum(loweringContext, ts, site)
 	default:
-		id = lowerNullAlone(c, ts, site)
+		id = lowerNullAlone(loweringContext, ts, site)
 	}
 	// The value set is the position's node, which its build censuses.
-	return id, slices.Concat(built, missingArrayItems(c, bs, e.pointer), kept.diags, own.diags, heldBack)
+	return id, slices.Concat(built, missingArrayItems(loweringContext, bs, allOfBranchValue.pointer), kept.diags, own.diags, heldBack)
 }
 
 // setType is the ValueType of the Enum or Literal a refinement's value set
@@ -161,60 +161,60 @@ type setType struct {
 }
 
 // refinedValueType returns the ValueType of the Enum or Literal the refinement
-// r of s, written at pointer, lowers to, as its build types it, and none where
+// refinementValue of schema, written at pointer, lowers to, as its build types it, and none where
 // it lowers to no such node: its principal is a $ref or no value set, or its
 // set lowers to a union of literals or the top type. It reads the source
 // alone, so a reader of the position asks no registry.
-func refinedValueType(c lowering.Ctx, r refinement, s *statement.Schema, pointer jsontext.Pointer) setType {
-	site := standingValueSet(s, pointer, stand{})
-	d := dispatchOf(s).besideAllOf()
-	if e, ok := valueSetPrincipal(r); ok {
-		site = valueSetSite{set: e.schema.Schema, written: e.pointer, at: stand{of: s, at: pointer}}
-		d = principalDispatch(e)
-	} else if r.principal != nil {
+func refinedValueType(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, pointer jsontext.Pointer) setType {
+	site := standingValueSet(schema, pointer, stand{})
+	dispatch := dispatchOf(schema).besideAllOf()
+	if allOfBranch, ok := valueSetPrincipal(refinementValue); ok {
+		site = valueSetSite{set: allOfBranch.schema.Schema, written: allOfBranch.pointer, at: stand{of: schema, at: pointer}}
+		dispatch = principalDispatch(allOfBranch)
+	} else if refinementValue.principal != nil {
 		return setType{}
 	}
-	switch d.won {
+	switch dispatch.won {
 	case "enum":
-		return enumSetType(c, site)
+		return enumSetType(loweringContext, site)
 	case "const":
-		return constSetType(c, site)
+		return constSetType(loweringContext, site)
 	default:
-		return setType{prim: site.enumType(c, admitsEvery, ir.PrimitiveAny), ok: nullAlone(site.set)}
+		return setType{prim: site.enumType(loweringContext, admitsEvery, ir.PrimitiveAny), ok: nullAlone(site.set)}
 	}
 }
 
 // enumSetType is refinedValueType for an enum: the Enum's ValueType, as
 // lowerEnum gives it, and none where the enum lowers to anything else.
-func enumSetType(c lowering.Ctx, site valueSetSite) setType {
+func enumSetType(loweringContext lowering.Ctx, site valueSetSite) setType {
 	written := site.set.Enum()
-	if !c.Limits.MaxEnumMembers.Admits(len(written)) {
+	if !loweringContext.Limits.MaxEnumMembers.Admits(len(written)) {
 		return setType{}
 	}
 	kept := slices.DeleteFunc(readEnum(written), enumEntry.isNull)
 	prim, ok := enumMemberPrim(kept)
 	if !ok {
-		return setType{prim: site.enumType(c, admitsEvery, prim)}
+		return setType{prim: site.enumType(loweringContext, admitsEvery, prim)}
 	}
-	return setType{prim: site.enumType(c, func(p ir.PrimitiveKind) bool { return entriesAre(kept, p) }, prim), ok: true}
+	return setType{prim: site.enumType(loweringContext, func(primitiveKind ir.PrimitiveKind) bool { return entriesAre(kept, primitiveKind) }, prim), ok: true}
 }
 
 // constSetType is refinedValueType for a const: the Literal's ValueType, or
 // the ValueType of the Enum with no member a null lowers to, and none where
 // the value converts to none.
-func constSetType(c lowering.Ctx, site valueSetSite) setType {
+func constSetType(loweringContext lowering.Ctx, site valueSetSite) setType {
 	val, err := value.FromNode(site.set.Const())
 	if err == nil && val.Kind == ir.ValueNull {
-		return setType{prim: site.enumType(c, admitsEvery, ir.PrimitiveAny), ok: true}
+		return setType{prim: site.enumType(loweringContext, admitsEvery, ir.PrimitiveAny), ok: true}
 	}
-	return setType{prim: site.literalType(c, val), ok: err == nil}
+	return setType{prim: site.literalType(loweringContext, val), ok: err == nil}
 }
 
 // enumType is the ValueType an Enum of members classified as memberPrim takes
 // at vs (enumValueType), admits saying whether every member is a value of a
 // primitive, narrowed where its position refines.
-func (vs valueSetSite) enumType(c lowering.Ctx, admits func(ir.PrimitiveKind) bool, memberPrim ir.PrimitiveKind) ir.PrimitiveKind {
-	return vs.valueType(c, enumValueType(vs.set, admits, memberPrim), admits)
+func (vs valueSetSite) enumType(loweringContext lowering.Ctx, admits func(ir.PrimitiveKind) bool, memberPrim ir.PrimitiveKind) ir.PrimitiveKind {
+	return vs.valueType(loweringContext, enumValueType(vs.set, admits, memberPrim), admits)
 }
 
 // admitsEvery is what enumType asks of an Enum with no member: every value of
@@ -223,47 +223,47 @@ func admitsEvery(ir.PrimitiveKind) bool { return true }
 
 // literalType is the ValueType a Literal of val takes at vs
 // (literalValueType), narrowed where its position refines.
-func (vs valueSetSite) literalType(c lowering.Ctx, val ir.Value) ir.PrimitiveKind {
-	return vs.valueType(c, literalValueType(vs.set, val), func(p ir.PrimitiveKind) bool { return merge.Admits(p, val) })
+func (vs valueSetSite) literalType(loweringContext lowering.Ctx, val ir.Value) ir.PrimitiveKind {
+	return vs.valueType(loweringContext, literalValueType(vs.set, val), func(primitiveKind ir.PrimitiveKind) bool { return merge.Admits(primitiveKind, val) })
 }
 
 // valueTypeHoldsFormat reports whether a value set typed prim holds the format
-// s pairs with its type: prim is that format's primitive or a narrower one.
-func valueTypeHoldsFormat(prim ir.PrimitiveKind, s *statement.Schema) bool {
-	paired, ok := formatPrimitive(s)
+// schema pairs with its type: prim is that format's primitive or a narrower one.
+func valueTypeHoldsFormat(prim ir.PrimitiveKind, schema *statement.Schema) bool {
+	paired, ok := formatPrimitive(schema)
 	return ok && narrowsOrIs(prim, paired)
 }
 
-// conjunctPrim returns, of own and the primitive each conjunct of r selects
+// conjunctPrim returns, of own and the primitive each conjunct of refinementValue selects
 // (declaredPrim), the one narrowing every other, and own where none does: two
 // formats neither of which narrows the other say no one primitive. The conjuncts
-// are s, each inline branch, and what decides what a $ref branch lands on
+// are schema, each inline branch, and what decides what a $ref branch lands on
 // (conjunctSchemas). own is "" for a value no primitive types, which none fits,
 // so it stands.
-func conjunctPrim(c lowering.Ctx, r refinement, s *statement.Schema, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
+func conjunctPrim(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
 	prims := []ir.PrimitiveKind{own}
-	for _, cs := range conjunctSchemas(c, r, s) {
+	for _, cs := range conjunctSchemas(loweringContext, refinementValue, schema) {
 		if prim, ok := declaredPrim(cs, fits); ok {
 			prims = append(prims, prim)
 		}
 	}
-	for _, p := range prims {
-		if !slices.ContainsFunc(prims, func(o ir.PrimitiveKind) bool { return !narrowsOrIs(p, o) }) {
-			return p
+	for _, primitiveKind := range prims {
+		if !slices.ContainsFunc(prims, func(irPrimitiveKind ir.PrimitiveKind) bool { return !narrowsOrIs(primitiveKind, irPrimitiveKind) }) {
+			return primitiveKind
 		}
 	}
 	return own
 }
 
-// conjunctSchemas returns the schemas whose keywords r's conjuncts write: s, the
+// conjunctSchemas returns the schemas whose keywords refinementValue's conjuncts write: schema, the
 // keywords beside the allOf, then each branch, a $ref's being what decides what
 // it lands on, read past a chain of $refs and refinements (DecidingSchema).
-func conjunctSchemas(c lowering.Ctx, r refinement, s *statement.Schema) []*statement.Schema {
-	out := []*statement.Schema{s}
-	for _, e := range r.comp.branches {
-		bs := e.schema.Schema
-		if e.schema.Ref != nil {
-			bs = DecidingSchema(c, refBranchTarget(c, e.schema))
+func conjunctSchemas(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema) []*statement.Schema {
+	out := []*statement.Schema{schema}
+	for _, allOfBranch := range refinementValue.comp.branches {
+		bs := allOfBranch.schema.Schema
+		if allOfBranch.schema.Ref != nil {
+			bs = DecidingSchema(loweringContext, refBranchTarget(loweringContext, allOfBranch.schema))
 		}
 		if stated(bs) {
 			out = append(out, bs)
@@ -272,20 +272,20 @@ func conjunctSchemas(c lowering.Ctx, r refinement, s *statement.Schema) []*state
 	return out
 }
 
-// narrowsOrIs reports whether p is o or narrower.
-func narrowsOrIs(p, o ir.PrimitiveKind) bool {
-	rel := typeformat.Relate(p, o)
+// narrowsOrIs reports whether primitiveKind is irPrimitiveKind or narrower.
+func narrowsOrIs(primitiveKind, irPrimitiveKind ir.PrimitiveKind) bool {
+	rel := typeformat.Relate(primitiveKind, irPrimitiveKind)
 	return rel == typeformat.Same || rel == typeformat.ANarrower
 }
 
-// declaredPrim returns the primitive s's type and format select, else its type
+// declaredPrim returns the primitive schema's type and format select, else its type
 // alone, where fits says its values are of it, as a value set's own schema types
-// it (literalValueType), and false where s selects none they fit.
-func declaredPrim(s *statement.Schema, fits func(ir.PrimitiveKind) bool) (ir.PrimitiveKind, bool) {
-	if prim, paired := formatPrimitive(s); paired && fits(prim) {
+// it (literalValueType), and false where schema selects none they fit.
+func declaredPrim(schema *statement.Schema, fits func(ir.PrimitiveKind) bool) (ir.PrimitiveKind, bool) {
+	if prim, paired := formatPrimitive(schema); paired && fits(prim) {
 		return prim, true
 	}
-	if types := effectiveTypes(s); len(types) == 1 {
+	if types := effectiveTypes(schema); len(types) == 1 {
 		if prim, known := typeformat.Lookup(string(types[0])); known && fits(prim) {
 			return prim, true
 		}

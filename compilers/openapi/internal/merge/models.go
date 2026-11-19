@@ -64,36 +64,36 @@ type skeleton struct {
 	tag   int
 }
 
-// modelSkeleton returns m's skeleton, and false where its discriminator names
-// no property of m.
-func modelSkeleton(m *ir.Model) (skeleton, bool) {
-	sk := skeleton{model: *m, tag: -1}
-	take := func(r ir.TypeRef) ir.TypeRef {
-		sk.refs = append(sk.refs, r)
-		r.Target = ""
-		return r
+// modelSkeleton returns model's skeleton, and false where its discriminator names
+// no property of model.
+func modelSkeleton(model *ir.Model) (skeleton, bool) {
+	sk := skeleton{model: *model, tag: -1}
+	take := func(typeRef ir.TypeRef) ir.TypeRef {
+		sk.refs = append(sk.refs, typeRef)
+		typeRef.Target = ""
+		return typeRef
 	}
-	sk.model.TypeCommon = siteless(m.TypeCommon)
-	sk.model.Properties = make([]ir.Property, len(m.Properties))
-	for i, p := range m.Properties {
-		p.ID, p.Provenance, p.Unmodeled = "", ir.Provenance{}, sitelessUnmodeled(p.Unmodeled)
-		p.Type = take(p.Type)
-		sk.model.Properties[i] = p
+	sk.model.TypeCommon = siteless(model.TypeCommon)
+	sk.model.Properties = make([]ir.Property, len(model.Properties))
+	for i, property := range model.Properties {
+		property.ID, property.Provenance, property.Unmodeled = "", ir.Provenance{}, sitelessUnmodeled(property.Unmodeled)
+		property.Type = take(property.Type)
+		sk.model.Properties[i] = property
 	}
-	if m.Base != nil {
-		sk.model.Base = new(take(*m.Base))
+	if model.Base != nil {
+		sk.model.Base = new(take(*model.Base))
 	}
-	sk.model.Implements = takeAll(m.Implements, take)
-	sk.model.Mixins = takeAll(m.Mixins, take)
-	if m.AdditionalProperties != nil {
-		sk.model.AdditionalProperties = additionalSkeleton(*m.AdditionalProperties, take)
+	sk.model.Implements = takeAll(model.Implements, take)
+	sk.model.Mixins = takeAll(model.Mixins, take)
+	if model.AdditionalProperties != nil {
+		sk.model.AdditionalProperties = additionalSkeleton(*model.AdditionalProperties, take)
 	}
-	if d := m.Discriminator; d != nil && d.Property != "" {
-		sk.tag = slices.IndexFunc(m.Properties, func(p ir.Property) bool { return p.ID == d.Property })
+	if discriminator := model.Discriminator; discriminator != nil && discriminator.Property != "" {
+		sk.tag = slices.IndexFunc(model.Properties, func(property ir.Property) bool { return property.ID == discriminator.Property })
 		if sk.tag < 0 {
 			return skeleton{}, false
 		}
-		own := *d
+		own := *discriminator
 		own.Property = ""
 		sk.model.Discriminator = &own
 	}
@@ -106,8 +106,8 @@ func takeAll(refs []ir.TypeRef, take func(ir.TypeRef) ir.TypeRef) []ir.TypeRef {
 		return nil
 	}
 	out := make([]ir.TypeRef, len(refs))
-	for i, r := range refs {
-		out[i] = take(r)
+	for i, typeRef := range refs {
+		out[i] = take(typeRef)
 	}
 	return out
 }
@@ -135,11 +135,11 @@ func sitelessUnmodeled(um ir.Unmodeled) ir.Unmodeled {
 	return siteless(ir.TypeCommon{Unmodeled: um}).Unmodeled
 }
 
-// membersKeepReference reports whether a property of m keeps a reference under
+// membersKeepReference reports whether a property of model keeps a reference under
 // Unmodeled (keepsReference), which reads as the same text only against one
 // base.
-func membersKeepReference(m *ir.Model) bool {
-	return slices.ContainsFunc(m.Properties, func(p ir.Property) bool {
-		return keepsReference(&ir.Scalar{Unmodeled: p.Unmodeled})
+func membersKeepReference(model *ir.Model) bool {
+	return slices.ContainsFunc(model.Properties, func(property ir.Property) bool {
+		return keepsReference(&ir.Scalar{Unmodeled: property.Unmodeled})
 	})
 }

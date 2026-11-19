@@ -96,8 +96,8 @@ func TestChild_AnswersAsMappingPairs(t *testing.T) {
 	for name, n := range cases {
 		pairs := nodeview.New().MappingPairs(n)
 		asked := map[string]*yaml.Node{"absent": nil, "a": nil, "b": nil, "c": nil, "k": nil, "leaf": nil, "in": nil, "own": nil}
-		for _, p := range pairs {
-			asked[p.Key] = p.Val
+		for _, pair := range pairs {
+			asked[pair.Key] = pair.Val
 		}
 		for key, want := range asked {
 			assert.Same(t, want, nodeview.Child(n, key), "%s: key %q", name, key)

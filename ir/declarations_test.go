@@ -39,8 +39,8 @@ func declaringDoc() *ir.Document {
 // class without depending on walk order.
 func declaredBy(decls []declaredAt) map[string][]declaredAt {
 	out := map[string][]declaredAt{}
-	for _, d := range decls {
-		out[d.Class.Name()] = append(out[d.Class.Name()], d)
+	for _, declaredAt := range decls {
+		out[declaredAt.Class.Name()] = append(out[declaredAt.Class.Name()], declaredAt)
 	}
 	return out
 }
@@ -68,11 +68,11 @@ func TestIDDeclarations_ReachesEveryIDBearingNodeOnce(t *testing.T) {
 		"GroupID":     {IDDeclaration: ir.IDDeclaration{ID: "operation-group/x"}, Path: "document.Services[0].Groups[0]"},
 		"OperationID": {IDDeclaration: ir.IDDeclaration{ID: "operation/x"}, Path: "document.Services[0].Groups[0].Operations[0]"},
 	}
-	for class, w := range want {
+	for class, declaredAt := range want {
 		got := byClass[class]
 		require.Len(t, got, 1, "%s is declared by exactly one node", class)
-		assert.Equal(t, w.ID, got[0].ID, class)
-		assert.Equal(t, w.Path, got[0].Path, class)
+		assert.Equal(t, declaredAt.ID, got[0].ID, class)
+		assert.Equal(t, declaredAt.Path, got[0].Path, class)
 	}
 	assert.Len(t, byClass, len(want), "these are every ID class a node declares")
 }
@@ -192,8 +192,8 @@ func TestIDReader_ClassifiesEachShape(t *testing.T) {
 	t.Parallel()
 	var shared ir.IDReader
 	for _, tc := range declaredShapes() {
-		for reader, r := range map[string]*ir.IDReader{"fresh": new(ir.IDReader), "shared": &shared} {
-			class, id, declares := r.DeclaredIDOf(tc.v)
+		for reader, idReader := range map[string]*ir.IDReader{"fresh": new(ir.IDReader), "shared": &shared} {
+			class, id, declares := idReader.DeclaredIDOf(tc.v)
 
 			assert.Equal(t, tc.declares, declares, "%s, %s reader", tc.name, reader)
 			assert.Equal(t, tc.class, class, "%s, %s reader", tc.name, reader)
@@ -222,10 +222,10 @@ func TestIDReader_ReadsEachStructTypeOnce(t *testing.T) {
 	require.Greater(t, structs, len(types), "the document must repeat a struct type, or there is nothing to save")
 
 	reads := 0
-	r := ir.CountingIDReader(&reads)
+	idReader := ir.CountingIDReader(&reads)
 	var ops []string
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
-		if class, id, _ := r.DeclaredIDOf(v); class == reflect.TypeFor[ir.OperationID]() {
+		if class, id, _ := idReader.DeclaredIDOf(v); class == reflect.TypeFor[ir.OperationID]() {
 			ops = append(ops, id)
 		}
 		return true

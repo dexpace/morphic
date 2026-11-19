@@ -12,23 +12,23 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Apply fills what w's names imply, under each policy of policy it honours,
-// and returns what the readings report. p is the run's promoter, whose keys a
-// reading defers to, and w the document its lowerings built, whose service
+// Apply fills what compiledDocumentView's names imply, under each policy of policy it honours,
+// and returns what the readings report. promoter is the run's promoter, whose keys a
+// reading defers to, and compiledDocumentView the document its lowerings built, whose service
 // tree and registry are whole.
-func Apply(policy Policy, p promotion.Promoter, w *compileddoc.CompiledDocumentView) (diags []ir.Diagnostic) {
-	for _, op := range w.Ops {
-		diags = append(diags, operation(policy, p, w, op)...)
+func Apply(policy Policy, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) (diags []ir.Diagnostic) {
+	for _, op := range compiledDocumentView.Ops {
+		diags = append(diags, operation(policy, promoter, compiledDocumentView, op)...)
 	}
 	// Each member is read alone and none is reported, so the registry's order,
 	// which no sort fixes here, decides nothing.
-	for _, td := range w.Types {
-		m, ok := td.(*ir.Model)
-		if !ok || m == nil {
+	for _, td := range compiledDocumentView.Types {
+		model, ok := td.(*ir.Model)
+		if !ok || model == nil {
 			continue
 		}
-		for i := range m.Properties {
-			redact(policy.Secret, p, w.Types, &m.Properties[i])
+		for i := range model.Properties {
+			redact(policy.Secret, promoter, compiledDocumentView.Types, &model.Properties[i])
 		}
 	}
 	return diags
@@ -37,23 +37,23 @@ func Apply(policy Policy, p promotion.Promoter, w *compileddoc.CompiledDocumentV
 // operation fills what op's names imply: its idempotency token, the redaction
 // of its parameters and of every header it declares, and the text of each of
 // its header parameters and its responses' headers.
-func operation(policy Policy, p promotion.Promoter, w *compileddoc.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
-	reg := w.Types
-	diags := idempotency(policy.Idempotency, w, op)
+func operation(policy Policy, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
+	reg := compiledDocumentView.Types
+	diags := idempotency(policy.Idempotency, compiledDocumentView, op)
 	for i := range op.Params {
 		param := &op.Params[i]
-		redactUse(policy.Secret, p, reg, param.Name, param.Type, param.Unmodeled, &param.Secret, &param.Provenance)
+		redactUse(policy.Secret, promoter, reg, param.Name, param.Type, param.Unmodeled, &param.Secret, &param.Provenance)
 	}
-	diags = append(diags, httpDateParam(policy.HTTPDate, p, w, op)...)
+	diags = append(diags, httpDateParam(policy.HTTPDate, promoter, compiledDocumentView, op)...)
 	for _, hs := range responseHeaders(op) {
 		for i := range hs {
-			redact(policy.Secret, p, reg, &hs[i].Property)
-			diags = append(diags, httpDate(policy.HTTPDate, p, reg, &hs[i])...)
+			redact(policy.Secret, promoter, reg, &hs[i].Property)
+			diags = append(diags, httpDate(policy.HTTPDate, promoter, reg, &hs[i])...)
 		}
 	}
 	for _, hs := range partHeaders(op) {
 		for i := range hs {
-			redact(policy.Secret, p, reg, &hs[i].Property)
+			redact(policy.Secret, promoter, reg, &hs[i].Property)
 		}
 	}
 	return diags
@@ -92,12 +92,12 @@ func partHeaders(op *ir.Operation) [][]ir.Header {
 		payloads = append(payloads, op.Default.Payload)
 	}
 	var lists [][]ir.Header
-	for _, p := range payloads {
-		if p == nil {
+	for _, payload := range payloads {
+		if payload == nil {
 			continue
 		}
-		for i := range p.Contents {
-			content := &p.Contents[i]
+		for i := range payload.Contents {
+			content := &payload.Contents[i]
 			if content.ItemEncoding != nil {
 				lists = append(lists, content.ItemEncoding.Headers)
 			}
@@ -128,7 +128,7 @@ type chain struct {
 // readChain reads the chain from id through each scalar's Base, to
 // maxScalarHops of them, and reports false where it ends at a type that is no
 // primitive, at a type the registry does not hold, or past the bound.
-func readChain(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, bool) {
+func readChain(promoter promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, bool) {
 	var ch chain
 	for range maxScalarHops {
 		td := reg[id]
@@ -137,7 +137,7 @@ func readChain(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, 
 		}
 		common := td.Common()
 		ch.sensitive = ch.sensitive || common.Sensitive
-		ch.spoken = ch.spoken || p.Writes(common.Unmodeled, promotion.TargetRedaction)
+		ch.spoken = ch.spoken || promoter.Writes(common.Unmodeled, promotion.TargetRedaction)
 		switch n := td.(type) {
 		case *ir.Primitive:
 			ch.prim = n.PrimitiveKind

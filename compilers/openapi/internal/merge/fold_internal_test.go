@@ -26,11 +26,11 @@ func redeclared(target ir.TypeID, at string) ir.Property {
 // kindDecl declares the field "p" as kind at a pointer named for the kind, so
 // what a fold reports and keeps reads the same whatever order the
 // declarations come in.
-func kindDecl(k ir.PrimitiveKind, def *ir.Value) declaration {
-	at := jsontext.Pointer("/k/" + string(k))
+func kindDecl(primitiveKind ir.PrimitiveKind, def *ir.Value) declaration {
+	at := jsontext.Pointer("/k/" + string(primitiveKind))
 	return declaration{
-		prop:   ir.Property{WireName: "p", Type: primRef(k), Default: def, Provenance: ptrAt(at)},
-		source: written(`{"k":"` + string(k) + `"}`),
+		prop:   ir.Property{WireName: "p", Type: primRef(primitiveKind), Default: def, Provenance: ptrAt(at)},
+		source: written(`{"k":"` + string(primitiveKind) + `"}`),
 	}
 }
 
@@ -52,15 +52,15 @@ func foldInEveryOrder(t *testing.T, decls ...declaration) []foldOutcome {
 	orders := permutations(len(decls))
 	outcomes := make([]foldOutcome, 0, len(orders))
 	for _, order := range orders {
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 		ordered := make([]declaration, 0, len(decls))
 		for _, i := range order {
 			ordered = append(ordered, decls[i])
 		}
-		got := g.fold(ordered)
+		got := stubbed.fold(ordered)
 		out := foldOutcome{typ: got.Type, def: got.Default, kept: slices.Sorted(maps.Keys(got.Unmodeled))}
-		for _, d := range *recorded {
-			out.diags = append(out.diags, d.Code+" "+string(d.Provenance.Pointer))
+		for _, diagnostic := range *recorded {
+			out.diags = append(out.diags, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 		}
 		slices.Sort(out.diags)
 		outcomes = append(outcomes, out)
@@ -114,8 +114,8 @@ func TestFold_TheSetDecidesWhateverTheOrder(t *testing.T) {
 func TestFold_ATieGoesToTheLaterAndIsReported(t *testing.T) {
 	t.Parallel()
 	for _, order := range [][2]ir.PrimitiveKind{{ir.PrimitiveInt32, ir.PrimitiveUint32}, {ir.PrimitiveUint32, ir.PrimitiveInt32}} {
-		g, recorded := stubMerger(narrowingRegistry())
-		got := g.fold([]declaration{kindDecl(order[0], nil), kindDecl(order[1], nil)})
+		stubbed, recorded := stubMerger(narrowingRegistry())
+		got := stubbed.fold([]declaration{kindDecl(order[0], nil), kindDecl(order[1], nil)})
 
 		assert.Equal(t, primRef(order[1]), got.Type)
 		require.Len(t, *recorded, 1)
@@ -129,10 +129,10 @@ func TestFold_ATieGoesToTheLaterAndIsReported(t *testing.T) {
 // and kept verbatim at its own pointer.
 func TestFold_ADroppedFirstDeclarationIsKept(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(narrowingRegistry())
+	stubbed, recorded := stubMerger(narrowingRegistry())
 	first := kindDecl(ir.PrimitiveString, nil)
 
-	got := g.fold([]declaration{first, kindDecl(ir.PrimitiveInt32, nil), kindDecl(ir.PrimitiveNumber, nil)})
+	got := stubbed.fold([]declaration{first, kindDecl(ir.PrimitiveInt32, nil), kindDecl(ir.PrimitiveNumber, nil)})
 
 	assert.Equal(t, primRef(ir.PrimitiveInt32), got.Type)
 	assert.Equal(t, first.prop.Provenance, got.Provenance, "the field keeps the first declaration's identity")
@@ -147,16 +147,16 @@ func TestFold_ADroppedFirstDeclarationIsKept(t *testing.T) {
 // which is not the last declaration where that one sets none.
 func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(narrowingRegistry())
+	stubbed, recorded := stubMerger(narrowingRegistry())
 	pattern := func(p string) *ir.Constraints { return &ir.Constraints{Pattern: p} }
-	d := func(at string, c *ir.Constraints) declaration {
+	d := func(at string, constraints *ir.Constraints) declaration {
 		return declaration{
-			prop:   ir.Property{WireName: "p", Type: primRef(ir.PrimitiveString), Constraints: c, Provenance: ptrAt(jsontext.Pointer(at))},
+			prop:   ir.Property{WireName: "p", Type: primRef(ir.PrimitiveString), Constraints: constraints, Provenance: ptrAt(jsontext.Pointer(at))},
 			source: written(`{}`),
 		}
 	}
 
-	got := g.fold([]declaration{d("/a", pattern("^y$")), d("/b", pattern("^x$")), d("/c", pattern("^x$")), d("/d", nil)})
+	got := stubbed.fold([]declaration{d("/a", pattern("^y$")), d("/b", pattern("^x$")), d("/c", pattern("^x$")), d("/d", nil)})
 
 	require.NotNil(t, got.Constraints)
 	assert.Equal(t, "^x$", got.Constraints.Pattern)
@@ -172,13 +172,13 @@ func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 // them describes the shape that lost.
 func TestFold_ADroppedDeclarationStillSaysWhatIsNotShape(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(narrowingRegistry())
+	stubbed, recorded := stubMerger(narrowingRegistry())
 	dropped := kindDecl(ir.PrimitiveInteger, nil)
 	dropped.prop.Required, dropped.prop.Secret = true, true
 	dropped.prop.Docs.Description = "a count"
 	later := kindDecl(ir.PrimitiveString, nil)
 
-	got := g.fold([]declaration{dropped, later})
+	got := stubbed.fold([]declaration{dropped, later})
 
 	assert.Equal(t, primRef(ir.PrimitiveString), got.Type, "the tie goes to the later")
 	assert.True(t, got.Required)
@@ -216,10 +216,10 @@ func TestFold_UnmodeledKeepsTheLastOfAKeyAndReportsAnother(t *testing.T) {
 	second.prop.Unmodeled = ir.Unmodeled{"x-b": entry(`2`), "x-alike": alike("/allOf/1/x-alike"), "x-shared": entry(`"second"`)}
 
 	for _, order := range [][]declaration{{first, second}, {second, first}} {
-		g, recorded := stubMerger(narrowingRegistry())
+		stubbed, recorded := stubMerger(narrowingRegistry())
 		kept, other := order[1], order[0]
 
-		got := g.fold(order)
+		got := stubbed.fold(order)
 
 		assert.Equal(t, kept.prop.Unmodeled["x-shared"], got.Unmodeled["x-shared"], "the later declaration's value stands")
 		for _, key := range []string{"x-a", "x-b", "x-alike"} {
@@ -245,35 +245,41 @@ func TestFold_AValueSpelledTwoWaysIsOneValue(t *testing.T) {
 	field := func(name, n string) ir.Field { return ir.Field{Name: name, Value: num(n)} }
 	cases := []struct {
 		name string
-		a, b func(p *ir.Property)
+		a, b func(property *ir.Property)
 	}{
-		{"a number default", func(p *ir.Property) { v := num("1"); p.Default = &v },
-			func(p *ir.Property) { v := num("1.0"); p.Default = &v }},
-		{"an object default in two member orders", func(p *ir.Property) { p.Default = obj(field("a", "1"), field("b", "2")) },
-			func(p *ir.Property) { p.Default = obj(field("b", "2e0"), field("a", "1")) }},
-		{"examples", func(p *ir.Property) { v := num("2"); p.Examples = []ir.Example{{Name: "e", Value: &v}} },
-			func(p *ir.Property) { v := num("20e-1"); p.Examples = []ir.Example{{Name: "e", Value: &v}} }},
+		{"a number default", func(property *ir.Property) { value := num("1"); property.Default = &value },
+			func(property *ir.Property) { value := num("1.0"); property.Default = &value }},
+		{"an object default in two member orders", func(property *ir.Property) { property.Default = obj(field("a", "1"), field("b", "2")) },
+			func(property *ir.Property) { property.Default = obj(field("b", "2e0"), field("a", "1")) }},
+		{"examples", func(property *ir.Property) {
+			value := num("2")
+			property.Examples = []ir.Example{{Name: "e", Value: &value}}
+		},
+			func(property *ir.Property) {
+				value := num("20e-1")
+				property.Examples = []ir.Example{{Name: "e", Value: &value}}
+			}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(narrowingRegistry())
+			stubbed, recorded := stubMerger(narrowingRegistry())
 			first := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveAny), Provenance: ptrAt("/allOf/0/properties/p")}, source: unread(t)}
 			second := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveAny), Provenance: ptrAt("/allOf/1/properties/p")}, source: unread(t)}
 			tc.a(&first.prop)
 			tc.b(&second.prop)
 
-			got := g.fold([]declaration{first, second})
+			got := stubbed.fold([]declaration{first, second})
 
 			assert.Empty(t, *recorded)
 			assert.Empty(t, got.Unmodeled)
 		})
 	}
-	g, recorded := stubMerger(narrowingRegistry())
+	stubbedValue, recorded := stubMerger(narrowingRegistry())
 	one, two := num("1"), num("2")
 	first := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveAny), Default: &one, Provenance: ptrAt("/a")}, source: written(`{}`)}
 	second := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveAny), Default: &two, Provenance: ptrAt("/b")}, source: written(`{}`)}
-	g.fold([]declaration{first, second})
+	stubbedValue.fold([]declaration{first, second})
 	require.Len(t, *recorded, 1, "two values are still two")
 }
 
@@ -318,8 +324,8 @@ func TestFold_ThePromotionMarkerFollowsTheSecretTaken(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g, _ := stubMerger(narrowingRegistry())
-			got := g.fold(tc.decls)
+			stubbed, _ := stubMerger(narrowingRegistry())
+			got := stubbed.fold(tc.decls)
 			assert.Equal(t, tc.secret, got.Secret)
 			assert.Equal(t, tc.want, got.Provenance.Inferred)
 		})
@@ -342,15 +348,15 @@ func TestFold_ThePromotionMarkerFollowsTheDeprecationKept(t *testing.T) {
 	declared.prop.Deprecation = &ir.Deprecation{Message: "gone"}
 
 	for _, order := range [][]declaration{{plain, promoted}, {promoted, plain}} {
-		g, recorded := stubMerger(narrowingRegistry())
-		got := g.fold(order)
+		stubbed, recorded := stubMerger(narrowingRegistry())
+		got := stubbed.fold(order)
 		assert.Equal(t, &ir.Deprecation{Message: "use q"}, got.Deprecation)
 		assert.Equal(t, marker, got.Provenance.Inferred, "the promoted deprecation stays marked")
 		assert.Empty(t, *recorded)
 	}
 
-	g, recorded := stubMerger(narrowingRegistry())
-	got := g.fold([]declaration{plain, promoted, declared})
+	stubbedValue, recorded := stubMerger(narrowingRegistry())
+	got := stubbedValue.fold([]declaration{plain, promoted, declared})
 	assert.Equal(t, &ir.Deprecation{Message: "gone"}, got.Deprecation, "the last deprecation written is kept")
 	assert.Empty(t, got.Provenance.Inferred, "a declared deprecation kept carries no heuristic's name")
 	require.Len(t, *recorded, 1)
@@ -363,7 +369,7 @@ func TestFold_ThePromotionMarkerFollowsTheDeprecationKept(t *testing.T) {
 // them, so a document cannot drive the pairwise judgment past any time budget.
 func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(narrowingRegistry())
+	stubbed, recorded := stubMerger(narrowingRegistry())
 	at := func(i int) jsontext.Pointer { return jsontext.Pointer(fmt.Sprintf("/allOf/%d/properties/p", i)) }
 	decls := make([]declaration, 0, maxFoldDeclarations+2)
 	for i := range maxFoldDeclarations {
@@ -374,7 +380,7 @@ func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
 			source: written(`{"type":"string","format":"uri"}`)})
 	}
 
-	got := g.fold(decls)
+	got := stubbed.fold(decls)
 
 	assert.Equal(t, primRef(ir.PrimitiveString), got.Type, "a declaration past the bound narrows nothing")
 	require.Len(t, *recorded, 1)
@@ -392,7 +398,7 @@ func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
 // dropped in silence.
 func TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(narrowingRegistry())
+	stubbed, recorded := stubMerger(narrowingRegistry())
 	at := func(i int) jsontext.Pointer { return jsontext.Pointer(fmt.Sprintf("/allOf/%d/properties/p", i)) }
 	decls := make([]declaration, 0, maxFoldDeclarations+1)
 	for i := range maxFoldDeclarations {
@@ -400,7 +406,7 @@ func TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported(t *testing.T) {
 	}
 	decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimitiveURL), Provenance: ptrAt(at(maxFoldDeclarations))}})
 
-	got := g.fold(decls)
+	got := stubbed.fold(decls)
 
 	require.Len(t, *recorded, 2, "%+v", *recorded)
 	assert.Equal(t, diag.BudgetExceeded, (*recorded)[0].Code)
@@ -417,17 +423,17 @@ func TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported(t *testing.T) {
 // overlap, never as a pair the merge does not compare.
 func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	t.Parallel()
-	g, _ := stubMerger(narrowingRegistry())
+	stubbed, _ := stubMerger(narrowingRegistry())
 	decls := []declaration{stringAt("/allOf/0/properties/p", `{}`), stringAt("/allOf/1/properties/p", `{}`)}
 	_, field := fieldSpan(decls)
-	f := newFolding(&g.Merger, decls, field)
-	f.rel[f.winner][1] = secondTypeIsNarrower
+	folding := newFolding(&stubbed.Merger, decls, field)
+	folding.rel[folding.winner][1] = secondTypeIsNarrower
 
-	f.drop(1)
+	folding.drop(1)
 
-	require.Len(t, f.notes[1], 1)
-	assert.Contains(t, f.notes[1][0].msg, "whose values overlap")
-	assert.True(t, f.lost[1])
+	require.Len(t, folding.notes[1], 1)
+	assert.Contains(t, folding.notes[1][0].msg, "whose values overlap")
+	assert.True(t, folding.lost[1])
 }
 
 // TestSameExamples_ComparesEachExampleWhole pins that two example lists agree
@@ -460,11 +466,11 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 		{"an example with no value says nothing", []ir.Example{{Value: &one}, {Summary: "no value"}}, false},
 		{"one refused example refuses the keyword", []ir.Example{{Value: &one}, {Value: &half}}, true},
 	} {
-		g, recorded := stubMerger(narrowingRegistry())
+		stubbed, recorded := stubMerger(narrowingRegistry())
 		broad := ir.Property{WireName: "p", Type: primRef(ir.PrimitiveNumber), Examples: tc.examples, Provenance: ptrAt("/b")}
 		narrow := ir.Property{WireName: "p", Type: primRef(ir.PrimitiveInteger), Provenance: ptrAt("/a")}
 
-		got := foldTwo(g, narrow, broad, written(`{"examples":[1]}`))
+		got := foldTwo(stubbed, narrow, broad, written(`{"examples":[1]}`))
 
 		if !tc.refused {
 			assert.Equal(t, tc.examples, got.Examples, "%s: adopted whole", tc.name)
@@ -483,7 +489,7 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 // resolved, and the merge still yields one property.
 func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+	stubbed, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
 		"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 	})
@@ -491,27 +497,27 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "type/int"},
 		Provenance: ptrAt("/components/schemas/S/properties/id")}
 
-	dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
+	dst = foldTwo(stubbed, dst, src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
-	d := (*recorded)[0]
-	assert.Equal(t, diag.ConflictingRedecl, d.Code)
-	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the field that disagrees")
+	diagnostic := (*recorded)[0]
+	assert.Equal(t, diag.ConflictingRedecl, diagnostic.Code)
+	assert.Contains(t, diagnostic.Message, `"id"`, "the diagnostic names the field that disagrees")
 	assert.Equal(t, ir.TypeID("type/int"), dst.Type.Target, "the later declaration keeps its type")
 }
 
 func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 	t.Parallel()
-	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+	stubbed, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
 	})
 
-	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "type/str"})
+	kind, ok := judge(stubbed).kindOf(ir.TypeRef{Target: "type/str"})
 	require.True(t, ok)
 	assert.Equal(t, ir.PrimitiveString, kind.prim)
 	assert.Empty(t, kind.format)
 
-	_, ok = judge(g).kindOf(ir.TypeRef{Target: "type/absent"})
+	_, ok = judge(stubbed).kindOf(ir.TypeRef{Target: "type/absent"})
 	assert.False(t, ok, "a target the registry does not hold resolves to no kind")
 }
 
@@ -535,15 +541,15 @@ func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 		first, second := stringAt("/allOf/0/properties/p", `{"x":0}`), stringAt("/allOf/1/properties/p", `{"x":1}`)
 		first.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
 		second.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
-		g, recorded := stubMerger(narrowingRegistry())
-		g.walk.apart = true
+		stubbed, recorded := stubMerger(narrowingRegistry())
+		stubbed.walk.apart = true
 
-		got := g.fold([]declaration{first, second})
+		got := stubbed.fold([]declaration{first, second})
 
 		assert.ElementsMatch(t, tc.wantKeys, slices.Collect(maps.Keys(got.Unmodeled)), tc.value)
 		assert.Len(t, *recorded, tc.reports, tc.value)
-		for _, d := range *recorded {
-			assert.Contains(t, d.Message, "give its openapi:not differently", tc.value)
+		for _, diagnostic := range *recorded {
+			assert.Contains(t, diagnostic.Message, "give its openapi:not differently", tc.value)
 		}
 	}
 }

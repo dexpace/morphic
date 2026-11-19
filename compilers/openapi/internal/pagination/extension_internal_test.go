@@ -24,9 +24,9 @@ func pagerOver(reg ir.TypeRegistry) *pager {
 // dangling reference would, is marked by its own keys alone.
 func TestMarker_AUseOfATypeTheRegistryLacksMarksNothing(t *testing.T) {
 	t.Parallel()
-	m := &marker{pg: pagerOver(ir.TypeRegistry{}), target: promotion.TargetPaginationItems,
+	markerValue := &marker{pg: pagerOver(ir.TypeRegistry{}), target: promotion.TargetPaginationItems,
 		src: promotion.ExtensionSource{Key: "x-k", Values: []string{"items"}}}
-	keeper, marked := m.marksUse(nil, &ir.Provenance{}, "type/gone")
+	keeper, marked := markerValue.marksUse(nil, &ir.Provenance{}, "type/gone")
 	assert.Nil(t, keeper)
 	assert.False(t, marked)
 }
@@ -60,13 +60,13 @@ func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 		"openapi:x-k": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"purpose":"items"}`)},
 	}
 	kept := pagerOver(reg)
-	m := &marker{pg: kept, target: promotion.TargetPaginationItems, src: src}
+	markerValue := &marker{pg: kept, target: promotion.TargetPaginationItems, src: src}
 	reach := kept.reaching(src.Key)
 	assert.Equal(t, map[ir.TypeID]bool{"type/root": true, "type/marked": true}, reach)
-	_, next := m.descend([]step{{model: "type/root"}}, map[ir.TypeID]bool{"type/root": true}, reach)
+	_, next := markerValue.descend([]step{{model: "type/root"}}, map[ir.TypeID]bool{"type/root": true}, reach)
 	require.Len(t, next, 1, "a level steps into the model reaching the key, not its sibling")
 	assert.Equal(t, ir.TypeID("type/marked"), next[0].model)
-	found := m.search("type/root")
+	found := markerValue.search("type/root")
 	require.Len(t, found, 1)
 	assert.Equal(t, []ir.PropertyID{"property/a", "property/d"}, found[0].segments)
 }

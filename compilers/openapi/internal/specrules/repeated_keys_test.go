@@ -32,10 +32,10 @@ func repeatsAt(t *testing.T, version, text string, opts specrules.Options) []str
 	if len(found) > 0 {
 		out = make([]string, 0, len(found))
 	}
-	for _, d := range found {
-		assert.Equal(t, ir.SeverityWarning, d.Severity)
-		assert.Equal(t, diag.Validation+"/validation-duplicate-key", d.Code)
-		out = append(out, fmt.Sprintf("%s@%d:%d", d.Provenance.Pointer, d.Provenance.Position.Line, d.Provenance.Position.Column))
+	for _, diagnostic := range found {
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+		assert.Equal(t, diag.Validation+"/validation-duplicate-key", diagnostic.Code)
+		out = append(out, fmt.Sprintf("%s@%d:%d", diagnostic.Provenance.Pointer, diagnostic.Provenance.Position.Line, diagnostic.Provenance.Position.Column))
 	}
 	return out
 }
@@ -46,7 +46,7 @@ func repeatsAt(t *testing.T, version, text string, opts specrules.Options) []str
 // pointer of the key and its line and column.
 func TestCheckRepeatedKeys_ReportsEachKeyAMappingWritesAgainAtItsCopy(t *testing.T) {
 	t.Parallel()
-	locate := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }
+	locate := func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} }
 	tests := []struct {
 		name string
 		text string

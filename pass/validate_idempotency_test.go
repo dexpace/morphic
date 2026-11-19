@@ -36,9 +36,9 @@ func TestValidate_IdempotencyTokenIsPairedWithItsKind(t *testing.T) {
 			t.Parallel()
 			op := ir.Operation{ID: "operation/x/put", Params: []ir.Parameter{{ID: token, Name: ir.Naming{Source: "key"}}}, Idempotency: tc.idem}
 			var got []ir.Diagnostic
-			for _, d := range validated(t, docWithOperations(op)) {
-				if d.Code == "pass/idempotency-token-mismatch" {
-					got = append(got, d)
+			for _, diagnostic := range validated(t, docWithOperations(op)) {
+				if diagnostic.Code == "pass/idempotency-token-mismatch" {
+					got = append(got, diagnostic)
 				}
 			}
 			if tc.want == "" {

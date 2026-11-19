@@ -33,13 +33,13 @@ func reverseSequences(src []byte) ([]byte, permutation, Decline) {
 	if why != "" {
 		return nil, permutation{}, why
 	}
-	w := sequenceWalk{pointed: map[string]bool{}, written: map[string]int{}}
+	sequenceWalkValue := sequenceWalk{pointed: map[string]bool{}, written: map[string]int{}}
 	for _, doc := range docs {
-		if why := w.walk(doc, asKeywords, 0); why != "" {
+		if why := sequenceWalkValue.walk(doc, asKeywords, 0); why != "" {
 			return nil, permutation{}, why
 		}
 	}
-	perm := w.reverse()
+	perm := sequenceWalkValue.reverse()
 	if len(perm.written) == 0 {
 		return nil, permutation{}, DeclineNothingToPermute
 	}
@@ -93,19 +93,19 @@ type sequenceWalk struct {
 // there: what the IR says at it names one of them, not which.
 func (w *sequenceWalk) reverse() permutation {
 	perm := permutation{written: sequences{}, moved: sequences{}}
-	for _, c := range w.candidates {
-		if w.written[c.pointer] == 1 && !w.held(c.pointer) {
-			perm.written[c.pointer] = len(c.node.Content)
+	for _, candidate := range w.candidates {
+		if w.written[candidate.pointer] == 1 && !w.held(candidate.pointer) {
+			perm.written[candidate.pointer] = len(candidate.node.Content)
 		}
 	}
-	for _, c := range w.candidates {
-		n, reversed := perm.written[c.pointer]
+	for _, candidate := range w.candidates {
+		n, reversed := perm.written[candidate.pointer]
 		if !reversed {
 			continue
 		}
-		moved, _ := rewriteFrom(c.pointer, 0, perm.written, func(n, i int) string { return strconv.Itoa(n - 1 - i) })
+		moved, _ := rewriteFrom(candidate.pointer, 0, perm.written, func(n, i int) string { return strconv.Itoa(n - 1 - i) })
 		perm.moved[moved] = n
-		slices.Reverse(c.node.Content)
+		slices.Reverse(candidate.node.Content)
 	}
 	return perm
 }

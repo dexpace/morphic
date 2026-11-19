@@ -206,10 +206,10 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 		{"MixedFixed", true, ""},
 		{"NotAnEnum", true, ""},
 	} {
-		u, ok := doc.Types[componentID(tc.schema)].(*ir.Union)
+		union, ok := doc.Types[componentID(tc.schema)].(*ir.Union)
 		require.True(t, ok, "%s lowers to a union", tc.schema)
-		assert.Equal(t, tc.closed, u.Closed, "%s openness", tc.schema)
-		assert.Equal(t, tc.inferred, u.Provenance.Inferred, "%s heuristic marker", tc.schema)
+		assert.Equal(t, tc.closed, union.Closed, "%s openness", tc.schema)
+		assert.Equal(t, tc.inferred, union.Provenance.Inferred, "%s heuristic marker", tc.schema)
 	}
 
 	for _, schema := range []string{"Size", "Shade"} {
@@ -335,14 +335,14 @@ components:
 			doc := compileClean(t, spec, tc.opts)
 
 			for name, open := range tc.open {
-				u, ok := doc.Types[componentID(name)].(*ir.Union)
+				union, ok := doc.Types[componentID(name)].(*ir.Union)
 				require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
-				assert.Equal(t, !open, u.Closed, name)
+				assert.Equal(t, !open, union.Closed, name)
 				var guess ir.Inferred
 				if open {
 					guess = "extension-promotion"
 				}
-				assert.Equal(t, guess, u.Provenance.Inferred, name)
+				assert.Equal(t, guess, union.Provenance.Inferred, name)
 			}
 		})
 	}
@@ -371,16 +371,16 @@ components:
 	}})
 
 	for _, name := range []string{"UnionKey", "Conflict"} {
-		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		union, ok := doc.Types[componentID(name)].(*ir.Union)
 		require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
-		assert.True(t, u.Closed, "%s stays closed", name)
-		assert.Empty(t, u.Provenance.Inferred, name)
+		assert.True(t, union.Closed, "%s stays closed", name)
+		assert.Empty(t, union.Provenance.Inferred, name)
 	}
 
 	var lost []string
-	for _, d := range doc.Diagnostics {
-		if d.Provenance.Pointer == "/components/schemas/Conflict/x-b" {
-			lost = append(lost, d.Message)
+	for _, diagnostic := range doc.Diagnostics {
+		if diagnostic.Provenance.Pointer == "/components/schemas/Conflict/x-b" {
+			lost = append(lost, diagnostic.Message)
 		}
 	}
 	assert.Len(t, lost, 1, "x-b, losing to x-a, is reported once: %q", lost)
@@ -761,9 +761,9 @@ paths:
 			[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, compilers.Options{FormatOptions: opts})
 		require.NoError(t, err)
 		var pointers []string
-		for _, d := range diags {
-			if d.Code == "openapi/unread-extension" {
-				pointers = append(pointers, string(d.Provenance.Pointer))
+		for _, diagnostic := range diags {
+			if diagnostic.Code == "openapi/unread-extension" {
+				pointers = append(pointers, string(diagnostic.Provenance.Pointer))
 			}
 		}
 		return pointers

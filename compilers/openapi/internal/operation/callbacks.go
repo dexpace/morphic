@@ -28,19 +28,19 @@ const maxCallbackNesting = 4
 // (lowerCallbacks) while it is nested in fewer than maxCallbackNesting
 // callbacks. Past that the map is kept verbatim, beside the callbacks' own
 // extensions, and reported (docs/compilers/openapi.md#callbacks).
-func operationCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operation, opCtx opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func operationCallbacks(serviceContext service.Ctx, loweringState operationLoweringState, src *soa.Operation, opCtx opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	if src.GetCallbacks().Len() == 0 {
 		return nil, nil, nil, nil
 	}
 	if opCtx.nesting < maxCallbackNesting {
-		return lowerCallbacks(c, w, src, opCtx)
+		return lowerCallbacks(serviceContext, loweringState, src, opCtx)
 	}
 	at := opCtx.ptrs.decl + ids.Ptr("callbacks")
 	var kept ir.Unmodeled
 	written, diags := annotation.PreserveNodeInto(&kept, annotation.EntryKey("", "callbacks"),
-		nodeview.Child(src.GetRootNode(), "callbacks"), ir.ReasonDegradedLowering, c.Place().At(at))
+		nodeview.Child(src.GetRootNode(), "callbacks"), ir.ReasonDegradedLowering, serviceContext.Place().At(at))
 	if written {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+		diags = append(diags, serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
 			"callbacks nested deeper than %d levels are not lowered; they are kept verbatim on the HTTP binding "+
 				"of the operation declaring them", maxCallbackNesting))
 	}
@@ -55,7 +55,7 @@ func operationCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operat
 // identity, so two parents sharing one $ref'd callback keep distinct callback
 // operations; parent.ptrs.decl is the base a $ref'd callback or path item
 // resolves against (issue #107).
-func lowerCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operation, parent opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbacks(serviceContext service.Ctx, loweringState operationLoweringState, src *soa.Operation, parent opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	var ext ir.Unmodeled
@@ -64,10 +64,10 @@ func lowerCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operation,
 		use := parent.ptrs.decl + ids.Ptr("callbacks", cbName)
 		// A callback has no docs, so a summary or description beside its $ref is
 		// kept as what the chain writes, on the binding beside its extensions.
-		beside, besideDiags := service.Beside[soa.Callback](c, rcb, use, false)
+		beside, besideDiags := service.Beside[soa.Callback](serviceContext, rcb, use, false)
 		ext = annotation.MergeUnmodeled(ext, annotation.Under(ids.Scope("callbacks", cbName), beside))
 		diags = append(diags, besideDiags...)
-		cb, c, cbDecl := service.Declared[soa.Callback](c, rcb, use)
+		cb, serviceContextValue, cbDecl := service.Declared[soa.Callback](serviceContext, rcb, use)
 		if cb == nil {
 			continue
 		}
@@ -75,12 +75,12 @@ func lowerCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operation,
 		// expression's path item, and ir.Callback holds no Unmodeled map. The HTTP
 		// binding does, and is where the callbacks themselves live, so they are kept
 		// there under the name the callback is mapped by.
-		cbExt, cbExtDiags := annotation.ExtensionsUnder(cb.GetExtensions(), c.Place(), cbDecl, ids.Scope("callbacks", cbName))
+		cbExt, cbExtDiags := annotation.ExtensionsUnder(cb.GetExtensions(), serviceContextValue.Place(), cbDecl, ids.Scope("callbacks", cbName))
 		ext = annotation.MergeUnmodeled(ext, cbExt)
 		diags = append(diags, cbExtDiags...)
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			layers := pathItemLayers(c, rp, cbDecl+ids.Ptr(exprStr))
+			layers := pathItemLayers(serviceContextValue, rp, cbDecl+ids.Ptr(exprStr))
 			if layers == nil {
 				continue
 			}
@@ -89,8 +89,8 @@ func lowerCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operation,
 				key: exprStr, template: exprStr, inbound: ir.HTTPInboundCallback,
 				inferred: parent.inferred, nesting: parent.nesting + 1,
 			}
-			at := mountSite{ptr: mount, use: c, usePtr: cbDecl + ids.Ptr(exprStr)}
-			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(w, layers, at, route)
+			at := mountSite{ptr: mount, use: serviceContextValue, usePtr: cbDecl + ids.Ptr(exprStr)}
+			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(loweringState, layers, at, route)
 			ext = annotation.MergeUnmodeled(ext, orphan)
 			diags = append(diags, cbDiags...)
 			callbacks = append(callbacks, ir.Callback{Name: cbName, Expression: exprStr, Operations: opIDs})
@@ -110,16 +110,16 @@ func lowerCallbacks(c service.Ctx, w operationLoweringState, src *soa.Operation,
 // An expression whose item mounts no operation keeps what the item wrote on the
 // returned map, which goes where the Callback Object's own extensions go, the
 // parent's HTTP binding.
-func lowerCallbackOps(w operationLoweringState, layers []layer, at mountSite, route opContext) ([]ir.OperationID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbackOps(loweringState operationLoweringState, layers []layer, at mountSite, route opContext) ([]ir.OperationID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var orphan ir.Unmodeled
 	at.residue = &orphan
-	mounted, diags := mountPathItem(w, layers, at, route)
+	mounted, diags := mountPathItem(loweringState, layers, at, route)
 	opIDs := make([]ir.OperationID, 0, len(mounted))
 	ops := make([]ir.Operation, 0, len(mounted))
-	for _, m := range mounted {
-		opIDs = append(opIDs, m.op.ID)
-		ops = append(ops, m.op)
-		ops = append(ops, m.extra...)
+	for _, mountedOp := range mounted {
+		opIDs = append(opIDs, mountedOp.op.ID)
+		ops = append(ops, mountedOp.op)
+		ops = append(ops, mountedOp.extra...)
 	}
 	return opIDs, ops, orphan, diags
 }
@@ -129,8 +129,8 @@ func lowerCallbackOps(w operationLoweringState, layers []layer, at mountSite, ro
 // webhooks-map key, an event's name rather than a path, as WebhookName. It
 // stops between webhooks when ctx is done, as lowerPaths does, and svc holds
 // what a webhook item mounting no operation writes.
-func lowerWebhooks(ctx context.Context, c service.Ctx, w operationLoweringState, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
-	hooks := c.Doc.GetWebhooks()
+func lowerWebhooks(ctx context.Context, serviceContext service.Ctx, loweringState operationLoweringState, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+	hooks := serviceContext.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil
 	}
@@ -140,15 +140,15 @@ func lowerWebhooks(ctx context.Context, c service.Ctx, w operationLoweringState,
 			return diags
 		}
 		hookPtr := ids.Ptr("webhooks", name)
-		layers := pathItemLayers(c, rp, hookPtr)
+		layers := pathItemLayers(serviceContext, rp, hookPtr)
 		if layers == nil {
 			continue
 		}
 		route := opContext{key: name, inbound: ir.HTTPInboundWebhook}
-		at := mountSite{ptr: hookPtr, use: c, usePtr: hookPtr, residue: &svc.Unmodeled}
-		mounted, hookDiags := mountPathItem(w, layers, at, route)
+		at := mountSite{ptr: hookPtr, use: serviceContext, usePtr: hookPtr, residue: &svc.Unmodeled}
+		mounted, hookDiags := mountPathItem(loweringState, layers, at, route)
 		diags = append(diags, hookDiags...)
-		for _, m := range mounted {
+		for _, mountedOp := range mounted {
 			grp := groups.group(ids.WebhookGroup(), func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as
@@ -156,8 +156,8 @@ func lowerWebhooks(ctx context.Context, c service.Ctx, w operationLoweringState,
 				// Naming.Source is the spelling the source used (GitHub #184).
 				return ir.OperationGroup{Name: compile.NamingHint("webhooks")}
 			})
-			grp.Operations = append(grp.Operations, m.op)
-			grp.Operations = append(grp.Operations, m.extra...)
+			grp.Operations = append(grp.Operations, mountedOp.op)
+			grp.Operations = append(grp.Operations, mountedOp.extra...)
 		}
 	}
 	return diags

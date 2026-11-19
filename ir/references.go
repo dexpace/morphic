@@ -65,22 +65,22 @@ type IDReferences struct {
 // labelled "<noun> declarations". A nil doc keys nothing, so a reference into
 // one of its maps is unresolved rather than the call panicking.
 func NewIDReferences(doc *Document) *IDReferences {
-	r := &IDReferences{
+	idReferences := &IDReferences{
 		labels:   map[reflect.Type]string{},
 		keyed:    map[reflect.Type]map[string]bool{},
 		declared: map[reflect.Type]map[string]bool{},
 	}
 	for _, reg := range keyedRegistries() {
-		r.labels[reg.class] = reg.label
-		r.keyed[reg.class] = registryKeys(doc, reg.index)
+		idReferences.labels[reg.class] = reg.label
+		idReferences.keyed[reg.class] = registryKeys(doc, reg.index)
 	}
 	for class := range idClasses {
-		if _, keyed := r.keyed[class]; keyed || class == propIDType {
+		if _, keyed := idReferences.keyed[class]; keyed || class == propIDType {
 			continue
 		}
-		r.labels[class] = RefNoun(class) + " declarations"
+		idReferences.labels[class] = RefNoun(class) + " declarations"
 	}
-	return r
+	return idReferences
 }
 
 // Visit records the identity v declares, if any, and keeps v if it is a
@@ -156,24 +156,24 @@ func (r *IDReferences) refer(v reflect.Value, at WalkPath) {
 // a node past the cap as dangling, so nothing is claimed for such a class then;
 // a map-keyed registry is read off the document and still answers.
 func (r *IDReferences) Unresolved(truncated bool) []IDReference {
-	if !slices.ContainsFunc(r.sites, func(s IDReference) bool { return r.dangles(s, truncated) }) {
+	if !slices.ContainsFunc(r.sites, func(idReference IDReference) bool { return r.dangles(idReference, truncated) }) {
 		return nil
 	}
 	var out []IDReference
 	for i, at := range r.paths.All() {
-		if s := r.sites[i]; r.dangles(s, truncated) {
-			s.Path = at.String()
-			out = append(out, s)
+		if idReference := r.sites[i]; r.dangles(idReference, truncated) {
+			idReference.Path = at.String()
+			out = append(out, idReference)
 		}
 	}
 	return out
 }
 
-// dangles reports whether the kept reference s resolves in no registry, as
+// dangles reports whether the kept reference idReference resolves in no registry, as
 // Unresolved says, truncated saying whether the walk was cut short.
-func (r *IDReferences) dangles(s IDReference, truncated bool) bool {
-	_, keyed := r.keyed[s.Class]
-	return keyed || (!truncated && !r.declared[s.Class][s.ID])
+func (r *IDReferences) dangles(idReference IDReference, truncated bool) bool {
+	_, keyed := r.keyed[idReference.Class]
+	return keyed || (!truncated && !r.declared[idReference.Class][idReference.ID])
 }
 
 // Declares reports whether a node the walk reached declares id as its identity

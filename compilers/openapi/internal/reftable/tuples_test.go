@@ -18,10 +18,10 @@ import (
 func landingsAt(t *testing.T, table *reftable.ReferenceTargetTable) map[jsontext.Pointer]jsontext.Pointer {
 	t.Helper()
 	out := map[jsontext.Pointer]jsontext.Pointer{}
-	for _, l := range table.Landings() {
-		if l.At.Doc == reftable.Source {
-			out[l.At.Pointer] = l.Site.Pointer
-			assert.True(t, l.Reached, "%s is reached", l.At.Pointer)
+	for _, landing := range table.Landings() {
+		if landing.At.Doc == reftable.Source {
+			out[landing.At.Pointer] = landing.Site.Pointer
+			assert.True(t, landing.Reached, "%s is reached", landing.At.Pointer)
 		}
 	}
 	return out
@@ -48,8 +48,8 @@ func TestTuples_AListOfItemsHoldsSchemas(t *testing.T) {
 		tuple + "/items/0": tuple, tuple + "/items/1": tuple, tuple + "/additionalItems": tuple,
 	}, landingsAt(t, table))
 	for _, site := range []jsontext.Pointer{tuple + "/items/1", tuple + "/additionalItems"} {
-		e := entryAt(t, table, site)
-		assert.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
+		referenceSite := entryAt(t, table, site)
+		assert.Equal(t, reftable.Resolved, referenceSite.Hop.Status, "%s: %s", site, referenceSite.Hop.Why())
 	}
 	_, ok := table.Entry(documentPointerAt("/components/schemas/U/additionalItems"))
 	assert.False(t, ok, "beside one items schema additionalItems is no schema the table reads")
@@ -100,17 +100,17 @@ func TestDialectRule_AChainIntoAnotherDocumentReadsItsDialect(t *testing.T) {
 	table := bound(t, head+"components:\n  schemas:\n    S: {$ref: 'o.yaml#/definitions/Sib'}\n",
 		ruleFor(withDocuments(map[string]string{"o.yaml": other}), d7))
 	doc := docNamed(t, table, "o.yaml")
-	e := entryAt(t, table, "/components/schemas/S")
-	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, reftable.DocumentPointer{Doc: doc, Pointer: "/definitions/A"}, e.Chain.End, "the chain ends where the draft reads it")
+	referenceSite := entryAt(t, table, "/components/schemas/S")
+	require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+	assert.Equal(t, reftable.DocumentPointer{Doc: doc, Pointer: "/definitions/A"}, referenceSite.Chain.End, "the chain ends where the draft reads it")
 
 	based := "{$schema: 'http://json-schema.org/draft-04/schema#', id: 'https://example.com/lib/',\n" +
 		"  definitions: {A: {id: 'a.json', type: integer}, Sib: {$ref: 'a.json'}}}\n"
 	table = bound(t, head+"components:\n  schemas:\n    S: {$ref: 'o.yaml#/definitions/Sib'}\n",
 		draftRule(withDocuments(map[string]string{"o.yaml": based})))
-	e = entryAt(t, table, "/components/schemas/S")
-	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, reftable.DocumentPointer{Doc: docNamed(t, table, "o.yaml"), Pointer: "/definitions/A"}, e.Chain.End,
+	referenceSite = entryAt(t, table, "/components/schemas/S")
+	require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+	assert.Equal(t, reftable.DocumentPointer{Doc: docNamed(t, table, "o.yaml"), Pointer: "/definitions/A"}, referenceSite.Chain.End,
 		"draft 4's id at the root gives the $ref its base")
 }
 
@@ -129,17 +129,17 @@ func TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar(t *testing.
 	}
 	table := bound(t, src("id", ""), draftRule(self))
 	for site, target := range map[jsontext.Pointer]jsontext.Pointer{"x": "/definitions/X", "y": "/definitions/Y"} {
-		e := entryAt(t, table, "/components/schemas/D/properties/"+site)
-		require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-		assert.Equal(t, documentPointerAt("/components/schemas/D"+target), e.Hop.Target)
+		referenceSite := entryAt(t, table, "/components/schemas/D/properties/"+site)
+		require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+		assert.Equal(t, documentPointerAt("/components/schemas/D"+target), referenceSite.Hop.Target)
 	}
 	assert.Equal(t, reftable.BadPointer, entryAt(t, table, "/components/schemas/D/properties/n").Hop.Reason)
 	twice := entryAt(t, bound(t, src("id", ", Z: {id: '#1x'}"), draftRule(self)), "/components/schemas/D/properties/x")
 	assert.Equal(t, reftable.DuplicateAnchor, twice.Hop.Reason, twice.Hop.Why())
 
 	plain := reftable.DialectRule{Keyword: "$id", Fragments: true, PlainFragments: true, Definitions: true}
-	e := entryAt(t, bound(t, src("$id", ""), ruleFor(self, plain)), "/components/schemas/D/properties/x")
-	assert.Equal(t, reftable.BadPointer, e.Hop.Reason, "a plain name opens with a letter: %s", e.Hop.Why())
+	referenceSiteValue := entryAt(t, bound(t, src("$id", ""), ruleFor(self, plain)), "/components/schemas/D/properties/x")
+	assert.Equal(t, reftable.BadPointer, referenceSiteValue.Hop.Reason, "a plain name opens with a letter: %s", referenceSiteValue.Hop.Why())
 }
 
 // TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a
@@ -157,9 +157,9 @@ func TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere(t *testing
 	}
 	held := entryAt(t, bound(t, src("$schema: 'http://json-schema.org/draft-04/schema#', "), draftRule(self)), "/components/schemas/R")
 	assert.NotEqual(t, reftable.Resolved, held.Hop.Status, "draft 4 ignores the $schema and the $id beside e's $ref")
-	e := entryAt(t, bound(t, src(""), draftRule(self)), "/components/schemas/R")
-	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, documentPointerAt("/components/schemas/T/properties/e"), e.Hop.Target)
+	referenceSite := entryAt(t, bound(t, src(""), draftRule(self)), "/components/schemas/R")
+	require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+	assert.Equal(t, documentPointerAt("/components/schemas/T/properties/e"), referenceSite.Hop.Target)
 }
 
 // TestDialectRule_AnIdentifierBesideARefNamesNothing pins a rule ignoring what
@@ -188,17 +188,17 @@ func TestDialectRule_AnIdentifierBesideARefNamesNothing(t *testing.T) {
 			rule := d4Rule
 			rule.IgnoresRefFields = c.ignores
 			table := bound(t, src, ruleFor(self, rule))
-			e := entryAt(t, table, props+"p")
-			require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-			assert.Equal(t, documentPointerAt(c.p), e.Hop.Target, "the base p's $ref resolves against")
+			referenceSite := entryAt(t, table, props+"p")
+			require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+			assert.Equal(t, documentPointerAt(c.p), referenceSite.Hop.Target, "the base p's $ref resolves against")
 			for site, target := range map[jsontext.Pointer]jsontext.Pointer{"g": props + "f", "h": props + "p"} {
-				e := entryAt(t, table, props+site)
+				referenceSiteValue := entryAt(t, table, props+site)
 				if !c.ignores {
-					require.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
-					assert.Equal(t, documentPointerAt(target), e.Hop.Target, site)
+					require.Equal(t, reftable.Resolved, referenceSiteValue.Hop.Status, "%s: %s", site, referenceSiteValue.Hop.Why())
+					assert.Equal(t, documentPointerAt(target), referenceSiteValue.Hop.Target, site)
 					continue
 				}
-				assert.NotEqual(t, reftable.Resolved, e.Hop.Status, "%s names what an ignored id would", site)
+				assert.NotEqual(t, reftable.Resolved, referenceSiteValue.Hop.Status, "%s names what an ignored id would", site)
 			}
 		})
 	}
@@ -221,9 +221,9 @@ func TestDialectRule_ReadsWhatADialectSpellsOtherwise(t *testing.T) {
 		"/components/schemas/T/properties/b":                 "/components/schemas/T/definitions/Foo",
 		"/components/schemas/T/definitions/Foo/properties/c": "/components/schemas/T/definitions/Foo",
 	} {
-		e := entryAt(t, table, site)
-		require.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
-		assert.Equal(t, documentPointerAt(want), e.Hop.Target, site)
+		referenceSite := entryAt(t, table, site)
+		require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, "%s: %s", site, referenceSite.Hop.Why())
+		assert.Equal(t, documentPointerAt(want), referenceSite.Hop.Target, site)
 	}
 	base, known := table.Base(documentPointerAt("/components/schemas/T/definitions/Foo"))
 	assert.True(t, known)
@@ -260,9 +260,9 @@ func TestDialectRule_AValueNamingNoDialectChoosesNone(t *testing.T) {
 	}
 	table := bound(t, src, answer(true))
 	assert.Empty(t, table.Document(reftable.Source).Dialects, "the value roots no dialect")
-	e := entryAt(t, table, "/components/schemas/R")
-	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, documentPointerAt("/components/schemas/I"), e.Hop.Target)
+	referenceSite := entryAt(t, table, "/components/schemas/R")
+	require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+	assert.Equal(t, documentPointerAt("/components/schemas/I"), referenceSite.Hop.Target)
 
 	named := bound(t, src, answer(false))
 	assert.Len(t, named.Document(reftable.Source).Dialects, 1)
@@ -280,9 +280,9 @@ func TestDialectRule_AWalkStartsInTheDialectAboveIt(t *testing.T) {
 	table := bound(t, head+"components:\n  schemas:\n    S: {$ref: 'o.yaml#/definitions/A'}\n",
 		draftRule(withDocuments(map[string]string{"o.yaml": other})))
 	doc := docNamed(t, table, "o.yaml")
-	e, ok := table.Entry(reftable.DocumentPointer{Doc: doc, Pointer: "/definitions/A/definitions/B"})
+	referenceSite, ok := table.Entry(reftable.DocumentPointer{Doc: doc, Pointer: "/definitions/A/definitions/B"})
 	require.True(t, ok, "the nested entry is a schema of the draft 4 document")
-	assert.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
+	assert.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
 }
 
 // TestDialectRule_ANestedSchemaNamesItsDialectAtAResourceRoot pins where a
@@ -307,9 +307,9 @@ func TestDialectRule_ANestedSchemaNamesItsDialectAtAResourceRoot(t *testing.T) {
 		"/components/schemas/A/properties/r": "/components/schemas/A/properties/e/definitions/Y",
 		"/components/schemas/A/properties/s": "/components/schemas/A/properties/f/definitions/Z",
 	} {
-		e := entryAt(t, table, site)
-		require.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
-		assert.Equal(t, documentPointerAt(want), e.Hop.Target, "%s: an embedded resource reads draft 4 below its root", site)
+		referenceSite := entryAt(t, table, site)
+		require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, "%s: %s", site, referenceSite.Hop.Why())
+		assert.Equal(t, documentPointerAt(want), referenceSite.Hop.Target, "%s: an embedded resource reads draft 4 below its root", site)
 	}
 	assert.NotEqual(t, reftable.Resolved, entryAt(t, table, "/components/schemas/A/properties/u").Hop.Status,
 		"a fragment id roots no resource, so its $schema names nothing and 2020-12 reads no anchor in it")
@@ -330,10 +330,10 @@ func TestDialectRule_AWalkEntersARootBelowWhereItStarts(t *testing.T) {
 		draftRule(withDocuments(map[string]string{"o.yaml": other})))
 	doc := docNamed(t, table, "o.yaml")
 	const x = "/$defs/A/properties/x"
-	e, ok := table.Entry(reftable.DocumentPointer{Doc: doc, Pointer: x + "/definitions/Y"})
+	referenceSite, ok := table.Entry(reftable.DocumentPointer{Doc: doc, Pointer: x + "/definitions/Y"})
 	require.True(t, ok, "the definitions entry is a schema of the draft 4 resource")
-	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, reftable.DocumentPointer{Doc: doc, Pointer: x + "/definitions/Z"}, e.Hop.Target)
+	require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+	assert.Equal(t, reftable.DocumentPointer{Doc: doc, Pointer: x + "/definitions/Z"}, referenceSite.Hop.Target)
 }
 
 // TestDialectRule_ARootReadsItsOwnIdentifiersInItsDialect pins two readings of
@@ -354,9 +354,9 @@ func TestDialectRule_ARootReadsItsOwnIdentifiersInItsDialect(t *testing.T) {
 		"/components/schemas/U":                            "/components/schemas/T",
 		"/components/schemas/R/definitions/A/properties/p": "/components/schemas/B",
 	} {
-		e := entryAt(t, table, site)
-		require.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
-		assert.Equal(t, documentPointerAt(want), e.Hop.Target, site)
+		referenceSite := entryAt(t, table, site)
+		require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, "%s: %s", site, referenceSite.Hop.Why())
+		assert.Equal(t, documentPointerAt(want), referenceSite.Hop.Target, site)
 	}
 }
 
@@ -371,9 +371,9 @@ func TestDialectRule_AnAnchorTakesItsDialectsGrammar(t *testing.T) {
 		"      properties: {a: {$ref: '#a:b'}}, definitions: {L: {id: '#a:b'}}}\n" +
 		"    U: {properties: {a: {$ref: '#c:d'}}, $defs: {L: {$anchor: 'c:d'}}}\n"
 	table := bound(t, src, draftRule(self))
-	e := entryAt(t, table, "/components/schemas/T/properties/a")
-	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, documentPointerAt("/components/schemas/T/definitions/L"), e.Hop.Target)
+	referenceSite := entryAt(t, table, "/components/schemas/T/properties/a")
+	require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+	assert.Equal(t, documentPointerAt("/components/schemas/T/definitions/L"), referenceSite.Hop.Target)
 	assert.Equal(t, reftable.NoAnchor, entryAt(t, table, "/components/schemas/U/properties/a").Hop.Reason,
 		"2020-12 declares no anchor its grammar refuses, and a $ref naming one finds none")
 }
@@ -389,9 +389,9 @@ func TestDialectRule_ADocumentOfSchemasReadsItsDraftAtItsRoot(t *testing.T) {
 	table := bound(t, head+"components:\n  schemas:\n    S: {$ref: 'o.yaml#x'}\n    T: {$ref: 'o.yaml'}\n",
 		draftRule(withDocuments(map[string]string{"o.yaml": other})))
 	doc := docNamed(t, table, "o.yaml")
-	e := entryAt(t, table, "/components/schemas/S")
-	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, reftable.DocumentPointer{Doc: doc, Pointer: "/items/0"}, e.Hop.Target)
+	referenceSite := entryAt(t, table, "/components/schemas/S")
+	require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+	assert.Equal(t, reftable.DocumentPointer{Doc: doc, Pointer: "/items/0"}, referenceSite.Hop.Target)
 	dep, ok := table.Entry(reftable.DocumentPointer{Doc: doc, Pointer: "/dependencies/a"})
 	require.True(t, ok, "a schema in dependencies is one the table reads")
 	assert.Equal(t, reftable.Resolved, dep.Hop.Status, dep.Hop.Why())

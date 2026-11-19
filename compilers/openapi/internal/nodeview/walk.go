@@ -99,13 +99,13 @@ func (w Walk) Run(ctx context.Context, root *yaml.Node) Outcome {
 			out.Cut = true
 			return out
 		}
-		f := stack[len(stack)-1]
+		walkFrame := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if f.leave {
-			w.Leave(f.n, f.depth)
+		if walkFrame.leave {
+			w.Leave(walkFrame.n, walkFrame.depth)
 			continue
 		}
-		n := w.node(f.n)
+		n := w.node(walkFrame.n)
 		if n == nil {
 			continue
 		}
@@ -113,12 +113,12 @@ func (w Walk) Run(ctx context.Context, root *yaml.Node) Outcome {
 			out.Cut = true
 			return out
 		}
-		if w.Depth > 0 && f.depth > w.Depth {
+		if w.Depth > 0 && walkFrame.depth > w.Depth {
 			out.Cut = true
 			continue
 		}
 		out.Visited++
-		switch w.step(n, f.depth) {
+		switch w.step(n, walkFrame.depth) {
 		case Stop:
 			out.Stopped = true
 			return out
@@ -126,7 +126,7 @@ func (w Walk) Run(ctx context.Context, root *yaml.Node) Outcome {
 			continue
 		case Descend:
 		}
-		stack = w.push(stack, n, f.depth)
+		stack = w.push(stack, n, walkFrame.depth)
 	}
 	return out
 }

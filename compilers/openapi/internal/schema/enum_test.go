@@ -26,14 +26,14 @@ func TestEnum_StringClosed(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	e, ok := doc.Types[componentID("E")].(*ir.Enum)
+	enum, ok := doc.Types[componentID("E")].(*ir.Enum)
 	require.True(t, ok, "E should be an enum")
-	assert.True(t, e.Closed, "JSON Schema enum is closed")
-	assert.Equal(t, ir.PrimitiveString, e.ValueType)
-	require.Len(t, e.Members, 2)
-	assert.Equal(t, "a", e.Members[0].Name.Source)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "a"}, e.Members[0].Value)
-	assert.Equal(t, "b", e.Members[1].Name.Source)
+	assert.True(t, enum.Closed, "JSON Schema enum is closed")
+	assert.Equal(t, ir.PrimitiveString, enum.ValueType)
+	require.Len(t, enum.Members, 2)
+	assert.Equal(t, "a", enum.Members[0].Name.Source)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "a"}, enum.Members[0].Value)
+	assert.Equal(t, "b", enum.Members[1].Name.Source)
 }
 
 // TestEnum_NullMemberNormalizesToNullable pins
@@ -120,20 +120,20 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 			assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct),
 				"a normalized nullable enum is not a degradation; got %+v", diags)
 
-			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "S is a model")
-			require.Len(t, m.Properties, 1)
-			assert.True(t, m.Properties[0].Type.Nullable,
+			require.Len(t, model.Properties, 1)
+			assert.True(t, model.Properties[0].Type.Nullable,
 				"the stripped null member is carried by the property's reference")
-			assert.Equal(t, enumID, m.Properties[0].Type.Target)
+			assert.Equal(t, enumID, model.Properties[0].Type.Target)
 
-			e, ok := doc.Types[enumID].(*ir.Enum)
+			enum, ok := doc.Types[enumID].(*ir.Enum)
 			require.True(t, ok, "the property lowers to an Enum, not a union of literals")
-			assert.True(t, e.Closed, "a JSON Schema enum stays closed")
-			assert.Equal(t, tc.wantValueType, e.ValueType)
+			assert.True(t, enum.Closed, "a JSON Schema enum stays closed")
+			assert.Equal(t, tc.wantValueType, enum.ValueType)
 
-			got := make([]ir.Value, 0, len(e.Members))
-			for _, member := range e.Members {
+			got := make([]ir.Value, 0, len(enum.Members))
+			for _, member := range enum.Members {
 				assert.NotEmpty(t, member.Name.Source, "every kept member is named")
 				got = append(got, member.Value)
 			}
@@ -305,13 +305,13 @@ func enumValuesAt(t *testing.T, doc *ir.Document, id ir.TypeID) ([]ir.Value, boo
 	got := []ir.Value{}
 	switch n := doc.Types[id].(type) {
 	case *ir.Enum:
-		for _, m := range n.Members {
-			got = append(got, m.Value)
+		for _, enumMember := range n.Members {
+			got = append(got, enumMember.Value)
 		}
 		return got, false
 	case *ir.Union:
-		for _, v := range n.Variants {
-			lit, ok := doc.Types[v.Type.Target].(*ir.Literal)
+		for _, variant := range n.Variants {
+			lit, ok := doc.Types[variant.Type.Target].(*ir.Literal)
 			require.True(t, ok, "every variant is a hoisted Literal")
 			got = append(got, lit.Value)
 		}
@@ -327,9 +327,9 @@ func enumValuesAt(t *testing.T, doc *ir.Document, id ir.TypeID) ([]ir.Value, boo
 // warnings, in order.
 func degradedWarnings(diags []ir.Diagnostic) []jsontext.Pointer {
 	var out []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
-			out = append(out, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityWarning {
+			out = append(out, diagnostic.Provenance.Pointer)
 		}
 	}
 	return out
@@ -404,11 +404,11 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			e, ok := typeByName(doc, "S").(*ir.Enum)
+			enum, ok := typeByName(doc, "S").(*ir.Enum)
 			require.True(t, ok, "the enum keyword lowers to an Enum, got %T", typeByName(doc, "S"))
-			assert.True(t, e.Closed, "an enum admits its members and nothing else")
-			assert.Len(t, e.Members, tc.wantMembers, "the member list is the declared one")
-			assert.Equal(t, tc.wantValueType, e.ValueType)
+			assert.True(t, enum.Closed, "an enum admits its members and nothing else")
+			assert.Len(t, enum.Members, tc.wantMembers, "the member list is the declared one")
+			assert.Equal(t, tc.wantValueType, enum.ValueType)
 
 			want := 0
 			if tc.wantEmpty {
@@ -420,7 +420,7 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 			if tc.wantKept == "" {
 				return
 			}
-			assert.Contains(t, e.Unmodeled, tc.wantKept,
+			assert.Contains(t, enum.Unmodeled, tc.wantKept,
 				"the keyword the election passed over stays beside the enum")
 		})
 	}
@@ -445,13 +445,13 @@ func TestEnum_EmptyMemberListIsAUnionSibling(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	e, ok := typeByName(doc, "S").(*ir.Enum)
+	enum, ok := typeByName(doc, "S").(*ir.Enum)
 	require.True(t, ok, "the empty value set is the shape the position lowers to, got %T",
 		typeByName(doc, "S"))
-	assert.Empty(t, e.Members)
+	assert.Empty(t, enum.Members)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.EmptyEnum, ir.SeverityWarning),
 		"reported once here too; got %+v", diags)
-	assert.Contains(t, e.Unmodeled, "openapi:oneOf",
+	assert.Contains(t, enum.Unmodeled, "openapi:oneOf",
 		"the union the enum cannot carry stays beside it rather than replacing it")
 }
 
@@ -462,9 +462,9 @@ func TestConst_BecomesLiteral(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	k, ok := doc.Types[componentID("K")].(*ir.Literal)
+	literal, ok := doc.Types[componentID("K")].(*ir.Literal)
 	require.True(t, ok, "K should be a literal")
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "fixed"}, k.Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "fixed"}, literal.Value)
 }
 
 func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {
@@ -474,18 +474,18 @@ func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {
 	// produced a Literal asserting the value is null, which the spec never said.
 	spec := openapitest.ComponentSpec("    K:\n      const: !foo bar\n")
 	doc, diags := schema.LowerSpec(t, spec)
-	k, ok := doc.Types[componentID("K")].(*ir.Any)
+	irAny, ok := doc.Types[componentID("K")].(*ir.Any)
 	require.True(t, ok, "an unconvertible const hoists the schemaless top type at its own pointer")
-	assert.Equal(t, ir.KindAny, k.Kind())
+	assert.Equal(t, ir.KindAny, irAny.Kind())
 	for _, td := range doc.Types {
 		_, isLiteral := td.(*ir.Literal)
 		assert.False(t, isLiteral, "no Literal is produced anywhere; nothing lies about the value being null")
 	}
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"exactly one warning fires for the unconvertible value")
-	d, ok := openapitest.FirstDegradedWarning(diags)
+	diagnostic, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/K"), d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/K"), diagnostic.Provenance.Pointer)
 }
 
 func TestEnumAsUnion_UnconvertibleMemberBecomesAny(t *testing.T) {
@@ -494,23 +494,23 @@ func TestEnumAsUnion_UnconvertibleMemberBecomesAny(t *testing.T) {
 	// genuinely unconvertible member ("!foo bar") falls back to the top type.
 	spec := openapitest.ComponentSpec("    M:\n      enum: [ok, !foo bar]\n")
 	doc, diags := schema.LowerSpec(t, spec)
-	u, ok := doc.Types[componentID("M")].(*ir.Union)
+	union, ok := doc.Types[componentID("M")].(*ir.Union)
 	require.True(t, ok, "heterogeneous enum still lowers to a union of literals")
-	require.Len(t, u.Variants, 2)
+	require.Len(t, union.Variants, 2)
 
-	member0, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Literal)
+	member0, ok := doc.Types[union.Variants[0].Type.Target].(*ir.Literal)
 	require.True(t, ok, "the convertible member still hoists a Literal")
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "ok"}, member0.Value)
 
-	member1, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Any)
+	member1, ok := doc.Types[union.Variants[1].Type.Target].(*ir.Any)
 	require.True(t, ok, "the unconvertible member hoists the schemaless top type, not a lying null Literal")
 	assert.Equal(t, ir.KindAny, member1.Kind())
 
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"exactly one warning for the unconvertible member, distinct from the heterogeneous-enum info diagnostic")
-	d, ok := openapitest.FirstDegradedWarning(diags)
+	diagnostic, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/M/enum/1"), d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/M/enum/1"), diagnostic.Provenance.Pointer)
 }
 
 func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
@@ -532,13 +532,13 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	require.Len(t, diags, 1, "the dates convert cleanly: no diagnostic is about a member")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/D/default"), diags[0].Provenance.Pointer)
-	e, ok := doc.Types[componentID("D")].(*ir.Enum)
+	enum, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum, never degrades to a Union of literals")
-	assert.True(t, e.Closed)
-	assert.Equal(t, ir.PrimitiveDate, e.ValueType)
-	require.Len(t, e.Members, 2)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, e.Members[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2022-02-02"}, e.Members[1].Value)
+	assert.True(t, enum.Closed)
+	assert.Equal(t, ir.PrimitiveDate, enum.ValueType)
+	require.Len(t, enum.Members, 2)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, enum.Members[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2022-02-02"}, enum.Members[1].Value)
 }
 
 // TestEnum_ValueTypeReadsTheFormatItsMembersFit holds an Enum's ValueType to the
@@ -576,10 +576,10 @@ func TestEnum_ValueTypeReadsTheFormatItsMembersFit(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    E: "+tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			e, ok := doc.Types[componentID("E")].(*ir.Enum)
+			enum, ok := doc.Types[componentID("E")].(*ir.Enum)
 			require.True(t, ok)
-			assert.Equal(t, tc.want, e.ValueType)
-			_, kept := e.Unmodeled["openapi:format"]
+			assert.Equal(t, tc.want, enum.ValueType)
+			_, kept := enum.Unmodeled["openapi:format"]
 			assert.Equal(t, tc.kept, kept)
 			assert.Equal(t, tc.kept, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/E"),
 				"the format is reported exactly where it is kept: %+v", diags)
@@ -631,11 +631,11 @@ func TestEnum_AMemberNoTypeAdmitsIsReportedAndKept(t *testing.T) {
 			}
 			assert.Equal(t, want, degradedWarnings(diags), "each member no type admits, and only it")
 
-			e, isEnum := doc.Types[componentID("E")].(*ir.Enum)
+			enum, isEnum := doc.Types[componentID("E")].(*ir.Enum)
 			assert.Equal(t, tc.want != "", isEnum, "got %T", doc.Types[componentID("E")])
 			if isEnum {
-				assert.Equal(t, tc.want, e.ValueType, "the members' primitive")
-				_, kept := e.Unmodeled["openapi:type"]
+				assert.Equal(t, tc.want, enum.ValueType, "the members' primitive")
+				_, kept := enum.Unmodeled["openapi:type"]
 				assert.Equal(t, tc.rejected != nil, kept, "a type the members are not values of stays verbatim")
 			}
 			if isEnum && tc.rejected != nil {
@@ -690,9 +690,9 @@ func TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder(t *testing.T) {
 		model, ok := doc.Types[componentID("M")].(*ir.Model)
 		require.True(t, ok, name)
 		require.Len(t, model.Properties, 1, name)
-		e, ok := doc.Types[model.Properties[0].Type.Target].(*ir.Enum)
+		enum, ok := doc.Types[model.Properties[0].Type.Target].(*ir.Enum)
 		require.True(t, ok, name)
-		assert.Equal(t, ir.PrimitiveInt8, e.ValueType, name)
+		assert.Equal(t, ir.PrimitiveInt8, enum.ValueType, name)
 	}
 }
 
@@ -716,9 +716,9 @@ func TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec("    E: "+tc.schema+"\n"))
-			u, ok := doc.Types[componentID("E")].(*ir.Union)
+			union, ok := doc.Types[componentID("E")].(*ir.Union)
 			require.True(t, ok)
-			assert.Equal(t, tc.want, u.Exclusive)
+			assert.Equal(t, tc.want, union.Exclusive)
 		})
 	}
 }
@@ -741,9 +741,9 @@ func TestEnum_ValueTypeVariants(t *testing.T) {
 		"ENoTypeStr": ir.PrimitiveString, "EBytes": ir.PrimitiveBytes,
 	}
 	for name, prim := range want {
-		e, ok := typeByName(doc, name).(*ir.Enum)
+		enum, ok := typeByName(doc, name).(*ir.Enum)
 		require.True(t, ok, "%s is an enum", name)
-		assert.Equal(t, prim, e.ValueType, "%s value type", name)
+		assert.Equal(t, prim, enum.ValueType, "%s value type", name)
 	}
 }
 
@@ -758,24 +758,24 @@ func TestEnum_ByteMembersAreNamedAndTyped(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	e, ok := typeByName(doc, "EBytes").(*ir.Enum)
+	enum, ok := typeByName(doc, "EBytes").(*ir.Enum)
 	require.True(t, ok, "a homogeneous byte enum stays an enum")
-	assert.Equal(t, ir.PrimitiveBytes, e.ValueType, "byte members declare the byte primitive, not string")
-	require.Len(t, e.Members, 2)
-	assert.Equal(t, "aGk=", e.Members[0].Name.Source, "a byte member is named by its base64 text")
-	assert.Equal(t, "Ynll", e.Members[1].Name.Source)
-	assert.NotEqual(t, e.Members[0].Name.Source, e.Members[1].Name.Source,
+	assert.Equal(t, ir.PrimitiveBytes, enum.ValueType, "byte members declare the byte primitive, not string")
+	require.Len(t, enum.Members, 2)
+	assert.Equal(t, "aGk=", enum.Members[0].Name.Source, "a byte member is named by its base64 text")
+	assert.Equal(t, "Ynll", enum.Members[1].Name.Source)
+	assert.NotEqual(t, enum.Members[0].Name.Source, enum.Members[1].Name.Source,
 		"distinct byte members must not collapse onto one name")
-	assert.NotEmpty(t, e.Members[0].Name.Canonical, "a named member has canonical words")
+	assert.NotEmpty(t, enum.Members[0].Name.Canonical, "a named member has canonical words")
 }
 
 func TestEnum_HeterogeneousBecomesUnionWithBadValue(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec("    Mixed:\n      enum: [active, .inf]\n")
 	doc, diags := schema.LowerSpec(t, spec)
-	u, ok := typeByName(doc, "Mixed").(*ir.Union)
+	union, ok := typeByName(doc, "Mixed").(*ir.Union)
 	require.True(t, ok, "heterogeneous enum lowers to a union of literals")
-	assert.Len(t, u.Variants, 2)
+	assert.Len(t, union.Variants, 2)
 	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"heterogeneous-enum info diagnostic")
 	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
@@ -834,8 +834,8 @@ func TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat(t *testing.T) {
 	members := enumOf(t, doc, componentID("N"))
 	assert.Equal(t, []string{"number:1e1", "number:1e1/2", "number:1e1/3", "number:1e2"}, memberKeys(members))
 	spelled := make([]ir.BigVal, 0, len(members))
-	for _, m := range members {
-		spelled = append(spelled, m.Value.Number)
+	for _, enumMember := range members {
+		spelled = append(spelled, enumMember.Value.Number)
 	}
 	assert.Equal(t, []ir.BigVal{"10", "10.0", "1e1", "100"}, spelled, "the value is kept as written")
 	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DuplicateEnumValue, ir.SeverityWarning))
@@ -863,8 +863,8 @@ func TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs(t *testing.T) {
 `))
 	members := enumOf(t, doc, componentID("E"))
 	require.Len(t, members, 3)
-	for _, m := range members {
-		assert.Empty(t, m.Name.Canonical, "%q has no words", m.Name.Source)
+	for _, enumMember := range members {
+		assert.Empty(t, enumMember.Name.Canonical, "%q has no words", enumMember.Name.Source)
 	}
 	assert.Equal(t, []string{"string:", "string:-", "string:!"}, memberKeys(members))
 }
@@ -898,8 +898,8 @@ func TestEnumMemberIDs_ReorderKeepsTheIDSet(t *testing.T) {
       type: string
       enum: `+order+"\n"))
 		out := map[string]ir.EnumMemberID{}
-		for _, m := range enumOf(t, doc, componentID("E")) {
-			out[m.Value.String] = m.ID
+		for _, enumMember := range enumOf(t, doc, componentID("E")) {
+			out[enumMember.Value.String] = enumMember.ID
 		}
 		return out
 	}
@@ -915,10 +915,10 @@ func TestEnumMemberIDs_RepeatedValueIsKeptSuffixedAndWarned(t *testing.T) {
 	assert.Equal(t, []string{"string:a", "string:b", "string:a/2", "string:a/3"}, memberKeys(enumOf(t, doc, componentID("E"))))
 
 	var at []string
-	for _, d := range diags {
-		if d.Code == diag.DuplicateEnumValue {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			at = append(at, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateEnumValue {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			at = append(at, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"/components/schemas/E/enum/2", "/components/schemas/E/enum/3"}, at)
@@ -954,10 +954,10 @@ func TestEnumRepeats_AreReportedWhateverTheSetLowersTo(t *testing.T) {
     Objects: {enum: [{x: 1, y: [a]}, {y: [a], x: 1.0}, {x: 1}, {x: "1"}]}
 `))
 	var at []string
-	for _, d := range diags {
-		if d.Code == diag.DuplicateEnumValue {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			at = append(at, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateEnumValue {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			at = append(at, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.ElementsMatch(t, []string{
@@ -1011,8 +1011,8 @@ func enumOf(t *testing.T, doc *ir.Document, id ir.TypeID) []ir.EnumMember {
 // repeat's occurrence number after it.
 func memberKeys(members []ir.EnumMember) []string {
 	keys := make([]string, 0, len(members))
-	for _, m := range members {
-		_, key, _ := strings.Cut(strings.TrimPrefix(string(m.ID), "enum-member/openapi/components/schemas/"), "/")
+	for _, enumMember := range members {
+		_, key, _ := strings.Cut(strings.TrimPrefix(string(enumMember.ID), "enum-member/openapi/components/schemas/"), "/")
 		keys = append(keys, key)
 	}
 	return keys

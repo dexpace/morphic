@@ -57,12 +57,12 @@ func appendRegistryIDDefect(vs []Violation, kind, reg, key, nodeID string, prov 
 	if !keyedByOwnID(key, nodeID) {
 		return vs
 	}
-	v, bad := idDefect(kind, key, prov)
+	violation, bad := idDefect(kind, key, prov)
 	if !bad {
 		return vs
 	}
-	v.Path = reg + "[" + key + "]"
-	return append(vs, v)
+	violation.Path = reg + "[" + key + "]"
+	return append(vs, violation)
 }
 
 // keyedByOwnID reports whether a registry entry's key is set and is its node's
@@ -129,12 +129,12 @@ func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflec
 	if pointerDerived[class] {
 		prov.Pointer = recordedPointer(node)
 	}
-	v, bad := idDefect(prefix, id, prov)
+	violation, bad := idDefect(prefix, id, prov)
 	if !bad {
 		return vs
 	}
-	v.Path = at.String()
-	return append(vs, v)
+	violation.Path = at.String()
+	return append(vs, violation)
 }
 
 // recordedPointer returns the pointer the Provenance beside a node's ID records,

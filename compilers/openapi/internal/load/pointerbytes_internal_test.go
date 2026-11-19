@@ -46,11 +46,11 @@ func TestLoad_RefusesLongKeysNestedDeepBeforeBuildingTheModel(t *testing.T) {
 	require.NoError(t, err, "a document too costly to name is a spec problem, not a Go error")
 	assert.Nil(t, got, "nothing is built")
 	require.Len(t, diags, 1)
-	d := diags[0]
-	assert.Equal(t, diag.PointerAmplification, d.Code)
-	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Equal(t, ir.Provenance{Source: 4}, d.Provenance, "at the document")
-	assert.Contains(t, d.Message, "the JSON pointers naming the document's nodes total ")
+	diagnostic := diags[0]
+	assert.Equal(t, diag.PointerAmplification, diagnostic.Code)
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+	assert.Equal(t, ir.Provenance{Source: 4}, diagnostic.Provenance, "at the document")
+	assert.Contains(t, diagnostic.Message, "the JSON pointers naming the document's nodes total ")
 }
 
 // TestLoad_ReportsAShapeOnceItsNestingRefuses pins that a document refused for

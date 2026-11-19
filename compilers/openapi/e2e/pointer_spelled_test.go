@@ -29,9 +29,9 @@ type spelledHop struct {
 	to         specrules.Kind
 }
 
-// spelledHops lists the steps from o to each object it holds: under a field or
+// spelledHops lists the steps from object to each object it holds: under a field or
 // a patterned key, in place, as a map's entry or as a list's item.
-func spelledHops(o specrules.Object) []spelledHop {
+func spelledHops(object specrules.Object) []spelledHop {
 	held := func(key string, shape specrules.Shape, of specrules.Kind) (spelledHop, bool) {
 		switch shape {
 		case specrules.Nested:
@@ -45,23 +45,23 @@ func spelledHops(o specrules.Object) []spelledHop {
 		}
 	}
 	var out []spelledHop
-	for _, f := range o.Fields {
-		if h, ok := held(f.Name, f.Shape, f.Of); ok {
-			out = append(out, h)
+	for _, field := range object.Fields {
+		if spelledHop, ok := held(field.Name, field.Shape, field.Of); ok {
+			out = append(out, spelledHop)
 		}
 	}
-	for _, p := range o.Patterned {
+	for _, pattern := range object.Patterned {
 		key := "k"
 		switch {
-		case o.Kind == specrules.Responses:
+		case object.Kind == specrules.Responses:
 			key = "'200'"
-		case strings.HasPrefix(p.Name, "/"):
+		case strings.HasPrefix(pattern.Name, "/"):
 			key = "/p"
-		case strings.Contains(p.Name, "{"):
+		case strings.Contains(pattern.Name, "{"):
 			key = "'{$url}'"
 		}
-		if h, ok := held(key, p.Shape, p.Of); ok {
-			out = append(out, h)
+		if spelledHop, ok := held(key, pattern.Shape, pattern.Of); ok {
+			out = append(out, spelledHop)
 		}
 	}
 	return out
@@ -72,13 +72,13 @@ func spelledHops(o specrules.Object) []spelledHop {
 func spelledReach(start specrules.Kind) map[specrules.Kind][]spelledHop {
 	out := map[specrules.Kind][]spelledHop{start: {}}
 	for queue := []specrules.Kind{start}; len(queue) > 0; queue = queue[1:] {
-		o, _ := specrules.Table().Object(queue[0])
-		for _, h := range spelledHops(o) {
-			if _, seen := out[h.to]; seen || h.to == specrules.Reference {
+		object, _ := specrules.Table().Object(queue[0])
+		for _, spelledHop := range spelledHops(object) {
+			if _, seen := out[spelledHop.to]; seen || spelledHop.to == specrules.Reference {
 				continue
 			}
-			out[h.to] = append(slices.Clone(out[queue[0]]), h)
-			queue = append(queue, h.to)
+			out[spelledHop.to] = append(slices.Clone(out[queue[0]]), spelledHop)
+			queue = append(queue, spelledHop.to)
 		}
 	}
 	return out
@@ -86,8 +86,8 @@ func spelledReach(start specrules.Kind) map[specrules.Kind][]spelledHop {
 
 // spelledWithin writes inner, an object's text, at the end of hops.
 func spelledWithin(hops []spelledHop, inner string) string {
-	for _, h := range slices.Backward(hops) {
-		inner = h.open + inner + h.shut
+	for _, spelledHop := range slices.Backward(hops) {
+		inner = spelledHop.open + inner + spelledHop.shut
 	}
 	return inner
 }
@@ -191,34 +191,34 @@ func spelledCases(version string, all bool) []spelledCase {
 	var cases []spelledCase
 	components, _ := specrules.Table().Object(specrules.Components)
 	fielded := map[string]bool{}
-	for _, c := range components.Fields {
-		for kind, hops := range spelledReach(c.Of) {
-			o, _ := specrules.Table().Object(kind)
-			for _, f := range o.Fields {
-				if c.Shape != specrules.Map || fielded[o.Name+" "+f.Name] {
+	for _, field := range components.Fields {
+		for kind, hops := range spelledReach(field.Of) {
+			object, _ := specrules.Table().Object(kind)
+			for _, specrulesField := range object.Fields {
+				if field.Shape != specrules.Map || fielded[object.Name+" "+specrulesField.Name] {
 					continue
 				}
-				fielded[o.Name+" "+f.Name] = true
-				for shape, value := range spelledShapes(f.Shape, all) {
-					cases = append(cases, spelledCase{name: c.Name + " " + o.Name + " " + f.Name + " as " + shape,
+				fielded[object.Name+" "+specrulesField.Name] = true
+				for shape, value := range spelledShapes(specrulesField.Shape, all) {
+					cases = append(cases, spelledCase{name: field.Name + " " + object.Name + " " + specrulesField.Name + " as " + shape,
 						doc: func(key string) string {
-							return head + key + ": " + spelledWithin(hops, "{"+f.Name+": "+value+"}") + "\n" +
-								"components: {" + c.Name + ": {A: {$ref: '#/" + key + "'}}}\n"
+							return head + key + ": " + spelledWithin(hops, "{"+specrulesField.Name+": "+value+"}") + "\n" +
+								"components: {" + field.Name + ": {A: {$ref: '#/" + key + "'}}}\n"
 						}})
 				}
 			}
 		}
 	}
 	for kind, hops := range spelledReach(specrules.Document) {
-		o, _ := specrules.Table().Object(kind)
+		object, _ := specrules.Table().Object(kind)
 		names := []string{"x-e", "zz"}
-		for _, f := range o.Fields {
-			if f.Shape == specrules.AnyShapeUnchecked || f.Shape == specrules.RawMap || f.Shape == specrules.RawList {
-				names = append(names, f.Name)
+		for _, field := range object.Fields {
+			if field.Shape == specrules.AnyShapeUnchecked || field.Shape == specrules.RawMap || field.Shape == specrules.RawList {
+				names = append(names, field.Name)
 			}
 		}
 		for _, name := range names {
-			cases = append(cases, spelledCase{name: "inside " + o.Name + " " + name, doc: func(key string) string {
+			cases = append(cases, spelledCase{name: "inside " + object.Name + " " + name, doc: func(key string) string {
 				body := spelledWithin(hops, "{"+name+": {"+key+": "+spelledMany(spelledRawEntries, true, "1")+"}}")
 				return head + strings.TrimSuffix(strings.TrimPrefix(body, "{"), "}") + "\n"
 			}})
@@ -287,8 +287,8 @@ func spellsWithinTheTotal(t *testing.T, cases []spelledCase) {
 	t.Helper()
 	short, long := strings.Repeat("K", spelledShortKey), strings.Repeat("K", spelledLongKey)
 	taken := 0
-	for _, c := range cases {
-		narrow, wide := c.doc(short), c.doc(long)
+	for _, spelledCase := range cases {
+		narrow, wide := spelledCase.doc(short), spelledCase.doc(long)
 		low, whole := reftable.NamedPointerBytes(t.Context(), openapitest.YAMLDocument(t, narrow), 1<<22)
 		high, alsoWhole := reftable.NamedPointerBytes(t.Context(), openapitest.YAMLDocument(t, wide), 1<<22)
 		if !whole || !alsoWhole {
@@ -303,7 +303,7 @@ func spellsWithinTheTotal(t *testing.T, cases []spelledCase) {
 			}
 			spent = min(spent, compileBytes(t, wide)-compileBytes(t, narrow))
 		}
-		assert.LessOrEqual(t, spent, allowed, "%s: the pointers spelled through the key, for %d bytes the total names", c.name, high-low)
+		assert.LessOrEqual(t, spent, allowed, "%s: the pointers spelled through the key, for %d bytes the total names", spelledCase.name, high-low)
 	}
 	require.Greater(t, taken, len(cases)*9/10, "the total is taken for the cases")
 }

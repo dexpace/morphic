@@ -157,15 +157,15 @@ func TestTypes_RegistryIsTheLiveMap(t *testing.T) {
 func TestTypes_RefusesEntriesTheRegistryCannotHold(t *testing.T) {
 	t.Parallel()
 	cases := map[string]func(*compile.Types){
-		"empty register id": func(x *compile.Types) { x.Register("", &ir.Any{}) },
-		"nil node":          func(x *compile.Types) { x.Register("type/x", nil) },
-		"typed nil node":    func(x *compile.Types) { x.Register("type/x", (*ir.Model)(nil)) },
-		"empty intern id":   func(x *compile.Types) { x.Intern("/p", "", func() ir.TypeDef { return &ir.Any{} }) },
-		"empty coordinate":  func(x *compile.Types) { x.Intern("", "type/x", func() ir.TypeDef { return &ir.Any{} }) },
-		"nil build":         func(x *compile.Types) { x.Intern("/p", "type/x", nil) },
-		"build returns nil": func(x *compile.Types) { x.Intern("/p", "type/x", func() ir.TypeDef { return nil }) },
-		"build returns typed nil": func(x *compile.Types) {
-			x.Intern("/p", "type/x", func() ir.TypeDef { return (*ir.Union)(nil) })
+		"empty register id": func(types *compile.Types) { types.Register("", &ir.Any{}) },
+		"nil node":          func(types *compile.Types) { types.Register("type/x", nil) },
+		"typed nil node":    func(types *compile.Types) { types.Register("type/x", (*ir.Model)(nil)) },
+		"empty intern id":   func(types *compile.Types) { types.Intern("/p", "", func() ir.TypeDef { return &ir.Any{} }) },
+		"empty coordinate":  func(types *compile.Types) { types.Intern("", "type/x", func() ir.TypeDef { return &ir.Any{} }) },
+		"nil build":         func(types *compile.Types) { types.Intern("/p", "type/x", nil) },
+		"build returns nil": func(types *compile.Types) { types.Intern("/p", "type/x", func() ir.TypeDef { return nil }) },
+		"build returns typed nil": func(types *compile.Types) {
+			types.Intern("/p", "type/x", func() ir.TypeDef { return (*ir.Union)(nil) })
 		},
 	}
 	for name, attempt := range cases {
@@ -257,13 +257,13 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 		name string
 		use  func(*compile.Types)
 	}{
-		{"minted after source-addressed", func(x *compile.Types) {
-			x.Intern("/p", "type/shared/p", func() ir.TypeDef { return &ir.Model{ID: "type/shared/p"} })
-			x.Register("type/shared/minted", &ir.Any{ID: "type/shared/minted"})
+		{"minted after source-addressed", func(types *compile.Types) {
+			types.Intern("/p", "type/shared/p", func() ir.TypeDef { return &ir.Model{ID: "type/shared/p"} })
+			types.Register("type/shared/minted", &ir.Any{ID: "type/shared/minted"})
 		}},
-		{"source-addressed after minted", func(x *compile.Types) {
-			x.Register("type/shared/minted", &ir.Any{ID: "type/shared/minted"})
-			x.Intern("/p", "type/shared/p", func() ir.TypeDef { return &ir.Model{ID: "type/shared/p"} })
+		{"source-addressed after minted", func(types *compile.Types) {
+			types.Register("type/shared/minted", &ir.Any{ID: "type/shared/minted"})
+			types.Intern("/p", "type/shared/p", func() ir.TypeDef { return &ir.Model{ID: "type/shared/p"} })
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

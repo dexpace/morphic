@@ -89,8 +89,8 @@ func TestApply_AttributesIntroducedPositions(t *testing.T) {
 		"/paths/~1owners",
 		"/paths/~1owners/get/operationId",
 	}
-	for _, p := range introduced {
-		assert.Equal(t, overlayIndex, origin.Attribution().WriterAt(p), "%s came from the overlay", p)
+	for _, pointer := range introduced {
+		assert.Equal(t, overlayIndex, origin.Attribution().WriterAt(pointer), "%s came from the overlay", pointer)
 	}
 
 	declared := []jsontext.Pointer{
@@ -103,8 +103,8 @@ func TestApply_AttributesIntroducedPositions(t *testing.T) {
 		"/paths/~1pets/get",
 		"/paths/~1owners/get/summary", // beneath what the overlay wrote, and nothing at all
 	}
-	for _, p := range declared {
-		assert.Equal(t, 0, origin.Attribution().WriterAt(p), "%s is the source's own", p)
+	for _, pointer := range declared {
+		assert.Equal(t, 0, origin.Attribution().WriterAt(pointer), "%s is the source's own", pointer)
 	}
 }
 
@@ -156,13 +156,13 @@ func TestApply_AttributesACopiedSubtree(t *testing.T) {
 	t.Parallel()
 	origin, _ := applyTo(t, v11+"  - target: $.components.schemas.Slot\n    copy: $.components.schemas.Pet\n")
 
-	for _, p := range []jsontext.Pointer{
+	for _, pointer := range []jsontext.Pointer{
 		"/components/schemas/Slot/properties",
 		"/components/schemas/Slot/properties/name",
 		"/components/schemas/Slot/properties/name/type",
 		"/components/schemas/Slot/type", // string, overwritten in place by object
 	} {
-		assert.Equal(t, overlayIndex, origin.Attribution().WriterAt(p), "the copy put %s here", p)
+		assert.Equal(t, overlayIndex, origin.Attribution().WriterAt(pointer), "the copy put %s here", pointer)
 	}
 	assert.Equal(t, 0, origin.Attribution().WriterAt("/components/schemas/Slot"),
 		"but the position it was copied onto is the source's own")

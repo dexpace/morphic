@@ -18,22 +18,22 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// PreserveInto records raw under key in p, located at prov, or records nothing
+// PreserveInto records raw under key in unmodeled, located at prov, or records nothing
 // when there are no bytes to record.
 //
 // len rather than a nil comparison: nil and a zero-length slice are distinct
 // states, and an empty payload is the worse of the two. It preserves no
 // construct, and it fails the encoding of the whole document that carries it.
-func PreserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
+func PreserveInto(unmodeled *ir.Unmodeled, key string, raw ir.RawValue,
 	reason ir.UnmodeledReason, prov ir.Provenance,
 ) {
 	if len(raw) == 0 {
 		return
 	}
-	if *p == nil {
-		*p = ir.Unmodeled{}
+	if *unmodeled == nil {
+		*unmodeled = ir.Unmodeled{}
 	}
-	(*p)[key] = ir.UnmodeledEntry{
+	(*unmodeled)[key] = ir.UnmodeledEntry{
 		Reason:     reason,
 		Value:      raw,
 		Provenance: prov,
@@ -49,7 +49,7 @@ func PreserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 // point: an absent node writes nothing and says nothing, because there was no
 // construct; a converted one writes the entry; an unconvertible one writes
 // nothing and yields the diagnostic that says so.
-func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
+func PreserveNodeInto(unmodeled *ir.Unmodeled, key string, node *yaml.Node,
 	reason ir.UnmodeledReason, prov ir.Provenance,
 ) (bool, []ir.Diagnostic) {
 	raw, err := RawFromNode(node)
@@ -59,26 +59,26 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 	if len(raw) == 0 {
 		return false, nil
 	}
-	PreserveInto(p, key, raw, reason, prov)
+	PreserveInto(unmodeled, key, raw, reason, prov)
 	return true, nil
 }
 
 // PreserveSchemaKeyword is PreserveNodeInto addressed by keyword: it keeps what
-// s, the schema at pointer, writes under keyword, keyed by EntryKey and located
+// schema, the schema at pointer, writes under keyword, keyed by EntryKey and located
 // at the keyword itself. Those are the key and the position the census checks
 // before keeping a keyword on its own (unrecorded). Deriving both here leaves
 // no caller a way to have the census keep the keyword again under another key,
 // or report a collision with this entry.
 //
 // An absent keyword is no construct: it keeps and places nothing.
-func PreserveSchemaKeyword(p *ir.Unmodeled, s *statement.Schema, keyword string,
+func PreserveSchemaKeyword(unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string,
 	reason ir.UnmodeledReason, pointer jsontext.Pointer, doc provenance.Doc,
 ) (bool, []ir.Diagnostic) {
-	node := keyNode(s, keyword)
+	node := keyNode(schema, keyword)
 	if node == nil {
 		return false, nil
 	}
-	return PreserveNodeInto(p, EntryKey("", keyword), node, reason, doc.At(pointer+ids.Ptr(keyword)))
+	return PreserveNodeInto(unmodeled, EntryKey("", keyword), node, reason, doc.At(pointer+ids.Ptr(keyword)))
 }
 
 // PreserveValidationOnlyKeyword is PreserveSchemaKeyword for a validation-only
@@ -88,10 +88,10 @@ func PreserveSchemaKeyword(p *ir.Unmodeled, s *statement.Schema, keyword string,
 // of, it announces nothing of. A validation-only entry combining several
 // keywords has no such node and is not kept here but by Read, which attributes
 // it by the keywords it holds (GitHub #534).
-func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *statement.Schema, keyword string,
+func PreserveValidationOnlyKeyword(unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string,
 	pointer jsontext.Pointer, doc provenance.Doc,
 ) []ir.Diagnostic {
-	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonValidationOnly, pointer, doc)
+	kept, diags := PreserveSchemaKeyword(unmodeled, schema, keyword, ir.ReasonValidationOnly, pointer, doc)
 	if !kept {
 		return diags
 	}
@@ -121,13 +121,13 @@ func unpreservableDiag(key string, prov ir.Provenance, err error) ir.Diagnostic 
 // saying message. An absent payload records nothing and announces nothing; an
 // unconvertible one never reaches here, because its caller reports it through
 // unpreservableDiag first.
-func preserveValidationOnlyInto(p *ir.Unmodeled, key string, raw ir.RawValue,
+func preserveValidationOnlyInto(unmodeled *ir.Unmodeled, key string, raw ir.RawValue,
 	entry, note ir.Provenance, message string,
 ) []ir.Diagnostic {
 	if len(raw) == 0 {
 		return nil
 	}
-	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entry)
+	PreserveInto(unmodeled, key, raw, ir.ReasonValidationOnly, entry)
 	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note, "%s", message)}
 }
 
@@ -143,32 +143,32 @@ func validationOnlyMessage(label string) string {
 	return fmt.Sprintf("validation-only keyword %q kept verbatim under Unmodeled", label)
 }
 
-// CopyEntriesInto writes onto p a copy of each entry of src, its value cloned,
+// CopyEntriesInto writes onto unmodeled a copy of each entry of src, its value cloned,
 // for a reader keeping one set of entries on several carriers. Unlike
-// MergeUnmodeled it never replaces an entry p holds: that one stays, and the
-// entry from src is reported missing from p (diag.UnknownKeyEntryAlreadyClaimed), in
+// MergeUnmodeled it never replaces an entry unmodeled holds: that one stays, and the
+// entry from src is reported missing from unmodeled (diag.UnknownKeyEntryAlreadyClaimed), in
 // key order as the census reports. Another carrier may hold it, so the finding
 // does not say the IR lacks it.
-func CopyEntriesInto(p *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic {
+func CopyEntriesInto(unmodeled *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic {
 	if len(src) == 0 {
 		return nil
 	}
-	if *p == nil {
-		*p = make(ir.Unmodeled, len(src))
+	if *unmodeled == nil {
+		*unmodeled = make(ir.Unmodeled, len(src))
 	}
 	var taken []string
 	for key, entry := range src {
-		if _, held := (*p)[key]; held {
+		if _, held := (*unmodeled)[key]; held {
 			taken = append(taken, key)
 			continue
 		}
 		entry.Value = entry.Value.Clone()
-		(*p)[key] = entry
+		(*unmodeled)[key] = entry
 	}
 	slices.Sort(taken)
 	var diags []ir.Diagnostic
 	for _, key := range taken {
-		diags = append(diags, refusedCopyDiag(key, src[key].Provenance, (*p)[key].Provenance.Pointer))
+		diags = append(diags, refusedCopyDiag(key, src[key].Provenance, (*unmodeled)[key].Provenance.Pointer))
 	}
 	return diags
 }

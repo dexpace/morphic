@@ -541,10 +541,10 @@ func testHelperViolations(root string) ([]string, int, error) {
 		return nil, 0, err
 	}
 	var violations []string
-	for _, h := range pending {
-		if called[declKey(path.Dir(h.rel), h.pkg, h.name)] || ast.IsExported(h.name) {
+	for _, pendingHelper := range pending {
+		if called[declKey(path.Dir(pendingHelper.rel), pendingHelper.pkg, pendingHelper.name)] || ast.IsExported(pendingHelper.name) {
 			violations = append(violations,
-				fmt.Sprintf("%s:%d: an asserting helper starts with its Helper call", h.rel, h.line))
+				fmt.Sprintf("%s:%d: an asserting helper starts with its Helper call", pendingHelper.rel, pendingHelper.line))
 		}
 	}
 	slices.Sort(violations)

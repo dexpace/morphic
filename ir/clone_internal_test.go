@@ -53,11 +53,11 @@ func TestCloner_CopiesMapEntriesInKeyOrder(t *testing.T) {
 	v := reflect.ValueOf(probe)
 
 	for range 64 {
-		c := cloner{copies: map[refKey]reflect.Value{}, ranging: &entryStack{}}
+		clonerValue := cloner{copies: map[refKey]reflect.Value{}, ranging: &entryStack{}}
 		out := reflect.New(v.Type()).Elem()
-		c.fill(out, v, 0)
+		clonerValue.fill(out, v, 0)
 
-		require.False(t, c.truncated, "the copy took the deep entry first")
+		require.False(t, clonerValue.truncated, "the copy took the deep entry first")
 		cp, _ := reflect.TypeAssert[cloneProbe](out)
 		assert.Same(t, cp.Entries["a"].Next, chainEnd(cp.Entries["b"], deep),
 			"the shared chain is copied once")

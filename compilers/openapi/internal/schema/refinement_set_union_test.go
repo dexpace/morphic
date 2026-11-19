@@ -46,9 +46,9 @@ func TestRefinementSetUnion_AUnionTheValueSetStandsBesideIsKept(t *testing.T) {
 				assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason, "%s %s %s", union, set, name)
 				written := "/components/schemas/" + component + sp.at
 				assert.Equal(t, jsontext.Pointer(written), kept.Provenance.Pointer, "%s %s %s", union, set, name)
-				reported := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-					return d.Severity == ir.SeverityInfo && strings.HasPrefix(written, string(d.Provenance.Pointer)) &&
-						strings.Contains(d.Message, union)
+				reported := slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+					return diagnostic.Severity == ir.SeverityInfo && strings.HasPrefix(written, string(diagnostic.Provenance.Pointer)) &&
+						strings.Contains(diagnostic.Message, union)
 				})
 				assert.True(t, reported, "%s %s %s: the union kept is reported", union, set, name)
 			}

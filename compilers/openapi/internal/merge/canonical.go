@@ -11,33 +11,33 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// canonicalValue spells v so that two JSON-equal values spell alike: a number
+// canonicalValue spells value so that two JSON-equal values spell alike: a number
 // by its value (ir.Decimal.String), an object by its members in name
 // order. ok is false for a kind JSON has no instance of, a number no Decimal
 // holds, or nesting past maxJudgeDepth.
-func canonicalValue(v ir.Value, depth int) (string, bool) {
+func canonicalValue(value ir.Value, depth int) (string, bool) {
 	if depth > maxJudgeDepth {
 		return "", false
 	}
-	switch v.Kind {
+	switch value.Kind {
 	case ir.ValueNull:
 		return "null", true
 	case ir.ValueBool:
-		return strconv.FormatBool(v.Bool), true
+		return strconv.FormatBool(value.Bool), true
 	case ir.ValueString:
-		return strconv.Quote(v.String), true
+		return strconv.Quote(value.String), true
 	case ir.ValueNumber:
-		d, err := v.Number.Decimal()
+		decimal, err := value.Number.Decimal()
 		if err != nil {
 			return "", false
 		}
-		return d.String(), true
+		return decimal.String(), true
 	case ir.ValueList:
-		return canonicalMembers("[", "]", len(v.List), func(i int) (string, bool) {
-			return canonicalValue(v.List[i], depth+1)
+		return canonicalMembers("[", "]", len(value.List), func(i int) (string, bool) {
+			return canonicalValue(value.List[i], depth+1)
 		})
 	case ir.ValueObject:
-		fields := slices.SortedFunc(slices.Values(v.Object), func(a, b ir.Field) int { return strings.Compare(a.Name, b.Name) })
+		fields := slices.SortedFunc(slices.Values(value.Object), func(a, b ir.Field) int { return strings.Compare(a.Name, b.Name) })
 		return canonicalMembers("{", "}", len(fields), func(i int) (string, bool) {
 			member, ok := canonicalValue(fields[i].Value, depth+1)
 			return strconv.Quote(fields[i].Name) + ":" + member, ok

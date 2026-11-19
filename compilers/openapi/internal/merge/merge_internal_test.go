@@ -56,15 +56,17 @@ func atRoot(walk FieldDeclarationContext) declarationSites {
 	return declarationSites{walk: walk, written: [2][]ir.Provenance{sitesAt(""), sitesAt("")}}
 }
 
-// judge is the type judgment over the registry g reads, its declarations read
+// judge is the type judgment over the registry stubbedValue reads, its declarations read
 // against one base.
-func judge(g *stubbed) typeJudge {
-	return typeJudge{resolve: g.resolve, sites: atRoot(g.walk)}
+func judge(stubbedValue *stubbed) typeJudge {
+	return typeJudge{resolve: stubbedValue.resolve, sites: atRoot(stubbedValue.walk)}
 }
 
 // untypedAt reports whether a node of a registry is written under /untyped,
 // whose sources state no instance type and so admit every kind.
-func untypedAt(p ir.Provenance) bool { return strings.HasPrefix(string(p.Pointer), "/untyped/") }
+func untypedAt(provenance ir.Provenance) bool {
+	return strings.HasPrefix(string(provenance.Pointer), "/untyped/")
+}
 
 // stubbed is a Merger over a plain map and a stub walk, which records what its
 // folds report, so the conflict lattice can be driven with no lowerer, parser
@@ -140,20 +142,20 @@ func mintedProp(pointer jsontext.Pointer) ir.PropertyID {
 // foldTwo folds src, rendered by source, into dst, a first declaration
 // rendered as firstSource: the pair the walk hands over for one redeclared
 // field.
-func foldTwo(g *stubbed, dst, src ir.Property, source DeclarationConstructRenderer) ir.Property {
-	return g.fold([]declaration{{prop: dst, source: written(firstSource)}, {prop: src, source: source}})
+func foldTwo(stubbedValue *stubbed, dst, src ir.Property, source DeclarationConstructRenderer) ir.Property {
+	return stubbedValue.fold([]declaration{{prop: dst, source: written(firstSource)}, {prop: src, source: source}})
 }
 
 // firstSource is how foldTwo renders its first declaration.
 const firstSource = `{"declared":"first"}`
 
-// indexOver returns an index filling m, and settle, which folds what the index
-// queued through g, recording what they report, as Finish takes the compiler's
+// indexOver returns an index filling model, and settle, which folds what the index
+// queued through stubbedValue, recording what they report, as Finish takes the compiler's
 // completions once every lowering has returned.
-func indexOver(m *ir.Model, g *stubbed) (idx *ModelPropertyDeclarations, settle func()) {
-	idx = NewModelPropertyDeclarations(m)
+func indexOver(model *ir.Model, stubbedValue *stubbed) (idx *ModelPropertyDeclarations, settle func()) {
+	idx = NewModelPropertyDeclarations(model)
 	return idx, func() {
-		*g.recorded = append(*g.recorded, settleFlat(g, idx, g.Reg)...)
+		*stubbedValue.recorded = append(*stubbedValue.recorded, settleFlat(stubbedValue, idx, stubbedValue.Reg)...)
 	}
 }
 
@@ -165,8 +167,8 @@ func indexOver(m *ir.Model, g *stubbed) (idx *ModelPropertyDeclarations, settle 
 func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	t.Parallel()
 	reg := ir.TypeRegistry{"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString}}
-	m := &ir.Model{ID: "type/m"}
-	idx := NewModelPropertyDeclarations(m)
+	model := &ir.Model{ID: "type/m"}
+	idx := NewModelPropertyDeclarations(model)
 
 	w := func(at string) ir.Property {
 		return ir.Property{WireName: "w", Type: ir.TypeRef{Target: "type/str"}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/w"))}
@@ -185,23 +187,23 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 
 	assert.Equal(t, []bool{false, false, true, false, false}, firsts,
 		"one settlement per model, at its first redeclaration, however many fields are redeclared")
-	require.Len(t, m.Properties, 2, "a redeclaration adds no property")
-	assert.Equal(t, ir.TypeID("type/str"), m.Properties[0].Type.Target, "nothing is folded before the settlement runs")
-	assert.Empty(t, m.Properties[0].Unmodeled)
+	require.Len(t, model.Properties, 2, "a redeclaration adds no property")
+	assert.Equal(t, ir.TypeID("type/str"), model.Properties[0].Type.Target, "nothing is folded before the settlement runs")
+	assert.Empty(t, model.Properties[0].Unmodeled)
 
 	reg["type/uri"] = &ir.Primitive{ID: "type/uri", PrimitiveKind: ir.PrimitiveURL}
 	reg["type/bool"] = &ir.Primitive{ID: "type/bool", PrimitiveKind: ir.PrimitiveBool}
-	g, _ := stubMerger(reg)
-	settled := settleFlat(g, idx, reg)
+	stubbed, _ := stubMerger(reg)
+	settled := settleFlat(stubbed, idx, reg)
 
-	assert.Equal(t, ir.TypeID("type/uri"), m.Properties[0].Type.Target,
+	assert.Equal(t, ir.TypeID("type/uri"), model.Properties[0].Type.Target,
 		"the narrower type wins, judged against a node the walk had not built")
 	require.Len(t, settled, 1)
 	assert.Equal(t, diag.ConflictingRedecl, settled[0].Code)
 	assert.Equal(t, ptrAt("/allOf/2/properties/v").Pointer, settled[0].Provenance.Pointer)
-	assert.Equal(t, []string{losingDeclarationKey + "/allOf/2/properties/v"}, slices.Sorted(maps.Keys(m.Properties[0].Unmodeled)),
+	assert.Equal(t, []string{losingDeclarationKey + "/allOf/2/properties/v"}, slices.Sorted(maps.Keys(model.Properties[0].Unmodeled)),
 		"the losing declaration is kept, and only it")
-	assert.Equal(t, ir.TypeID("type/str"), m.Properties[1].Type.Target, "a field declared once is left as declared")
+	assert.Equal(t, ir.TypeID("type/str"), model.Properties[1].Type.Target, "a field declared once is left as declared")
 }
 
 // TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing pins the common path:
@@ -209,16 +211,16 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 // hands no settlement over.
 func TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{ID: "type/m"}
-	idx := NewModelPropertyDeclarations(m)
+	model := &ir.Model{ID: "type/m"}
+	idx := NewModelPropertyDeclarations(model)
 
 	assert.False(t, idx.MergeProperty(ir.Property{WireName: "a", Provenance: ptrAt("/properties/a")}, unread(t), ""))
 	assert.False(t, idx.MergeProperty(ir.Property{WireName: "b", Provenance: ptrAt("/properties/b")}, unread(t), ""),
 		"a model with no redeclaration queues no fold")
 
-	require.Len(t, m.Properties, 2)
-	assert.Equal(t, "a", m.Properties[0].WireName)
-	assert.Equal(t, "b", m.Properties[1].WireName)
+	require.Len(t, model.Properties, 2)
+	assert.Equal(t, "a", model.Properties[0].WireName)
+	assert.Equal(t, "b", model.Properties[1].WireName)
 }
 
 // TestWireNameIndex_KeysEveryPropertyByItsWireName pins the index a
@@ -239,22 +241,22 @@ func TestWireNameIndex_KeysEveryPropertyByItsWireName(t *testing.T) {
 // appended beside it.
 func TestMergeProperty_AppendsThenFolds(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(nil)
-	m := &ir.Model{}
-	idx, settle := indexOver(m, g)
+	stubbed, recorded := stubMerger(nil)
+	model := &ir.Model{}
+	idx, settle := indexOver(model, stubbed)
 
 	idx.MergeProperty(ir.Property{WireName: "id", Required: true, Provenance: ptrAt("/p")}, unread(t), "")
 	idx.MergeProperty(ir.Property{WireName: "name", Provenance: ptrAt("/p")}, unread(t), "")
 
-	require.Len(t, m.Properties, 2, "two distinct wire names are two properties")
+	require.Len(t, model.Properties, 2, "two distinct wire names are two properties")
 	assert.Equal(t, 0, idx.byWire["id"].pos)
 	assert.Equal(t, 1, idx.byWire["name"].pos)
 
 	idx.MergeProperty(ir.Property{WireName: "id", Secret: true, Provenance: ptrAt("/other")}, unread(t), "")
 	settle()
 
-	require.Len(t, m.Properties, 2, "a redeclaration folds rather than appending")
-	assert.True(t, m.Properties[0].Required, "required is kept from the first declaration")
-	assert.True(t, m.Properties[0].Secret, "and OR-ed with the redeclaration's")
+	require.Len(t, model.Properties, 2, "a redeclaration folds rather than appending")
+	assert.True(t, model.Properties[0].Required, "required is kept from the first declaration")
+	assert.True(t, model.Properties[0].Secret, "and OR-ed with the redeclaration's")
 	assert.Empty(t, *recorded, "agreeing declarations are not a conflict")
 }

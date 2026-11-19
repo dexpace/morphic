@@ -24,27 +24,27 @@ import (
 // of kept says and decided each of members, as reportsOf reads one of a
 // source whose reversed sequences are seqs.
 func conflictAt(seqs sequences, lost string, kept []string, members ...string) report {
-	d := diagnostic(ir.SeverityWarning, "x/conflict", lost, "")
+	irDiagnostic := diagnostic(ir.SeverityWarning, "x/conflict", lost, "")
 	for _, at := range kept {
-		d.Related = append(d.Related, ir.Related{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: jsontext.Pointer(at)}})
+		irDiagnostic.Related = append(irDiagnostic.Related, ir.Related{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: jsontext.Pointer(at)}})
 	}
 	for _, member := range members {
-		d.Related = append(d.Related, ir.Related{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: member}})
+		irDiagnostic.Related = append(irDiagnostic.Related, ir.Related{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: member}})
 	}
-	return reportsOf([]ir.Diagnostic{d}, nil, seqs)[0]
+	return reportsOf([]ir.Diagnostic{irDiagnostic}, nil, seqs)[0]
 }
 
-// atSeverity is r said at sev, as reportsOf reads a report.
-func atSeverity(r report, sev ir.Severity) report {
-	r.rebased.Severity = sev
-	return r
+// atSeverity is reportValue said at sev, as reportsOf reads a report.
+func atSeverity(reportValue report, sev ir.Severity) report {
+	reportValue.rebased.Severity = sev
+	return reportValue
 }
 
 // decisionsOf is the decisions facts state, in order.
 func decisionsOf(facts []fact) []decision {
 	out := make([]decision, len(facts))
-	for i, f := range facts {
-		out[i] = f.decision
+	for i, fact := range facts {
+		out[i] = fact.decision
 	}
 	return out
 }
@@ -97,17 +97,17 @@ func TestSayingOf_ReadsWhatAReportSaysBesideItsPlaces(t *testing.T) {
 	assert.Equal(t, sayingOf(base, ir.Provenance{Source: ir.NoSource, Pointer: "/M/allOf/0"}, seqs),
 		sayingOf(base, ir.Provenance{Source: ir.NoSource, Pointer: "/M/allOf/1"}, seqs), "an index of a reversed sequence is erased")
 	for name, change := range map[string]func(*ir.Diagnostic, *ir.Provenance){
-		"severity": func(d *ir.Diagnostic, _ *ir.Provenance) { d.Severity = ir.SeverityInfo },
-		"code":     func(d *ir.Diagnostic, _ *ir.Provenance) { d.Code = "x/other" },
-		"source":   func(_ *ir.Diagnostic, p *ir.Provenance) { p.Source = 0 },
-		"pointer":  func(_ *ir.Diagnostic, p *ir.Provenance) { p.Pointer = "/M" },
-		"writer":   func(_ *ir.Diagnostic, p *ir.Provenance) { p.WrittenBy = 1 },
-		"position": func(_ *ir.Diagnostic, p *ir.Provenance) { p.Position = ir.Position{Line: 1} },
-		"inferred": func(_ *ir.Diagnostic, p *ir.Provenance) { p.Inferred = "h" },
+		"severity": func(diagnostic *ir.Diagnostic, _ *ir.Provenance) { diagnostic.Severity = ir.SeverityInfo },
+		"code":     func(diagnostic *ir.Diagnostic, _ *ir.Provenance) { diagnostic.Code = "x/other" },
+		"source":   func(_ *ir.Diagnostic, provenance *ir.Provenance) { provenance.Source = 0 },
+		"pointer":  func(_ *ir.Diagnostic, provenance *ir.Provenance) { provenance.Pointer = "/M" },
+		"writer":   func(_ *ir.Diagnostic, provenance *ir.Provenance) { provenance.WrittenBy = 1 },
+		"position": func(_ *ir.Diagnostic, provenance *ir.Provenance) { provenance.Position = ir.Position{Line: 1} },
+		"inferred": func(_ *ir.Diagnostic, provenance *ir.Provenance) { provenance.Inferred = "h" },
 	} {
-		d, p := base, member
-		change(&d, &p)
-		assert.NotEqual(t, want, sayingOf(d, p, seqs), name)
+		diagnostic, provenance := base, member
+		change(&diagnostic, &provenance)
+		assert.NotEqual(t, want, sayingOf(diagnostic, provenance, seqs), name)
 	}
 }
 
@@ -234,10 +234,10 @@ func TestUnpairedFacts_ComparesThePlaceKeptByTheTypeItsDeclarationNames(t *testi
 	t.Parallel()
 	seqs := sequences{}
 	keptBy := func(kept, by string) ([]fact, report) {
-		r := conflictAt(seqs, "/B/p", []string{kept}, "property/W/p")
-		facts, _ := factsOf([]report{r}, seqs)
+		reportValue := conflictAt(seqs, "/B/p", []string{kept}, "property/W/p")
+		facts, _ := factsOf([]report{reportValue}, seqs)
 		facts[0].keptBy = by
-		return facts, r
+		return facts, reportValue
 	}
 	string1, _ := keptBy("/A/p", "type/primitive/string false")
 	string2, _ := keptBy("/C/p", "type/primitive/string false")
@@ -299,19 +299,19 @@ func TestHeldBy_ReadsWhatAMemberTakesAndWhatItsDeclarationsSay(t *testing.T) {
 
 	alphaP, betaP := "/components/schemas/alpha/properties/p", "/components/schemas/beta/properties/p"
 	alphaQ, betaQ := "/components/schemas/alpha/properties/q", "/components/schemas/beta/properties/q"
-	p := held{takes: "type/primitive/integer false",
+	heldValue := held{takes: "type/primitive/integer false",
 		said:  map[string]string{alphaP: "type/primitive/string false", betaP: "type/primitive/integer false"},
 		named: map[string]string{alphaP: "type/primitive/string", betaP: "type/primitive/integer"},
 	}
-	q := held{takes: "type/primitive/string false",
+	otherHeld := held{takes: "type/primitive/string false",
 		said:  map[string]string{alphaQ: "type/primitive/string false", betaQ: "type/primitive/string false"},
 		named: map[string]string{alphaQ: "type/primitive/string", betaQ: "type/primitive/string"},
 	}
 	assert.Equal(t, map[string]held{
-		"property/composed/components/schemas/AB/allOf/properties/p":  p,
-		"property/composed/components/schemas/AB2/allOf/properties/p": p,
-		"property/composed/components/schemas/AB/allOf/properties/q":  q,
-		"property/composed/components/schemas/AB2/allOf/properties/q": q,
+		"property/composed/components/schemas/AB/allOf/properties/p":  heldValue,
+		"property/composed/components/schemas/AB2/allOf/properties/p": heldValue,
+		"property/composed/components/schemas/AB/allOf/properties/q":  otherHeld,
+		"property/composed/components/schemas/AB2/allOf/properties/q": otherHeld,
 	}, got)
 	assert.Empty(t, heldBy(nil, perm.written, nil))
 }
@@ -358,14 +358,14 @@ func TestContradicted_FindsATiedMemberTakingWhatItsReportsSayLost(t *testing.T) 
 	swapped := func(doc *ir.Document, target ir.TypeID) *ir.Document {
 		out := *doc
 		out.Types = maps.Clone(doc.Types)
-		m := *doc.Types[abID].(*ir.Model)
-		m.Properties = slices.Clone(m.Properties)
-		for i := range m.Properties {
-			if m.Properties[i].WireName == "p" {
-				m.Properties[i].Type.Target = target
+		model := *doc.Types[abID].(*ir.Model)
+		model.Properties = slices.Clone(model.Properties)
+		for i := range model.Properties {
+			if model.Properties[i].WireName == "p" {
+				model.Properties[i].Type.Target = target
 			}
 		}
-		out.Types[abID] = &m
+		out.Types[abID] = &model
 		return &out
 	}
 	wrongWritten, wrongReversed := swapped(first, "type/primitive/string"), swapped(second, "type/primitive/integer")
@@ -477,17 +477,17 @@ func TestSequenceOrderInvariant_FindsOnlyARealDependenceInGeneratedRedeclaration
 // that disagree explains.
 func namesAlikeNodesByOrder(first, second *ir.Document, perm permutation) bool {
 	for id, td := range first.Types {
-		m, isModel := td.(*ir.Model)
+		model, isModel := td.(*ir.Model)
 		other, alsoModel := second.Types[id].(*ir.Model)
 		if !isModel || !alsoModel {
 			continue
 		}
-		for _, p := range m.Properties {
-			i := slices.IndexFunc(other.Properties, func(q ir.Property) bool { return q.WireName == p.WireName })
+		for _, property := range model.Properties {
+			i := slices.IndexFunc(other.Properties, func(irProperty ir.Property) bool { return irProperty.WireName == property.WireName })
 			if i < 0 {
 				continue
 			}
-			a, b := p.Type.Target, other.Properties[i].Type.Target
+			a, b := property.Type.Target, other.Properties[i].Type.Target
 			if erase(string(a), perm.written) != erase(string(b), perm.moved) && said(first, a, 0) == said(second, b, 0) {
 				return true
 			}
@@ -506,8 +506,8 @@ func said(doc *ir.Document, id ir.TypeID, depth int) string {
 	switch td := doc.Types[id].(type) {
 	case *ir.Model:
 		members := make([]string, len(td.Properties))
-		for i, p := range td.Properties {
-			members[i] = p.WireName + ":" + said(doc, p.Type.Target, depth+1)
+		for i, property := range td.Properties {
+			members[i] = property.WireName + ":" + said(doc, property.Type.Target, depth+1)
 		}
 		slices.Sort(members)
 		return "model{" + strings.Join(members, ",") + "}"
@@ -666,25 +666,27 @@ func TestStatedAlone_LeavesOutWhatAnotherTieReaches(t *testing.T) {
 func TestDiagnosticKey_ReadsWhatElseADiagnosticConcerns(t *testing.T) {
 	t.Parallel()
 	base := func() ir.Diagnostic {
-		d := diagnostic(ir.SeverityWarning, "x/conflict", "/A/p", "")
-		d.Related = []ir.Related{
+		irDiagnostic := diagnostic(ir.SeverityWarning, "x/conflict", "/A/p", "")
+		irDiagnostic.Related = []ir.Related{
 			{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/B/p"}},
 			{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/M/p"}},
 		}
-		return d
+		return irDiagnostic
 	}
 	same := base()
 	assert.Equal(t, diagnosticKey(base()), diagnosticKey(same))
 	for name, change := range map[string]func(*ir.Diagnostic){
-		"no entries": func(d *ir.Diagnostic) { d.Related = nil },
-		"role":       func(d *ir.Diagnostic) { d.Related[0].Role = ir.RelatedDecided },
-		"pointer":    func(d *ir.Diagnostic) { d.Related[0].Provenance.Pointer = "/C/p" },
-		"node":       func(d *ir.Diagnostic) { d.Related[1].Provenance.Node = "property/N/p" },
-		"source":     func(d *ir.Diagnostic) { d.Related[0].Provenance.Source = 1 },
-		"writer":     func(d *ir.Diagnostic) { d.Related[0].Provenance.WrittenBy = 1 },
-		"positioned": func(d *ir.Diagnostic) { d.Related[0].Provenance.Position = ir.Position{Line: 1} },
-		"inferred":   func(d *ir.Diagnostic) { d.Related[1].Provenance.Inferred = "h" },
-		"order":      func(d *ir.Diagnostic) { d.Related[0], d.Related[1] = d.Related[1], d.Related[0] },
+		"no entries": func(diagnostic *ir.Diagnostic) { diagnostic.Related = nil },
+		"role":       func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Role = ir.RelatedDecided },
+		"pointer":    func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Provenance.Pointer = "/C/p" },
+		"node":       func(diagnostic *ir.Diagnostic) { diagnostic.Related[1].Provenance.Node = "property/N/p" },
+		"source":     func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Provenance.Source = 1 },
+		"writer":     func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Provenance.WrittenBy = 1 },
+		"positioned": func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Provenance.Position = ir.Position{Line: 1} },
+		"inferred":   func(diagnostic *ir.Diagnostic) { diagnostic.Related[1].Provenance.Inferred = "h" },
+		"order": func(diagnostic *ir.Diagnostic) {
+			diagnostic.Related[0], diagnostic.Related[1] = diagnostic.Related[1], diagnostic.Related[0]
+		},
 	} {
 		changed := base()
 		change(&changed)

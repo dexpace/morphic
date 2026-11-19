@@ -120,18 +120,18 @@ func TestTree_NodeTakesTheOverlaysPlaceOverTheTrees(t *testing.T) {
 // positionAtPointer returns the position pointer names in positions, recording it and every
 // position above it.
 func positionAtPointer(positions *provenance.Positions, pointer jsontext.Pointer) *provenance.Position {
-	p := positions.Root()
+	position := positions.Root()
 	for token := range pointer.Tokens() {
-		p = positions.Child(p, token)
+		position = positions.Child(position, token)
 	}
-	return p
+	return position
 }
 
 // written returns a record of the positions pointers name, each written.
 func written(pointers ...jsontext.Pointer) *provenance.Positions {
 	positions := provenance.NewPositions()
-	for _, p := range pointers {
-		positionAtPointer(positions, p).Write()
+	for _, pointer := range pointers {
+		positionAtPointer(positions, pointer).Write()
 	}
 	return positions
 }

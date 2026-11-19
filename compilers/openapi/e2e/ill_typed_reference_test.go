@@ -144,9 +144,9 @@ var refPositions = []refPosition{
 // renderEmpty writes the position's document with its entry written as the
 // item {} in place of its $ref.
 func (p refPosition) renderEmpty(version string) string {
-	q := p
-	q.body = regexp.MustCompile(`:\n@@ *\$ref:\n`).ReplaceAllString(p.body, ": {}\n")
-	return q.render(version, "", false)
+	refPositionValue := p
+	refPositionValue.body = regexp.MustCompile(`:\n@@ *\$ref:\n`).ReplaceAllString(p.body, ": {}\n")
+	return refPositionValue.render(version, "", false)
 }
 
 // refSpellings are the three ways a $ref can be written null.
@@ -181,43 +181,43 @@ func (p refPosition) render(version, spelling string, leftOut bool) string {
 // the item is read for what it writes.
 func TestCompile_ANullRefOfAReferenceObjectLeavesTheEntryOut(t *testing.T) {
 	t.Parallel()
-	for _, p := range refPositions {
+	for _, refPosition := range refPositions {
 		for _, version := range refVersions {
-			if p.since31 && version == "3.0.3" {
+			if refPosition.since31 && version == "3.0.3" {
 				continue
 			}
-			controlText := p.render(version, "", true)
-			if p.emptyItem {
-				controlText = p.renderEmpty(version)
+			controlText := refPosition.render(version, "", true)
+			if refPosition.emptyItem {
+				controlText = refPosition.renderEmpty(version)
 			}
 			control, controlDiags := compileText(t, "spec.yaml", controlText, openapi.Options{})
-			require.NotNil(t, control, "%s on %s", p.name, version)
-			require.Empty(t, controlDiags, "the document without the entry is valid: %s on %s: %+v", p.name, version, controlDiags)
+			require.NotNil(t, control, "%s on %s", refPosition.name, version)
+			require.Empty(t, controlDiags, "the document without the entry is valid: %s on %s: %+v", refPosition.name, version, controlDiags)
 			want := jsonOf(t, control)
-			if p.emptyItem {
+			if refPosition.emptyItem {
 				// A component kept verbatim shows the null $ref the source wrote.
 				want = strings.Replace(want, `"value":{}`, `"value":{"$ref":null}`, 1)
 			}
 
 			for _, spelling := range refSpellings {
-				t.Run(p.name+" on "+version+" spelled $ref:"+spelling, func(t *testing.T) {
+				t.Run(refPosition.name+" on "+version+" spelled $ref:"+spelling, func(t *testing.T) {
 					t.Parallel()
-					doc, diags := compileText(t, "spec.yaml", p.render(version, spelling, false), openapi.Options{})
+					doc, diags := compileText(t, "spec.yaml", refPosition.render(version, spelling, false), openapi.Options{})
 
 					require.NotNil(t, doc, "the source is read, not refused: %+v", diags)
 					require.Len(t, diags, 1, "one finding, at the node: %+v", diags)
 					assert.Equal(t, typeMismatch, diags[0].Code)
-					assert.Equal(t, p.pointer, string(diags[0].Provenance.Pointer))
-					if p.pathItem && spelling != "" {
+					assert.Equal(t, refPosition.pointer, string(diags[0].Provenance.Pointer))
+					if refPosition.pathItem && spelling != "" {
 						assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
 						assert.Contains(t, diags[0].Message, "it is null, which is read as the field left out")
 					}
-					if !p.pathItem {
+					if !refPosition.pathItem {
 						assert.Equal(t, ir.SeverityError, diags[0].Severity)
 					}
-					if p.kept != "" {
-						assert.JSONEq(t, `{"$ref":null}`, string(doc.Unmodeled[p.kept].Value), "a verbatim copy shows the source")
-						delete(doc.Unmodeled, p.kept)
+					if refPosition.kept != "" {
+						assert.JSONEq(t, `{"$ref":null}`, string(doc.Unmodeled[refPosition.kept].Value), "a verbatim copy shows the source")
+						delete(doc.Unmodeled, refPosition.kept)
 					}
 					assert.Equal(t, want, jsonOf(t, doc), "the entry is left out, or for an item kept, read as {}")
 				})
@@ -271,9 +271,9 @@ func TestCompile_APathItemRefThatIsNoStringIsTheItemsOwnField(t *testing.T) {
 	assert.Equal(t, map[string]bool{"b": true, "c": true, "d": true}, names)
 
 	got := map[string]ir.Severity{}
-	for _, d := range diags {
-		assert.Equal(t, typeMismatch, d.Code, "only the $ref is reported: %+v", d)
-		got[string(d.Provenance.Pointer)] = d.Severity
+	for _, diagnostic := range diags {
+		assert.Equal(t, typeMismatch, diagnostic.Code, "only the $ref is reported: %+v", diagnostic)
+		got[string(diagnostic.Provenance.Pointer)] = diagnostic.Severity
 	}
 	assert.Equal(t, map[string]ir.Severity{
 		"/paths/~1b/$ref": ir.SeverityError,
@@ -352,9 +352,9 @@ func TestCompile_AnAliasedNullRefIsReadWithoutAFault(t *testing.T) {
 
 		require.NotNil(t, doc, "$ref:%s: %+v", spelling, diags)
 		require.NotEmpty(t, diags)
-		for _, d := range diags {
-			assert.Equal(t, typeMismatch, d.Code, "%+v", d)
-			assert.True(t, strings.HasSuffix(string(d.Provenance.Pointer), "/$ref"), "%+v", d)
+		for _, diagnostic := range diags {
+			assert.Equal(t, typeMismatch, diagnostic.Code, "%+v", diagnostic)
+			assert.True(t, strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/$ref"), "%+v", diagnostic)
 		}
 		ops := allOperations(doc)
 		require.Len(t, ops, 1)

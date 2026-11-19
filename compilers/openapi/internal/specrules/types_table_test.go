@@ -28,12 +28,12 @@ func minors() []specrules.Minor {
 // keep in step.
 func declaredKinds(t *testing.T) []specrules.Kind {
 	t.Helper()
-	p, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/specrules")
+	loadedPackage, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/specrules")
 	require.NoError(t, err)
-	kind, err := p.Named("Kind")
+	kind, err := loadedPackage.Named("Kind")
 	require.NoError(t, err)
 	var out []specrules.Kind
-	for c := range p.Objects[*types.Const]() {
+	for c := range loadedPackage.Objects[*types.Const]() {
 		if !types.Identical(c.Type(), kind) {
 			continue
 		}
@@ -52,16 +52,16 @@ func TestTable_EveryKindHasOneObject(t *testing.T) {
 	spec := specrules.Table()
 	kinds := declaredKinds(t)
 	seen := map[specrules.Kind]bool{}
-	for _, o := range spec.Objects() {
-		assert.False(t, seen[o.Kind], "%s is declared twice", o.Name)
-		assert.Contains(t, kinds, o.Kind, "%s is of no declared kind", o.Name)
-		assert.NotEmpty(t, o.Name)
-		seen[o.Kind] = true
+	for _, object := range spec.Objects() {
+		assert.False(t, seen[object.Kind], "%s is declared twice", object.Name)
+		assert.Contains(t, kinds, object.Kind, "%s is of no declared kind", object.Name)
+		assert.NotEmpty(t, object.Name)
+		seen[object.Kind] = true
 	}
-	for _, k := range kinds {
-		got, ok := spec.Object(k)
-		require.True(t, ok, "kind %d has no object", k)
-		assert.Equal(t, k, got.Kind)
+	for _, kind := range kinds {
+		got, ok := spec.Object(kind)
+		require.True(t, ok, "kind %d has no object", kind)
+		assert.Equal(t, kind, got.Kind)
 	}
 	assert.NotContains(t, kinds, specrules.Kind(0), "the zero kind is no object")
 	_, ok := spec.Object(0)
@@ -73,33 +73,33 @@ func TestTable_EveryKindHasOneObject(t *testing.T) {
 func TestTable_EveryRowCitesTheSpecification(t *testing.T) {
 	valid := func(where string, cites []specrules.Cite) {
 		require.NotEmpty(t, cites, where)
-		for _, c := range cites {
-			assert.Contains(t, minors(), c.Minor, where)
-			assert.NotEmpty(t, c.Section, where)
-			assert.NotEmpty(t, c.Sentence, where)
+		for _, cite := range cites {
+			assert.Contains(t, minors(), cite.Minor, where)
+			assert.NotEmpty(t, cite.Section, where)
+			assert.NotEmpty(t, cite.Sentence, where)
 		}
 	}
-	for _, o := range specrules.Table().Objects() {
-		for _, f := range o.Fields {
-			valid(o.Name+"."+f.Name, f.Cites)
-			assert.True(t, slices.ContainsFunc(f.Cites, func(c specrules.Cite) bool { return f.Defined.Holds(c.Minor) }),
-				"%s.%s: no citation comes from a minor that defines the field", o.Name, f.Name)
-			for _, w := range f.Within {
-				valid(o.Name+"."+f.Name+" within "+w.MediaType, w.Cites)
-				assert.True(t, slices.ContainsFunc(w.Cites, func(c specrules.Cite) bool { return w.Span.Holds(c.Minor) }),
-					"%s.%s: no citation of %s comes from a minor it holds at", o.Name, f.Name, w.MediaType)
+	for _, object := range specrules.Table().Objects() {
+		for _, field := range object.Fields {
+			valid(object.Name+"."+field.Name, field.Cites)
+			assert.True(t, slices.ContainsFunc(field.Cites, func(cite specrules.Cite) bool { return field.Defined.Holds(cite.Minor) }),
+				"%s.%s: no citation comes from a minor that defines the field", object.Name, field.Name)
+			for _, within := range field.Within {
+				valid(object.Name+"."+field.Name+" within "+within.MediaType, within.Cites)
+				assert.True(t, slices.ContainsFunc(within.Cites, func(cite specrules.Cite) bool { return within.Span.Holds(cite.Minor) }),
+					"%s.%s: no citation of %s comes from a minor it holds at", object.Name, field.Name, within.MediaType)
 			}
 		}
-		for _, d := range o.Defaults {
-			valid(o.Name+"."+d.Field+" default", d.Cites)
-			assert.True(t, slices.ContainsFunc(d.Cites, func(c specrules.Cite) bool { return d.Span.Holds(c.Minor) }),
-				"%s.%s: no citation of a default comes from a minor it holds at", o.Name, d.Field)
+		for _, defaultValue := range object.Defaults {
+			valid(object.Name+"."+defaultValue.Field+" default", defaultValue.Cites)
+			assert.True(t, slices.ContainsFunc(defaultValue.Cites, func(cite specrules.Cite) bool { return defaultValue.Span.Holds(cite.Minor) }),
+				"%s.%s: no citation of a default comes from a minor it holds at", object.Name, defaultValue.Field)
 		}
-		for _, p := range o.Patterned {
-			valid(o.Name+"."+p.Name, p.Cites)
+		for _, pattern := range object.Patterned {
+			valid(object.Name+"."+pattern.Name, pattern.Cites)
 		}
-		for i, r := range o.Rules {
-			valid(o.Name+" rule "+itoa(i), r.Cites)
+		for i, rule := range object.Rules {
+			valid(object.Name+" rule "+itoa(i), rule.Cites)
 		}
 	}
 }
@@ -109,85 +109,85 @@ func itoa(n int) string { return string(rune('0' + n)) }
 
 // TestTable_SpansAreWellFormed pins every span the table states.
 func TestTable_SpansAreWellFormed(t *testing.T) {
-	for _, o := range specrules.Table().Objects() {
-		assert.True(t, validSpan(o.Referenceable), o.Name)
-		assert.True(t, validSpan(o.Boolean), o.Name)
-		assert.True(t, validSpan(o.RefSiblings), o.Name)
-		for _, f := range o.Fields {
-			where := o.Name + "." + f.Name
-			assert.NotZero(t, f.Defined, where+": a field is defined at some minor")
-			for _, s := range []specrules.MinorVersionRange{f.Defined, f.Required, f.NonEmpty} {
-				assert.True(t, validSpan(s), where)
+	for _, object := range specrules.Table().Objects() {
+		assert.True(t, validSpan(object.Referenceable), object.Name)
+		assert.True(t, validSpan(object.Boolean), object.Name)
+		assert.True(t, validSpan(object.RefSiblings), object.Name)
+		for _, field := range object.Fields {
+			where := object.Name + "." + field.Name
+			assert.NotZero(t, field.Defined, where+": a field is defined at some minor")
+			for _, minorVersionRange := range []specrules.MinorVersionRange{field.Defined, field.Required, field.NonEmpty} {
+				assert.True(t, validSpan(minorVersionRange), where)
 			}
-			for _, m := range minors() {
-				if f.Required.Holds(m) {
-					assert.True(t, f.Defined.Holds(m), "%s is required at %s, where it is not defined", where, m)
+			for _, minor := range minors() {
+				if field.Required.Holds(minor) {
+					assert.True(t, field.Defined.Holds(minor), "%s is required at %s, where it is not defined", where, minor)
 				}
 			}
-			for _, v := range f.Values {
-				assert.True(t, validSpan(v.Span) && v.Span != (specrules.MinorVersionRange{}), where+" value "+v.Name)
+			for _, value := range field.Values {
+				assert.True(t, validSpan(value.Span) && value.Span != (specrules.MinorVersionRange{}), where+" value "+value.Name)
 			}
-			for _, a := range f.Alts {
+			for _, a := range field.Alts {
 				assert.True(t, validSpan(a.Span), where)
 			}
-			withinIsWellFormed(t, where, f)
+			withinIsWellFormed(t, where, field)
 		}
-		defaultsAreWellFormed(t, o)
-		for i, p := range o.Patterned {
-			assert.True(t, validSpan(p.Span), o.Name+"."+p.Name)
-			for _, q := range o.Patterned[i+1:] {
-				assert.False(t, overlaps(p.Span, q.Span), "%s admits two patterns at one minor", o.Name)
+		defaultsAreWellFormed(t, object)
+		for i, pattern := range object.Patterned {
+			assert.True(t, validSpan(pattern.Span), object.Name+"."+pattern.Name)
+			for _, patternValue := range object.Patterned[i+1:] {
+				assert.False(t, overlaps(pattern.Span, patternValue.Span), "%s admits two patterns at one minor", object.Name)
 			}
 		}
-		for i, r := range o.Rules {
-			assert.True(t, validSpan(r.Span), o.Name+" rule "+itoa(i))
-			assert.NotZero(t, r.Span, o.Name+" rule "+itoa(i)+" never applies")
+		for i, rule := range object.Rules {
+			assert.True(t, validSpan(rule.Span), object.Name+" rule "+itoa(i))
+			assert.NotZero(t, rule.Span, object.Name+" rule "+itoa(i)+" never applies")
 		}
 	}
 }
 
-// withinIsWellFormed holds each media type f takes effect under to a span
-// that holds somewhere, inside the minors defining f, and to a name with no
+// withinIsWellFormed holds each media type field takes effect under to a span
+// that holds somewhere, inside the minors defining field, and to a name with no
 // parameters, in lower case, as a holder normalizes the one it asks about, and
 // written once at each minor.
-func withinIsWellFormed(t *testing.T, where string, f specrules.Field) {
+func withinIsWellFormed(t *testing.T, where string, field specrules.Field) {
 	t.Helper()
-	for i, w := range f.Within {
-		assert.True(t, validSpan(w.Span) && w.Span != (specrules.MinorVersionRange{}), where+" within "+w.MediaType)
-		assert.Equal(t, strings.ToLower(strings.TrimSpace(w.MediaType)), w.MediaType, where)
-		assert.NotContains(t, w.MediaType, ";", where)
-		for _, m := range minors() {
-			if !w.Span.Holds(m) {
+	for i, within := range field.Within {
+		assert.True(t, validSpan(within.Span) && within.Span != (specrules.MinorVersionRange{}), where+" within "+within.MediaType)
+		assert.Equal(t, strings.ToLower(strings.TrimSpace(within.MediaType)), within.MediaType, where)
+		assert.NotContains(t, within.MediaType, ";", where)
+		for _, minor := range minors() {
+			if !within.Span.Holds(minor) {
 				continue
 			}
-			assert.True(t, f.Defined.Holds(m), "%s takes effect under %s at %s, where it is not defined", where, w.MediaType, m)
-			for _, other := range f.Within[i+1:] {
-				assert.False(t, other.MediaType == w.MediaType && other.Span.Holds(m),
-					"%s names %s twice at %s", where, w.MediaType, m)
+			assert.True(t, field.Defined.Holds(minor), "%s takes effect under %s at %s, where it is not defined", where, within.MediaType, minor)
+			for _, other := range field.Within[i+1:] {
+				assert.False(t, other.MediaType == within.MediaType && other.Span.Holds(minor),
+					"%s names %s twice at %s", where, within.MediaType, minor)
 			}
 		}
 	}
 }
 
-// defaultsAreWellFormed holds each default of o to a field o defines at every
+// defaultsAreWellFormed holds each default of object to a field object defines at every
 // minor the default holds at, and the defaults of one field and case to
 // disjoint minors, so at each minor a case has one value.
-func defaultsAreWellFormed(t *testing.T, o specrules.Object) {
+func defaultsAreWellFormed(t *testing.T, object specrules.Object) {
 	t.Helper()
-	defined := func(name string, m specrules.Minor) bool {
-		return slices.ContainsFunc(o.Fields, func(f specrules.Field) bool { return f.Name == name && f.Defined.Holds(m) })
+	defined := func(name string, minor specrules.Minor) bool {
+		return slices.ContainsFunc(object.Fields, func(field specrules.Field) bool { return field.Name == name && field.Defined.Holds(minor) })
 	}
-	for i, d := range o.Defaults {
-		where := o.Name + "." + d.Field + " default"
-		assert.True(t, validSpan(d.Span) && d.Span != (specrules.MinorVersionRange{}), where)
-		assert.NotZero(t, d.Case, where+" names no case")
-		for _, m := range minors() {
-			if d.Span.Holds(m) {
-				assert.True(t, defined(d.Field, m), "%s holds at %s, where the object defines no such field", where, m)
+	for i, defaultValue := range object.Defaults {
+		where := object.Name + "." + defaultValue.Field + " default"
+		assert.True(t, validSpan(defaultValue.Span) && defaultValue.Span != (specrules.MinorVersionRange{}), where)
+		assert.NotZero(t, defaultValue.Case, where+" names no case")
+		for _, minor := range minors() {
+			if defaultValue.Span.Holds(minor) {
+				assert.True(t, defined(defaultValue.Field, minor), "%s holds at %s, where the object defines no such field", where, minor)
 			}
-			for _, e := range o.Defaults[i+1:] {
-				assert.False(t, e.Field == d.Field && e.Case == d.Case && e.Span.Holds(m) && d.Span.Holds(m),
-					"%s has two values of one case at %s", where, m)
+			for _, otherDefault := range object.Defaults[i+1:] {
+				assert.False(t, otherDefault.Field == defaultValue.Field && otherDefault.Case == defaultValue.Case && otherDefault.Span.Holds(minor) && defaultValue.Span.Holds(minor),
+					"%s has two values of one case at %s", where, minor)
 			}
 		}
 	}
@@ -196,11 +196,11 @@ func defaultsAreWellFormed(t *testing.T, o specrules.Object) {
 // TestTable_FieldNamesDoNotCollide pins that an object names a field once at
 // each minor: two rows of one name must be defined at disjoint minors.
 func TestTable_FieldNamesDoNotCollide(t *testing.T) {
-	for _, o := range specrules.Table().Objects() {
-		for i, a := range o.Fields {
-			for _, b := range o.Fields[i+1:] {
+	for _, object := range specrules.Table().Objects() {
+		for i, a := range object.Fields {
+			for _, b := range object.Fields[i+1:] {
 				if a.Name == b.Name {
-					assert.False(t, overlaps(a.Defined, b.Defined), "%s.%s is defined twice at one minor", o.Name, a.Name)
+					assert.False(t, overlaps(a.Defined, b.Defined), "%s.%s is defined twice at one minor", object.Name, a.Name)
 				}
 			}
 		}
@@ -219,12 +219,12 @@ func TestTable_ContainersNameTheKindTheyHold(t *testing.T) {
 		}
 		assert.Zero(t, of, "%s names a kind though it holds none", where)
 	}
-	for _, o := range spec.Objects() {
-		for _, f := range o.Fields {
-			holds(o.Name+"."+f.Name, f.Shape, f.Of)
+	for _, object := range spec.Objects() {
+		for _, field := range object.Fields {
+			holds(object.Name+"."+field.Name, field.Shape, field.Of)
 		}
-		for _, p := range o.Patterned {
-			holds(o.Name+"."+p.Name, p.Shape, p.Of)
+		for _, pattern := range object.Patterned {
+			holds(object.Name+"."+pattern.Name, pattern.Shape, pattern.Of)
 		}
 	}
 }
@@ -232,27 +232,27 @@ func TestTable_ContainersNameTheKindTheyHold(t *testing.T) {
 // TestTable_RulesNameFieldsTheObjectHas pins that a rule reads fields its
 // object defines, and that a Code rule is either named or owned.
 func TestTable_RulesNameFieldsTheObjectHas(t *testing.T) {
-	for _, o := range specrules.Table().Objects() {
+	for _, object := range specrules.Table().Objects() {
 		has := func(name string) bool {
-			return name == "" || name == "$key" || slices.ContainsFunc(o.Fields, func(f specrules.Field) bool { return f.Name == name })
+			return name == "" || name == "$key" || slices.ContainsFunc(object.Fields, func(field specrules.Field) bool { return field.Name == name })
 		}
-		for i, r := range o.Rules {
-			where := o.Name + " rule " + itoa(i)
-			names := []string{r.Field, r.Of}
-			if r.Kind != specrules.RuleForbiddenWhen {
-				names = append(names, r.Fields...) // a ban may name fields the object does not define
+		for i, rule := range object.Rules {
+			where := object.Name + " rule " + itoa(i)
+			names := []string{rule.Field, rule.Of}
+			if rule.Kind != specrules.RuleForbiddenWhen {
+				names = append(names, rule.Fields...) // a ban may name fields the object does not define
 			}
 			for _, name := range names {
 				assert.True(t, has(name), "%s names the field %q, which the object lacks", where, name)
 			}
-			for _, term := range r.When {
+			for _, term := range rule.When {
 				assert.True(t, has(term.Field), "%s tests the field %q, which the object lacks", where, term.Field)
 				if !term.Written {
 					assert.NotEmpty(t, term.In, where)
 				}
 			}
-			if r.Kind == specrules.RuleCode {
-				assert.NotEmpty(t, r.Name, where)
+			if rule.Kind == specrules.RuleCode {
+				assert.NotEmpty(t, rule.Name, where)
 			}
 		}
 	}
@@ -262,9 +262,9 @@ func TestTable_RulesNameFieldsTheObjectHas(t *testing.T) {
 // specification bars from carrying x- keys.
 func TestTable_OnlyReferenceAndRequirementsTakeNoExtensions(t *testing.T) {
 	var closed []string
-	for _, o := range specrules.Table().Objects() {
-		if !o.Extensible {
-			closed = append(closed, o.Name)
+	for _, object := range specrules.Table().Objects() {
+		if !object.Extensible {
+			closed = append(closed, object.Name)
 		}
 	}
 	assert.Equal(t, []string{"Reference Object", "Security Requirement Object"}, closed)
@@ -273,15 +273,15 @@ func TestTable_OnlyReferenceAndRequirementsTakeNoExtensions(t *testing.T) {
 // TestTable_OwnedRulesNameTheirOwners pins which packages the table defers to.
 func TestTable_OwnedRulesNameTheirOwners(t *testing.T) {
 	owners := map[string]bool{}
-	for _, o := range specrules.Table().Objects() {
-		for _, r := range o.Rules {
-			if r.Owner != "" {
-				owners[r.Owner] = true
+	for _, object := range specrules.Table().Objects() {
+		for _, rule := range object.Rules {
+			if rule.Owner != "" {
+				owners[rule.Owner] = true
 			}
 		}
-		for _, f := range o.Fields {
-			if f.Owner != "" {
-				owners[f.Owner] = true
+		for _, field := range object.Fields {
+			if field.Owner != "" {
+				owners[field.Owner] = true
 			}
 		}
 	}
@@ -347,20 +347,20 @@ func laterExtras() []laterRow {
 // A JSON Schema keyword is the schema lowering's to place.
 func tableLaterRows() []laterRow {
 	var rows []laterRow
-	for _, o := range specrules.Table().Objects() {
-		if o.Referenceable.Since > specrules.V30 {
-			rows = append(rows, laterRow{o.Name, "$ref", "", o.Referenceable.Since.String()})
+	for _, object := range specrules.Table().Objects() {
+		if object.Referenceable.Since > specrules.V30 {
+			rows = append(rows, laterRow{object.Name, "$ref", "", object.Referenceable.Since.String()})
 		}
-		for _, f := range o.Fields {
-			if f.IsJSONSchemaKeyword {
+		for _, field := range object.Fields {
+			if field.IsJSONSchemaKeyword {
 				continue
 			}
-			if f.Defined.Since > specrules.V30 {
-				rows = append(rows, laterRow{o.Name, f.Name, "", f.Defined.Since.String()})
+			if field.Defined.Since > specrules.V30 {
+				rows = append(rows, laterRow{object.Name, field.Name, "", field.Defined.Since.String()})
 			}
-			for _, v := range f.Values {
-				if v.Span.Since > specrules.V30 {
-					rows = append(rows, laterRow{o.Name, f.Name, v.Name, v.Span.Since.String()})
+			for _, value := range field.Values {
+				if value.Span.Since > specrules.V30 {
+					rows = append(rows, laterRow{object.Name, field.Name, value.Name, value.Span.Since.String()})
 				}
 			}
 		}

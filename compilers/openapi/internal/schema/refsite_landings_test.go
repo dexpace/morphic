@@ -21,14 +21,14 @@ import (
 func lowerBoth(t *testing.T, src string) (plain, promised *ir.Document) {
 	t.Helper()
 	for _, promise := range []bool{false, true} {
-		l, _ := schema.LoweredFor(t, src)
-		l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
+		lowerer, _ := schema.LoweredFor(t, src)
+		lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
 		if promise {
-			schema.ReserveNodesAtReferenceTargets(l.Ctx, l.Types)
-			promised = l.Document(t)
+			schema.ReserveNodesAtReferenceTargets(lowerer.Ctx, lowerer.Types)
+			promised = lowerer.Document(t)
 			continue
 		}
-		plain = l.Document(t)
+		plain = lowerer.Document(t)
 	}
 	return plain, promised
 }

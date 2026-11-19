@@ -29,9 +29,9 @@ func prefixBindingViolations(target ir.TypeID, pb ir.HTTPParamBinding) []string 
 	})
 	doc.Types = prefixHeaderTypes()
 	var got []string
-	for _, v := range irverify.Verify(doc) {
-		if strings.HasPrefix(v.Code, "ir/prefix-binding-") {
-			got = append(got, v.Code+" "+v.Path)
+	for _, violation := range irverify.Verify(doc) {
+		if strings.HasPrefix(violation.Code, "ir/prefix-binding-") {
+			got = append(got, violation.Code+" "+violation.Path)
 		}
 	}
 	return got

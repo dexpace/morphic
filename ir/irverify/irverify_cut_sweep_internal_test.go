@@ -55,8 +55,8 @@ func cutAt(n int) walkFunc {
 	return func(root any, path string, visitors ...ir.Visitor) bool {
 		cut := false
 		held := make([]ir.Visitor, len(visitors))
-		for i, v := range visitors {
-			held[i] = &cuttingVisitor{inner: v, left: n, cut: &cut}
+		for i, visitor := range visitors {
+			held[i] = &cuttingVisitor{inner: visitor, left: n, cut: &cut}
 		}
 		return ir.WalkValues(root, path, held...) || cut
 	}
@@ -65,9 +65,9 @@ func cutAt(n int) walkFunc {
 // violationKeys counts vs by code and path, leaving out ir/walk-truncated.
 func violationKeys(vs []Violation) map[string]int {
 	keys := map[string]int{}
-	for _, v := range vs {
-		if v.Code != "ir/walk-truncated" {
-			keys[v.Code+" at "+v.Path]++
+	for _, violation := range vs {
+		if violation.Code != "ir/walk-truncated" {
+			keys[violation.Code+" at "+violation.Path]++
 		}
 	}
 	return keys

@@ -22,26 +22,26 @@ type reach struct {
 	known bool
 }
 
-// reachOf builds the graph over what the pass b settled into t, placing each
-// position through t's bases, in the order t lists them, so where the budget
+// reachOf builds the graph over what the pass b settled into referenceTargetTable, placing each
+// position through referenceTargetTable's bases, in the order referenceTargetTable lists them, so where the budget
 // runs out depends on no order of reading. Past the budget, or once the
 // binding's context is done, it links nothing more and is not known.
-func reachOf(b *binder, t *ReferenceTargetTable) reach {
-	r := reach{out: map[DocumentPointer][]DocumentPointer{}, work: b.work, known: true}
+func reachOf(b *binder, referenceTargetTable *ReferenceTargetTable) reach {
+	reachValue := reach{out: map[DocumentPointer][]DocumentPointer{}, work: b.work, known: true}
 	cut := false
-	place := func(p DocumentPointer) DocumentPointer {
+	place := func(documentPointer DocumentPointer) DocumentPointer {
 		if cut = cut || b.work.over(); cut {
 			return DocumentPointer{}
 		}
-		in, known := t.bases.holding(p)
-		r.known = r.known && known
+		in, known := referenceTargetTable.bases.holding(documentPointer)
+		reachValue.known = reachValue.known && known
 		return in.root
 	}
 	link := func(from, to DocumentPointer) {
 		inFrom, inTo := place(from), place(to)
-		r.known = r.known && !cut
+		reachValue.known = reachValue.known && !cut
 		if !cut && inFrom != inTo {
-			r.out[inFrom] = append(r.out[inFrom], inTo)
+			reachValue.out[inFrom] = append(reachValue.out[inFrom], inTo)
 		}
 	}
 	for _, res := range b.ids.resources {
@@ -49,21 +49,21 @@ func reachOf(b *binder, t *ReferenceTargetTable) reach {
 			link(DocumentPointer{Doc: res.root.Doc, Pointer: res.root.Pointer.Parent()}, res.root)
 		}
 	}
-	for _, e := range t.entryList {
-		if e.Hop.Status == Resolved {
-			link(e.Site, e.Hop.Target)
+	for _, referenceSite := range referenceTargetTable.entryList {
+		if referenceSite.Hop.Status == Resolved {
+			link(referenceSite.Site, referenceSite.Hop.Target)
 		}
 	}
-	for _, k := range slices.SortedFunc(maps.Keys(t.mappings), mappingOrder(b.docs)) {
-		if m := t.mappings[k]; m.Hop.Status == Resolved {
-			link(m.At, m.Hop.Target)
+	for _, mappingKey := range slices.SortedFunc(maps.Keys(referenceTargetTable.mappings), mappingOrder(b.docs)) {
+		if mapping := referenceTargetTable.mappings[mappingKey]; mapping.Hop.Status == Resolved {
+			link(mapping.At, mapping.Hop.Target)
 		}
 	}
-	for at, out := range r.out {
+	for at, out := range reachValue.out {
 		slices.SortFunc(out, comparePositions)
-		r.out[at] = slices.Compact(out)
+		reachValue.out[at] = slices.Compact(out)
 	}
-	return r
+	return reachValue
 }
 
 // reachers returns whether a resource is reached by an origin other than
@@ -86,21 +86,21 @@ func (r reach) reachers(origins []DocumentPointer) func(resource DocumentPointer
 			queue = append(queue, visit{at: at, origin: origin})
 		}
 	}
-	for _, o := range origins {
-		add(o, o)
+	for _, documentPointer := range origins {
+		add(documentPointer, documentPointer)
 	}
 	for len(queue) > 0 && !r.work.over() {
-		v := queue[0]
+		visit := queue[0]
 		queue = queue[1:]
-		for _, next := range r.out[v.at] {
+		for _, next := range r.out[visit.at] {
 			if !r.work.spend(1) {
 				break
 			}
-			add(next, v.origin)
+			add(next, visit.origin)
 		}
 	}
 	return func(resource DocumentPointer) bool {
-		return slices.ContainsFunc(held[resource], func(o DocumentPointer) bool { return o != resource })
+		return slices.ContainsFunc(held[resource], func(documentPointer DocumentPointer) bool { return documentPointer != resource })
 	}
 }
 
@@ -109,15 +109,17 @@ func (r reach) reachers(origins []DocumentPointer) func(resource DocumentPointer
 // name one document alone declares needs no walk.
 func sharedNames(ids *identifiers) map[string][]dynamicKey {
 	out := map[string][]dynamicKey{}
-	for k := range ids.dynamic {
-		out[k.name] = append(out[k.name], k)
+	for dynamicKey := range ids.dynamic {
+		out[dynamicKey.name] = append(out[dynamicKey.name], dynamicKey)
 	}
 	for name, keys := range out {
 		if len(keys) < 2 {
 			delete(out, name)
 			continue
 		}
-		slices.SortFunc(keys, func(x, y dynamicKey) int { return int(x.doc) - int(y.doc) })
+		slices.SortFunc(keys, func(dynamicKeyValue, otherDynamicKey dynamicKey) int {
+			return int(dynamicKeyValue.doc) - int(otherDynamicKey.doc)
+		})
 	}
 	return out
 }
@@ -131,20 +133,20 @@ type dynamicReach struct {
 	unknown map[dynamicKey]bool
 }
 
-// dynamicReachOf walks g once for each name shared declares, its declaring
+// dynamicReachOf walks reachValue once for each name shared declares, its declaring
 // resources the origins, in name order, so where the budget runs out depends
 // on no order of reading (JSON Schema 2020-12 §8.2.3.2: the outermost
 // resource of the dynamic scope declaring the name wins). Once the graph is
 // not known, the budget is spent or the binding's context is done, nothing
 // more is known.
-func dynamicReachOf(ids *identifiers, b *bases, g reach, shared map[string][]dynamicKey) dynamicReach {
+func dynamicReachOf(ids *identifiers, b *bases, reachValue reach, shared map[string][]dynamicKey) dynamicReach {
 	out := dynamicReach{by: map[dynamicKey]bool{}, unknown: map[dynamicKey]bool{}}
-	stopped := !g.known
-	place := func(p DocumentPointer) (DocumentPointer, bool) {
-		if stopped = stopped || g.work.over(); stopped {
+	stopped := !reachValue.known
+	place := func(documentPointer DocumentPointer) (DocumentPointer, bool) {
+		if stopped = stopped || reachValue.work.over(); stopped {
 			return DocumentPointer{}, false
 		}
-		res, placed := b.holding(p)
+		res, placed := b.holding(documentPointer)
 		return res.root, placed
 	}
 	for _, name := range slices.Sorted(maps.Keys(shared)) {
@@ -152,23 +154,23 @@ func dynamicReachOf(ids *identifiers, b *bases, g reach, shared map[string][]dyn
 		first := map[dynamicKey]DocumentPointer{}
 		var origins []DocumentPointer
 		known := true
-		for _, k := range keys {
-			site := slices.MinFunc(ids.dynamic[k], comparePositions)
-			for _, at := range ids.dynamic[k] {
+		for _, dynamicKey := range keys {
+			site := slices.MinFunc(ids.dynamic[dynamicKey], comparePositions)
+			for _, at := range ids.dynamic[dynamicKey] {
 				root, placed := place(at)
 				known = known && placed
 				origins = append(origins, root)
 				if at == site {
-					first[k] = root
+					first[dynamicKey] = root
 				}
 			}
 		}
 		if stopped {
 			origins = nil
 		}
-		reached := g.reachers(origins)
-		for _, k := range keys {
-			out.by[k], out.unknown[k] = reached(first[k]), !known
+		reached := reachValue.reachers(origins)
+		for _, dynamicKey := range keys {
+			out.by[dynamicKey], out.unknown[dynamicKey] = reached(first[dynamicKey]), !known
 		}
 	}
 	return out

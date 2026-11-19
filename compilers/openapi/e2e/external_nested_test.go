@@ -43,8 +43,8 @@ func TestExternalContent_AReferenceItWritesIsResolvedWhereItIsDeclared(t *testin
 	for _, mount := range []string{"/p", "/q"} {
 		op := operationAt(t, doc, "GET", mount)
 		params := map[string]ir.Provenance{}
-		for _, p := range op.Params {
-			params[p.Name.Source] = p.Provenance
+		for _, parameter := range op.Params {
+			params[parameter.Name.Source] = parameter.Provenance
 		}
 		assert.Equal(t, map[string]ir.Provenance{
 			"own":   {Source: 1, Pointer: "/components/parameters/Own"},
@@ -134,9 +134,9 @@ func TestExternalContent_AFindingTwoTargetsShareIsReportedOnceAtItsNode(t *testi
 			doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, false)
 
 			var found []ir.Diagnostic
-			for _, d := range diags {
-				if strings.HasPrefix(d.Code, diag.Validation+"/") {
-					found = append(found, d)
+			for _, diagnostic := range diags {
+				if strings.HasPrefix(diagnostic.Code, diag.Validation+"/") {
+					found = append(found, diagnostic)
 				}
 			}
 			require.Len(t, found, 1, "%+v", diags)
@@ -183,9 +183,9 @@ func TestExternalContent_WhatAReferenceItWritesReachesIsValidated(t *testing.T) 
 			doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, false)
 
 			var found []ir.Diagnostic
-			for _, d := range diags {
-				if strings.HasPrefix(d.Code, diag.Validation+"/") {
-					found = append(found, d)
+			for _, diagnostic := range diags {
+				if strings.HasPrefix(diagnostic.Code, diag.Validation+"/") {
+					found = append(found, diagnostic)
 				}
 			}
 			require.Len(t, found, 1, "%+v", diags)
@@ -229,8 +229,8 @@ paths:
 `, false)
 
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "%+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.DegradedConstruct, diagnostic.Code, "%+v", diagnostic)
 	}
 	op := operationAt(t, doc, "GET", "/p")
 	require.Len(t, op.Bindings.HTTP, 1)
@@ -290,14 +290,14 @@ components:
 		ir.Provenance{Source: entry.Provenance.Source, Pointer: entry.Provenance.Pointer})
 
 	var infos []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			infos = append(infos, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			infos = append(infos, diagnostic)
 		}
 	}
 	require.Len(t, infos, 2, "%+v", diags)
-	for _, d := range infos {
-		assert.Equal(t, ir.SeverityInfo, d.Severity)
-		assert.Equal(t, 1, d.Provenance.Source, "%s is reported in other.yaml", d.Provenance.Pointer)
+	for _, diagnostic := range infos {
+		assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+		assert.Equal(t, 1, diagnostic.Provenance.Source, "%s is reported in other.yaml", diagnostic.Provenance.Pointer)
 	}
 }

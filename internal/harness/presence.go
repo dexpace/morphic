@@ -24,7 +24,7 @@ const (
 // a dropped construct can still draw, and their source table, whose hash
 // differs with any text. A construct replacing a member its target writes has
 // no case leaving it out, so its two values are compared alone.
-func present(ctx context.Context, s *shard, at []int, doc CaseDocument) Verdict {
+func present(ctx context.Context, shardValue *shard, at []int, doc CaseDocument) Verdict {
 	if doc.Absent == nil {
 		return declined(OraclePresence, DeclineNoConstruct)
 	}
@@ -44,13 +44,13 @@ func present(ctx context.Context, s *shard, at []int, doc CaseDocument) Verdict 
 	}
 	texts := make([]string, len(neighbours))
 	for i, n := range neighbours {
-		text, why := s.encoded(ctx, n)
+		text, why := shardValue.encoded(ctx, n)
 		if why != "" {
 			return declined(OraclePresence, why)
 		}
 		texts[i] = text
 	}
-	return judgePresence(s.axes, doc, texts)
+	return judgePresence(shardValue.axes, doc, texts)
 }
 
 // judgePresence is the verdict of a case whose documents compiled to texts:

@@ -59,8 +59,8 @@ func Parse(s string) (Expression, bool, error) {
 		return Expression{Source: s[1:]}, true, nil
 	}
 	source, rest, _ := strings.Cut(s[1:], ".")
-	e, err := parseSource(source, rest)
-	return e, true, err
+	expression, err := parseSource(source, rest)
+	return expression, true, err
 }
 
 // startsExpression reports whether s reads as a runtime expression, well
@@ -76,26 +76,26 @@ func startsExpression(s string) bool {
 
 // parseSource reads rest, what follows `$request.` or `$response.`.
 func parseSource(source, rest string) (Expression, error) {
-	e := Expression{Source: source}
+	expression := Expression{Source: source}
 	if pointer, ok := strings.CutPrefix(rest, PartBody); ok {
-		e.Part = PartBody
-		return e.withPointer(pointer)
+		expression.Part = PartBody
+		return expression.withPointer(pointer)
 	}
 	part, name, ok := strings.Cut(rest, ".")
 	if !ok || name == "" {
-		return e, errMalformed
+		return expression, errMalformed
 	}
 	switch part {
 	case PartHeader:
 		if !isToken(name) {
-			return e, errMalformed
+			return expression, errMalformed
 		}
 	case PartQuery, PartPath:
 	default:
-		return e, errMalformed
+		return expression, errMalformed
 	}
-	e.Part, e.Name = part, name
-	return e, nil
+	expression.Part, expression.Name = part, name
+	return expression, nil
 }
 
 // withPointer reads what follows `body`: nothing, or `#` and an RFC 6901

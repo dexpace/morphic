@@ -271,10 +271,10 @@ func TestScalar_JSONKindReadsWhatJSONHasNoKindForAsItsText(t *testing.T) {
 	} {
 		var doc yaml.Node
 		require.NoError(t, yaml.Unmarshal([]byte(text), &doc), text)
-		s, err := value.Classify(doc.Content[0])
+		scalar, err := value.Classify(doc.Content[0])
 		require.NoError(t, err, text)
 
-		assert.Equal(t, want, s.JSONKind(), text)
-		assert.Equal(t, strings.TrimSpace(text[strings.LastIndexByte(text, ' ')+1:]), s.Text, text)
+		assert.Equal(t, want, scalar.JSONKind(), text)
+		assert.Equal(t, strings.TrimSpace(text[strings.LastIndexByte(text, ' ')+1:]), scalar.Text, text)
 	}
 }

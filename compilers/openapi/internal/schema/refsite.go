@@ -23,10 +23,10 @@ import (
 // is, and an allOf entry whose reference names nothing, read whole, is no
 // position a reference reaches, as one to it reads on through its own. So
 // such a site writes nothing beside its target for a node to keep.
-func refSiteRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home,
+func refSiteRef(loweringContext lowering.Ctx, ts *compile.Types, js *statement.Statement, schema *statement.Schema, pointer jsontext.Pointer, home annotation.Home,
 ) (ir.TypeRef, []ir.Diagnostic) {
-	target, diags := refTypeRef(c, ts, js, pointer)
-	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, false, nil)
+	target, diags := refTypeRef(loweringContext, ts, js, pointer)
+	ref, homeDiags := homeDeclaration(loweringContext, ts, schema, target, pointer, home, false, nil)
 	return ref, append(diags, homeDiags...)
 }
 
@@ -39,15 +39,15 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, s *s
 // (refSiteRef), and a schema that lowered to a node of its own had the census
 // recorded there, so the carrier adds nothing: one home per declaration, as
 // fillPropertyAnnotations draws the line.
-func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
-	js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer,
+func PreserveRefSiteKeywords(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled,
+	js *statement.Statement, typeRef ir.TypeRef, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	// The one check covers an absent position, a boolean one, a $ref site and a
 	// caller passing nil.
-	if js == nil || !stated(js.Schema) || js.Ref != nil || LoweredToOwnNode(c, pointer, t) {
+	if js == nil || !stated(js.Schema) || js.Ref != nil || LoweredToOwnNode(loweringContext, pointer, typeRef) {
 		return nil
 	}
-	return keepsAtOutcome(c, js.Schema, t, pointer).record(c, ts, p, js.Schema, pointer, nil, nil)
+	return keepsAtOutcome(loweringContext, js.Schema, typeRef, pointer).record(loweringContext, ts, unmodeled, js.Schema, pointer, nil, nil)
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
@@ -58,17 +58,17 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 // one landing on no schema, is diagnosed and dropped to any. A $ref on a loop of $refs is
 // dropped to any too, with nothing of its own to report: the load phase reports
 // the loop once.
-func refTypeRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	id, ok := resolveSchemaRef(c, ts, js)
+func refTypeRef(loweringContext lowering.Ctx, ts *compile.Types, js *statement.Statement, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+	id, ok := resolveSchemaRef(loweringContext, ts, js)
 	if ok {
-		return refNullRef(c, id, js, siteAt(pointer))
+		return refNullRef(loweringContext, id, js, siteAt(pointer))
 	}
 	if onLoop(js) {
 		return ts.PrimRef(ir.PrimitiveAny), nil
 	}
 	keyword, ref := refSpelling(js)
-	return ts.PrimRef(ir.PrimitiveAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
-		"unresolved %s %q%s", keyword, ref, unresolvedWhy(c, js))}
+	return ts.PrimRef(ir.PrimitiveAny), []ir.Diagnostic{loweringContext.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
+		"unresolved %s %q%s", keyword, ref, unresolvedWhy(loweringContext, js))}
 }
 
 // refSpelling is the keyword and the value of the reference js writes, as the
@@ -90,11 +90,11 @@ func refSpelling(js *statement.Statement) (keyword, value string) {
 // table never read it (unreadWhy). It is empty for any other, a target
 // declaring nothing to lower. The position may well exist, so without it the
 // report reads as though it named nothing.
-func unresolvedWhy(c lowering.Ctx, js *statement.Statement) string {
+func unresolvedWhy(loweringContext lowering.Ctx, js *statement.Statement) string {
 	if js.Ref != nil && js.Ref.Bound {
 		return hopWhy(js.Ref.Entry.Hop)
 	}
-	return unreadWhy(c.Bindings())
+	return unreadWhy(loweringContext.Bindings())
 }
 
 // unreadWhy is why the table holds nothing for a schema or a discriminator it
@@ -106,37 +106,37 @@ func unreadWhy(refs *typed.Bindings) string {
 	return ""
 }
 
-// hopWhy is the reason unresolvedWhy and mappingWhy give for the hop h, or
+// hopWhy is the reason unresolvedWhy and mappingWhy give for the hop hop, or
 // nothing for one that resolved. It names no document: a finding about a
 // reference is placed in the document that writes it.
-func hopWhy(h reftable.Hop) string {
-	if h.Status == reftable.Resolved {
+func hopWhy(hop reftable.Hop) string {
+	if hop.Status == reftable.Resolved {
 		return ""
 	}
-	return ": " + h.Why()
+	return ": " + hop.Why()
 }
 
 // resolveSchemaRef resolves a schema-position $ref to the TypeID of what it
 // names, in whichever document (resolveAt). It returns ok=false for a $ref that
 // lands on no schema (landsAt) and for a reference to an
 // undeclared component.
-func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement) (ir.TypeID, bool) {
+func resolveSchemaRef(loweringContext lowering.Ctx, ts *compile.Types, js *statement.Statement) (ir.TypeID, bool) {
 	at, ok := landsAt(js)
 	if !ok {
 		return "", false
 	}
-	decl, _ := declaredOf(c, js)
-	return resolveAt(c, ts, at, decl)
+	decl, _ := declaredOf(loweringContext, js)
+	return resolveAt(loweringContext, ts, at, decl)
 }
 
 // resolveAt is resolvePointer at a position of the bindings' table, read at
 // its own document's coordinates (lowering.InDocument).
-func resolveAt(c lowering.Ctx, ts *compile.Types, at reftable.DocumentPointer, decl *statement.Statement) (ir.TypeID, bool) {
-	c, ok := lowering.InDocument(c, at.Doc)
+func resolveAt(loweringContext lowering.Ctx, ts *compile.Types, at reftable.DocumentPointer, decl *statement.Statement) (ir.TypeID, bool) {
+	loweringContext, ok := lowering.InDocument(loweringContext, at.Doc)
 	if !ok {
 		return "", false
 	}
-	return resolvePointer(c, ts, at.Pointer, decl)
+	return resolvePointer(loweringContext, ts, at.Pointer, decl)
 }
 
 // ReserveNodesAtReferenceTargets promises a node at each position a schema $ref of the
@@ -146,17 +146,17 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, at reftable.DocumentPointer, d
 // (reftable.ReferenceSite.Lands): a member of a loop of $refs lands nowhere. A position a lowering already
 // reached keeps the node built there (compile.Types.ReserveNodeAtCoordinate). It reports
 // nothing itself: a promise reports when it is kept.
-func ReserveNodesAtReferenceTargets(c lowering.Ctx, ts *compile.Types) {
-	b := c.Bindings()
-	for _, e := range b.Table().Entries() {
-		if !e.Lands() {
+func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Types) {
+	b := loweringContext.Bindings()
+	for _, referenceSite := range b.Table().Entries() {
+		if !referenceSite.Lands() {
 			continue
 		}
-		resolveAt(c, ts, e.Hop.Target, c.Statements().At(e.Hop.Target))
+		resolveAt(loweringContext, ts, referenceSite.Hop.Target, loweringContext.Statements().At(referenceSite.Hop.Target))
 	}
 }
 
-// resolvePointer resolves a pointer in c's document to the ID of the schema it
+// resolvePointer resolves a pointer in loweringContext's document to the ID of the schema it
 // addresses: a source component by its stable ID, any other position by the ID
 // its pointer derives there. A reference never builds what it names, so no node
 // is built in a reference's context: it promises the node
@@ -166,24 +166,24 @@ func ReserveNodesAtReferenceTargets(c lowering.Ctx, ts *compile.Types) {
 //
 // A $ref and a discriminator mapping target meet here once each has its
 // pointer, so they cannot drift apart.
-func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *statement.Statement) (ir.TypeID, bool) {
-	id, hoisted, ok := declaredIn(c, pointer, decl)
+func resolvePointer(loweringContext lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *statement.Statement) (ir.TypeID, bool) {
+	id, hoisted, ok := declaredIn(loweringContext, pointer, decl)
 	if hoisted {
-		ts.ReserveNodeAtCoordinate(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
+		ts.ReserveNodeAtCoordinate(loweringContext.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(loweringContext, ts, decl, pointer) })
 	}
 	return id, ok
 }
 
-// declaredIn returns the ID of the type declared at pointer in c's document,
+// declaredIn returns the ID of the type declared at pointer in loweringContext's document,
 // holding decl, as resolvePointer resolves it, and whether it is a position
 // hoisted where a reference reaches it, which a reference promises a node. It
 // reads no registry, so no answer turns on which schema lowered first.
-func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *statement.Statement) (id ir.TypeID, hoisted, ok bool) {
+func declaredIn(loweringContext lowering.Ctx, pointer jsontext.Pointer, decl *statement.Statement) (id ir.TypeID, hoisted, ok bool) {
 	// The source's components alone are lowered whole and named by name;
 	// another document's are hoisted where a reference reaches them, as any
 	// other position of it is.
-	if c.IDs() == (ids.DocumentIDNamespace{}) {
-		if named, state := c.RefScope().ComponentRef(pointer); state.ByName() {
+	if loweringContext.IDs() == (ids.DocumentIDNamespace{}) {
+		if named, state := loweringContext.RefScope().ComponentRef(pointer); state.ByName() {
 			return named, false, state == ids.NamedComponent
 		}
 	}
@@ -193,22 +193,22 @@ func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *statement.Statem
 	if decl == nil || !decl.Held() {
 		return "", false, false
 	}
-	return c.IDs().ForPointer(pointer), true, true
+	return loweringContext.IDs().ForPointer(pointer), true, true
 }
 
 // resolvesAt reports whether a reference to at, a position of the bindings'
 // table, resolves, as resolveAt resolves one, without promising its node
 // (declaredAt).
-func resolvesAt(c lowering.Ctx, at reftable.DocumentPointer) bool {
-	_, ok := declaredAt(c, at, c.Statements().At(at))
+func resolvesAt(loweringContext lowering.Ctx, at reftable.DocumentPointer) bool {
+	_, ok := declaredAt(loweringContext, at, loweringContext.Statements().At(at))
 	return ok
 }
 
 // namesReferent reports whether the reference st writes resolves, as
 // resolveSchemaRef resolves it, without promising its node.
-func namesReferent(c lowering.Ctx, st *statement.Statement) bool {
+func namesReferent(loweringContext lowering.Ctx, st *statement.Statement) bool {
 	at, ok := landsAt(st)
-	return ok && resolvesAt(c, at)
+	return ok && resolvesAt(loweringContext, at)
 }
 
 // hoistSubSchema builds the node at pointer from decl, the schema written there,
@@ -221,20 +221,20 @@ func namesReferent(c lowering.Ctx, st *statement.Statement) bool {
 // It lowers in the position's own context, whichever reference promised it:
 // from TopLevelDepth, as a walk of its own, in decl's document. A $ref with
 // siblings is aliased, keeping them.
-func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
-	s := annotation.At(decl)
-	// c reads the document that declares pointer already (resolveAt), which is
+func hoistSubSchema(loweringContext lowering.Ctx, ts *compile.Types, decl *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
+	schemaPositionAnnotationSources := annotation.At(decl)
+	// loweringContext reads the document that declares pointer already (resolveAt), which is
 	// where the bindings place decl.
-	ref, diags := Ref(c, ts, TopLevelDepth, decl, pointer)
-	if LoweredToOwnNode(c, pointer, ref) {
+	ref, diags := Ref(loweringContext, ts, TopLevelDepth, decl, pointer)
+	if LoweredToOwnNode(loweringContext, pointer, ref) {
 		return diags
 	}
 	// As in lowerComponentSchema: this node is the first the pointer owns, so
 	// the annotations Ref had nowhere to put now have a home, which its build
 	// gives them.
 	var annotated finished
-	diags = append(diags, internOwnNode(c, ts, decl, pointer, ref, annotated.on(func(td ir.TypeDef) []ir.Diagnostic {
-		return attachDeclaredAnnotations(c, ts, s.Node, pointer, ref, td)
+	diags = append(diags, internOwnNode(loweringContext, ts, decl, pointer, ref, annotated.on(func(td ir.TypeDef) []ir.Diagnostic {
+		return attachDeclaredAnnotations(loweringContext, ts, schemaPositionAnnotationSources.Node, pointer, ref, td)
 	}))...)
 	return append(diags, annotated.diags...)
 }

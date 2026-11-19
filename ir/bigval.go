@@ -28,14 +28,14 @@ type BigVal string
 // and only JSON-invalid affixes are normalized. A literal in JSON form already
 // is returned as it is, allocating nothing.
 func NewBigVal(s string) (BigVal, error) {
-	l, _, err := readDecimal(s)
+	decimalLiteral, _, err := readDecimal(s)
 	if err != nil {
 		return "", fmt.Errorf("bigval: %q: %w", s, err)
 	}
-	if l.spelledForJSON(s) {
+	if decimalLiteral.spelledForJSON(s) {
 		return BigVal(s), nil
 	}
-	return BigVal(jsonSpelling(l)), nil
+	return BigVal(jsonSpelling(decimalLiteral)), nil
 }
 
 // spelledForJSON reports whether s, the text l was scanned from, is what
@@ -54,21 +54,21 @@ func (l decimalLiteral) spelledForJSON(s string) bool {
 // dot ("5." → "5", "5.e3" → "5e3"). Significant digits, the exponent and its
 // case are left as written. A leading zero is JSON-invalid rather than merely
 // unusual, so keeping it would break BigVal's round-trip guarantee.
-func jsonSpelling(l decimalLiteral) string {
+func jsonSpelling(decimalLiteralValue decimalLiteral) string {
 	var b strings.Builder
-	if l.neg {
+	if decimalLiteralValue.neg {
 		b.WriteByte('-')
 	}
-	if whole := strings.TrimLeft(l.intPart, "0"); whole != "" {
+	if whole := strings.TrimLeft(decimalLiteralValue.intPart, "0"); whole != "" {
 		b.WriteString(whole)
 	} else {
 		b.WriteByte('0')
 	}
-	if l.frac != "" {
+	if decimalLiteralValue.frac != "" {
 		b.WriteByte('.')
-		b.WriteString(l.frac)
+		b.WriteString(decimalLiteralValue.frac)
 	}
-	b.WriteString(l.exponent)
+	b.WriteString(decimalLiteralValue.exponent)
 	return b.String()
 }
 

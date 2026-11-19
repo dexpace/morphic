@@ -36,18 +36,18 @@ func TestOneOf_AKeptBranchIsKeyedByItsKeywordAndIndex(t *testing.T) {
 
 	for name, at := range map[string]string{"Beside": "/oneOf/1", "Entry": "/allOf/1/oneOf/1"} {
 		const key = "openapi:oneOf/1"
-		u, ok := typeByName(doc, name).(*ir.Union)
+		union, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, "%s distributes", name)
-		require.Len(t, u.Variants, 2, name)
-		v, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Model)
+		require.Len(t, union.Variants, 2, name)
+		model, ok := doc.Types[union.Variants[1].Type.Target].(*ir.Model)
 		require.True(t, ok, name)
-		require.NotNil(t, v.Base, name)
-		assert.Equal(t, componentID("Obj"), v.Base.Target, "%s: the composition's base, and no union", name)
-		assert.Empty(t, v.Mixins, name)
-		assert.Equal(t, []string{key}, slices.Sorted(maps.Keys(v.Unmodeled)), name)
-		assert.JSONEq(t, `{"anyOf":[{"type":"object"},{"type":"string"}]}`, string(v.Unmodeled[key].Value), name)
+		require.NotNil(t, model.Base, name)
+		assert.Equal(t, componentID("Obj"), model.Base.Target, "%s: the composition's base, and no union", name)
+		assert.Empty(t, model.Mixins, name)
+		assert.Equal(t, []string{key}, slices.Sorted(maps.Keys(model.Unmodeled)), name)
+		assert.JSONEq(t, `{"anyOf":[{"type":"object"},{"type":"string"}]}`, string(model.Unmodeled[key].Value), name)
 		at = "/components/schemas/" + name + at
-		assert.Equal(t, at, string(v.Unmodeled[key].Provenance.Pointer), name)
+		assert.Equal(t, at, string(model.Unmodeled[key].Provenance.Pointer), name)
 		assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, at), 1, "one info at %s", at)
 	}
 }

@@ -47,9 +47,9 @@ func TestVerify_WebhookRouteIsInTheFieldItsFlagSelects(t *testing.T) {
 			t.Parallel()
 			op := ir.Operation{ID: "operation/x/S/op", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{tc.binding}}}
 			var got []string
-			for _, v := range irverify.Verify(opDoc(op)) {
-				if v.Code == "ir/webhook-route" {
-					got = append(got, v.Path)
+			for _, violation := range irverify.Verify(opDoc(op)) {
+				if violation.Code == "ir/webhook-route" {
+					got = append(got, violation.Path)
 				}
 			}
 			assert.Equal(t, tc.want, got)

@@ -49,22 +49,22 @@ type exposure struct {
 // newExposure indexes the parts of the types in types.
 func newExposure(types ir.TypeRegistry) *exposure {
 	ids := slices.Sorted(maps.Keys(types))
-	e := &exposure{vertex: make(map[ir.TypeID]int, len(ids)), owner: map[ir.PropertyID]int{}}
+	exposureValue := &exposure{vertex: make(map[ir.TypeID]int, len(ids)), owner: map[ir.PropertyID]int{}}
 	for i, id := range ids {
-		e.vertex[id] = i
+		exposureValue.vertex[id] = i
 	}
 	edges := pairsOf[int](mostSources(types))
 	var sources []ir.TypeID
 	for i, id := range ids {
-		sources = e.read(sources[:0], i, types[id])
+		sources = exposureValue.read(sources[:0], i, types[id])
 		for _, source := range sources {
-			if v, declared := e.vertex[source]; declared {
+			if v, declared := exposureValue.vertex[source]; declared {
 				edges.add(i, v)
 			}
 		}
 	}
-	e.reach = newIntervals(edges.grouped(len(ids)))
-	return e
+	exposureValue.reach = newIntervals(edges.grouped(len(ids)))
+	return exposureValue
 }
 
 // mostSources returns how many part sources the types of types name at most:
@@ -102,11 +102,11 @@ func (e *exposure) read(dst []ir.TypeID, i int, td ir.TypeDef) []ir.TypeID {
 		if t.Base != nil {
 			dst = append(dst, t.Base.Target)
 		}
-		for _, r := range t.Implements {
-			dst = append(dst, r.Target)
+		for _, typeRef := range t.Implements {
+			dst = append(dst, typeRef.Target)
 		}
-		for _, r := range t.Mixins {
-			dst = append(dst, r.Target)
+		for _, typeRef := range t.Mixins {
+			dst = append(dst, typeRef.Target)
 		}
 	case *ir.Scalar:
 		if t.Base != nil {

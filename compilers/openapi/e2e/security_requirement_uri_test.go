@@ -82,11 +82,11 @@ func compileRequirements(t *testing.T, entry, schemes string) (*ir.Document, []i
 // names, failing the test unless it names exactly one.
 func schemeOf(t *testing.T, doc *ir.Document, op string) ir.AuthID {
 	t.Helper()
-	o, ok := opByName(doc, op)
+	operation, ok := opByName(doc, op)
 	require.True(t, ok, "no operation %s", op)
-	require.Len(t, o.Auth, 1, op)
-	require.Len(t, o.Auth[0].Schemes, 1, op)
-	return o.Auth[0].Schemes[0].Scheme
+	require.Len(t, operation.Auth, 1, op)
+	require.Len(t, operation.Auth[0].Schemes, 1, op)
+	return operation.Auth[0].Schemes[0].Scheme
 }
 
 // TestCompile_ASecurityRequirementKeyThatIsAURIIsBoundToItsScheme pins a 3.2

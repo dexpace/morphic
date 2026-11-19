@@ -34,8 +34,8 @@ func TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry(t 
 		td := typeByName(doc, name)
 		require.NotNil(t, td, name)
 		out := map[string]string{}
-		for key, e := range td.Common().Unmodeled {
-			out[key] = string(e.Value)
+		for key, unmodeledEntry := range td.Common().Unmodeled {
+			out[key] = string(unmodeledEntry.Value)
 		}
 		return out
 	}

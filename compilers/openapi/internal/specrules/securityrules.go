@@ -21,8 +21,8 @@ func (s Spec) SecurityRules(version string) SecurityRules {
 	if !ok {
 		return SecurityRules{}
 	}
-	for _, p := range obj.Patterned {
-		if p.ByURI && p.Span.Holds(minor) {
+	for _, pattern := range obj.Patterned {
+		if pattern.ByURI && pattern.Span.Holds(minor) {
 			return SecurityRules{byURI: true}
 		}
 	}

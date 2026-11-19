@@ -26,10 +26,10 @@ func readSelector(a action, field, selector string) (jsonpath.Query, []ir.Diagno
 	if field != "target" {
 		subject = fmt.Sprintf("its %s %q", field, selector)
 	}
-	q, err := jsonpath.Parse(selector)
+	query, err := jsonpath.Parse(selector)
 	syntax, failed := errors.AsType[*jsonpath.SyntaxError](err)
 	if !failed {
-		return q, patternNotes(a, subject, q)
+		return query, patternNotes(a, subject, query)
 	}
 	reason := syntax.Reason
 	if hint := hintFor(selector, syntax); hint != "" {
@@ -39,38 +39,38 @@ func readSelector(a action, field, selector string) (jsonpath.Query, []ir.Diagno
 		"%s: %s does not read as an RFC 9535 query at offset %d: %s", a.label(), subject, syntax.Offset, reason)}
 }
 
-// patternNotes reports what each literal pattern q hands match or search calls
+// patternNotes reports what each literal pattern query hands match or search calls
 // for (jsonpath.PatternNote): a warning for one that matches no string, so the
 // call never holds and the selector selects nothing by it, and an info for one
 // whose `^` or `$` is read as an anchor where RFC 9485's grammar reads the
 // character, which a pattern matching no string is not told again.
-func patternNotes(a action, subject string, q jsonpath.Query) []ir.Diagnostic {
-	notes := q.PatternNotes()
+func patternNotes(a action, subject string, query jsonpath.Query) []ir.Diagnostic {
+	notes := query.PatternNotes()
 	if len(notes) == 0 {
 		return nil
 	}
 	out := make([]ir.Diagnostic, 0, len(notes))
-	for _, n := range notes {
-		if n.Dead {
+	for _, patternNote := range notes {
+		if patternNote.Dead {
 			out = append(out, diag.Newf(ir.SeverityWarning, diag.OverlayAction, a.overlay,
-				"%s: %s writes the pattern %q, which matches no string: %s", a.label(), subject, n.Pattern, n.Reason))
+				"%s: %s writes the pattern %q, which matches no string: %s", a.label(), subject, patternNote.Pattern, patternNote.Reason))
 			continue
 		}
 		out = append(out, diag.Newf(ir.SeverityInfo, diag.OverlayAnchoredPattern, a.overlay,
-			"%s: %s writes the pattern %q, whose %s", a.label(), subject, n.Pattern, n.Reason))
+			"%s: %s writes the pattern %q, whose %s", a.label(), subject, patternNote.Pattern, patternNote.Reason))
 	}
 	return out
 }
 
-// hintFor returns what to say of the selector s that e reports stops being a
+// hintFor returns what to say of the selector s that syntaxError reports stops being a
 // query, or nothing: a `~` where it stops, or a member name after a dot that
 // the shorthand does not admit where the parse stopped in one.
-func hintFor(s string, e *jsonpath.SyntaxError) string {
+func hintFor(s string, syntaxError *jsonpath.SyntaxError) string {
 	switch {
-	case e.Offset < len(s) && s[e.Offset] == '~':
+	case syntaxError.Offset < len(s) && s[syntaxError.Offset] == '~':
 		return "uses ~, which RFC 9535 does not define"
-	case e.Dot > 0:
-		return shorthandHint(s, e.Dot)
+	case syntaxError.Dot > 0:
+		return shorthandHint(s, syntaxError.Dot)
 	default:
 		return ""
 	}

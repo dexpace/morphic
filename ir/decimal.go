@@ -94,11 +94,11 @@ type decimalLiteral struct {
 // Zero is accepted at any written exponent. The result is the zero Decimal on
 // error, which reads as the number zero, so a caller must check the error.
 func ParseDecimal(s string) (Decimal, error) {
-	l, exp, err := readDecimal(s)
+	decimalLiteral, exp, err := readDecimal(s)
 	if err != nil {
 		return Decimal{}, fmt.Errorf("decimal: %q: %w", s, err)
 	}
-	return l.decimal(exp), nil
+	return decimalLiteral.decimal(exp), nil
 }
 
 // readDecimal splits s and reads the power of ten its leading digit carries, so
@@ -106,15 +106,15 @@ func ParseDecimal(s string) (Decimal, error) {
 // value from. The split is substrings of s, so reading it allocates nothing.
 // Its error is bare, for each of them to name itself in.
 func readDecimal(s string) (decimalLiteral, int64, error) {
-	l, ok := scanDecimal(s)
+	decimalLiteralValue, ok := scanDecimal(s)
 	if !ok {
 		return decimalLiteral{}, 0, ErrNotDecimal
 	}
-	exp, err := l.leadExponent()
+	exp, err := decimalLiteralValue.leadExponent()
 	if err != nil {
 		return decimalLiteral{}, 0, err
 	}
-	return l, exp, nil
+	return decimalLiteralValue, exp, nil
 }
 
 // scanDecimal splits s by the grammar sign? (digits ("." digits*)? | "." digits)
@@ -122,19 +122,19 @@ func readDecimal(s string) (decimalLiteral, int64, error) {
 // other text. math/big's base-10 parser reads a wider grammar, a p/P binary
 // exponent among it ("1p4" is 16), so none of it decides membership.
 func scanDecimal(s string) (decimalLiteral, bool) {
-	var l decimalLiteral
+	var decimalLiteralValue decimalLiteral
 	i := 0
 	if i < len(s) && (s[i] == '+' || s[i] == '-') {
-		l.neg = s[i] == '-'
+		decimalLiteralValue.neg = s[i] == '-'
 		i++
 	}
 	end := scanDigits(s, i)
-	l.intPart, i = s[i:end], end
+	decimalLiteralValue.intPart, i = s[i:end], end
 	if i < len(s) && s[i] == '.' {
 		end = scanDigits(s, i+1)
-		l.frac, l.point, i = s[i+1:end], true, end
+		decimalLiteralValue.frac, decimalLiteralValue.point, i = s[i+1:end], true, end
 	}
-	if l.intPart == "" && l.frac == "" {
+	if decimalLiteralValue.intPart == "" && decimalLiteralValue.frac == "" {
 		return decimalLiteral{}, false // no digit anywhere: "", "+", ".", "Inf"
 	}
 	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
@@ -147,12 +147,12 @@ func scanDecimal(s string) (decimalLiteral, bool) {
 		if end == i {
 			return decimalLiteral{}, false // an e with no exponent digits
 		}
-		l.exponent, i = s[start:end], end
+		decimalLiteralValue.exponent, i = s[start:end], end
 	}
 	if i != len(s) {
 		return decimalLiteral{}, false // unconsumed text: "0x10", "1p4", "5 "
 	}
-	return l, true
+	return decimalLiteralValue, true
 }
 
 // scanDigits returns the index past the run of ASCII digits that starts at
@@ -251,21 +251,21 @@ func (d Decimal) Sign() int {
 	}
 }
 
-// Cmp returns -1, 0 or +1 as d is less than, equal to or greater than e. It is
+// Cmp returns -1, 0 or +1 as d is less than, equal to or greater than decimal. It is
 // exact however far apart the magnitudes are: sign first, then the power of ten
 // the leading digit carries, then the digits as strings. That last step is exact
 // because trailing zeros are stripped, so at one exponent a run that is a strict
 // prefix of another is the smaller value.
-func (d Decimal) Cmp(e Decimal) int {
-	if order := cmp.Compare(d.Sign(), e.Sign()); order != 0 {
+func (d Decimal) Cmp(decimal Decimal) int {
+	if order := cmp.Compare(d.Sign(), decimal.Sign()); order != 0 {
 		return order
 	}
 	if d.digits == "" {
 		return 0
 	}
-	order := cmp.Compare(d.exp, e.exp)
+	order := cmp.Compare(d.exp, decimal.exp)
 	if order == 0 {
-		order = strings.Compare(d.digits, e.digits)
+		order = strings.Compare(d.digits, decimal.digits)
 	}
 	if d.neg {
 		return -order

@@ -31,27 +31,27 @@ import (
 // alone: TestNamedPointerBytes_TotalsWhatATablesWalksSpell the binder's,
 // e2e's TestCompile_SpellsNoPointerTheNamedTotalLeavesOut a compile's.
 func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (bytes int, complete bool) {
-	w := named{memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
+	namedValue := named{memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
 		view: nodeview.New(), root: nodeview.DocumentRoot(root), complete: true}
-	if w.root == nil {
+	if namedValue.root == nil {
 		return 0, true
 	}
-	w.components, w.schemes = w.declared("schemas"), w.declared("securitySchemes")
-	version, _ := scalarText(w.view.ChildByToken(w.root, "openapi"))
-	w.keysByURI = specrules.Table().SecurityRules(version).NamesByURI()
-	total := w.shapeOf(ctx, namedKey{n: w.root, s: sDocument}).pointers
+	namedValue.components, namedValue.schemes = namedValue.declared("schemas"), namedValue.declared("securitySchemes")
+	version, _ := scalarText(namedValue.view.ChildByToken(namedValue.root, "openapi"))
+	namedValue.keysByURI = specrules.Table().SecurityRules(version).NamesByURI()
+	total := namedValue.shapeOf(ctx, namedKey{n: namedValue.root, s: sDocument}).pointers
 	landed := map[namedLanding]bool{}
-	for i := 0; i < len(w.refs) && w.complete; i++ {
-		target, pointer, ok := w.landing(w.refs[i].ref)
-		at := namedLanding{pointer: pointer, s: w.refs[i].s}
+	for i := 0; i < len(namedValue.refs) && namedValue.complete; i++ {
+		target, pointer, ok := namedValue.landing(namedValue.refs[i].ref)
+		at := namedLanding{pointer: pointer, s: namedValue.refs[i].s}
 		if !ok || landed[at] || stateOf(sDocument, slices.Collect(pointer.Tokens())) == at.s {
 			continue
 		}
 		landed[at] = true
-		got := w.shapeOf(ctx, namedKey{n: target, s: at.s})
+		got := namedValue.shapeOf(ctx, namedKey{n: target, s: at.s})
 		total = sat(total, sat(got.pointers, satMul(got.nodes, pointerBytes(pointer))))
 	}
-	return total, w.complete && !w.view.Exhausted()
+	return total, namedValue.complete && !namedValue.view.Exhausted()
 }
 
 // pointerBytes is the bytes of pointer as its tokens are written.
@@ -109,8 +109,8 @@ type named struct {
 // declared is the keys the document writes under kind in its components.
 func (w *named) declared(kind string) map[string]bool {
 	keys := map[string]bool{}
-	for _, p := range w.view.MappingPairs(w.view.ChildByToken(nodeview.Deref(w.view.ChildByToken(w.root, "components")), kind)) {
-		keys[p.Key] = true
+	for _, pair := range w.view.MappingPairs(w.view.ChildByToken(nodeview.Deref(w.view.ChildByToken(w.root, "components")), kind)) {
+		keys[pair.Key] = true
 	}
 	return keys
 }
@@ -127,8 +127,8 @@ type namedFrame struct {
 func (w *named) shapeOf(ctx context.Context, top namedKey) namedShape {
 	stack := []namedFrame{{key: top}}
 	for len(stack) > 0 && w.complete {
-		f := &stack[len(stack)-1]
-		if _, done := w.memo[f.key]; done {
+		namedFrame := &stack[len(stack)-1]
+		if _, done := w.memo[namedFrame.key]; done {
 			stack = stack[:len(stack)-1]
 			continue
 		}
@@ -136,54 +136,54 @@ func (w *named) shapeOf(ctx context.Context, top namedKey) namedShape {
 			w.complete = false
 			break
 		}
-		if !f.pushed {
-			f.pushed = true
-			stack = append(stack, w.below(f.key)...)
+		if !namedFrame.pushed {
+			namedFrame.pushed = true
+			stack = append(stack, w.below(namedFrame.key)...)
 			continue
 		}
-		w.memo[f.key] = w.measured(f.key)
+		w.memo[namedFrame.key] = w.measured(namedFrame.key)
 		stack = stack[:len(stack)-1]
 	}
 	return w.memo[top]
 }
 
-// below returns the (node, state) pairs k's shape is made of, and notes the
-// references k writes. A scalar read raw holds none, so a raw value costs a
+// below returns the (node, state) pairs namedKeyValue's shape is made of, and notes the
+// references namedKeyValue writes. A scalar read raw holds none, so a raw value costs a
 // step for each mapping and list it holds.
-func (w *named) below(k namedKey) []namedFrame {
-	n := k.n
+func (w *named) below(namedKeyValue namedKey) []namedFrame {
+	n := namedKeyValue.n
 	if n == nil {
 		return nil
 	}
-	w.noteRefs(k)
+	w.noteRefs(namedKeyValue)
 	var out []namedFrame
-	w.eachNamedChild(n, k.s, func(c *yaml.Node, s state, _ int) {
-		if s == sRaw && (c == nil || c.Kind == yaml.ScalarNode) {
+	w.eachNamedChild(n, namedKeyValue.s, func(c *yaml.Node, stateValue state, _ int) {
+		if stateValue == sRaw && (c == nil || c.Kind == yaml.ScalarNode) {
 			return
 		}
-		if _, done := w.memo[namedKey{n: c, s: s}]; !done {
-			out = append(out, namedFrame{key: namedKey{n: c, s: s}})
+		if _, done := w.memo[namedKey{n: c, s: stateValue}]; !done {
+			out = append(out, namedFrame{key: namedKey{n: c, s: stateValue}})
 		}
 	})
 	return out
 }
 
-// measured is k's shape once what it is made of is measured. A node read raw
+// measured is namedKeyValue's shape once what it is made of is measured. A node read raw
 // names what a compile names inside it and not itself, which the node holding
 // it adds (rawNamed).
-func (w *named) measured(k namedKey) namedShape {
-	n := k.n
+func (w *named) measured(namedKeyValue namedKey) namedShape {
+	n := namedKeyValue.n
 	if n == nil {
 		return namedShape{}
 	}
 	out := namedShape{nodes: 1}
-	if k.s == sRaw {
+	if namedKeyValue.s == sRaw {
 		out = rawNamed(n)
 	}
-	member := n.Kind == yaml.MappingNode && k.s != sRaw
-	w.eachNamedChild(n, k.s, func(c *yaml.Node, s state, edge int) {
-		got := w.memo[namedKey{n: c, s: s}]
-		if s == sRaw && k.s != sRaw {
+	member := n.Kind == yaml.MappingNode && namedKeyValue.s != sRaw
+	w.eachNamedChild(n, namedKeyValue.s, func(c *yaml.Node, stateValue state, edge int) {
+		got := w.memo[namedKey{n: c, s: stateValue}]
+		if stateValue == sRaw && namedKeyValue.s != sRaw {
 			// A raw value's root, which a compile names alone.
 			got.nodes = sat(got.nodes, 1)
 		}
@@ -213,59 +213,59 @@ func rawNamed(n *yaml.Node) namedShape {
 	return out
 }
 
-// eachNamedChild hands visit each child of n read at s, what an alias names in
+// eachNamedChild hands visit each child of n read at stateValue, what an alias names in
 // its place, with the state it is read at and the bytes its step adds to a
 // pointer: a key or an index, and a '/'. A mapping's are its members' values
 // as the binder reads them (nodeview.View.MappingPairs): those a `<<` merge key
 // brings in among its own, which a compile names at the mapping, and a key
 // written twice at its last copy.
-func (w *named) eachNamedChild(n *yaml.Node, s state, visit func(c *yaml.Node, s state, edge int)) {
+func (w *named) eachNamedChild(n *yaml.Node, stateValue state, visit func(c *yaml.Node, otherState state, edge int)) {
 	switch n.Kind {
 	case yaml.MappingNode:
-		for _, p := range w.view.MappingPairs(n) {
-			visit(p.Val, step(s, p.Key), len(p.Key)+1)
+		for _, pair := range w.view.MappingPairs(n) {
+			visit(pair.Val, step(stateValue, pair.Key), len(pair.Key)+1)
 		}
 	case yaml.SequenceNode:
 		for i, item := range n.Content {
 			token := strconv.Itoa(i)
-			visit(nodeview.Deref(item), step(s, token), len(token)+1)
+			visit(nodeview.Deref(item), step(stateValue, token), len(token)+1)
 		}
 	default:
 	}
 }
 
-// noteRefs notes what the mapping k reads as a reference: its $ref where its
+// noteRefs notes what the mapping namedKeyValue reads as a reference: its $ref where its
 // state reads one, and for a schema its $dynamicRef, which lands as a $ref
 // does or on the anchor its plain name expands to, and each value its
 // discriminator names a schema by (mappingValues), by its text whatever its
 // tag, that spells no schema component's key, which names that component where
 // it is declared. A Security Requirement Object's are its keys (noteKeys).
-func (w *named) noteRefs(k namedKey) {
-	if k.n.Kind != yaml.MappingNode {
+func (w *named) noteRefs(namedKeyValue namedKey) {
+	if namedKeyValue.n.Kind != yaml.MappingNode {
 		return
 	}
-	if k.s == sSecurityRequirement {
-		w.noteKeys(k.n)
+	if namedKeyValue.s == sSecurityRequirement {
+		w.noteKeys(namedKeyValue.n)
 		return
 	}
-	_, object := refKinds[k.s]
-	if k.s != sSchema && !object {
+	_, object := refKinds[namedKeyValue.s]
+	if namedKeyValue.s != sSchema && !object {
 		return
 	}
-	if ref, ok := scalarText(w.view.ChildByToken(k.n, "$ref")); ok {
-		w.refs = append(w.refs, namedRef{ref: ref, s: k.s})
+	if ref, ok := scalarText(w.view.ChildByToken(namedKeyValue.n, "$ref")); ok {
+		w.refs = append(w.refs, namedRef{ref: ref, s: namedKeyValue.s})
 	}
-	if k.s != sSchema {
+	if namedKeyValue.s != sSchema {
 		return
 	}
-	if ref, ok := scalarText(w.view.ChildByToken(k.n, "$dynamicRef")); ok {
+	if ref, ok := scalarText(w.view.ChildByToken(namedKeyValue.n, "$dynamicRef")); ok {
 		w.refs = append(w.refs, namedRef{ref: ref, s: sSchema})
 	}
-	if w.view.ChildByToken(k.n, "$id") != nil {
+	if w.view.ChildByToken(namedKeyValue.n, "$id") != nil {
 		w.complete = false
 		return
 	}
-	for _, v := range mappingValues(w.view, k.n) {
+	for _, v := range mappingValues(w.view, namedKeyValue.n) {
 		if !w.components[v.Value] {
 			w.refs = append(w.refs, namedRef{ref: v.Value, s: sSchema})
 		}
@@ -277,9 +277,9 @@ func (w *named) noteRefs(k namedKey) {
 // key its URI, where the document's minor reads a key so, as the binder reads
 // one (finder.requirementKeys).
 func (w *named) noteKeys(n *yaml.Node) {
-	for _, p := range w.view.MappingPairs(n) {
-		if w.keysByURI && !w.schemes[p.Key] {
-			w.refs = append(w.refs, namedRef{ref: p.Key, s: sSecurityScheme})
+	for _, pair := range w.view.MappingPairs(n) {
+		if w.keysByURI && !w.schemes[pair.Key] {
+			w.refs = append(w.refs, namedRef{ref: pair.Key, s: sSecurityScheme})
 		}
 	}
 }
@@ -309,13 +309,13 @@ func (w *named) landing(ref string) (*yaml.Node, jsontext.Pointer, bool) {
 // (binder.through), not in what the mapping writes beside its $ref. A path
 // item's own fields, which the binder reads in place, are not told apart.
 func (w *named) passesReference(path []*yaml.Node, pointer jsontext.Pointer) bool {
-	s, i := sDocument, 0
+	state, i := sDocument, 0
 	for token := range pointer.Tokens() {
-		_, object := refKinds[s]
+		_, object := refKinds[state]
 		if _, refs := scalarText(w.view.ChildByToken(path[i], "$ref")); object && refs {
 			return true
 		}
-		s, i = step(s, token), i+1
+		state, i = step(state, token), i+1
 	}
 	return false
 }

@@ -11,8 +11,8 @@ func CodeSpans(text string) []string {
 		return nil
 	}
 	out := make([]string, 0, len(spans))
-	for _, n := range spans {
-		out = append(out, n.text)
+	for _, named := range spans {
+		out = append(out, named.text)
 	}
 	return out
 }

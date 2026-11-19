@@ -85,7 +85,7 @@ func DecidedKeyword(keyword string) bool { return slices.Contains(decidedKeyword
 // field for that a reader keeps, so the census meets them with the rest.
 var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
 
-// UnknownKeywordsIn records on p the keywords s writes that no field of the
+// UnknownKeywordsIn records on unmodeled the keywords schema writes that no field of the
 // JSON Schema model names, and announces each: legal JSON Schema 2020-12 an
 // implementation must ignore, so a decision rather than a fault. The model
 // keeps only a keyword's name, so its value is read from the raw node
@@ -95,10 +95,10 @@ var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
 // and `dependentRequired` have readers of their own. A keyword no reader
 // leaves a trace of is named in decidedKeywords, or in taken where only the
 // caller knows a reader took it.
-func UnknownKeywordsIn(p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) []ir.Diagnostic {
-	keys, root := unknownSchemaKeys(s)
+func UnknownKeywordsIn(unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) []ir.Diagnostic {
+	keys, root := unknownSchemaKeys(schema)
 	keys = slices.DeleteFunc(keys, func(key string) bool { return slices.Contains(taken, key) })
-	return census(p, keys, root, doc, pointer, "", keyClass{
+	return census(unmodeled, keys, root, doc, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,
 		message: "keyword %q has no field in the schema model this compiler lowers and no IR " +
@@ -106,58 +106,58 @@ func UnknownKeywordsIn(p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Po
 	})
 }
 
-// WritesUnknownKeyword reports whether s writes a keyword UnknownKeywordsIn
+// WritesUnknownKeyword reports whether schema writes a keyword UnknownKeywordsIn
 // would consider keeping, so a position can tell whether it needs a node of its
 // own for one to land on.
-func WritesUnknownKeyword(s *statement.Schema) bool {
-	keys, _ := unknownSchemaKeys(s)
+func WritesUnknownKeyword(schema *statement.Schema) bool {
+	keys, _ := unknownSchemaKeys(schema)
 	return len(keys) > 0
 }
 
-// UnknownKeyword reports whether key, a key s writes, is one UnknownKeywordsIn
+// UnknownKeyword reports whether key, a key schema writes, is one UnknownKeywordsIn
 // would consider keeping, for a reader telling one keyword's slot.
-func UnknownKeyword(s *statement.Schema, key string) bool {
-	keys, _ := unknownSchemaKeys(s)
+func UnknownKeyword(schema *statement.Schema, key string) bool {
+	keys, _ := unknownSchemaKeys(schema)
 	return slices.Contains(keys, key)
 }
 
-// WritesEmptyDependencyMap reports whether s writes key, `dependentSchemas`,
+// WritesEmptyDependencyMap reports whether schema writes key, `dependentSchemas`,
 // `dependentRequired` or a draft's `dependencies`, as a mapping with no entry:
 // JSON Schema equates it with the keyword left out, so nothing of it is kept
 // (docs/compilers/openapi.md#validation-only). The drafts' spelling is one only
-// where the dialect s is read in defines it, and elsewhere an unknown keyword.
-func WritesEmptyDependencyMap(s *statement.Schema, key string) bool {
+// where the dialect schema is read in defines it, and elsewhere an unknown keyword.
+func WritesEmptyDependencyMap(schema *statement.Schema, key string) bool {
 	switch key {
 	case "dependentSchemas", "dependentRequired":
 	case "dependencies":
-		if k, _ := s.Key(key); !k.Defined() {
+		if statementKey, _ := schema.Key(key); !statementKey.Defined() {
 			return false
 		}
 	default:
 		return false
 	}
-	n := keyNode(s, key)
+	n := keyNode(schema, key)
 	return n != nil && n.Kind == yaml.MappingNode && len(n.Content) == 0
 }
 
-// WritesKeywordLeftOut reports whether s writes key as a null that reads as the
+// WritesKeywordLeftOut reports whether schema writes key as a null that reads as the
 // keyword left out (statement.Schema.Key), or key as an empty dependency map
-// (WritesEmptyDependencyMap), for a reader that lists the keys s writes rather
+// (WritesEmptyDependencyMap), for a reader that lists the keys schema writes rather
 // than asking for one. A null is a value in an extension, and in a key the
 // census keeps.
-func WritesKeywordLeftOut(s *statement.Schema, key string) bool {
-	if WritesEmptyDependencyMap(s, key) {
+func WritesKeywordLeftOut(schema *statement.Schema, key string) bool {
+	if WritesEmptyDependencyMap(schema, key) {
 		return true
 	}
-	k, read := s.Key(key)
-	if !k.Null || read || strings.HasPrefix(key, "x-") {
+	statementKey, read := schema.Key(key)
+	if !statementKey.Null || read || strings.HasPrefix(key, "x-") {
 		return false
 	}
-	keys, _ := unknownSchemaKeys(s)
+	keys, _ := unknownSchemaKeys(schema)
 	return !slices.Contains(keys, key)
 }
 
-// unknownSchemaKeys returns the keys s writes that UnknownKeywordsIn answers
+// unknownSchemaKeys returns the keys schema writes that UnknownKeywordsIn answers
 // for, and the mapping holding them: those the model names no field for, but
 // the ones decided about (DecidedKeyword), a null for a keyword the dialect
 // defines, which reads as left out (statement.Schema.Key), and an empty
@@ -165,27 +165,27 @@ func WritesKeywordLeftOut(s *statement.Schema, key string) bool {
 // a null could break, so it is kept with the null it wrote. The keys are the
 // model's census (statement.Schema.Unknown), which names a key merged past
 // nodeview.MergeDepthLimit too, so the census reports it unreachable.
-func unknownSchemaKeys(s *statement.Schema) ([]string, *yaml.Node) {
-	if s == nil {
+func unknownSchemaKeys(schema *statement.Schema) ([]string, *yaml.Node) {
+	if schema == nil {
 		return nil, nil
 	}
-	return slices.DeleteFunc(slices.Clone(s.Unknown), func(key string) bool {
-		k, _ := s.Key(key)
-		return DecidedKeyword(key) || slices.Contains(modellessKeywords, key) && k.Null ||
-			WritesEmptyDependencyMap(s, key)
-	}), s.Node
+	return slices.DeleteFunc(slices.Clone(schema.Unknown), func(key string) bool {
+		statementKey, _ := schema.Key(key)
+		return DecidedKeyword(key) || slices.Contains(modellessKeywords, key) && statementKey.Null ||
+			WritesEmptyDependencyMap(schema, key)
+	}), schema.Node
 }
 
-// UndefinedKeywordsIn records on p each of keys, keywords s writes that the
-// schema model names but the dialect s is read in does not define and nothing
+// UndefinedKeywordsIn records on unmodeled each of keys, keywords schema writes that the
+// schema model names but the dialect schema is read in does not define and nothing
 // reads, and announces each as UnknownKeywordsIn announces a keyword the model
 // does not name: JSON Schema 2020-12 ignores the two alike. The caller says
 // which keywords those are, since only it knows the dialect and the policies.
-func UndefinedKeywordsIn(p *ir.Unmodeled, s *statement.Schema, keys []string, pointer jsontext.Pointer, doc provenance.Doc) []ir.Diagnostic {
+func UndefinedKeywordsIn(unmodeled *ir.Unmodeled, schema *statement.Schema, keys []string, pointer jsontext.Pointer, doc provenance.Doc) []ir.Diagnostic {
 	if len(keys) == 0 {
 		return nil
 	}
-	return census(p, keys, s.Node, doc, pointer, "", keyClass{
+	return census(unmodeled, keys, schema.Node, doc, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,
 		message: "keyword %q is not defined by the dialect this schema is read in, and no policy reads it " +
@@ -193,7 +193,7 @@ func UndefinedKeywordsIn(p *ir.Unmodeled, s *statement.Schema, keys []string, po
 	})
 }
 
-// UnknownKeysIn records on p the keys an OpenAPI object writes that the
+// UnknownKeysIn records on unmodeled the keys an OpenAPI object writes that the
 // specification neither defines nor admits as an extension, for an object
 // lowering to a node with an Unmodeled map of its own. owner is the object's
 // source pointer.
@@ -202,8 +202,8 @@ func UndefinedKeywordsIn(p *ir.Unmodeled, s *statement.Schema, keys []string, po
 // every object it judges, lowered or not (docs/compilers/openapi.md#unknown-keys),
 // so a report here would be the key's second. What it reports is about the
 // entry: one taken, unreachable or past the budget.
-func UnknownKeysIn(p *ir.Unmodeled, model any, doc provenance.Doc, owner jsontext.Pointer, taken ...string) []ir.Diagnostic {
-	return UnknownKeysUnder(p, model, doc, owner, "", taken...)
+func UnknownKeysIn(unmodeled *ir.Unmodeled, model any, doc provenance.Doc, owner jsontext.Pointer, taken ...string) []ir.Diagnostic {
+	return UnknownKeysUnder(unmodeled, model, doc, owner, "", taken...)
 }
 
 // UnknownKeysUnder is UnknownKeysIn with every entry keyed beneath scope, for
@@ -214,9 +214,9 @@ func UnknownKeysIn(p *ir.Unmodeled, model any, doc provenance.Doc, owner jsontex
 // the object. Several objects reach one map, where "openapi:status" from two of
 // them would be a single key and the entry that survived would depend on which
 // lowering ran last. taken lists keys a reader placed in a field (TakeString).
-func UnknownKeysUnder(p *ir.Unmodeled, model any, doc provenance.Doc, owner jsontext.Pointer, scope string, taken ...string) []ir.Diagnostic {
+func UnknownKeysUnder(unmodeled *ir.Unmodeled, model any, doc provenance.Doc, owner jsontext.Pointer, scope string, taken ...string) []ir.Diagnostic {
 	keys, root := undeclaredKeys(model)
-	return UnknownKeysNamed(p, keys, root, doc, owner, scope, taken...)
+	return UnknownKeysNamed(unmodeled, keys, root, doc, owner, scope, taken...)
 }
 
 // UnknownKeysNamed is UnknownKeysUnder for an object whose model keeps no
@@ -229,10 +229,10 @@ func UnknownKeysUnder(p *ir.Unmodeled, model any, doc provenance.Doc, owner json
 // however much the document wrote (docs/parser-library.md#embedded-map-keys).
 // Its leftovers are graded as any undeclared key is, because UnknownKeysUnder
 // delegates here.
-func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
+func UnknownKeysNamed(unmodeled *ir.Unmodeled, keys []string, root *yaml.Node,
 	doc provenance.Doc, owner jsontext.Pointer, scope string, taken ...string,
 ) []ir.Diagnostic {
-	return census(p, keys, root, doc, owner, scope, keyClass{skip: taken})
+	return census(unmodeled, keys, root, doc, owner, scope, keyClass{skip: taken})
 }
 
 // TakeString reads a string field the parser's model names no member for,
@@ -242,9 +242,9 @@ func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 //
 // A scalar the parser decodes as a string is returned, unless valid refuses a
 // non-empty one; empty or null is read as unset. Any other value is kept
-// verbatim on p at the census's own entry, with a warning. root is read as the
+// verbatim on unmodeled at the census's own entry, with a warning. root is read as the
 // parser reads it, through its `<<` merges (nodeview.Child).
-func TakeString(p *ir.Unmodeled, root *yaml.Node, key string, valid func(string) bool,
+func TakeString(unmodeled *ir.Unmodeled, root *yaml.Node, key string, valid func(string) bool,
 	doc provenance.Doc, owner jsontext.Pointer, scope string,
 ) (string, bool, []ir.Diagnostic) {
 	node := nodeview.Child(root, key)
@@ -256,7 +256,7 @@ func TakeString(p *ir.Unmodeled, root *yaml.Node, key string, valid func(string)
 		return value, true, nil
 	}
 	at := doc.At(owner + ids.Ptr(key))
-	kept, diags := PreserveNodeInto(p, EntryKey(scope, key), node, ir.ReasonDegradedLowering, at)
+	kept, diags := PreserveNodeInto(unmodeled, EntryKey(scope, key), node, ir.ReasonDegradedLowering, at)
 	if !kept {
 		return "", true, diags
 	}
@@ -299,7 +299,7 @@ type keyClass struct {
 	message  string   // one %q, filled with the key
 }
 
-// census records on p every key in keys, read off the mapping node root they
+// census records on unmodeled every key in keys, read off the mapping node root they
 // were written on, each under its own key beneath scope.
 //
 // It sorts a copy: neither source of keys yields document order, the model's
@@ -307,16 +307,16 @@ type keyClass struct {
 // (docs/parser-library.md#goroutine-per-node), and sorting in place would
 // reorder the slice under its owner (invariant 7).
 //
-// A key p already holds for this very construct is left alone and unannounced,
+// A key unmodeled already holds for this very construct is left alone and unannounced,
 // since the reader that recorded it said it better (see unrecorded). That
 // happens before the bound applies (see MaxUnknownKeys).
-func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
+func census(unmodeled *ir.Unmodeled, keys []string, root *yaml.Node,
 	doc provenance.Doc, owner jsontext.Pointer, scope string, cl keyClass,
 ) []ir.Diagnostic {
 	if len(keys) == 0 {
 		return nil // the common case: most objects write no key their model misses
 	}
-	fresh := unrecorded(p, slices.Sorted(slices.Values(keys)), owner, scope, cl.skip)
+	fresh := unrecorded(unmodeled, slices.Sorted(slices.Values(keys)), owner, scope, cl.skip)
 	if len(fresh) == 0 {
 		return nil
 	}
@@ -326,23 +326,23 @@ func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
 		fresh = fresh[:MaxUnknownKeys]
 	}
 	for _, key := range fresh {
-		diags = append(diags, keep(p, root, key, doc, owner, scope, cl)...)
+		diags = append(diags, keep(unmodeled, root, key, doc, owner, scope, cl)...)
 	}
 	return diags
 }
 
 // keep writes one key's value under its entry and announces it, or says why it
 // could not.
-func keep(p *ir.Unmodeled, root *yaml.Node, key string, doc provenance.Doc, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
+func keep(unmodeled *ir.Unmodeled, root *yaml.Node, key string, doc provenance.Doc, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
 	entry, at := EntryKey(scope, key), doc.At(owner+ids.Ptr(key))
-	if taken, occupied := (*p)[entry]; occupied {
+	if taken, occupied := (*unmodeled)[entry]; occupied {
 		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer)}
 	}
 	node := nodeview.Child(root, key)
 	if node == nil {
 		return []ir.Diagnostic{unreachableKeyDiag(entry, at)}
 	}
-	kept, diags := PreserveNodeInto(p, entry, node, ir.ReasonOutOfScope, at)
+	kept, diags := PreserveNodeInto(unmodeled, entry, node, ir.ReasonOutOfScope, at)
 	if !kept || cl.code == "" {
 		return diags
 	}
@@ -357,14 +357,14 @@ func keep(p *ir.Unmodeled, root *yaml.Node, key string, doc provenance.Doc, owne
 // (`$vocabulary` and `dependentRequired` on a schema's own map), so the census
 // has nothing to add. An entry pointing elsewhere is a different construct
 // spelling the same key, a collision that keep reports.
-func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope string, skip []string) []string {
+func unrecorded(unmodeled *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope string, skip []string) []string {
 	out := make([]string, 0, len(keys))
 	for _, key := range keys {
 		if slices.Contains(skip, key) {
 			continue
 		}
-		if e, recorded := (*p)[EntryKey(scope, key)]; recorded &&
-			e.Provenance.Pointer == owner+ids.Ptr(key) {
+		if unmodeledEntry, recorded := (*unmodeled)[EntryKey(scope, key)]; recorded &&
+			unmodeledEntry.Provenance.Pointer == owner+ids.Ptr(key) {
 			continue
 		}
 		out = append(out, key)

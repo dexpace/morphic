@@ -46,9 +46,9 @@ paths:
 
 	a, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
-	r, ok := doc.Bindings.Reference(a)
+	reference, ok := doc.Bindings.Reference(a)
 	require.True(t, ok)
-	landing, ok := doc.Bindings.ObjectAt(r.Hop.Target, reftable.RefPathItem).(*soa.ReferencedPathItem)
+	landing, ok := doc.Bindings.ObjectAt(reference.Hop.Target, reftable.RefPathItem).(*soa.ReferencedPathItem)
 	require.True(t, ok)
 	sib, ok := doc.Siblings.Of(landing)
 	require.True(t, ok, "the landing's fields are modelled")
@@ -90,9 +90,9 @@ paths:
 
 	a, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
-	r, ok := doc.Bindings.Reference(a)
+	reference, ok := doc.Bindings.Reference(a)
 	require.True(t, ok)
-	landing, ok := doc.Bindings.ObjectAt(r.Hop.Target, reftable.RefPathItem).(*soa.ReferencedPathItem)
+	landing, ok := doc.Bindings.ObjectAt(reference.Hop.Target, reftable.RefPathItem).(*soa.ReferencedPathItem)
 	require.True(t, ok)
 	_, ok = doc.Siblings.Of(landing)
 	assert.True(t, ok, "the landing's fields are modelled")

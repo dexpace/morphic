@@ -73,8 +73,8 @@ func TestValidate_DiscriminatorRoutesCostLinearWork(t *testing.T) {
 	for k, n := range []int{250, 500, 1000} {
 		allocs[k], bytes[k] = costAround(t, n, chainedDiscriminators, func(t *testing.T, size int, diags []ir.Diagnostic) {
 			var rejected int
-			for _, d := range diags {
-				if d.Code == "pass/discriminator-missing-variant" {
+			for _, diagnostic := range diags {
+				if diagnostic.Code == "pass/discriminator-missing-variant" {
 					rejected++
 				}
 			}
@@ -89,20 +89,20 @@ func TestValidate_DiscriminatorRoutesCostLinearWork(t *testing.T) {
 
 // chainedProperties is n+1 models chained by Base, the top declaring property
 // "property/kind", shaped further by mutate.
-func chainedProperties(n int, mutate func(m *ir.Model)) (ir.TypeRegistry, ir.TypeID) {
+func chainedProperties(n int, mutate func(model *ir.Model)) (ir.TypeRegistry, ir.TypeID) {
 	chain := func(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("type/c%05d", i)) }
 	types := ir.TypeRegistry{"type/string": &ir.Primitive{ID: "type/string", PrimitiveKind: ir.PrimitiveString}}
 	for i := 0; i <= n; i++ {
-		m := &ir.Model{ID: chain(i)}
+		model := &ir.Model{ID: chain(i)}
 		if i == 0 {
-			m.Properties = []ir.Property{{ID: "property/kind", Type: ir.TypeRef{Target: "type/string"}}}
+			model.Properties = []ir.Property{{ID: "property/kind", Type: ir.TypeRef{Target: "type/string"}}}
 		} else {
-			m.Base = &ir.TypeRef{Target: chain(i - 1)}
+			model.Base = &ir.TypeRef{Target: chain(i - 1)}
 		}
 		if mutate != nil {
-			mutate(m)
+			mutate(model)
 		}
-		types[m.ID] = m
+		types[model.ID] = model
 	}
 	return types, chain(n)
 }
@@ -114,7 +114,7 @@ func chainedProperties(n int, mutate func(m *ir.Model)) (ir.TypeRegistry, ir.Typ
 func exposureShapes() map[string]func(n int) *ir.Document {
 	return map[string]func(n int) *ir.Document{
 		"a chain of discriminators tagging the top's property": func(n int) *ir.Document {
-			types, _ := chainedProperties(n, func(m *ir.Model) { m.Discriminator = &ir.Discriminator{Property: "property/kind"} })
+			types, _ := chainedProperties(n, func(model *ir.Model) { model.Discriminator = &ir.Discriminator{Property: "property/kind"} })
 			return &ir.Document{IRVersion: ir.IRVersion, Name: "t", Version: "1", Types: types}
 		},
 		"multipart parts naming the top's property of the bottom": func(n int) *ir.Document {
@@ -169,8 +169,8 @@ func TestValidate_ExposedPropertiesCostLinearBytes(t *testing.T) {
 			var bytes [3]float64
 			for k, n := range []int{250, 500, 1000} {
 				_, bytes[k] = costAround(t, n, build, func(t *testing.T, _ int, diags []ir.Diagnostic) {
-					for _, d := range diags {
-						require.NotContains(t, []string{"pass/discriminator-unknown-property", "ir/encoding-key-unknown-property"}, d.Code,
+					for _, diagnostic := range diags {
+						require.NotContains(t, []string{"pass/discriminator-unknown-property", "ir/encoding-key-unknown-property"}, diagnostic.Code,
 							"every question must be answered yes, or the sizes compare different work")
 					}
 				})

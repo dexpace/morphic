@@ -36,18 +36,18 @@ func TestCases_CoverTheRuleTable(t *testing.T) {
 	for version, constructs := range written {
 		minor, ok := specrules.ParseMinor(version)
 		require.True(t, ok, "%s is a version the rule table covers", version)
-		for _, f := range schema.Fields {
-			if !f.IsJSONSchemaKeyword || !f.Defined.Holds(minor) {
+		for _, field := range schema.Fields {
+			if !field.IsJSONSchemaKeyword || !field.Defined.Holds(minor) {
 				continue
 			}
-			_, excused := notCases()[f.Name]
-			assert.True(t, constructs[f.Name] || excused,
+			_, excused := notCases()[field.Name]
+			assert.True(t, constructs[field.Name] || excused,
 				"%s: keyword %s of the rule table is no schema case's construct; write it in a "+
-					"construct row of openapicases, or say in notCases why not", version, f.Name)
+					"construct row of openapicases, or say in notCases why not", version, field.Name)
 		}
 		for name := range constructs {
-			assert.True(t, slices.ContainsFunc(schema.Fields, func(f specrules.Field) bool {
-				return f.Name == name && f.Defined.Holds(minor)
+			assert.True(t, slices.ContainsFunc(schema.Fields, func(field specrules.Field) bool {
+				return field.Name == name && field.Defined.Holds(minor)
 			}), "%s: construct %s names no field the Schema Object defines there", version, name)
 		}
 	}
@@ -63,16 +63,16 @@ func TestCases_CoverTheRuleTable(t *testing.T) {
 // lists, the keywords of the constructs some case writes at it, read through
 // the cases' own axes and Write. A case is written only while its pair of
 // version and keyword is not yet known written, since writing is the cost.
-func writtenConstructs(t *testing.T, c harness.Cases) map[string]map[string]bool {
+func writtenConstructs(t *testing.T, cases harness.Cases) map[string]map[string]bool {
 	t.Helper()
-	axes := c.Axes()
+	axes := cases.Axes()
 	version := slices.IndexFunc(axes, func(a harness.Axis) bool { return a.Name == "version" })
 	construct := slices.IndexFunc(axes, func(a harness.Axis) bool { return a.Name == "construct" })
 	require.GreaterOrEqual(t, version, 0)
 	require.GreaterOrEqual(t, construct, 0)
 
 	written := map[string]map[string]bool{}
-	each, err := harness.Each(c)
+	each, err := harness.Each(cases)
 	require.NoError(t, err)
 	for _, at := range each {
 		v, k := axes[version].Values[at[version]].Name, strings.TrimSuffix(axes[construct].Values[at[construct]].Name, "~")
@@ -82,7 +82,7 @@ func writtenConstructs(t *testing.T, c harness.Cases) map[string]map[string]bool
 		if k == "none" || written[v][k] {
 			continue
 		}
-		if _, ok := c.Write(at); ok {
+		if _, ok := cases.Write(at); ok {
 			written[v][k] = true
 		}
 	}

@@ -30,13 +30,13 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := typeByName(doc, "S").(*ir.Model)
+	model := typeByName(doc, "S").(*ir.Model)
 	bases := map[string]ir.PrimitiveKind{}
-	for _, p := range m.Properties {
-		sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
-		require.True(t, ok, "prop %s hoisted as scalar", p.WireName)
+	for _, property := range model.Properties {
+		sc, ok := doc.Types[property.Type.Target].(*ir.Scalar)
+		require.True(t, ok, "prop %s hoisted as scalar", property.WireName)
 		require.NotNil(t, sc.Base)
-		bases[p.WireName] = doc.Types[sc.Base.Target].(*ir.Primitive).PrimitiveKind
+		bases[property.WireName] = doc.Types[sc.Base.Target].(*ir.Primitive).PrimitiveKind
 		assert.Equal(t, "weird", sc.Encoding.Name)
 	}
 	assert.Equal(t, ir.PrimitiveInteger, bases["i"])
@@ -94,11 +94,11 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 				"    H:\n      type: object\n      properties:\n        p: {type: %s, format: %s}\n",
 				tc.typ, tc.format)))
 			assert.Empty(t, diags, "the format is homed either way, so nothing is reported")
-			h, ok := typeByName(doc, "H").(*ir.Model)
+			model, ok := typeByName(doc, "H").(*ir.Model)
 			require.True(t, ok, "H lowers to a model")
-			require.Len(t, h.Properties, 1)
-			assert.Empty(t, h.Properties[0].Unmodeled, "the format is homed either way, so nothing is kept")
-			target := h.Properties[0].Type.Target
+			require.Len(t, model.Properties, 1)
+			assert.Empty(t, model.Properties[0].Unmodeled, "the format is homed either way, so nothing is kept")
+			target := model.Properties[0].Type.Target
 
 			if tc.prim != "" {
 				assert.Equal(t, ir.PrimitiveTypeID(tc.prim), target, "the position resolves to the shared primitive")
@@ -156,10 +156,10 @@ func TestScalar_EncodedFormatPairings(t *testing.T) {
 				"    H:\n      type: object\n      properties:\n        p: {type: %s, format: %s}\n",
 				tc.typ, tc.format)))
 			assert.Empty(t, diags, "the format is homed, so nothing is reported")
-			p := propertyOf(t, doc, "H", "p")
-			assert.Empty(t, p.Unmodeled, "the format is homed, so nothing is kept")
+			property := propertyOf(t, doc, "H", "p")
+			assert.Empty(t, property.Unmodeled, "the format is homed, so nothing is kept")
 
-			sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
+			sc, ok := doc.Types[property.Type.Target].(*ir.Scalar)
 			require.True(t, ok, "the position hoists a Scalar")
 			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/H/properties/p"), sc.ID, "at its own pointer")
 			require.NotNil(t, sc.Base)
@@ -326,9 +326,9 @@ func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
 			t.Parallel()
 			doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(
 				"    H:\n      type: object\n      properties:\n        p: {type: string, format: %s%s}\n", tc.format, tc.extra)))
-			h, ok := typeByName(doc, "H").(*ir.Model)
+			model, ok := typeByName(doc, "H").(*ir.Model)
 			require.True(t, ok)
-			sc, ok := doc.Types[h.Properties[0].Type.Target].(*ir.Scalar)
+			sc, ok := doc.Types[model.Properties[0].Type.Target].(*ir.Scalar)
 			require.True(t, ok, "the position hoists a Scalar")
 			require.NotNil(t, sc.Base)
 			assert.Equal(t, ir.PrimitiveTypeID(tc.base), sc.Base.Target, "the base is the number the format selects, or the string an encoding overrides it with")
@@ -377,9 +377,9 @@ components:
         d: {type: string, format: date, maxLength: 10}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	h, ok := typeByName(doc, "H").(*ir.Model)
+	model, ok := typeByName(doc, "H").(*ir.Model)
 	require.True(t, ok)
-	props := openapitest.PropsByWire(h.Properties)
+	props := openapitest.PropsByWire(model.Properties)
 	params := doc.Services[0].Groups[0].Operations[0].Params
 	require.Len(t, params, 1)
 	for at, carrier := range map[jsontext.Pointer]*ir.Constraints{
@@ -407,10 +407,10 @@ components:
 	require.NotNil(t, props["d"].Constraints, "a date keeps the length bound of its text")
 	assert.Equal(t, new(int64(10)), props["d"].Constraints.MaxLength)
 
-	r, ok := typeByName(doc, "R").(*ir.Scalar)
+	scalar, ok := typeByName(doc, "R").(*ir.Scalar)
 	require.True(t, ok, "the refinement owns an alias")
-	_, kept := r.Unmodeled["openapi:minimum"]
-	assert.True(t, kept || (r.Constraints != nil && r.Constraints.Min != nil), "the alias holds its bound somewhere")
+	_, kept := scalar.Unmodeled["openapi:minimum"]
+	assert.True(t, kept || (scalar.Constraints != nil && scalar.Constraints.Min != nil), "the alias holds its bound somewhere")
 }
 
 // nodeAt returns the type node lowered at the source pointer at.
@@ -673,9 +673,9 @@ func TestContentVocabulary_KeptOnACarrierWithNoNode(t *testing.T) {
 		"    A: {type: object, properties: {p: {contentMediaType: application/json}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := propertyOf(t, doc, "A", "p")
-	assert.Equal(t, ir.TypeID("type/primitive/any"), p.Type.Target, "an untyped schema stays schemaless")
-	entry, ok := p.Unmodeled["openapi:contentMediaType"]
+	property := propertyOf(t, doc, "A", "p")
+	assert.Equal(t, ir.TypeID("type/primitive/any"), property.Type.Target, "an untyped schema stays schemaless")
+	entry, ok := property.Unmodeled["openapi:contentMediaType"]
 	require.True(t, ok, "the carrier is the only home when the schema hoisted no node")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))

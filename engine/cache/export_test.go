@@ -29,21 +29,21 @@ type Ops struct {
 	Mark   func(name string, atime, mtime time.Time) error
 }
 
-// UseOps makes d call the operations ops sets in place of the system's.
-func UseOps(d *Dir, ops Ops) {
+// UseOps makes dir call the operations ops sets in place of the system's.
+func UseOps(dir *Dir, ops Ops) {
 	if ops.List != nil {
-		d.ops.list = ops.List
+		dir.ops.list = ops.List
 	}
 	if ops.Remove != nil {
-		d.ops.remove = ops.Remove
+		dir.ops.remove = ops.Remove
 	}
 	if ops.Mark != nil {
-		d.ops.mark = ops.Mark
+		dir.ops.mark = ops.Mark
 	}
 }
 
-// Prune prunes d now, whatever its ledger says.
-func Prune(d *Dir) error { return d.prune(time.Now()) }
+// Prune prunes dir now, whatever its ledger says.
+func Prune(dir *Dir) error { return dir.prune(time.Now()) }
 
 // TallyDue exposes tallyDue, so a test can hand it ledgers no Store would read.
 func TallyDue(data []byte, limit int) bool { return tallyDue(data, limit) }

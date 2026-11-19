@@ -52,9 +52,9 @@ func usedAt(t *testing.T, doc *ir.Document, at jsontext.Pointer) ir.TypeID {
 	case conjunctionPositions[1]:
 		holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
 		require.True(t, ok)
-		p, ok := propByWire(holder, "p")
+		property, ok := propByWire(holder, "p")
 		require.True(t, ok)
-		id = p.Type.Target
+		id = property.Type.Target
 	case conjunctionPositions[2]:
 		list, ok := kindNode(t, doc, componentID("Els")).(*ir.List)
 		require.True(t, ok)
@@ -79,9 +79,9 @@ func usedAt(t *testing.T, doc *ir.Document, at jsontext.Pointer) ir.TypeID {
 func keptUnder(doc *ir.Document, at jsontext.Pointer) map[jsontext.Pointer]ir.UnmodeledReason {
 	out := map[jsontext.Pointer]ir.UnmodeledReason{}
 	for _, site := range unmodeledSites(doc) {
-		p := site.entry.Provenance.Pointer
-		if p == at || strings.HasPrefix(string(p), string(at)+"/") {
-			out[p] = site.entry.Reason
+		pointer := site.entry.Provenance.Pointer
+		if pointer == at || strings.HasPrefix(string(pointer), string(at)+"/") {
+			out[pointer] = site.entry.Reason
 		}
 	}
 	return out
@@ -90,8 +90,8 @@ func keptUnder(doc *ir.Document, at jsontext.Pointer) map[jsontext.Pointer]ir.Un
 // degradedUnder lists, sorted, the pointers at or under at that an info
 // openapi/degraded-construct is drawn at, once per info.
 func degradedUnder(diags []ir.Diagnostic, at jsontext.Pointer) []jsontext.Pointer {
-	return slices.DeleteFunc(degradedInfoPointers(diags), func(p jsontext.Pointer) bool {
-		return p != at && !strings.HasPrefix(string(p), string(at)+"/")
+	return slices.DeleteFunc(degradedInfoPointers(diags), func(pointer jsontext.Pointer) bool {
+		return pointer != at && !strings.HasPrefix(string(pointer), string(at)+"/")
 	})
 }
 
@@ -323,16 +323,16 @@ func missingItemsOf(version string, kept bool, entries []string, typed string) [
 		slices.Index(entries, typed))}}
 }
 
-// assertMinItems holds c to a minItems of want, and to none where want is 0.
-func assertMinItems(t *testing.T, c *ir.Constraints, want int) {
+// assertMinItems holds constraints to a minItems of want, and to none where want is 0.
+func assertMinItems(t *testing.T, constraints *ir.Constraints, want int) {
 	t.Helper()
 	if want == 0 {
-		assert.True(t, c == nil || c.MinItems == nil, "no minItems")
+		assert.True(t, constraints == nil || constraints.MinItems == nil, "no minItems")
 		return
 	}
-	require.NotNil(t, c)
-	require.NotNil(t, c.MinItems)
-	assert.Equal(t, int64(want), *c.MinItems)
+	require.NotNil(t, constraints)
+	require.NotNil(t, constraints.MinItems)
+	assert.Equal(t, int64(want), *constraints.MinItems)
 }
 
 // TestKindInference_ACompositionIsMarkedWhereNoConjunctDeclaresItsKind holds
@@ -433,9 +433,9 @@ func TestKindInference_AFormBodyKeysNoPartItsModelLacks(t *testing.T) {
 			doc, _ := compileKindInference(t, "form", admissionSpec(version, body), off)
 			held := map[ir.PropertyID]bool{}
 			for _, td := range doc.Types {
-				if m, ok := td.(*ir.Model); ok {
-					for _, p := range m.Properties {
-						held[p.ID] = true
+				if model, ok := td.(*ir.Model); ok {
+					for _, property := range model.Properties {
+						held[property.ID] = true
 					}
 				}
 			}
@@ -506,10 +506,10 @@ func TestKindInference_WhatAPositionSaysIsReadOffWhatItLowersTo(t *testing.T) {
 				for _, off := range []bool{false, true} {
 					doc, diags := compileKindInference(t, "says", admissionSpec(version, "", schemas...), off)
 					requireErrorsAndWarnings(t, diags, nil)
-					for name, w := range want[off] {
+					for name, outcome := range want[off] {
 						td := kindNode(t, doc, componentID(name))
-						assert.Equal(t, w.kind, td.Kind(), "%s off=%t", name, off)
-						assert.Equal(t, w.kept, keptOn(td), "%s off=%t", name, off)
+						assert.Equal(t, outcome.kind, td.Kind(), "%s off=%t", name, off)
+						assert.Equal(t, outcome.kept, keptOn(td), "%s off=%t", name, off)
 					}
 				}
 			})

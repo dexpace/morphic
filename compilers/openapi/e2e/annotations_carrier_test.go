@@ -56,11 +56,11 @@ paths:
 // carriedProperty returns the single property carrierPropertySpec declares.
 func carriedProperty(t *testing.T, doc *ir.Document) ir.Property {
 	t.Helper()
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok, "component S must lower to a model")
-	p, ok := propByWire(m, "f")
+	property, ok := propByWire(model, "f")
 	require.True(t, ok, "the model must carry property f")
-	return p
+	return property
 }
 
 // carriedParameter returns the single parameter carrierParamSpec declares.
@@ -68,9 +68,9 @@ func carriedParameter(t *testing.T, doc *ir.Document) ir.Parameter {
 	t.Helper()
 	op, ok := opByName(doc, "op")
 	require.True(t, ok, "the operation must lower")
-	p, ok := openapitest.ParamBySource(op, "q")
+	parameter, ok := openapitest.ParamBySource(op, "q")
 	require.True(t, ok, "the operation must carry parameter q")
-	return p
+	return parameter
 }
 
 // paramSchemaPtr is the pointer of the parameter schema carrierParamSpec
@@ -99,8 +99,8 @@ func carrierCases() []retentionCase {
 }
 
 // carrierCell builds the cell for one annotation at one carrier.
-func carrierCell(a harness.Annotation, k harness.SiteKind) harness.Cell {
-	return harness.Cell{Annotation: a, SiteKind: k}
+func carrierCell(a harness.Annotation, siteKind harness.SiteKind) harness.Cell {
+	return harness.Cell{Annotation: a, SiteKind: siteKind}
 }
 
 func docsPropertyCase() retentionCase {
@@ -156,11 +156,11 @@ func constraintsPropertyCase() retentionCase {
 		cell: carrierCell(harness.AnnotationConstraints, harness.SiteCarrierProperty),
 		spec: carrierPropertySpec(`{type: string, minLength: 2}`),
 		assert: func(t *testing.T, doc *ir.Document) {
-			p := carriedProperty(t, doc)
-			require.NotNil(t, p.Constraints)
-			require.NotNil(t, p.Constraints.MinLength)
-			assert.Equal(t, int64(2), *p.Constraints.MinLength)
-			assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target,
+			property := carriedProperty(t, doc)
+			require.NotNil(t, property.Constraints)
+			require.NotNil(t, property.Constraints.MinLength)
+			assert.Equal(t, int64(2), *property.Constraints.MinLength)
+			assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target,
 				"the bound rides on the carrier, so the position still resolves to the shared primitive")
 		},
 	}
@@ -171,10 +171,10 @@ func constraintsParameterCase() retentionCase {
 		cell: carrierCell(harness.AnnotationConstraints, harness.SiteCarrierParameter),
 		spec: carrierParamSpec(`{type: string, minLength: 2}`),
 		assert: func(t *testing.T, doc *ir.Document) {
-			c := carriedParameter(t, doc).Constraints
-			require.NotNil(t, c)
-			require.NotNil(t, c.MinLength)
-			assert.Equal(t, int64(2), *c.MinLength)
+			constraints := carriedParameter(t, doc).Constraints
+			require.NotNil(t, constraints)
+			require.NotNil(t, constraints.MinLength)
+			assert.Equal(t, int64(2), *constraints.MinLength)
 		},
 	}
 }
@@ -184,9 +184,9 @@ func defaultPropertyCase() retentionCase {
 		cell: carrierCell(harness.AnnotationDefault, harness.SiteCarrierProperty),
 		spec: carrierPropertySpec(`{type: string, default: at-carrier}`),
 		assert: func(t *testing.T, doc *ir.Document) {
-			d := carriedProperty(t, doc).Default
-			require.NotNil(t, d)
-			assert.Equal(t, "at-carrier", d.String)
+			value := carriedProperty(t, doc).Default
+			require.NotNil(t, value)
+			assert.Equal(t, "at-carrier", value.String)
 		},
 	}
 }
@@ -196,9 +196,9 @@ func defaultParameterCase() retentionCase {
 		cell: carrierCell(harness.AnnotationDefault, harness.SiteCarrierParameter),
 		spec: carrierParamSpec(`{type: string, default: at-carrier}`),
 		assert: func(t *testing.T, doc *ir.Document) {
-			d := carriedParameter(t, doc).Default
-			require.NotNil(t, d)
-			assert.Equal(t, "at-carrier", d.String)
+			value := carriedParameter(t, doc).Default
+			require.NotNil(t, value)
+			assert.Equal(t, "at-carrier", value.String)
 		},
 	}
 }
@@ -287,9 +287,9 @@ func xmlHintsPropertyCase() retentionCase {
 		cell: carrierCell(harness.AnnotationXMLHints, harness.SiteCarrierProperty),
 		spec: carrierPropertySpec(`{type: string, xml: {name: AtCarrier}}`),
 		assert: func(t *testing.T, doc *ir.Document) {
-			x := carriedProperty(t, doc).XML
-			require.NotNil(t, x, "ir.Property has an XML field, so the hints land on it")
-			assert.Equal(t, "AtCarrier", x.Name)
+			xmlHints := carriedProperty(t, doc).XML
+			require.NotNil(t, xmlHints, "ir.Property has an XML field, so the hints land on it")
+			assert.Equal(t, "AtCarrier", xmlHints.Name)
 		},
 	}
 }

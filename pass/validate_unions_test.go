@@ -60,14 +60,14 @@ func TestValidate_ReportsAVariantNamingAnEarlierVariantsType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
-			u := tt.union
-			u.ID = "type/u"
-			doc.Types[u.ID] = &u
+			union := tt.union
+			union.ID = "type/u"
+			doc.Types[union.ID] = &union
 			diags := validated(t, doc)
 			got := make([]string, 0, len(diags))
-			for _, d := range diags {
-				pair, _, _ := strings.Cut(d.Message, " of union")
-				got = append(got, fmt.Sprintf("%s %s %s: %s", d.Severity, d.Code, d.Provenance.Node, pair))
+			for _, diagnostic := range diags {
+				pair, _, _ := strings.Cut(diagnostic.Message, " of union")
+				got = append(got, fmt.Sprintf("%s %s %s: %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Node, pair))
 			}
 
 			assert.Equal(t, tt.want, got)

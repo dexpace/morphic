@@ -74,8 +74,8 @@ func operationIDs(doc *ir.Document) []ir.OperationID {
 // so two documents' findings compare as the multisets they are.
 func findingsAt(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -100,8 +100,8 @@ func TestCompile_FieldsBesideAPathItemRefAtAnyLandingAreMounted(t *testing.T) {
 		assert.Equal(t, "getB", opWithID(t, doc, "operation/openapi/paths/~1a/get").Name.Source)
 		assert.Equal(t, "getB", opWithID(t, doc, "operation/openapi/paths/~1b/get").Name.Source)
 		assert.Len(t, operationIDs(doc), 3, "itemFirst %t", itemFirst)
-		for _, d := range diags {
-			assert.NotContains(t, d.Message, "does not reach", "itemFirst %t", itemFirst)
+		for _, diagnostic := range diags {
+			assert.NotContains(t, diagnostic.Message, "does not reach", "itemFirst %t", itemFirst)
 		}
 	}
 	assert.Empty(t, cmp.Diff(docs[true], docs[false],
@@ -192,8 +192,8 @@ func TestCompile_FieldsBesideAForeignPathItemRefAreMounted(t *testing.T) {
 		assert.Equal(t, "getJ", get.Name.Source)
 		assert.Equal(t, jsontext.Pointer("/items/J/get"), get.Provenance.Pointer)
 		assert.Len(t, operationIDs(doc), 2)
-		for _, d := range diags {
-			assert.NotContains(t, d.Message, "another document", "second %t", second)
+		for _, diagnostic := range diags {
+			assert.NotContains(t, diagnostic.Message, "another document", "second %t", second)
 		}
 	}
 	assert.Empty(t, cmp.Diff(docs[0], docs[1],
@@ -258,8 +258,8 @@ func TestCompile_AListAtAPathItemLandingIsCheckedForRepeats(t *testing.T) {
 		assert.Equal(t, 1, countCode(diags, diag.DuplicateParameter, pointer), pointer)
 	}
 	var repeats int
-	for _, d := range diags {
-		if d.Code == diag.DuplicateParameter {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateParameter {
 			repeats++
 		}
 	}
@@ -293,10 +293,10 @@ func TestCompile_AListAtAPathItemLandingInAnotherDocumentIsCheckedForRepeats(t *
 	require.NotNil(t, doc)
 
 	var at []string
-	for _, d := range diags {
-		if d.Code == diag.DuplicateParameter {
-			require.Less(t, d.Provenance.Source, len(doc.Sources))
-			at = append(at, filepath.Base(doc.Sources[d.Provenance.Source].Path)+"#"+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateParameter {
+			require.Less(t, diagnostic.Provenance.Source, len(doc.Sources))
+			at = append(at, filepath.Base(doc.Sources[diagnostic.Provenance.Source].Path)+"#"+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	slices.Sort(at)
@@ -319,5 +319,5 @@ paths:
   /v: {$ref: '#/x-shared/plain'}
 `)
 	assert.Equal(t, []string{"warning openapi/duplicate-server-name /x-shared/plain/servers/1/name"},
-		findingsAt(slices.DeleteFunc(diags, func(d ir.Diagnostic) bool { return d.Code != diag.DuplicateServerName })))
+		findingsAt(slices.DeleteFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Code != diag.DuplicateServerName })))
 }

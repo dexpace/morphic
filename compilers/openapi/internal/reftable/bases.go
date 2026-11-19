@@ -35,34 +35,34 @@ type walked struct {
 	held    bool
 }
 
-// newBases returns bases over r, whose documents' dialect roots ids holds,
+// newBases returns bases over resourcesValue, whose documents' dialect roots ids holds,
 // having walked nothing.
-func newBases(r resources, ids *identifiers) *bases {
-	return &bases{res: r, walks: map[DocumentPointer]walked{}, ids: ids}
+func newBases(resourcesValue resources, ids *identifiers) *bases {
+	return &bases{res: resourcesValue, walks: map[DocumentPointer]walked{}, ids: ids}
 }
 
-// holding is resources.holding of p read as a schema, along what its pointer
+// holding is resources.holding of documentPointer read as a schema, along what its pointer
 // reaches from its document's root. A pointer that is not valid is walked from
 // the root each time, as holding spells a resource's root on one otherwise than
 // by its prefixes.
-func (b *bases) holding(p DocumentPointer) (resource, bool) {
-	if !p.Pointer.IsValid() {
-		path, _ := b.res.docs.path(p)
-		return b.res.holding(p, path, true /* schema */, b.ids.readsDialects(p.Doc))
+func (b *bases) holding(documentPointer DocumentPointer) (resource, bool) {
+	if !documentPointer.Pointer.IsValid() {
+		path, _ := b.res.docs.path(documentPointer)
+		return b.res.holding(documentPointer, path, true /* schema */, b.ids.readsDialects(documentPointer.Doc))
 	}
-	at := prefixes(p, nodeview.MaxPointerSegments)
+	at := prefixes(documentPointer, nodeview.MaxPointerSegments)
 	reached, ok := b.walk(at)
 	if !ok {
-		return b.res.document(p.Doc), true
+		return b.res.document(documentPointer.Doc), true
 	}
 	// Read as a schema whatever the grammar reads it as, its own identifier
 	// counts, so it is entered from the walk above it, as past enters a schema.
-	before := b.start(p.Doc)
+	before := b.start(documentPointer.Doc)
 	if reached > 0 {
 		before = b.walks[at[reached-1]]
 	}
-	e := b.entered(before, b.walks[at[reached]].node, at[reached])
-	return e.res, e.known
+	entering := b.entered(before, b.walks[at[reached]].node, at[reached])
+	return entering.res, entering.known
 }
 
 // start is where a walk of document id starts, above its root: in its own
@@ -94,8 +94,8 @@ func (b *bases) walk(at []DocumentPointer) (int, bool) {
 			break
 		}
 		b.res.docs.work.spend(1)
-		s := stepIn(b.res.docs, at[0].Doc, from.node, from.s, token, from.dialect)
-		b.walks[at[k+1]] = b.past(from, child, s, at[k+1])
+		state := stepIn(b.res.docs, at[0].Doc, from.node, from.s, token, from.dialect)
+		b.walks[at[k+1]] = b.past(from, child, state, at[k+1])
 	}
 	return k, true
 }
@@ -126,32 +126,32 @@ func (b *bases) deepest(at []DocumentPointer) int {
 	return lo
 }
 
-// prefixes is the positions on the way to p from its document's root, p's
+// prefixes is the positions on the way to documentPointer from its document's root, documentPointer's
 // among them, of at most most tokens, as nodeview.View.DocumentPath follows at
-// most that many. p's pointer is valid, so each '/' past the first character
+// most that many. documentPointer's pointer is valid, so each '/' past the first character
 // begins a token.
-func prefixes(p DocumentPointer, most int) []DocumentPointer {
-	at := []DocumentPointer{{Doc: p.Doc}}
-	for i := 1; i < len(p.Pointer) && len(at) <= most; i++ {
-		if p.Pointer[i] == '/' {
-			at = append(at, DocumentPointer{Doc: p.Doc, Pointer: p.Pointer[:i]})
+func prefixes(documentPointer DocumentPointer, most int) []DocumentPointer {
+	at := []DocumentPointer{{Doc: documentPointer.Doc}}
+	for i := 1; i < len(documentPointer.Pointer) && len(at) <= most; i++ {
+		if documentPointer.Pointer[i] == '/' {
+			at = append(at, DocumentPointer{Doc: documentPointer.Doc, Pointer: documentPointer.Pointer[:i]})
 		}
 	}
-	if p.Pointer != "" && len(at) <= most {
-		at = append(at, p)
+	if documentPointer.Pointer != "" && len(at) <= most {
+		at = append(at, documentPointer)
 	}
 	return at
 }
 
-// past is the walk from, gone on to n at here, which the grammar reads at s:
+// past is the walk from, gone on to n at here, which the grammar reads at stateValue:
 // a schema, or a position of a document of schemas, is entered, so an
 // identifier it writes starts the resource the walk is in past it, and its
 // `$schema` the dialect (resources.holding).
-func (b *bases) past(from walked, n *yaml.Node, s state, here DocumentPointer) walked {
-	out := walked{node: n, s: s, in: from.in, known: from.known, dialect: from.dialect, held: heldBelow(from)}
-	if s == sSchema || s == sLoose {
-		e := b.entered(from, n, here)
-		out.in, out.known, out.dialect = e.res, e.known, e.dialect
+func (b *bases) past(from walked, n *yaml.Node, stateValue state, here DocumentPointer) walked {
+	out := walked{node: n, s: stateValue, in: from.in, known: from.known, dialect: from.dialect, held: heldBelow(from)}
+	if stateValue == sSchema || stateValue == sLoose {
+		entering := b.entered(from, n, here)
+		out.in, out.known, out.dialect = entering.res, entering.known, entering.dialect
 	}
 	return out
 }
@@ -160,18 +160,18 @@ func (b *bases) past(from walked, n *yaml.Node, s state, here DocumentPointer) w
 // it is in past it, whether that is known, and the dialect what n holds is
 // read in, as resources.holding enters each schema on its way.
 func (b *bases) entered(from walked, n *yaml.Node, here DocumentPointer) entering {
-	e := entering{dialect: from.dialect}
+	enteringValue := entering{dialect: from.dialect}
 	if b.ids.readsDialects(here.Doc) {
 		held := heldBelow(from)
-		e = b.res.enterIn(from.in, here, n, from.dialect, func() bool { return held })
+		enteringValue = b.res.enterIn(from.in, here, n, from.dialect, func() bool { return held })
 	} else {
-		e.res, e.rooted, e.known = b.res.enter(from.in, n, dialectRule(b.res.docs, here.Doc, from.dialect))
+		enteringValue.res, enteringValue.rooted, enteringValue.known = b.res.enter(from.in, n, dialectRule(b.res.docs, here.Doc, from.dialect))
 	}
-	if e.rooted {
-		e.res.root = here
+	if enteringValue.rooted {
+		enteringValue.res.root = here
 	}
-	e.known = from.known && e.known
-	return e
+	enteringValue.known = from.known && enteringValue.known
+	return enteringValue
 }
 
 // heldBelow reports whether a schema holds what lies directly below the walk

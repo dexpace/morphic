@@ -36,19 +36,19 @@ func (t *MemoizingSchemaReader) Of(js *model) *Statement {
 	return st
 }
 
-// Parsed returns the parser's schema object s was read from, nil for a nil s
+// Parsed returns the parser's schema object schema was read from, nil for a nil schema
 // and for a value that is no schema object: what the operation walk reads
-// beside the statement (GitHub #1991). For a Truncated s it is the copy fill
-// read, holding only what s's keys list (listedOnly), so the walk reads what
+// beside the statement (GitHub #1991). For a Truncated schema it is the copy fill
+// read, holding only what schema's keys list (listedOnly), so the walk reads what
 // the statement holds. It goes once that walk reads none.
-func Parsed(s *Schema) *oas3.Schema {
-	if s == nil {
+func Parsed(schema *Schema) *oas3.Schema {
+	if schema == nil {
 		return nil
 	}
-	if s.Truncated {
-		return listedOnly(s.m.GetSchema(), s)
+	if schema.Truncated {
+		return listedOnly(schema.m.GetSchema(), schema)
 	}
-	return s.m.GetSchema()
+	return schema.m.GetSchema()
 }
 
 // ParsedAt returns the parser's value st was read from, nil for a nil st: what
@@ -66,34 +66,34 @@ func ParsedAt(st *Statement) *model {
 // node, its truth and, for a stated one, its keys in their slots, its
 // reference and each slot's values.
 func (t *MemoizingSchemaReader) read(js *model) *Schema {
-	if s, ok := t.schemas[js]; ok {
-		return s
+	if schema, ok := t.schemas[js]; ok {
+		return schema
 	}
 	t.reads++
-	s := &Schema{m: js, Truth: truthOf(js)}
-	t.schemas[js] = s
+	schemaValue := &Schema{m: js, Truth: truthOf(js)}
+	t.schemas[js] = schemaValue
 	if js == nil {
-		return s
+		return schemaValue
 	}
-	s.At, _ = t.src.Bindings.Site(js)
-	if s.Truth != Stated {
-		s.Node = nodeview.Deref(js.GetCore().GetRootNode())
-		return s
+	schemaValue.At, _ = t.src.Bindings.Site(js)
+	if schemaValue.Truth != Stated {
+		schemaValue.Node = nodeview.Deref(js.GetCore().GetRootNode())
+		return schemaValue
 	}
 	m := js.GetSchema()
-	s.Node = nodeview.Deref(nodeview.DocumentRoot(m.GetRootNode()))
-	s.Unknown = m.GetCore().GetUnknownProperties()
-	s.Extensions = listedExtensions(m.GetExtensions().Len(), m.GetExtensions().All())
-	readKeys(s, t.src.Rules.At(s.At))
-	if s.Truncated {
-		dropOutranked(s, m)
+	schemaValue.Node = nodeview.Deref(nodeview.DocumentRoot(m.GetRootNode()))
+	schemaValue.Unknown = m.GetCore().GetUnknownProperties()
+	schemaValue.Extensions = listedExtensions(m.GetExtensions().Len(), m.GetExtensions().All())
+	readKeys(schemaValue, t.src.Rules.At(schemaValue.At))
+	if schemaValue.Truncated {
+		dropOutranked(schemaValue, m)
 	}
 	if kw := t.src.Bindings.RefKeyword(js); kw != "" {
-		e, bound := t.src.Bindings.Entry(js)
-		s.Ref = &Reference{Keyword: kw, Text: string(m.GetRef()), Entry: e, Bound: bound}
+		referenceSite, bound := t.src.Bindings.Entry(js)
+		schemaValue.Ref = &Reference{Keyword: kw, Text: string(m.GetRef()), Entry: referenceSite, Bound: bound}
 	}
-	fill(s, m)
-	return s
+	fill(schemaValue, m)
+	return schemaValue
 }
 
 // SchemaValueForm returns what the schema s names states, as MemoizingSchemaReader.Subschema reads it, with no
@@ -151,44 +151,44 @@ func truthOf(js *model) SchemaValueForm {
 }
 
 // fill reads each slot's values. A typed value is m's, the parser's model,
-// as the walk reads the model; for a Truncated s, only where s's keys list
+// as the walk reads the model; for a Truncated schema, only where schema's keys list
 // its keyword (listedOnly). A value kept as the node it was written as is its
 // key's. Each keyword lands in its own slot (specrules.SlotOf) whatever the rows
 // say: a policy reads a 3.0 `nullable` in a 3.1 schema
 // (docs/compilers/openapi.md#nullable), and the key's Slot carries the rows'
 // verdict. A listed key whose value is not read opens its slot and fills
 // nothing.
-func fill(s *Schema, m *oas3.Schema) {
-	if s.Truncated {
-		m = listedOnly(m, s)
+func fill(schema *Schema, m *oas3.Schema) {
+	if schema.Truncated {
+		m = listedOnly(m, schema)
 	}
-	s.AllOf = listed(m.AllOf)
-	s.Kinds = kindsOf(m)
-	s.Number = numberOf(m)
-	s.Values = valuesOf(m)
-	s.Format = formatOf(m)
-	s.Text = textOf(m)
-	s.Array = arrayOf(m)
-	s.Object = objectOf(m, s.At)
-	s.Choice = choiceOf(m)
-	s.Logic = logicOf(m)
-	s.Notes = notesOf(m)
-	for _, k := range s.Keys {
-		open(s, specrules.SlotOf(k.Name))
-		if k.read() {
-			fillNode(s, k)
+	schema.AllOf = listed(m.AllOf)
+	schema.Kinds = kindsOf(m)
+	schema.Number = numberOf(m)
+	schema.Values = valuesOf(m)
+	schema.Format = formatOf(m)
+	schema.Text = textOf(m)
+	schema.Array = arrayOf(m)
+	schema.Object = objectOf(m, schema.At)
+	schema.Choice = choiceOf(m)
+	schema.Logic = logicOf(m)
+	schema.Notes = notesOf(m)
+	for _, key := range schema.Keys {
+		open(schema, specrules.SlotOf(key.Name))
+		if key.read() {
+			fillNode(schema, key)
 		}
 	}
 }
 
-// fillNode reads k, a key of a slot open in s, into the field the statement
+// fillNode reads key, a key of a slot open in schema, into the field the statement
 // keeps as the node it was written as, which its row of fillKeywords sets: a
 // numeric bound, which the model holds as a float, and a keyword the model
 // holds no field for. A key of no such field fills nothing.
-func fillNode(s *Schema, k Key) {
-	for _, r := range fillKeywords {
-		if r.set != nil && r.name == k.Name {
-			r.set(s, k.Node)
+func fillNode(schema *Schema, key Key) {
+	for _, fillKeyword := range fillKeywords {
+		if fillKeyword.set != nil && fillKeyword.name == key.Name {
+			fillKeyword.set(schema, key.Node)
 			return
 		}
 	}
@@ -215,10 +215,10 @@ var fillKeywords = []fillKeyword{
 		clear: func(m *oas3.Schema) { m.Nullable = nil }},
 	{name: "exclusiveMinimum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ExclusiveMinimum.ValueNode },
 		clear: func(m *oas3.Schema) { m.ExclusiveMinimum = nil },
-		set:   func(s *Schema, n *yaml.Node) { s.Number.ExclusiveMinimum = n }},
+		set:   func(schema *Schema, n *yaml.Node) { schema.Number.ExclusiveMinimum = n }},
 	{name: "exclusiveMaximum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ExclusiveMaximum.ValueNode },
 		clear: func(m *oas3.Schema) { m.ExclusiveMaximum = nil },
-		set:   func(s *Schema, n *yaml.Node) { s.Number.ExclusiveMaximum = n }},
+		set:   func(schema *Schema, n *yaml.Node) { schema.Number.ExclusiveMaximum = n }},
 	{name: "enum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Enum.ValueNode },
 		clear: func(m *oas3.Schema) { m.Enum = nil }},
 	{name: "const", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Const.ValueNode },
@@ -308,76 +308,76 @@ var fillKeywords = []fillKeyword{
 	{name: "externalDocs", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ExternalDocs.ValueNode },
 		clear: func(m *oas3.Schema) { m.ExternalDocs = nil }},
 	{name: "minimum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Minimum.ValueNode },
-		set: func(s *Schema, n *yaml.Node) { s.Number.Minimum = n }},
+		set: func(schema *Schema, n *yaml.Node) { schema.Number.Minimum = n }},
 	{name: "maximum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Maximum.ValueNode },
-		set: func(s *Schema, n *yaml.Node) { s.Number.Maximum = n }},
+		set: func(schema *Schema, n *yaml.Node) { schema.Number.Maximum = n }},
 	{name: "multipleOf", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MultipleOf.ValueNode },
-		set: func(s *Schema, n *yaml.Node) { s.Number.MultipleOf = n }},
-	{name: "additionalItems", set: func(s *Schema, n *yaml.Node) { s.Array.AdditionalItems = n }},
-	{name: "dependentRequired", set: func(s *Schema, n *yaml.Node) { s.Object.DependentRequired = n }},
-	{name: "dependencies", set: func(s *Schema, n *yaml.Node) { s.Logic.Dependencies = n }},
-	{name: "$comment", set: func(s *Schema, n *yaml.Node) { s.Notes.Comment = n }},
+		set: func(schema *Schema, n *yaml.Node) { schema.Number.MultipleOf = n }},
+	{name: "additionalItems", set: func(schema *Schema, n *yaml.Node) { schema.Array.AdditionalItems = n }},
+	{name: "dependentRequired", set: func(schema *Schema, n *yaml.Node) { schema.Object.DependentRequired = n }},
+	{name: "dependencies", set: func(schema *Schema, n *yaml.Node) { schema.Logic.Dependencies = n }},
+	{name: "$comment", set: func(schema *Schema, n *yaml.Node) { schema.Notes.Comment = n }},
 }
 
 // keywordRow returns the row of fillKeywords naming name, and false for a key
 // fill does not read.
 func keywordRow(name string) (fillKeyword, bool) {
-	for _, r := range fillKeywords {
-		if r.name == name {
-			return r, true
+	for _, fillKeyword := range fillKeywords {
+		if fillKeyword.name == name {
+			return fillKeyword, true
 		}
 	}
 	return fillKeyword{}, false
 }
 
-// dropOutranked takes out of the keys of s, a Truncated schema whose model is
+// dropOutranked takes out of the keys of schema, a Truncated schema whose model is
 // m, each key of a keyword fill reads whose value the parser read from
 // another node: a source past nodeview.MergeDepthLimit writes the keyword too
 // and comes first, so the key lists the value that loses. A keyword the parser
-// holds no node for is kept only where s writes it itself, as no merge
+// holds no node for is kept only where schema writes it itself, as no merge
 // outranks that (docs/parser-library.md#merge-keys); one left out leaves
-// s.Unknown too, so that no census reads it.
-func dropOutranked(s *Schema, m *oas3.Schema) {
-	own := nodeview.WrittenChildren(s.Node)
-	kept := make([]Key, 0, len(s.Keys))
-	for _, k := range s.Keys {
-		if !outranked(k, own, m) {
-			kept = append(kept, k)
+// schema.Unknown too, so that no census reads it.
+func dropOutranked(schema *Schema, m *oas3.Schema) {
+	own := nodeview.WrittenChildren(schema.Node)
+	kept := make([]Key, 0, len(schema.Keys))
+	for _, key := range schema.Keys {
+		if !outranked(key, own, m) {
+			kept = append(kept, key)
 			continue
 		}
-		s.Unknown = slices.DeleteFunc(slices.Clone(s.Unknown), func(name string) bool { return name == k.Name })
+		schema.Unknown = slices.DeleteFunc(slices.Clone(schema.Unknown), func(name string) bool { return name == key.Name })
 	}
-	if len(kept) == len(s.Keys) {
+	if len(kept) == len(schema.Keys) {
 		return
 	}
-	s.Keys = kept
-	index(s)
+	schema.Keys = kept
+	index(schema)
 }
 
-// outranked reports whether the value the parser read for k's keyword is not
-// k's: k is no pair s writes itself, own, and the parser read the keyword from
+// outranked reports whether the value the parser read for key's keyword is not
+// key's: key is no pair s writes itself, own, and the parser read the keyword from
 // another node, or holds no node to tell. A key fill does not read is never
 // outranked.
-func outranked(k Key, own map[string]*yaml.Node, m *oas3.Schema) bool {
-	r, reads := keywordRow(k.Name)
-	if !reads || nodeview.Deref(own[k.Name]) == k.Node {
+func outranked(key Key, own map[string]*yaml.Node, m *oas3.Schema) bool {
+	fillKeyword, reads := keywordRow(key.Name)
+	if !reads || nodeview.Deref(own[key.Name]) == key.Node {
 		return false
 	}
-	return r.node == nil || nodeview.Deref(r.node(m)) != k.Node
+	return fillKeyword.node == nil || nodeview.Deref(fillKeyword.node(m)) != key.Node
 }
 
-// listedOnly returns a copy of m holding no keyword s's keys do not list: s
+// listedOnly returns a copy of m holding no keyword schema's keys do not list: schema
 // is Truncated, so the model expands merges its keys stop short of, and a
 // schema is read from its keys or not at all, never half from each
 // (docs/parser-library.md#merge-keys). dropOutranked has left each keyword
 // the keys list only where the parser read it from that key. The model's
 // extensions and the keys it holds no field for stay, which the census of
 // unknown keys reports.
-func listedOnly(m *oas3.Schema, s *Schema) *oas3.Schema {
+func listedOnly(m *oas3.Schema, schema *Schema) *oas3.Schema {
 	kept := *m
-	for _, r := range fillKeywords {
-		if i, _ := s.find(r.name); i < 0 && r.clear != nil {
-			r.clear(&kept)
+	for _, fillKeyword := range fillKeywords {
+		if i, _ := schema.find(fillKeyword.name); i < 0 && fillKeyword.clear != nil {
+			fillKeyword.clear(&kept)
 		}
 	}
 	return &kept

@@ -29,9 +29,9 @@ func linkOps(link ir.OperationLink) []ir.Operation {
 // mismatchesAt returns where each pass/param-binding-mismatch of diags sits.
 func mismatchesAt(diags []ir.Diagnostic) []string {
 	var at []string
-	for _, d := range diags {
-		if d.Code == "pass/param-binding-mismatch" {
-			at = append(at, d.Provenance.Node)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "pass/param-binding-mismatch" {
+			at = append(at, diagnostic.Provenance.Node)
 		}
 	}
 	return at

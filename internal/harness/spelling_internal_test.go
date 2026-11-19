@@ -77,29 +77,29 @@ func spellingPair(version, partner, spelling string, eq Equal) fake {
 	}}
 }
 
-// spellingVerdict is the spelling oracle's verdict on the second case of f.
-func spellingVerdict(t *testing.T, f fake) Verdict {
+// spellingVerdict is the spelling oracle's verdict on the second case of fakeValue.
+func spellingVerdict(t *testing.T, fakeValue fake) Verdict {
 	t.Helper()
 	withAsked(t, spelled)
-	r, ok := CheckCase(t.Context(), f, []int{1})
+	result, ok := CheckCase(t.Context(), fakeValue, []int{1})
 	require.True(t, ok)
-	require.NotEqual(t, OutcomePanic, r.Outcome, r.Detail)
-	return r.Verdicts[0]
+	require.NotEqual(t, OutcomePanic, result.Outcome, result.Detail)
+	return result.Verdicts[0]
 }
 
 func TestSpelled_ScalarAndModelDecoratorsAreOneUse(t *testing.T) {
-	v := spellingVerdict(t, spellingPair("3.1.0",
+	verdict := spellingVerdict(t, spellingPair("3.1.0",
 		`{type: array, items: {allOf: [{$ref: '#/components/schemas/Obj'}], description: d}}`,
 		`{type: array, items: {$ref: '#/components/schemas/Obj', description: d}}`, Equal{}))
-	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+	assert.Equal(t, passed(OracleSpelling), verdict, verdict.Detail)
 }
 
 func TestSpelled_ACarrierHoldsWhatItsDecoratorHeld(t *testing.T) {
-	v := spellingVerdict(t, spellingPair("3.1.0",
+	verdict := spellingVerdict(t, spellingPair("3.1.0",
 		`{type: object, properties: {p: {allOf: [{$ref: '#/components/schemas/Obj'}], description: d, examples: [{a: x}]}}}`,
 		`{type: object, properties: {p: {$ref: '#/components/schemas/Obj', description: d, examples: [{a: x}]}}}`,
 		Equal{}))
-	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+	assert.Equal(t, passed(OracleSpelling), verdict, verdict.Detail)
 }
 
 // TestSpelled_ADifferenceIsFoundWithWhereItLies holds each finding's first
@@ -118,9 +118,9 @@ func TestSpelled_ADifferenceIsFoundWithWhereItLies(t *testing.T) {
 			"types.properties.decorator.unmodeled.openapi:not.value.required,types.properties.docs.description"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			v := spellingVerdict(t, spellingPair("3.1.0", tc.partner, tc.spelling, Equal{}))
-			require.True(t, v.Found(), "%+v", v)
-			what, rest, _ := strings.Cut(v.Detail, "\n")
+			verdict := spellingVerdict(t, spellingPair("3.1.0", tc.partner, tc.spelling, Equal{}))
+			require.True(t, verdict.Found(), "%+v", verdict)
+			what, rest, _ := strings.Cut(verdict.Detail, "\n")
 			assert.Equal(t, tc.what, what)
 			assert.True(t, strings.HasPrefix(rest, spellingRule+"\n"), rest)
 			assert.Contains(t, rest, "--- spec.yaml\n", "both sources follow")
@@ -132,17 +132,17 @@ func TestSpelled_ADifferenceIsFoundWithWhereItLies(t *testing.T) {
 // keeping a keyword: the record's name holds the entry's index, which
 // relocates like any pointer.
 func TestSpelled_AKeptKeywordsNameRelocates(t *testing.T) {
-	v := spellingVerdict(t, spellingPair("3.1.0",
+	verdict := spellingVerdict(t, spellingPair("3.1.0",
 		`{allOf: [{$ref: '#/components/schemas/T'}, {contentMediaType: text/html}]}`,
 		`{allOf: [{contentMediaType: text/html}, {$ref: '#/components/schemas/T'}]}`, Equal{}))
-	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+	assert.Equal(t, passed(OracleSpelling), verdict, verdict.Detail)
 }
 
 func TestSpelled_TwoNamesRelocatedToOneDecline(t *testing.T) {
 	inline := `{properties: {q: {type: object, properties: {x: {type: string}}}}}`
-	v := spellingVerdict(t, spellingPair("3.1.0", `{allOf: [{$ref: '#/components/schemas/Obj'}]}`,
+	verdict := spellingVerdict(t, spellingPair("3.1.0", `{allOf: [{$ref: '#/components/schemas/Obj'}]}`,
 		`{allOf: [{$ref: '#/components/schemas/Obj'}, `+inline+`, `+inline+`]}`, Equal{}))
-	assert.Equal(t, declined(OracleSpelling, DeclineRelocationCollides), v)
+	assert.Equal(t, declined(OracleSpelling, DeclineRelocationCollides), verdict)
 }
 
 // TestSpelled_AStatedReportIsRequired holds a 3.0 keyword beside a $ref to the
@@ -153,23 +153,23 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 	}
 	minLength := spellingPair("3.0.3", `{allOf: [{$ref: '#/components/schemas/T'}], minLength: 1}`,
 		`{$ref: '#/components/schemas/T', minLength: 1}`, Equal{Stated: stated(useAt + "/minLength")})
-	v := spellingVerdict(t, minLength)
-	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+	verdict := spellingVerdict(t, minLength)
+	assert.Equal(t, passed(OracleSpelling), verdict, verdict.Detail)
 
 	nullable := Equal{Stated: stated(useAt + "/nullable"), Replaced: []Stated{{Severity: ir.SeverityWarning,
 		Code: "openapi/validation/validation-no-effect", Pointer: useAt + "/nullable"}}}
-	v = spellingVerdict(t, spellingPair("3.0.3", `{allOf: [{$ref: '#/components/schemas/T'}], nullable: true}`,
+	verdict = spellingVerdict(t, spellingPair("3.0.3", `{allOf: [{$ref: '#/components/schemas/T'}], nullable: true}`,
 		`{$ref: '#/components/schemas/T', nullable: true}`, nullable))
-	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+	assert.Equal(t, passed(OracleSpelling), verdict, verdict.Detail)
 
 	for _, amiss := range []Equal{
 		{Stated: stated(useAt + "/maxLength")},
 		{Stated: []Stated{{Severity: ir.SeverityInfo, Code: "openapi/later-version-construct", Pointer: useAt + "/minLength"}}},
 	} {
-		v = spellingVerdict(t, spellingPair("3.0.3", `{allOf: [{$ref: '#/components/schemas/T'}], minLength: 1}`,
+		verdict = spellingVerdict(t, spellingPair("3.0.3", `{allOf: [{$ref: '#/components/schemas/T'}], minLength: 1}`,
 			`{$ref: '#/components/schemas/T', minLength: 1}`, amiss))
 		assert.Equal(t, "diagnostics:openapi/later-version-construct,stated:openapi/later-version-construct",
-			strings.SplitN(v.Detail, "\n", 2)[0], "a report stated at another pointer or severity is no report drawn")
+			strings.SplitN(verdict.Detail, "\n", 2)[0], "a report stated at another pointer or severity is no report drawn")
 	}
 
 	var unswapped compileFunc
@@ -177,9 +177,9 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 		doc, diags, err := unswapped(ctx, spec, data, ps)
 		return doc, slicesDeleteCode(diags, "openapi/later-version-construct"), err
 	})
-	v = spellingVerdict(t, minLength)
-	require.True(t, v.Found(), "%+v", v)
-	assert.Equal(t, "stated:openapi/later-version-construct", strings.SplitN(v.Detail, "\n", 2)[0])
+	verdict = spellingVerdict(t, minLength)
+	require.True(t, verdict.Found(), "%+v", verdict)
+	assert.Equal(t, "stated:openapi/later-version-construct", strings.SplitN(verdict.Detail, "\n", 2)[0])
 }
 
 // TestRelocatedSet_RelocatesEachPointerAndNode pins what a spelling's
@@ -199,9 +199,9 @@ func TestRelocatedSet_RelocatesEachPointerAndNode(t *testing.T) {
 // slicesDeleteCode returns diags less every report of code.
 func slicesDeleteCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code != code {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code != code {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -211,15 +211,15 @@ func slicesDeleteCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
 // other: the side that alone compiles to no document is the finding.
 func TestSpelled_ARefusalIsFoundSayingWhichSide(t *testing.T) {
 	partner, spelling := `{allOf: [{$ref: '#/components/schemas/T'}]}`, `{$ref: '#/components/schemas/T'}`
-	f := spellingPair("3.1.0", partner, spelling, Equal{})
+	fake := spellingPair("3.1.0", partner, spelling, Equal{})
 	uncompiled := swapUncompiled(t)
 
 	uncompiled[string(spellingSpec("3.1.0", partner))] = "refused"
-	assert.Contains(t, spellingVerdict(t, f).Detail, "refused: the partner compiles to no document")
+	assert.Contains(t, spellingVerdict(t, fake).Detail, "refused: the partner compiles to no document")
 
 	delete(uncompiled, string(spellingSpec("3.1.0", partner)))
 	uncompiled[string(spellingSpec("3.1.0", spelling))] = "refused"
-	assert.Contains(t, spellingVerdict(t, f).Detail, "refused: this spelling compiles to no document")
+	assert.Contains(t, spellingVerdict(t, fake).Detail, "refused: this spelling compiles to no document")
 }
 
 // TestSpelled_TwoSidesThatDoNotCompileDecline holds a pair neither side of
@@ -228,23 +228,23 @@ func TestSpelled_ARefusalIsFoundSayingWhichSide(t *testing.T) {
 // error over a document is a difference in the reports, found.
 func TestSpelled_TwoSidesThatDoNotCompileDecline(t *testing.T) {
 	partner, spelling := `{allOf: [{$ref: '#/components/schemas/T'}]}`, `{$ref: '#/components/schemas/T'}`
-	f := spellingPair("3.1.0", partner, spelling, Equal{})
+	fake := spellingPair("3.1.0", partner, spelling, Equal{})
 	uncompiled := swapUncompiled(t)
 	for _, how := range []string{"refused", "error", "no document"} {
 		uncompiled[string(spellingSpec("3.1.0", partner))] = how
 		uncompiled[string(spellingSpec("3.1.0", spelling))] = how
 
-		v := spellingVerdict(t, f)
+		verdict := spellingVerdict(t, fake)
 
-		assert.Equal(t, declined(OracleSpelling, DeclineErrorDiagnostic), v, how)
-		assert.True(t, listed(v), how)
+		assert.Equal(t, declined(OracleSpelling, DeclineErrorDiagnostic), verdict, how)
+		assert.True(t, listed(verdict), how)
 	}
 
 	delete(uncompiled, string(spellingSpec("3.1.0", partner)))
 	uncompiled[string(spellingSpec("3.1.0", spelling))] = "error"
-	v := spellingVerdict(t, f)
-	require.True(t, v.Found(), "%+v", v)
-	assert.Equal(t, "diagnostics:x/refused", strings.SplitN(v.Detail, "\n", 2)[0])
+	verdictValue := spellingVerdict(t, fake)
+	require.True(t, verdictValue.Found(), "%+v", verdictValue)
+	assert.Equal(t, "diagnostics:x/refused", strings.SplitN(verdictValue.Detail, "\n", 2)[0])
 }
 
 // swapUncompiled makes the compile of each source the returned map names fail
@@ -276,9 +276,9 @@ func swapUncompiled(t *testing.T) map[string]string {
 // declines, and a compile's error, a document that does not encode and a
 // partner writing nothing are faults.
 func TestSpelled_WhatStopsAComparison(t *testing.T) {
-	f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
-	unequal := fake{axes: f.axes, write: func(at []int) (CaseDocument, bool) {
-		doc, _ := f.write(at)
+	fakeValue := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
+	unequal := fake{axes: fakeValue.axes, write: func(at []int) (CaseDocument, bool) {
+		doc, _ := fakeValue.write(at)
 		doc.Equal = nil
 		return doc, true
 	}}
@@ -289,27 +289,27 @@ func TestSpelled_WhatStopsAComparison(t *testing.T) {
 		return nil, nil, broken
 	})
 	withAsked(t, spelled)
-	r, ok := CheckCase(t.Context(), f, []int{1})
+	result, ok := CheckCase(t.Context(), fakeValue, []int{1})
 	require.True(t, ok)
-	assert.True(t, r.Faulted(), "a compile's error is a fault")
-	assert.Contains(t, r.Detail, "harness: compile case [1] or its partner: engine broke")
+	assert.True(t, result.Faulted(), "a compile's error is a fault")
+	assert.Contains(t, result.Detail, "harness: compile case [1] or its partner: engine broke")
 
 	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return &ir.Document{Name: "\xff"}, nil, nil
 	})
-	r, ok = CheckCase(t.Context(), f, []int{1})
+	result, ok = CheckCase(t.Context(), fakeValue, []int{1})
 	require.True(t, ok)
-	assert.True(t, r.Faulted(), "a document that does not encode is a fault")
-	assert.Contains(t, r.Detail, "harness: encode case [1] or its partner: ")
+	assert.True(t, result.Faulted(), "a document that does not encode is a fault")
+	assert.Contains(t, result.Detail, "harness: encode case [1] or its partner: ")
 
-	alone := fake{axes: f.axes, write: func(at []int) (CaseDocument, bool) {
-		doc, _ := f.write(at)
+	alone := fake{axes: fakeValue.axes, write: func(at []int) (CaseDocument, bool) {
+		doc, _ := fakeValue.write(at)
 		return doc, at[0] == 1
 	}}
-	r, ok = CheckCase(t.Context(), alone, []int{1})
+	result, ok = CheckCase(t.Context(), alone, []int{1})
 	require.True(t, ok)
-	assert.True(t, r.Faulted(), "a partner the product writes nothing for is a fault")
-	assert.Contains(t, r.Detail, "harness: case [1] names the partner [0], which writes nothing")
+	assert.True(t, result.Faulted(), "a partner the product writes nothing for is a fault")
+	assert.Contains(t, result.Detail, "harness: case [1] names the partner [0], which writes nothing")
 }
 
 // TestSpelled_ACaseNamingAPartnerAmissPanics pins the asserts on what a
@@ -318,9 +318,9 @@ func TestSpelled_WhatStopsAComparison(t *testing.T) {
 func TestSpelled_ACaseNamingAPartnerAmissPanics(t *testing.T) {
 	withAsked(t, spelled)
 	for _, eq := range []Equal{{Rule: spellingRule}, {Relocate: eraseAllOf}} {
-		f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
-		write := f.write
-		f.write = func(at []int) (CaseDocument, bool) {
+		fake := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
+		write := fake.write
+		fake.write = func(at []int) (CaseDocument, bool) {
 			doc, ok := write(at)
 			if doc.Equal != nil {
 				eq.To = doc.Equal.To
@@ -328,16 +328,16 @@ func TestSpelled_ACaseNamingAPartnerAmissPanics(t *testing.T) {
 			}
 			return doc, ok
 		}
-		r, ok := CheckCase(t.Context(), f, []int{1})
+		result, ok := CheckCase(t.Context(), fake, []int{1})
 		require.True(t, ok)
-		assert.Equal(t, OutcomePanic, r.Outcome)
-		assert.Contains(t, r.Detail, "names a partner with no relocation or no rule")
+		assert.Equal(t, OutcomePanic, result.Outcome)
+		assert.Contains(t, result.Detail, "names a partner with no relocation or no rule")
 	}
 
-	f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
-	doc, _ := f.write([]int{1})
-	s := newShard(fake{axes: f.axes, write: func([]int) (CaseDocument, bool) { return CaseDocument{}, false }}, f.axes, []int{1})
-	assert.PanicsWithValue(t, "harness: case [1] writes nothing to compile", func() { spelled(t.Context(), s, []int{1}, doc) })
+	fakeValue := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
+	doc, _ := fakeValue.write([]int{1})
+	shard := newShard(fake{axes: fakeValue.axes, write: func([]int) (CaseDocument, bool) { return CaseDocument{}, false }}, fakeValue.axes, []int{1})
+	assert.PanicsWithValue(t, "harness: case [1] writes nothing to compile", func() { spelled(t.Context(), shard, []int{1}, doc) })
 }
 
 func TestReadTree_RefusesWhatItCannotRelocate(t *testing.T) {

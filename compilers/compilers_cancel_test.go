@@ -92,19 +92,19 @@ func TestDetectionCompile_DoesNotJudgeACompileReturningOnceCancelled(t *testing.
 		name  string
 		spoil func(*scripted)
 	}{
-		{name: "an unstamped document", spoil: func(s *scripted) { s.doc.IRVersion = "" }},
-		{name: "its own error", spoil: func(s *scripted) { s.err = own }},
-		{name: "a refusal giving no reason", spoil: func(s *scripted) { s.doc = nil }},
+		{name: "an unstamped document", spoil: func(scriptedValue *scripted) { scriptedValue.doc.IRVersion = "" }},
+		{name: "its own error", spoil: func(scriptedValue *scripted) { scriptedValue.err = own }},
+		{name: "a refusal giving no reason", spoil: func(scriptedValue *scripted) { scriptedValue.doc = nil }},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
-			s := keeping()
-			tc.spoil(s)
+			scripted := keeping()
+			tc.spoil(scripted)
 
-			got, err := detected(cancellingCompile{scripted: s, cancel: cancel}, nil).Compile(ctx)
+			got, err := detected(cancellingCompile{scripted: scripted, cancel: cancel}, nil).Compile(ctx)
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.NotErrorIs(t, err, compilers.ErrContract)

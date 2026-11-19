@@ -33,12 +33,12 @@ func lit(id ir.TypeID, value string) *ir.Literal {
 // pinned is the anonymous closed Enum at id holding values, as a compiler lowers
 // an enum branch.
 func pinned(id ir.TypeID, values ...string) *ir.Enum {
-	e := &ir.Enum{ID: id, Anonymous: true, Name: hinted("variant"),
+	enum := &ir.Enum{ID: id, Anonymous: true, Name: hinted("variant"),
 		ValueType: ir.PrimitiveString, Closed: true}
 	for _, v := range values {
-		e.Members = append(e.Members, member(id, v))
+		enum.Members = append(enum.Members, member(id, v))
 	}
-	return e
+	return enum
 }
 
 // member is the member of the enum at enum holding value, under the ID and the
@@ -51,25 +51,25 @@ func member(enum ir.TypeID, value string) ir.EnumMember {
 
 // union is the closed, exclusive union at id whose variants name targets.
 func union(id ir.TypeID, targets ...ir.TypeID) *ir.Union {
-	u := &ir.Union{ID: id, Name: named("U"), Docs: ir.Docs{Summary: "A union."},
+	irUnion := &ir.Union{ID: id, Name: named("U"), Docs: ir.Docs{Summary: "A union."},
 		Exclusive: true, Closed: true}
 	for _, target := range targets {
-		u.Variants = append(u.Variants, ir.Variant{Name: hinted("variant"), Type: ir.TypeRef{Target: target}})
+		irUnion.Variants = append(irUnion.Variants, ir.Variant{Name: hinted("variant"), Type: ir.TypeRef{Target: target}})
 	}
-	return u
+	return irUnion
 }
 
 // anonymousUnion is the union at id whose variants name targets, as a
 // compiler lowers an inline oneOf: anonymous, named by its position alone.
 func anonymousUnion(id ir.TypeID, targets ...ir.TypeID) *ir.Union {
-	u := union(id, targets...)
-	u.Anonymous, u.Name, u.Docs = true, hinted("variant"), ir.Docs{}
-	return u
+	irUnion := union(id, targets...)
+	irUnion.Anonymous, irUnion.Name, irUnion.Docs = true, hinted("variant"), ir.Docs{}
+	return irUnion
 }
 
-// enumFor is the Enum pass.ConstUnions makes of u, holding members.
-func enumFor(u *ir.Union, members ...ir.EnumMember) *ir.Enum {
-	return &ir.Enum{TypeCommon: u.TypeCommon, ValueType: ir.PrimitiveString, Members: members, Closed: true}
+// enumFor is the Enum pass.ConstUnions makes of union, holding members.
+func enumFor(union *ir.Union, members ...ir.EnumMember) *ir.Enum {
+	return &ir.Enum{TypeCommon: union.TypeCommon, ValueType: ir.PrimitiveString, Members: members, Closed: true}
 }
 
 // constDoc is a document declaring the namespace x for types and enum members,
@@ -108,31 +108,31 @@ func TestConstUnions_ReplacesAUnionOfStringsWithTheirEnum(t *testing.T) {
 	tests := []struct {
 		name  string
 		types func() (*ir.Union, []ir.TypeDef)
-		want  func(u *ir.Union) []ir.EnumMember
+		want  func(union *ir.Union) []ir.EnumMember
 	}{
 		{"string consts", func() (*ir.Union, []ir.TypeDef) {
 			return union("type/x/U", "type/x/U/0", "type/x/U/1"), []ir.TypeDef{lit("type/x/U/0", "red"), lit("type/x/U/1", "green")}
-		}, func(u *ir.Union) []ir.EnumMember {
-			return []ir.EnumMember{member(u.ID, "red"), member(u.ID, "green")}
+		}, func(union *ir.Union) []ir.EnumMember {
+			return []ir.EnumMember{member(union.ID, "red"), member(union.ID, "green")}
 		}},
 		{"one-member enums of an anyOf", func() (*ir.Union, []ir.TypeDef) {
-			u := union("type/x/U", "type/x/U/0", "type/x/U/1")
-			u.Exclusive = false
-			return u, []ir.TypeDef{pinned("type/x/U/0", "low"), pinned("type/x/U/1", "high")}
-		}, func(u *ir.Union) []ir.EnumMember {
-			return []ir.EnumMember{member(u.ID, "low"), member(u.ID, "high")}
+			irUnion := union("type/x/U", "type/x/U/0", "type/x/U/1")
+			irUnion.Exclusive = false
+			return irUnion, []ir.TypeDef{pinned("type/x/U/0", "low"), pinned("type/x/U/1", "high")}
+		}, func(union *ir.Union) []ir.EnumMember {
+			return []ir.EnumMember{member(union.ID, "low"), member(union.ID, "high")}
 		}},
 		{"what each says of a value", func() (*ir.Union, []ir.TypeDef) {
-			u := union("type/x/U", "type/x/U/0", "type/x/U/1", "type/x/U/2")
-			u.Variants[0].Docs = ir.Docs{Description: "Red."}
-			u.Variants[2].Unmodeled = unmodeled
+			irUnion := union("type/x/U", "type/x/U/0", "type/x/U/1", "type/x/U/2")
+			irUnion.Variants[0].Docs = ir.Docs{Description: "Red."}
+			irUnion.Variants[2].Unmodeled = unmodeled
 			red, green, blue := lit("type/x/U/0", "red"), pinned("type/x/U/1", "green"), pinned("type/x/U/2", "blue")
 			red.Deprecation, green.Availability = deprecated, available
 			green.Members[0].Examples, green.Members[0].WireName = examples, "GREEN"
 			blue.Docs = ir.Docs{Summary: "Blue"}
-			return u, []ir.TypeDef{red, green, blue}
-		}, func(u *ir.Union) []ir.EnumMember {
-			red, green, blue := member(u.ID, "red"), member(u.ID, "green"), member(u.ID, "blue")
+			return irUnion, []ir.TypeDef{red, green, blue}
+		}, func(union *ir.Union) []ir.EnumMember {
+			red, green, blue := member(union.ID, "red"), member(union.ID, "green"), member(union.ID, "blue")
 			red.Docs, red.Deprecation = ir.Docs{Description: "Red."}, deprecated
 			green.Availability, green.Examples, green.WireName = available, examples, "GREEN"
 			blue.Docs, blue.Unmodeled = ir.Docs{Summary: "Blue"}, unmodeled
@@ -141,60 +141,60 @@ func TestConstUnions_ReplacesAUnionOfStringsWithTheirEnum(t *testing.T) {
 		{"a union of one value", func() (*ir.Union, []ir.TypeDef) {
 			return union("type/x/U", "type/x/U/0", "type/x/U/1"),
 				[]ir.TypeDef{anonymousUnion("type/x/U/0", "type/x/U/0/0"), lit("type/x/U/0/0", "up"), lit("type/x/U/1", "down")}
-		}, func(u *ir.Union) []ir.EnumMember {
-			return []ir.EnumMember{member(u.ID, "up"), member(u.ID, "down")}
+		}, func(union *ir.Union) []ir.EnumMember {
+			return []ir.EnumMember{member(union.ID, "up"), member(union.ID, "down")}
 		}},
 		{"an enum of several values only the union names", func() (*ir.Union, []ir.TypeDef) {
-			u := union("type/x/U", "type/x/U/0", "type/x/U/1")
-			u.Exclusive = false
-			return u, []ir.TypeDef{pinned("type/x/U/0", "small", "large"), pinned("type/x/U/1", "")}
-		}, func(u *ir.Union) []ir.EnumMember {
-			return []ir.EnumMember{member(u.ID, "small"), member(u.ID, "large"), member(u.ID, "")}
+			irUnion := union("type/x/U", "type/x/U/0", "type/x/U/1")
+			irUnion.Exclusive = false
+			return irUnion, []ir.TypeDef{pinned("type/x/U/0", "small", "large"), pinned("type/x/U/1", "")}
+		}, func(union *ir.Union) []ir.EnumMember {
+			return []ir.EnumMember{member(union.ID, "small"), member(union.ID, "large"), member(union.ID, "")}
 		}},
 		{"a lone branch of several values", func() (*ir.Union, []ir.TypeDef) {
 			return union("type/x/U", "type/x/U/0"), []ir.TypeDef{pinned("type/x/U/0", "s", "m", "l")}
-		}, func(u *ir.Union) []ir.EnumMember {
-			return []ir.EnumMember{member(u.ID, "s"), member(u.ID, "m"), member(u.ID, "l")}
+		}, func(union *ir.Union) []ir.EnumMember {
+			return []ir.EnumMember{member(union.ID, "s"), member(union.ID, "m"), member(union.ID, "l")}
 		}},
 		{"what each member of a branch of several says", func() (*ir.Union, []ir.TypeDef) {
 			several := pinned("type/x/U/1", "green", "blue")
 			several.Members[0].Docs, several.Members[1].Deprecation = ir.Docs{Summary: "Green"}, deprecated
 			several.Members[1].Unmodeled = unmodeled
 			return union("type/x/U", "type/x/U/0", "type/x/U/1"), []ir.TypeDef{lit("type/x/U/0", "red"), several}
-		}, func(u *ir.Union) []ir.EnumMember {
-			green, blue := member(u.ID, "green"), member(u.ID, "blue")
+		}, func(union *ir.Union) []ir.EnumMember {
+			green, blue := member(union.ID, "green"), member(union.ID, "blue")
 			green.Docs, blue.Deprecation, blue.Unmodeled = ir.Docs{Summary: "Green"}, deprecated, unmodeled
-			return []ir.EnumMember{member(u.ID, "red"), green, blue}
+			return []ir.EnumMember{member(union.ID, "red"), green, blue}
 		}},
 		{"a union of several values only the union names", func() (*ir.Union, []ir.TypeDef) {
 			return union("type/x/U", "type/x/U/0", "type/x/U/1"), []ir.TypeDef{
 				lit("type/x/U/0", "left"), anonymousUnion("type/x/U/1", "type/x/U/1/0", "type/x/U/1/1"),
 				lit("type/x/U/1/0", "up"), pinned("type/x/U/1/1", "down", "out"),
 			}
-		}, func(u *ir.Union) []ir.EnumMember {
-			return []ir.EnumMember{member(u.ID, "left"), member(u.ID, "up"), member(u.ID, "down"), member(u.ID, "out")}
+		}, func(union *ir.Union) []ir.EnumMember {
+			return []ir.EnumMember{member(union.ID, "left"), member(union.ID, "up"), member(union.ID, "down"), member(union.ID, "out")}
 		}},
 		{"two unions of several values only the union names", func() (*ir.Union, []ir.TypeDef) {
 			return union("type/x/U", "type/x/U/0", "type/x/U/1"), []ir.TypeDef{
 				anonymousUnion("type/x/U/0", "type/x/U/0/0", "type/x/U/0/1"), lit("type/x/U/0/0", "a"), lit("type/x/U/0/1", "b"),
 				anonymousUnion("type/x/U/1", "type/x/U/1/0", "type/x/U/1/1"), lit("type/x/U/1/0", "c"), pinned("type/x/U/1/1", "d", "e"),
 			}
-		}, func(u *ir.Union) []ir.EnumMember {
-			return []ir.EnumMember{member(u.ID, "a"), member(u.ID, "b"), member(u.ID, "c"), member(u.ID, "d"),
-				member(u.ID, "e")}
+		}, func(union *ir.Union) []ir.EnumMember {
+			return []ir.EnumMember{member(union.ID, "a"), member(union.ID, "b"), member(union.ID, "c"), member(union.ID, "d"),
+				member(union.ID, "e")}
 		}},
 		{"a union of one value saying something of it", func() (*ir.Union, []ir.TypeDef) {
 			nested := anonymousUnion("type/x/U/0", "type/x/U/0/0")
 			nested.Docs = ir.Docs{Summary: "Up"}
 			return union("type/x/U", "type/x/U/0", "type/x/U/1"), []ir.TypeDef{nested, lit("type/x/U/0/0", "up"), lit("type/x/U/1", "down")}
-		}, func(u *ir.Union) []ir.EnumMember {
-			up := member(u.ID, "up")
+		}, func(union *ir.Union) []ir.EnumMember {
+			up := member(union.ID, "up")
 			up.Docs = ir.Docs{Summary: "Up"}
-			return []ir.EnumMember{up, member(u.ID, "down")}
+			return []ir.EnumMember{up, member(union.ID, "down")}
 		}},
 		{"values a key escapes or no word names", func() (*ir.Union, []ir.TypeDef) {
 			return union("type/x/U", "type/x/U/0", "type/x/U/1"), []ir.TypeDef{lit("type/x/U/0", ""), lit("type/x/U/1", "a/b~c")}
-		}, func(u *ir.Union) []ir.EnumMember {
+		}, func(union *ir.Union) []ir.EnumMember {
 			return []ir.EnumMember{
 				{ID: "enum-member/x/U/string:", Name: hinted(ir.EmptyNameHint), Value: str("")},
 				{ID: "enum-member/x/U/string:a~1b~0c", Name: named("a/b~c"), Value: str("a/b~c")},
@@ -204,10 +204,10 @@ func TestConstUnions_ReplacesAUnionOfStringsWithTheirEnum(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			u, branches := tt.types()
-			out := collapsed(t, constDoc(append([]ir.TypeDef{u}, branches...)...))
+			union, branches := tt.types()
+			out := collapsed(t, constDoc(append([]ir.TypeDef{union}, branches...)...))
 
-			assert.Empty(t, cmp.Diff(ir.TypeRegistry{u.ID: enumFor(u, tt.want(u)...)}, out.Types))
+			assert.Empty(t, cmp.Diff(ir.TypeRegistry{union.ID: enumFor(union, tt.want(union)...)}, out.Types))
 		})
 	}
 }
@@ -217,16 +217,16 @@ func TestConstUnions_ReplacesAUnionOfStringsWithTheirEnum(t *testing.T) {
 // union whose branches type them apart stays.
 func TestConstUnions_KeepsTheValueTypeEveryBranchShares(t *testing.T) {
 	t.Parallel()
-	u := union("type/x/U", "type/x/U/0", "type/x/U/1")
+	irUnion := union("type/x/U", "type/x/U/0", "type/x/U/1")
 	day, other := lit("type/x/U/0", "2026-01-01"), pinned("type/x/U/1", "2026-01-02")
 	day.ValueType, other.ValueType = ir.PrimitiveDate, ir.PrimitiveDate
-	out := collapsed(t, constDoc(u, day, other))
-	enum, ok := out.Types[u.ID].(*ir.Enum)
+	out := collapsed(t, constDoc(irUnion, day, other))
+	enum, ok := out.Types[irUnion.ID].(*ir.Enum)
 	require.True(t, ok)
 	assert.Equal(t, ir.PrimitiveDate, enum.ValueType)
 
 	other.ValueType = ir.PrimitiveString
-	apart := constDoc(u, day, other)
+	apart := constDoc(irUnion, day, other)
 	assert.Same(t, apart, collapsed(t, apart))
 }
 
@@ -239,35 +239,35 @@ func TestConstUnions_KeepsTheValueTypeEveryBranchShares(t *testing.T) {
 // rewrites, so the document is read, and stays as it was but for that one.
 func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 	t.Parallel()
-	several := func(e *ir.Enum) { e.Members = append(e.Members, member(e.ID, "blue")) }
+	several := func(enum *ir.Enum) { enum.Members = append(enum.Members, member(enum.ID, "blue")) }
 	tests := []struct {
 		name  string
-		write func(u *ir.Union, red *ir.Literal, green *ir.Enum, types ir.TypeRegistry)
+		write func(union *ir.Union, red *ir.Literal, green *ir.Enum, types ir.TypeRegistry)
 	}{
-		{"an open union", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { u.Closed = false }},
-		{"a tagged union", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { u.WireTagged = true }},
-		{"a discriminator", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Discriminator = &ir.Discriminator{PropertyName: "kind"}
+		{"an open union", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { union.Closed = false }},
+		{"a tagged union", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { union.WireTagged = true }},
+		{"a discriminator", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Discriminator = &ir.Discriminator{PropertyName: "kind"}
 		}},
-		{"an input-only union", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { u.InputOnly = true }},
-		{"a union's bounds", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Constraints = &ir.Constraints{MaxLength: new(int64(3))}
+		{"an input-only union", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { union.InputOnly = true }},
+		{"a union's bounds", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Constraints = &ir.Constraints{MaxLength: new(int64(3))}
 		}},
-		{"no variant", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { u.Variants = nil }},
-		{"a nullable variant", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Variants[0].Type.Nullable = true
+		{"no variant", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { union.Variants = nil }},
+		{"a nullable variant", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Variants[0].Type.Nullable = true
 		}},
-		{"a variant's declared name", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Variants[0].Name = ir.Naming{Source: "Red"}
+		{"a variant's declared name", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Variants[0].Name = ir.Naming{Source: "Red"}
 		}},
-		{"a variant's canonical name", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Variants[0].Name = ir.Naming{Canonical: "red"}
+		{"a variant's canonical name", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Variants[0].Name = ir.Naming{Canonical: "red"}
 		}},
-		{"a variant's alias", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Variants[1].Name = ir.Naming{Hint: "variant", Aliases: []string{"Green"}}
+		{"a variant's alias", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Variants[1].Name = ir.Naming{Hint: "variant", Aliases: []string{"Green"}}
 		}},
-		{"a variant's wire name", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Variants[1].WireName = "g"
+		{"a variant's wire name", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Variants[1].WireName = "g"
 		}},
 		{"a named branch", func(_ *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { red.Anonymous = false }},
 		{"an anonymous branch's declared name", func(_ *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
@@ -280,8 +280,8 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 		{"a constraint a branch keeps", func(_ *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
 			red.Unmodeled = ir.Unmodeled{"openapi:pattern": {Reason: ir.ReasonDegradedLowering}}
 		}},
-		{"a construct a variant keeps", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Variants[1].Unmodeled = ir.Unmodeled{"openapi:x-a": {Reason: ir.ReasonVendorExtension},
+		{"a construct a variant keeps", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Variants[1].Unmodeled = ir.Unmodeled{"openapi:x-a": {Reason: ir.ReasonVendorExtension},
 				"openapi:b": {Reason: ir.ReasonNoIRHome}}
 		}},
 		{"an inferred branch", func(_ *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
@@ -290,8 +290,8 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 		{"a number", func(_ *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
 			red.Value = ir.Value{Kind: ir.ValueNumber, Number: "1"}
 		}},
-		{"literals no primitive types", func(u *ir.Union, red *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
-			untyped := lit(u.Variants[1].Type.Target, "green")
+		{"literals no primitive types", func(union *ir.Union, red *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			untyped := lit(union.Variants[1].Type.Target, "green")
 			red.ValueType, untyped.ValueType = "", ""
 			types[untyped.ID] = untyped
 		}},
@@ -304,25 +304,25 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 		{"an enum of a bool", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
 			green.Members[0].Value = ir.Value{Kind: ir.ValueBool, Bool: true}
 		}},
-		{"enums no primitive types", func(u *ir.Union, _ *ir.Literal, green *ir.Enum, types ir.TypeRegistry) {
-			untyped := pinned(u.Variants[0].Type.Target, "red")
+		{"enums no primitive types", func(union *ir.Union, _ *ir.Literal, green *ir.Enum, types ir.TypeRegistry) {
+			untyped := pinned(union.Variants[0].Type.Target, "red")
 			green.ValueType, untyped.ValueType = "", ""
 			types[untyped.ID] = untyped
 		}},
-		{"a branch of another kind", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
-			types[u.Variants[0].Type.Target] = &ir.Model{ID: "type/x/U/0", Anonymous: true}
+		{"a branch of another kind", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			types[union.Variants[0].Type.Target] = &ir.Model{ID: "type/x/U/0", Anonymous: true}
 		}},
-		{"a branch naming itself", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
-			types[u.Variants[0].Type.Target] = anonymousUnion("type/x/U/0", "type/x/U/0", "type/x/U/1")
+		{"a branch naming itself", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			types[union.Variants[0].Type.Target] = anonymousUnion("type/x/U/0", "type/x/U/0", "type/x/U/1")
 		}},
-		{"no branch", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
-			delete(types, u.Variants[0].Type.Target)
+		{"no branch", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			delete(types, union.Variants[0].Type.Target)
 		}},
-		{"a nil literal", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
-			types[u.Variants[0].Type.Target] = (*ir.Literal)(nil)
+		{"a nil literal", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			types[union.Variants[0].Type.Target] = (*ir.Literal)(nil)
 		}},
-		{"a nil enum", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
-			types[u.Variants[1].Type.Target] = (*ir.Enum)(nil)
+		{"a nil enum", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			types[union.Variants[1].Type.Target] = (*ir.Enum)(nil)
 		}},
 		{"values typed apart", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
 			green.ValueType = ir.PrimitiveDate
@@ -330,17 +330,17 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 		{"a value twice", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
 			green.Members[0].Value = str("red")
 		}},
-		{"docs a variant and its branch say", func(u *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Variants[0].Docs, red.Docs = ir.Docs{Summary: "a"}, ir.Docs{Summary: "b"}
+		{"docs a variant and its branch say", func(union *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Variants[0].Docs, red.Docs = ir.Docs{Summary: "a"}, ir.Docs{Summary: "b"}
 		}},
 		{"a deprecation a branch and its member say", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
 			green.Deprecation, green.Members[0].Deprecation = &ir.Deprecation{}, &ir.Deprecation{}
 		}},
-		{"an availability a variant and its member say", func(u *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
-			u.Variants[1].Availability, green.Members[0].Availability = &ir.Availability{}, &ir.Availability{}
+		{"an availability a variant and its member say", func(union *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
+			union.Variants[1].Availability, green.Members[0].Availability = &ir.Availability{}, &ir.Availability{}
 		}},
-		{"examples a variant and its branch say", func(u *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			u.Variants[0].Examples, red.Examples = []ir.Example{{Value: new(str("red"))}}, []ir.Example{{Value: new(str("red"))}}
+		{"examples a variant and its branch say", func(union *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			union.Variants[0].Examples, red.Examples = []ir.Example{{Value: new(str("red"))}}, []ir.Example{{Value: new(str("red"))}}
 		}},
 		{"unmodeled entries a branch and its member say", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
 			green.Unmodeled = ir.Unmodeled{"openapi:x-a": {Reason: ir.ReasonVendorExtension}}
@@ -360,9 +360,9 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 			types["type/x/M"] = &ir.Model{ID: "type/x/M",
 				Deprecation: &ir.Deprecation{ReplacedBy: []ir.EntityRef{{Member: green.Members[1].ID}}}}
 		}},
-		{"an enum of several values its variant says something of", func(u *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
+		{"an enum of several values its variant says something of", func(union *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
 			several(green)
-			u.Variants[1].Docs = ir.Docs{Summary: "Cool colours."}
+			union.Variants[1].Docs = ir.Docs{Summary: "Cool colours."}
 		}},
 		{"an enum of several values that says something of them all", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
 			several(green)
@@ -383,25 +383,25 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 			several(green)
 			green.Members[1].Value = ir.Value{Kind: ir.ValueBool, Bool: true}
 		}},
-		{"a union off its key", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
-			delete(types, u.ID)
-			types["type/x/W"] = u
+		{"a union off its key", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			delete(types, union.ID)
+			types["type/x/W"] = union
 		}},
-		{"a nil union", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
-			types[u.ID] = (*ir.Union)(nil)
+		{"a nil union", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			types[union.ID] = (*ir.Union)(nil)
 		}},
-		{"a union no member fits under", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
-			delete(types, u.ID)
-			u.ID = "U"
-			types[u.ID] = u
+		{"a union no member fits under", func(union *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			delete(types, union.ID)
+			union.ID = "U"
+			types[union.ID] = union
 		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			u, red, green := union("type/x/U", "type/x/U/0", "type/x/U/1"), lit("type/x/U/0", "red"), pinned("type/x/U/1", "green")
-			doc := constDoc(u, red, green)
-			tt.write(u, red, green, doc.Types)
+			irUnion, red, green := union("type/x/U", "type/x/U/0", "type/x/U/1"), lit("type/x/U/0", "red"), pinned("type/x/U/1", "green")
+			doc := constDoc(irUnion, red, green)
+			tt.write(irUnion, red, green, doc.Types)
 			kept := maps.Clone(doc.Types)
 			doc.Types["type/x/R"], doc.Types["type/x/R/0"] = union("type/x/R", "type/x/R/0"), lit("type/x/R/0", "beside")
 			out := collapsed(t, doc)
@@ -452,18 +452,18 @@ func TestConstUnions_RewritesAUnionOfSeveralValuesItsUnionCannotTake(t *testing.
 func TestConstUnions_KeepsAUnionWhoseUnionsOfSeveralValuesShareOne(t *testing.T) {
 	t.Parallel()
 	for _, sets := range [][2][]string{{{"a", "b", "c"}, {"d", "a"}}, {{"d", "a"}, {"a", "b", "c"}}} {
-		u := union("type/x/U", "type/x/U/0", "type/x/U/1")
-		doc := constDoc(u)
+		irUnion := union("type/x/U", "type/x/U/0", "type/x/U/1")
+		doc := constDoc(irUnion)
 		for i, values := range sets {
-			id := u.Variants[i].Type.Target
+			id := irUnion.Variants[i].Type.Target
 			doc.Types[id] = anonymousUnion(id, id+"/0", id+"/1")
 			doc.Types[id+"/0"], doc.Types[id+"/1"] = lit(id+"/0", values[0]), pinned(id+"/1", values[1:]...)
 		}
 		out := collapsed(t, doc)
 
-		assert.Same(t, u, out.Types[u.ID], "%v", sets)
+		assert.Same(t, irUnion, out.Types[irUnion.ID], "%v", sets)
 		for i, values := range sets {
-			nested, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Union)
+			nested, ok := doc.Types[irUnion.Variants[i].Type.Target].(*ir.Union)
 			require.True(t, ok)
 			members := make([]ir.EnumMember, 0, len(values))
 			for _, v := range values {
@@ -480,13 +480,13 @@ func TestConstUnions_KeepsAUnionWhoseUnionsOfSeveralValuesShareOne(t *testing.T)
 // Enum of its values, and the union it names its own Enum, which stays.
 func TestConstUnions_CopiesAUnionOfOneValueAnotherNodeNames(t *testing.T) {
 	t.Parallel()
-	u, nested := union("type/x/U", "type/x/U/0", "type/x/U/1"), anonymousUnion("type/x/U/0", "type/x/U/0/0")
-	doc := constDoc(u, nested, lit("type/x/U/0/0", "up"), lit("type/x/U/1", "down"))
+	irUnion, nested := union("type/x/U", "type/x/U/0", "type/x/U/1"), anonymousUnion("type/x/U/0", "type/x/U/0/0")
+	doc := constDoc(irUnion, nested, lit("type/x/U/0/0", "up"), lit("type/x/U/1", "down"))
 	doc.Types["type/x/M"] = &ir.Model{ID: "type/x/M",
 		Properties: []ir.Property{{ID: "property/x/M/p", Type: ir.TypeRef{Target: nested.ID}}}}
 	out := collapsed(t, doc)
 
-	assert.Empty(t, cmp.Diff(enumFor(u, member(u.ID, "up"), member(u.ID, "down")), out.Types[u.ID]))
+	assert.Empty(t, cmp.Diff(enumFor(irUnion, member(irUnion.ID, "up"), member(irUnion.ID, "down")), out.Types[irUnion.ID]))
 	assert.Empty(t, cmp.Diff(enumFor(nested, member(nested.ID, "up")), out.Types[nested.ID]))
 	assert.NotContains(t, out.Types, ir.TypeID("type/x/U/0/0"))
 	assert.NotContains(t, out.Types, ir.TypeID("type/x/U/1"))
@@ -572,18 +572,18 @@ func TestConstUnions_RemovesOnlyTheBranchesNothingElseReferences(t *testing.T) {
 // own key's Enum, and a branch of several values stays with the union.
 func TestConstUnions_ReadsAUnionTwoKeysHoldAsTwoReferences(t *testing.T) {
 	t.Parallel()
-	u := union("type/x/U", "type/x/U/0", "type/x/U/1")
-	doc := constDoc(u, lit("type/x/U/0", "red"), lit("type/x/U/1", "green"))
-	doc.Types["type/x/W"] = u
+	irUnion := union("type/x/U", "type/x/U/0", "type/x/U/1")
+	doc := constDoc(irUnion, lit("type/x/U/0", "red"), lit("type/x/U/1", "green"))
+	doc.Types["type/x/W"] = irUnion
 	out := collapsed(t, doc)
 
 	assert.Equal(t, ir.KindEnum, out.Types["type/x/U"].Kind())
-	assert.Same(t, u, out.Types["type/x/W"])
+	assert.Same(t, irUnion, out.Types["type/x/W"])
 	assert.Contains(t, out.Types, ir.TypeID("type/x/U/0"))
 	assert.Contains(t, out.Types, ir.TypeID("type/x/U/1"))
 
-	several := constDoc(u, lit("type/x/U/0", "red"), pinned("type/x/U/1", "green", "blue"))
-	several.Types["type/x/W"] = u
+	several := constDoc(irUnion, lit("type/x/U/0", "red"), pinned("type/x/U/1", "green", "blue"))
+	several.Types["type/x/W"] = irUnion
 	assert.Same(t, several, collapsed(t, several))
 }
 
@@ -596,34 +596,34 @@ func TestConstUnions_WatchesOnlyTheBranchesOfAUnionThatMayBeAnEnum(t *testing.T)
 	t.Parallel()
 	tests := []struct {
 		name  string
-		write func(u *ir.Union, types ir.TypeRegistry)
+		write func(union *ir.Union, types ir.TypeRegistry)
 		want  int
 	}{
 		{"a union that may be", func(*ir.Union, ir.TypeRegistry) {}, 2},
 		{"one naming a union that may be", func(_ *ir.Union, types ir.TypeRegistry) {
 			types["type/x/U/1"], types["type/x/U/1/0"] = anonymousUnion("type/x/U/1", "type/x/U/1/0"), lit("type/x/U/1/0", "green")
 		}, 3},
-		{"an open union", func(u *ir.Union, _ ir.TypeRegistry) { u.Closed = false }, 0},
-		{"a tagged union", func(u *ir.Union, _ ir.TypeRegistry) { u.WireTagged = true }, 0},
-		{"no variant", func(u *ir.Union, _ ir.TypeRegistry) { u.Variants = nil }, 0},
+		{"an open union", func(union *ir.Union, _ ir.TypeRegistry) { union.Closed = false }, 0},
+		{"a tagged union", func(union *ir.Union, _ ir.TypeRegistry) { union.WireTagged = true }, 0},
+		{"no variant", func(union *ir.Union, _ ir.TypeRegistry) { union.Variants = nil }, 0},
 		{"a named branch", func(_ *ir.Union, types ir.TypeRegistry) { types["type/x/U/0"].Common().Anonymous = false }, 0},
 		{"a branch of another kind", func(_ *ir.Union, types ir.TypeRegistry) {
 			types["type/x/U/0"] = &ir.Model{ID: "type/x/U/0", Anonymous: true}
 		}, 0},
 		{"a nil branch", func(_ *ir.Union, types ir.TypeRegistry) { types["type/x/U/1"] = (*ir.Enum)(nil) }, 0},
 		{"no branch", func(_ *ir.Union, types ir.TypeRegistry) { delete(types, "type/x/U/0") }, 0},
-		{"a union off its key", func(u *ir.Union, types ir.TypeRegistry) {
-			delete(types, u.ID)
-			types["type/x/W"] = u
+		{"a union off its key", func(union *ir.Union, types ir.TypeRegistry) {
+			delete(types, union.ID)
+			types["type/x/W"] = union
 		}, 0},
-		{"a nil union", func(u *ir.Union, types ir.TypeRegistry) { types[u.ID] = (*ir.Union)(nil) }, 0},
+		{"a nil union", func(union *ir.Union, types ir.TypeRegistry) { types[union.ID] = (*ir.Union)(nil) }, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			u := union("type/x/U", "type/x/U/0", "type/x/U/1")
-			doc := constDoc(u, lit("type/x/U/0", "red"), pinned("type/x/U/1", "green"))
-			tt.write(u, doc.Types)
+			irUnion := union("type/x/U", "type/x/U/0", "type/x/U/1")
+			doc := constDoc(irUnion, lit("type/x/U/0", "red"), pinned("type/x/U/1", "green"))
+			tt.write(irUnion, doc.Types)
 
 			assert.Equal(t, tt.want, pass.Watched(doc))
 		})
@@ -741,14 +741,14 @@ func chain(n int, valueFirst bool) *ir.Document {
 	for i := range n {
 		id, next := ir.TypeID(fmt.Sprintf("type/x/X%d", i)), ir.TypeID(fmt.Sprintf("type/x/X%d", i+1))
 		value := id + "/v"
-		u := union(id, next, value)
+		irUnion := union(id, next, value)
 		if valueFirst {
-			u = union(id, value, next)
+			irUnion = union(id, value, next)
 		}
 		if i > 0 {
-			u.Anonymous, u.Name, u.Docs = true, hinted("variant"), ir.Docs{}
+			irUnion.Anonymous, irUnion.Name, irUnion.Docs = true, hinted("variant"), ir.Docs{}
 		}
-		types = append(types, u, lit(value, fmt.Sprintf("a%d", i)))
+		types = append(types, irUnion, lit(value, fmt.Sprintf("a%d", i)))
 	}
 	return constDoc(append(types, lit(ir.TypeID(fmt.Sprintf("type/x/X%d", n)), "last"))...)
 }
@@ -883,9 +883,9 @@ func TestConstUnions_ReturnsItsInputOnceItsContextIsDone(t *testing.T) {
 // never asked.
 func TestConstUnions_AsksNoContextOfADocumentItNeedNotWalk(t *testing.T) {
 	t.Parallel()
-	u := union("type/x/U", "type/x/U/0")
-	u.Closed = false
-	doc := constDoc(u, lit("type/x/U/0", "red"))
+	irUnion := union("type/x/U", "type/x/U/0")
+	irUnion.Closed = false
+	doc := constDoc(irUnion, lit("type/x/U/0", "red"))
 	ctx := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
 	out, diags := pass.ConstUnions{}.Run(ctx, doc)
 

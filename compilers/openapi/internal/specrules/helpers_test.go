@@ -61,7 +61,7 @@ func run(t *testing.T, version string, kind specrules.Kind, doc string) []ir.Dia
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
 	return specrules.NewChecker().Check(t.Context(), &n, version, specrules.Options{
 		Start:  kind,
-		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 	})
 }
 
@@ -70,8 +70,8 @@ func findings(t *testing.T, version string, kind specrules.Kind, doc string) []f
 	t.Helper()
 	diags := run(t, version, kind, doc)
 	out := make([]finding, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, finding{Code: d.Code, At: string(d.Provenance.Pointer)})
+	for _, diagnostic := range diags {
+		out = append(out, finding{Code: diagnostic.Code, At: string(diagnostic.Provenance.Pointer)})
 	}
 	sortFindings(out)
 	return out

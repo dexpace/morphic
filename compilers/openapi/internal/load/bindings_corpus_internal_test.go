@@ -49,9 +49,9 @@ func TestBindAll_BindsEveryRefInTheCorpus(t *testing.T) {
 					return nil
 				}}), path)
 			}
-			for _, r := range table.References() {
-				assert.NotNil(t, doc.Bindings.ObjectAt(r.Site, r.Kind), "%s (external %v): a wrapper at %v",
-					path, external, r.Site)
+			for _, reference := range table.References() {
+				assert.NotNil(t, doc.Bindings.ObjectAt(reference.Site, reference.Kind), "%s (external %v): a wrapper at %v",
+					path, external, reference.Site)
 			}
 		}
 	}

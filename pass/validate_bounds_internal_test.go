@@ -18,14 +18,14 @@ import (
 // nothing else would say so.
 func TestPrimShapes_EveryPrimKindHasARow(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load("github.com/dexpace/morphic/ir")
+	loadedPackage, err := decls.Load("github.com/dexpace/morphic/ir")
 	require.NoError(t, err)
-	kinds, err := p.StringConsts("PrimitiveKind")
+	kinds, err := loadedPackage.StringConsts("PrimitiveKind")
 	require.NoError(t, err)
 	require.NotEmpty(t, kinds)
 
-	for _, k := range kinds {
-		assert.NotEqual(t, shapeNotChecked, primShape(ir.PrimitiveKind(k.Value)), "%s has no shape", k.Value)
+	for _, declaredConst := range kinds {
+		assert.NotEqual(t, shapeNotChecked, primShape(ir.PrimitiveKind(declaredConst.Value)), "%s has no shape", declaredConst.Value)
 	}
 	assert.Equal(t, shapeNotChecked, primShape("no-such-kind"))
 }
@@ -35,14 +35,14 @@ func TestPrimShapes_EveryPrimKindHasARow(t *testing.T) {
 // included.
 func TestKindWords_NamesEveryKind(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load("github.com/dexpace/morphic/ir")
+	loadedPackage, err := decls.Load("github.com/dexpace/morphic/ir")
 	require.NoError(t, err)
-	kinds, err := p.StringConsts("ValueKind")
+	kinds, err := loadedPackage.StringConsts("ValueKind")
 	require.NoError(t, err)
 	require.NotEmpty(t, kinds)
 
-	for _, k := range kinds {
-		assert.NotEmpty(t, kindWords(ir.ValueKind(k.Value)), k.Value)
+	for _, declaredConst := range kinds {
+		assert.NotEmpty(t, kindWords(ir.ValueKind(declaredConst.Value)), declaredConst.Value)
 	}
 	assert.Equal(t, "a null", kindWords(ir.ValueNull))
 	assert.Equal(t, "an infinity", kindWords(ir.ValueNegativeInfinity))

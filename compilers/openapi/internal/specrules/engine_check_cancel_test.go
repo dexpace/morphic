@@ -43,7 +43,7 @@ func TestCheck_StopsSilentlyOnceTheContextIsDone(t *testing.T) {
 	check := func(ctx context.Context) ([]ir.Diagnostic, int) {
 		read := 0
 		diags := specrules.NewChecker().Check(ctx, &root, "3.1.0", specrules.Options{
-			Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+			Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 			Seen:   func(specrules.Kind, *yaml.Node) { read++ },
 		})
 		return diags, read
@@ -57,8 +57,8 @@ func TestCheck_StopsSilentlyOnceTheContextIsDone(t *testing.T) {
 	assert.Less(t, read, readLive)
 	assert.LessOrEqual(t, read, 10, "no object is read once the context refuses")
 	assert.Less(t, len(stopped), 2*n)
-	for _, d := range stopped {
-		assert.NotEqual(t, diag.BudgetExceeded, d.Code, "a stop is no budget crossed")
+	for _, diagnostic := range stopped {
+		assert.NotEqual(t, diag.BudgetExceeded, diagnostic.Code, "a stop is no budget crossed")
 	}
 }
 

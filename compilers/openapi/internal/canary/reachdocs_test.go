@@ -52,27 +52,27 @@ type reachFuzzSchema struct {
 // callers below pass 2 for a component and 1 for the document-level "x-s"
 // extension, so nesting stops well short of anything pathological.
 func genFuzzSchema(rng *rand.Rand, depth int) *reachFuzzSchema {
-	s := &reachFuzzSchema{}
+	reachFuzzSchemaValue := &reachFuzzSchema{}
 	if rng.Float64() < 0.55 {
-		s.ref, s.hasRef = reachFuzzRefs[rng.Intn(len(reachFuzzRefs))], true
+		reachFuzzSchemaValue.ref, reachFuzzSchemaValue.hasRef = reachFuzzRefs[rng.Intn(len(reachFuzzRefs))], true
 	} else {
-		s.typ, s.hasType = []string{"object", "string"}[rng.Intn(2)], true
+		reachFuzzSchemaValue.typ, reachFuzzSchemaValue.hasType = []string{"object", "string"}[rng.Intn(2)], true
 	}
 	if rng.Float64() < 0.3 {
-		s.anchor, s.hasAnchor = reachFuzzAnchors[rng.Intn(len(reachFuzzAnchors))], true
+		reachFuzzSchemaValue.anchor, reachFuzzSchemaValue.hasAnchor = reachFuzzAnchors[rng.Intn(len(reachFuzzAnchors))], true
 	}
 	if rng.Float64() < 0.15 {
-		s.id, s.hasID = reachFuzzIDs[rng.Intn(len(reachFuzzIDs))], true
+		reachFuzzSchemaValue.id, reachFuzzSchemaValue.hasID = reachFuzzIDs[rng.Intn(len(reachFuzzIDs))], true
 	}
 	if depth > 0 && rng.Float64() < 0.45 {
-		s.defOrder = fuzzSample(rng, []string{"m", "n"})
-		s.defs = genFuzzChildren(rng, depth, s.defOrder)
+		reachFuzzSchemaValue.defOrder = fuzzSample(rng, []string{"m", "n"})
+		reachFuzzSchemaValue.defs = genFuzzChildren(rng, depth, reachFuzzSchemaValue.defOrder)
 	}
 	if depth > 0 && rng.Float64() < 0.35 {
-		s.propOrder = fuzzSample(rng, []string{"p", "q"})
-		s.props = genFuzzChildren(rng, depth, s.propOrder)
+		reachFuzzSchemaValue.propOrder = fuzzSample(rng, []string{"p", "q"})
+		reachFuzzSchemaValue.props = genFuzzChildren(rng, depth, reachFuzzSchemaValue.propOrder)
 	}
-	return s
+	return reachFuzzSchemaValue
 }
 
 func genFuzzChildren(rng *rand.Rand, depth int, keys []string) map[string]*reachFuzzSchema {

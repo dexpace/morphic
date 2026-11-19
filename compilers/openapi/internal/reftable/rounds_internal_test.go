@@ -23,9 +23,9 @@ func TestGoOn_ARoundThatChangesNothingEndsOnTheBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := Config{Self: "https://x.test/spec.yaml", Limit: budget.AtMost(100)}
-	w := &work{ctx: t.Context(), steps: budget.New(cfg.Limit)}
-	d := newDocs(&src, cfg, w)
-	b := newBinder(cfg, d, w, newIdentifiers(resources{d}.document(Source)), newReads())
+	workValue := &work{ctx: t.Context(), steps: budget.New(cfg.Limit)}
+	docs := newDocs(&src, cfg, workValue)
+	b := newBinder(cfg, docs, workValue, newIdentifiers(resources{docs}.document(Source)), newReads())
 	rounds := 0
 	for ; rounds < 1_000 && !b.work.over(); rounds++ {
 		b.reads.hold("https://x.test/held.yaml", Source)

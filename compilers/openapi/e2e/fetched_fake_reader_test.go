@@ -91,9 +91,9 @@ func (f *fetchedReader) servedAt(location string) []compilers.AddressSpace {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []compilers.AddressSpace
-	for _, r := range f.served {
-		if r.location == location {
-			out = append(out, r.reach)
+	for _, fetchedRead := range f.served {
+		if fetchedRead.location == location {
+			out = append(out, fetchedRead.reach)
 		}
 	}
 	return out
@@ -104,9 +104,9 @@ func (f *fetchedReader) refusedAt(location string) []compilers.AddressSpace {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []compilers.AddressSpace
-	for _, r := range f.refused {
-		if r.location == location {
-			out = append(out, r.reach)
+	for _, fetchedRead := range f.refused {
+		if fetchedRead.location == location {
+			out = append(out, fetchedRead.reach)
 		}
 	}
 	return out
@@ -130,12 +130,12 @@ func compileFetched(t *testing.T, reads *fetchedReader, src, location string) (*
 // documents are told apart by.
 func fetchedFindings(doc *ir.Document, diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
+	for _, diagnostic := range diags {
 		path := "?"
-		if d.Provenance.Source >= 0 && d.Provenance.Source < len(doc.Sources) {
-			path = doc.Sources[d.Provenance.Source].Path
+		if diagnostic.Provenance.Source >= 0 && diagnostic.Provenance.Source < len(doc.Sources) {
+			path = doc.Sources[diagnostic.Provenance.Source].Path
 		}
-		out = append(out, fmt.Sprintf("%s %s %s %s", d.Severity, d.Code, path, d.Provenance.Pointer))
+		out = append(out, fmt.Sprintf("%s %s %s %s", diagnostic.Severity, diagnostic.Code, path, diagnostic.Provenance.Pointer))
 	}
 	return out
 }

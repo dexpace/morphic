@@ -23,28 +23,28 @@ func numericValue(literal string) ir.Value {
 // carrier, so each is planted and asserted separately rather than all at once.
 func bigValCarriers(literal string) map[string]*ir.Document {
 	prov := ir.Provenance{Source: ir.NoSource}
-	scalar := func(c *ir.Constraints) *ir.Document {
+	scalar := func(constraints *ir.Constraints) *ir.Document {
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/S": &ir.Scalar{
 			ID:          "type/x/S",
 			Name:        named("s"),
 			Provenance:  prov,
-			Constraints: c,
+			Constraints: constraints,
 		}}}
 	}
-	valued := func(v ir.Value) *ir.Document {
+	valued := func(value ir.Value) *ir.Document {
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/L": &ir.Literal{
 			ID:         "type/x/L",
 			Name:       named("l"),
 			Provenance: prov,
-			Value:      v,
+			Value:      value,
 		}}}
 	}
-	property := func(p ir.Property) *ir.Document {
+	property := func(property ir.Property) *ir.Document {
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/M": &ir.Model{
 			ID:         "type/x/M",
 			Name:       named("m"),
 			Provenance: prov,
-			Properties: []ir.Property{p},
+			Properties: []ir.Property{property},
 		}}}
 	}
 	prop := ir.Property{ID: "property/x/M/f", Name: named("f"), Provenance: prov}

@@ -30,18 +30,18 @@ var admittedMemberKinds = func() map[ir.PrimitiveKind][]ir.ValueKind {
 			ir.ValueBool, ir.ValueString, ir.ValueSymbol, ir.ValueNumber, ir.ValueBytes, ir.ValueNull,
 		},
 	}
-	for _, k := range []ir.PrimitiveKind{
+	for _, primitiveKind := range []ir.PrimitiveKind{
 		ir.PrimitiveString, ir.PrimitiveDate, ir.PrimitiveTime, ir.PrimitiveDatetime, ir.PrimitiveDatetimeOffset, ir.PrimitiveDuration,
 		ir.PrimitiveURL, ir.PrimitiveUUID,
 	} {
-		rows[k] = text
+		rows[primitiveKind] = text
 	}
-	for _, k := range []ir.PrimitiveKind{
+	for _, primitiveKind := range []ir.PrimitiveKind{
 		ir.PrimitiveInt8, ir.PrimitiveInt16, ir.PrimitiveInt32, ir.PrimitiveInt64, ir.PrimitiveUint8, ir.PrimitiveUint16, ir.PrimitiveUint32,
 		ir.PrimitiveUint64, ir.PrimitiveInteger, ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveNumber,
 		ir.PrimitiveDecimal, ir.PrimitiveDecimal128,
 	} {
-		rows[k] = number
+		rows[primitiveKind] = number
 	}
 	return rows
 }()
@@ -88,10 +88,10 @@ func TestMemberKinds_EveryPrimKindHasARow(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, consts)
 	declared := map[ir.PrimitiveKind]bool{}
-	for _, c := range consts {
-		kind := ir.PrimitiveKind(c.Value)
+	for _, declaredConst := range consts {
+		kind := ir.PrimitiveKind(declaredConst.Value)
 		declared[kind] = true
-		assert.Contains(t, admittedMemberKinds, kind, "ir.%s is a value type with no row of admitted member kinds", c.Name)
+		assert.Contains(t, admittedMemberKinds, kind, "ir.%s is a value type with no row of admitted member kinds", declaredConst.Name)
 	}
 	for kind := range admittedMemberKinds {
 		assert.True(t, declared[kind], "a row names value type %q, which ir does not declare", kind)
@@ -106,12 +106,12 @@ func TestMemberKinds_AsksEveryValueKind(t *testing.T) {
 	consts, err := irDecls(t).StringConsts("ValueKind")
 	require.NoError(t, err)
 	declared := make([]ir.ValueKind, 0, len(consts))
-	for _, c := range consts {
-		declared = append(declared, ir.ValueKind(c.Value))
+	for _, declaredConst := range consts {
+		declared = append(declared, ir.ValueKind(declaredConst.Value))
 	}
 	asked := make([]ir.ValueKind, 0, len(askedMemberKinds))
-	for _, v := range askedMemberKinds {
-		asked = append(asked, v.Kind)
+	for _, value := range askedMemberKinds {
+		asked = append(asked, value.Kind)
 	}
 	assert.ElementsMatch(t, declared, asked)
 }
@@ -126,9 +126,9 @@ func TestVerify_EnumMemberKindMatchesTheValueType(t *testing.T) {
 			t.Parallel()
 			for _, value := range askedMemberKinds {
 				var got []string
-				for _, v := range Verify(enumHolding(vt, value)) {
-					if v.Code == memberKindCode {
-						got = append(got, v.Path)
+				for _, violation := range Verify(enumHolding(vt, value)) {
+					if violation.Code == memberKindCode {
+						got = append(got, violation.Path)
 					}
 				}
 				if slices.Contains(admitted, value.Kind) {
@@ -146,9 +146,9 @@ func TestVerify_EnumMemberKindMatchesTheValueType(t *testing.T) {
 func TestVerify_EnumMemberKindNamesBothKinds(t *testing.T) {
 	t.Parallel()
 	var got []string
-	for _, v := range Verify(enumHolding(ir.PrimitiveInteger, ir.Value{Kind: ir.ValueString, String: "a"})) {
-		if v.Code == memberKindCode {
-			got = append(got, v.Message)
+	for _, violation := range Verify(enumHolding(ir.PrimitiveInteger, ir.Value{Kind: ir.ValueString, String: "a"})) {
+		if violation.Code == memberKindCode {
+			got = append(got, violation.Message)
 		}
 	}
 	assert.Equal(t, []string{"enum of value type integer holds a string member"}, got)
@@ -161,8 +161,8 @@ func TestVerify_EnumMemberKindIsReadOnlyForADeclaredValueType(t *testing.T) {
 	t.Parallel()
 	got := Verify(enumHolding("bogus", ir.Value{Kind: ir.ValueString, String: "a"}))
 	codes := make([]string, 0, len(got))
-	for _, v := range got {
-		codes = append(codes, v.Code)
+	for _, violation := range got {
+		codes = append(codes, violation.Code)
 	}
 	assert.Contains(t, codes, "ir/unknown-prim-kind")
 	assert.NotContains(t, codes, memberKindCode)

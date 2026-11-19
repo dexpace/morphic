@@ -50,8 +50,8 @@ func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, compilers.Options{})
 			require.NoError(t, err, tc.name)
-			for _, d := range diags {
-				assert.NotEqual(t, "openapi/unresolved-ref", d.Code, "%s: %s", tc.name, d.Message)
+			for _, diagnostic := range diags {
+				assert.NotEqual(t, "openapi/unresolved-ref", diagnostic.Code, "%s: %s", tc.name, diagnostic.Message)
 			}
 			types = append(types, doc.Types)
 		}
@@ -59,10 +59,10 @@ func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 		if tc.base == "" {
 			continue
 		}
-		o, ok := types[0]["type/openapi/components/schemas/O"].(*ir.Scalar)
+		scalar, ok := types[0]["type/openapi/components/schemas/O"].(*ir.Scalar)
 		require.True(t, ok, tc.name)
-		require.NotNil(t, o.Base, tc.name)
-		assert.Equal(t, tc.base, o.Base.Target, tc.name)
+		require.NotNil(t, scalar.Base, tc.name)
+		assert.Equal(t, tc.base, scalar.Base.Target, tc.name)
 		assert.Contains(t, types[0], tc.base, tc.name)
 	}
 }

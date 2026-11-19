@@ -19,11 +19,11 @@ func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "oldOp")
 	require.True(t, ok)
 	assert.NotNil(t, op.Deprecation)
-	m, ok := doc.Types[componentID("OldModel")].(*ir.Model)
+	model, ok := doc.Types[componentID("OldModel")].(*ir.Model)
 	require.True(t, ok)
-	assert.NotNil(t, m.Deprecation)
-	require.Len(t, m.Properties, 1)
-	assert.NotNil(t, m.Properties[0].Deprecation)
+	assert.NotNil(t, model.Deprecation)
+	require.Len(t, model.Properties, 1)
+	assert.NotNil(t, model.Properties[0].Deprecation)
 
 	// A parameter is its own carrier: deprecated written on the parameter object
 	// reaches it without any schema being involved.
@@ -33,36 +33,36 @@ func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 
 	// A schema that reduced to a shared primitive keeps its examples on the
 	// declaring property; one that hoists a node of its own keeps them there.
-	n, ok := propByWire(m, "n")
+	property, ok := propByWire(model, "n")
 	require.True(t, ok)
-	assert.Len(t, n.Examples, 2)
-	inner, ok := propByWire(m, "inner")
+	assert.Len(t, property.Examples, 2)
+	inner, ok := propByWire(model, "inner")
 	require.True(t, ok)
 	assert.Empty(t, inner.Examples, "an inline object holds its own examples")
 	require.Len(t, doc.Types[inner.Type.Target].Common().Examples, 1)
 
 	// A component's example belongs to the component, not to a use site.
-	c, ok := doc.Types[componentID("C")]
+	typeDef, ok := doc.Types[componentID("C")]
 	require.True(t, ok)
-	require.Len(t, c.Common().Examples, 1)
-	require.NotNil(t, c.Common().Examples[0].Value)
-	assert.Equal(t, "component-level", c.Common().Examples[0].Value.String)
+	require.Len(t, typeDef.Common().Examples, 1)
+	require.NotNil(t, typeDef.Common().Examples[0].Value)
+	assert.Equal(t, "component-level", typeDef.Common().Examples[0].Value.String)
 
 	// A parameter carries its own examples, keyed by their map key like a media
 	// type's.
 	op, ok := opByName(doc, "getItem")
 	require.True(t, ok)
-	q, ok := openapitest.ParamBySource(op, "q")
+	parameter, ok := openapitest.ParamBySource(op, "q")
 	require.True(t, ok)
-	require.Len(t, q.Examples, 1)
-	assert.Equal(t, "one", q.Examples[0].Name)
-	require.NotNil(t, q.Examples[0].Value)
-	assert.Equal(t, "first", q.Examples[0].Value.String)
+	require.Len(t, parameter.Examples, 1)
+	assert.Equal(t, "one", parameter.Examples[0].Name)
+	require.NotNil(t, parameter.Examples[0].Value)
+	assert.Equal(t, "first", parameter.Examples[0].Value.String)
 
 	assertResponseExamples(t, doc)
 }
@@ -291,8 +291,8 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	examples := op.Responses[0].Payload.Contents[0].Examples
 	require.Len(t, examples, 4)
 	byName := map[string]ir.Example{}
-	for _, e := range examples {
-		byName[e.Name] = e
+	for _, example := range examples {
+		byName[example.Name] = example
 	}
 	require.NotNil(t, byName["five"].Value)
 	assert.Equal(t, ir.BigVal("5"), byName["five"].Value.Number)

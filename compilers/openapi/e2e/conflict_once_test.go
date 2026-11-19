@@ -21,9 +21,9 @@ import (
 // conflicts returns the conflicting-redeclaration reports of diags.
 func conflicts(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.ConflictingRedecl {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ConflictingRedecl {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -153,13 +153,13 @@ func TestConflictOnce_IsReportedOncePerPairOfDeclarations(t *testing.T) {
 
 		got := conflicts(diags)
 		require.Len(t, got, len(tc.want), "%s: %+v", name, got)
-		for i, w := range tc.want {
-			assert.Equal(t, w.at, string(got[i].Provenance.Pointer), name)
-			assert.Equal(t, w.node, got[i].Provenance.Node, name)
-			assert.Contains(t, got[i].Message, w.says, name)
+		for i, report := range tc.want {
+			assert.Equal(t, report.at, string(got[i].Provenance.Pointer), name)
+			assert.Equal(t, report.node, got[i].Provenance.Node, name)
+			assert.Contains(t, got[i].Message, report.says, name)
 			kept, decided := concerns(t, got[i])
-			assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(w.kept)}, kept, name)
-			assert.Equal(t, w.decided, decided, name)
+			assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(report.kept)}, kept, name)
+			assert.Equal(t, report.decided, decided, name)
 		}
 	}
 }
@@ -167,16 +167,16 @@ func TestConflictOnce_IsReportedOncePerPairOfDeclarations(t *testing.T) {
 // concerns reads what a conflict report concerns besides its place: where the
 // declaration it kept is written, first, and then the members it decided,
 // each named on no source.
-func concerns(t *testing.T, d ir.Diagnostic) (kept ir.Provenance, decided []string) {
+func concerns(t *testing.T, diagnostic ir.Diagnostic) (kept ir.Provenance, decided []string) {
 	t.Helper()
-	require.NotEmpty(t, d.Related)
-	require.Equal(t, ir.RelatedKept, d.Related[0].Role)
-	for _, r := range d.Related[1:] {
-		require.Equal(t, ir.RelatedDecided, r.Role)
-		require.Equal(t, ir.Provenance{Source: ir.NoSource, Node: r.Provenance.Node}, r.Provenance)
-		decided = append(decided, r.Provenance.Node)
+	require.NotEmpty(t, diagnostic.Related)
+	require.Equal(t, ir.RelatedKept, diagnostic.Related[0].Role)
+	for _, related := range diagnostic.Related[1:] {
+		require.Equal(t, ir.RelatedDecided, related.Role)
+		require.Equal(t, ir.Provenance{Source: ir.NoSource, Node: related.Provenance.Node}, related.Provenance)
+		decided = append(decided, related.Provenance.Node)
 	}
-	return d.Related[0].Provenance, decided
+	return diagnostic.Related[0].Provenance, decided
 }
 
 // TestConflictOnce_AModelsOwnDeclarationsListTheMember pins what a conflict

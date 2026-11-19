@@ -99,10 +99,10 @@ func TestRun_TheCasesOfEachFormat(t *testing.T) {
 // past the last case, or before the first, names none.
 func TestRun_AtWritesOneCase(t *testing.T) {
 	t.Parallel()
-	c := openapicases.New()
+	cases := openapicases.New()
 	n := 0
-	for _, f := range formats() {
-		count, err := harness.CaseCount(f.cases)
+	for _, format := range formats() {
+		count, err := harness.CaseCount(format.cases)
 		require.NoError(t, err)
 		n += count
 	}
@@ -111,7 +111,7 @@ func TestRun_AtWritesOneCase(t *testing.T) {
 	require.Equal(t, 0, code, stderr)
 	name, rest, _ := strings.Cut(stdout, "\n")
 	assert.Equal(t, "3.0.3/object/none/none/component/inline", name)
-	doc, ok := c.Write([]int{0, 0, 0, 0, 0, 0})
+	doc, ok := cases.Write([]int{0, 0, 0, 0, 0, 0})
 	require.True(t, ok)
 	assert.Equal(t, "--- openapi.json\n"+string(doc.Sources[0].Data)+"\n"+
 		"spelling declined: no partner\npresence declined: no construct\ninstance declined: no instance\n", rest)
@@ -147,15 +147,15 @@ func TestCheckCases_WhatTheRecordsLeave(t *testing.T) {
 	assert.Contains(t, stdout.String(), "the writer exploded")
 
 	unreadable := func(harness.Oracle) (harness.Recorded, error) { return nil, errors.New("no record") }
-	for name, f := range map[string]format{
+	for name, formatValue := range map[string]format{
 		"a record that cannot be read": {cases{}, unreadable},
 		"cases that cannot be counted": {cases: openapicases.New(), record: emptyRecord},
 	} {
 		stderr.Reset()
 		if name == "cases that cannot be counted" {
-			f.cases = harness.Cases(nil)
+			formatValue.cases = harness.Cases(nil)
 		}
-		assert.Equal(t, 2, checkCases(context.Background(), []format{f}, true, &stdout, &stderr), name)
+		assert.Equal(t, 2, checkCases(context.Background(), []format{formatValue}, true, &stdout, &stderr), name)
 		assert.Contains(t, stderr.String(), "morphic-harness: ", name)
 	}
 }
@@ -221,8 +221,8 @@ func TestCheckCases_AFindingOutsideTheCoreIsExplainedByItsProjection(t *testing.
 	require.NoError(t, err)
 	found := harness.Findings(results, harness.OracleSpelling)
 	require.Len(t, found, 1, "the core case differs from its partner")
-	record := func(o harness.Oracle) (harness.Recorded, error) {
-		if o != harness.OracleSpelling {
+	record := func(oracle harness.Oracle) (harness.Recorded, error) {
+		if oracle != harness.OracleSpelling {
 			return harness.Recorded{}, nil
 		}
 		return harness.ReadRecorded([]byte(found[0].Name + "\t" + found[0].What + "\treason\n"))
@@ -269,8 +269,8 @@ func TestCheckCases_ACaseThatDoesNotCompileIsReportedUnlessListed(t *testing.T) 
 	assert.Equal(t, 1, code, stderr)
 	assert.True(t, strings.HasPrefix(stdout, "zero declined declined: error diagnostic\n\n"), stdout)
 
-	listing := func(o harness.Oracle) (harness.Recorded, error) {
-		if o != harness.OracleSpelling {
+	listing := func(oracle harness.Oracle) (harness.Recorded, error) {
+		if oracle != harness.OracleSpelling {
 			return harness.Recorded{}, nil
 		}
 		return harness.ReadRecorded([]byte("zero\tdeclined: error diagnostic\twhy\n"))

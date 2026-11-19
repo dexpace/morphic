@@ -17,47 +17,47 @@ import (
 )
 
 // Resolve lowers every link l holds onto the response carrying it, now that
-// w, the document, is whole, and registers the server a link names in srv. A
+// compiledDocumentView, the document, is whole, and registers the server a link names in srv. A
 // link whose target, parameters or values do not all resolve is kept verbatim
 // on that response instead, with the finding that says why: a link is lowered
 // whole or not at all, so no consumer reads one missing a value its source
-// states. c is the source's context.
-func (l *Links) Resolve(c service.Ctx, w *compileddoc.CompiledDocumentView, srv *servers.Registry) []ir.Diagnostic {
+// states. serviceContext is the source's context.
+func (l *Links) Resolve(serviceContext service.Ctx, compiledDocumentView *compileddoc.CompiledDocumentView, srv *servers.Registry) []ir.Diagnostic {
 	if len(l.pending) == 0 {
 		return nil
 	}
-	ix := indexOperations(c, w.Ops)
+	ix := indexOperations(serviceContext, compiledDocumentView.Ops)
 	var diags []ir.Diagnostic
 	for i := range l.pending {
-		p := &l.pending[i]
-		from, ok := ix.byID[p.from]
+		pendingLink := &l.pending[i]
+		from, ok := ix.byID[pendingLink.from]
 		if !ok {
-			diags = append(diags, p.draft.at.DiagAt(ir.SeverityError, diag.InternalInvariant, p.draft.use,
-				"link %q sits on a response of operation %q, which the service does not hold", p.draft.name, p.from))
+			diags = append(diags, pendingLink.draft.at.DiagAt(ir.SeverityError, diag.InternalInvariant, pendingLink.draft.use,
+				"link %q sits on a response of operation %q, which the service does not hold", pendingLink.draft.name, pendingLink.from))
 			continue
 		}
-		diags = append(diags, place(ix, w, srv, from, p)...)
+		diags = append(diags, place(ix, compiledDocumentView, srv, from, pendingLink)...)
 	}
 	return diags
 }
 
-// place lowers p onto the response of from it sits on, or keeps it verbatim
+// place lowers pendingLinkValue onto the response of from it sits on, or keeps it verbatim
 // there.
-func place(ix opIndex, w *compileddoc.CompiledDocumentView, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
-	d := &p.draft
-	at := p.slot.in(from)
-	link, failed := resolveLink(ix, w, from, at, d)
+func place(ix opIndex, compiledDocumentView *compileddoc.CompiledDocumentView, srv *servers.Registry, from *ir.Operation, pendingLinkValue *pendingLink) []ir.Diagnostic {
+	linkDraft := &pendingLinkValue.draft
+	at := pendingLinkValue.slot.in(from)
+	link, failed := resolveLink(ix, compiledDocumentView, from, at, linkDraft)
 	if failed != nil {
-		kept, keepDiags := d.keep(at.unmodeled)
+		kept, keepDiags := linkDraft.keep(at.unmodeled)
 		format := "link %q %s"
 		if kept {
 			format += "; it is kept verbatim under Unmodeled"
 		}
-		return append([]ir.Diagnostic{d.at.DiagAt(failed.severity, failed.code, d.use, format, d.name, failed.reason)}, keepDiags...)
+		return append([]ir.Diagnostic{linkDraft.at.DiagAt(failed.severity, failed.code, linkDraft.use, format, linkDraft.name, failed.reason)}, keepDiags...)
 	}
 	var diags []ir.Diagnostic
-	if d.server != nil {
-		id, serverDiags := srv.At(d.c, d.server, d.ptr+ids.Ptr("server"))
+	if linkDraft.server != nil {
+		id, serverDiags := srv.At(linkDraft.c, linkDraft.server, linkDraft.ptr+ids.Ptr("server"))
 		link.Server = &id
 		diags = serverDiags
 	}
@@ -82,14 +82,14 @@ func (s responseSlot) in(op *ir.Operation) responseView {
 	key := compileddoc.ResponseKey{Op: op.ID, List: s.list, Index: s.index}
 	switch s.list {
 	case compileddoc.ListErrors:
-		e := &op.Errors[s.index]
-		return responseView{key: key, links: &e.Links, unmodeled: &e.Unmodeled, payload: e.Payload, headers: e.Headers}
+		errorCase := &op.Errors[s.index]
+		return responseView{key: key, links: &errorCase.Links, unmodeled: &errorCase.Unmodeled, payload: errorCase.Payload, headers: errorCase.Headers}
 	case compileddoc.ListDefault:
-		r := op.Default
-		return responseView{key: key, links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
+		response := op.Default
+		return responseView{key: key, links: &response.Links, unmodeled: &response.Unmodeled, payload: response.Payload, headers: response.Headers}
 	default:
-		r := &op.Responses[s.index]
-		return responseView{key: key, links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
+		response := &op.Responses[s.index]
+		return responseView{key: key, links: &response.Links, unmodeled: &response.Unmodeled, payload: response.Payload, headers: response.Headers}
 	}
 }
 
@@ -112,20 +112,20 @@ func untyped(format string, args ...any) *linkFailure {
 	return &linkFailure{code: diag.UntypedLink, severity: ir.SeverityInfo, reason: fmt.Sprintf(format, args...)}
 }
 
-// resolveLink resolves d, which a response of from carries, at.
-func resolveLink(ix opIndex, w *compileddoc.CompiledDocumentView, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
-	target, failed := ix.target(d)
+// resolveLink resolves linkDraftValue, which a response of from carries, at.
+func resolveLink(ix opIndex, compiledDocumentView *compileddoc.CompiledDocumentView, from *ir.Operation, at responseView, linkDraftValue *linkDraft) (ir.OperationLink, *linkFailure) {
+	target, failed := ix.target(linkDraftValue)
 	if failed != nil {
 		return ir.OperationLink{}, failed
 	}
 	link := ir.OperationLink{
-		Name: ir.NamingFor(d.name), Operation: target.ID, Docs: d.docs,
-		Provenance: d.c.Place().At(d.ptr), Unmodeled: d.extra,
+		Name: ir.NamingFor(linkDraftValue.name), Operation: target.ID, Docs: linkDraftValue.docs,
+		Provenance: linkDraftValue.c.Place().At(linkDraftValue.ptr), Unmodeled: linkDraftValue.extra,
 	}
-	ex := exchange{w: w, from: from, at: at}
+	ex := exchange{w: compiledDocumentView, from: from, at: at}
 	given := map[ir.ParameterID]string{}
-	for _, dp := range d.params {
-		id, failed := targetParam(w, target, dp.key)
+	for _, dp := range linkDraftValue.params {
+		id, failed := targetParam(compiledDocumentView, target, dp.key)
 		if failed != nil {
 			return ir.OperationLink{}, failed
 		}
@@ -139,8 +139,8 @@ func resolveLink(ix opIndex, w *compileddoc.CompiledDocumentView, from *ir.Opera
 		}
 		link.Params = append(link.Params, ir.LinkParam{Param: id, Value: value})
 	}
-	if d.body != nil {
-		body, failed := ex.value(d.body)
+	if linkDraftValue.body != nil {
+		body, failed := ex.value(linkDraftValue.body)
 		if failed != nil {
 			return ir.OperationLink{}, failed
 		}
@@ -158,10 +158,10 @@ type opIndex struct {
 }
 
 // indexOperations indexes ops, the document's operations (compileddoc.CompiledDocumentView.Ops).
-// byDecl holds those the source declares, whose provenance names c's source.
-func indexOperations(c service.Ctx, ops []*ir.Operation) opIndex {
+// byDecl holds those the source declares, whose provenance names serviceContext's source.
+func indexOperations(serviceContext service.Ctx, ops []*ir.Operation) opIndex {
 	ix := opIndex{byID: map[ir.OperationID]*ir.Operation{}, byName: map[string][]*ir.Operation{}, byDecl: map[jsontext.Pointer][]*ir.Operation{}}
-	source := c.Place().Source
+	source := serviceContext.Place().Source
 	for _, op := range ops {
 		ix.add(op, source)
 	}
@@ -179,32 +179,32 @@ func (ix opIndex) add(op *ir.Operation, source int) {
 	}
 }
 
-// target returns the operation d leads to, which it names by operationId or by
+// target returns the operation linkDraftValue leads to, which it names by operationId or by
 // operationRef, never both.
-func (ix opIndex) target(d *linkDraft) (*ir.Operation, *linkFailure) {
+func (ix opIndex) target(linkDraftValue *linkDraft) (*ir.Operation, *linkFailure) {
 	switch {
-	case d.operationID != nil && d.operationRef != nil:
+	case linkDraftValue.operationID != nil && linkDraftValue.operationRef != nil:
 		return nil, invalid("names its operation by both operationId and operationRef")
-	case d.operationID != nil:
-		return one(ix.byName[*d.operationID], "operationId", *d.operationID)
-	case d.operationRef != nil:
-		return ix.byReference(d)
+	case linkDraftValue.operationID != nil:
+		return one(ix.byName[*linkDraftValue.operationID], "operationId", *linkDraftValue.operationID)
+	case linkDraftValue.operationRef != nil:
+		return ix.byReference(linkDraftValue)
 	default:
 		return nil, invalid("names no operation")
 	}
 }
 
-// byReference returns the operation d's operationRef names: the one mounted at
+// byReference returns the operation linkDraftValue's operationRef names: the one mounted at
 // the position it points to, else the one declared there. A reference whose
 // fragment is no JSON pointer, a bare `#` among them, names no operation; one
 // into another document names an operation this compile does not lower; and a
 // declaration mounted more than once names several.
-func (ix opIndex) byReference(d *linkDraft) (*ir.Operation, *linkFailure) {
-	ref := *d.operationRef
+func (ix opIndex) byReference(linkDraftValue *linkDraft) (*ir.Operation, *linkFailure) {
+	ref := *linkDraftValue.operationRef
 	if _, ok := componentlookup.FragmentPointer(ref); !ok {
 		return nil, invalid("names operationRef %q, which is no JSON pointer to an operation", ref)
 	}
-	pointer, internal := d.c.RefScope().InternalPointer(ref)
+	pointer, internal := linkDraftValue.c.RefScope().InternalPointer(ref)
 	if !internal {
 		return nil, untyped("names operation %q, which is not one this document declares", ref)
 	}

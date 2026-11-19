@@ -12,28 +12,28 @@ import (
 )
 
 // BodyPath returns the members tokens walk to from the root of every content
-// of p, the body of side, and none for the body whole. Each content must walk
+// of payload, the body of side, and none for the body whole. Each content must walk
 // to the same members, since an expression reads one value whichever media
 // type arrives. A member is one declaration, so contents reaching the same one
 // first walk the same chain from there, and only the first step tells them
 // apart: each other content is asked for that member alone
-// (compileddoc.CompiledDocumentView.Member). It returns why, and false, where p holds no body or
+// (compileddoc.CompiledDocumentView.Member). It returns why, and false, where payload holds no body or
 // the tokens name no such members.
-func BodyPath(w *compileddoc.CompiledDocumentView, p *ir.Payload, tokens []string, side string) (segments []ir.PropertyID, why string, ok bool) {
-	if p == nil || len(p.Contents) == 0 {
+func BodyPath(compiledDocumentView *compileddoc.CompiledDocumentView, payload *ir.Payload, tokens []string, side string) (segments []ir.PropertyID, why string, ok bool) {
+	if payload == nil || len(payload.Contents) == 0 {
 		return nil, fmt.Sprintf("reads a %s body the document does not describe", side), false
 	}
 	if len(tokens) == 0 {
 		return nil, "", true
 	}
-	first := &p.Contents[0]
-	chain, walked := w.Walk(first.Type.Target, tokens)
+	first := &payload.Contents[0]
+	chain, walked := compiledDocumentView.Walk(first.Type.Target, tokens)
 	if !walked {
 		return nil, noChain(tokens, side, first.MediaType), false
 	}
-	for i := 1; i < len(p.Contents); i++ {
-		ct := &p.Contents[i]
-		member, held := w.Member(ct.Type.Target, tokens[0])
+	for i := 1; i < len(payload.Contents); i++ {
+		ct := &payload.Contents[i]
+		member, held := compiledDocumentView.Member(ct.Type.Target, tokens[0])
 		if !held {
 			return nil, noChain(tokens, side, ct.MediaType), false
 		}

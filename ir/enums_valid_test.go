@@ -38,8 +38,8 @@ func TestEnumValid_TiesToConstBlock(t *testing.T) {
 			t.Parallel()
 			declared := declaredConstsOfType(t, tc.name)
 			require.NotEmpty(t, declared, "the ir sources must declare %s constants", tc.name)
-			for _, c := range declared {
-				assert.True(t, tc.valid(c.Value), "declared value %q must be Valid", c.Value)
+			for _, declaredConst := range declared {
+				assert.True(t, tc.valid(declaredConst.Value), "declared value %q must be Valid", declaredConst.Value)
 			}
 
 			assert.Equal(t, tc.emptyValid, tc.valid(""), "the empty string")

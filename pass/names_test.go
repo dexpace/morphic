@@ -62,9 +62,9 @@ func namesOf(t *testing.T, doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// inGroup is a document whose one service holds g.
-func inGroup(g ir.OperationGroup) *ir.Document {
-	return &ir.Document{Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{g}}}}
+// inGroup is a document whose one service holds operationGroup.
+func inGroup(operationGroup ir.OperationGroup) *ir.Document {
+	return &ir.Document{Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{operationGroup}}}}
 }
 
 // withTypes is a document holding types.

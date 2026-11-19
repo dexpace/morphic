@@ -24,12 +24,12 @@ import (
 func opsByGroup(t *testing.T, groups []ir.OperationGroup) map[ir.GroupID][]ir.OperationID {
 	t.Helper()
 	out := make(map[ir.GroupID][]ir.OperationID, len(groups))
-	for _, g := range groups {
-		require.NotContains(t, out, g.ID, "two groups share the ID %q", g.ID)
-		for _, op := range g.Operations {
-			out[g.ID] = append(out[g.ID], op.ID)
+	for _, operationGroup := range groups {
+		require.NotContains(t, out, operationGroup.ID, "two groups share the ID %q", operationGroup.ID)
+		for _, op := range operationGroup.Operations {
+			out[operationGroup.ID] = append(out[operationGroup.ID], op.ID)
 		}
-		slices.Sort(out[g.ID])
+		slices.Sort(out[operationGroup.ID])
 	}
 	return out
 }
@@ -154,7 +154,7 @@ paths:
 	doc, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 2)
-	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	byName := openapitest.IndexBy(svc.Groups, func(operationGroup ir.OperationGroup) string { return operationGroup.Name.Source })
 	users, ok := byName["users"]
 	require.True(t, ok)
 	assert.Equal(t, "User ops", users.Docs.Description)
@@ -189,14 +189,14 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 `)
 	svc, diags := serviceWithGrouping(t, spec, service.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
-	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	byName := openapitest.IndexBy(svc.Groups, func(operationGroup ir.OperationGroup) string { return operationGroup.Name.Source })
 	_, hasUsers := byName["users"]
 	_, hasOrders := byName["orders"]
 	assert.True(t, hasUsers, "first path segment forms a group")
 	assert.True(t, hasOrders)
 	require.Len(t, byName["orders"].Operations, 2, "the callback operation is placed beside its parent")
-	for _, g := range svc.Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range svc.Groups {
+		for _, op := range operationGroup.Operations {
 			assert.Equal(t, ir.Inferred("group-path-prefix"), op.Provenance.Inferred, "op %s must be marked inferred", op.ID)
 		}
 	}
@@ -214,9 +214,9 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 
 // groupBySource returns the top-level group whose name source is name.
 func groupBySource(groups []ir.OperationGroup, name string) (ir.OperationGroup, bool) {
-	for _, g := range groups {
-		if g.Name.Source == name {
-			return g, true
+	for _, operationGroup := range groups {
+		if operationGroup.Name.Source == name {
+			return operationGroup, true
 		}
 	}
 	return ir.OperationGroup{}, false
@@ -427,12 +427,12 @@ paths:
 		"openapi/validation/validation-circular-reference at /tags/1/parent",
 	}, errorFindings(diags), "the table reports the cycle; the lowering only has to terminate")
 	require.Len(t, svc.Groups, 2, "the cycle's members stay top-level")
-	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	byName := openapitest.IndexBy(svc.Groups, func(operationGroup ir.OperationGroup) string { return operationGroup.Name.Source })
 	assert.Empty(t, byName["b"].Groups)
 	require.Len(t, byName["a"].Groups, 1, "c nests under a, which is on the cycle but top-level")
 	assert.Equal(t, "c", byName["a"].Groups[0].Name.Source)
-	for _, g := range []ir.OperationGroup{byName["a"], byName["b"], byName["a"].Groups[0]} {
-		require.Len(t, g.Operations, 1, "no operation is lost to the cycle")
+	for _, operationGroup := range []ir.OperationGroup{byName["a"], byName["b"], byName["a"].Groups[0]} {
+		require.Len(t, operationGroup.Operations, 1, "no operation is lost to the cycle")
 	}
 }
 
@@ -567,18 +567,18 @@ func placements(t *testing.T, groups []ir.OperationGroup) map[ir.GroupID]groupPl
 	}
 	out := map[ir.GroupID]groupPlacement{}
 	stack := make([]pending, 0, len(groups))
-	for _, g := range slices.Backward(groups) {
-		stack = append(stack, pending{group: g})
+	for _, operationGroup := range slices.Backward(groups) {
+		stack = append(stack, pending{group: operationGroup})
 	}
 	for len(stack) > 0 {
 		next := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		require.NotContains(t, out, next.group.ID, "two groups share the ID %q", next.group.ID)
-		p := groupPlacement{parent: next.parent, name: next.group.Name.Source}
+		groupPlacementValue := groupPlacement{parent: next.parent, name: next.group.Name.Source}
 		for _, op := range next.group.Operations {
-			p.ops = append(p.ops, op.ID)
+			groupPlacementValue.ops = append(groupPlacementValue.ops, op.ID)
 		}
-		out[next.group.ID] = p
+		out[next.group.ID] = groupPlacementValue
 		for _, child := range slices.Backward(next.group.Groups) {
 			stack = append(stack, pending{parent: next.group.ID, group: child})
 		}
@@ -661,13 +661,13 @@ func TestGrouping_ByExtensionNestsAGroupPerSegment(t *testing.T) {
 
 	ext := ir.Inferred("group-extension")
 	marked := map[ir.OperationID]ir.Inferred{}
-	for _, g := range svc.Groups {
-		for _, o := range g.Operations {
-			marked[o.ID] = o.Provenance.Inferred
+	for _, operationGroup := range svc.Groups {
+		for _, operation := range operationGroup.Operations {
+			marked[operation.ID] = operation.Provenance.Inferred
 		}
-		for _, sub := range g.Groups {
-			for _, o := range sub.Operations {
-				marked[o.ID] = o.Provenance.Inferred
+		for _, sub := range operationGroup.Groups {
+			for _, operation := range sub.Operations {
+				marked[operation.ID] = operation.Provenance.Inferred
 			}
 		}
 	}
@@ -689,9 +689,9 @@ func TestGrouping_ByExtensionReportsAValueStatingNoPath(t *testing.T) {
 	require.NotEmpty(t, svc.Groups)
 
 	var found []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			found = append(found, string(d.Severity)+" at "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			found = append(found, string(diagnostic.Severity)+" at "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{
@@ -732,9 +732,9 @@ func TestGrouping_ByExtensionFallsBackToPathPrefix(t *testing.T) {
 	assert.Equal(t, ir.Inferred("group-path-prefix"), legacy.Operations[0].Provenance.Inferred)
 
 	var reported []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			reported = append(reported, string(d.Severity)+" at "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			reported = append(reported, string(diagnostic.Severity)+" at "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"info at /paths/~1legacy/get/x-group"}, reported)
@@ -833,9 +833,9 @@ func TestGrouping_ByExtensionMintsAGroupForEachAlias(t *testing.T) {
 	assert.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(groupPlacement{})), "the group tree (-want +got)")
 
 	var found []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			found = append(found, string(d.Severity)+" at "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			found = append(found, string(diagnostic.Severity)+" at "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"info at /paths/~1bad/get/x-aliases"}, found)
@@ -903,9 +903,9 @@ components:
 	assert.Equal(t, []ir.OperationID{"operation/openapi/paths/~1c/get", "operation/openapi/paths/~1d/get"}, got["operation-group/default"].ops)
 
 	var findings []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			findings = append(findings, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			findings = append(findings, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"/components/pathItems/Bad/get/x-group"}, findings)

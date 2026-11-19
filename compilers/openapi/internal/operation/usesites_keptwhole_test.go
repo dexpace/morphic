@@ -22,8 +22,8 @@ import (
 func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, specsDir, "promoted_keys_in_a_branch_kept_whole"))
-	for _, d := range diags {
-		assert.Equal(t, "openapi/degraded-construct info", d.Code+" "+string(d.Severity), d.Message)
+	for _, diagnostic := range diags {
+		assert.Equal(t, "openapi/degraded-construct info", diagnostic.Code+" "+string(diagnostic.Severity), diagnostic.Message)
 	}
 	facts := opTree(t, doc, "facts")
 	params, headers := valueAtPath(facts, "params"), valueAtPath(facts, "responses", "0", "headers")

@@ -196,9 +196,9 @@ func TestPathItemRefSiblings_CollisionIsOrderIndependent(t *testing.T) {
 func collisionFindings(t *testing.T, diags []ir.Diagnostic) []string {
 	t.Helper()
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.PathItemRefCollision {
-			out = append(out, d.Code+" "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.PathItemRefCollision {
+			out = append(out, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	slices.Sort(out)

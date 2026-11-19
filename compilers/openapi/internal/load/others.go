@@ -110,8 +110,8 @@ func (o Others) index(name string) (int, bool) {
 func unreachedKeys(table *reftable.ReferenceTargetTable) map[string]bool {
 	unused := map[string]bool{}
 	for id := range reftable.DocID(table.Documents()) {
-		if d := table.Document(id); d.Unreached {
-			unused[d.Name] = true
+		if referencedDocument := table.Document(id); referencedDocument.Unreached {
+			unused[referencedDocument.Name] = true
 		}
 	}
 	return unused
@@ -135,32 +135,32 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		label, _ := read.self.labelOf(key)
 		byLabel[label] = append(byLabel[label], key)
 	}
-	o := Others{byName: map[string]int{}}
+	others := Others{byName: map[string]int{}}
 	cancelled := false
 	for i, label := range slices.Sorted(maps.Keys(byLabel)) {
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
 		declared, dialect := declaredVersion(read.trees[keys[0]]), declaredDialect(read.trees[keys[0]])
 		version, minor, rows := source.of(declared, dialect)
-		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
+		others.list = append(others.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: "openapi@" + minor, Path: read.self.shownPathOf(keys[0]), Hash: ir.SourceHash(data),
 		}, Rows: rows, version: version, dialect: dialect})
 		tree := provenance.Tree{Doc: provenance.Doc{Source: first + i}, Pointers: pointersIn(ctx, read.trees, keys)}
-		o.trees = append(o.trees, tree)
+		others.trees = append(others.trees, tree)
 		doc := read.read[keys[0]]
-		o.found = slices.Concat(o.found, streamDiagnostics(first+i, externalStream, doc.Rest), versionDiagnostics(tree, doc))
+		others.found = slices.Concat(others.found, streamDiagnostics(first+i, externalStream, doc.Rest), versionDiagnostics(tree, doc))
 		// Once ctx is done no document is read on, so a cancel costs one ask.
 		if root := read.trees[keys[0]]; !cancelled && ctx.Err() == nil {
-			o.repeats = append(o.repeats, specrules.CheckRepeatedKeys(ctx, root, version, specrules.Options{
+			others.repeats = append(others.repeats, specrules.CheckRepeatedKeys(ctx, root, version, specrules.Options{
 				Locate: walkedFrom(root, tree.Node), Budget: budget.AtMost(maxTreeNodes)})...)
 		} else {
 			cancelled = true
 		}
 		for _, key := range keys {
-			o.byName[key] = i
+			others.byName[key] = i
 		}
 	}
-	return o
+	return others
 }
 
 // pointersIn returns scan.Pointers over the trees read prepared under keys, all
@@ -178,8 +178,8 @@ func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string)
 	}
 	return func(n *yaml.Node) (jsontext.Pointer, bool) {
 		for _, find := range finds {
-			if p, held := find(n); held {
-				return p, true
+			if pointer, held := find(n); held {
+				return pointer, true
 			}
 		}
 		return "", false

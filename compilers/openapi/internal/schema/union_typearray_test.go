@@ -37,8 +37,10 @@ type typeArrayCase struct {
 // typeArrayCases are the type arrays whose bounds apply to some listed types and
 // not to others, with the bounds each variant holds.
 func typeArrayCases() []typeArrayCase {
-	node := func(c *ir.Constraints) typeArrayVariant { return typeArrayVariant{held: c} }
-	prim := func(k ir.PrimitiveKind) typeArrayVariant { return typeArrayVariant{prim: ir.PrimitiveTypeID(k)} }
+	node := func(constraints *ir.Constraints) typeArrayVariant { return typeArrayVariant{held: constraints} }
+	prim := func(primitiveKind ir.PrimitiveKind) typeArrayVariant {
+		return typeArrayVariant{prim: ir.PrimitiveTypeID(primitiveKind)}
+	}
 	one := new(int64(1))
 	return []typeArrayCase{
 		{"a numeric bound beside an object", "{type: [integer, object], properties: {a: {type: string}}, minimum: 1}",
@@ -77,12 +79,12 @@ func TestLower_ATypeArraysBoundLandsOnTheVariantItConstrains(t *testing.T) {
 			for _, site := range sitesOf(t, doc) {
 				assert.Nil(t, site.held, "%s: a carrier holds no bound of a type array", site.pointer)
 				assert.Empty(t, site.kept, site.pointer)
-				u, ok := site.node.(*ir.Union)
+				union, ok := site.node.(*ir.Union)
 				require.True(t, ok, "%s: got %T", site.pointer, site.node)
-				assert.Equal(t, tc.kept, unmodeledKeys(u.Unmodeled), site.pointer)
-				require.Len(t, u.Variants, len(tc.variants), site.pointer)
+				assert.Equal(t, tc.kept, unmodeledKeys(union.Unmodeled), site.pointer)
+				require.Len(t, union.Variants, len(tc.variants), site.pointer)
 				for i, want := range tc.variants {
-					got := u.Variants[i].Type.Target
+					got := union.Variants[i].Type.Target
 					if want.prim != "" {
 						assert.Equal(t, want.prim, got, "%s variant %d", site.pointer, i)
 						continue
@@ -140,8 +142,8 @@ func swappedTypeIndices(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) (
 	}
 	require.NoError(t, json.Unmarshal([]byte(swap.Replace(string(encoded))), &out))
 	for _, td := range out.Doc.Types {
-		if u, ok := td.(*ir.Union); ok {
-			slices.Reverse(u.Variants)
+		if union, ok := td.(*ir.Union); ok {
+			slices.Reverse(union.Variants)
 		}
 	}
 	return out.Doc, out.Diags
@@ -155,14 +157,14 @@ func TestLower_ATypeArraysFormatIsTheVariantsItPairsWith(t *testing.T) {
 	t.Parallel()
 	byteScalar := &ir.Scalar{Base: new(ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveBytes)}),
 		Encoding: &ir.Encoding{Name: "base64", WireType: new(ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)})}}
-	mine := func(k ir.PrimitiveKind) *ir.Scalar {
-		return &ir.Scalar{Base: new(ir.TypeRef{Target: ir.PrimitiveTypeID(k)}), Encoding: &ir.Encoding{Name: "x-mine"}}
+	mine := func(primitiveKind ir.PrimitiveKind) *ir.Scalar {
+		return &ir.Scalar{Base: new(ir.TypeRef{Target: ir.PrimitiveTypeID(primitiveKind)}), Encoding: &ir.Encoding{Name: "x-mine"}}
 	}
 	instant := ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset)}
 	httpDate := &ir.Scalar{Base: new(instant), Encoding: &ir.Encoding{Name: "http-date"}}
-	unix := func(k ir.PrimitiveKind) *ir.Scalar {
+	unix := func(primitiveKind ir.PrimitiveKind) *ir.Scalar {
 		return &ir.Scalar{Base: new(instant),
-			Encoding: &ir.Encoding{Name: "unixTimestamp", WireType: new(ir.TypeRef{Target: ir.PrimitiveTypeID(k)})}}
+			Encoding: &ir.Encoding{Name: "unixTimestamp", WireType: new(ir.TypeRef{Target: ir.PrimitiveTypeID(primitiveKind)})}}
 	}
 	for _, tc := range []struct {
 		name, schema string
@@ -185,11 +187,11 @@ func TestLower_ATypeArraysFormatIsTheVariantsItPairsWith(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, diags)
 			for _, site := range sitesOf(t, doc) {
-				u, ok := site.node.(*ir.Union)
+				union, ok := site.node.(*ir.Union)
 				require.True(t, ok, "%s: got %T", site.pointer, site.node)
-				assert.Empty(t, u.Unmodeled, site.pointer)
+				assert.Empty(t, union.Unmodeled, site.pointer)
 				for i, want := range tc.variants {
-					got := u.Variants[i].Type.Target
+					got := union.Variants[i].Type.Target
 					if prim, shared := want.(ir.PrimitiveKind); shared {
 						assert.Equal(t, ir.PrimitiveTypeID(prim), got, "%s variant %d", site.pointer, i)
 						continue
@@ -215,23 +217,23 @@ func TestLower_ATypeArraysContentIsTheStringVariants(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, diags)
 	for _, site := range sitesOf(t, doc) {
-		u, ok := site.node.(*ir.Union)
+		union, ok := site.node.(*ir.Union)
 		require.True(t, ok, "%s: got %T", site.pointer, site.node)
-		assert.Empty(t, u.Unmodeled, site.pointer)
-		sc, isScalar := doc.Types[u.Variants[0].Type.Target].(*ir.Scalar)
+		assert.Empty(t, union.Unmodeled, site.pointer)
+		sc, isScalar := doc.Types[union.Variants[0].Type.Target].(*ir.Scalar)
 		require.True(t, isScalar, site.pointer)
 		assert.Equal(t, &ir.Encoding{Name: "base64"}, sc.Encoding, site.pointer)
-		assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveInteger), u.Variants[1].Type.Target, site.pointer)
+		assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveInteger), union.Variants[1].Type.Target, site.pointer)
 	}
 
 	doc, diags = parseFull(t, atEverySite("3.1.0", "{type: [integer, boolean], contentEncoding: base64}"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, site := range sitesOf(t, doc) {
-		u, ok := site.node.(*ir.Union)
+		union, ok := site.node.(*ir.Union)
 		require.True(t, ok, "%s: got %T", site.pointer, site.node)
-		assert.Equal(t, []string{"openapi:contentEncoding"}, unmodeledKeys(u.Unmodeled), site.pointer)
+		assert.Equal(t, []string{"openapi:contentEncoding"}, unmodeledKeys(union.Unmodeled), site.pointer)
 		assert.Equal(t, []ir.TypeID{ir.PrimitiveTypeID(ir.PrimitiveInteger), ir.PrimitiveTypeID(ir.PrimitiveBool)},
-			[]ir.TypeID{u.Variants[0].Type.Target, u.Variants[1].Type.Target}, site.pointer)
+			[]ir.TypeID{union.Variants[0].Type.Target, union.Variants[1].Type.Target}, site.pointer)
 		openapitest.AssertInfoDiagAt(t, diags, site.pointer+"/contentEncoding")
 	}
 	assert.Len(t, diags, 4)

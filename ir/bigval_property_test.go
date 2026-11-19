@@ -60,12 +60,12 @@ func FuzzNewBigVal_AcceptedFormsAreJSONValid(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, s string) {
-		v, err := ir.NewBigVal(s)
+		bigVal, err := ir.NewBigVal(s)
 		if err != nil {
 			return // NewBigVal rejected s; it makes no promise about a rejection.
 		}
-		if !jsontext.Value(v.String()).IsValid() {
-			t.Fatalf("NewBigVal(%q) = %q, which jsontext.Value.IsValid rejects", s, v.String())
+		if !jsontext.Value(bigVal.String()).IsValid() {
+			t.Fatalf("NewBigVal(%q) = %q, which jsontext.Value.IsValid rejects", s, bigVal.String())
 		}
 	})
 }

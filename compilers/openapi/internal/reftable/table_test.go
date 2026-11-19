@@ -45,9 +45,9 @@ func bound(t *testing.T, src string, cfg reftable.Config) *reftable.ReferenceTar
 // entryAt returns the entry the table holds at the source pointer site.
 func entryAt(t *testing.T, table *reftable.ReferenceTargetTable, site jsontext.Pointer) reftable.ReferenceSite {
 	t.Helper()
-	e, ok := table.Entry(reftable.DocumentPointer{Pointer: site})
+	referenceSite, ok := table.Entry(reftable.DocumentPointer{Pointer: site})
 	require.True(t, ok, "an entry at %s", site)
-	return e
+	return referenceSite
 }
 
 // documentPointerAt is the source position pointer names.
@@ -137,16 +137,16 @@ func TestBind_ReadsEachHop(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			e := entryAt(t, bound(t, head+"components:\n  schemas:\n"+tc.body, self), "/components/schemas/A")
-			assert.Equal(t, tc.reason, e.Hop.Reason, e.Hop.Why())
+			referenceSite := entryAt(t, bound(t, head+"components:\n  schemas:\n"+tc.body, self), "/components/schemas/A")
+			assert.Equal(t, tc.reason, referenceSite.Hop.Reason, referenceSite.Hop.Why())
 			if tc.reason == reftable.NoReason {
-				assert.Equal(t, reftable.Resolved, e.Hop.Status)
-				assert.Equal(t, documentPointerAt(tc.target), e.Hop.Target)
+				assert.Equal(t, reftable.Resolved, referenceSite.Hop.Status)
+				assert.Equal(t, documentPointerAt(tc.target), referenceSite.Hop.Target)
 			} else {
-				assert.Equal(t, reftable.Unresolved, e.Hop.Status)
-				assert.Equal(t, reftable.Unresolved, e.Chain.Status)
+				assert.Equal(t, reftable.Unresolved, referenceSite.Hop.Status)
+				assert.Equal(t, reftable.Unresolved, referenceSite.Chain.Status)
 			}
-			assert.Equal(t, tc.role, e.Hop.Role)
+			assert.Equal(t, tc.role, referenceSite.Hop.Role)
 		})
 	}
 }
@@ -260,13 +260,13 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			e := entryAt(t, bound(t, head+tc.body, resolving), tc.site)
+			referenceSite := entryAt(t, bound(t, head+tc.body, resolving), tc.site)
 			if tc.want == "" {
-				assert.Equal(t, tc.why, e.Hop.Reason, e.Hop.Why())
+				assert.Equal(t, tc.why, referenceSite.Hop.Reason, referenceSite.Hop.Why())
 				return
 			}
-			require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-			assert.Equal(t, documentPointerAt(tc.want), e.Hop.Target, "a definition is placed where it is written")
+			require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+			assert.Equal(t, documentPointerAt(tc.want), referenceSite.Hop.Target, "a definition is placed where it is written")
 		})
 	}
 }
@@ -304,8 +304,8 @@ func TestBind_ReadsEveryWebhookAsAPathItem(t *testing.T) {
 	table := bound(t, head+"webhooks:\n  x-h: "+op+"  example: "+op+"  plain: "+op+
 		"components:\n  schemas:\n    T: {type: string}\n", self)
 	for _, name := range []string{"x-h", "example", "plain"} {
-		e := entryAt(t, table, jsontext.Pointer("/webhooks/"+name+"/post/requestBody/content/a~1b/schema"))
-		assert.Equal(t, documentPointerAt("/components/schemas/T"), e.Hop.Target, name)
+		referenceSite := entryAt(t, table, jsontext.Pointer("/webhooks/"+name+"/post/requestBody/content/a~1b/schema"))
+		assert.Equal(t, documentPointerAt("/components/schemas/T"), referenceSite.Hop.Target, name)
 	}
 }
 
@@ -348,9 +348,9 @@ x-lib:
 	a := entryAt(t, table, "/components/schemas/A")
 	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt("/x-lib/C"), Hops: 2},
 		a.Chain)
-	d := entryAt(t, table, "/components/schemas/D")
-	assert.Equal(t, reftable.Resolved, d.Hop.Status, "D's own hop lands")
-	assert.Equal(t, reftable.Chain{Status: reftable.Unresolved}, d.Chain)
+	referenceSite := entryAt(t, table, "/components/schemas/D")
+	assert.Equal(t, reftable.Resolved, referenceSite.Hop.Status, "D's own hop lands")
+	assert.Equal(t, reftable.Chain{Status: reftable.Unresolved}, referenceSite.Chain)
 	assert.Equal(t, reftable.NoTarget, entryAt(t, table, "/components/schemas/E").Hop.Reason)
 }
 
@@ -389,9 +389,9 @@ func TestBind_ReportsEachLoopOnceAtItsLeastMember(t *testing.T) {
 			Site: documentPointerAt("/components/schemas/B")}, loops[0], "%v", order)
 		for site, member := range map[jsontext.Pointer]bool{"/components/schemas/B": true,
 			"/components/schemas/C": true, "/components/schemas/A": false} {
-			e := entryAt(t, table, site)
-			assert.Equal(t, reftable.Cyclic, e.Chain.Status, site)
-			assert.Equal(t, member, e.Chain.PositionLiesOnReferenceCycle, site)
+			referenceSite := entryAt(t, table, site)
+			assert.Equal(t, reftable.Cyclic, referenceSite.Chain.Status, site)
+			assert.Equal(t, member, referenceSite.Chain.PositionLiesOnReferenceCycle, site)
 		}
 		assert.Equal(t, reftable.NoTarget, entryAt(t, table, "/components/schemas/P").Hop.Reason,
 			"a pointer into what P only refers to names nothing")
@@ -415,8 +415,8 @@ func TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember(t *testing.T) {
 `, withDocuments(docs))
 	require.Len(t, table.Loops(), 2)
 	byFirst := map[jsontext.Pointer]reftable.Loop{}
-	for _, l := range table.Loops() {
-		byFirst[l.Members[0].Pointer] = l
+	for _, loop := range table.Loops() {
+		byFirst[loop.Members[0].Pointer] = loop
 	}
 	xy := byFirst["/X"]
 	assert.Equal(t, reftable.DocumentPointer{Doc: 1, Pointer: "/X"}, xy.Site)
@@ -564,9 +564,9 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt("/components/schemas/Leaf"), Hops: 1}, there.Chain, "another document's $ref naming the source")
 	for _, value := range []string{"other.yaml#/S", "other.yaml#/T", "#/components/schemas/Leaf"} {
-		m, ok := table.Mapping(documentPointerAt("/components/schemas/Pick/discriminator"), value)
+		mapping, ok := table.Mapping(documentPointerAt("/components/schemas/Pick/discriminator"), value)
 		require.True(t, ok, value)
-		require.Equal(t, reftable.Resolved, m.Chain.Status, value)
+		require.Equal(t, reftable.Resolved, mapping.Chain.Status, value)
 	}
 	assert.Equal(t, 1, opened["other.yaml"], "read once however many name it")
 	assert.Equal(t, 1, opened["gone.yaml"], "a document that could not be read is not asked for again")

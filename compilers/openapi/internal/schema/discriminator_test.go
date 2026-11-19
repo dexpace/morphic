@@ -32,10 +32,10 @@ func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
       properties: {name: {type: string}}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
-	v := typeByName(doc, "Vehicle").(*ir.Model)
-	require.NotNil(t, v.Discriminator)
-	assert.Empty(t, v.Discriminator.Property, "undeclared property")
-	assert.Equal(t, "kind", v.Discriminator.PropertyName)
+	model := typeByName(doc, "Vehicle").(*ir.Model)
+	require.NotNil(t, model.Discriminator)
+	assert.Empty(t, model.Discriminator.Property, "undeclared property")
+	assert.Equal(t, "kind", model.Discriminator.PropertyName)
 	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "bad mapping target diagnostic")
 }
 
@@ -53,10 +53,10 @@ func TestOneOf_DiscriminatorWithDefault(t *testing.T) {
     Square: {type: object, properties: {s: {type: number}}}
 `)
 	doc, _ := schema.LowerSpec(t, spec)
-	u := typeByName(doc, "Shape").(*ir.Union)
-	require.NotNil(t, u.Discriminator)
-	assert.Equal(t, "shapeType", u.Discriminator.PropertyName)
-	assert.NotEmpty(t, u.Discriminator.Default)
+	union := typeByName(doc, "Shape").(*ir.Union)
+	require.NotNil(t, union.Discriminator)
+	assert.Equal(t, "shapeType", union.Discriminator.PropertyName)
+	assert.NotEmpty(t, union.Discriminator.Default)
 }
 
 // TestDiscriminatorMapping_RoutesToTheVariantAliasingItsTarget pins that a
@@ -152,22 +152,22 @@ func TestDiscriminatorMapping_WritesTheRoutesItImplies(t *testing.T) {
 				docs = append(docs, doc)
 			}
 			assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types))
-			u, ok := typeByName(docs[0], "U").(*ir.Union)
+			irUnion, ok := typeByName(docs[0], "U").(*ir.Union)
 			require.True(t, ok)
-			require.NotNil(t, u.Discriminator)
-			assert.Empty(t, u.Provenance.Inferred, "the routes are the document's")
+			require.NotNil(t, irUnion.Discriminator)
+			assert.Empty(t, irUnion.Provenance.Inferred, "the routes are the document's")
 			if c.want == nil {
-				assert.Nil(t, u.Discriminator.Mapping)
+				assert.Nil(t, irUnion.Discriminator.Mapping)
 				return
 			}
 			want := make(map[string]ir.TypeID, len(c.want))
 			for tag, target := range c.want {
 				want[tag] = componentID(target)
 				if target == "alias" {
-					want[tag] = u.Variants[0].Type.Target
+					want[tag] = irUnion.Variants[0].Type.Target
 				}
 			}
-			assert.Empty(t, cmp.Diff(want, u.Discriminator.Mapping))
+			assert.Empty(t, cmp.Diff(want, irUnion.Discriminator.Mapping))
 		})
 	}
 }
@@ -245,11 +245,11 @@ func TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst(t *testi
 				assert.Equal(t, []string{info("green_apple"), info("red_apple")}, reported(withCode(diags, diag.DegradedConstruct)))
 				openapitest.RequireNoErrorDiags(t, diags)
 				assert.Empty(t, validated(t, doc), "every tag routes to a variant")
-				u, ok := typeByName(doc, "Fruit").(*ir.Union)
+				union, ok := typeByName(doc, "Fruit").(*ir.Union)
 				require.True(t, ok)
 				first := ir.TypeID("type/anonymous" + branch(c.first))
 				assert.Equal(t, map[string]ir.TypeID{"green_apple": first, "red_apple": first, "banana": componentID("Banana")},
-					u.Discriminator.Mapping)
+					union.Discriminator.Mapping)
 				docs = append(docs, doc)
 			}
 			assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types))
@@ -378,9 +378,9 @@ func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
 			slices.Sort(kept)
 			assert.Equal(t, kept, reported(withCode(diags, diag.DegradedConstruct)), "%s, reversed %t", version, reversed)
 			for _, name := range []string{"Mapped", "Union", "Beside"} {
-				u, ok := typeByName(doc, name).(*ir.Union)
+				union, ok := typeByName(doc, name).(*ir.Union)
 				require.True(t, ok)
-				assert.False(t, u.WireTagged, "%s is untagged", name)
+				assert.False(t, union.WireTagged, "%s is untagged", name)
 			}
 			minted, ok := doc.Types["type/composed/components/schemas/Routed/oneOf"].(*ir.Union)
 			require.True(t, ok, "Routed composes its union as a mixin")

@@ -19,7 +19,7 @@ import (
 // text, absent where the source states none.
 func TestContent_CatchAllEncodingEncodesByTypeID(t *testing.T) {
 	t.Parallel()
-	c := ir.Content{
+	content := ir.Content{
 		MediaType: "multipart/form-data",
 		CatchAllEncoding: map[ir.TypeID]ir.CatchAllParts{
 			"type/m": {
@@ -28,7 +28,7 @@ func TestContent_CatchAllEncodingEncodesByTypeID(t *testing.T) {
 			},
 		},
 	}
-	got, err := json.Marshal(c, json.Deterministic(true))
+	got, err := json.Marshal(content, json.Deterministic(true))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"mediaType":"multipart/form-data","type":{"target":"","nullable":false},`+
 		`"catchAllEncoding":{"type/m":{"value":{"contentTypes":["text/plain"],"repeatsPerArrayItem":false,"hasFilename":false,"allowReserved":false},`+
@@ -36,7 +36,7 @@ func TestContent_CatchAllEncodingEncodesByTypeID(t *testing.T) {
 
 	var back ir.Content
 	require.NoError(t, json.Unmarshal(got, &back))
-	assert.Empty(t, cmp.Diff(c, back))
+	assert.Empty(t, cmp.Diff(content, back))
 
 	none, err := json.Marshal(ir.Content{MediaType: "application/json"}, json.Deterministic(true))
 	require.NoError(t, err)

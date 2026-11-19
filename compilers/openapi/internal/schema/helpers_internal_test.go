@@ -25,8 +25,8 @@ const deepPointer = "/components/schemas/Obj/properties/inner"
 // which is exactly what that code is for.
 func assertInternalInvariant(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
-	for _, d := range diags {
-		if d.Code == diag.InternalInvariant && d.Severity == ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.InternalInvariant && diagnostic.Severity == ir.SeverityError {
 			return
 		}
 	}

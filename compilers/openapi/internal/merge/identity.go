@@ -20,8 +20,8 @@ import (
 func fieldSpan(decls []declaration) (schema, field jsontext.Pointer) {
 	field = decls[0].prop.Provenance.Pointer
 	schema = schemaOf(field)
-	for _, d := range decls[1:] {
-		held := d.prop.Provenance.Pointer
+	for _, declaration := range decls[1:] {
+		held := declaration.prop.Provenance.Pointer
 		if schema.Contains(held) {
 			continue
 		}

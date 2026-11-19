@@ -56,9 +56,9 @@ func TestCompile_WhatAnotherDocumentDeclaresAnswersAReference(t *testing.T) {
 		model, ok := doc.Types[other.ForPointer("/Pet")].(*ir.Model)
 		require.True(t, ok)
 		for _, wire := range []string{"a", "b"} {
-			p, found := propByWire(model, wire)
+			property, found := propByWire(model, wire)
 			require.True(t, found)
-			assert.Equal(t, other.ForPointer("/Pet/$defs/Tag"), p.Type.Target, wire)
+			assert.Equal(t, other.ForPointer("/Pet/$defs/Tag"), property.Type.Target, wire)
 		}
 		assert.Len(t, doc.Sources, 2)
 	}
@@ -111,8 +111,8 @@ func TestCompile_ADocumentNothingReachedIsNoSource(t *testing.T) {
 		doc, diags := compileOnDisk(t, filepath.Join(dir, "spec.yaml"), specNaming(schemas...), true)
 		assertNoErrorDiags(t, diags)
 		var read []string
-		for _, s := range doc.Sources {
-			read = append(read, filepath.Base(s.Path))
+		for _, sourceInfo := range doc.Sources {
+			read = append(read, filepath.Base(sourceInfo.Path))
 		}
 		assert.Equal(t, []string{"spec.yaml", "z.yaml"}, read)
 	}
@@ -177,12 +177,12 @@ q:
 	_, diags := compileOnDisk(t, filepath.Join(dir, "spec.yaml"), src, false)
 	failed := diagsAt(diags, "openapi/unresolved-ref", "/q/schema/items")
 	require.Len(t, failed, 1, "%+v", diags)
-	for _, d := range diags {
-		assert.NotEqual(t, "openapi/dynamic-ref-expanded", d.Code)
-		assert.NotEqual(t, "openapi/degraded-construct", d.Code)
-		if d.Code == "openapi/unresolved-ref" {
-			assert.Equal(t, 1, d.Provenance.Source, "placed in ext.yaml")
-			assert.Contains(t, d.Message, `unresolved $dynamicRef "#node"`)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, "openapi/dynamic-ref-expanded", diagnostic.Code)
+		assert.NotEqual(t, "openapi/degraded-construct", diagnostic.Code)
+		if diagnostic.Code == "openapi/unresolved-ref" {
+			assert.Equal(t, 1, diagnostic.Provenance.Source, "placed in ext.yaml")
+			assert.Contains(t, diagnostic.Message, `unresolved $dynamicRef "#node"`)
 		}
 	}
 }
@@ -197,9 +197,9 @@ func TestCompile_ASchemaAnExpansionReachesIsValidated(t *testing.T) {
 	findings := func(ref string) []string {
 		_, diags := compileOnDisk(t, filepath.Join(dir, "spec.yaml"), specNaming("    E: {$ref: '"+ref+"'}\n"), false)
 		var got []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityError {
-				got = append(got, d.Code+" "+string(d.Provenance.Pointer))
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityError {
+				got = append(got, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 			}
 		}
 		return got

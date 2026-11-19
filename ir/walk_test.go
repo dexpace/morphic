@@ -175,12 +175,12 @@ func (d deepList) requireDeepestRendered(t *testing.T) {
 func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 	t.Parallel()
 	walkDoc := func(depth int) deepList {
-		v := irtest.NestedListValue(depth)
+		value := irtest.NestedListValue(depth)
 		doc := &ir.Document{Types: ir.TypeRegistry{"type/m": &ir.Model{
 			ID:       "type/m",
-			Examples: []ir.Example{{Value: &v}},
+			Examples: []ir.Example{{Value: &value}},
 		}}}
-		return walkDeepList(func(l *listVisits) bool { return ir.WalkValues(doc, "document", l) })
+		return walkDeepList(func(listVisitsValue *listVisits) bool { return ir.WalkValues(doc, "document", listVisitsValue) })
 	}
 
 	deep := walkDoc(ir.MaxWalkDepth)
@@ -203,8 +203,8 @@ func TestWalkValuesContext_WalksAsWalkValuesUnderALiveContext(t *testing.T) {
 		depth int
 		paths bool
 	}{{200, true}, {ir.MaxWalkDepth, false}} {
-		v := irtest.NestedListValue(tc.depth)
-		doc := &ir.Document{Types: ir.TypeRegistry{"type/m": &ir.Model{ID: "type/m", Examples: []ir.Example{{Value: &v}}}}}
+		value := irtest.NestedListValue(tc.depth)
+		doc := &ir.Document{Types: ir.TypeRegistry{"type/m": &ir.Model{ID: "type/m", Examples: []ir.Example{{Value: &value}}}}}
 		var want, got []string
 		record := func(into *[]string) ir.Visitor {
 			return ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
@@ -527,9 +527,9 @@ func walkKids(first, n int) map[string]walkNode {
 
 // nodeNumbers records under each node's path the number it holds, read by
 // plain Go rather than by the walk.
-func nodeNumbers(path string, n walkNode, into map[string]int64) {
-	into[path+".N"] = int64(n.N)
-	for key, kid := range n.Kids {
+func nodeNumbers(path string, walkNodeValue walkNode, into map[string]int64) {
+	into[path+".N"] = int64(walkNodeValue.N)
+	for key, kid := range walkNodeValue.Kids {
 		nodeNumbers(path+".Kids["+key+"]", kid, into)
 	}
 }

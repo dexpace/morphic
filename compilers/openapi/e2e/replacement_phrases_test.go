@@ -32,20 +32,20 @@ func assertReplacementPhrases(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	things, ok := opByName(doc, "listThings")
 	require.True(t, ok)
 	members := map[string]ir.Property{}
-	for _, c := range things.Responses[0].Payload.Contents {
-		for _, p := range propsOfBody(t, doc, c) {
-			members[p.EffectiveWireName()] = p
+	for _, content := range things.Responses[0].Payload.Contents {
+		for _, property := range propsOfBody(t, doc, content) {
+			members[property.EffectiveWireName()] = property
 		}
 	}
 	require.Len(t, members, 4)
 	a := members["a"]
 	require.NotNil(t, a.Deprecation)
 	assert.Empty(t, a.Deprecation.ReplacedBy, "a is formerly b, which replaces nothing")
-	c := members["c"]
-	require.NotNil(t, c.Deprecation)
-	assert.Equal(t, []ir.EntityRef{{Property: members["d"].ID}}, c.Deprecation.ReplacedBy,
+	irProperty := members["c"]
+	require.NotNil(t, irProperty.Deprecation)
+	assert.Equal(t, []ir.EntityRef{{Property: members["d"].ID}}, irProperty.Deprecation.ReplacedBy,
 		"c is replaced by d alone, and the b it says not to use is no replacement")
-	assert.Contains(t, markersOf(c.Provenance.Inferred), "replacement-inference")
+	assert.Contains(t, markersOf(irProperty.Provenance.Inferred), "replacement-inference")
 	assert.NotContains(t, markersOf(a.Provenance.Inferred), "replacement-inference")
 	assert.Len(t, diags, 1, "only the member the document declares beside the one it names is reported: %+v", diags)
 
@@ -62,10 +62,10 @@ func assertReplacementPhrases(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	}
 }
 
-// propsOfBody returns the members of the model c's body is.
-func propsOfBody(t *testing.T, doc *ir.Document, c ir.Content) []ir.Property {
+// propsOfBody returns the members of the model content's body is.
+func propsOfBody(t *testing.T, doc *ir.Document, content ir.Content) []ir.Property {
 	t.Helper()
-	m, ok := doc.Types[c.Type.Target].(*ir.Model)
+	model, ok := doc.Types[content.Type.Target].(*ir.Model)
 	require.True(t, ok, "the body is a model")
-	return m.Properties
+	return model.Properties
 }

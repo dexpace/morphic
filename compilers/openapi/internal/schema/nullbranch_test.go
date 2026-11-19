@@ -60,39 +60,39 @@ func nullBranchSpec(version, branch string) string {
 // (docs/compilers/openapi.md#union-null-variant).
 func TestNullBranch_IsTheReferencesInEverySpelling(t *testing.T) {
 	t.Parallel()
-	x, y := componentID("X"), componentID("Y")
+	typeID, irTypeID := componentID("X"), componentID("Y")
 	for _, sp := range nullBranchSpellings {
 		t.Run(sp.version+" "+sp.branch, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, nullBranchSpec(sp.version, sp.branch))
 			openapitest.RequireNoErrorDiags(t, diags)
 			for _, wire := range []string{"last", "first", "any", "twice"} {
-				assert.Equal(t, ir.TypeRef{Target: x, Nullable: true}, propertyOf(t, doc, "Holder", wire).Type,
+				assert.Equal(t, ir.TypeRef{Target: typeID, Nullable: true}, propertyOf(t, doc, "Holder", wire).Type,
 					"%s collapses to its one other branch, nullable", wire)
 			}
 			for wire, exclusive := range map[string]bool{"many": true, "manyAny": false} {
 				ref := propertyOf(t, doc, "Holder", wire).Type
 				assert.True(t, ref.Nullable, "%s admits the null", wire)
-				u, ok := doc.Types[ref.Target].(*ir.Union)
+				union, ok := doc.Types[ref.Target].(*ir.Union)
 				require.True(t, ok, "%s is a union, got %T", wire, doc.Types[ref.Target])
-				assert.Equal(t, []ir.TypeID{x, y}, variantTargets(u), "%s: the null branch is no variant", wire)
-				assert.Equal(t, exclusive, u.Exclusive, wire)
-				require.NotNil(t, u.Discriminator, "%s: the tags its variants pin are read", wire)
-				assert.Equal(t, map[string]ir.TypeID{"x": x, "y": y}, u.Discriminator.Mapping, wire)
+				assert.Equal(t, []ir.TypeID{typeID, irTypeID}, variantTargets(union), "%s: the null branch is no variant", wire)
+				assert.Equal(t, exclusive, union.Exclusive, wire)
+				require.NotNil(t, union.Discriminator, "%s: the tags its variants pin are read", wire)
+				assert.Equal(t, map[string]ir.TypeID{"x": typeID, "y": irTypeID}, union.Discriminator.Mapping, wire)
 			}
 			for id, td := range doc.Types {
-				e, isEnum := td.(*ir.Enum)
-				assert.False(t, isEnum && len(e.Members) == 0, "no null branch lowered as a variant: %s", id)
+				enum, isEnum := td.(*ir.Enum)
+				assert.False(t, isEnum && len(enum.Members) == 0, "no null branch lowered as a variant: %s", id)
 			}
 		})
 	}
 }
 
-// variantTargets returns what each variant of u names.
-func variantTargets(u *ir.Union) []ir.TypeID {
-	out := make([]ir.TypeID, 0, len(u.Variants))
-	for _, v := range u.Variants {
-		out = append(out, v.Type.Target)
+// variantTargets returns what each variant of union names.
+func variantTargets(union *ir.Union) []ir.TypeID {
+	out := make([]ir.TypeID, 0, len(union.Variants))
+	for _, variant := range union.Variants {
+		out = append(out, variant.Type.Target)
 	}
 	return out
 }
@@ -131,11 +131,11 @@ func TestNullBranch_ARefToANullAloneSchemaStaysAVariant(t *testing.T) {
 		openapitest.RequireNoErrorDiags(t, diags)
 		ref := propertyOf(t, doc, "Holder", "p").Type
 		assert.False(t, ref.Nullable, "the union's own reference says no null")
-		u, ok := doc.Types[ref.Target].(*ir.Union)
+		union, ok := doc.Types[ref.Target].(*ir.Union)
 		require.True(t, ok, "got %T", doc.Types[ref.Target])
-		require.Len(t, u.Variants, 2)
-		assert.Equal(t, ir.TypeRef{Target: componentID("Nil"), Nullable: true}, u.Variants[1].Type)
-		assertNullAloneAt(t, doc, "Nil", u.Variants[1].Type)
+		require.Len(t, union.Variants, 2)
+		assert.Equal(t, ir.TypeRef{Target: componentID("Nil"), Nullable: true}, union.Variants[1].Type)
+		assertNullAloneAt(t, doc, "Nil", union.Variants[1].Type)
 		docs = append(docs, doc)
 	}
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types), "the declaration order changes nothing")
@@ -239,9 +239,9 @@ func TestNullBranch_KeepsWhatTheBranchWrites(t *testing.T) {
 // codesAt returns the severity and code of each diagnostic in diags at pointer.
 func codesAt(diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			out = append(out, ir.Diagnostic{Severity: d.Severity, Code: d.Code})
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) {
+			out = append(out, ir.Diagnostic{Severity: diagnostic.Severity, Code: diagnostic.Code})
 		}
 	}
 	return out
@@ -286,10 +286,10 @@ func TestNullBranch_BesideABodyIsLiftedPastTheDistribution(t *testing.T) {
 			for wire, nullable := range map[string]bool{"typed": false, "untyped": true} {
 				ref := propertyOf(t, doc, "Holder", wire).Type
 				assert.Equal(t, nullable, ref.Nullable, "%s: the null as the body admits it", wire)
-				u, ok := doc.Types[ref.Target].(*ir.Union)
+				union, ok := doc.Types[ref.Target].(*ir.Union)
 				require.True(t, ok, "%s distributes, got %T", wire, doc.Types[ref.Target])
-				require.Len(t, u.Variants, 1, "%s: the null branch is no variant", wire)
-				assert.NotContains(t, u.Unmodeled, "openapi:oneOf", wire)
+				require.Len(t, union.Variants, 1, "%s: the null branch is no variant", wire)
+				assert.NotContains(t, union.Unmodeled, "openapi:oneOf", wire)
 			}
 		})
 	}
@@ -316,8 +316,8 @@ func TestNullBranch_KeepsANullableNothingReads(t *testing.T) {
 		openapitest.RequireNoErrorDiags(t, diags)
 		name := tc.version + " " + tc.branch
 		assert.Equal(t, ir.TypeRef{Target: componentID("Pet"), Nullable: true}, holderP(t, doc), name)
-		p := propertyOf(t, doc, "Holder", "p")
-		_, kept := p.Unmodeled["openapi:oneOf/1"]
+		property := propertyOf(t, doc, "Holder", "p")
+		_, kept := property.Unmodeled["openapi:oneOf/1"]
 		assert.Equal(t, tc.kept, kept, "%s, policy off: %v", name, tc.off)
 	}
 }
@@ -340,18 +340,18 @@ components:
 		limit   int
 		refused bool
 	}{{limit: 3}, {limit: 2, refused: true}} {
-		l, _ := schema.LoweredFor(t, spec)
-		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(tc.limit)}
-		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
-		doc := l.Document(t)
-		u, isUnion := typeByName(doc, "H").(*ir.Union)
+		lowerer, _ := schema.LoweredFor(t, spec)
+		lowerer.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(tc.limit)}
+		diags := schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas())
+		doc := lowerer.Document(t)
+		union, isUnion := typeByName(doc, "H").(*ir.Union)
 		assert.Equal(t, tc.refused, isUnion, "limit %d: a union only where the branch is past the budget", tc.limit)
 		refusals := openapitest.PointersOf(diags, diag.BudgetExceeded)
 		if !tc.refused {
 			assert.Empty(t, refusals, "limit %d", tc.limit)
 			continue
 		}
-		require.Len(t, u.Variants, 2, "the branch is a variant")
+		require.Len(t, union.Variants, 2, "the branch is a variant")
 		assert.Equal(t, []jsontext.Pointer{"/components/schemas/H/oneOf/1"}, refusals)
 	}
 }

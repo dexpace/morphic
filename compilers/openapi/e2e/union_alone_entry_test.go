@@ -137,16 +137,16 @@ type aloneSpelling struct {
 	name, entry, flat string
 }
 
-// aloneSpellings writes u on an allOf entry beside nothing a variant would
+// aloneSpellings writes aloneUnionValue on an allOf entry beside nothing a variant would
 // carry, at version: alone, one allOf deeper, beside a `{}` entry and, from
-// 3.1, a `true` one, with a note or, unless u is untyped, a type every branch
+// 3.1, a `true` one, with a note or, unless aloneUnionValue is untyped, a type every branch
 // says, null included, on its own entry, on another before or after it, or
 // beside the allOf, and with a bound, an annotation or an extension on an entry
 // after it or beside the allOf; each in both orders of the branches. A respelt
 // union is written in four of these.
-func aloneSpellings(version string, u aloneUnion) []aloneSpelling {
-	all := aloneSpellingsOf(version, u)
-	if !u.respelt {
+func aloneSpellings(version string, aloneUnionValue aloneUnion) []aloneSpelling {
+	all := aloneSpellingsOf(version, aloneUnionValue)
+	if !aloneUnionValue.respelt {
 		return all
 	}
 	return slices.DeleteFunc(all, func(sp aloneSpelling) bool {
@@ -158,12 +158,12 @@ func aloneSpellings(version string, u aloneUnion) []aloneSpelling {
 
 // aloneSpellingsOf is every spelling aloneSpellings writes of a union not
 // respelt.
-func aloneSpellingsOf(version string, u aloneUnion) []aloneSpelling {
+func aloneSpellingsOf(version string, aloneUnionValue aloneUnion) []aloneSpelling {
 	legacy := strings.HasPrefix(version, "3.0")
-	kind := cmp.Or(u.kind, "object")
+	kind := cmp.Or(aloneUnionValue.kind, "object")
 	typed := "type: [" + kind + ", 'null']"
 	switch {
-	case u.nullless:
+	case aloneUnionValue.nullless:
 		typed = "type: " + kind
 	case legacy:
 		typed = "type: " + kind + ", nullable: true"
@@ -178,13 +178,13 @@ func aloneSpellingsOf(version string, u aloneUnion) []aloneSpelling {
 		{"a note", "description: d", true},
 		{"a type every branch says", typed, true},
 	}
-	if u.untyped {
+	if aloneUnionValue.untyped {
 		beside = beside[:len(beside)-1]
 	}
 	var out []aloneSpelling
 	for _, reversed := range []bool{false, true} {
 		order := map[bool]string{false: "as written", true: "branches reversed"}[reversed]
-		bare := u.written(reversed)
+		bare := aloneUnionValue.written(reversed)
 		out = append(out,
 			aloneSpelling{order + "/alone", "{allOf: [" + bare + "]}", bare},
 			aloneSpelling{order + "/one allOf deeper", "{allOf: [{allOf: [" + bare + "]}]}", bare},
@@ -193,7 +193,7 @@ func aloneSpellingsOf(version string, u aloneUnion) []aloneSpelling {
 			out = append(out, aloneSpelling{order + "/beside true", "{allOf: [" + bare + ", true]}", bare})
 		}
 		for _, b := range beside {
-			flat := u.written(reversed, b.keyword)
+			flat := aloneUnionValue.written(reversed, b.keyword)
 			out = append(out,
 				aloneSpelling{order + "/" + b.name + " on an entry after", "{allOf: [" + bare + ", {" + b.keyword + "}]}", flat},
 				aloneSpelling{order + "/" + b.name + " beside the allOf", "{allOf: [" + bare + "], " + b.keyword + "}", flat})
@@ -214,7 +214,7 @@ var aloneSites = []string{"component", "property", "items", "parameter", "body"}
 // aloneSite returns conjSites' entry for the site named.
 func aloneSite(t *testing.T, name string) conjSite {
 	t.Helper()
-	i := slices.IndexFunc(conjSites, func(s conjSite) bool { return s.name == name })
+	i := slices.IndexFunc(conjSites, func(conjSiteValue conjSite) bool { return conjSiteValue.name == name })
 	require.GreaterOrEqual(t, i, 0, "a site of conjSites: %s", name)
 	return conjSites[i]
 }
@@ -231,8 +231,8 @@ func aloneView(t *testing.T, spec string) string {
 	delete(tree, "sources")
 	delete(tree, "diagnostics")
 	findings := make([]string, 0, len(diags))
-	for _, d := range diags {
-		findings = append(findings, fmt.Sprint(d.Severity, " ", d.Code, " ", entryIndexless(string(d.Provenance.Pointer))))
+	for _, diagnostic := range diags {
+		findings = append(findings, fmt.Sprint(diagnostic.Severity, " ", diagnostic.Code, " ", entryIndexless(string(diagnostic.Provenance.Pointer))))
 	}
 	slices.Sort(findings)
 	return fmt.Sprint(entryIndexless(tree)) + "\n" + strings.Join(findings, "\n")
@@ -250,12 +250,12 @@ func TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition(t *testing.T) {
 		_, nullTargets := aloneNulls(version)
 		others := slices.Concat(aloneTargets, nullTargets)
 		for _, siteName := range aloneSites {
-			for _, u := range aloneUnions(version) {
-				t.Run(version+"/"+siteName+"/"+u.name, func(t *testing.T) {
+			for _, aloneUnion := range aloneUnions(version) {
+				t.Run(version+"/"+siteName+"/"+aloneUnion.name, func(t *testing.T) {
 					t.Parallel()
 					site := aloneSite(t, siteName)
 					flats := map[string]string{}
-					for _, sp := range aloneSpellings(version, u) {
+					for _, sp := range aloneSpellings(version, aloneUnion) {
 						want, ok := flats[sp.flat]
 						if !ok {
 							want = aloneView(t, site.write(version, sp.flat, others...))
@@ -315,8 +315,8 @@ func TestUnionAlone_ABodyBesideItStillDistributes(t *testing.T) {
 					variants := distributedOver(t, doc, entryPositionID(jsontext.Pointer(site.pointer)))
 					require.Len(t, variants, 1, "%s: one variant", schema)
 					var only *ir.Model
-					for _, m := range variants {
-						only = m
+					for _, model := range variants {
+						only = model
 					}
 					assert.Contains(t, slices.Concat([]ir.TypeID{only.Base.Target}, refTargets(only.Mixins)), componentID("X"),
 						"%s: the variant composes X", schema)
@@ -329,8 +329,8 @@ func TestUnionAlone_ABodyBesideItStillDistributes(t *testing.T) {
 // refTargets returns the targets refs name.
 func refTargets(refs []ir.TypeRef) []ir.TypeID {
 	out := make([]ir.TypeID, 0, len(refs))
-	for _, r := range refs {
-		out = append(out, r.Target)
+	for _, typeRef := range refs {
+		out = append(out, typeRef.Target)
 	}
 	return out
 }

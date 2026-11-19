@@ -27,14 +27,14 @@ func Fill(t *testing.T, v any) {
 
 // fill holds Fill's logic against the minimal testingT surface, so its refusal
 // can be driven by a stub.
-func fill(t testingT, v any) {
-	t.Helper()
+func fill(testingTValue testingT, v any) {
+	testingTValue.Helper()
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
-		t.Fatalf("irtest: fill: want a non-nil pointer, got %T", v)
+		testingTValue.Fatalf("irtest: fill: want a non-nil pointer, got %T", v)
 	}
-	f := &filler{stack: map[reflect.Type]int{}}
-	f.fill(rv.Elem())
+	fillerValue := &filler{stack: map[reflect.Type]int{}}
+	fillerValue.fill(rv.Elem())
 }
 
 // typeIDType is the reflect.Type of ir.TypeID.

@@ -40,9 +40,9 @@ func TestAllOfFold_ModelsReportInTheOrderTheirIDsSort(t *testing.T) {
 		_, diags := parseFull(t, openapitest.ComponentSpec(
 			"    X:\n      allOf:\n        - properties: {p: {type: string}}\n        - properties: "+tc.props+"\n"))
 		var got []jsontext.Pointer
-		for _, d := range diags {
-			if d.Code == diag.ConflictingRedecl {
-				got = append(got, d.Provenance.Pointer)
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.ConflictingRedecl {
+				got = append(got, diagnostic.Provenance.Pointer)
 			}
 		}
 		assert.Equal(t, tc.want, got, name)
@@ -117,17 +117,17 @@ func foldedField(t *testing.T, first, second string) (string, []string) {
 		"        - {type: object, properties: {b: "+first+"}}\n"+
 		"        - {type: object, properties: {b: "+second+"}}\n"))
 	assertNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Sub")].(*ir.Model)
+	model, ok := doc.Types[componentID("Sub")].(*ir.Model)
 	require.True(t, ok, "the allOf composes a model")
-	p, ok := propByWire(m, "b")
+	property, ok := propByWire(model, "b")
 	require.True(t, ok, "the field folds into one property")
 	var codes []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/components/schemas/Sub/allOf/0/properties/b" {
-			codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/components/schemas/Sub/allOf/0/properties/b" {
+			codes = append(codes, diagnostic.Code)
 		}
 	}
-	switch td := doc.Types[p.Type.Target].(type) {
+	switch td := doc.Types[property.Type.Target].(type) {
 	case *ir.Primitive:
 		return string(td.PrimitiveKind), codes
 	case *ir.Scalar:

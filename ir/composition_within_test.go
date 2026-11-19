@@ -37,17 +37,17 @@ func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropertyID) {
 			doc.Types[id] = irtest.ScalarOf(id, pick())
 			continue
 		}
-		doc.Types[id] = irtest.ModelOf(id, func(m *ir.Model) {
+		doc.Types[id] = irtest.ModelOf(id, func(model *ir.Model) {
 			for range rng.IntN(3) {
-				p := ir.PropertyID(fmt.Sprintf("p%d", rng.IntN(8)))
-				m.Properties = append(m.Properties, prop(p))
-				props = append(props, p)
+				propertyID := ir.PropertyID(fmt.Sprintf("p%d", rng.IntN(8)))
+				model.Properties = append(model.Properties, prop(propertyID))
+				props = append(props, propertyID)
 			}
 			if rng.IntN(2) == 0 {
-				m.Base = &ir.TypeRef{Target: pick()}
+				model.Base = &ir.TypeRef{Target: pick()}
 			}
-			m.Implements = irtest.RefsTo(pickSome(rng, pick)...)
-			m.Mixins = irtest.RefsTo(pickSome(rng, pick)...)
+			model.Implements = irtest.RefsTo(pickSome(rng, pick)...)
+			model.Mixins = irtest.RefsTo(pickSome(rng, pick)...)
 		})
 	}
 	doc.Types["nilm"] = (*ir.Model)(nil)
@@ -96,9 +96,9 @@ func TestWithin_AnswersAsTheUnlimitedWalk(t *testing.T) {
 					ir.IsSubtype(doc, a, b), fmt.Sprintf("seed %d: IsSubtypeWithin(%q, %q)", seed, a, b))
 			}
 			exposed := ir.ExposedProperties(doc, a)
-			for _, p := range props {
-				requireWithinAgrees(t, func(limit int) (bool, int, bool) { return ir.ExposesWithin(doc, a, p, limit) },
-					exposed[p], fmt.Sprintf("seed %d: ExposesWithin(%q, %q)", seed, a, p))
+			for _, propertyID := range props {
+				requireWithinAgrees(t, func(limit int) (bool, int, bool) { return ir.ExposesWithin(doc, a, propertyID, limit) },
+					exposed[propertyID], fmt.Sprintf("seed %d: ExposesWithin(%q, %q)", seed, a, propertyID))
 			}
 		}
 	}
@@ -107,10 +107,13 @@ func TestWithin_AnswersAsTheUnlimitedWalk(t *testing.T) {
 func TestIsSubtypeWithin_CountsEachSupertypeAndAliasHop(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
-		irtest.ModelOf("a", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "alias1"}; m.Mixins = irtest.RefsTo("mixin") }),
+		irtest.ModelOf("a", func(model *ir.Model) {
+			model.Base = &ir.TypeRef{Target: "alias1"}
+			model.Mixins = irtest.RefsTo("mixin")
+		}),
 		irtest.ScalarOf("alias1", "alias2"),
 		irtest.ScalarOf("alias2", "b"),
-		irtest.ModelOf("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "c"} }),
+		irtest.ModelOf("b", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "c"} }),
 		irtest.ModelOf("c", nil),
 		irtest.ModelOf("mixin", nil),
 	)
@@ -133,21 +136,21 @@ func TestIsSubtypeWithin_CountsEachSupertypeAndAliasHop(t *testing.T) {
 func TestExposesWithin_CountsEachSourceAndProperty(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
-		irtest.ModelOf("m", func(m *ir.Model) {
-			m.Properties = []ir.Property{prop("m.a"), prop("m.b"), prop("m.c")}
-			m.Mixins = irtest.RefsTo("viaAlias", "ghost")
+		irtest.ModelOf("m", func(model *ir.Model) {
+			model.Properties = []ir.Property{prop("m.a"), prop("m.b"), prop("m.c")}
+			model.Mixins = irtest.RefsTo("viaAlias", "ghost")
 		}),
 		irtest.ScalarOf("viaAlias", "n"),
-		irtest.ModelOf("n", func(m *ir.Model) { m.Properties = []ir.Property{prop("n.p"), prop("n.q")} }),
+		irtest.ModelOf("n", func(model *ir.Model) { model.Properties = []ir.Property{prop("n.p"), prop("n.q")} }),
 	)
 	for _, tc := range []struct {
 		prop    ir.PropertyID
 		exposed bool
 		steps   int
 	}{
-		{"m.a", true, 2},            // m, its first property
-		{"n.p", true, 8},            // m and its three properties, ghost, viaAlias, n, n.p
-		{"property/none", false, 9}, // every type and property: m, three, ghost, viaAlias, n, two
+		{"m.a", true, 2},            // model, its first property
+		{"n.p", true, 8},            // model and its three properties, ghost, viaAlias, n, n.p
+		{"property/none", false, 9}, // every type and property: model, three, ghost, viaAlias, n, two
 		{"n.q", true, 9},            // the last property read
 	} {
 		exposed, spent, ok := ir.ExposesWithin(doc, "m", tc.prop, math.MaxInt)

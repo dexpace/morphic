@@ -92,8 +92,8 @@ func writtenAt(t *testing.T, site conjSite, target, schema string) (entryWritten
 	relocate := relocater(site.pointer)
 	var got entryWritten
 	got.doc = relocate(withoutVersion(t, doc))
-	for _, d := range diags {
-		got.diags = append(got.diags, fmt.Sprintf("%s %s %s", d.Severity, d.Code, relocate(string(d.Provenance.Pointer))))
+	for _, diagnostic := range diags {
+		got.diags = append(got.diags, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, relocate(string(diagnostic.Provenance.Pointer))))
 	}
 	slices.Sort(got.diags)
 	return got, doc
@@ -170,9 +170,9 @@ func TestRefConjunction_AnEntrysRestIsReadInItsDialect(t *testing.T) {
 		"Use: {$schema: 'http://json-schema.org/draft-07/schema#', "+
 			"allOf: [{$ref: '#/components/schemas/T', $id: 'urn:x', description: d}]}"))
 	var found []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/components/schemas/Use/allOf/0/$id" {
-			found = append(found, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/components/schemas/Use/allOf/0/$id" {
+			found = append(found, diagnostic.Message)
 		}
 	}
 	require.Len(t, found, 1)

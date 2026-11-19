@@ -47,17 +47,17 @@ func (d *Dir) prune(now time.Time) error {
 		return err
 	}
 	total := 0
-	for _, f := range files {
-		total += f.size
+	for _, held := range files {
+		total += held.size
 	}
-	for _, f := range files {
+	for _, held := range files {
 		if total <= d.limit {
 			return nil
 		}
-		if err := d.ops.remove(filepath.Join(d.path, f.name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		if err := d.ops.remove(filepath.Join(d.path, held.name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("prune: %w", err)
 		}
-		total -= f.size
+		total -= held.size
 	}
 	return nil
 }

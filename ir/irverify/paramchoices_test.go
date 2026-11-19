@@ -45,14 +45,14 @@ func choiceOf(name string, variants ...[]ir.ParameterID) ir.ParamChoice {
 // codes a choice among parameters can draw.
 func choiceFindings(op ir.Operation) []string {
 	var out []string
-	for _, v := range irverify.Verify(opDoc(op)) {
-		switch v.Code {
+	for _, violation := range irverify.Verify(opDoc(op)) {
+		switch violation.Code {
 		case "ir/param-choice-single", "ir/param-variant-empty", "ir/set-entry-duplicate", "ir/empty-parameter-ref":
-			out = append(out, v.Code+" "+v.Path)
+			out = append(out, violation.Code+" "+violation.Path)
 		case "ir/naming-absent":
 			// The fixture's own group has no name; only a choice's matters here.
-			if strings.Contains(v.Path, ".ParamChoices[") {
-				out = append(out, v.Code+" "+v.Path)
+			if strings.Contains(violation.Path, ".ParamChoices[") {
+				out = append(out, violation.Code+" "+violation.Path)
 			}
 		}
 	}
@@ -66,7 +66,7 @@ func choiceFindings(op ir.Operation) []string {
 // parameter in two variants of one choice, or in two choices, is no fault.
 func TestVerify_ParamChoicesAreHeldToTheirMeaning(t *testing.T) {
 	t.Parallel()
-	a, b, c := choiceParams[0], choiceParams[1], choiceParams[2]
+	a, b, parameterID := choiceParams[0], choiceParams[1], choiceParams[2]
 	for _, tc := range []struct {
 		name    string
 		choices []ir.ParamChoice
@@ -74,18 +74,18 @@ func TestVerify_ParamChoicesAreHeldToTheirMeaning(t *testing.T) {
 	}{
 		{"two variants of one parameter each", []ir.ParamChoice{choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{b})}, nil},
 		{"two choices over the whole list", []ir.ParamChoice{
-			choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{b, c}),
-			choiceOf("y", []ir.ParameterID{c}, []ir.ParameterID{a}),
+			choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{b, parameterID}),
+			choiceOf("y", []ir.ParameterID{parameterID}, []ir.ParameterID{a}),
 		}, nil},
 		{"a parameter in two variants of one choice", []ir.ParamChoice{
-			choiceOf("x", []ir.ParameterID{a, b}, []ir.ParameterID{b, c}),
+			choiceOf("x", []ir.ParameterID{a, b}, []ir.ParameterID{b, parameterID}),
 		}, nil},
 		{"one variant", []ir.ParamChoice{
 			choiceOf("x", []ir.ParameterID{a}),
 		}, []string{"ir/param-choice-single " + choiceOp + ".ParamChoices[0]"}},
 		{"the second choice has one variant", []ir.ParamChoice{
 			choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{b}),
-			choiceOf("y", []ir.ParameterID{c}),
+			choiceOf("y", []ir.ParameterID{parameterID}),
 		}, []string{"ir/param-choice-single " + choiceOp + ".ParamChoices[1]"}},
 		{"no variant", []ir.ParamChoice{
 			{Name: named("x")},
@@ -125,8 +125,8 @@ func TestVerify_ParamChoicesAreHeldToTheirMeaning(t *testing.T) {
 func allFindings(op ir.Operation) []string {
 	vs := irverify.Verify(opDoc(op))
 	out := make([]string, 0, len(vs))
-	for _, v := range vs {
-		out = append(out, v.Code+" "+v.Path)
+	for _, violation := range vs {
+		out = append(out, violation.Code+" "+violation.Path)
 	}
 	return out
 }
@@ -136,10 +136,10 @@ func allFindings(op ir.Operation) []string {
 // in the same places.
 func TestVerify_ParamChoicesAddNoFindingToAValidOperation(t *testing.T) {
 	t.Parallel()
-	a, b, c := choiceParams[0], choiceParams[1], choiceParams[2]
+	a, b, parameterID := choiceParams[0], choiceParams[1], choiceParams[2]
 	stated := choiceOperation(
-		choiceOf("x", []ir.ParameterID{a, b}, []ir.ParameterID{b, c}),
-		choiceOf("y", []ir.ParameterID{c}, []ir.ParameterID{a}),
+		choiceOf("x", []ir.ParameterID{a, b}, []ir.ParameterID{b, parameterID}),
+		choiceOf("y", []ir.ParameterID{parameterID}, []ir.ParameterID{a}),
 	)
 	assert.Equal(t, allFindings(choiceOperation()), allFindings(stated))
 }

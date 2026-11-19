@@ -362,20 +362,20 @@ func TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError(t *testing.T) {
 			for _, reversed := range []bool{false, true} {
 				doc, diags := parseFull(t, rawSpec(tc.version, tc.blocks, "", reversed))
 				var got []string
-				for _, d := range append(diags, validated(t, doc)...) {
-					if d.Severity == ir.SeverityError {
-						got = append(got, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+				for _, diagnostic := range append(diags, validated(t, doc)...) {
+					if diagnostic.Severity == ir.SeverityError {
+						got = append(got, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 					}
 				}
 				slices.Sort(got)
 				assert.Equal(t, tc.want, got, "reversed %t", reversed)
-				d := discriminatorOf(t, doc, componentID(tc.owner))
-				routes := maps.Clone(d.Mapping)
+				discriminator := discriminatorOf(t, doc, componentID(tc.owner))
+				routes := maps.Clone(discriminator.Mapping)
 				if routes == nil {
 					routes = map[string]ir.TypeID{}
 				}
-				if d.Default != "" {
-					routes["default"] = d.Default
+				if discriminator.Default != "" {
+					routes["default"] = discriminator.Default
 				}
 				assert.Equal(t, tc.routes, routes, "reversed %t", reversed)
 			}
@@ -857,15 +857,15 @@ func TestDiscriminatorMapping_ReadsAValueNamingNoComponentAsAReference(t *testin
 	for _, reversed := range []bool{false, true} {
 		doc, diags, _ := compileFiles(t, valueFiles, rawSpec("3.2.0", blocks, "", reversed), openapi.Options{})
 		openapitest.RequireNoErrorDiags(t, diags)
-		for id, d := range want {
+		for id, discriminator := range want {
 			got := discriminatorOf(t, doc, id)
-			assert.Equal(t, d.Mapping, got.Mapping, "%s, reversed %t", id, reversed)
-			assert.Equal(t, d.Default, got.Default, "%s, reversed %t", id, reversed)
+			assert.Equal(t, discriminator.Mapping, got.Mapping, "%s, reversed %t", id, reversed)
+			assert.Equal(t, discriminator.Default, got.Default, "%s, reversed %t", id, reversed)
 		}
 		for id, tag := range tags {
-			m, ok := doc.Types[id].(*ir.Model)
+			model, ok := doc.Types[id].(*ir.Model)
 			require.True(t, ok, "%s is a model", id)
-			assert.Equal(t, tag, m.DiscriminatorValue, "%s, reversed %t", id, reversed)
+			assert.Equal(t, tag, model.DiscriminatorValue, "%s, reversed %t", id, reversed)
 		}
 		assert.Empty(t, validated(t, doc), "every route is a subtype or a variant")
 		docs = append(docs, doc)
@@ -1091,8 +1091,8 @@ func TestDiscriminatorMapping_LeavesAValueNamingNoVariantToValidate(t *testing.T
 		assert.Equal(t, componentID("Bird"), discriminatorOf(t, doc, componentID("Pet")).Mapping["b"])
 		assert.Equal(t, componentID("Bird"), discriminatorOf(t, doc, componentID("Base")).Mapping["b"])
 		var got []string
-		for _, d := range validated(t, doc) {
-			got = append(got, d.Code+": "+d.Message)
+		for _, diagnostic := range validated(t, doc) {
+			got = append(got, diagnostic.Code+": "+diagnostic.Message)
 		}
 		slices.Sort(got)
 		const missing = "pass/discriminator-missing-variant: discriminator mapping \"b\" on "

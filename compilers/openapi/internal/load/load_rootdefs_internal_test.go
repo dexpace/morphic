@@ -34,8 +34,8 @@ func TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "%s %s", d.Code, d.Message)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "%s %s", diagnostic.Code, diagnostic.Message)
 	}
 	a, ok := got.Doc.Components.Schemas.Get("A")
 	require.True(t, ok)
@@ -90,10 +90,10 @@ func TestLoad_ARootDefinitionAnswersBeforeASchemasOwn(t *testing.T) {
 
 				require.NoError(t, err)
 				require.NotNil(t, got, "%+v", diags)
-				for _, d := range diags {
-					assert.NotEqual(t, ir.SeverityError, d.Severity, "%s %s", d.Code, d.Message)
-					assert.NotEqual(t, diag.UnresolvedRef, d.Code, d.Message)
-					assert.NotEqual(t, diag.CyclicRef, d.Code, d.Message)
+				for _, diagnostic := range diags {
+					assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "%s %s", diagnostic.Code, diagnostic.Message)
+					assert.NotEqual(t, diag.UnresolvedRef, diagnostic.Code, diagnostic.Message)
+					assert.NotEqual(t, diag.CyclicRef, diagnostic.Code, diagnostic.Message)
 				}
 				root := reftable.DocumentPointer{Pointer: "/$defs/e"}
 				entry, ok := got.Bindings.Table().Entry(reftable.DocumentPointer{Pointer: "/components/schemas/A"})

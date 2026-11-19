@@ -49,10 +49,10 @@ func compileUnder(t *testing.T, src string, opts openapi.Options) (*ir.Document,
 func httpDateReports(t *testing.T, diags []ir.Diagnostic) []string {
 	t.Helper()
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.InferredHTTPDate {
-			assert.Equal(t, ir.SeverityInfo, d.Severity)
-			out = append(out, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.InferredHTTPDate {
+			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+			out = append(out, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	return out
@@ -120,9 +120,9 @@ paths:
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileUnder(t, tc.src, tc.opts)
-			for _, p := range allParams(doc) {
-				assert.Nil(t, p.Encoding, p.Name.Source)
-				assert.Empty(t, p.Provenance.Inferred, p.Name.Source)
+			for _, parameter := range allParams(doc) {
+				assert.Nil(t, parameter.Encoding, parameter.Name.Source)
+				assert.Empty(t, parameter.Provenance.Inferred, parameter.Name.Source)
 			}
 			assert.Empty(t, diags)
 		})
@@ -190,11 +190,11 @@ func allParams(doc *ir.Document) []ir.Parameter {
 	var out []ir.Parameter
 	var walk func(gs []ir.OperationGroup)
 	walk = func(gs []ir.OperationGroup) {
-		for _, g := range gs {
-			for _, op := range g.Operations {
+		for _, operationGroup := range gs {
+			for _, op := range operationGroup.Operations {
 				out = append(out, op.Params...)
 			}
-			walk(g.Groups)
+			walk(operationGroup.Groups)
 		}
 	}
 	for _, svc := range doc.Services {

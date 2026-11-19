@@ -32,24 +32,24 @@ func Decorated(td TypeDef) (TypeRef, bool) {
 	return *base, true
 }
 
-// modelAddsNothing reports whether every field of m but its TypeCommon and
+// modelAddsNothing reports whether every field of model but its TypeCommon and
 // Base is zero: no member, requirement, conformance, mixin, catch-all,
 // closure, bound or tag of its own.
-func modelAddsNothing(m *Model) bool {
-	return len(m.Properties) == 0 && len(m.Requires) == 0 &&
-		len(m.Implements) == 0 && len(m.Mixins) == 0 &&
-		m.AdditionalProperties == nil && m.Additional == AdditionalUnspecified && m.Constraints == nil &&
-		!m.Abstract && !m.Positional && len(m.ExtensionRanges) == 0 &&
-		m.Discriminator == nil && m.DiscriminatorValue == "" && !m.InputOnly
+func modelAddsNothing(model *Model) bool {
+	return len(model.Properties) == 0 && len(model.Requires) == 0 &&
+		len(model.Implements) == 0 && len(model.Mixins) == 0 &&
+		model.AdditionalProperties == nil && model.Additional == AdditionalUnspecified && model.Constraints == nil &&
+		!model.Abstract && !model.Positional && len(model.ExtensionRanges) == 0 &&
+		model.Discriminator == nil && model.DiscriminatorValue == "" && !model.InputOnly
 }
 
-// annotatesOnly reports whether c sets nothing beyond a decorator's identity
+// annotatesOnly reports whether typeCommon sets nothing beyond a decorator's identity
 // (ID, Name, Namespace, Anonymous, Provenance), the annotations a use site can
 // hold (Docs, Deprecation, Examples), Availability, which no emitter
 // interprets, and Unmodeled, whose entries an SDK acts on by reason and never
 // by changing a type.
-func annotatesOnly(c *TypeCommon) bool {
-	return len(c.Tags) == 0 && !c.Sensitive && c.Access == "" &&
-		len(c.WireNameByFormat) == 0 && c.MediaTypeHint == "" &&
-		c.XML == nil && c.Instantiation == nil
+func annotatesOnly(typeCommon *TypeCommon) bool {
+	return len(typeCommon.Tags) == 0 && !typeCommon.Sensitive && typeCommon.Access == "" &&
+		len(typeCommon.WireNameByFormat) == 0 && typeCommon.MediaTypeHint == "" &&
+		typeCommon.XML == nil && typeCommon.Instantiation == nil
 }

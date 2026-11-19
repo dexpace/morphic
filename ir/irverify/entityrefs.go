@@ -70,8 +70,8 @@ func checkEntityRefs(*ir.Document) walkCheck {
 				vs = appendEntityRefShape(vs, v, at)
 				return false
 			}
-			if c, carries := replacementCarriers[v.Type()]; carries {
-				vs = appendSelfReplacement(vs, v, c, at)
+			if replacementCarrier, carries := replacementCarriers[v.Type()]; carries {
+				vs = appendSelfReplacement(vs, v, replacementCarrier, at)
 			}
 			return true
 		},
@@ -105,16 +105,16 @@ func appendEntityRefShape(vs []Violation, ref reflect.Value, at ir.WalkPath) []V
 }
 
 // appendSelfReplacement reports each replacement the Deprecation of node, a
-// carrier c indexes, names that is node itself: of its ID's class and value.
-func appendSelfReplacement(vs []Violation, node reflect.Value, c replacementCarrier, at ir.WalkPath) []Violation {
-	dep := node.Field(c.deprecation)
-	own := node.Field(c.id).String()
+// carrier replacementCarrierValue indexes, names that is node itself: of its ID's class and value.
+func appendSelfReplacement(vs []Violation, node reflect.Value, replacementCarrierValue replacementCarrier, at ir.WalkPath) []Violation {
+	dep := node.Field(replacementCarrierValue.deprecation)
+	own := node.Field(replacementCarrierValue.id).String()
 	if dep.IsNil() || own == "" {
 		return vs
 	}
 	refs := dep.Elem().Field(replacedByIndex)
 	for i := range refs.Len() {
-		if refs.Index(i).Field(c.ref).String() == own {
+		if refs.Index(i).Field(replacementCarrierValue.ref).String() == own {
 			vs = append(vs, Violation{
 				Code:    "ir/replaced-by-itself",
 				Message: "deprecation names " + strconv.Quote(own) + ", the entity it deprecates, as its replacement",

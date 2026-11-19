@@ -66,8 +66,8 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 	assert.Equal(t, budget.Unbounded(), full.Limit(), "an unset limit is unbounded")
 	assert.False(t, bound(t, budgetSpec, budgetConfig(budget.AtMost(full.Steps()))).Exhausted(), "the cost itself suffices")
 	want := map[reftable.DocumentPointer]reftable.ReferenceSite{}
-	for _, e := range full.Entries() {
-		want[e.Site] = e
+	for _, referenceSite := range full.Entries() {
+		want[referenceSite.Site] = referenceSite
 	}
 	disc := documentPointerAt("/components/schemas/P/discriminator")
 	values := []string{"#/x-lib/C", "#/components/schemas/H/properties/p"}
@@ -79,24 +79,24 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 		assert.Equal(t, budget.AtMost(limit), cut.Limit())
 		assert.Equal(t, cut.Entries(), bound(t, budgetSpec, budgetConfig(budget.AtMost(limit))).Entries(), "limit %d", limit)
 		missing += len(want) - len(cut.Entries())
-		for _, e := range cut.Entries() {
-			if e.Hop.Status == reftable.OverBudget || e.Chain.Status == reftable.OverBudget {
+		for _, referenceSite := range cut.Entries() {
+			if referenceSite.Hop.Status == reftable.OverBudget || referenceSite.Chain.Status == reftable.OverBudget {
 				stopped++
 				continue
 			}
-			assert.Equal(t, want[e.Site], e, "limit %d: an answer read within the budget is the full one", limit)
+			assert.Equal(t, want[referenceSite.Site], referenceSite, "limit %d: an answer read within the budget is the full one", limit)
 		}
 		for _, v := range values {
-			m, ok := cut.Mapping(disc, v)
+			mapping, ok := cut.Mapping(disc, v)
 			if !ok {
 				continue
 			}
-			if m.Hop.Status == reftable.OverBudget || m.Chain.Status == reftable.OverBudget {
+			if mapping.Hop.Status == reftable.OverBudget || mapping.Chain.Status == reftable.OverBudget {
 				stoppedMappings++
 				continue
 			}
 			whole, _ := full.Mapping(disc, v)
-			assert.Equal(t, whole, m, "limit %d: a mapping value read within the budget is the full one", limit)
+			assert.Equal(t, whole, mapping, "limit %d: a mapping value read within the budget is the full one", limit)
 		}
 	}
 	assert.Positive(t, stopped, "some limit stops a chain partway")
@@ -124,8 +124,8 @@ func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
 	}
 	full := bindAt(budget.Unbounded())
 	require.False(t, full.Exhausted())
-	z := docNamed(t, full, "/z.yaml")
-	require.Equal(t, reftable.DocumentPointer{Doc: z, Pointer: "/S"}, entryAt(t, full, "/components/schemas/Y").Hop.Target,
+	docID := docNamed(t, full, "/z.yaml")
+	require.Equal(t, reftable.DocumentPointer{Doc: docID, Pointer: "/S"}, entryAt(t, full, "/components/schemas/Y").Hop.Target,
 		"a second pass answers Y by the identifier")
 
 	least := 0
@@ -140,9 +140,9 @@ func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
 	require.Equal(t, 1, first.Passes())
 	a := docNamed(t, first, "/a.yaml")
 	assert.False(t, first.Document(a).Unreached, "the first pass stands, a.yaml reached in it")
-	y, ok := first.Entry(reftable.DocumentPointer{Pointer: "/components/schemas/Y"})
+	referenceSite, ok := first.Entry(reftable.DocumentPointer{Pointer: "/components/schemas/Y"})
 	require.True(t, ok)
-	assert.NotEqual(t, reftable.DocumentPointer{Doc: docNamed(t, first, "/z.yaml"), Pointer: "/S"}, y.Hop.Target,
+	assert.NotEqual(t, reftable.DocumentPointer{Doc: docNamed(t, first, "/z.yaml"), Pointer: "/S"}, referenceSite.Hop.Target,
 		"no answer of a second pass")
 }
 
@@ -187,18 +187,18 @@ func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
 		}, func(t *testing.T, table *reftable.ReferenceTargetTable, n int) {
 			t.Helper()
 			at := reftable.DocumentPointer{Doc: docNamed(t, table, name(n-1)), Pointer: "/S/discriminator"}
-			m, ok := table.Mapping(at, name(n)+"#/S")
+			mapping, ok := table.Mapping(at, name(n)+"#/S")
 			require.True(t, ok)
-			assert.Equal(t, reftable.Resolved, m.Chain.Status)
+			assert.Equal(t, reftable.Resolved, mapping.Chain.Status)
 		}},
 		{"links naming the one before by its $id", func(i, n int) string {
 			return fmt.Sprintf("S: {$id: 'https://x.test/id%d', properties: {p: {$ref: 'https://x.test/id%d'}%s}}\n",
 				i, i-1, tail(i, n, fmt.Sprintf(", n: {$ref: '%s#/S'}", name(i+1))))
 		}, func(t *testing.T, table *reftable.ReferenceTargetTable, n int) {
 			t.Helper()
-			e, ok := table.Entry(reftable.DocumentPointer{Doc: docNamed(t, table, name(n)), Pointer: "/S/properties/p"})
+			referenceSite, ok := table.Entry(reftable.DocumentPointer{Doc: docNamed(t, table, name(n)), Pointer: "/S/properties/p"})
 			require.True(t, ok)
-			assert.Equal(t, reftable.DocumentPointer{Doc: docNamed(t, table, name(n-1)), Pointer: "/S"}, e.Hop.Target)
+			assert.Equal(t, reftable.DocumentPointer{Doc: docNamed(t, table, name(n-1)), Pointer: "/S"}, referenceSite.Hop.Target)
 		}},
 	}
 	for _, shape := range shapes {
@@ -467,9 +467,9 @@ func TestBind_AnswersAlikeInEitherOrder(t *testing.T) {
 	assert.Equal(t, forward.Landings(), backward.Landings())
 	disc := documentPointerAt("/components/schemas/P/discriminator")
 	for _, v := range []string{"#/x-lib/C", "#/components/schemas/M"} {
-		f, _ := forward.Mapping(disc, v)
+		mapping, _ := forward.Mapping(disc, v)
 		b, _ := backward.Mapping(disc, v)
-		assert.Equal(t, f, b, v)
+		assert.Equal(t, mapping, b, v)
 	}
 }
 
@@ -477,13 +477,13 @@ func TestBind_AnswersAlikeInEitherOrder(t *testing.T) {
 // role, and why each kind of hop lands on no schema.
 func TestSpellings(t *testing.T) {
 	t.Parallel()
-	for s, want := range map[reftable.Status]string{0: "invalid", reftable.Resolved: "resolved", reftable.Unresolved: "unresolved",
+	for status, want := range map[reftable.Status]string{0: "invalid", reftable.Resolved: "resolved", reftable.Unresolved: "unresolved",
 		reftable.Cyclic: "cyclic", reftable.OverBudget: "over-budget", 5: "invalid"} {
-		assert.Equal(t, want, s.String())
+		assert.Equal(t, want, status.String())
 	}
-	for r, want := range map[reftable.Role]string{reftable.NoRole: "none", reftable.Schema: "schema", reftable.Raw: "raw",
+	for role, want := range map[reftable.Role]string{reftable.NoRole: "none", reftable.Schema: "schema", reftable.Raw: "raw",
 		reftable.Object: "object", 9: "none"} {
-		assert.Equal(t, want, r.String())
+		assert.Equal(t, want, role.String())
 	}
 	assert.Equal(t, "it was not read within the budget", reftable.Hop{Reason: reftable.PendingExternalDocumentRead}.Why(),
 		"a read the pass was to make once its walks were done, which the budget cut")

@@ -33,11 +33,11 @@ func TestProperty_UnquotedDateDefaultPreserved(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	assert.Empty(t, diags, "no diagnostics at all: the date default converts cleanly")
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, m.Properties, 1)
-	require.NotNil(t, m.Properties[0].Default)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, *m.Properties[0].Default)
+	require.Len(t, model.Properties, 1)
+	require.NotNil(t, model.Properties[0].Default)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "2021-01-01"}, *model.Properties[0].Default)
 }
 
 func TestLower_PropertyDetailRichSchema(t *testing.T) {
@@ -54,9 +54,9 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
         badDefault: {type: number, default: .inf}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
-	m := typeByName(doc, "D").(*ir.Model)
-	assert.NotEmpty(t, m.Docs.ExternalDocs)
-	byWire := openapitest.PropsByWire(m.Properties)
+	model := typeByName(doc, "D").(*ir.Model)
+	assert.NotEmpty(t, model.Docs.ExternalDocs)
+	byWire := openapitest.PropsByWire(model.Properties)
 	require.NotNil(t, byWire["withXml"].XML)
 	assert.Equal(t, new(true), byWire["withXml"].XML.Attribute)
 	assert.Equal(t, "urn:x", byWire["withXml"].XML.Namespace)
@@ -64,8 +64,8 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	assert.Len(t, byWire["withExample"].Examples, 3)
 	assert.NotEmpty(t, byWire["withExt"].Unmodeled)
 	var sawDefaultWarn bool
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning && d.Code == diag.UnloweredConstruct {
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning && diagnostic.Code == diag.UnloweredConstruct {
 			sawDefaultWarn = true
 		}
 	}
@@ -85,8 +85,8 @@ func TestLower_RefTargetDescriptionFallback(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := typeByName(doc, "Owner").(*ir.Model)
-	assert.Equal(t, "target-desc", m.Properties[0].Docs.Description)
+	model := typeByName(doc, "Owner").(*ir.Model)
+	assert.Equal(t, "target-desc", model.Properties[0].Docs.Description)
 }
 
 func TestModel_DefaultBigLiteral(t *testing.T) {
@@ -98,10 +98,10 @@ func TestModel_DefaultBigLiteral(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	require.NotNil(t, m.Properties[0].Default)
-	assert.Equal(t, ir.ValueNumber, m.Properties[0].Default.Kind)
-	assert.Equal(t, ir.BigVal("9007199254740993"), m.Properties[0].Default.Number)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	require.NotNil(t, model.Properties[0].Default)
+	assert.Equal(t, ir.ValueNumber, model.Properties[0].Default.Kind)
+	assert.Equal(t, ir.BigVal("9007199254740993"), model.Properties[0].Default.Number)
 }
 
 func TestFillPropertyDetail_UnconvertibleExampleDiagnosed(t *testing.T) {
@@ -111,14 +111,14 @@ func TestFillPropertyDetail_UnconvertibleExampleDiagnosed(t *testing.T) {
 	// the conversion error was previously discarded on the floor.
 	spec := openapitest.ComponentSpec("    S:\n      type: object\n      properties:\n        n:\n          type: string\n          example: !foo bar\n")
 	doc, diags := schema.LowerSpec(t, spec)
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	assert.Empty(t, m.Properties[0].Examples, "the unconvertible example is skipped, not appended")
+	assert.Empty(t, model.Properties[0].Examples, "the unconvertible example is skipped, not appended")
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
-	d, ok := openapitest.FirstDegradedWarning(diags)
+	diagnostic, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/S/properties/n/example"), d.Provenance.Pointer)
-	assert.Contains(t, d.Message, "example:")
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/properties/n/example"), diagnostic.Provenance.Pointer)
+	assert.Contains(t, diagnostic.Message, "example:")
 }
 
 func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
@@ -131,8 +131,8 @@ func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	byName := openapitest.PropsByWire(m.Properties)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	byName := openapitest.PropsByWire(model.Properties)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, byName["r"].Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, byName["w"].Visibility)
 }
@@ -152,8 +152,8 @@ func TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	byName := openapitest.PropsByWire(m.Properties)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	byName := openapitest.PropsByWire(model.Properties)
 
 	assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, byName["both"].Visibility)
 	assert.NotEqual(t, byName["r"].Visibility, byName["both"].Visibility,
@@ -174,8 +174,8 @@ func TestModel_PasswordFormatSecret(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	assert.True(t, m.Properties[0].Secret)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	assert.True(t, model.Properties[0].Secret)
 }
 
 func TestModel_PropertyDeprecation(t *testing.T) {
@@ -187,8 +187,8 @@ func TestModel_PropertyDeprecation(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	assert.NotNil(t, m.Properties[0].Deprecation)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	assert.NotNil(t, model.Properties[0].Deprecation)
 }
 
 func TestModel_PropertyXML(t *testing.T) {
@@ -200,10 +200,10 @@ func TestModel_PropertyXML(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	require.NotNil(t, m.Properties[0].XML)
-	assert.Equal(t, "n", m.Properties[0].XML.Name)
-	assert.Equal(t, new(true), m.Properties[0].XML.Attribute)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	require.NotNil(t, model.Properties[0].XML)
+	assert.Equal(t, "n", model.Properties[0].XML.Name)
+	assert.Equal(t, new(true), model.Properties[0].XML.Attribute)
 }
 
 func TestModel_RefSiblingDescriptionWins(t *testing.T) {
@@ -218,8 +218,8 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	assert.Equal(t, "sibling desc", m.Properties[0].Docs.Description)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	assert.Equal(t, "sibling desc", model.Properties[0].Docs.Description)
 }
 
 func TestSchema_RefTargetReadOnlyVisibility(t *testing.T) {
@@ -232,8 +232,8 @@ func TestSchema_RefTargetReadOnlyVisibility(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := typeByName(doc, "Owner").(*ir.Model)
-	assert.NotEmpty(t, m.Properties[0].Visibility.Only, "readOnly from the ref target applies")
+	model := typeByName(doc, "Owner").(*ir.Model)
+	assert.NotEmpty(t, model.Properties[0].Visibility.Only, "readOnly from the ref target applies")
 }
 
 // TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty covers
@@ -256,15 +256,15 @@ func TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty(t *testing.T) 
 			doc, diags := parseFull(t, tc.spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			m, ok := doc.Types[componentID("A")].(*ir.Model)
+			model, ok := doc.Types[componentID("A")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := openapitest.PropsByWire(m.Properties)["p"]
+			property, ok := openapitest.PropsByWire(model.Properties)["p"]
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target,
+			assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target,
 				"the property's own type is unchanged by the outside reference")
-			openapitest.AssertProbeDocsKept(t, p.Docs)
-			assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
-			assert.Contains(t, p.Unmodeled, "openapi:not")
+			openapitest.AssertProbeDocsKept(t, property.Docs)
+			assert.Contains(t, property.Unmodeled, "openapi:x-vendor")
+			assert.Contains(t, property.Unmodeled, "openapi:not")
 
 			sc, ok := doc.Types["type/anonymous/components/schemas/A/properties/p"].(*ir.Scalar)
 			require.True(t, ok, "and the referenced pointer still names the schema written there")
@@ -286,21 +286,21 @@ func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
 
 	owner, ok := doc.Types[componentID("A")].(*ir.Model)
 	require.True(t, ok)
-	p, ok := openapitest.PropsByWire(owner.Properties)["p"]
+	property, ok := openapitest.PropsByWire(owner.Properties)["p"]
 	require.True(t, ok)
-	assert.Empty(t, p.Docs.Description, "the node the schema owns is the one home")
-	assert.Nil(t, p.Deprecation)
-	assert.Nil(t, p.XML)
-	assert.Empty(t, p.Unmodeled)
+	assert.Empty(t, property.Docs.Description, "the node the schema owns is the one home")
+	assert.Nil(t, property.Deprecation)
+	assert.Nil(t, property.XML)
+	assert.Empty(t, property.Unmodeled)
 
 	inner := doc.Types["type/anonymous/components/schemas/A/properties/p"]
 	require.NotNil(t, inner)
-	c := inner.Common()
-	assert.Equal(t, "DOC", c.Docs.Description)
-	assert.NotNil(t, c.Deprecation)
-	require.NotNil(t, c.XML)
-	assert.Equal(t, "X", c.XML.Name)
-	assert.Contains(t, c.Unmodeled, "openapi:x-vendor")
+	typeCommon := inner.Common()
+	assert.Equal(t, "DOC", typeCommon.Docs.Description)
+	assert.NotNil(t, typeCommon.Deprecation)
+	require.NotNil(t, typeCommon.XML)
+	assert.Equal(t, "X", typeCommon.XML.Name)
+	assert.Contains(t, typeCommon.Unmodeled, "openapi:x-vendor")
 }
 
 // TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode is the other half of that
@@ -314,20 +314,20 @@ func TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode(t *testing.T) {
 
 	owner, ok := doc.Types[componentID("A")].(*ir.Model)
 	require.True(t, ok)
-	p, ok := openapitest.PropsByWire(owner.Properties)["p"]
+	property, ok := openapitest.PropsByWire(owner.Properties)["p"]
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, "a property keeps resolving to the shared primitive")
+	assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target, "a property keeps resolving to the shared primitive")
 	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/A/properties/p"))
-	openapitest.AssertProbeDocsKept(t, p.Docs)
-	assert.NotNil(t, p.Deprecation)
-	openapitest.AssertProbeExample(t, p.Examples)
-	require.NotNil(t, p.XML)
-	assert.Equal(t, "X", p.XML.Name)
-	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
-	assert.Contains(t, p.Unmodeled, "openapi:not")
-	require.NotNil(t, p.Constraints)
-	require.NotNil(t, p.Constraints.MaxLength)
-	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
+	openapitest.AssertProbeDocsKept(t, property.Docs)
+	assert.NotNil(t, property.Deprecation)
+	openapitest.AssertProbeExample(t, property.Examples)
+	require.NotNil(t, property.XML)
+	assert.Equal(t, "X", property.XML.Name)
+	assert.Contains(t, property.Unmodeled, "openapi:x-vendor")
+	assert.Contains(t, property.Unmodeled, "openapi:not")
+	require.NotNil(t, property.Constraints)
+	require.NotNil(t, property.Constraints.MaxLength)
+	assert.Equal(t, int64(3), *property.Constraints.MaxLength)
 }
 
 // TestPropertyDocs_RefTargetReachesTheCarrier pins the referent half of the
@@ -346,9 +346,9 @@ func TestPropertyDocs_RefTargetReachesTheCarrier(t *testing.T) {
 				"    Owner: {type: object, properties: {p: {$ref: '#/components/schemas/Target'}}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			p := propertyOf(t, doc, "Owner", "p")
-			assert.Equal(t, componentID("Target"), p.Type.Target, "a bare $ref needs no alias")
-			assert.Equal(t, "REF-"+kw.name, kw.read(p.Docs), "the carrier reads the referent's %s", kw.name)
+			property := propertyOf(t, doc, "Owner", "p")
+			assert.Equal(t, componentID("Target"), property.Type.Target, "a bare $ref needs no alias")
+			assert.Equal(t, "REF-"+kw.name, kw.read(property.Docs), "the carrier reads the referent's %s", kw.name)
 			assert.Equal(t, "REF-"+kw.name, kw.read(doc.Types[componentID("Target")].Common().Docs),
 				"and the referent keeps its own %s", kw.name)
 		})
@@ -369,14 +369,14 @@ func TestPropertyDocs_UseSiteWinsKeywordByKeyword(t *testing.T) {
 				written.write("SITE")+"}}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			p := propertyOf(t, doc, "Owner", "p")
-			assert.Equal(t, componentID("Target"), p.Type.Target, "a carrier hoists no alias for its siblings")
+			property := propertyOf(t, doc, "Owner", "p")
+			assert.Equal(t, componentID("Target"), property.Type.Target, "a carrier hoists no alias for its siblings")
 			for _, kw := range carrierDocKeywords() {
 				want := "REF-" + kw.name
 				if kw.name == written.name {
 					want = "SITE"
 				}
-				assert.Equal(t, want, kw.read(p.Docs), "%s, with %s written at the site", kw.name, written.name)
+				assert.Equal(t, want, kw.read(property.Docs), "%s, with %s written at the site", kw.name, written.name)
 			}
 		})
 	}
@@ -416,17 +416,17 @@ func carrierDocKeywords() []carrierDocKeyword {
 	return []carrierDocKeyword{
 		{"title",
 			func(v string) string { return "title: " + v },
-			func(d ir.Docs) string { return d.Summary }},
+			func(docs ir.Docs) string { return docs.Summary }},
 		{"description",
 			func(v string) string { return "description: " + v },
-			func(d ir.Docs) string { return d.Description }},
+			func(docs ir.Docs) string { return docs.Description }},
 		{"externalDocs",
 			func(v string) string { return "externalDocs: {url: 'https://e.example', description: " + v + "}" },
-			func(d ir.Docs) string {
-				if len(d.ExternalDocs) != 1 {
+			func(docs ir.Docs) string {
+				if len(docs.ExternalDocs) != 1 {
 					return ""
 				}
-				return d.ExternalDocs[0].Description
+				return docs.ExternalDocs[0].Description
 			}},
 	}
 }
@@ -444,14 +444,14 @@ type carrierDocKeyword struct {
 // $ref-sibling-example behaviour at a property position: an example written
 // beside a $ref binds the property, not the referent, because a $ref position
 // hoists no node, so fillPropertyAnnotations records it on the property.
-// Property f's $ref targets a named component (Target), so
+// Property property's $ref targets a named component (Target), so
 // componentlookup.Scope.ComponentRef resolves it directly without ever calling
 // hoistSubSchema. TestSchemaSiblings_RefdSubSchemaKeepsThem covers the
 // analogous hoistSubSchema path, where the $ref target is an internal
 // sub-schema pointer rather than a named component.
 func TestFillPropertyAnnotations_RefSiblingExampleBindsTheSite(t *testing.T) {
 	t.Parallel()
-	l, _ := schema.LoweredFor(t, `openapi: 3.1.0
+	lowerer, _ := schema.LoweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -464,20 +464,20 @@ components:
           $ref: '#/components/schemas/Target'
           example: at-reference
 `)
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
+	lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
 
-	target := typeByName(l.Document(t), "Target")
+	target := typeByName(lowerer.Document(t), "Target")
 	require.NotNil(t, target)
 	assert.Empty(t, target.Common().Examples,
 		"an example beside a $ref must not attach to the referent")
 
-	holder, ok := typeByName(l.Document(t), "Holder").(*ir.Model)
+	holder, ok := typeByName(lowerer.Document(t), "Holder").(*ir.Model)
 	require.True(t, ok, "Holder must own a Model node")
-	f, ok := openapitest.PropsByWire(holder.Properties)["f"]
+	property, ok := openapitest.PropsByWire(holder.Properties)["f"]
 	require.True(t, ok, "property f must be present")
-	require.Len(t, f.Examples, 1, "the example beside the $ref must bind the property")
-	require.NotNil(t, f.Examples[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "at-reference"}, *f.Examples[0].Value)
+	require.Len(t, property.Examples, 1, "the example beside the $ref must bind the property")
+	require.NotNil(t, property.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "at-reference"}, *property.Examples[0].Value)
 }
 
 // TestLoweredToOwnNode_ReadsWhatThePositionLoweredTo holds the reading to what a
@@ -505,13 +505,13 @@ func TestLoweredToOwnNode_ReadsWhatThePositionLoweredTo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			l, _ := schema.LoweredFor(t, openapitest.ComponentSpec(src))
+			lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpec(src))
 			if tt.built {
-				l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
-				_, interned := l.Types.Lookup(l.Ctx.IDs().Coordinate(at))
+				lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+				_, interned := lowerer.Types.Lookup(lowerer.Ctx.IDs().Coordinate(at))
 				require.True(t, interned, "the format hoists a Scalar at the property")
 			}
-			assert.Equal(t, tt.want, schema.LoweredToOwnNode(l.Ctx, at, ir.TypeRef{Target: tt.target}))
+			assert.Equal(t, tt.want, schema.LoweredToOwnNode(lowerer.Ctx, at, ir.TypeRef{Target: tt.target}))
 		})
 	}
 }

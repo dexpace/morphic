@@ -8,18 +8,18 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 )
 
-// Reads returns how many schema objects t has read, for the tests holding the
+// Reads returns how many schema objects memoizingSchemaReader has read, for the tests holding the
 // table to one read of each.
-func Reads(t *MemoizingSchemaReader) int { return t.reads }
+func Reads(memoizingSchemaReader *MemoizingSchemaReader) int { return memoizingSchemaReader.reads }
 
-// Lookups returns how many statements t has looked up, for the tests holding
+// Lookups returns how many statements memoizingSchemaReader has looked up, for the tests holding
 // a schema whose statement is built to reading it with none.
-func Lookups(t *MemoizingSchemaReader) int { return t.lookups }
+func Lookups(memoizingSchemaReader *MemoizingSchemaReader) int { return memoizingSchemaReader.lookups }
 
-// Compared returns how many keys s compares name with to find it, for the
+// Compared returns how many keys schema compares name with to find it, for the
 // tests holding a wide object's lookups to its index.
-func Compared(s *Schema, name string) int {
-	_, n := s.find(name)
+func Compared(schema *Schema, name string) int {
+	_, n := schema.find(name)
 	return n
 }
 
@@ -27,8 +27,8 @@ func Compared(s *Schema, name string) int {
 // the parser read its value from, nil where the parser holds no field for it.
 func ParserNodes() map[string]func(*oas3.Schema) *yaml.Node {
 	out := make(map[string]func(*oas3.Schema) *yaml.Node, len(fillKeywords))
-	for _, k := range fillKeywords {
-		out[k.name] = k.node
+	for _, fillKeyword := range fillKeywords {
+		out[fillKeyword.name] = fillKeyword.node
 	}
 	return out
 }
@@ -36,7 +36,7 @@ func ParserNodes() map[string]func(*oas3.Schema) *yaml.Node {
 // FillTruncated returns what fill reads of m into a Truncated schema whose
 // keys list nothing.
 func FillTruncated(m *oas3.Schema) *Schema {
-	s := &Schema{Truncated: true}
-	fill(s, m)
-	return s
+	schema := &Schema{Truncated: true}
+	fill(schema, m)
+	return schema
 }

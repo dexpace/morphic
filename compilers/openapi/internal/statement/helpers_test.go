@@ -28,9 +28,9 @@ func everywhere(rules specrules.SchemaRules) dialect.SchemaDialectRows {
 // rulesAt returns the Schema Object's rows at version in the dialect named.
 func rulesAt(t *testing.T, version, named string) specrules.SchemaRules {
 	t.Helper()
-	r, unread := specrules.Table().SchemaRules(version, named)
+	schemaRules, unread := specrules.Table().SchemaRules(version, named)
 	require.False(t, unread, "%s %s", version, named)
-	return r
+	return schemaRules
 }
 
 // document returns an OpenAPI document of version whose components are
@@ -43,20 +43,20 @@ func document(version string, schemas ...string) string {
 // and the context positions in its document are taken from.
 func tableOver(t *testing.T, spec string, rules specrules.SchemaRules) (*statement.MemoizingSchemaReader, lowering.Ctx) {
 	t.Helper()
-	c := servicetest.Context(t, spec, service.Policy{})
-	return statement.NewTable(statement.Source{Bindings: c.Bindings(), Rules: everywhere(rules)}), c.Ctx
+	serviceContext := servicetest.Context(t, spec, service.Policy{})
+	return statement.NewTable(statement.Source{Bindings: serviceContext.Bindings(), Rules: everywhere(rules)}), serviceContext.Ctx
 }
 
 // component returns the position of the component schema name.
-func component(c lowering.Ctx, name string) reftable.DocumentPointer {
-	return c.Position(jsontext.Pointer("/components/schemas/" + name))
+func component(loweringContext lowering.Ctx, name string) reftable.DocumentPointer {
+	return loweringContext.Position(jsontext.Pointer("/components/schemas/" + name))
 }
 
-// keyNames lists the names of the keys s writes, in order.
-func keyNames(s *statement.Schema) []string {
-	out := make([]string, 0, len(s.Keys))
-	for _, k := range s.Keys {
-		out = append(out, k.Name)
+// keyNames lists the names of the keys schema writes, in order.
+func keyNames(schema *statement.Schema) []string {
+	out := make([]string, 0, len(schema.Keys))
+	for _, key := range schema.Keys {
+		out = append(out, key.Name)
 	}
 	return out
 }

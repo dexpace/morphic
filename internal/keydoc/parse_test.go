@@ -97,11 +97,11 @@ func TestParse_AHeadingThatIsNoKeyOpensNoEntry(t *testing.T) {
 // one it does not write.
 func TestEntry_Field(t *testing.T) {
 	t.Parallel()
-	e := keydoc.Entry{Fields: []keydoc.Field{{Name: "One", Value: "a"}, {Name: "Two", Value: "b"}}}
-	f, ok := e.Field("Two")
+	entry := keydoc.Entry{Fields: []keydoc.Field{{Name: "One", Value: "a"}, {Name: "Two", Value: "b"}}}
+	field, ok := entry.Field("Two")
 	require.True(t, ok)
-	assert.Equal(t, "b", f.Value)
-	_, ok = e.Field("Three")
+	assert.Equal(t, "b", field.Value)
+	_, ok = entry.Field("Three")
 	assert.False(t, ok)
 }
 

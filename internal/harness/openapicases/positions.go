@@ -31,47 +31,49 @@ const okResponses = raw(`{"200": {"description": "ok"}}`)
 // The component position also writes a property of a second component naming
 // the case's by $ref, as a fact lowered onto a use is seen at the use alone.
 func positions() []position {
-	in := func(s object) (object, object) { return nil, object{{caseSchema, s}} }
+	in := func(objectValue object) (object, object) { return nil, object{{caseSchema, objectValue}} }
 	return []position{
-		{"component", func(s object) (object, object) {
+		{"component", func(objectValue object) (object, object) {
 			user := object{{"type", "object"}, {"properties", object{{"p", object{{"$ref", "#/components/schemas/" + caseSchema}}}}}}
-			return nil, object{{caseSchema, s}, {userSchema, user}}
+			return nil, object{{caseSchema, objectValue}, {userSchema, user}}
 		}, nil, "/components/schemas/C", every},
-		{"property", func(s object) (object, object) {
-			return in(object{{"type", "object"}, {"properties", object{{"p", s}}}})
+		{"property", func(objectValue object) (object, object) {
+			return in(object{{"type", "object"}, {"properties", object{{"p", objectValue}}}})
 		}, carryProperties, "/components/schemas/C/properties/p", every},
-		{"items", func(s object) (object, object) { return in(object{{"type", "array"}, {"items", s}}) }, nil, "/components/schemas/C/items", every},
-		{"additionalProperties", func(s object) (object, object) {
-			return in(object{{"type", "object"}, {"additionalProperties", s}})
+		{"items", func(objectValue object) (object, object) {
+			return in(object{{"type", "array"}, {"items", objectValue}})
+		}, nil, "/components/schemas/C/items", every},
+		{"additionalProperties", func(objectValue object) (object, object) {
+			return in(object{{"type", "object"}, {"additionalProperties", objectValue}})
 		}, nil, "/components/schemas/C/additionalProperties", every},
-		{"branch", func(s object) (object, object) {
-			return in(object{{"oneOf", []any{s, object{{"type", "boolean"}}}}})
+		{"branch", func(objectValue object) (object, object) {
+			return in(object{{"oneOf", []any{objectValue, object{{"type", "boolean"}}}}})
 		}, nil, "/components/schemas/C/oneOf/0", every},
-		{name: "anyOfBranch", place: func(s object) (object, object) {
-			return in(object{{"anyOf", []any{s, object{{"type", "boolean"}}}}})
+		{name: "anyOfBranch", place: func(objectValue object) (object, object) {
+			return in(object{{"anyOf", []any{objectValue, object{{"type", "boolean"}}}}})
 		}, pointer: "/components/schemas/C/anyOf/0"},
-		{name: "prefixItem", place: func(s object) (object, object) {
-			return in(object{{"type", "array"}, {"prefixItems", []any{s}}})
+		{name: "prefixItem", place: func(objectValue object) (object, object) {
+			return in(object{{"type", "array"}, {"prefixItems", []any{objectValue}}})
 		}, pointer: "/components/schemas/C/prefixItems/0", span: from31},
-		{name: "patternProperty", place: func(s object) (object, object) {
-			return in(object{{"type", "object"}, {"patternProperties", object{{"^x", s}}}})
+		{name: "patternProperty", place: func(objectValue object) (object, object) {
+			return in(object{{"type", "object"}, {"patternProperties", object{{"^x", objectValue}}}})
 		}, pointer: "/components/schemas/C/patternProperties/^x", span: from31},
-		{name: "contentSchema", place: func(s object) (object, object) {
-			return in(object{{"type", "string"}, {"contentMediaType", "application/json"}, {"contentSchema", s}})
+		{name: "contentSchema", place: func(objectValue object) (object, object) {
+			return in(object{{"type", "string"}, {"contentMediaType", "application/json"}, {"contentSchema", objectValue}})
 		}, pointer: "/components/schemas/C/contentSchema", span: from31},
-		{"parameter", func(s object) (object, object) {
-			param := object{{"name", "q"}, {"in", "query"}, {"schema", s}}
+		{"parameter", func(objectValue object) (object, object) {
+			param := object{{"name", "q"}, {"in", "query"}, {"schema", objectValue}}
 			return atCasePath(object{{"get", object{{"parameters", []any{param}}, {"responses", okResponses}}}})
 		}, carryParameters, "/paths/~1c/get/parameters/0/schema", every},
-		{"requestBody", func(s object) (object, object) {
-			body := object{{"content", object{{"application/json", object{{"schema", s}}}}}}
+		{"requestBody", func(objectValue object) (object, object) {
+			body := object{{"content", object{{"application/json", object{{"schema", objectValue}}}}}}
 			return atCasePath(object{{"post", object{{"requestBody", body}, {"responses", okResponses}}}})
 		}, nil, "/paths/~1c/post/requestBody/content/application~1json/schema", every},
-		{"responseBody", func(s object) (object, object) {
-			return atCasePath(response(member{"content", object{{"application/json", object{{"schema", s}}}}}))
+		{"responseBody", func(objectValue object) (object, object) {
+			return atCasePath(response(member{"content", object{{"application/json", object{{"schema", objectValue}}}}}))
 		}, nil, "/paths/~1c/get/responses/200/content/application~1json/schema", every},
-		{"header", func(s object) (object, object) {
-			return atCasePath(response(member{"headers", object{{"H", object{{"schema", s}}}}}))
+		{"header", func(objectValue object) (object, object) {
+			return atCasePath(response(member{"headers", object{{"H", object{{"schema", objectValue}}}}}))
 		}, carryHeaders, "/paths/~1c/get/responses/200/headers/H/schema", every},
 	}
 }

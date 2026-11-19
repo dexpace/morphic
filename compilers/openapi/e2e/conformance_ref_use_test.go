@@ -29,11 +29,11 @@ func assertRefChainAnnotations(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		"own": {"f", "from-use"},
 	}
 	for wire, w := range want {
-		p, found := propByWire(holder, wire)
+		property, found := propByWire(holder, wire)
 		require.True(t, found, wire)
-		require.NotNil(t, p.Default, wire)
-		assert.Equal(t, ir.Value{Kind: ir.ValueString, String: w.def}, *p.Default, "%s: the nearest default", wire)
-		assert.Equal(t, w.desc, p.Docs.Description, "%s: the nearest description", wire)
+		require.NotNil(t, property.Default, wire)
+		assert.Equal(t, ir.Value{Kind: ir.ValueString, String: w.def}, *property.Default, "%s: the nearest default", wire)
+		assert.Equal(t, w.desc, property.Docs.Description, "%s: the nearest description", wire)
 	}
 
 	assert.Equal(t, []string{
@@ -79,10 +79,10 @@ func TestConformance_APropertyNamingAnAliasReadsItsDescription(t *testing.T) {
 
 	var naming []ir.Property
 	for _, td := range doc.Types {
-		if m, ok := td.(*ir.Model); ok {
-			for _, p := range m.Properties {
-				if p.Type.Target == "type/openapi/components/schemas/MeetingAlias" {
-					naming = append(naming, p)
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				if property.Type.Target == "type/openapi/components/schemas/MeetingAlias" {
+					naming = append(naming, property)
 				}
 			}
 		}

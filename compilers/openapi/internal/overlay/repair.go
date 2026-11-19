@@ -16,13 +16,13 @@ import (
 // repairAliases replaces each alias the actions left naming a node outside the
 // tree, as a remove of its anchor leaves it, with a copy of the value it
 // stands for, since readers here walk Content and read an alias as a leaf
-// while the parser follows it (GitHub #477). It runs once g removed a node,
-// the one way g detaches one, and is whole or refused: done is false once ctx
+// while the parser follows it (GitHub #477). It runs once grafterValue removed a node,
+// the one way grafterValue detaches one, and is whole or refused: done is false once ctx
 // is done, and safe false for copies past copies nodes, or past the room the
 // node budget, nodes, leaves the tree, which budgeted then reports.
-func repairAliases(ctx context.Context, root *yaml.Node, g *grafter, copies, nodes budget.Limit) (done, safe, budgeted bool) {
+func repairAliases(ctx context.Context, root *yaml.Node, grafterValue *grafter, copies, nodes budget.Limit) (done, safe, budgeted bool) {
 	content := nodeview.DocumentRoot(root)
-	if !g.detached || content == nil {
+	if !grafterValue.detached || content == nil {
 		return true, true, false
 	}
 	reachable, walked := reachableNodes(ctx, content)

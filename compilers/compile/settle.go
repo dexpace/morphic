@@ -24,31 +24,31 @@ type Settlement interface {
 	Settle(ctx context.Context, reg ir.TypeRegistry) []ir.Diagnostic
 }
 
-// Defer queues s for Finish to settle. A nil settlement cannot be taken and is
+// Defer queues settlement for Finish to settle. A nil settlement cannot be taken and is
 // refused, as is one deferred after Finish, which would never be.
-func (t *Types) Defer(s Settlement) { t.queue(&t.pending, "defer", s) }
+func (t *Types) Defer(settlement Settlement) { t.queue(&t.pending, "defer", settlement) }
 
-// QueueSettlementBeforeDeferredOnes queues s for Finish to settle before every settlement Defer queued,
+// QueueSettlementBeforeDeferredOnes queues settlement for Finish to settle before every settlement Defer queued,
 // whenever either was queued, and refuses what Defer refuses. It is for a
 // settlement that finishes a node its lowering left open, because finishing it
 // reads nodes not built yet, such as a field several declarations write: every
 // settlement Defer queued then reads that node finished, whether it only reads
 // it or rewrites it too.
-func (t *Types) QueueSettlementBeforeDeferredOnes(s Settlement) {
-	t.queue(&t.completing, "complete", s)
+func (t *Types) QueueSettlementBeforeDeferredOnes(settlement Settlement) {
+	t.queue(&t.completing, "complete", settlement)
 }
 
-// queue appends s to q, which verb names, or refuses it as Defer documents.
-func (t *Types) queue(q *[]Settlement, verb string, s Settlement) {
+// queue appends settlement to settlements, which verb names, or refuses it as Defer documents.
+func (t *Types) queue(settlements *[]Settlement, verb string, settlement Settlement) {
 	if t.settled {
 		t.refuse("%s rejected: the registry has already settled", verb)
 		return
 	}
-	if s == nil {
+	if settlement == nil {
 		t.refuse("%s rejected: nil settlement", verb)
 		return
 	}
-	*q = append(*q, s)
+	*settlements = append(*settlements, settlement)
 }
 
 // settle takes every Settlement once, those Complete queued before those Defer
@@ -64,16 +64,16 @@ func (t *Types) settle(ctx context.Context) []ir.Diagnostic {
 	pending := slices.Concat(t.completing, t.pending)
 	t.completing, t.pending = nil, nil
 	diags := make([]ir.Diagnostic, 0, len(pending))
-	for _, s := range pending {
+	for _, settlement := range pending {
 		if ctx.Err() != nil {
 			return diags
 		}
 		before, minted := len(t.reg), t.minted
-		diags = append(diags, s.Settle(ctx, t.reg)...)
+		diags = append(diags, settlement.Settle(ctx, t.reg)...)
 		if after := len(t.reg); after != before+t.minted-minted {
 			t.refuse("settlement %T changed the registry from %d to %d nodes, having registered %d; "+
 				"a settlement rewrites nodes the registry holds, and adds one only through Register",
-				s, before, after, t.minted-minted)
+				settlement, before, after, t.minted-minted)
 		}
 	}
 	return diags

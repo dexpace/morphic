@@ -83,9 +83,9 @@ func TestCompile_AFindingOnAnObjectReachedTwiceIsReportedOnceAtItsLeastSite(t *t
 			_, diags := compileText(t, "spec.yaml", nestedSource(firstA, "{name: p, in: query, explode: 7}"), openapi.Options{})
 
 			var explode []string
-			for _, d := range byCode(diags, typeMismatch) {
-				if strings.HasSuffix(string(d.Provenance.Pointer), "/explode") {
-					explode = append(explode, string(d.Provenance.Pointer))
+			for _, diagnostic := range byCode(diags, typeMismatch) {
+				if strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/explode") {
+					explode = append(explode, string(diagnostic.Provenance.Pointer))
 				}
 			}
 			assert.Equal(t, []string{"/x-lib/item/get/parameters/0/explode"}, explode, "%+v", diags)
@@ -166,8 +166,8 @@ func TestCompile_AFaultingTargetCostsOnlyItsReference(t *testing.T) {
 
 	require.NotNil(t, doc, "%+v", diags)
 	var errs int
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
 			errs++
 		}
 	}
@@ -193,8 +193,8 @@ func TestCompile_AMediaTypeWhoseRefIsNullIsAFindingAndNotAFault(t *testing.T) {
 	_, diags := compileText(t, "media.yaml", brokenMediaType, openapi.Options{})
 
 	var errs int
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
 			errs++
 		}
 	}

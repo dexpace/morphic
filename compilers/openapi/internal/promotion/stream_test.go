@@ -64,10 +64,10 @@ func TestTextOf_ReadsTheFirstSourceStatingAText(t *testing.T) {
 			assert.Equal(t, tc.want, st.Text)
 			assert.Equal(t, tc.want != "", st.At.Pointer != "", "a key stating a text is where it sits")
 			got := make([]string, 0, len(diags))
-			for _, d := range diags {
-				assert.Equal(t, diag.UnpromotedExtension, d.Code)
-				assert.Equal(t, ir.SeverityInfo, d.Severity)
-				got = append(got, d.Message)
+			for _, diagnostic := range diags {
+				assert.Equal(t, diag.UnpromotedExtension, diagnostic.Code)
+				assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+				got = append(got, diagnostic.Message)
 			}
 			assert.ElementsMatch(t, tc.reports, got)
 		})
@@ -81,7 +81,7 @@ func TestTextOf_ReadsTheFirstSourceStatingAText(t *testing.T) {
 // writes nothing.
 func TestStatementOf_ReadsTheFirstSourceWritten(t *testing.T) {
 	t.Parallel()
-	p := promotion.New(mapping(promotion.TargetParamChoices, promotion.ExtensionSource{Key: "x-m", Member: "groups"},
+	promoter := promotion.New(mapping(promotion.TargetParamChoices, promotion.ExtensionSource{Key: "x-m", Member: "groups"},
 		promotion.ExtensionSource{Key: "x-a"}, promotion.ExtensionSource{Key: "x-b"}))
 	for _, tc := range []struct {
 		name, later string
@@ -93,7 +93,7 @@ func TestStatementOf_ReadsTheFirstSourceWritten(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			st, written, diags := p.StatementOf(promotion.TargetParamChoices, ir.Unmodeled{
+			st, written, diags := promoter.StatementOf(promotion.TargetParamChoices, ir.Unmodeled{
 				"openapi:x-m": vendorExtension(`{}`), "openapi:x-a": vendorExtension(`[1]`),
 				"openapi:x-b": vendorExtension(tc.later),
 			})
@@ -101,15 +101,15 @@ func TestStatementOf_ReadsTheFirstSourceWritten(t *testing.T) {
 			assert.Equal(t, "x-a", st.Source.Key)
 			assert.Equal(t, ir.RawValue(`[1]`), st.Value)
 			got := make([]string, 0, len(diags))
-			for _, d := range diags {
-				assert.Equal(t, diag.UnpromotedExtension, d.Code)
-				got = append(got, d.Message)
+			for _, diagnostic := range diags {
+				assert.Equal(t, diag.UnpromotedExtension, diagnostic.Code)
+				got = append(got, diagnostic.Message)
 			}
 			assert.ElementsMatch(t, tc.reports, got)
 		})
 	}
 
-	_, written, diags := p.StatementOf(promotion.TargetParamChoices, ir.Unmodeled{})
+	_, written, diags := promoter.StatementOf(promotion.TargetParamChoices, ir.Unmodeled{})
 	assert.False(t, written)
 	assert.Empty(t, diags)
 }

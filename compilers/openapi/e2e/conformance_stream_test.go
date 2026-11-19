@@ -33,11 +33,11 @@ func corpusWith(t *testing.T, name string, opts openapi.Options) (*ir.Document, 
 }
 
 // markersOf splits a marker list into its names.
-func markersOf(m ir.Inferred) []string {
-	if m == "" {
+func markersOf(inferred ir.Inferred) []string {
+	if inferred == "" {
 		return nil
 	}
-	return strings.Split(string(m), ",")
+	return strings.Split(string(inferred), ",")
 }
 
 // streamPromotions maps the two stream targets to the keys stream-terminator
@@ -147,9 +147,9 @@ func assertPathPrefixQuery(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) 
 // in sorted order.
 func sortedPointers(diags []ir.Diagnostic, code string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	slices.Sort(out)

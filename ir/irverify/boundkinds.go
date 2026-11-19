@@ -48,23 +48,23 @@ func foreignBounds(td ir.TypeDef) (string, bool) {
 	}
 }
 
-// beyondProps reports whether c holds a bound other than the property counts.
-func beyondProps(c *ir.Constraints) bool {
-	if c == nil {
+// beyondProps reports whether constraints holds a bound other than the property counts.
+func beyondProps(constraints *ir.Constraints) bool {
+	if constraints == nil {
 		return false
 	}
-	rest := *c
+	rest := *constraints
 	rest.MinProperties, rest.MaxProperties = nil, nil
 	return rest != ir.Constraints{}
 }
 
-// beyondItems reports whether c holds a bound other than the item counts and
+// beyondItems reports whether constraints holds a bound other than the item counts and
 // uniqueness. A false UniqueItems states nothing, as it is the field's zero.
-func beyondItems(c *ir.Constraints) bool {
-	if c == nil {
+func beyondItems(constraints *ir.Constraints) bool {
+	if constraints == nil {
 		return false
 	}
-	rest := *c
+	rest := *constraints
 	rest.MinItems, rest.MaxItems, rest.UniqueItems = nil, nil, false
 	return rest != ir.Constraints{}
 }

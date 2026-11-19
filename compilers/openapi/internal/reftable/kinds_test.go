@@ -171,11 +171,11 @@ func TestReadingAt_ReadsWhatKindsReadsLast(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(string(tc.pos.Pointer), func(t *testing.T) {
 			t.Parallel()
-			r := table.ReadingAt(tc.pos)
+			reading := table.ReadingAt(tc.pos)
 			kinds := table.Kinds(tc.pos)
-			assert.Equal(t, kinds[len(kinds)-1] == reftable.KindSchema, r.Schema(), "as Kinds reads it")
-			assert.Equal(t, tc.schema, r.Schema())
-			assert.Equal(t, tc.referable, r.Referable())
+			assert.Equal(t, kinds[len(kinds)-1] == reftable.KindSchema, reading.Schema(), "as Kinds reads it")
+			assert.Equal(t, tc.schema, reading.Schema())
+			assert.Equal(t, tc.referable, reading.Referable())
 		})
 	}
 }
@@ -192,7 +192,9 @@ func TestReading_BelowStepsTheGrammar(t *testing.T) {
 	assert.True(t, param.Below("schema").Schema())
 	assert.True(t, param.Below("content").Below("application/json").Below("schema").Schema())
 	encoding := param.Below("content").Below("multipart/form-data").Below("encoding").Below("f")
-	headerSchema := func(r reftable.Reading) bool { return r.Below("headers").Below("H").Below("schema").Schema() }
+	headerSchema := func(reading reftable.Reading) bool {
+		return reading.Below("headers").Below("H").Below("schema").Schema()
+	}
 	assert.True(t, headerSchema(encoding))
 	assert.False(t, headerSchema(encoding.Below("encoding").Below("g")))
 	assert.False(t, headerSchema(encoding.Below("prefixEncoding").Below("0")))

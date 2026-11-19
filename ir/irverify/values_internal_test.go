@@ -28,8 +28,8 @@ func TestValuePayloads_CoverTheDeclaredKinds(t *testing.T) {
 	require.NotEmpty(t, declared, "the ir sources must declare ValueKind constants")
 
 	declaredValues := make([]string, 0, len(declared))
-	for _, c := range declared {
-		declaredValues = append(declaredValues, c.Value)
+	for _, declaredConst := range declared {
+		declaredValues = append(declaredValues, declaredConst.Value)
 	}
 
 	tableValues := make([]string, 0, len(valuePayloads))
@@ -84,11 +84,11 @@ func valueCarriers(t *testing.T) []string {
 	payloadTypes := map[string]bool{"Value": true, "Field": true, "ConstructorValue": true}
 
 	var out []string
-	for _, f := range declaredFields(t) {
-		if payloadTypes[f.owner] || !holdsValue(t, value, f.field.Type(), 0) {
+	for _, declaredField := range declaredFields(t) {
+		if payloadTypes[declaredField.owner] || !holdsValue(t, value, declaredField.field.Type(), 0) {
 			continue
 		}
-		out = append(out, f.key())
+		out = append(out, declaredField.key())
 	}
 	slices.Sort(out)
 	return out

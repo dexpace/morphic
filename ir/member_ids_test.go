@@ -64,8 +64,8 @@ func TestEnumMemberKey_IsInjectiveAcrossKinds(t *testing.T) {
 	repeat, ok := ir.EnumMemberIDFor(enum, "string:a", 2)
 	require.True(t, ok)
 	seen := map[string]int{}
-	for i, v := range values {
-		key, ok := ir.EnumMemberKey(v)
+	for i, value := range values {
+		key, ok := ir.EnumMemberKey(value)
 		require.True(t, ok)
 		require.NotContains(t, seen, key, "values %d and %d share a key", seen[key], i)
 		seen[key] = i

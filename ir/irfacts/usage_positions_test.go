@@ -202,9 +202,9 @@ var usageSkippedSteps = map[string]bool{
 func usagePositions(
 	doc *ir.Document, notRootFields map[string]string, skip map[string]bool,
 ) (positions map[ir.TypeID]position, read map[string]bool) {
-	w := &positionWalk{types: usageNotRoots, fields: notRootFields, skip: skip, out: map[ir.TypeID]position{}}
-	w.walk(reflect.ValueOf(doc).Elem(), nil, "")
-	return w.out, w.read
+	positionWalkValue := &positionWalk{types: usageNotRoots, fields: notRootFields, skip: skip, out: map[ir.TypeID]position{}}
+	positionWalkValue.walk(reflect.ValueOf(doc).Elem(), nil, "")
+	return positionWalkValue.out, positionWalkValue.read
 }
 
 // usageFilledDocument fills every field of a document outside its registry,

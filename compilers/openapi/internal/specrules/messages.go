@@ -64,33 +64,33 @@ func (r *reporter) report(sev ir.Severity, class string, ptr jsontext.Pointer, f
 	r.add(diag.Newf(sev, diag.Validation+"/"+class, r.locate(ptr), format, args...), ptr)
 }
 
-// add adds d, a finding about the node read at ptr, unless it was made already:
+// add adds diagnostic, a finding about the node read at ptr, unless it was made already:
 // a node an alias mounts at two positions is read at each, and a defect in it
 // is one defect, at one node. Where readAt holds and that node is written
 // elsewhere, the message names the least position that read it, pointers
 // compared token by token, so the name is the document's and not the order a
 // walk met its mounts in.
-func (r *reporter) add(d ir.Diagnostic, ptr jsontext.Pointer) {
-	read, key := r.rootAt+ptr, d.Key()
-	s, made := r.said[key]
+func (r *reporter) add(diagnostic ir.Diagnostic, ptr jsontext.Pointer) {
+	read, key := r.rootAt+ptr, diagnostic.Key()
+	sayingValue, made := r.said[key]
 	switch {
 	case !made:
 		r.said[key] = saying{at: len(r.diags), read: read}
-		r.diags = append(r.diags, r.readAs(d, read))
-	case lessPointer(read, s.read):
-		r.said[key] = saying{at: s.at, read: read}
-		r.diags[s.at] = r.readAs(d, read)
+		r.diags = append(r.diags, r.readAs(diagnostic, read))
+	case lessPointer(read, sayingValue.read):
+		r.said[key] = saying{at: sayingValue.at, read: read}
+		r.diags[sayingValue.at] = r.readAs(diagnostic, read)
 	default:
 	}
 }
 
-// readAs returns d naming read, the position that read it, where readAt holds
-// and d is placed elsewhere.
-func (r *reporter) readAs(d ir.Diagnostic, read jsontext.Pointer) ir.Diagnostic {
-	if r.readAt && d.Provenance.Pointer != "" && d.Provenance.Pointer != read {
-		d.Message += readAtClause + string(read)
+// readAs returns diagnostic naming read, the position that read it, where readAt holds
+// and diagnostic is placed elsewhere.
+func (r *reporter) readAs(diagnostic ir.Diagnostic, read jsontext.Pointer) ir.Diagnostic {
+	if r.readAt && diagnostic.Provenance.Pointer != "" && diagnostic.Provenance.Pointer != read {
+		diagnostic.Message += readAtClause + string(read)
 	}
-	return d
+	return diagnostic
 }
 
 // placed returns the pointer a finding about the node at ptr is placed at, for
@@ -98,8 +98,8 @@ func (r *reporter) readAs(d ir.Diagnostic, read jsontext.Pointer) ir.Diagnostic 
 // position or $ref read it, or, where no pointer places the node, the position
 // that read it.
 func (r *reporter) placed(ptr jsontext.Pointer) jsontext.Pointer {
-	if p := r.locate(ptr).Pointer; p != "" {
-		return p
+	if pointer := r.locate(ptr).Pointer; pointer != "" {
+		return pointer
 	}
 	return r.rootAt + ptr
 }
@@ -119,13 +119,13 @@ func lessPointer(a, b jsontext.Pointer) bool {
 // readAtClause begins what Options.ReadAt adds to a message.
 const readAtClause = "; read at "
 
-// AsPlaced returns d without the position Options.ReadAt names: the finding as
+// AsPlaced returns diagnostic without the position Options.ReadAt names: the finding as
 // it is placed, which is the same whichever position read the node it is about.
-func AsPlaced(d ir.Diagnostic) ir.Diagnostic {
-	if i := strings.LastIndex(d.Message, readAtClause); i >= 0 {
-		d.Message = d.Message[:i]
+func AsPlaced(diagnostic ir.Diagnostic) ir.Diagnostic {
+	if i := strings.LastIndex(diagnostic.Message, readAtClause); i >= 0 {
+		diagnostic.Message = diagnostic.Message[:i]
 	}
-	return d
+	return diagnostic
 }
 
 // laterField adds the warning for a construct a later minor than the declared
@@ -253,8 +253,8 @@ func describeFormat(format Format) string {
 // describeTerms spells a condition the way the document writes it: in=header.
 func describeTerms(terms []Term) string {
 	parts := make([]string, len(terms))
-	for i, t := range terms {
-		parts[i] = describeTerm(t.Field, strings.Join(t.In, "|"))
+	for i, term := range terms {
+		parts[i] = describeTerm(term.Field, strings.Join(term.In, "|"))
 	}
 	return strings.Join(parts, ", ")
 }

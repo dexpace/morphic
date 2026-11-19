@@ -18,39 +18,39 @@ func schemaKeywords() []Field {
 // the check judges one as it reads it, bar a multipleOf written as a number no
 // greater than 0, which its shape refuses.
 func readBounds(fields []Field) []Field {
-	for i, f := range fields {
-		switch f.Name {
+	for i, field := range fields {
+		switch field.Name {
 		case "minimum", "maximum", "multipleOf", "exclusiveMinimum", "exclusiveMaximum":
-			fields[i] = f.decimal()
+			fields[i] = field.decimal()
 		}
 	}
 	return fields
 }
 
-// keyword returns a JSON Schema keyword defined during span s.
-func keyword(name string, shape Shape, s MinorVersionRange, cite Cite) Field {
-	return field(name, shape, cite).during(s).keyword()
+// keyword returns a JSON Schema keyword defined during span minorVersionRange.
+func keyword(name string, shape Shape, minorVersionRange MinorVersionRange, cite Cite) Field {
+	return field(name, shape, cite).during(minorVersionRange).keyword()
 }
 
 // schemaOf returns a keyword holding a schema.
-func schemaOf(name string, s MinorVersionRange, cite Cite) Field {
-	f := keyword(name, Nested, s, cite)
-	f.Of = Schema
-	return f
+func schemaOf(name string, minorVersionRange MinorVersionRange, cite Cite) Field {
+	field := keyword(name, Nested, minorVersionRange, cite)
+	field.Of = Schema
+	return field
 }
 
 // schemasOf returns a keyword holding a list of schemas.
-func schemasOf(name string, s MinorVersionRange, cite Cite) Field {
-	f := keyword(name, List, s, cite)
-	f.Of = Schema
-	return f
+func schemasOf(name string, minorVersionRange MinorVersionRange, cite Cite) Field {
+	field := keyword(name, List, minorVersionRange, cite)
+	field.Of = Schema
+	return field
 }
 
 // schemaMapOf returns a keyword holding a map of schemas.
-func schemaMapOf(name string, s MinorVersionRange, cite Cite) Field {
-	f := keyword(name, Map, s, cite)
-	f.Of = Schema
-	return f
+func schemaMapOf(name string, minorVersionRange MinorVersionRange, cite Cite) Field {
+	field := keyword(name, Map, minorVersionRange, cite)
+	field.Of = Schema
+	return field
 }
 
 // keywords30 are the keywords OpenAPI 3.0 takes from JSON Schema, a subset of
@@ -59,40 +59,40 @@ func keywords30() []Field {
 	c := sectioned("Schema Object")
 	direct := c(V30, "The following keywords are taken directly from the JSON Schema definition and follow the same specifications:")
 	adjust := func(sentence string) Cite { return c(V30, sentence) }
-	s := Only(V30)
+	minorVersionRange := Only(V30)
 	composed := adjust("Inline or referenced schema MUST be of a [Schema Object](#schema-object) and not a standard JSON Schema.")
 	return []Field{
-		keyword("$ref", String, s, adjust("Alternatively, any time a Schema Object can be used, a "+
+		keyword("$ref", String, minorVersionRange, adjust("Alternatively, any time a Schema Object can be used, a "+
 			"[Reference Object](#reference-object) can be used in its place.")).formatted(URI),
-		keyword("title", String, s, direct),
-		keyword("multipleOf", PositiveNumber, s, direct),
-		keyword("maximum", Number, s, direct),
-		keyword("exclusiveMaximum", Boolean, s, direct),
-		keyword("minimum", Number, s, direct),
-		keyword("exclusiveMinimum", Boolean, s, direct),
-		keyword("maxLength", Natural, s, direct),
-		keyword("minLength", Natural, s, direct),
-		keyword("pattern", String, s, direct),
-		keyword("maxItems", Natural, s, direct),
-		keyword("minItems", Natural, s, direct),
-		keyword("uniqueItems", Boolean, s, direct),
-		keyword("maxProperties", Natural, s, direct),
-		keyword("minProperties", Natural, s, direct),
-		keyword("required", StringList, s, direct),
-		keyword("enum", RawList, s, direct),
-		keyword("type", String, s, adjust("Value MUST be a string. Multiple types via an array are not supported.")).
+		keyword("title", String, minorVersionRange, direct),
+		keyword("multipleOf", PositiveNumber, minorVersionRange, direct),
+		keyword("maximum", Number, minorVersionRange, direct),
+		keyword("exclusiveMaximum", Boolean, minorVersionRange, direct),
+		keyword("minimum", Number, minorVersionRange, direct),
+		keyword("exclusiveMinimum", Boolean, minorVersionRange, direct),
+		keyword("maxLength", Natural, minorVersionRange, direct),
+		keyword("minLength", Natural, minorVersionRange, direct),
+		keyword("pattern", String, minorVersionRange, direct),
+		keyword("maxItems", Natural, minorVersionRange, direct),
+		keyword("minItems", Natural, minorVersionRange, direct),
+		keyword("uniqueItems", Boolean, minorVersionRange, direct),
+		keyword("maxProperties", Natural, minorVersionRange, direct),
+		keyword("minProperties", Natural, minorVersionRange, direct),
+		keyword("required", StringList, minorVersionRange, direct),
+		keyword("enum", RawList, minorVersionRange, direct),
+		keyword("type", String, minorVersionRange, adjust("Value MUST be a string. Multiple types via an array are not supported.")).
 			admits(vals("array", "boolean", "integer", "number", "object", "string")...),
-		schemasOf("allOf", s, composed), schemasOf("oneOf", s, composed), schemasOf("anyOf", s, composed),
-		schemaOf("not", s, composed),
-		schemaOf("items", s, adjust("Value MUST be an object and not an array.")),
-		schemaMapOf("properties", s, adjust("Property definitions MUST be a [Schema Object](#schema-object) and not a standard JSON Schema (inline or referenced).")),
-		schemaOf("additionalProperties", s, adjust("Value can be boolean or object.")).also(Boolean, s),
-		keyword("description", String, s, adjust("[CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.")),
-		keyword("format", String, s, adjust("See [Data Type Formats](#data-type-format) for further details.")),
-		keyword("default", AnyShapeUnchecked, s, adjust("The default value represents what would be assumed by the consumer of the input")),
-		keyword("readOnly", Boolean, s, c(V30, "Declares the property as \"read only\".")),
-		keyword("writeOnly", Boolean, s, c(V30, "Declares the property as \"write only\".")),
-		keyword("deprecated", Boolean, s, c(V30, "Specifies that a schema is deprecated and SHOULD be transitioned out of usage.")),
+		schemasOf("allOf", minorVersionRange, composed), schemasOf("oneOf", minorVersionRange, composed), schemasOf("anyOf", minorVersionRange, composed),
+		schemaOf("not", minorVersionRange, composed),
+		schemaOf("items", minorVersionRange, adjust("Value MUST be an object and not an array.")),
+		schemaMapOf("properties", minorVersionRange, adjust("Property definitions MUST be a [Schema Object](#schema-object) and not a standard JSON Schema (inline or referenced).")),
+		schemaOf("additionalProperties", minorVersionRange, adjust("Value can be boolean or object.")).also(Boolean, minorVersionRange),
+		keyword("description", String, minorVersionRange, adjust("[CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.")),
+		keyword("format", String, minorVersionRange, adjust("See [Data Type Formats](#data-type-format) for further details.")),
+		keyword("default", AnyShapeUnchecked, minorVersionRange, adjust("The default value represents what would be assumed by the consumer of the input")),
+		keyword("readOnly", Boolean, minorVersionRange, c(V30, "Declares the property as \"read only\".")),
+		keyword("writeOnly", Boolean, minorVersionRange, c(V30, "Declares the property as \"write only\".")),
+		keyword("deprecated", Boolean, minorVersionRange, c(V30, "Specifies that a schema is deprecated and SHOULD be transitioned out of usage.")),
 	}
 }
 
@@ -103,67 +103,67 @@ const dialectSentence = "Unless stated otherwise, the keyword definitions follow
 // dialectCore are the core vocabulary's keywords.
 func dialectCore() []Field {
 	cite := sectioned("Schema Object")(V31, dialectSentence)
-	s := From(V31)
+	minorVersionRange := From(V31)
 	return []Field{
-		keyword("$id", String, s, cite).formatted(ResourceURI),
-		keyword("$schema", String, s, cite).formatted(AbsoluteURI),
-		keyword("$ref", String, s, cite).formatted(URI),
-		keyword("$anchor", String, s, cite).formatted(AnchorName).nonEmpty(s),
-		keyword("$dynamicRef", String, s, cite).formatted(URI),
-		keyword("$dynamicAnchor", String, s, cite).formatted(AnchorName).nonEmpty(s),
-		keyword("$vocabulary", RawMap, s, cite),
-		keyword("$comment", String, s, cite),
-		schemaMapOf("$defs", s, cite),
+		keyword("$id", String, minorVersionRange, cite).formatted(ResourceURI),
+		keyword("$schema", String, minorVersionRange, cite).formatted(AbsoluteURI),
+		keyword("$ref", String, minorVersionRange, cite).formatted(URI),
+		keyword("$anchor", String, minorVersionRange, cite).formatted(AnchorName).nonEmpty(minorVersionRange),
+		keyword("$dynamicRef", String, minorVersionRange, cite).formatted(URI),
+		keyword("$dynamicAnchor", String, minorVersionRange, cite).formatted(AnchorName).nonEmpty(minorVersionRange),
+		keyword("$vocabulary", RawMap, minorVersionRange, cite),
+		keyword("$comment", String, minorVersionRange, cite),
+		schemaMapOf("$defs", minorVersionRange, cite),
 	}
 }
 
 // dialectApplicators are the applicator and unevaluated vocabularies' keywords.
 func dialectApplicators() []Field {
 	cite := sectioned("Schema Object")(V31, dialectSentence)
-	s := From(V31)
+	minorVersionRange := From(V31)
 	single := []string{
 		"items", "contains", "additionalProperties", "propertyNames", "if", "then", "else", "not",
 		"unevaluatedItems", "unevaluatedProperties", "contentSchema",
 	}
 	singles := make([]Field, len(single))
 	for i, name := range single {
-		singles[i] = schemaOf(name, s, cite)
+		singles[i] = schemaOf(name, minorVersionRange, cite)
 	}
 	return slices.Concat([]Field{
-		schemasOf("prefixItems", s, cite),
-		schemasOf("allOf", s, cite), schemasOf("anyOf", s, cite), schemasOf("oneOf", s, cite),
-		schemaMapOf("properties", s, cite), schemaMapOf("patternProperties", s, cite),
-		schemaMapOf("dependentSchemas", s, cite),
+		schemasOf("prefixItems", minorVersionRange, cite),
+		schemasOf("allOf", minorVersionRange, cite), schemasOf("anyOf", minorVersionRange, cite), schemasOf("oneOf", minorVersionRange, cite),
+		schemaMapOf("properties", minorVersionRange, cite), schemaMapOf("patternProperties", minorVersionRange, cite),
+		schemaMapOf("dependentSchemas", minorVersionRange, cite),
 	}, singles)
 }
 
 // dialectValidation are the validation vocabulary's keywords.
 func dialectValidation() []Field {
 	cite := sectioned("Schema Object")(V31, dialectSentence)
-	s := From(V31)
+	minorVersionRange := From(V31)
 	types := vals("array", "boolean", "integer", "number", "object", "string")
 	types = append(types, valFrom("null", V31))
 	return slices.Concat([]Field{
-		keyword("type", String, s, cite).admits(types...).also(StringList, s),
-		keyword("const", AnyShapeUnchecked, s, cite),
-		keyword("enum", RawList, s, cite),
-		keyword("multipleOf", PositiveNumber, s, cite),
-		keyword("required", StringList, s, cite),
-		keyword("dependentRequired", RawMap, s, cite),
-		keyword("pattern", String, s, cite),
-		keyword("uniqueItems", Boolean, s, cite),
+		keyword("type", String, minorVersionRange, cite).admits(types...).also(StringList, minorVersionRange),
+		keyword("const", AnyShapeUnchecked, minorVersionRange, cite),
+		keyword("enum", RawList, minorVersionRange, cite),
+		keyword("multipleOf", PositiveNumber, minorVersionRange, cite),
+		keyword("required", StringList, minorVersionRange, cite),
+		keyword("dependentRequired", RawMap, minorVersionRange, cite),
+		keyword("pattern", String, minorVersionRange, cite),
+		keyword("uniqueItems", Boolean, minorVersionRange, cite),
 	},
-		keywordsOf(Number, s, cite, "maximum", "minimum", "exclusiveMaximum", "exclusiveMinimum"),
-		keywordsOf(Natural, s, cite, "maxLength", "minLength", "maxItems", "minItems", "maxContains", "minContains",
+		keywordsOf(Number, minorVersionRange, cite, "maximum", "minimum", "exclusiveMaximum", "exclusiveMinimum"),
+		keywordsOf(Natural, minorVersionRange, cite, "maxLength", "minLength", "maxItems", "minItems", "maxContains", "minContains",
 			"maxProperties", "minProperties"),
 	)
 }
 
 // keywordsOf returns the keywords of one shape that share a citation.
-func keywordsOf(shape Shape, s MinorVersionRange, cite Cite, names ...string) []Field {
+func keywordsOf(shape Shape, minorVersionRange MinorVersionRange, cite Cite, names ...string) []Field {
 	out := make([]Field, len(names))
 	for i, name := range names {
-		out[i] = keyword(name, shape, s, cite)
+		out[i] = keyword(name, shape, minorVersionRange, cite)
 	}
 	return out
 }
@@ -172,18 +172,18 @@ func keywordsOf(shape Shape, s MinorVersionRange, cite Cite, names ...string) []
 // keywords.
 func dialectAnnotations() []Field {
 	cite := sectioned("Schema Object")(V31, dialectSentence)
-	s := From(V31)
+	minorVersionRange := From(V31)
 	return []Field{
-		keyword("format", String, s, cite),
-		keyword("contentEncoding", String, s, cite),
-		keyword("contentMediaType", String, s, cite),
-		keyword("title", String, s, cite),
-		keyword("description", String, s, cite),
-		keyword("default", AnyShapeUnchecked, s, cite),
-		keyword("deprecated", Boolean, s, cite),
-		keyword("readOnly", Boolean, s, cite),
-		keyword("writeOnly", Boolean, s, cite),
-		keyword("examples", RawList, s, cite),
+		keyword("format", String, minorVersionRange, cite),
+		keyword("contentEncoding", String, minorVersionRange, cite),
+		keyword("contentMediaType", String, minorVersionRange, cite),
+		keyword("title", String, minorVersionRange, cite),
+		keyword("description", String, minorVersionRange, cite),
+		keyword("default", AnyShapeUnchecked, minorVersionRange, cite),
+		keyword("deprecated", Boolean, minorVersionRange, cite),
+		keyword("readOnly", Boolean, minorVersionRange, cite),
+		keyword("writeOnly", Boolean, minorVersionRange, cite),
+		keyword("examples", RawList, minorVersionRange, cite),
 	}
 }
 

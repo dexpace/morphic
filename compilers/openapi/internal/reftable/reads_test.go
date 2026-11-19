@@ -44,10 +44,10 @@ func TestBind_AReadBarredToOneAskerIsNoAnswerOfTheDocument(t *testing.T) {
 		table := bound(t, head+"components:\n  schemas:\n"+schemas, cfg)
 
 		assert.Equal(t, reftable.Resolved, entryAt(t, table, "/components/schemas/B").Chain.Status)
-		e, ok := table.Entry(reftable.DocumentPointer{Doc: docNamed(t, table, evil), Pointer: "/X"})
+		referenceSite, ok := table.Entry(reftable.DocumentPointer{Doc: docNamed(t, table, evil), Pointer: "/X"})
 		require.True(t, ok)
-		assert.Equal(t, reftable.Unresolved, e.Hop.Status)
-		assert.Equal(t, why, e.Hop.Detail)
+		assert.Equal(t, reftable.Unresolved, referenceSite.Hop.Status)
+		assert.Equal(t, why, referenceSite.Hop.Detail)
 		assert.Equal(t, why, (&reftable.BarredError{Why: why}).Error())
 		count := 0
 		for _, a := range opens {

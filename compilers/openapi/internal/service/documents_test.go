@@ -50,14 +50,14 @@ func loadSplit(t *testing.T, ext string) (service.Ctx, *load.LoadedOpenAPIDocume
 }
 
 // extDoc returns the bindings' number for ext.yaml: where A's $ref lands.
-func extDoc(t *testing.T, c service.Ctx) reftable.DocID {
+func extDoc(t *testing.T, serviceContext service.Ctx) reftable.DocID {
 	t.Helper()
-	a, ok := c.Doc.Components.Schemas.Get("A")
+	a, ok := serviceContext.Doc.Components.Schemas.Get("A")
 	require.True(t, ok)
-	e, ok := c.Bindings().Entry(a)
+	referenceSite, ok := serviceContext.Bindings().Entry(a)
 	require.True(t, ok)
-	require.NotEqual(t, reftable.Source, e.Hop.Target.Doc, "sanity: A lands in ext.yaml")
-	return e.Hop.Target.Doc
+	require.NotEqual(t, reftable.Source, referenceSite.Hop.Target.Doc, "sanity: A lands in ext.yaml")
+	return referenceSite.Hop.Target.Doc
 }
 
 // TestEncodingRules_FollowTheDocumentTheContextReads pins which document's
@@ -65,11 +65,11 @@ func extDoc(t *testing.T, c service.Ctx) reftable.DocID {
 // context reads, the load phase's own for each.
 func TestEncodingRules_FollowTheDocumentTheContextReads(t *testing.T) {
 	t.Parallel()
-	c, doc := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
-	if service.EncodingRules(c) != doc.Rows.Encoding {
+	serviceContext, doc := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
+	if service.EncodingRules(serviceContext) != doc.Rows.Encoding {
 		t.Error("an encoding the source declares reads another document's rows")
 	}
-	there, ok := service.InDocument(c, extDoc(t, c))
+	there, ok := service.InDocument(serviceContext, extDoc(t, serviceContext))
 	require.True(t, ok)
 	if service.EncodingRules(there) != doc.Others.List()[0].Rows.Encoding {
 		t.Error("an encoding ext.yaml declares reads another document's rows")
@@ -81,9 +81,9 @@ func TestEncodingRules_FollowTheDocumentTheContextReads(t *testing.T) {
 // its label, in Sources order.
 func TestOtherIDs_NamesEachDocumentReadBesideTheSource(t *testing.T) {
 	t.Parallel()
-	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	serviceContext, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 
-	assert.Equal(t, []ids.DocumentIDNamespace{ids.In("ext.yaml")}, service.OtherIDs(c))
+	assert.Equal(t, []ids.DocumentIDNamespace{ids.In("ext.yaml")}, service.OtherIDs(serviceContext))
 }
 
 // TestDeclared_LowersAReferencedObjectWhereItIsDeclared pins where a reference
@@ -100,12 +100,12 @@ func TestDeclared_LowersAReferencedObjectWhereItIsDeclared(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			c, _ := loadSplit(t, tc.ext)
-			a, ok := c.Doc.Paths.Get("/a")
+			serviceContext, _ := loadSplit(t, tc.ext)
+			a, ok := serviceContext.Doc.Paths.Get("/a")
 			require.True(t, ok)
 			ref := a.GetObject().Get().GetParameters()[0]
 
-			p, there, at := service.Declared[soa.Parameter](c, ref, "/paths/~1a/get/parameters/0")
+			p, there, at := service.Declared[soa.Parameter](serviceContext, ref, "/paths/~1a/get/parameters/0")
 
 			require.NotNil(t, p)
 			assert.Equal(t, tc.name, p.GetName())
@@ -122,11 +122,11 @@ func TestDeclared_LowersAReferencedObjectWhereItIsDeclared(t *testing.T) {
 // document.
 func TestDeclared_LowersNothingInADocumentTheContextDidNotList(t *testing.T) {
 	t.Parallel()
-	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	serviceContext, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 	none := *doc
 	none.Others = load.Others{}
 	unread := service.New(0, &none, service.Policy{})
-	a, ok := c.Doc.Paths.Get("/a")
+	a, ok := serviceContext.Doc.Paths.Get("/a")
 	require.True(t, ok)
 	ref := a.GetObject().Get().GetParameters()[0]
 
@@ -144,11 +144,11 @@ func TestDeclared_LowersNothingInADocumentTheContextDidNotList(t *testing.T) {
 // reference is written at, and that pointer is no key.
 func TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference(t *testing.T) {
 	t.Parallel()
-	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
-	a, ok := c.Doc.Paths.Get("/a")
+	serviceContext, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	a, ok := serviceContext.Doc.Paths.Get("/a")
 	require.True(t, ok)
 	ref := a.GetObject().Get().GetParameters()[0]
-	inExt, ok := service.InDocument(c, extDoc(t, c))
+	inExt, ok := service.InDocument(serviceContext, extDoc(t, serviceContext))
 	require.True(t, ok)
 
 	_, there, at := service.Declared[soa.Parameter](inExt, ref, "/paths/~1a/get/parameters/0")
@@ -163,12 +163,12 @@ func TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference(t *testing.T) {
 // reported it.
 func TestDeclared_KeepsTheUseSiteOfAReferenceThatResolvedNothing(t *testing.T) {
 	t.Parallel()
-	c, _ := loadSplit(t, "X: {type: string}\n")
-	a, ok := c.Doc.Paths.Get("/a")
+	serviceContext, _ := loadSplit(t, "X: {type: string}\n")
+	a, ok := serviceContext.Doc.Paths.Get("/a")
 	require.True(t, ok)
 	ref := a.GetObject().Get().GetParameters()[0]
 
-	p, there, at := service.Declared[soa.Parameter](c, ref, "/paths/~1a/get/parameters/0")
+	p, there, at := service.Declared[soa.Parameter](serviceContext, ref, "/paths/~1a/get/parameters/0")
 
 	assert.Nil(t, p)
 	assert.Equal(t, "/paths/~1a/get/parameters/0", string(at))
@@ -193,15 +193,15 @@ func TestInDocument_PlacesADocumentByItsNumberNotItsSourcesEntry(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc, "%+v", diags)
 	require.True(t, doc.Overlay.Applied())
-	c := service.New(0, doc, service.Policy{})
-	id := extDoc(t, c)
+	serviceContext := service.New(0, doc, service.Policy{})
+	id := extDoc(t, serviceContext)
 	require.Equal(t, reftable.DocID(1), id, "sanity: ext.yaml is the table's second document")
 
-	there, ok := service.InDocument(c, id)
+	there, ok := service.InDocument(serviceContext, id)
 	require.True(t, ok)
 	assert.Equal(t, 2, there.Place().Source, "ext.yaml's Document.Sources entry, after the overlay's")
 	assert.Equal(t, ids.In("ext.yaml"), there.IDs())
 	assert.Equal(t, id, there.Position("/X").Doc)
-	_, ok = service.InDocument(c, 2)
+	_, ok = service.InDocument(serviceContext, 2)
 	assert.False(t, ok, "no document of the table is numbered by ext.yaml's Document.Sources entry")
 }

@@ -35,8 +35,8 @@ func keptOn(t *testing.T, doc *ir.Document, name string) map[string]string {
 	td := typeByName(doc, name)
 	require.NotNil(t, td, name)
 	out := map[string]string{}
-	for key, e := range td.Common().Unmodeled {
-		out[key] = string(e.Value) + " [" + string(e.Reason) + "]"
+	for key, unmodeledEntry := range td.Common().Unmodeled {
+		out[key] = string(unmodeledEntry.Value) + " [" + string(unmodeledEntry.Reason) + "]"
 	}
 	return out
 }
@@ -44,9 +44,9 @@ func keptOn(t *testing.T, doc *ir.Document, name string) map[string]string {
 // reportsAt returns the messages of the findings drawn at pointer.
 func reportsAt(diags []ir.Diagnostic, pointer string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out
@@ -376,12 +376,12 @@ func keptAndSaid(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, name str
 	t.Helper()
 	td := typeByName(doc, name)
 	require.NotNil(t, td, name)
-	for key, e := range td.Common().Unmodeled {
+	for key, unmodeledEntry := range td.Common().Unmodeled {
 		switch {
-		case e.Reason == ir.ReasonVendorExtension:
+		case unmodeledEntry.Reason == ir.ReasonVendorExtension:
 		case strings.HasPrefix(key, "openapi:allOf/"):
 			var members map[string]jsontext.Value
-			require.NoError(t, json.Unmarshal(e.Value, &members), key)
+			require.NoError(t, json.Unmarshal(unmodeledEntry.Value, &members), key)
 			for member := range members {
 				kept = append(kept, "allOf:"+member)
 			}
@@ -390,19 +390,19 @@ func keptAndSaid(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, name str
 		}
 	}
 	at := "/components/schemas/" + name
-	for _, d := range diags {
-		pointer := string(d.Provenance.Pointer)
-		if d.Severity == ir.SeverityError || !strings.HasPrefix(pointer, at) || !strings.Contains(d.Message, "kept verbatim") {
+	for _, diagnostic := range diags {
+		pointer := string(diagnostic.Provenance.Pointer)
+		if diagnostic.Severity == ir.SeverityError || !strings.HasPrefix(pointer, at) || !strings.Contains(diagnostic.Message, "kept verbatim") {
 			continue
 		}
-		switch before, _, apart := strings.Cut(d.Message, " otherwise than this inline branch"); {
+		switch before, _, apart := strings.Cut(diagnostic.Message, " otherwise than this inline branch"); {
 		case apart:
 			_, list, _ := strings.Cut(before, " write ")
 			for keyword := range strings.SplitSeq(list, ", ") {
 				said = append(said, "allOf:"+keyword)
 			}
-		case strings.Contains(d.Message, "which has no home for "):
-			_, list, _ := strings.Cut(d.Message, "which has no home for ")
+		case strings.Contains(diagnostic.Message, "which has no home for "):
+			_, list, _ := strings.Cut(diagnostic.Message, "which has no home for ")
 			list, _, _ = strings.Cut(list, " declared beside it")
 			said = append(said, strings.Split(list, ", ")...)
 		default:
@@ -457,8 +457,8 @@ func TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName(t *testing.T) {
 		if tc.failure == "" {
 			continue
 		}
-		failed := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-			return d.Code == tc.failure && strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/"+tc.name+"/allOf/0")
+		failed := slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Code == tc.failure && strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/"+tc.name+"/allOf/0")
 		})
 		assert.True(t, failed, "%s: the failure is reported at the entry", tc.name)
 	}
@@ -650,9 +650,9 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 	require.Len(t, whole, 1)
 	assert.Contains(t, whole[0], "the branch (minimum, x-k)", "the whole wrapper names what the principal's readers said, once")
 	assert.Empty(t, reportsAt(diags, "/components/schemas/Whole/allOf/0/allOf/0"))
-	for _, d := range diags {
-		assert.False(t, strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/WholeAround/allOf/0/allOf/0"),
-			"what a whole wrapper holds is reported by it alone: %s", d.Message)
+	for _, diagnostic := range diags {
+		assert.False(t, strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/WholeAround/allOf/0/allOf/0"),
+			"what a whole wrapper holds is reported by it alone: %s", diagnostic.Message)
 	}
 }
 
@@ -746,9 +746,9 @@ func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
 		require.Len(t, kept, 1, "%s: kept once: %v", name, kept)
 		assert.Contains(t, kept, key, name)
 		said := 0
-		for _, d := range diags {
-			if strings.HasPrefix(string(d.Provenance.Pointer), at) && (d.Provenance.Pointer == jsontext.Pointer(at) ||
-				strings.HasPrefix(string(d.Provenance.Pointer), at+"/")) {
+		for _, diagnostic := range diags {
+			if strings.HasPrefix(string(diagnostic.Provenance.Pointer), at) && (diagnostic.Provenance.Pointer == jsontext.Pointer(at) ||
+				strings.HasPrefix(string(diagnostic.Provenance.Pointer), at+"/")) {
 				said++
 			}
 		}
@@ -794,9 +794,9 @@ func TestPrincipalKept_AnAlikeKeywordStandsWithItsFirstKeeper(t *testing.T) {
 		assert.Equal(t, tc.kept, keptOn(t, doc, tc.name)[tc.key], tc.name)
 		assert.Equal(t, jsontext.Pointer(at+tc.at), typeByName(doc, tc.name).Common().Unmodeled[tc.key].Provenance.Pointer, tc.name)
 		var said []string
-		for _, d := range diags {
-			if strings.HasPrefix(string(d.Provenance.Pointer), at) && strings.Contains(d.Message, strings.TrimPrefix(tc.key, "openapi:")) {
-				said = append(said, string(d.Provenance.Pointer)+": "+d.Message)
+		for _, diagnostic := range diags {
+			if strings.HasPrefix(string(diagnostic.Provenance.Pointer), at) && strings.Contains(diagnostic.Message, strings.TrimPrefix(tc.key, "openapi:")) {
+				said = append(said, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 			}
 		}
 		assert.Len(t, said, 1, "%s: reported once: %v", tc.name, said)
@@ -845,8 +845,8 @@ func TestPrincipalKept_ABoundATypeListVariantReadsIsKeptNowhere(t *testing.T) {
 	}
 	said := func(name, keyword string) (n int) {
 		at := "/components/schemas/" + name
-		for _, d := range diags {
-			if p := string(d.Provenance.Pointer); (p == at || strings.HasPrefix(p, at+"/")) && strings.Contains(d.Message, keyword) {
+		for _, diagnostic := range diags {
+			if p := string(diagnostic.Provenance.Pointer); (p == at || strings.HasPrefix(p, at+"/")) && strings.Contains(diagnostic.Message, keyword) {
 				n++
 			}
 		}

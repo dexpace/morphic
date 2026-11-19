@@ -610,8 +610,8 @@ func mappingOf(key, val *yaml.Node) *yaml.Node {
 func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	t.Parallel()
 
-	c := newRawConv()
-	got, err := c.node(nil, nil, 0)
+	rawConv := newRawConv()
+	got, err := rawConv.node(nil, nil, 0)
 	require.Error(t, err, "a nil node is a caller bug, not an absent construct")
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "nil yaml node")

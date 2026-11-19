@@ -63,16 +63,16 @@ func (d *dialects) own() Rows {
 // at returns the rows of the dialect uri names at the minor version names.
 func (d *dialects) at(version, uri string) dialectRows {
 	minor, _ := supportedMinor(version)
-	k := dialectKey{minor: minor, dialect: uri}
-	if r, built := d.rows[k]; built {
-		return r
+	dialectKeyValue := dialectKey{minor: minor, dialect: uri}
+	if dialectRows, built := d.rows[dialectKeyValue]; built {
+		return dialectRows
 	}
 	if d.rows == nil {
 		d.rows = map[dialectKey]dialectRows{}
 	}
 	rows, unread := rowsAt(d.spec, version, uri)
-	d.rows[k] = dialectRows{rows: rows, unread: unread}
-	return d.rows[k]
+	d.rows[dialectKeyValue] = dialectRows{rows: rows, unread: unread}
+	return d.rows[dialectKeyValue]
 }
 
 // readDialects returns the rows of each dialect a schema of the documents
@@ -83,7 +83,7 @@ func (d *dialects) at(version, uri string) dialectRows {
 // chooses nothing and draws none: validation reports it where it judges it,
 // which in a document a reference reaches is only what the reference reaches.
 // Each document is read under one name (componentlookup.Locate), so warned of once.
-func readDialects(table *reftable.ReferenceTargetTable, others Others, d *dialects, sites places) (dialect.SchemaDialectRows, []ir.Diagnostic) {
+func readDialects(table *reftable.ReferenceTargetTable, others Others, dialectsValue *dialects, sites places) (dialect.SchemaDialectRows, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	unread := func(at ir.Provenance, keyword, uri string) {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.UnreadDialect, at,
@@ -91,35 +91,35 @@ func readDialects(table *reftable.ReferenceTargetTable, others Others, d *dialec
 				"read in the dialect their OpenAPI version names", keyword, uri))
 	}
 	at := jsontext.Pointer("").AppendToken("jsonSchemaDialect")
-	if d.at(d.version, d.dialect).unread {
-		unread(sites.position(reftable.DocumentPointer{Doc: reftable.Source, Pointer: at}), "jsonSchemaDialect", d.dialect)
+	if dialectsValue.at(dialectsValue.version, dialectsValue.dialect).unread {
+		unread(sites.position(reftable.DocumentPointer{Doc: reftable.Source, Pointer: at}), "jsonSchemaDialect", dialectsValue.dialect)
 	}
-	for _, o := range others.List() {
-		if d.at(o.version, o.dialect).unread {
-			unread(provenance.Doc{Source: o.Index}.At(at), "jsonSchemaDialect", o.dialect)
+	for _, other := range others.List() {
+		if dialectsValue.at(other.version, other.dialect).unread {
+			unread(provenance.Doc{Source: other.Index}.At(at), "jsonSchemaDialect", other.dialect)
 		}
 	}
-	source := d.at(d.version, d.dialect).rows.Schema
+	source := dialectsValue.at(dialectsValue.version, dialectsValue.dialect).rows.Schema
 	b := dialect.NewBuilder(source)
 	for id := range reftable.DocID(table.Documents()) {
-		version, ok := versionOf(table, others, d, id)
+		version, ok := versionOf(table, others, dialectsValue, id)
 		if !ok {
 			continue
 		}
 		own := source
-		if o, listed := others.Named(table.Document(id).Name); listed && id != reftable.Source {
-			own = d.at(o.version, o.dialect).rows.Schema
+		if other, listed := others.Named(table.Document(id).Name); listed && id != reftable.Source {
+			own = dialectsValue.at(other.version, other.dialect).rows.Schema
 			b.Document(id, own)
 		}
 		// Innermost first: a root's pointer extends that of a root holding it,
 		// so it sorts after, and the list is in pointer order.
 		for _, root := range slices.Backward(table.Document(id).Dialects) {
-			r := d.at(version, root.URI)
-			if r.unread {
+			dialectRows := dialectsValue.at(version, root.URI)
+			if dialectRows.unread {
 				unread(sites.position(reftable.DocumentPointer{Doc: id, Pointer: root.At.Pointer.AppendToken("$schema")}), "$schema",
 					root.URI)
 			}
-			b.Root(root.At, root.Node, r.rows.Schema)
+			b.Root(root.At, root.Node, dialectRows.rows.Schema)
 		}
 		// Outermost last: a node no root holds reads its document's own rows,
 		// noted only where they are not the source's, which Table.Of gives a
@@ -133,12 +133,12 @@ func readDialects(table *reftable.ReferenceTargetTable, others Others, d *dialec
 
 // versionOf returns the version the schemas of document id of table are read
 // at, and false for a document the compile did not read beside the source.
-func versionOf(table *reftable.ReferenceTargetTable, others Others, d *dialects, id reftable.DocID) (string, bool) {
+func versionOf(table *reftable.ReferenceTargetTable, others Others, dialectsValue *dialects, id reftable.DocID) (string, bool) {
 	if id == reftable.Source {
-		return d.version, true
+		return dialectsValue.version, true
 	}
-	o, ok := others.Named(table.Document(id).Name)
-	return o.version, ok
+	other, ok := others.Named(table.Document(id).Name)
+	return other.version, ok
 }
 
 // dialectRuleOf returns what the binder reads otherwise in uri's dialect, whose

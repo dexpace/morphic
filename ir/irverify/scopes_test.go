@@ -56,9 +56,9 @@ func TestVerify_ARepeatedOAuthScopeIsAViolation(t *testing.T) {
 			got := verifyDeclared(scopesDoc(tc.flows...))
 
 			paths := make([]string, 0, len(got))
-			for _, v := range got {
-				assert.Equal(t, "ir/oauth-scope-duplicate", v.Code)
-				paths = append(paths, v.Path)
+			for _, violation := range got {
+				assert.Equal(t, "ir/oauth-scope-duplicate", violation.Code)
+				paths = append(paths, violation.Path)
 			}
 			assert.Equal(t, tc.paths, nilIfEmpty(paths))
 		})

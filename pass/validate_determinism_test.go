@@ -271,7 +271,7 @@ func TestReadRepeatedly_ReadsATwoFindingDocumentUntilItHasSaidSoEveryTime(t *tes
 
 	t.Run("a reading that differs", func(t *testing.T) {
 		t.Parallel()
-		reads, f := 0, &failures{}
+		reads, failuresValue := 0, &failures{}
 		flip := func() []ir.Diagnostic {
 			reads++
 			if reads == determinismRuns {
@@ -280,8 +280,8 @@ func TestReadRepeatedly_ReadsATwoFindingDocumentUntilItHasSaidSoEveryTime(t *tes
 			return []ir.Diagnostic{finding("a"), finding("b")}
 		}
 
-		assert.PanicsWithValue(t, f, func() { readRepeatedly(f, flip) })
+		assert.PanicsWithValue(t, failuresValue, func() { readRepeatedly(failuresValue, flip) })
 		assert.Equal(t, determinismRuns, reads, "the last reading is the one that differs")
-		assert.Len(t, f.told, 1)
+		assert.Len(t, failuresValue.told, 1)
 	})
 }

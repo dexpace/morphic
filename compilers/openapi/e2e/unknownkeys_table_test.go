@@ -28,8 +28,8 @@ import (
 
 // findingLine renders one diagnostic as "severity code pointer", the form the
 // tests below compare whole lists in.
-func findingLine(d ir.Diagnostic) string {
-	return fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer)
+func findingLine(diagnostic ir.Diagnostic) string {
+	return fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer)
 }
 
 // findingsOf returns every finding carrying one of the codes, rendered by
@@ -37,9 +37,9 @@ func findingLine(d ir.Diagnostic) string {
 // reported in.
 func findingsOf(diags []ir.Diagnostic, codes ...string) []string {
 	var out []string
-	for _, d := range diags {
-		if slices.Contains(codes, d.Code) {
-			out = append(out, findingLine(d))
+	for _, diagnostic := range diags {
+		if slices.Contains(codes, diagnostic.Code) {
+			out = append(out, findingLine(diagnostic))
 		}
 	}
 	slices.Sort(out)
@@ -50,9 +50,9 @@ func findingsOf(diags []ir.Diagnostic, codes ...string) []string {
 // one finding, so a second code about the same key shows here.
 func codesAt(diags []ir.Diagnostic, pointer string) []string {
 	var out []string
-	for _, d := range diags {
-		if string(d.Provenance.Pointer) == pointer {
-			out = append(out, d.Code)
+	for _, diagnostic := range diags {
+		if string(diagnostic.Provenance.Pointer) == pointer {
+			out = append(out, diagnostic.Code)
 		}
 	}
 	slices.Sort(out)
@@ -63,9 +63,9 @@ func codesAt(diags []ir.Diagnostic, pointer string) []string {
 func messageAt(t *testing.T, diags []ir.Diagnostic, code, pointer string) string {
 	t.Helper()
 	var out []string
-	for _, d := range diags {
-		if d.Code == code && string(d.Provenance.Pointer) == pointer {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && string(diagnostic.Provenance.Pointer) == pointer {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	require.Len(t, out, 1, "%s at %s", code, pointer)
@@ -137,8 +137,8 @@ func TestUnknownKeys_UnreferencedComponents(t *testing.T) {
 	assert.Equal(t, want, findingsOf(diags, diag.UnknownObjectKey, diag.UnknownSchemaKeyword),
 		"every key once, and a schema's keyword as the dialect's")
 	all := make([]string, 0, len(diags))
-	for _, d := range diags {
-		all = append(all, findingLine(d))
+	for _, diagnostic := range diags {
+		all = append(all, findingLine(diagnostic))
 	}
 	slices.Sort(all)
 	assert.Equal(t, want, all, "nothing else is reported about this document")
@@ -445,9 +445,9 @@ func TestUnknownKeys_MergedKeyIsPlacedWhereItIsWritten(t *testing.T) {
 	doc, diags := compileAnnotationSpec(t, "merged", mergedAndRepeatedSpec)
 
 	var found []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.UnknownObjectKey {
-			found = append(found, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnknownObjectKey {
+			found = append(found, diagnostic)
 		}
 	}
 	require.Len(t, found, 1, "one finding for the merged key: %+v", found)
@@ -554,20 +554,20 @@ func TestUnknownKeys_EveryKeptKeyIsReported(t *testing.T) {
 				inSchemaKeywordPosition(p) || p == "/jsonSchemaDialect" {
 				continue
 			}
-			if slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-				at := string(d.Provenance.Pointer)
-				return at == p && slices.Contains(otherCodes, d.Code) ||
-					d.Code == diag.Validation+"/validation-no-effect" && strings.HasPrefix(p, at+"/")
+			if slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+				at := string(diagnostic.Provenance.Pointer)
+				return at == p && slices.Contains(otherCodes, diagnostic.Code) ||
+					diagnostic.Code == diag.Validation+"/validation-no-effect" && strings.HasPrefix(p, at+"/")
 			}) {
 				continue
 			}
 			// A key merged in from a source written inline is placed where it is
 			// written, which no pointer reaches, so its finding names the key alone.
 			inline := fmt.Sprintf("key %q ", last)
-			reported := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-				return d.Code == diag.UnknownObjectKey && (string(d.Provenance.Pointer) == p ||
-					strings.HasSuffix(d.Message, "read at "+p) ||
-					d.Provenance.Pointer == "" && strings.HasPrefix(d.Message, inline))
+			reported := slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+				return diagnostic.Code == diag.UnknownObjectKey && (string(diagnostic.Provenance.Pointer) == p ||
+					strings.HasSuffix(diagnostic.Message, "read at "+p) ||
+					diagnostic.Provenance.Pointer == "" && strings.HasPrefix(diagnostic.Message, inline))
 			})
 			assert.True(t, reported, "%s: %s kept as %s at %s has no unknown-object-key finding",
 				path, site.path, site.key, p)

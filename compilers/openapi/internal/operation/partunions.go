@@ -80,15 +80,15 @@ func newPartUnions() *partUnions {
 // is shared, so a caller copies it before keeping it.
 func (u *partUnions) partDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules specrules.EncodingRules, decl *ir.Property, encodedBy contentEncoding) ([]string, bool) {
 	key := defaultKey{rules: rules, of: decl.Type.Target, encodedBy: encodedBy}
-	if r, read := u.defaults[key]; read {
-		return r.types, r.ok
+	if defaultRead, read := u.defaults[key]; read {
+		return defaultRead.types, defaultRead.ok
 	}
-	var r defaultRead
+	var defaultReadValue defaultRead
 	if values, ok := partValues(u, node, []*ir.Property{decl}); ok {
-		r = defaultRead{types: defaultContentType(u, node, rules, values, encodedBy), ok: true}
+		defaultReadValue = defaultRead{types: defaultContentType(u, node, rules, values, encodedBy), ok: true}
 	}
-	u.defaults[key] = r
-	return r.types, r.ok
+	u.defaults[key] = defaultReadValue
+	return defaultReadValue.types, defaultReadValue.ok
 }
 
 // itemDefault returns the default content type of the items of type item a
@@ -96,23 +96,23 @@ func (u *partUnions) partDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules 
 // list is shared, so a caller copies it before keeping it.
 func (u *partUnions) itemDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules specrules.EncodingRules, item ir.TypeRef, encodedBy contentEncoding) []string {
 	key := defaultKey{rules: rules, of: item.Target, encodedBy: encodedBy, item: true}
-	if r, read := u.defaults[key]; read {
-		return r.types
+	if defaultRead, read := u.defaults[key]; read {
+		return defaultRead.types
 	}
 	types := defaultContentType(u, node, rules, []ir.TypeRef{item}, encodedBy)
 	u.defaults[key] = defaultRead{types: types, ok: true}
 	return types
 }
 
-// partUnionsOf returns the run's partUnions, which every copy of c shares.
-func partUnionsOf(c service.Ctx) *partUnions {
-	return lowering.Settled(c.Ctx, newPartUnions)
+// partUnionsOf returns the run's partUnions, which every copy of serviceContext shares.
+func partUnionsOf(serviceContext service.Ctx) *partUnions {
+	return lowering.Settled(serviceContext.Ctx, newPartUnions)
 }
 
 // membersOf returns the members of union (unionMembers), read once.
 func (u *partUnions) membersOf(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union) ([]ir.TypeRef, bool) {
-	if r, read := u.members[union.ID]; read {
-		return r.refs, r.ok
+	if unionRead, read := u.members[union.ID]; read {
+		return unionRead.refs, unionRead.ok
 	}
 	refs, ok := unionMembers(node, union)
 	refs = slices.Clip(refs)
@@ -124,8 +124,8 @@ func (u *partUnions) membersOf(node func(ir.TypeID) (ir.TypeDef, bool), union *i
 // (partTypeFlags), read once for a multipart body and once for any other.
 func (u *partUnions) flagsOf(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union, multipart bool) (multi, file, decided bool) {
 	key := unionFlagsKey{id: union.ID, multipart: multipart}
-	if f, read := u.flags[key]; read {
-		return f.multi, f.file, f.decided
+	if unionFlags, read := u.flags[key]; read {
+		return unionFlags.multi, unionFlags.file, unionFlags.decided
 	}
 	members, ok := u.membersOf(node, union)
 	if ok {
@@ -143,14 +143,14 @@ func (u *partUnions) flagsOf(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.
 // (partValues): each member's items, read once. The list is shared, so a
 // caller reads it and never writes it.
 func (u *partUnions) valuesOf(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union) ([]ir.TypeRef, bool) {
-	if r, read := u.values[union.ID]; read {
-		return r.refs, r.ok
+	if unionRead, read := u.values[union.ID]; read {
+		return unionRead.refs, unionRead.ok
 	}
 	members, ok := u.membersOf(node, union)
 	var values []ir.TypeRef
 	if ok {
-		for _, m := range members {
-			values = append(values, itemsOf(node, m)...)
+		for _, typeRef := range members {
+			values = append(values, itemsOf(node, typeRef)...)
 		}
 	}
 	values = slices.Clip(values)

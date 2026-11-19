@@ -24,9 +24,9 @@ func TestNewBigVal_AcceptsDecimalForms(t *testing.T) {
 	for _, s := range bigValDecimalForms {
 		t.Run(s, func(t *testing.T) {
 			t.Parallel()
-			v, err := ir.NewBigVal(s)
+			bigVal, err := ir.NewBigVal(s)
 			require.NoError(t, err)
-			assert.Equal(t, s, v.String())
+			assert.Equal(t, s, bigVal.String())
 		})
 	}
 }
@@ -70,10 +70,10 @@ func TestNewBigVal_RefusesAnExponentPastTheRange(t *testing.T) {
 	} {
 		t.Run(in, func(t *testing.T) {
 			t.Parallel()
-			v, err := ir.NewBigVal(in)
+			bigVal, err := ir.NewBigVal(in)
 
 			require.ErrorIs(t, err, ir.ErrExponentRange)
-			assert.Empty(t, v, "a refused literal is never stored")
+			assert.Empty(t, bigVal, "a refused literal is never stored")
 		})
 	}
 }
@@ -90,10 +90,10 @@ func TestNewBigVal_KeepsEveryExponentWithinTheRange(t *testing.T) {
 	} {
 		t.Run(in, func(t *testing.T) {
 			t.Parallel()
-			v, err := ir.NewBigVal(in)
+			bigVal, err := ir.NewBigVal(in)
 
 			require.NoError(t, err)
-			assert.Equal(t, in, v.String())
+			assert.Equal(t, in, bigVal.String())
 		})
 	}
 }
@@ -124,20 +124,20 @@ func TestNewBigVal_CanonicalizesToJSONForm(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
-			v, err := ir.NewBigVal(tc.in)
+			bigVal, err := ir.NewBigVal(tc.in)
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, v.String())
+			assert.Equal(t, tc.want, bigVal.String())
 
 			// Canonical form is idempotent and JSON round-trips unchanged.
-			again, err := ir.NewBigVal(v.String())
+			again, err := ir.NewBigVal(bigVal.String())
 			require.NoError(t, err)
-			assert.Equal(t, v, again, "canonical form is a fixed point")
+			assert.Equal(t, bigVal, again, "canonical form is a fixed point")
 
-			raw, err := json.Marshal(v)
+			raw, err := json.Marshal(bigVal)
 			require.NoError(t, err)
 			var back ir.BigVal
 			require.NoError(t, json.Unmarshal(raw, &back))
-			assert.Equal(t, v, back)
+			assert.Equal(t, bigVal, back)
 		})
 	}
 }
@@ -177,9 +177,9 @@ func TestNewBigVal_ReturnsAJSONSpelledLiteralAsItIs(t *testing.T) {
 			asIs++
 		}
 		require.Equal(t, spelling == s, spelled, "%q spells as %q", s, spelling)
-		v, err := ir.NewBigVal(s)
+		bigVal, err := ir.NewBigVal(s)
 		require.NoError(t, err, s)
-		require.Equal(t, spelling, v.String(), s)
+		require.Equal(t, spelling, bigVal.String(), s)
 	}
 	assert.Positive(t, asIs, "some literal is in JSON form already")
 	assert.Less(t, asIs, read, "some literal is rewritten")
@@ -210,14 +210,14 @@ func TestNewBigVal_AllocatesOnlyToRewrite(t *testing.T) {
 
 func TestBigVal_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
-	v, err := ir.NewBigVal("123456789012345678901234567890.5")
+	bigVal, err := ir.NewBigVal("123456789012345678901234567890.5")
 	require.NoError(t, err)
 
-	raw, err := json.Marshal(v)
+	raw, err := json.Marshal(bigVal)
 	require.NoError(t, err)
 	assert.Equal(t, `"123456789012345678901234567890.5"`, string(raw))
 
 	var back ir.BigVal
 	require.NoError(t, json.Unmarshal(raw, &back))
-	assert.Equal(t, v, back)
+	assert.Equal(t, bigVal, back)
 }

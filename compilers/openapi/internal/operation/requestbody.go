@@ -28,14 +28,14 @@ import (
 // component's name rather than the operationId hint (issue #107). A body $ref'd
 // from another operation has no component name, so it is named for the
 // operation declaring it, never this mount's (lowering.NameAt, GitHub #433).
-func lowerRequestBody(c service.Ctx, w operationLoweringState, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerRequestBody(serviceContext service.Ctx, loweringState operationLoweringState, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	usePtr := opDeclPtr + ids.Ptr("requestBody")
-	rb, dc, bodyPtr := service.Declared[soa.RequestBody](c, src.GetRequestBody(), usePtr)
+	rb, dc, bodyPtr := service.Declared[soa.RequestBody](serviceContext, src.GetRequestBody(), usePtr)
 	if rb == nil {
 		return nil
 	}
-	payload, diags := lowerPayload(dc, w, rb.GetContent(), bodyPtr)
-	diags = append(diags, bodyMethodDiags(c, hb.Method, usePtr)...)
+	payload, diags := lowerPayload(dc, loweringState, rb.GetContent(), bodyPtr)
+	diags = append(diags, bodyMethodDiags(serviceContext, hb.Method, usePtr)...)
 	if payload == nil {
 		// A body lowering no media type is still the body: whether it must be
 		// sent, its description and its x-* stay on a Payload with no Contents.
@@ -45,7 +45,7 @@ func lowerRequestBody(c service.Ctx, w operationLoweringState, op *ir.Operation,
 	// A Request Body Object's description documents the body rather than any
 	// one media type in it (GitHub #609), and a summary or description beside a
 	// $ref of its chain documents this use of it (GitHub #610).
-	payload.Docs = componentlookup.UseDocs[soa.RequestBody](c.Bindings(), src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
+	payload.Docs = componentlookup.UseDocs[soa.RequestBody](serviceContext.Bindings(), src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as annotation.XMLHints already reads its own.
@@ -53,7 +53,7 @@ func lowerRequestBody(c service.Ctx, w operationLoweringState, op *ir.Operation,
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
 	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, dc.Place(), bodyPtr)...)
-	beside, besideDiags := service.Beside[soa.RequestBody](c, src.GetRequestBody(), usePtr, true)
+	beside, besideDiags := service.Beside[soa.RequestBody](serviceContext, src.GetRequestBody(), usePtr, true)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, beside)
 	op.Request = payload
 	diags = append(diags, besideDiags...)
@@ -65,15 +65,15 @@ func lowerRequestBody(c service.Ctx, w operationLoweringState, op *ir.Operation,
 // the wire, where HTTP defines a body no semantics, an info, or forbids one, a
 // warning (docs/compilers/openapi.md#request-body). A method is compared as
 // written, as HTTP compares one (RFC 9110 §9.1). The body lowers as declared.
-func bodyMethodDiags(c service.Ctx, method string, at jsontext.Pointer) []ir.Diagnostic {
+func bodyMethodDiags(serviceContext service.Ctx, method string, at jsontext.Pointer) []ir.Diagnostic {
 	switch method {
 	case "GET", "HEAD", "DELETE":
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.BodyWithoutSemantics, at,
+		return []ir.Diagnostic{serviceContext.DiagAt(ir.SeverityInfo, diag.BodyWithoutSemantics, at,
 			"%s request declares a body, which HTTP defines no semantics for (RFC 9110 §9.3); OpenAPI 3.0 has a "+
 				"consumer ignore it and later versions advise against it; lowered as declared", method)}
 	case "TRACE", "CONNECT":
 		section := map[string]string{"TRACE": "§9.3.8", "CONNECT": "§9.3.6"}[method]
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.BodyForbiddenByMethod, at,
+		return []ir.Diagnostic{serviceContext.DiagAt(ir.SeverityWarning, diag.BodyForbiddenByMethod, at,
 			"%s request declares a body, which HTTP forbids (RFC 9110 %s); lowered as declared", method, section)}
 	default:
 		return nil
@@ -83,11 +83,11 @@ func bodyMethodDiags(c service.Ctx, method string, at jsontext.Pointer) []ir.Dia
 // emptyContentDiags reports rb's content map written empty, at the map, or
 // nothing; the design record is on diag.EmptyRequestContent. The condition is
 // the parser's own for reading the map as missing, which the load phase drops.
-func emptyContentDiags(c service.Ctx, rb *soa.RequestBody, bodyPtr jsontext.Pointer) []ir.Diagnostic {
+func emptyContentDiags(serviceContext service.Ctx, rb *soa.RequestBody, bodyPtr jsontext.Pointer) []ir.Diagnostic {
 	if !rb.GetCore().Content.Present || rb.GetContent().Len() != 0 {
 		return nil
 	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyRequestContent, bodyPtr+ids.Ptr("content"),
+	return []ir.Diagnostic{serviceContext.DiagAt(ir.SeverityWarning, diag.EmptyRequestContent, bodyPtr+ids.Ptr("content"),
 		"request body's content map is empty, so it names no media type to send the body as")}
 }
 

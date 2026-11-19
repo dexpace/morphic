@@ -75,8 +75,8 @@ func TestReadGroups_NamesTheGroupsApplyingAtTheRelease(t *testing.T) {
 	groups, err := readGroups(fsys, "tests", release2020)
 	require.NoError(t, err)
 	names := make([]string, len(groups))
-	for i, g := range groups {
-		names[i] = g.Name
+	for i, group := range groups {
+		names[i] = group.Name
 	}
 	assert.Equal(t, []string{"a.json/x", "b.json/d", "b.json/d#2"}, names)
 

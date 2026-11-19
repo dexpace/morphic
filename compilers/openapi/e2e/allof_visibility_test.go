@@ -96,11 +96,11 @@ var wantReadOnlyVisibility = ir.Visibility{
 func thingIDVisibility(t *testing.T, name, spec string) (ir.Visibility, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := compileAnnotationSpec(t, name, spec)
-	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
+	model, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing must own a Model node")
-	p, ok := propByWire(m, "id")
+	property, ok := propByWire(model, "id")
 	require.True(t, ok, "Thing must carry a merged \"id\" property")
-	return p.Visibility, diags
+	return property.Visibility, diags
 }
 
 // TestAllOfVisibilityMerge_ReadOnlyOnRedeclarationSurvives is the issue's own

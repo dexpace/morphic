@@ -65,11 +65,11 @@ func checkUnsatisfiedPair(t *testing.T, site bothKeywordsSite, version string, s
 	doc, diags := compileSpellingsAlike(t, site, version, spellings)
 	requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct, pointer: string(site.at),
 		contains: []string{"so no instance satisfies this schema"}}})
-	m, ok := kindNode(t, doc, entryPositionID(site.at)).(*ir.Model)
+	model, ok := kindNode(t, doc, entryPositionID(site.at)).(*ir.Model)
 	require.True(t, ok, "the position is the Model its body gives")
 	assert.Equal(t, map[string]ir.UnmodeledReason{
 		"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:anyOf": ir.ReasonDegradedLowering,
-	}, keptOn(m), "it keeps both unions")
+	}, keptOn(model), "it keeps both unions")
 }
 
 // infosOnce is the findings of an election view with each info listed once.

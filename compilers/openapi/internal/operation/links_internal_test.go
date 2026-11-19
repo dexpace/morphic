@@ -25,10 +25,10 @@ import (
 // reported as the compiler's own fault, and nothing is written.
 func TestLinksResolve_AnOperationTheServiceLacks(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	var links Links
-	links.add("operation/x/gone", responseSlot{}, []linkDraft{{at: l.ctx, use: "/p/links/L", name: "L"}})
-	diags := links.Resolve(l.ctx, compileddoc.New(&ir.Document{}), servers.NewRegistry())
+	links.add("operation/x/gone", responseSlot{}, []linkDraft{{at: lowerer.ctx, use: "/p/links/L", name: "L"}})
+	diags := links.Resolve(lowerer.ctx, compileddoc.New(&ir.Document{}), servers.NewRegistry())
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 }
@@ -40,11 +40,11 @@ func TestLinksResolve_AnOperationTheServiceLacks(t *testing.T) {
 func TestIndexOperations_StopsAtTheGroupDepthBound(t *testing.T) {
 	t.Parallel()
 	nested := func(id ir.OperationID, level int) ir.OperationGroup {
-		g := ir.OperationGroup{Operations: []ir.Operation{{ID: id}}}
+		operationGroup := ir.OperationGroup{Operations: []ir.Operation{{ID: id}}}
 		for range level {
-			g = ir.OperationGroup{Groups: []ir.OperationGroup{g}}
+			operationGroup = ir.OperationGroup{Groups: []ir.OperationGroup{operationGroup}}
 		}
-		return g
+		return operationGroup
 	}
 	svc := &ir.Service{Groups: []ir.OperationGroup{
 		nested("operation/x/top", 0), nested("operation/x/cap", ir.MaxGroupDepth), nested("operation/x/past", ir.MaxGroupDepth+1),
@@ -169,7 +169,7 @@ var linkSpecs = map[string]func(n int) string{
 func resolveBytes(t *testing.T, src string) float64 {
 	t.Helper()
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
-	l, lowered, reg, _ := lowerBeforeLinks(t, src)
+	lowerer, lowered, reg, _ := lowerBeforeLinks(t, src)
 	resp := &lowered.Service.Groups[0].Operations[0].Responses[0]
 	links := len(lowered.Links.pending)
 	require.NotZero(t, links, "the source declares links")
@@ -179,8 +179,8 @@ func resolveBytes(t *testing.T, src string) float64 {
 		srv := servers.Reopen(lowered.Servers)
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		w := compileddoc.New(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
-		diags := lowered.Links.Resolve(l.ctx, w, srv)
+		compiledDocumentView := compileddoc.New(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
+		diags := lowered.Links.Resolve(lowerer.ctx, compiledDocumentView, srv)
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size lowers its links alike")
 		require.Len(t, resp.Links, links)

@@ -105,9 +105,9 @@ func TestCompile_AMappedSegmentThatDecodesToASeparatorNamesNothing(t *testing.T)
 						openapi.Options{AllowExternalRefs: allow, Locations: []openapi.Location{{Prefix: mapped, Location: location}}}, rec)
 
 					var mine []ir.Diagnostic
-					for _, d := range unresolvedRefs(diags) {
-						if d.Provenance.Pointer == "/components/schemas/p" {
-							mine = append(mine, d)
+					for _, diagnostic := range unresolvedRefs(diags) {
+						if diagnostic.Provenance.Pointer == "/components/schemas/p" {
+							mine = append(mine, diagnostic)
 						}
 					}
 					require.Len(t, mine, 1, "%+v", diags)

@@ -21,18 +21,18 @@ import (
 // of the whole document that carries it.
 func TestPreserveInto_RecordsOnlyRealBytes(t *testing.T) {
 	t.Parallel()
-	var p ir.Unmodeled
-	PreserveInto(&p, "openapi:x", nil, ir.ReasonOutOfScope, sourced(0).At("/x"))
-	assert.Nil(t, p, "an absent payload allocates nothing")
+	var unmodeled ir.Unmodeled
+	PreserveInto(&unmodeled, "openapi:x", nil, ir.ReasonOutOfScope, sourced(0).At("/x"))
+	assert.Nil(t, unmodeled, "an absent payload allocates nothing")
 
-	PreserveInto(&p, "openapi:x", ir.RawValue(""), ir.ReasonOutOfScope, sourced(0).At("/x"))
-	assert.Nil(t, p, "nor does an empty one")
+	PreserveInto(&unmodeled, "openapi:x", ir.RawValue(""), ir.ReasonOutOfScope, sourced(0).At("/x"))
+	assert.Nil(t, unmodeled, "nor does an empty one")
 
-	PreserveInto(&p, "openapi:x", ir.RawValue("1"), ir.ReasonOutOfScope, sourced(7).At("/x"))
+	PreserveInto(&unmodeled, "openapi:x", ir.RawValue("1"), ir.ReasonOutOfScope, sourced(7).At("/x"))
 	assert.Equal(t, ir.Unmodeled{"openapi:x": {
 		Reason: ir.ReasonOutOfScope, Value: ir.RawValue("1"),
 		Provenance: ir.Provenance{Source: 7, Pointer: "/x"},
-	}}, p)
+	}}, unmodeled)
 }
 
 // TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened pins the bool its
@@ -41,23 +41,23 @@ func TestPreserveInto_RecordsOnlyRealBytes(t *testing.T) {
 // nothing reached the IR.
 func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 	t.Parallel()
-	var p ir.Unmodeled
+	var unmodeled ir.Unmodeled
 
-	kept, diags := PreserveNodeInto(&p, "openapi:x", nil, ir.ReasonNoIRHome, sourced(0).At("/x"))
+	kept, diags := PreserveNodeInto(&unmodeled, "openapi:x", nil, ir.ReasonNoIRHome, sourced(0).At("/x"))
 	assert.False(t, kept)
 	assert.Empty(t, diags)
-	assert.Nil(t, p)
+	assert.Nil(t, unmodeled)
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, ".nan"), ir.ReasonNoIRHome, sourced(0).At("/x"))
+	kept, diags = PreserveNodeInto(&unmodeled, "openapi:x", openapitest.YAMLNode(t, ".nan"), ir.ReasonNoIRHome, sourced(0).At("/x"))
 	assert.False(t, kept)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Nil(t, p, "an unconvertible node writes no entry")
+	assert.Nil(t, unmodeled, "an unconvertible node writes no entry")
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, "{a: 1}"), ir.ReasonNoIRHome, sourced(0).At("/x"))
+	kept, diags = PreserveNodeInto(&unmodeled, "openapi:x", openapitest.YAMLNode(t, "{a: 1}"), ir.ReasonNoIRHome, sourced(0).At("/x"))
 	assert.True(t, kept)
 	assert.Empty(t, diags)
-	assert.JSONEq(t, `{"a":1}`, string(p["openapi:x"].Value))
+	assert.JSONEq(t, `{"a":1}`, string(unmodeled["openapi:x"].Value))
 }
 
 // TestPreserveSchemaKeyword_KeysAndLocatesTheEntryAtTheKeyword pins what the
@@ -67,16 +67,16 @@ func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 func TestPreserveSchemaKeyword_KeysAndLocatesTheEntryAtTheKeyword(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nformat: password\n")
-	var p ir.Unmodeled
+	var unmodeled ir.Unmodeled
 
-	kept, diags := PreserveSchemaKeyword(&p, standaloneSchema(s), "format", ir.ReasonNoIRHome, "/S", overlaid("/S/format"))
+	kept, diags := PreserveSchemaKeyword(&unmodeled, standaloneSchema(s), "format", ir.ReasonNoIRHome, "/S", overlaid("/S/format"))
 
 	assert.True(t, kept)
 	assert.Empty(t, diags)
 	assert.Equal(t, ir.Unmodeled{EntryKey("", "format"): {
 		Reason: ir.ReasonNoIRHome, Value: ir.RawValue(`"password"`),
 		Provenance: ir.Provenance{Pointer: "/S/format", WrittenBy: 1},
-	}}, p)
+	}}, unmodeled)
 }
 
 // TestPreserveSchemaKeyword_ReportsAnUnkeptKeywordAtItsNode pins the other two
@@ -86,15 +86,15 @@ func TestPreserveSchemaKeyword_KeysAndLocatesTheEntryAtTheKeyword(t *testing.T) 
 func TestPreserveSchemaKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: number\ndefault: .nan\n")
-	var p ir.Unmodeled
+	var unmodeled ir.Unmodeled
 
-	kept, diags := PreserveSchemaKeyword(&p, standaloneSchema(s), "format", ir.ReasonNoIRHome, "/S", sourced(0))
+	kept, diags := PreserveSchemaKeyword(&unmodeled, standaloneSchema(s), "format", ir.ReasonNoIRHome, "/S", sourced(0))
 	assert.False(t, kept)
 	assert.Empty(t, diags, "an absent keyword is no construct")
 
-	kept, diags = PreserveSchemaKeyword(&p, standaloneSchema(s), "default", ir.ReasonNoIRHome, "/S", overlaid("/S/default"))
+	kept, diags = PreserveSchemaKeyword(&unmodeled, standaloneSchema(s), "default", ir.ReasonNoIRHome, "/S", overlaid("/S/default"))
 	assert.False(t, kept)
-	assert.Nil(t, p, "an unconvertible keyword writes no entry")
+	assert.Nil(t, unmodeled, "an unconvertible keyword writes no entry")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
 	assert.Equal(t, ir.Provenance{Pointer: "/S/default", WrittenBy: 1}, diags[0].Provenance)
@@ -108,16 +108,16 @@ func TestPreserveSchemaKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testing.T) {
 func TestPreserveSchemaKeyword_TheCensusLeavesItsEntryAlone(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nnullable: true\n")
-	var p ir.Unmodeled
-	kept, diags := PreserveSchemaKeyword(&p, standaloneSchema(s), "nullable", ir.ReasonDegradedLowering, "/S", sourced(0))
+	var unmodeled ir.Unmodeled
+	kept, diags := PreserveSchemaKeyword(&unmodeled, standaloneSchema(s), "nullable", ir.ReasonDegradedLowering, "/S", sourced(0))
 	require.True(t, kept)
 	require.Empty(t, diags)
 
-	census := UndefinedKeywordsIn(&p, standaloneSchema(s), []string{"nullable"}, "/S", sourced(0))
+	census := UndefinedKeywordsIn(&unmodeled, standaloneSchema(s), []string{"nullable"}, "/S", sourced(0))
 
 	assert.Empty(t, census, "the census announces nothing it did not keep")
-	require.Len(t, p, 1, "and keeps no second entry")
-	assert.Equal(t, ir.ReasonDegradedLowering, p[EntryKey("", "nullable")].Reason, "nor rewrites this one")
+	require.Len(t, unmodeled, 1, "and keeps no second entry")
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeled[EntryKey("", "nullable")].Reason, "nor rewrites this one")
 }
 
 // TestPreserveValidationOnlyKeyword_SplitsTheEntryFromItsAnnouncement pins the
@@ -128,14 +128,14 @@ func TestPreserveSchemaKeyword_TheCensusLeavesItsEntryAlone(t *testing.T) {
 func TestPreserveValidationOnlyKeyword_SplitsTheEntryFromItsAnnouncement(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nnot: {const: x}\n")
-	var p ir.Unmodeled
+	var unmodeled ir.Unmodeled
 
-	diags := PreserveValidationOnlyKeyword(&p, standaloneSchema(s), "not", "/S", overlaid("/S/not"))
+	diags := PreserveValidationOnlyKeyword(&unmodeled, standaloneSchema(s), "not", "/S", overlaid("/S/not"))
 
 	assert.Equal(t, ir.Unmodeled{EntryKey("", "not"): {
 		Reason: ir.ReasonValidationOnly, Value: ir.RawValue(`{"const":"x"}`),
 		Provenance: ir.Provenance{Pointer: "/S/not", WrittenBy: 1},
-	}}, p)
+	}}, unmodeled)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.ValidationOnlyKeyword, diags[0].Code)
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/S"}, diags[0].Provenance)
@@ -147,12 +147,12 @@ func TestPreserveValidationOnlyKeyword_SplitsTheEntryFromItsAnnouncement(t *test
 func TestPreserveValidationOnlyKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\ndependentRequired: {a: [.nan]}\n")
-	var p ir.Unmodeled
+	var unmodeled ir.Unmodeled
 
-	assert.Empty(t, PreserveValidationOnlyKeyword(&p, standaloneSchema(s), "not", "/S", sourced(0)), "an absent keyword is no construct")
+	assert.Empty(t, PreserveValidationOnlyKeyword(&unmodeled, standaloneSchema(s), "not", "/S", sourced(0)), "an absent keyword is no construct")
 
-	diags := PreserveValidationOnlyKeyword(&p, standaloneSchema(s), "dependentRequired", "/S", overlaid("/S/dependentRequired"))
-	assert.Nil(t, p, "an unconvertible keyword writes no entry")
+	diags := PreserveValidationOnlyKeyword(&unmodeled, standaloneSchema(s), "dependentRequired", "/S", overlaid("/S/dependentRequired"))
+	assert.Nil(t, unmodeled, "an unconvertible keyword writes no entry")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
 	assert.Equal(t, ir.Provenance{Pointer: "/S/dependentRequired", WrittenBy: 1}, diags[0].Provenance)
@@ -181,9 +181,9 @@ func TestPreserveValidationOnlyInto_EmptyPayloadRecordsAndAnnouncesNothing(t *te
 	for name, raw := range map[string]ir.RawValue{"nil": nil, "empty non-nil": {}} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			var p ir.Unmodeled
-			diags := preserveValidationOnlyInto(&p, "openapi:not", raw, sourced(0).At("/p/not"), sourced(0).At("/p"), "not")
-			assert.Nil(t, p)
+			var unmodeled ir.Unmodeled
+			diags := preserveValidationOnlyInto(&unmodeled, "openapi:not", raw, sourced(0).At("/p/not"), sourced(0).At("/p"), "not")
+			assert.Nil(t, unmodeled)
 			assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 		})
 	}
@@ -221,12 +221,12 @@ func TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 	got := own.add(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far, "x-b": far}, false, site)
 	assert.Equal(t, ir.Unmodeled{"x-a": near, "x-b": far}, got, "the site's own entry stands")
 
-	var u underlay
-	got = u.add(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far}, false, site)
+	var underlayValue underlay
+	got = underlayValue.add(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far}, false, site)
 	assert.Equal(t, ir.Unmodeled{"x-a": atSite}, got, "an entry two voices write is the site's")
 
-	assert.Equal(t, ir.Unmodeled{"x-b": far}, u.add(nil, ir.Unmodeled{"x-b": far}, false, site))
-	assert.Nil(t, u.add(nil, nil, false, site), "nothing to add allocates nothing")
+	assert.Equal(t, ir.Unmodeled{"x-b": far}, underlayValue.add(nil, ir.Unmodeled{"x-b": far}, false, site))
+	assert.Nil(t, underlayValue.add(nil, nil, false, site), "nothing to add allocates nothing")
 }
 
 // TestUnderlayAdd_AFoldedBranchKeptWholeWritesForNoOne pins that a folded branch kept whole,
@@ -267,18 +267,18 @@ func TestCopyEntriesInto_KeepsWhatTheCarrierHolds(t *testing.T) {
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)}}
 	}
 	held := entry(`"own"`, "/paths/~1a/get/k")
-	p := ir.Unmodeled{"openapi:k": held}
+	unmodeled := ir.Unmodeled{"openapi:k": held}
 	src := ir.Unmodeled{"openapi:k": entry(`2`, "/paths/~1a/k"), "openapi:x-a": entry(`1`, "/paths/~1a/x-a")}
 
-	diags := CopyEntriesInto(&p, src)
+	diags := CopyEntriesInto(&unmodeled, src)
 
-	assert.Equal(t, held, p["openapi:k"], "the entry the carrier held stays")
+	assert.Equal(t, held, unmodeled["openapi:k"], "the entry the carrier held stays")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnknownKeyEntryAlreadyClaimed, diags[0].Code)
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/k"), diags[0].Provenance.Pointer, "sited at the copy that was refused")
 	assert.Contains(t, diags[0].Message, `"/paths/~1a/get/k"`, "naming the construct that holds the entry")
 	assert.NotContains(t, diags[0].Message, "in no form", "another carrier may hold the copy, so the IR is not said to lack it")
-	p["openapi:x-a"].Value[0] = '9'
+	unmodeled["openapi:x-a"].Value[0] = '9'
 	assert.JSONEq(t, `1`, string(src["openapi:x-a"].Value), "the copy owns its bytes")
 
 	var unset ir.Unmodeled
@@ -297,18 +297,18 @@ func TestCopyEntriesInto_KeepsWhatTheCarrierHolds(t *testing.T) {
 func TestCopyEntriesInto_ReportsInKeyOrder(t *testing.T) {
 	t.Parallel()
 	const refused = 64
-	p, src, want := ir.Unmodeled{}, ir.Unmodeled{}, make([]string, refused)
+	unmodeled, src, want := ir.Unmodeled{}, ir.Unmodeled{}, make([]string, refused)
 	for i := refused - 1; i >= 0; i-- {
 		key := fmt.Sprintf("openapi:k%02d", i)
-		p[key] = ir.UnmodeledEntry{Value: ir.RawValue(`1`), Provenance: ir.Provenance{Pointer: "/held"}}
+		unmodeled[key] = ir.UnmodeledEntry{Value: ir.RawValue(`1`), Provenance: ir.Provenance{Pointer: "/held"}}
 		src[key] = ir.UnmodeledEntry{Value: ir.RawValue(`2`), Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + key)}}
 		want[i] = "/" + key
 	}
 
-	diags := CopyEntriesInto(&p, src)
+	diags := CopyEntriesInto(&unmodeled, src)
 	got := make([]string, 0, len(diags))
-	for _, d := range diags {
-		got = append(got, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		got = append(got, string(diagnostic.Provenance.Pointer))
 	}
 	assert.Equal(t, want, got)
 }

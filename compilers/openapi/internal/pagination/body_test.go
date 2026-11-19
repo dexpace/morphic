@@ -182,8 +182,8 @@ func TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch(t *testing.T) {
 			t.Parallel()
 			doc, diags := compile(t, searchDoc(method, "", searchPage, okResult), openapi.Options{})
 			assert.Nil(t, openapitest.FindOp(t, doc, "search").Pagination)
-			assert.Empty(t, slices.DeleteFunc(diags, func(d ir.Diagnostic) bool {
-				return method == "delete" && d.Code == "openapi/body-without-semantics"
+			assert.Empty(t, slices.DeleteFunc(diags, func(diagnostic ir.Diagnostic) bool {
+				return method == "delete" && diagnostic.Code == "openapi/body-without-semantics"
 			}))
 		})
 	}

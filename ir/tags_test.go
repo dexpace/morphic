@@ -48,9 +48,9 @@ func TestJSONTags_OmitEmptyOnlyOnCollections(t *testing.T) {
 func reachableStructs(t *testing.T) []reflect.Type {
 	t.Helper()
 	queue := []reflect.Type{reflect.TypeFor[ir.Document]()}
-	for _, k := range allKinds {
-		td, ok := ir.NewTypeDef(k)
-		require.True(t, ok, "NewTypeDef(%s)", k)
+	for _, typeKind := range allKinds {
+		td, ok := ir.NewTypeDef(typeKind)
+		require.True(t, ok, "NewTypeDef(%s)", typeKind)
 		queue = append(queue, reflect.TypeOf(td))
 	}
 	seen := map[reflect.Type]bool{}

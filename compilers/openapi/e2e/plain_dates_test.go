@@ -343,10 +343,10 @@ components:
           default: !!timestamp soon
 `)
 
-	s, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, s.Properties, 1)
-	assert.Nil(t, s.Properties[0].Default, "the default is dropped, not kept as its text")
+	require.Len(t, model.Properties, 1)
+	assert.Nil(t, model.Properties[0].Default, "the default is dropped, not kept as its text")
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
 	assert.Equal(t, diag.UnloweredConstruct, diags[0].Code)

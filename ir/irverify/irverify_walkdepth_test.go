@@ -19,7 +19,7 @@ import (
 // bound mismatch.
 func TestVerify_DeepInBoundsDefaultIsNotTruncated(t *testing.T) {
 	def := irtest.NestedListValue(200)
-	m := &ir.Model{
+	model := &ir.Model{
 		ID:   "type/x/M",
 		Name: ir.Naming{Source: "M", Canonical: "m"},
 		Properties: []ir.Property{{
@@ -31,12 +31,12 @@ func TestVerify_DeepInBoundsDefaultIsNotTruncated(t *testing.T) {
 		}},
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		m.ID:                     m,
+		model.ID:                 model,
 		"type/primitive/integer": &ir.Primitive{ID: "type/primitive/integer", PrimitiveKind: ir.PrimitiveInteger},
 	}}
 
-	for _, v := range verifyDeclared(doc) {
-		assert.NotEqual(t, "ir/walk-truncated", v.Code,
+	for _, violation := range verifyDeclared(doc) {
+		assert.NotEqual(t, "ir/walk-truncated", violation.Code,
 			"deep but in-bounds default must not truncate the verifier walk")
 	}
 }

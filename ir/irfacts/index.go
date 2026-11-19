@@ -44,11 +44,11 @@ type DocumentFacts struct {
 // New returns the index of doc's facts. It builds nothing: each index is built
 // when one of its facts first needs it. A nil doc is allowed and has no facts.
 func New(doc *ir.Document) *DocumentFacts {
-	x := &DocumentFacts{doc: doc}
-	steps := int64(len(x.registry()))
-	x.subtypeWalks.Store(steps)
-	x.exposureWalks.Store(steps)
-	return x
+	documentFacts := &DocumentFacts{doc: doc}
+	steps := int64(len(documentFacts.registry()))
+	documentFacts.subtypeWalks.Store(steps)
+	documentFacts.exposureWalks.Store(steps)
+	return documentFacts
 }
 
 // IsSubtype answers ir.IsSubtype for the index's document. Its first questions

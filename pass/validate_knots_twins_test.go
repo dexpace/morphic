@@ -46,20 +46,20 @@ func TestValidate_ATypeWithAWayOutOfItsTypeCycleHasAFiniteValue(t *testing.T) {
 func TestValidate_AModelComposingTheUnionThatListsItHasAFiniteValue(t *testing.T) {
 	t.Parallel()
 	extending := func(id, union string, asMixin bool) *ir.Model {
-		m := composed(id, nil)
+		model := composed(id, nil)
 		if asMixin {
-			m.Mixins = []ir.TypeRef{ref(union)}
+			model.Mixins = []ir.TypeRef{ref(union)}
 		} else {
-			m.Base = new(ref(union))
+			model.Base = new(ref(union))
 		}
-		return m
+		return model
 	}
 	listing := func(id string, variants ...string) *ir.Union {
-		u := &ir.Union{ID: ir.TypeID(id), Provenance: provAt(id)}
+		union := &ir.Union{ID: ir.TypeID(id), Provenance: provAt(id)}
 		for _, v := range variants {
-			u.Variants = append(u.Variants, ir.Variant{Type: ref(v)})
+			union.Variants = append(union.Variants, ir.Variant{Type: ref(v)})
 		}
-		return u
+		return union
 	}
 	alias := func(id, base string) *ir.Scalar {
 		return &ir.Scalar{ID: ir.TypeID(id), Base: new(ref(base)), Provenance: provAt(id)}

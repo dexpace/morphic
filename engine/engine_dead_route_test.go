@@ -58,17 +58,17 @@ func TestEngine_AMappingToADeadBranchValidatesClean(t *testing.T) {
 						engine.RunOptions{Verify: true})
 					require.NoError(t, err)
 					require.NotNil(t, res.Document)
-					for _, d := range res.Diagnostics {
-						assert.NotEqual(t, ir.SeverityError, d.Severity, "%s %s", d.Code, d.Message)
+					for _, diagnostic := range res.Diagnostics {
+						assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "%s %s", diagnostic.Code, diagnostic.Message)
 					}
 
 					res, err = eng.Run(t.Context(), writeSpec(t, deadRouteSpec(version, keyword, order, "Other")),
 						engine.RunOptions{Verify: true})
 					require.NoError(t, err)
 					var errs []string
-					for _, d := range res.Diagnostics {
-						if d.Severity == ir.SeverityError {
-							errs = append(errs, d.Code)
+					for _, diagnostic := range res.Diagnostics {
+						if diagnostic.Severity == ir.SeverityError {
+							errs = append(errs, diagnostic.Code)
 						}
 					}
 					assert.Equal(t, []string{"pass/discriminator-missing-variant"}, errs,

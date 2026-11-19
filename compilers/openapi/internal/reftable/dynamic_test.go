@@ -55,32 +55,32 @@ const dynamicSpec = head + `components:
 func TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor(t *testing.T) {
 	t.Parallel()
 	table := bound(t, dynamicSpec, self)
-	p := documentPointerAt("/components/schemas/P")
+	documentPointer := documentPointerAt("/components/schemas/P")
 	for name, want := range map[string]reftable.Status{
 		"ByAnchor": reftable.Resolved, "ByPointer": reftable.Resolved, "Twinned": reftable.Unresolved, "Nowhere": reftable.Unresolved,
 	} {
-		e := entryAt(t, table, jsontext.Pointer("/components/schemas/"+name))
-		assert.Equal(t, "$dynamicRef", e.Keyword, name)
-		assert.Equal(t, want, e.Hop.Status, name)
+		referenceSite := entryAt(t, table, jsontext.Pointer("/components/schemas/"+name))
+		assert.Equal(t, "$dynamicRef", referenceSite.Keyword, name)
+		assert.Equal(t, want, referenceSite.Hop.Status, name)
 	}
-	assert.Equal(t, p, entryAt(t, table, "/components/schemas/ByAnchor").Hop.Target)
+	assert.Equal(t, documentPointer, entryAt(t, table, "/components/schemas/ByAnchor").Hop.Target)
 	assert.Equal(t, reftable.DuplicateAnchor, entryAt(t, table, "/components/schemas/Twinned").Hop.Reason)
 	for _, name := range []string{"Dynamic", "Duplicated", "Mixed", "Null", "Listed"} {
 		_, ok := table.Entry(documentPointerAt(jsontext.Pointer("/components/schemas/" + name)))
 		assert.False(t, ok, "%s is no $ref site", name)
 	}
 	for _, name := range []string{"Beside", "BesidePointer"} {
-		e := entryAt(t, table, jsontext.Pointer("/components/schemas/"+name))
-		assert.Equal(t, "$ref", e.Keyword, "%s: the $ref beside it is the entry", name)
-		assert.Equal(t, p, e.Hop.Target, name)
+		referenceSite := entryAt(t, table, jsontext.Pointer("/components/schemas/"+name))
+		assert.Equal(t, "$ref", referenceSite.Keyword, "%s: the $ref beside it is the entry", name)
+		assert.Equal(t, documentPointer, referenceSite.Hop.Target, name)
 	}
-	_, ok := (*reftable.ReferenceTargetTable)(nil).Entry(p)
+	_, ok := (*reftable.ReferenceTargetTable)(nil).Entry(documentPointer)
 	assert.False(t, ok, "a nil table read none")
 
 	toDynamic := entryAt(t, table, "/components/schemas/ToDynamic")
 	assert.Equal(t, reftable.Chain{End: documentPointerAt("/components/schemas/Dynamic"), Hops: 1, Status: reftable.Resolved}, toDynamic.Chain)
 	toStatic := entryAt(t, table, "/components/schemas/ToStatic")
-	assert.Equal(t, reftable.Chain{End: p, Hops: 2, Status: reftable.Resolved}, toStatic.Chain)
+	assert.Equal(t, reftable.Chain{End: documentPointer, Hops: 2, Status: reftable.Resolved}, toStatic.Chain)
 }
 
 // TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead pins a $dynamicRef
@@ -99,11 +99,11 @@ func TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead(t *testing.T) {
 	assert.Equal(t, reftable.Chain{End: a, Hops: 1, Status: reftable.Resolved}, entryAt(t, dynamic, "/components/schemas/S").Chain)
 
 	static := bound(t, src, withDocuments(map[string]string{"o.yaml": "T: {$anchor: n}\n"}))
-	e := entryAt(t, static, "/components/schemas/A")
-	assert.Equal(t, "$dynamicRef", e.Keyword)
-	o := docNamed(t, static, "o.yaml")
-	assert.Equal(t, reftable.DocumentPointer{Doc: o, Pointer: "/T"}, e.Hop.Target)
-	assert.Equal(t, reftable.Chain{End: reftable.DocumentPointer{Doc: o, Pointer: "/T"}, Hops: 2, Status: reftable.Resolved},
+	referenceSite := entryAt(t, static, "/components/schemas/A")
+	assert.Equal(t, "$dynamicRef", referenceSite.Keyword)
+	docID := docNamed(t, static, "o.yaml")
+	assert.Equal(t, reftable.DocumentPointer{Doc: docID, Pointer: "/T"}, referenceSite.Hop.Target)
+	assert.Equal(t, reftable.Chain{End: reftable.DocumentPointer{Doc: docID, Pointer: "/T"}, Hops: 2, Status: reftable.Resolved},
 		entryAt(t, static, "/components/schemas/S").Chain)
 }
 
@@ -129,19 +129,19 @@ func TestBind_ADynamicRefTheBudgetCutsIsNoOtherEntry(t *testing.T) {
 	full := bound(t, dynamicSpec, self)
 	require.False(t, full.Exhausted())
 	want := map[reftable.DocumentPointer]reftable.ReferenceSite{}
-	for _, e := range full.Entries() {
-		want[e.Site] = e
+	for _, referenceSite := range full.Entries() {
+		want[referenceSite.Site] = referenceSite
 	}
 	for limit := 1; limit < full.Steps(); limit++ {
 		cfg := self
 		cfg.Limit = budget.AtMost(limit)
-		for _, e := range bound(t, dynamicSpec, cfg).Entries() {
-			whole, ok := want[e.Site]
-			require.True(t, ok, "limit %d: %s holds no entry read whole", limit, e.Site.Pointer)
-			if e.Hop.Status != reftable.OverBudget && e.Chain.Status != reftable.OverBudget {
-				assert.Equal(t, whole, e, "limit %d", limit)
+		for _, referenceSite := range bound(t, dynamicSpec, cfg).Entries() {
+			whole, ok := want[referenceSite.Site]
+			require.True(t, ok, "limit %d: %s holds no entry read whole", limit, referenceSite.Site.Pointer)
+			if referenceSite.Hop.Status != reftable.OverBudget && referenceSite.Chain.Status != reftable.OverBudget {
+				assert.Equal(t, whole, referenceSite, "limit %d", limit)
 			}
-			assert.True(t, strings.HasPrefix(e.Keyword, "$"), "limit %d", limit)
+			assert.True(t, strings.HasPrefix(referenceSite.Keyword, "$"), "limit %d", limit)
 		}
 	}
 }

@@ -276,8 +276,8 @@ func TestMediaTypeRef_AnUnresolvedRefLowersNothing(t *testing.T) {
 // countDiagsAt counts the diagnostics of code at pointer.
 func countDiagsAt(diags []ir.Diagnostic, code, pointer string) int {
 	n := 0
-	for _, d := range diags {
-		if d.Code == code && string(d.Provenance.Pointer) == pointer {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && string(diagnostic.Provenance.Pointer) == pointer {
 			n++
 		}
 	}
@@ -538,9 +538,9 @@ components:
 		}, entries(t, valueAtPath(content, "unmodeled"))), payload.name)
 	}
 	reported := make([]string, 0, len(diags))
-	for _, d := range diags {
-		require.Equal(t, diag.UnknownObjectKey, d.Code, d.Message)
-		reported = append(reported, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		require.Equal(t, diag.UnknownObjectKey, diagnostic.Code, diagnostic.Message)
+		reported = append(reported, string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{
 		"/paths/~1a/post/requestBody/content/application~1json/x-a",

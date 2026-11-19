@@ -18,10 +18,10 @@ import (
 // validDoc is a minimal structurally-sound document: one model whose registry
 // key matches its own Common().ID.
 func validDoc() *ir.Document {
-	m := &ir.Model{ID: "type/x/Model", Name: ir.Naming{Source: "Model", Canonical: "model"}}
+	model := &ir.Model{ID: "type/x/Model", Name: ir.Naming{Source: "Model", Canonical: "model"}}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
-		Types:     ir.TypeRegistry{m.ID: m},
+		Types:     ir.TypeRegistry{model.ID: model},
 	}
 }
 
@@ -49,9 +49,9 @@ func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 	// Re-key the model under an ID that disagrees with its Common().ID. The
 	// model's own ID is its declaration and no reference, so the mismatch is
 	// the one code drawn.
-	m := doc.Types["type/x/Model"]
+	typeDef := doc.Types["type/x/Model"]
 	delete(doc.Types, "type/x/Model")
-	doc.Types["type/x/WrongKey"] = m
+	doc.Types["type/x/WrongKey"] = typeDef
 
 	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
@@ -77,9 +77,9 @@ func TestVerify_SortsSameCodeByPath(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{holder.ID: holder}}
 
 	var got []string
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == "ir/dangling-type-ref" {
-			got = append(got, v.Path)
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == "ir/dangling-type-ref" {
+			got = append(got, violation.Path)
 		}
 	}
 	require.Len(t, got, count)
@@ -94,8 +94,8 @@ func TestVerify_SortsSameCodeByPath(t *testing.T) {
 // codesOf extracts the Code of each violation for order-independent assertions.
 func codesOf(vs []irverify.Violation) []string {
 	codes := make([]string, len(vs))
-	for i, v := range vs {
-		codes[i] = v.Code
+	for i, violation := range vs {
+		codes[i] = violation.Code
 	}
 	return codes
 }
@@ -198,10 +198,10 @@ func findingsTable() []ir.SourceInfo {
 func TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings(t *testing.T) {
 	t.Parallel()
 	all := malformedFindings()
-	for i, d := range all {
-		want := verifiedFindings([]ir.Diagnostic{d})
+	for i, diagnostic := range all {
+		want := verifiedFindings([]ir.Diagnostic{diagnostic})
 		require.NotEmpty(t, want, "finding %d breaks no invariant Verify reports", i)
-		assert.Equal(t, want, irverify.VerifyFindings([]ir.Diagnostic{d}, findingsTable()), "finding %d", i)
+		assert.Equal(t, want, irverify.VerifyFindings([]ir.Diagnostic{diagnostic}, findingsTable()), "finding %d", i)
 	}
 	assert.Equal(t, verifiedFindings(all), irverify.VerifyFindings(all, findingsTable()), "every finding at once")
 }
@@ -214,10 +214,10 @@ func verifiedFindings(diags []ir.Diagnostic) []irverify.Violation {
 	doc.Sources = findingsTable()
 	doc.Diagnostics = diags
 	var under []irverify.Violation
-	for _, v := range irverify.Verify(doc) {
-		if rest, ok := strings.CutPrefix(v.Path, "document.Diagnostics"); ok {
-			v.Path = "findings" + rest
-			under = append(under, v)
+	for _, violation := range irverify.Verify(doc) {
+		if rest, ok := strings.CutPrefix(violation.Path, "document.Diagnostics"); ok {
+			violation.Path = "findings" + rest
+			under = append(under, violation)
 		}
 	}
 	return under
@@ -246,7 +246,7 @@ func TestVerifyFindings_PlacesEachViolationAtItsFinding(t *testing.T) {
 // shorter one.
 func TestVerifyFindings_ReadsTheSourcesItIsHanded(t *testing.T) {
 	t.Parallel()
-	d := []ir.Diagnostic{{Severity: ir.SeverityError, Code: "c/x", Message: "m", Provenance: ir.Provenance{Source: 1}}}
-	assert.Empty(t, irverify.VerifyFindings(d, findingsTable()))
-	assert.Equal(t, []string{"ir/provenance-source-out-of-range"}, codesOf(irverify.VerifyFindings(d, findingsTable()[:1])))
+	diagnostics := []ir.Diagnostic{{Severity: ir.SeverityError, Code: "c/x", Message: "m", Provenance: ir.Provenance{Source: 1}}}
+	assert.Empty(t, irverify.VerifyFindings(diagnostics, findingsTable()))
+	assert.Equal(t, []string{"ir/provenance-source-out-of-range"}, codesOf(irverify.VerifyFindings(diagnostics, findingsTable()[:1])))
 }

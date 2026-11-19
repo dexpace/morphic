@@ -106,9 +106,9 @@ var ownershipCases = []struct {
 			const at = "/paths/~1b/get/parameters/0/schema/writeOnly"
 			require.Equal(t, 1, countAt(diags, "openapi/degraded-construct", at),
 				"the parameter's own report, and no node's beside it")
-			for _, d := range diags {
-				if string(d.Provenance.Pointer) == at {
-					assert.Contains(t, d.Message, "no ir.Parameter home", "the parameter keeps writeOnly, no node")
+			for _, diagnostic := range diags {
+				if string(diagnostic.Provenance.Pointer) == at {
+					assert.Contains(t, diagnostic.Message, "no ir.Parameter home", "the parameter keeps writeOnly, no node")
 				}
 			}
 		}},
@@ -209,8 +209,8 @@ func TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder(t *testing.T) 
 // empty pointer.
 func countAt(diags []ir.Diagnostic, code, pointer string) int {
 	n := 0
-	for _, d := range diags {
-		if d.Code == code && (pointer == "" || string(d.Provenance.Pointer) == pointer) {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && (pointer == "" || string(diagnostic.Provenance.Pointer) == pointer) {
 			n++
 		}
 	}

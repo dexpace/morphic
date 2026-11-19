@@ -51,10 +51,10 @@ func TestOperations_DuplicateOperationIDReported(t *testing.T) {
 
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateOperationID, ir.SeverityWarning),
 		"the second claim is reported once, not both claims")
-	for _, d := range diags {
-		if d.Code == diag.DuplicateOperationID {
-			assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), d.Provenance.Pointer, "reported at the mount that collided")
-			assert.Contains(t, d.Message, "/paths/~1a/get", "and names the mount that claimed it first")
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateOperationID {
+			assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), diagnostic.Provenance.Pointer, "reported at the mount that collided")
+			assert.Contains(t, diagnostic.Message, "/paths/~1a/get", "and names the mount that claimed it first")
 		}
 	}
 }
@@ -82,10 +82,10 @@ func TestOperations_DistinctOperationIDsClean(t *testing.T) {
 // adds none.
 func renderOperationIDDiags(diags []ir.Diagnostic) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.DuplicateOperationID || d.Code == diag.ConflictingOperationID ||
-			strings.HasPrefix(d.Code, diag.Validation) {
-			out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateOperationID || diagnostic.Code == diag.ConflictingOperationID ||
+			strings.HasPrefix(diagnostic.Code, diag.Validation) {
+			out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 		}
 	}
 	slices.Sort(out)

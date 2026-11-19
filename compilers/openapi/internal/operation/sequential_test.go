@@ -19,15 +19,15 @@ import (
 func TestContent_PositionalPrefixEncodingIsPreserved(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, positionalEncodingSpec)
-	c := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+	content := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
-	assert.Nil(t, c.ItemEncoding, "positional prefixes rule out an every-item encoding")
-	prefix, ok := c.Unmodeled["openapi:prefixEncoding"]
-	require.True(t, ok, "prefixEncoding kept verbatim; got %v", c.Unmodeled)
+	assert.Nil(t, content.ItemEncoding, "positional prefixes rule out an every-item encoding")
+	prefix, ok := content.Unmodeled["openapi:prefixEncoding"]
+	require.True(t, ok, "prefixEncoding kept verbatim; got %v", content.Unmodeled)
 	assert.Equal(t, ir.ReasonNoIRHome, prefix.Reason)
 	assert.JSONEq(t, `[{"contentType": "application/json"}, {"contentType": "application/xml"}]`,
 		string(prefix.Value))
-	item, ok := c.Unmodeled["openapi:itemEncoding"]
+	item, ok := content.Unmodeled["openapi:itemEncoding"]
 	require.True(t, ok, "the tail encoding is kept beside the prefixes it follows")
 	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(item.Value))
 	openapitest.AssertHasCode(t, diags, diag.DegradedConstruct, ir.SeverityInfo)
@@ -37,12 +37,12 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	t.Parallel()
 	spec := strings.ReplaceAll(positionalEncodingSpec, "              itemEncoding: {contentType: text/plain}\n", "")
 	doc, diags := parseFull(t, spec)
-	c := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+	content := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
-	assert.Nil(t, c.ItemEncoding)
-	_, ok := c.Unmodeled["openapi:prefixEncoding"]
+	assert.Nil(t, content.ItemEncoding)
+	_, ok := content.Unmodeled["openapi:prefixEncoding"]
 	assert.True(t, ok, "prefixEncoding alone is still reported rather than dropped")
-	_, ok = c.Unmodeled["openapi:itemEncoding"]
+	_, ok = content.Unmodeled["openapi:itemEncoding"]
 	assert.False(t, ok, "no itemEncoding was declared, so none is recorded")
 	openapitest.AssertHasCode(t, diags, diag.DegradedConstruct, ir.SeverityInfo)
 }
@@ -59,12 +59,12 @@ func TestContent_AMergedPositionalEncodingIsPreserved(t *testing.T) {
 		"itemEncoding: {contentType: text/plain}}\n"
 	require.Contains(t, positionalEncodingSpec, written, "sanity: the spec writes both in place")
 	doc, diags := parseFull(t, strings.Replace(positionalEncodingSpec, written, merged, 1))
-	c := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+	content := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
 	assert.False(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "%+v", diags)
 	assert.JSONEq(t, `[{"contentType": "application/json"}, {"contentType": "application/xml"}]`,
-		string(c.Unmodeled["openapi:prefixEncoding"].Value))
-	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(c.Unmodeled["openapi:itemEncoding"].Value))
+		string(content.Unmodeled["openapi:prefixEncoding"].Value))
+	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(content.Unmodeled["openapi:itemEncoding"].Value))
 }
 
 // positionalEncodingSpec declares the 3.2 shape ItemEncoding cannot state:
@@ -168,19 +168,19 @@ func TestContent_AnItemEncodingOutsideMultipartIsKeptWhole(t *testing.T) {
       responses: {"204": {description: ok}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	c := openapitest.FindOp(t, doc, "lines").Request.Contents[0]
-	assert.Nil(t, c.ItemEncoding)
-	item, ok := c.Unmodeled["openapi:itemEncoding"]
-	require.True(t, ok, "itemEncoding kept verbatim; got %v", c.Unmodeled)
+	content := openapitest.FindOp(t, doc, "lines").Request.Contents[0]
+	assert.Nil(t, content.ItemEncoding)
+	item, ok := content.Unmodeled["openapi:itemEncoding"]
+	require.True(t, ok, "itemEncoding kept verbatim; got %v", content.Unmodeled)
 	assert.Equal(t, ir.ReasonNoIRHome, item.Reason)
 	assert.JSONEq(t, `{"contentType": "text/plain", "headers": {"X-A": {"schema": {"type": "string", "enum": ["a"]}}}}`,
 		string(item.Value))
-	assert.Len(t, c.Unmodeled, 1, "and nothing of it is kept apart")
+	assert.Len(t, content.Unmodeled, 1, "and nothing of it is kept apart")
 	at := "/paths/~1lines/post/requestBody/content/application~1jsonl/itemEncoding"
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo))
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			assert.Equal(t, at, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			assert.Equal(t, at, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	for id := range doc.Types {

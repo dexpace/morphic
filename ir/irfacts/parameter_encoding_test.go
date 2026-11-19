@@ -43,9 +43,9 @@ func TestIndex_UsageReadsAParametersEncoding(t *testing.T) {
 func TestIndex_PartsReadAFieldArgumentsEncoding(t *testing.T) {
 	t.Parallel()
 	arg := encodedParam()
-	m := &ir.Model{ID: "m", Properties: []ir.Property{{ID: "property/f", Args: []ir.Parameter{arg}}}}
+	model := &ir.Model{ID: "m", Properties: []ir.Property{{ID: "property/f", Args: []ir.Parameter{arg}}}}
 
-	_, _, _, args := irfacts.Parts(m)
+	_, _, _, args := irfacts.Parts(model)
 	assert.ElementsMatch(t, []ir.TypeID{"u", "t"}, args)
 }
 

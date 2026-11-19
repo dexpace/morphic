@@ -16,27 +16,27 @@ import (
 // (docs/ir/constraints.md#encodings).
 const httpDateEncoding = "http-date"
 
-// httpDate gives h, a response header, the text its field's definition gives a
+// httpDate gives header, a response header, the text its field's definition gives a
 // date, an HTTP-date, and marks it, under the HTTP-date policy, where its field
 // is one httpDateField names, it writes no encoding of its own and names one
 // field, and its type reads, through its scalars, as a datetime_offset none of
 // them names an encoding for. It reports each such header, whose format says
 // RFC 3339's text. The rule is docs/compilers/openapi.md#http-date-inference.
-func httpDate(policy HTTPDateInference, p promotion.Promoter, reg ir.TypeRegistry, h *ir.Header) []ir.Diagnostic {
-	if !policy.Honours() || h.Encoding != nil || h.Prefix != nil ||
-		!httpDateField(h.EffectiveWireName()) {
+func httpDate(policy HTTPDateInference, promoter promotion.Promoter, reg ir.TypeRegistry, header *ir.Header) []ir.Diagnostic {
+	if !policy.Honours() || header.Encoding != nil || header.Prefix != nil ||
+		!httpDateField(header.EffectiveWireName()) {
 		return nil
 	}
-	if !instant(p, reg, h.Type.Target) {
+	if !instant(promoter, reg, header.Type.Target) {
 		return nil
 	}
-	h.Encoding = &ir.Encoding{Name: httpDateEncoding}
-	at := h.Provenance
+	header.Encoding = &ir.Encoding{Name: httpDateEncoding}
+	at := header.Provenance
 	at.Inferred = ""
-	h.Provenance.Inferred = ir.JoinInferred(h.Provenance.Inferred, HTTPDateInferenceHeuristic)
+	header.Provenance.Inferred = ir.JoinInferred(header.Provenance.Inferred, HTTPDateInferenceHeuristic)
 	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.InferredHTTPDate, at,
 		"header %q is a field its RFC defines as an HTTP-date, so its date-time is written and read as one (%s) "+
-			"rather than in RFC 3339's text, which its format names", h.EffectiveWireName(), httpDateEncoding)}
+			"rather than in RFC 3339's text, which its format names", header.EffectiveWireName(), httpDateEncoding)}
 }
 
 // httpDateParam gives each header parameter of op the text httpDate gives a
@@ -45,24 +45,24 @@ func httpDate(policy HTTPDateInference, p promotion.Promoter, reg ir.TypeRegistr
 // and its type reads as an instant: on the parameter itself, as its type may be
 // one a $ref shares. A parameter in any other location is not read, whatever
 // its name. The rule is docs/compilers/openapi.md#http-date-inference.
-func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, w *compileddoc.CompiledDocumentView,
+func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView,
 	op *ir.Operation,
 ) []ir.Diagnostic {
 	if !policy.Honours() || len(op.Params) == 0 {
 		return nil
 	}
-	ix := w.Params(op)
+	ix := compiledDocumentView.Params(op)
 	var diags []ir.Diagnostic
 	for i := range op.Params {
-		p := &op.Params[i]
-		name, bound := headerName(ix, p)
-		if !bound || p.Encoding != nil || !httpDateField(name) || !instant(promoter, w.Types, p.Type.Target) {
+		parameter := &op.Params[i]
+		name, bound := headerName(ix, parameter)
+		if !bound || parameter.Encoding != nil || !httpDateField(name) || !instant(promoter, compiledDocumentView.Types, parameter.Type.Target) {
 			continue
 		}
-		p.Encoding = &ir.Encoding{Name: httpDateEncoding}
-		at := p.Provenance
+		parameter.Encoding = &ir.Encoding{Name: httpDateEncoding}
+		at := parameter.Provenance
 		at.Inferred = ""
-		p.Provenance.Inferred = ir.JoinInferred(p.Provenance.Inferred, HTTPDateInferenceHeuristic)
+		parameter.Provenance.Inferred = ir.JoinInferred(parameter.Provenance.Inferred, HTTPDateInferenceHeuristic)
 		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.InferredHTTPDate, at,
 			"header parameter %q is a field its RFC defines as an HTTP-date, so its date-time is written as one (%s) "+
 				"rather than in RFC 3339's text, which its format names", name, httpDateEncoding))
@@ -70,10 +70,10 @@ func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, w *com
 	return diags
 }
 
-// headerName returns the name the first of the placements ix holds for p puts
+// headerName returns the name the first of the placements ix holds for parameter puts
 // it in a header under, and false where none does.
-func headerName(ix compileddoc.ParamIndex, p *ir.Parameter) (string, bool) {
-	for _, at := range ix.Placements(p.ID) {
+func headerName(ix compileddoc.ParamIndex, parameter *ir.Parameter) (string, bool) {
+	for _, at := range ix.Placements(parameter.ID) {
 		if at.Location == ir.HTTPLocationHeader {
 			return at.Name, true
 		}
@@ -83,8 +83,8 @@ func headerName(ix compileddoc.ParamIndex, p *ir.Parameter) (string, bool) {
 
 // instant reports whether id reads, through its scalars, as a datetime_offset
 // none of them names an encoding for.
-func instant(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) bool {
-	ch, ok := readChain(p, reg, id)
+func instant(promoter promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) bool {
+	ch, ok := readChain(promoter, reg, id)
 	return ok && !ch.encoded && ch.prim == ir.PrimitiveDatetimeOffset
 }
 

@@ -75,9 +75,9 @@ x-m: {<<: [{o: {name: o, in: query}}, {q: {name: q, in: query}}]}
 // the source pointer site.
 func referenceAt(t *testing.T, table *reftable.ReferenceTargetTable, site jsontext.Pointer, kind reftable.RefKind) reftable.Reference {
 	t.Helper()
-	r, ok := table.Reference(documentPointerAt(site), kind)
+	reference, ok := table.Reference(documentPointerAt(site), kind)
 	require.True(t, ok, "a reference at %s", site)
-	return r
+	return reference
 }
 
 // TestBind_ReadsEachReferenceObject pins one row per way a reference object's
@@ -102,8 +102,8 @@ func TestBind_ReadsEachReferenceObject(t *testing.T) {
 		if strings.HasPrefix(string(site), bodies) {
 			kind = reftable.RefRequestBody
 		}
-		r := referenceAt(t, table, site, kind)
-		assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt(end), Hops: hopsTo(site)}, r.Chain, site)
+		reference := referenceAt(t, table, site, kind)
+		assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt(end), Hops: hopsTo(site)}, reference.Chain, site)
 	}
 	fails := map[jsontext.Pointer]reftable.Hop{
 		params + "Header":   {Ref: "#/components/headers/H", Status: reftable.Unresolved, Reason: reftable.NotObject, Detail: "parameter"},
@@ -116,13 +116,13 @@ func TestBind_ReadsEachReferenceObject(t *testing.T) {
 			Reason: reftable.NoResourceTarget, Detail: "https://x.test/s"},
 	}
 	for site, hop := range fails {
-		r := referenceAt(t, table, site, reftable.RefParameter)
-		assert.Equal(t, hop, r.Hop, site)
-		assert.Equal(t, reftable.Unresolved, r.Chain.Status, site)
+		reference := referenceAt(t, table, site, reftable.RefParameter)
+		assert.Equal(t, hop, reference.Hop, site)
+		assert.Equal(t, reftable.Unresolved, reference.Chain.Status, site)
 	}
 	for _, name := range []jsontext.Pointer{"NeedsA", "NeedsB"} {
-		r := referenceAt(t, table, "/components/responses/"+name, reftable.RefResponse)
-		assert.Equal(t, reftable.Unpassable, r.Hop.Reason, "%s: a read needing the read that needs it", name)
+		reference := referenceAt(t, table, "/components/responses/"+name, reftable.RefResponse)
+		assert.Equal(t, reftable.Unpassable, reference.Hop.Reason, "%s: a read needing the read that needs it", name)
 	}
 }
 
@@ -141,17 +141,17 @@ func TestBind_ReportsALoopOfReferenceObjectsAtItsLeastMember(t *testing.T) {
 	t.Parallel()
 	table := bound(t, objectsSpec, self)
 	var loops []reftable.Loop
-	for _, l := range table.Loops() {
-		if l.Kind != 0 {
-			loops = append(loops, l)
+	for _, loop := range table.Loops() {
+		if loop.Kind != 0 {
+			loops = append(loops, loop)
 		}
 	}
 	l1, l2 := documentPointerAt("/components/requestBodies/L1"), documentPointerAt("/components/requestBodies/L2")
 	assert.Equal(t, []reftable.Loop{{Members: []reftable.DocumentPointer{l1, l2}, Site: l1, Kind: reftable.RefRequestBody}}, loops)
-	for _, p := range []reftable.DocumentPointer{l1, l2} {
-		r, ok := table.Reference(p, reftable.RefRequestBody)
+	for _, documentPointer := range []reftable.DocumentPointer{l1, l2} {
+		reference, ok := table.Reference(documentPointer, reftable.RefRequestBody)
 		require.True(t, ok)
-		assert.Equal(t, reftable.Chain{Status: reftable.Cyclic, PositionLiesOnReferenceCycle: true}, r.Chain)
+		assert.Equal(t, reftable.Chain{Status: reftable.Cyclic, PositionLiesOnReferenceCycle: true}, reference.Chain)
 	}
 }
 
@@ -185,8 +185,8 @@ func TestBind_StopsReferenceObjectsAtItsBudget(t *testing.T) {
 	cfg.Limit = budget.AtMost(full.Steps())
 	require.False(t, bound(t, objectsSpec, cfg).Exhausted(), "the cost itself suffices")
 	want := map[reftable.DocumentPointer]reftable.Reference{}
-	for _, r := range full.References() {
-		want[r.Site] = r
+	for _, reference := range full.References() {
+		want[reference.Site] = reference
 	}
 	stopped := 0
 	for limit := 1; limit < full.Steps(); limit++ {
@@ -194,12 +194,12 @@ func TestBind_StopsReferenceObjectsAtItsBudget(t *testing.T) {
 		cut := bound(t, objectsSpec, cfg)
 		require.True(t, cut.Exhausted(), "limit %d", limit)
 		assert.Equal(t, cut.References(), bound(t, objectsSpec, cfg).References(), "limit %d", limit)
-		for _, r := range cut.References() {
-			if r.Hop.Status == reftable.OverBudget || r.Chain.Status == reftable.OverBudget {
+		for _, reference := range cut.References() {
+			if reference.Hop.Status == reftable.OverBudget || reference.Chain.Status == reftable.OverBudget {
 				stopped++
 				continue
 			}
-			assert.Equal(t, want[r.Site], r, "limit %d: an answer within the budget is the full one", limit)
+			assert.Equal(t, want[reference.Site], reference, "limit %d: an answer within the budget is the full one", limit)
 		}
 	}
 	assert.Positive(t, stopped, "some limit stops a reference object")
@@ -250,8 +250,8 @@ func TestBind_PlacesEachObjectLandingAtTheLeastReferenceReachingIt(t *testing.T)
 	t.Parallel()
 	table := bound(t, head+"components:\n  parameters:\n    B: {$ref: '#/x-p/q'}\n    A: {$ref: '#/x-p/r'}\n"+
 		"x-p:\n  r: {$ref: '#/x-p/q'}\n  q: {name: q, in: query}\n", self)
-	reached := func(p, site jsontext.Pointer) reftable.ObjectLanding {
-		return reftable.ObjectLanding{At: documentPointerAt(p), Kind: reftable.RefParameter, Name: "spec.yaml", Site: documentPointerAt(site), Reached: true}
+	reached := func(pointer, site jsontext.Pointer) reftable.ObjectLanding {
+		return reftable.ObjectLanding{At: documentPointerAt(pointer), Kind: reftable.RefParameter, Name: "spec.yaml", Site: documentPointerAt(site), Reached: true}
 	}
 	assert.Equal(t, []reftable.ObjectLanding{
 		reached("/x-p/q", "/components/parameters/A"),
@@ -278,9 +278,9 @@ func TestBind_AReferenceObjectWaitsForAHeldDocument(t *testing.T) {
 		"B": {Doc: other, Pointer: "/P"},
 		"C": {Doc: other, Pointer: "/P/x-alt"},
 	} {
-		r := referenceAt(t, table, "/components/parameters/"+site, reftable.RefParameter)
-		assert.Equal(t, reftable.Resolved, r.Chain.Status, site)
-		assert.Equal(t, end, r.Chain.End, site)
+		reference := referenceAt(t, table, "/components/parameters/"+site, reftable.RefParameter)
+		assert.Equal(t, reftable.Resolved, reference.Chain.Status, site)
+		assert.Equal(t, end, reference.Chain.End, site)
 	}
 }
 
@@ -302,9 +302,9 @@ x-l:
   q: {name: q, in: query, schema: {type: string}}
 `, self)
 	var kinds []reftable.RefKind
-	for _, l := range table.ObjectLandings() {
-		if l.At == documentPointerAt("/x-l/q") {
-			kinds = append(kinds, l.Kind)
+	for _, objectLanding := range table.ObjectLandings() {
+		if objectLanding.At == documentPointerAt("/x-l/q") {
+			kinds = append(kinds, objectLanding.Kind)
 		}
 	}
 	assert.Equal(t, []reftable.RefKind{reftable.RefParameter, reftable.RefHeader}, kinds)

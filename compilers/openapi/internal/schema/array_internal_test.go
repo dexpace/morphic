@@ -20,7 +20,7 @@ import (
 // pointer it lowers at where they place it nowhere.
 func TestWrittenAt_ReadsWhereTheBindingsPlaceTheSchema(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, `openapi: 3.1.0
+	lowerer, _ := LoweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#'
 paths: {}
@@ -28,11 +28,11 @@ components:
   schemas:
     U: {type: [array, object], items: [{description: a}]}
 `)
-	js, ok := l.Doc.Components.Schemas.Get("U")
+	js, ok := lowerer.Doc.Components.Schemas.Get("U")
 	require.True(t, ok)
-	_, at := writtenAt(l.Ctx, l.Ctx.Statements().Of(js).Schema, "/components/schemas/U/type/0")
+	_, at := writtenAt(lowerer.Ctx, lowerer.Ctx.Statements().Of(js).Schema, "/components/schemas/U/type/0")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/U"), at)
-	_, at = writtenAt(l.Ctx, StandaloneSchema(&oas3.Schema{}), "/x")
+	_, at = writtenAt(lowerer.Ctx, StandaloneSchema(&oas3.Schema{}), "/x")
 	assert.Equal(t, jsontext.Pointer("/x"), at, "a schema the bindings place nowhere")
 }
 
@@ -43,7 +43,7 @@ components:
 // bindings place nowhere, as another compile's is.
 func TestListedTuple_ReadsADraftsEntriesAndRest(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, `openapi: 3.1.0
+	lowerer, _ := LoweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#'
 paths: {}
@@ -56,32 +56,32 @@ components:
     Prefixed: {type: array, prefixItems: [{description: a}], items: false}
 `)
 	component := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
-		js, ok := l.Doc.Components.Schemas.Get(name)
+		js, ok := lowerer.Doc.Components.Schemas.Get(name)
 		require.True(t, ok, "sanity: %s is declared", name)
 		return js
 	}
 	descriptions := func(entries []*statement.Statement) []string {
 		out := make([]string, 0, len(entries))
-		for _, e := range entries {
-			out = append(out, statement.ParsedAt(e).GetSchema().GetDescription())
+		for _, schemaStatement := range entries {
+			out = append(out, statement.ParsedAt(schemaStatement).GetSchema().GetDescription())
 		}
 		return out
 	}
 	for _, name := range []string{"Pair", "Ref"} {
-		entries, rest, ok := ListedTuple(l.Ctx, l.Ctx.Statements().Of(component(name)))
+		entries, rest, ok := ListedTuple(lowerer.Ctx, lowerer.Ctx.Statements().Of(component(name)))
 		require.True(t, ok, "%s is a tuple", name)
 		assert.Equal(t, []string{"a", "b"}, descriptions(entries), "%s's entries", name)
 		assert.Equal(t, "rest", statement.ParsedAt(rest).GetSchema().GetDescription(), "%s's rest", name)
 	}
-	entries, rest, ok := ListedTuple(l.Ctx, l.Ctx.Statements().Of(component("Closed")))
+	entries, rest, ok := ListedTuple(lowerer.Ctx, lowerer.Ctx.Statements().Of(component("Closed")))
 	require.True(t, ok, "a closed tuple is one")
 	assert.Equal(t, []string{"a"}, descriptions(entries), "a closed tuple's entries")
 	assert.True(t, rest.Truth.ReadsFalse(), "a closed tuple's rest admits nothing")
-	entries, rest, ok = ListedTuple(l.Ctx, l.Ctx.Statements().Of(component("Open")))
+	entries, rest, ok = ListedTuple(lowerer.Ctx, lowerer.Ctx.Statements().Of(component("Open")))
 	require.True(t, ok, "a tuple writing no rest is one")
 	assert.Equal(t, []string{"a"}, descriptions(entries), "an open tuple's entries")
 	assert.Nil(t, statement.ParsedAt(rest), "a tuple writing no rest has none")
-	_, _, ok = ListedTuple(l.Ctx, l.Ctx.Statements().Of(component("Prefixed")))
+	_, _, ok = ListedTuple(lowerer.Ctx, lowerer.Ctx.Statements().Of(component("Prefixed")))
 	assert.False(t, ok, "a tuple of prefixItems is no list of items")
 	other, _ := LoweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -93,6 +93,6 @@ components:
 `)
 	elsewhere, declared := other.Doc.Components.Schemas.Get("Elsewhere")
 	require.True(t, declared, "sanity: Elsewhere is declared")
-	_, _, ok = ListedTuple(l.Ctx, Standalone(elsewhere))
+	_, _, ok = ListedTuple(lowerer.Ctx, Standalone(elsewhere))
 	assert.False(t, ok, "a tuple the bindings place nowhere is none")
 }

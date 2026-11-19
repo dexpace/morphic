@@ -43,12 +43,12 @@ components:
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			l, _ := schema.LoweredFor(t, spec)
-			l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(tc.limit)}
+			lowerer, _ := schema.LoweredFor(t, spec)
+			lowerer.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(tc.limit)}
 
-			diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
+			diags := schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas())
 
-			node := typeByName(l.Document(t), "E")
+			node := typeByName(lowerer.Document(t), "E")
 			require.NotNil(t, node)
 			if !tc.refused {
 				openapitest.RequireNoErrorDiags(t, diags)
@@ -92,14 +92,14 @@ components:
     A: {type: object, properties: {n: {type: string}}}
     B: {type: object, properties: {n: {type: string}}}
 `
-	l, _ := schema.LoweredFor(t, spec)
+	lowerer, _ := schema.LoweredFor(t, spec)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	diags := schema.LowerComponentSchemas(ctx, l.Ctx, l.Types, l.Schemas())
+	diags := schema.LowerComponentSchemas(ctx, lowerer.Ctx, lowerer.Types, lowerer.Schemas())
 
 	assert.Empty(t, diags)
-	reg, finished := l.Types.Finish(t.Context())
+	reg, finished := lowerer.Types.Finish(t.Context())
 	assert.Empty(t, finished)
 	assert.Empty(t, reg, "a cancelled walk lowers no component")
 }

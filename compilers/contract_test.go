@@ -56,10 +56,10 @@ func keeping() *scripted {
 	}
 }
 
-// detected is the detection a registry would hand back for spec claimed by c.
-func detected(c compilers.Compiler, parsed any) compilers.Detection {
+// detected is the detection a registry would hand back for spec claimed by compiler.
+func detected(compiler compilers.Compiler, parsed any) compilers.Detection {
 	return compilers.Detection{
-		Source: spec, Compiler: c, Recognition: compilers.Recognition{Format: alpha, Parsed: parsed},
+		Source: spec, Compiler: compiler, Recognition: compilers.Recognition{Format: alpha, Parsed: parsed},
 	}
 }
 
@@ -69,19 +69,19 @@ func diagnosticAtSource(source int, severity ir.Severity) ir.Diagnostic {
 
 func TestDetectionCompile_AKeptContractComesBackWhole(t *testing.T) {
 	t.Parallel()
-	c := keeping()
-	c.diags = []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning), diagnosticAtSource(ir.NoSource, ir.SeverityInfo)}
+	scripted := keeping()
+	scripted.diags = []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning), diagnosticAtSource(ir.NoSource, ir.SeverityInfo)}
 	parse := &struct{ tree string }{"parsed"}
 
-	out, err := detected(c, parse).Compile(t.Context())
+	out, err := detected(scripted, parse).Compile(t.Context())
 
 	require.NoError(t, err)
-	assert.Same(t, c.doc, out.Document)
-	assert.Equal(t, c.diags, out.Diagnostics, "a finding at NoSource indexes no table and is kept")
-	assert.Equal(t, c.doc.Sources, out.Sources, "a document's findings index its own table")
-	assert.Same(t, parse, c.got.Parsed, "the compile is handed what recognizing the source parsed")
-	assert.Equal(t, spec.Path, c.got.Path, "the compile is handed the source detection was")
-	assert.Equal(t, spec.Data, c.got.Data)
+	assert.Same(t, scripted.doc, out.Document)
+	assert.Equal(t, scripted.diags, out.Diagnostics, "a finding at NoSource indexes no table and is kept")
+	assert.Equal(t, scripted.doc.Sources, out.Sources, "a document's findings index its own table")
+	assert.Same(t, parse, scripted.got.Parsed, "the compile is handed what recognizing the source parsed")
+	assert.Equal(t, spec.Path, scripted.got.Path, "the compile is handed the source detection was")
+	assert.Equal(t, spec.Data, scripted.got.Data)
 }
 
 // TestDetectionCompile_ADocumentMayNameWhatElseItRead pins the table's other
@@ -89,16 +89,16 @@ func TestDetectionCompile_AKeptContractComesBackWhole(t *testing.T) {
 // further document the compile read, and its findings may index those too.
 func TestDetectionCompile_ADocumentMayNameWhatElseItRead(t *testing.T) {
 	t.Parallel()
-	c := keeping()
+	scripted := keeping()
 	read := ir.SourceInfo{Format: alpha.String(), Path: "shared.alpha", Hash: digest([]byte("shared"))}
-	c.doc.Sources = append(c.doc.Sources, read)
-	c.doc.Diagnostics = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning)}
-	c.diags = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityInfo)}
+	scripted.doc.Sources = append(scripted.doc.Sources, read)
+	scripted.doc.Diagnostics = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning)}
+	scripted.diags = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityInfo)}
 
-	out, err := detected(c, nil).Compile(t.Context())
+	out, err := detected(scripted, nil).Compile(t.Context())
 
 	require.NoError(t, err)
-	assert.Equal(t, c.doc.Sources, out.Sources)
+	assert.Equal(t, scripted.doc.Sources, out.Sources)
 	assert.Equal(t, []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning), diagnosticAtSource(1, ir.SeverityInfo)}, out.Diagnostics)
 }
 
@@ -108,11 +108,11 @@ func TestDetectionCompile_ADocumentMayNameWhatElseItRead(t *testing.T) {
 func TestDetectionCompile_BothChannelsComeBackAsOne(t *testing.T) {
 	t.Parallel()
 	stored, both, returned := diagnosticAtSource(0, ir.SeverityError), diagnosticAtSource(0, ir.SeverityWarning), diagnosticAtSource(ir.NoSource, ir.SeverityInfo)
-	c := keeping()
-	c.doc.Diagnostics = []ir.Diagnostic{stored, both}
-	c.diags = []ir.Diagnostic{both, returned}
+	scripted := keeping()
+	scripted.doc.Diagnostics = []ir.Diagnostic{stored, both}
+	scripted.diags = []ir.Diagnostic{both, returned}
 
-	out, err := detected(c, nil).Compile(t.Context())
+	out, err := detected(scripted, nil).Compile(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, []ir.Diagnostic{stored, both, returned}, out.Diagnostics)
@@ -120,16 +120,16 @@ func TestDetectionCompile_BothChannelsComeBackAsOne(t *testing.T) {
 
 func TestDetectionCompile_ARefusalComesBackWithItsTable(t *testing.T) {
 	t.Parallel()
-	c := keeping()
-	c.doc = nil
-	c.table = []ir.SourceInfo{{Path: spec.Path}, {Path: "patch.overlay"}}
-	c.diags = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityError)}
+	scripted := keeping()
+	scripted.doc = nil
+	scripted.table = []ir.SourceInfo{{Path: spec.Path}, {Path: "patch.overlay"}}
+	scripted.diags = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityError)}
 
-	out, err := detected(c, nil).Compile(t.Context())
+	out, err := detected(scripted, nil).Compile(t.Context())
 
 	require.NoError(t, err)
 	assert.Nil(t, out.Document)
-	assert.Equal(t, c.table, out.Sources, "a refusal's findings index the table SourceTable names")
+	assert.Equal(t, scripted.table, out.Sources, "a refusal's findings index the table SourceTable names")
 }
 
 // TestDetectionCompile_EachBreachIsAContractError breaks one duty per case and
@@ -142,81 +142,93 @@ func TestDetectionCompile_EachBreachIsAContractError(t *testing.T) {
 		want    string
 	}{
 		"a table that does not name the source": {
-			func(c *scripted) { c.table = nil }, "does not name the source",
+			func(scriptedValue *scripted) { scriptedValue.table = nil }, "does not name the source",
 		},
 		"a table naming another file first": {
-			func(c *scripted) { c.table = []ir.SourceInfo{{Path: "other"}} }, "does not name the source",
+			func(scriptedValue *scripted) { scriptedValue.table = []ir.SourceInfo{{Path: "other"}} }, "does not name the source",
 		},
 		"a refusal saying nothing": {
-			func(c *scripted) { c.doc = nil }, "no error diagnostic",
+			func(scriptedValue *scripted) { scriptedValue.doc = nil }, "no error diagnostic",
 		},
 		"a refusal with only a warning": {
-			func(c *scripted) { c.doc, c.diags = nil, []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning)} }, "no error diagnostic",
+			func(scriptedValue *scripted) {
+				scriptedValue.doc, scriptedValue.diags = nil, []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning)}
+			}, "no error diagnostic",
 		},
 		"a refusal finding past its table": {
-			func(c *scripted) { c.doc, c.diags = nil, []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityError)} }, "indexes source 1 of 1",
+			func(scriptedValue *scripted) {
+				scriptedValue.doc, scriptedValue.diags = nil, []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityError)}
+			}, "indexes source 1 of 1",
 		},
 		"a document stamped with no irVersion": {
-			func(c *scripted) { c.doc.IRVersion = "" }, `stamped irVersion "", where this build writes "` + ir.IRVersion + `"`,
+			func(scriptedValue *scripted) { scriptedValue.doc.IRVersion = "" }, `stamped irVersion "", where this build writes "` + ir.IRVersion + `"`,
 		},
 		"a document stamped with another generation": {
-			func(c *scripted) { c.doc.IRVersion = "0.0.1" }, `stamped irVersion "0.0.1"`,
+			func(scriptedValue *scripted) { scriptedValue.doc.IRVersion = "0.0.1" }, `stamped irVersion "0.0.1"`,
 		},
 		"a document stamped with a newer generation": {
-			func(c *scripted) { c.doc.IRVersion = "99.0.0" }, `stamped irVersion "99.0.0"`,
+			func(scriptedValue *scripted) { scriptedValue.doc.IRVersion = "99.0.0" }, `stamped irVersion "99.0.0"`,
 		},
 		"a document stamped with a prerelease of this one": {
-			func(c *scripted) { c.doc.IRVersion += "-rc.1" }, "-rc.1",
+			func(scriptedValue *scripted) { scriptedValue.doc.IRVersion += "-rc.1" }, "-rc.1",
 		},
 		"a document stamped with something that is no version": {
-			func(c *scripted) { c.doc.IRVersion = "latest" }, `stamped irVersion "latest"`,
+			func(scriptedValue *scripted) { scriptedValue.doc.IRVersion = "latest" }, `stamped irVersion "latest"`,
 		},
 		"a document listing no source": {
-			func(c *scripted) { c.doc.Sources = nil }, "lists 0 sources where SourceTable names 1",
+			func(scriptedValue *scripted) { scriptedValue.doc.Sources = nil }, "lists 0 sources where SourceTable names 1",
 		},
 		"a document dropping a source the table names": {
-			func(c *scripted) { c.table = append(c.table, ir.SourceInfo{Path: "patch.overlay"}) },
+			func(scriptedValue *scripted) {
+				scriptedValue.table = append(scriptedValue.table, ir.SourceInfo{Path: "patch.overlay"})
+			},
 			"lists 1 sources where SourceTable names 2",
 		},
 		"a document naming a source the table names in another place": {
-			func(c *scripted) {
-				c.table = append(c.table, ir.SourceInfo{Path: "patch.overlay"})
-				c.doc.Sources = append(c.doc.Sources, ir.SourceInfo{Path: "shared.alpha"}, ir.SourceInfo{Path: "patch.overlay"})
+			func(scriptedValue *scripted) {
+				scriptedValue.table = append(scriptedValue.table, ir.SourceInfo{Path: "patch.overlay"})
+				scriptedValue.doc.Sources = append(scriptedValue.doc.Sources, ir.SourceInfo{Path: "shared.alpha"}, ir.SourceInfo{Path: "patch.overlay"})
 			},
 			`source 1 is "shared.alpha" where SourceTable names "patch.overlay"`,
 		},
 		"a document naming the source by another path": {
-			func(c *scripted) { c.doc.Sources[0].Path = "elsewhere" }, `source 0 is "elsewhere"`,
+			func(scriptedValue *scripted) { scriptedValue.doc.Sources[0].Path = "elsewhere" }, `source 0 is "elsewhere"`,
 		},
 		"a document reading the source as no format": {
-			func(c *scripted) { c.doc.Sources[0].Format = "" }, `reads source 0 as ""`,
+			func(scriptedValue *scripted) { scriptedValue.doc.Sources[0].Format = "" }, `reads source 0 as ""`,
 		},
 		"a document reading the source as another format": {
-			func(c *scripted) { c.doc.Sources[0].Format = "alpha@2" }, `reads source 0 as "alpha@2"`,
+			func(scriptedValue *scripted) { scriptedValue.doc.Sources[0].Format = "alpha@2" }, `reads source 0 as "alpha@2"`,
 		},
 		"a document hashing nothing": {
-			func(c *scripted) { c.doc.Sources[0].Hash = "" }, `hashes source 0 as ""`,
+			func(scriptedValue *scripted) { scriptedValue.doc.Sources[0].Hash = "" }, `hashes source 0 as ""`,
 		},
 		"a document hashing other bytes": {
-			func(c *scripted) { c.doc.Sources[0].Hash = digest([]byte("other")) }, "hashes source 0",
+			func(scriptedValue *scripted) { scriptedValue.doc.Sources[0].Hash = digest([]byte("other")) }, "hashes source 0",
 		},
 		"a finding on the document past its table": {
-			func(c *scripted) { c.doc.Diagnostics = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning)} }, "on the document",
+			func(scriptedValue *scripted) {
+				scriptedValue.doc.Diagnostics = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning)}
+			}, "on the document",
 		},
 		"a returned finding past the table": {
-			func(c *scripted) { c.diags = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning)} }, "indexes source 1 of 1",
+			func(scriptedValue *scripted) {
+				scriptedValue.diags = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning)}
+			}, "indexes source 1 of 1",
 		},
 		"a returned finding at a sentinel the IR does not declare": {
-			func(c *scripted) { c.diags = []ir.Diagnostic{diagnosticAtSource(-2, ir.SeverityWarning)} }, "indexes source -2",
+			func(scriptedValue *scripted) {
+				scriptedValue.diags = []ir.Diagnostic{diagnosticAtSource(-2, ir.SeverityWarning)}
+			}, "indexes source -2",
 		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			c := keeping()
-			tc.breakIt(c)
+			scripted := keeping()
+			tc.breakIt(scripted)
 
-			out, err := detected(c, nil).Compile(t.Context())
+			out, err := detected(scripted, nil).Compile(t.Context())
 
 			require.ErrorIs(t, err, compilers.ErrContract)
 			assert.Contains(t, err.Error(), tc.want)
@@ -232,15 +244,15 @@ func TestDetectionCompile_EachBreachIsAContractError(t *testing.T) {
 // the one thing a compile gives up.
 func TestDetectionCompile_HandsBackCopiesOfWhatTheCompilerAnsweredWith(t *testing.T) {
 	t.Parallel()
-	c := keeping()
-	c.doc = nil
-	c.table = []ir.SourceInfo{{Path: spec.Path}}
-	c.diags = []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityError)}
+	scripted := keeping()
+	scripted.doc = nil
+	scripted.table = []ir.SourceInfo{{Path: spec.Path}}
+	scripted.diags = []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityError)}
 
-	out, err := detected(c, nil).Compile(t.Context())
+	out, err := detected(scripted, nil).Compile(t.Context())
 	require.NoError(t, err)
-	c.table[0].Path = "tampered"
-	c.diags[0].Code = "tampered"
+	scripted.table[0].Path = "tampered"
+	scripted.diags[0].Code = "tampered"
 
 	assert.Equal(t, spec.Path, out.Sources[0].Path)
 	assert.Equal(t, "alpha/finding", out.Diagnostics[0].Code)
@@ -248,10 +260,10 @@ func TestDetectionCompile_HandsBackCopiesOfWhatTheCompilerAnsweredWith(t *testin
 
 func TestDetectionCompile_ACompilerErrorPassesThroughUnwrapped(t *testing.T) {
 	t.Parallel()
-	c := keeping()
-	c.err = context.Canceled
+	scripted := keeping()
+	scripted.err = context.Canceled
 
-	_, err := detected(c, nil).Compile(t.Context())
+	_, err := detected(scripted, nil).Compile(t.Context())
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.NotErrorIs(t, err, compilers.ErrContract, "a compiler that stops when asked keeps its contract")

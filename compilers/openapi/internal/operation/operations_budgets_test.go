@@ -34,13 +34,13 @@ webhooks:
   petCreated:
     post: {operationId: petCreated, responses: {"200": {description: ok}}}
 `
-	c := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags})
+	serviceContext := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags})
 
-	declared, _ := auth.LowerSecuritySchemes(c)
+	declared, _ := auth.LowerSecuritySchemes(serviceContext)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	lowered, diags := operation.LowerService(ctx, c, compile.NewTypes(), declared)
+	lowered, diags := operation.LowerService(ctx, serviceContext, compile.NewTypes(), declared)
 
 	assert.Empty(t, diags)
 	assert.Empty(t, lowered.Service.Groups, "neither the path loop nor the webhook loop lowered an operation")
@@ -51,14 +51,14 @@ webhooks:
 // refused.
 func lowerUnder(t *testing.T, spec string, limit budget.Limit) ([]ir.Operation, bool) {
 	t.Helper()
-	c := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags, MaxReferenceExpansion: limit})
-	declared, _ := auth.LowerSecuritySchemes(c)
-	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
+	serviceContext := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags, MaxReferenceExpansion: limit})
+	declared, _ := auth.LowerSecuritySchemes(serviceContext)
+	lowered, _ := operation.LowerService(t.Context(), serviceContext, compile.NewTypes(), declared)
 	ops := make([]ir.Operation, 0, 3)
-	for _, g := range lowered.Service.Groups {
-		ops = append(ops, g.Operations...)
+	for _, operationGroup := range lowered.Service.Groups {
+		ops = append(ops, operationGroup.Operations...)
 	}
-	_, refused := c.ExpansionRefusal()
+	_, refused := serviceContext.ExpansionRefusal()
 	return ops, refused
 }
 

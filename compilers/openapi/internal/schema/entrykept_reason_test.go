@@ -30,16 +30,16 @@ func readKept(t *testing.T, kept ir.Unmodeled, diags []ir.Diagnostic, written, e
 	t.Helper()
 	require.Len(t, kept, 1, "%v", unmodeledKeys(kept))
 	var out keptReading
-	for key, e := range kept {
-		out = keptReading{Key: key, Value: string(e.Value), Reason: e.Reason}
-		require.Equal(t, jsontext.Pointer(written), e.Provenance.Pointer, key)
+	for key, unmodeledEntry := range kept {
+		out = keptReading{Key: key, Value: string(unmodeledEntry.Value), Reason: unmodeledEntry.Reason}
+		require.Equal(t, jsontext.Pointer(written), unmodeledEntry.Provenance.Pointer, key)
 	}
-	for _, d := range diags {
-		switch d.Provenance.Pointer {
+	for _, diagnostic := range diags {
+		switch diagnostic.Provenance.Pointer {
 		case jsontext.Pointer(written):
-			out.AtKeyword = append(out.AtKeyword, d.Code)
+			out.AtKeyword = append(out.AtKeyword, diagnostic.Code)
 		case jsontext.Pointer(entry):
-			out.AtEntry = append(out.AtEntry, d.Code)
+			out.AtEntry = append(out.AtEntry, diagnostic.Code)
 		default:
 		}
 	}
@@ -65,9 +65,9 @@ func TestEntryKeptReason_ABoundOnANumberAsTextIsKeptAsBesideIt(t *testing.T) {
 		entry := readKept(t, typeByName(doc, "Entry").Common().Unmodeled, diags, at+"Entry/allOf/0/"+keyword, at+"Entry/allOf/0")
 		assert.Equal(t, ir.ReasonNoIRHome, beside.Reason, bound)
 		assert.Equal(t, beside, entry, bound)
-		p := doc.Types[ir.TypeID("type/anonymous/components/schemas/H/properties/p")]
-		require.NotNil(t, p, bound)
-		held := readKept(t, p.Common().Unmodeled, diags, at+"H/properties/p/allOf/0/"+keyword, at+"H/properties/p/allOf/0")
+		typeDef := doc.Types[ir.TypeID("type/anonymous/components/schemas/H/properties/p")]
+		require.NotNil(t, typeDef, bound)
+		held := readKept(t, typeDef.Common().Unmodeled, diags, at+"H/properties/p/allOf/0/"+keyword, at+"H/properties/p/allOf/0")
 		assert.Equal(t, beside, held, bound)
 	}
 }

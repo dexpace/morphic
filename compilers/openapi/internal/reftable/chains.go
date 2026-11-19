@@ -20,53 +20,53 @@ func (b *binder) chain(site DocumentPointer) (Chain, bool) {
 	on := map[DocumentPointer]int{}
 	end, waits := b.follow(site, &path, on)
 	if waits {
-		for _, p := range path {
-			b.wait.on[p] = true
+		for _, documentPointer := range path {
+			b.wait.on[documentPointer] = true
 		}
 		return Chain{}, true
 	}
 	// closeLoop settled a loop's members and took them off path, so every
 	// position left on it leads into what end is.
 	end.PositionLiesOnReferenceCycle = false
-	for _, p := range slices.Backward(path) {
+	for _, documentPointer := range slices.Backward(path) {
 		if end.Status == Resolved {
 			end.Hops++
 		}
-		b.chains[p] = end
+		b.chains[documentPointer] = end
 	}
 	return b.chains[site], false
 }
 
-// follow walks the chain from p onto path until it reaches a position settled
+// follow walks the chain from documentPointer onto path until it reaches a position settled
 // before, a position already on path, which closes a loop, or a hop that ends
 // it, and returns the answer for the last position left on path's successor,
 // or reports that it waits (chain).
-func (b *binder) follow(p DocumentPointer, path *[]DocumentPointer, on map[DocumentPointer]int) (Chain, bool) {
+func (b *binder) follow(documentPointer DocumentPointer, path *[]DocumentPointer, on map[DocumentPointer]int) (Chain, bool) {
 	for {
-		if c, done := b.chains[p]; done {
-			return c, false
+		if chain, done := b.chains[documentPointer]; done {
+			return chain, false
 		}
-		if b.wait.on[p] {
+		if b.wait.on[documentPointer] {
 			return Chain{}, true
 		}
-		if i, looped := on[p]; looped {
+		if i, looped := on[documentPointer]; looped {
 			b.closeLoop((*path)[i:])
 			*path = (*path)[:i]
 			return Chain{Status: Cyclic}, false
 		}
-		h := b.hop(p)
+		hop := b.hop(documentPointer)
 		if b.work.over() {
 			return Chain{Status: OverBudget}, false
 		}
-		on[p] = len(*path)
-		*path = append(*path, p)
+		on[documentPointer] = len(*path)
+		*path = append(*path, documentPointer)
 		switch {
-		case h.Status != Resolved:
-			return Chain{Status: Unresolved}, h.Reason == PendingExternalDocumentRead
-		case !b.holdsRef(h.Target):
-			return Chain{Status: Resolved, End: h.Target}, false
+		case hop.Status != Resolved:
+			return Chain{Status: Unresolved}, hop.Reason == PendingExternalDocumentRead
+		case !b.holdsRef(hop.Target):
+			return Chain{Status: Resolved, End: hop.Target}, false
 		}
-		p = h.Target
+		documentPointer = hop.Target
 	}
 }
 
@@ -101,73 +101,73 @@ func newWaits() *waits {
 }
 
 // requeue forgets each held hop, and notes each held site, mapping value and
-// reference object in f to settle again, now the documents they wait for are
+// reference object in finderValue to settle again, now the documents they wait for are
 // read. A held position waits no longer, so its own chain reads its hop again;
 // one that leads to it waits on until release.
-func (w *waits) requeue(f *finder, hops map[DocumentPointer]Hop, objHops map[DocumentPointer]objectHop) {
-	for _, p := range w.held {
-		delete(hops, p)
-		delete(w.on, p)
-		if w.sites[p] {
-			delete(w.sites, p)
-			f.fresh = append(f.fresh, p)
+func (w *waits) requeue(finderValue *finder, hops map[DocumentPointer]Hop, objHops map[DocumentPointer]objectHop) {
+	for _, documentPointer := range w.held {
+		delete(hops, documentPointer)
+		delete(w.on, documentPointer)
+		if w.sites[documentPointer] {
+			delete(w.sites, documentPointer)
+			finderValue.fresh = append(finderValue.fresh, documentPointer)
 		}
 	}
-	for _, p := range w.heldObjects {
-		delete(objHops, p)
+	for _, documentPointer := range w.heldObjects {
+		delete(objHops, documentPointer)
 		for kind := range RefKind(len(refStates)) {
-			k := objectKey{at: p, kind: kind + 1}
-			delete(w.onObjects, k)
-			if w.objects[k] {
-				delete(w.objects, k)
-				f.freshObjects = append(f.freshObjects, k)
+			objectKeyValue := objectKey{at: documentPointer, kind: kind + 1}
+			delete(w.onObjects, objectKeyValue)
+			if w.objects[objectKeyValue] {
+				delete(w.objects, objectKeyValue)
+				finderValue.freshObjects = append(finderValue.freshObjects, objectKeyValue)
 			}
 		}
 	}
-	for _, k := range w.heldMappings {
-		delete(w.mappings, k)
-		f.freshMappings = append(f.freshMappings, k)
+	for _, mappingKey := range w.heldMappings {
+		delete(w.mappings, mappingKey)
+		finderValue.freshMappings = append(finderValue.freshMappings, mappingKey)
 	}
 	w.held, w.heldObjects, w.heldMappings, w.released, w.declaring = nil, nil, nil, false, nil
 }
 
-// release notes in f every site, mapping value and reference object that
+// release notes in finderValue every site, mapping value and reference object that
 // waits, to settle once more now nothing is held, and reports whether there
 // was any. A second release with no held document read since would meet the
 // same hops, so it releases nothing, which bounds the pass: what still waits
 // then has no entry.
-func (w *waits) release(f *finder) bool {
+func (w *waits) release(finderValue *finder) bool {
 	if w.released || len(w.sites) == 0 && len(w.mappings) == 0 && len(w.objects) == 0 {
 		return false
 	}
 	w.released = true
 	clear(w.on)
 	clear(w.onObjects)
-	f.fresh = slices.AppendSeq(f.fresh, maps.Keys(w.sites))
-	f.freshMappings = slices.AppendSeq(f.freshMappings, maps.Keys(w.mappings))
-	f.freshObjects = slices.AppendSeq(f.freshObjects, maps.Keys(w.objects))
+	finderValue.fresh = slices.AppendSeq(finderValue.fresh, maps.Keys(w.sites))
+	finderValue.freshMappings = slices.AppendSeq(finderValue.freshMappings, maps.Keys(w.mappings))
+	finderValue.freshObjects = slices.AppendSeq(finderValue.freshObjects, maps.Keys(w.objects))
 	clear(w.sites)
 	clear(w.mappings)
 	clear(w.objects)
 	return true
 }
 
-// holdsRef reports whether p writes a $ref of its own, which a chain landing
+// holdsRef reports whether documentPointer writes a $ref of its own, which a chain landing
 // there follows on, or a $dynamicRef that is the $ref it spells, or may be
 // once the document its hop waits for is read (namesDynamic).
-func (b *binder) holdsRef(p DocumentPointer) bool {
+func (b *binder) holdsRef(documentPointer DocumentPointer) bool {
 	// Only a hop's target is asked, a position its document holds, so the path
 	// reaches it.
-	path, _ := b.docs.path(p)
+	path, _ := b.docs.path(documentPointer)
 	n := path[len(path)-1]
-	if _, ok := b.docs.refOf(p.Doc, n); ok {
+	if _, ok := b.docs.refOf(documentPointer.Doc, n); ok {
 		return true
 	}
-	value, ok := dynamicRefValue(b.docs, p.Doc, n)
+	value, ok := dynamicRefValue(b.docs, documentPointer.Doc, n)
 	if !ok {
 		return false
 	}
-	named, _ := namesDynamic(b, p, path, value)
+	named, _ := namesDynamic(b, documentPointer, path, value)
 	return !named
 }
 
@@ -175,8 +175,8 @@ func (b *binder) holdsRef(p DocumentPointer) bool {
 func (b *binder) closeLoop(members []DocumentPointer) {
 	sorted := slices.SortedFunc(slices.Values(members), b.docs.compare)
 	b.loops = append(b.loops, Loop{Members: sorted})
-	for _, m := range members {
-		b.chains[m] = Chain{Status: Cyclic, PositionLiesOnReferenceCycle: true}
+	for _, documentPointer := range members {
+		b.chains[documentPointer] = Chain{Status: Cyclic, PositionLiesOnReferenceCycle: true}
 	}
 }
 
@@ -188,11 +188,11 @@ func (b *binder) placeLoops() {
 	for i := range b.loops {
 		b.loops[i].Site = b.loops[i].Members[0]
 	}
-	slices.SortFunc(b.loops, func(x, y Loop) int {
-		if c := b.docs.compare(x.Site, y.Site); c != 0 {
+	slices.SortFunc(b.loops, func(loop, loopValue Loop) int {
+		if c := b.docs.compare(loop.Site, loopValue.Site); c != 0 {
 			return c
 		}
-		return int(x.Kind) - int(y.Kind)
+		return int(loop.Kind) - int(loopValue.Kind)
 	})
-	b.loops = slices.CompactFunc(b.loops, func(x, y Loop) bool { return x.Site == y.Site })
+	b.loops = slices.CompactFunc(b.loops, func(loop, loopValue Loop) bool { return loop.Site == loopValue.Site })
 }

@@ -66,12 +66,12 @@ func TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay(t *testing.T) {
 			require.NoError(t, err)
 
 			found := 0
-			for _, d := range diags {
-				if d.Code != tc.code {
+			for _, diagnostic := range diags {
+				if diagnostic.Code != tc.code {
 					continue
 				}
 				found++
-				assert.Equal(t, ir.Provenance{Source: 0, Pointer: tc.pointer, WrittenBy: 1}, d.Provenance,
+				assert.Equal(t, ir.Provenance{Source: 0, Pointer: tc.pointer, WrittenBy: 1}, diagnostic.Provenance,
 					"the overlay put the node there, and the pointer says where in the source")
 			}
 			assert.Equal(t, 1, found, "diagnostics: %+v", diags)
@@ -94,13 +94,13 @@ func TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource(t *testing.T) {
 	require.NoError(t, err)
 
 	found := 0
-	for _, d := range diags {
-		if d.Code != diag.Validation+"/validation-required-field" {
+	for _, diagnostic := range diags {
+		if diagnostic.Code != diag.Validation+"/validation-required-field" {
 			continue
 		}
 		found++
 		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1b/get/responses/200",
-			Position: ir.Position{Line: 6, Column: 26}}, d.Provenance,
+			Position: ir.Position{Line: 6, Column: 26}}, diagnostic.Provenance,
 			"the source declared this node, at this position")
 	}
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)
@@ -135,9 +135,9 @@ func TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused(t *testing.T) {
 			require.NoError(t, err, "a tagged mapping is a spec problem, not a Go error")
 			assert.Nil(t, doc, "nothing is lowered")
 			require.Equal(t, 1, countErrorsAt(diags, diag.TaggedMapping), "diagnostics: %+v", diags)
-			for _, d := range diags {
-				if d.Code == diag.TaggedMapping {
-					assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1b/get/responses/404", WrittenBy: 1}, d.Provenance,
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.TaggedMapping {
+					assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1b/get/responses/404", WrittenBy: 1}, diagnostic.Provenance,
 						"and the overlay wrote the position it was grafted at")
 				}
 			}
@@ -166,9 +166,9 @@ func TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused(t *testing.T) {
 	require.NoError(t, err, "a tagged mapping is a spec problem, not a Go error")
 	assert.Nil(t, doc, "nothing is lowered")
 	require.Equal(t, 1, countErrorsAt(diags, diag.TaggedMapping), "diagnostics: %+v", diags)
-	for _, d := range diags {
-		if d.Code == diag.TaggedMapping {
-			assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1b/get/responses/404", WrittenBy: 1}, d.Provenance,
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.TaggedMapping {
+			assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1b/get/responses/404", WrittenBy: 1}, diagnostic.Provenance,
 				"at the alias's position, which the overlay wrote")
 		}
 	}

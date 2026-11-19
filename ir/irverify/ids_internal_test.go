@@ -74,7 +74,7 @@ func TestIDSpaceViolations_AClassWithNoPrefixIsNotPlaced(t *testing.T) {
 	require.Len(t, collected.List(), 1, "the node declares its ID")
 	doc := &ir.Document{IDSpaces: map[string][]string{ir.IDKindType: {"y"}}}
 
-	for _, v := range idSpaceViolations(doc, declarations{collected: &collected}) {
-		assert.NotEqual(t, "ir/id-space-undeclared", v.Code, "%s at %s", v.Message, v.Path)
+	for _, violation := range idSpaceViolations(doc, declarations{collected: &collected}) {
+		assert.NotEqual(t, "ir/id-space-undeclared", violation.Code, "%s at %s", violation.Message, violation.Path)
 	}
 }

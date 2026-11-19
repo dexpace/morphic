@@ -20,9 +20,9 @@ import (
 // checkTypeRefs, so each case below only has to build the one shape it names.
 func emptyRefViolations(doc *ir.Document) []irverify.Violation {
 	var out []irverify.Violation
-	for _, v := range verifyDeclared(doc) {
-		if strings.HasPrefix(v.Code, "ir/empty-") && strings.HasSuffix(v.Code, "-ref") {
-			out = append(out, v)
+	for _, violation := range verifyDeclared(doc) {
+		if strings.HasPrefix(violation.Code, "ir/empty-") && strings.HasSuffix(violation.Code, "-ref") {
+			out = append(out, violation)
 		}
 	}
 	return out
@@ -348,8 +348,8 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 			t.Parallel()
 			vs := verifyDeclared(tc.doc)
 			codes := make([]string, 0, len(vs))
-			for _, v := range vs {
-				codes = append(codes, v.Code)
+			for _, violation := range vs {
+				codes = append(codes, violation.Code)
 			}
 			require.Contains(t, codes, tc.owner, "the owning check must report the empty position")
 			assert.Empty(t, emptyRefViolations(tc.doc), "and it must be the only one that does")
@@ -391,9 +391,9 @@ func TestVerify_ParamIDClassIsReached(t *testing.T) {
 			t.Parallel()
 			tc.op.ID = "operation/x/S/op"
 			paths := make([]string, 0, 1)
-			for _, v := range emptyRefViolations(opDoc(tc.op)) {
-				assert.Equal(t, "ir/empty-parameter-ref", v.Code)
-				paths = append(paths, v.Path)
+			for _, violation := range emptyRefViolations(opDoc(tc.op)) {
+				assert.Equal(t, "ir/empty-parameter-ref", violation.Code)
+				paths = append(paths, violation.Path)
 			}
 			assert.Equal(t, tc.want, paths)
 		})

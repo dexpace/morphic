@@ -551,17 +551,17 @@ func TestDiagnosticSet_KeepsEachLocatorApart(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name     string
-		vary     func(d *ir.Diagnostic)
+		vary     func(diagnostic *ir.Diagnostic)
 		distinct bool
 	}{
-		{"severity", func(d *ir.Diagnostic) { d.Severity = ir.SeverityError }, true},
-		{"code", func(d *ir.Diagnostic) { d.Code = "x/z" }, true},
-		{"source", func(d *ir.Diagnostic) { d.Provenance.Source = 1 }, true},
-		{"pointer", func(d *ir.Diagnostic) { d.Provenance.Pointer = "/b" }, true},
-		{"node", func(d *ir.Diagnostic) { d.Provenance.Node = "type/x/B" }, true},
-		{"writer", func(d *ir.Diagnostic) { d.Provenance.WrittenBy = 1 }, true},
-		{"inferred", func(d *ir.Diagnostic) { d.Provenance.Inferred = "group-path-prefix" }, true},
-		{"message", func(d *ir.Diagnostic) { d.Message = "other" }, false},
+		{"severity", func(diagnostic *ir.Diagnostic) { diagnostic.Severity = ir.SeverityError }, true},
+		{"code", func(diagnostic *ir.Diagnostic) { diagnostic.Code = "x/z" }, true},
+		{"source", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Source = 1 }, true},
+		{"pointer", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Pointer = "/b" }, true},
+		{"node", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Node = "type/x/B" }, true},
+		{"writer", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.WrittenBy = 1 }, true},
+		{"inferred", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Inferred = "group-path-prefix" }, true},
+		{"message", func(diagnostic *ir.Diagnostic) { diagnostic.Message = "other" }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -712,11 +712,11 @@ func TestDiffOrderInvariants_ASequencesOrderIsCompared(t *testing.T) {
 	assert.Contains(t, detail, "document depends on declaration order")
 
 	members := func(ids ...ir.EnumMemberID) *ir.Document {
-		e := &ir.Enum{ID: "type/x/E"}
+		enum := &ir.Enum{ID: "type/x/E"}
 		for _, id := range ids {
-			e.Members = append(e.Members, ir.EnumMember{ID: id})
+			enum.Members = append(enum.Members, ir.EnumMember{ID: id})
 		}
-		return &ir.Document{Types: ir.TypeRegistry{e.ID: e}}
+		return &ir.Document{Types: ir.TypeRegistry{enum.ID: enum}}
 	}
 	detail, ok = diffOrderInvariants(members("enum-member/x/a", "enum-member/x/b"), nil, members("enum-member/x/b", "enum-member/x/a"), nil)
 	assert.False(t, ok)
@@ -729,9 +729,9 @@ func TestDiffOrderInvariants_ASequencesOrderIsCompared(t *testing.T) {
 func TestDiffOrderInvariants_RawBytesAreNotJSON(t *testing.T) {
 	t.Parallel()
 	bytesOf := func(b string) *ir.Document {
-		v := ir.Value{Kind: ir.ValueBytes, Bytes: []byte(b)}
+		value := ir.Value{Kind: ir.ValueBytes, Bytes: []byte(b)}
 		return &ir.Document{Types: ir.TypeRegistry{"type/x/A": &ir.Model{ID: "type/x/A",
-			Properties: []ir.Property{{ID: "property/x/a", Default: &v}}}}}
+			Properties: []ir.Property{{ID: "property/x/a", Default: &value}}}}}
 	}
 	detail, ok := diffOrderInvariants(bytesOf("\x00not json"), nil, bytesOf("\x00not json"), nil)
 	assert.True(t, ok, detail)
@@ -794,11 +794,11 @@ func TestDiffOrderInvariants_ADocumentThatWillNotEncodeIsAFinding(t *testing.T) 
 // numbers builds an object value whose members are numbers, in the order
 // given: name, value, name, value.
 func numbers(pairs ...string) ir.Value {
-	v := ir.Value{Kind: ir.ValueObject}
+	value := ir.Value{Kind: ir.ValueObject}
 	for i := 0; i+1 < len(pairs); i += 2 {
-		v.Object = append(v.Object, ir.Field{Name: pairs[i], Value: ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal(pairs[i+1])}})
+		value.Object = append(value.Object, ir.Field{Name: pairs[i], Value: ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal(pairs[i+1])}})
 	}
-	return v
+	return value
 }
 
 // objectValuedModel is a model whose property default and unnamed examples hold
@@ -1046,7 +1046,7 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 			id = "type/x/Reversed"
 		}
 		path, _ := ir.IDPath(ir.IDKindType, string(id))
-		m := &ir.Model{
+		model := &ir.Model{
 			ID:         id,
 			Name:       ir.Naming{Source: "M", Canonical: "m"},
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + path)},
@@ -1057,13 +1057,13 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 			IDSpaces:  spaces,
 			Sources:   sources,
 			Services:  services,
-			Types:     ir.TypeRegistry{m.ID: m},
+			Types:     ir.TypeRegistry{model.ID: model},
 		}, nil, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte(src))
-	assert.Equal(t, OutcomeOrderDependent, r.Outcome, "detail: %s", r.Detail)
-	assert.Contains(t, r.Detail, "declaration order")
+	result := Check(context.Background(), "spec", []byte(src))
+	assert.Equal(t, OutcomeOrderDependent, result.Outcome, "detail: %s", result.Detail)
+	assert.Contains(t, result.Detail, "declaration order")
 }
 
 // TestMaxReverseDepth_ReachesEveryAdmittedDocument holds the rewrite's bound
@@ -1096,8 +1096,8 @@ func TestEncodeComparable_MoreJoinsOrderFree(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{"type/x/A": &ir.Model{ID: "type/x/A", Properties: []ir.Property{
 		{ID: "property/x/b", Type: ir.TypeRef{Target: "type/x/old"}}, {ID: "property/x/a"},
 	}}}}
-	renamed := json.MarshalToFunc(func(enc *jsontext.Encoder, r ir.TypeRef) error {
-		if r.Target != "type/x/old" {
+	renamed := json.MarshalToFunc(func(enc *jsontext.Encoder, typeRef ir.TypeRef) error {
+		if typeRef.Target != "type/x/old" {
 			return errors.ErrUnsupported
 		}
 		return enc.WriteToken(jsontext.String("renamed"))

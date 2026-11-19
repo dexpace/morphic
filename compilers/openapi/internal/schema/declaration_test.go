@@ -38,7 +38,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := typeByName(doc, "V").(*ir.Model)
+	model := typeByName(doc, "V").(*ir.Model)
 	// An entry the source writes as one keyword is located at that keyword; the
 	// three that synthesize several into one object fall back to the schema,
 	// since no single node addresses the synthesized value.
@@ -50,7 +50,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 		"openapi:unevaluated":      "/components/schemas/V",
 	}
 	for key, want := range wantPointer {
-		entry, ok := m.Unmodeled[key]
+		entry, ok := model.Unmodeled[key]
 		require.True(t, ok, "keyword %s preserved", key)
 		assert.Equal(t, jsontext.Pointer(want), entry.Provenance.Pointer, "entry provenance for %s", key)
 	}
@@ -91,19 +91,19 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
       not: {required: [b]}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	raw, ok := m.Unmodeled["openapi:not"]
+	model := doc.Types[componentID("S")].(*ir.Model)
+	raw, ok := model.Unmodeled["openapi:not"]
 	require.True(t, ok, "not-keyword must be preserved verbatim")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S/not"), raw.Provenance.Pointer,
 		"the entry locates the keyword, not the schema that carried it")
 	found := false
-	for _, d := range diags {
-		if d.Code == diag.ValidationOnlyKeyword {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ValidationOnlyKeyword {
 			found = true
-			assert.Equal(t, ir.SeverityInfo, d.Severity)
-			assert.Equal(t, jsontext.Pointer("/components/schemas/S"), d.Provenance.Pointer,
+			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+			assert.Equal(t, jsontext.Pointer("/components/schemas/S"), diagnostic.Provenance.Pointer,
 				"the diagnostic still reports against the declaring schema")
 		}
 	}
@@ -119,8 +119,8 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	raw, ok := m.Unmodeled["openapi:x-rate-limit"]
+	model := doc.Types[componentID("S")].(*ir.Model)
+	raw, ok := model.Unmodeled["openapi:x-rate-limit"]
 	require.True(t, ok)
 	assert.JSONEq(t, "100", string(raw.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
@@ -138,9 +138,9 @@ func TestModel_TitleDescriptionDocs(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	assert.Equal(t, "My Title", m.Docs.Summary)
-	assert.Equal(t, "My Desc", m.Docs.Description)
+	model := doc.Types[componentID("S")].(*ir.Model)
+	assert.Equal(t, "My Title", model.Docs.Summary)
+	assert.Equal(t, "My Desc", model.Docs.Description)
 }
 
 func TestSchema_UnserializableExtension(t *testing.T) {
@@ -153,8 +153,8 @@ func TestSchema_UnserializableExtension(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
-	m := typeByName(doc, "S").(*ir.Model)
-	_, hasBad := m.Unmodeled["openapi:x-bad"]
+	model := typeByName(doc, "S").(*ir.Model)
+	_, hasBad := model.Unmodeled["openapi:x-bad"]
 	assert.False(t, hasBad, "unserializable extension is dropped, not stored")
 }
 
@@ -560,19 +560,19 @@ func TestPropertyPosition_ResidueStaysOutOfTheTypeNode(t *testing.T) {
 			"default: [], readOnly: true}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := propertyOf(t, doc, "A", "p")
-	require.NotNil(t, p.Default, "default lands in the property's own field")
+	property := propertyOf(t, doc, "A", "p")
+	require.NotNil(t, property.Default, "default lands in the property's own field")
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{
 		ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery,
-	}}, p.Visibility, "readOnly lands in the property's own field")
+	}}, property.Visibility, "readOnly lands in the property's own field")
 
-	td, ok := doc.Types[p.Type.Target]
+	td, ok := doc.Types[property.Type.Target]
 	require.True(t, ok)
 	assert.NotContains(t, td.Common().Unmodeled, "openapi:default",
 		"the carrier holds it, so the node must not restate it")
 	assert.NotContains(t, td.Common().Unmodeled, "openapi:readOnly",
 		"the carrier holds it, so the node must not restate it")
-	assert.Empty(t, p.Unmodeled, "nor does the property preserve what it modelled")
+	assert.Empty(t, property.Unmodeled, "nor does the property preserve what it modelled")
 }
 
 // TestDialectKeywords_KeptOutOfScope pins the exclusion the rule
@@ -689,16 +689,16 @@ func stolenPositions() []stolenPosition {
 // assertResidueDiag (compilers/openapi/e2e) do the same job in two calls; this
 // package cannot import them, so the pairing lives here under a name that is
 // not a transposition of either.
-func assertResidueKeptAndAnnounced(t *testing.T, p ir.Unmodeled, diags []ir.Diagnostic, keyword, wantJSON string) {
+func assertResidueKeptAndAnnounced(t *testing.T, unmodeled ir.Unmodeled, diags []ir.Diagnostic, keyword, wantJSON string) {
 	t.Helper()
-	entry, ok := p["openapi:"+keyword]
+	entry, ok := unmodeled["openapi:"+keyword]
 	require.True(t, ok, "%s must be kept verbatim under Unmodeled", keyword)
 	assert.JSONEq(t, wantJSON, string(entry.Value))
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityInfo &&
-			strings.HasSuffix(string(d.Provenance.Pointer), "/"+keyword) {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityInfo &&
+			strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/"+keyword) {
 			return
 		}
 	}
@@ -789,22 +789,22 @@ components:
 // written, so one kept twice is listed twice.
 func unevaluatedEntries(doc *ir.Document) map[jsontext.Pointer][]string {
 	out := map[jsontext.Pointer][]string{}
-	add := func(u ir.Unmodeled) {
-		if e, ok := u["openapi:unevaluated"]; ok {
-			out[e.Provenance.Pointer] = append(out[e.Provenance.Pointer], string(e.Value))
+	add := func(unmodeled ir.Unmodeled) {
+		if unmodeledEntry, ok := unmodeled["openapi:unevaluated"]; ok {
+			out[unmodeledEntry.Provenance.Pointer] = append(out[unmodeledEntry.Provenance.Pointer], string(unmodeledEntry.Value))
 		}
 	}
 	for _, td := range doc.Types {
 		add(td.Common().Unmodeled)
-		if m, ok := td.(*ir.Model); ok {
-			for _, p := range m.Properties {
-				add(p.Unmodeled)
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				add(property.Unmodeled)
 			}
 		}
 	}
 	ir.ForEachOperation(doc, func(op ir.Operation) {
-		for _, p := range op.Params {
-			add(schemaKept(p.Unmodeled))
+		for _, parameter := range op.Params {
+			add(schemaKept(parameter.Unmodeled))
 		}
 	})
 	return out
@@ -828,9 +828,9 @@ func TestClosureTyped_ReadsAlikeInEitherBranchOrder(t *testing.T) {
 			read := func(first, second string) (ir.AdditionalMode, map[jsontext.Pointer][]string, []string) {
 				doc, diags := parseFull(t, outcomeSpec("{allOf: ["+first+", "+second+"]"+tc.beside+"}"))
 				openapitest.RequireNoErrorDiags(t, diags)
-				m, ok := doc.Types[componentID("C")].(*ir.Model)
+				model, ok := doc.Types[componentID("C")].(*ir.Model)
 				require.True(t, ok, "got %T", doc.Types[componentID("C")])
-				return m.Additional, unevaluatedEntries(doc), slices.Sorted(maps.Keys(m.Unmodeled))
+				return model.Additional, unevaluatedEntries(doc), slices.Sorted(maps.Keys(model.Unmodeled))
 			}
 			mode, kept, keys := read(live, tc.other)
 			swappedMode, swappedKept, swappedKeys := read(tc.other, live)

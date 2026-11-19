@@ -26,11 +26,11 @@ import (
 // the process.
 func TestCheckRawPayloads_VisitingCostsNoAllocation(t *testing.T) {
 	kept := func(keys ...string) ir.Unmodeled {
-		u := ir.Unmodeled{}
+		unmodeled := ir.Unmodeled{}
 		for _, key := range keys {
-			u[key] = ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"kept":[1,"a"]}`)}
+			unmodeled[key] = ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"kept":[1,"a"]}`)}
 		}
-		return u
+		return unmodeled
 	}
 	many := make([]string, 0, 40)
 	for i := range 40 {

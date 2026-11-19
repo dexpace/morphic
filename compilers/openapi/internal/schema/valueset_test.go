@@ -41,19 +41,19 @@ func TestValueSet_AConstNullOnAnEntryStandsAtThePosition(t *testing.T) {
 func TestValueSet_AnEnumPastTheBudgetOnAnEntryIsRefusedWhereWritten(t *testing.T) {
 	t.Parallel()
 	const uuidA, uuidB = "0b5c6f4e-6b9e-4a77-9f0f-5b0b8d5c1a11", "1b5c6f4e-6b9e-4a77-9f0f-5b0b8d5c1a11"
-	l, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Str: {type: string}
+	lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Str: {type: string}
     S: {allOf: [{$ref: '#/components/schemas/Str'}, {enum: [a, b], format: email}]}
     F: {allOf: [{type: string, format: uuid}, {enum: [`+uuidA+`, `+uuidB+`]}]}
 `))
-	l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(1)}
-	diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
+	lowerer.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(1)}
+	diags := schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas())
 
-	node, ok := typeByName(l.Document(t), "S").(*ir.Any)
-	require.True(t, ok, "got %T", typeByName(l.Document(t), "S"))
+	node, ok := typeByName(lowerer.Document(t), "S").(*ir.Any)
+	require.True(t, ok, "got %T", typeByName(lowerer.Document(t), "S"))
 	assert.Equal(t, []string{"openapi:$ref", "openapi:format"}, unmodeledKeys(node.Unmodeled))
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/1/format"), node.Unmodeled["openapi:format"].Provenance.Pointer)
-	formatted, ok := typeByName(l.Document(t), "F").(*ir.Any)
-	require.True(t, ok, "got %T", typeByName(l.Document(t), "F"))
+	formatted, ok := typeByName(lowerer.Document(t), "F").(*ir.Any)
+	require.True(t, ok, "got %T", typeByName(lowerer.Document(t), "F"))
 	assert.Equal(t, []string{"openapi:format"}, unmodeledKeys(formatted.Unmodeled))
 	refused := withCode(diags, diag.BudgetExceeded)
 	require.Len(t, refused, 2)
@@ -131,9 +131,9 @@ func TestValueSet_SetsAlikeTheElectionCannotTellApartElectNone(t *testing.T) {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Str: {type: string}\n"+
 			"    S: {allOf: [{$ref: '#/components/schemas/Str'}, "+entries+"]}\n"))
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := typeByName(doc, "S").(*ir.Model)
+		model, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, "%s: got %T", entries, typeByName(doc, "S"))
-		assert.Equal(t, []string{"openapi:$ref", "openapi:allOf/1", "openapi:allOf/2"}, unmodeledKeys(m.Unmodeled), entries)
+		assert.Equal(t, []string{"openapi:$ref", "openapi:allOf/1", "openapi:allOf/2"}, unmodeledKeys(model.Unmodeled), entries)
 		assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), entries)
 	}
 }

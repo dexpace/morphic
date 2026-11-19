@@ -84,8 +84,8 @@ func TestEngine_RunEndToEnd(t *testing.T) {
 	assert.Equal(t, "Tiny", res.Document.Name)
 	assert.Equal(t, "3.1", res.Format.Version)
 	assert.Equal(t, res.Document.Sources, res.Sources, "the result carries the document's own table")
-	for _, d := range res.Diagnostics {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "diag: %+v", d)
+	for _, diagnostic := range res.Diagnostics {
+		assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "diag: %+v", diagnostic)
 	}
 }
 
@@ -139,8 +139,8 @@ func TestEngine_AnnotatedSubtypeValidatesClean(t *testing.T) {
 		"the description beside the $ref is the subtype's")
 	assert.NotContains(t, res.Document.Types, ir.TypeID("type/anonymous/components/schemas/Cat/allOf/0"),
 		"the entry owns no node")
-	for _, d := range res.Diagnostics {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "diag: %+v", d)
+	for _, diagnostic := range res.Diagnostics {
+		assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "diag: %+v", diagnostic)
 	}
 	assert.False(t, hasDiagCode(res.Diagnostics, "pass/discriminator-missing-variant"),
 		"the mapping names a genuine subtype, whatever its Base points through")
@@ -222,8 +222,8 @@ x-a: &a [*a]
 	assert.Equal(t, []ir.SourceInfo{{Path: spec}}, res.Sources,
 		"the compiler's own table, not the document's — there is no document")
 	require.NotEmpty(t, res.Diagnostics)
-	for _, d := range res.Diagnostics {
-		assert.Equal(t, 0, d.Provenance.Source, "the cycle is in the one source the run read: %+v", d)
+	for _, diagnostic := range res.Diagnostics {
+		assert.Equal(t, 0, diagnostic.Provenance.Source, "the cycle is in the one source the run read: %+v", diagnostic)
 	}
 }
 
@@ -256,8 +256,8 @@ func TestEngine_RunResultSourcesOnARefusedOverlay(t *testing.T) {
 		"the compiler's table: the spec, then the overlay its options named")
 	require.NotEmpty(t, res.Diagnostics)
 	assertSourcesInvariant(t, spec, res)
-	assert.True(t, slices.ContainsFunc(res.Diagnostics, func(d ir.Diagnostic) bool {
-		return d.Provenance.Source == 1
+	assert.True(t, slices.ContainsFunc(res.Diagnostics, func(diagnostic ir.Diagnostic) bool {
+		return diagnostic.Provenance.Source == 1
 	}), "the refusal names the overlay, source 1: %+v", res.Diagnostics)
 }
 
@@ -516,7 +516,7 @@ func (danglingCompiler) Compile(_ context.Context, sources []compilers.Source, _
 }
 
 func hasDiagCode(diags []ir.Diagnostic, code string) bool {
-	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == code })
+	return slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == code })
 }
 
 func TestEngine_ValidateRuns(t *testing.T) {
@@ -842,9 +842,9 @@ func TestEngine_RunDiagnosticsAreOneLineEach(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, res)
 			require.NotEmpty(t, res.Diagnostics, "the case must produce a diagnostic to be worth checking")
-			for _, d := range res.Diagnostics {
-				assert.NotContains(t, d.Message, "\n",
-					"one diagnostic is one line: %s / %s", d.Code, d.Message)
+			for _, diagnostic := range res.Diagnostics {
+				assert.NotContains(t, diagnostic.Message, "\n",
+					"one diagnostic is one line: %s / %s", diagnostic.Code, diagnostic.Message)
 			}
 		})
 	}
@@ -912,11 +912,11 @@ func TestEngine_RunHoldsAThrowawayCompilerToItsContract(t *testing.T) {
 		shape     func(*ir.Document)
 		violation string
 	}{
-		{"a document naming no source", func(d *ir.Document) { d.Sources = nil }, ""},
-		{"a source read as no format", func(d *ir.Document) { d.Sources[0].Format = "" }, ""},
-		{"a source hashed from nothing", func(d *ir.Document) { d.Sources[0].Hash = "" }, ""},
-		{"a refusal saying nothing", func(d *ir.Document) { d.Sources, d.Services = nil, nil }, ""},
-		{"a document with no service", func(d *ir.Document) { d.Services = nil }, "ir/services-absent"},
+		{"a document naming no source", func(document *ir.Document) { document.Sources = nil }, ""},
+		{"a source read as no format", func(document *ir.Document) { document.Sources[0].Format = "" }, ""},
+		{"a source hashed from nothing", func(document *ir.Document) { document.Sources[0].Hash = "" }, ""},
+		{"a refusal saying nothing", func(document *ir.Document) { document.Sources, document.Services = nil, nil }, ""},
+		{"a document with no service", func(document *ir.Document) { document.Services = nil }, "ir/services-absent"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -934,8 +934,8 @@ func TestEngine_RunHoldsAThrowawayCompilerToItsContract(t *testing.T) {
 			require.NoError(t, err)
 			vs := irverify.Verify(res.Document)
 			codes := make([]string, 0, len(vs))
-			for _, v := range vs {
-				codes = append(codes, v.Code)
+			for _, violation := range vs {
+				codes = append(codes, violation.Code)
 			}
 			assert.Contains(t, codes, tc.violation)
 		})
@@ -1025,10 +1025,10 @@ components:
 			assert.Empty(t, cmp.Diff(first, res.Document), "allowed: %s; %s from %s", allow, n.path, n.cwd)
 		}
 		var unresolved []string
-		for _, d := range first.Diagnostics {
-			assert.NotEqual(t, "pass/name-collision", d.Code, "the spec is read once: %s", d.Message)
-			if d.Code == "openapi/unresolved-ref" {
-				unresolved = append(unresolved, string(d.Provenance.Pointer))
+		for _, diagnostic := range first.Diagnostics {
+			assert.NotEqual(t, "pass/name-collision", diagnostic.Code, "the spec is read once: %s", diagnostic.Message)
+			if diagnostic.Code == "openapi/unresolved-ref" {
+				unresolved = append(unresolved, string(diagnostic.Provenance.Pointer))
 			}
 		}
 		if allow == "true" {
@@ -1136,9 +1136,9 @@ func TestEngine_RunReadsASpecAlikeHoweverItIsNamed(t *testing.T) {
 			assert.Empty(t, cmp.Diff(first, res.Document), "allowed: %s; %s from %s", allow, n.path, n.cwd)
 		}
 		var unresolved []string
-		for _, d := range first.Diagnostics {
-			if d.Code == "openapi/unresolved-ref" {
-				unresolved = append(unresolved, string(d.Provenance.Pointer))
+		for _, diagnostic := range first.Diagnostics {
+			if diagnostic.Code == "openapi/unresolved-ref" {
+				unresolved = append(unresolved, string(diagnostic.Provenance.Pointer))
 			}
 		}
 		if allow == "true" {

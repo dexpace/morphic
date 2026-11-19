@@ -32,8 +32,8 @@ func TestCheckRepeatedKeys_ReportsEachKeyWrittenAgainAtTheRepeat(t *testing.T) {
 	assert.ElementsMatch(t, []ir.Position{{Line: 3, Column: 12}, {Line: 8, Column: 1}},
 		[]ir.Position{diags[0].Provenance.Position, diags[1].Provenance.Position}, "the second k once, and a")
 
-	placed := CheckRepeatedKeys(t.Context(), &doc, "3.1.0", Options{Locate: func(p jsontext.Pointer) ir.Provenance {
-		return ir.Provenance{Pointer: p}
+	placed := CheckRepeatedKeys(t.Context(), &doc, "3.1.0", Options{Locate: func(pointer jsontext.Pointer) ir.Provenance {
+		return ir.Provenance{Pointer: pointer}
 	}})
 	require.Len(t, placed, 2)
 	assert.ElementsMatch(t, []jsontext.Pointer{"/l/0/k", "/a"},

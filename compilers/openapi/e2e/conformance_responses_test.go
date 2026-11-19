@@ -72,8 +72,8 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 		string(throttled.Payload.Contents[1].Type.Target),
 		"the second media type keeps its own schema rather than the first's")
 	wire := make([]string, 0, len(throttled.Headers))
-	for _, h := range throttled.Headers {
-		wire = append(wire, h.WireName)
+	for _, header := range throttled.Headers {
+		wire = append(wire, header.WireName)
 	}
 	assert.Equal(t, []string{"Retry-After", "X-RateLimit-Remaining"}, wire,
 		"the headers that only ever appear on an error status are structural")
@@ -161,26 +161,26 @@ func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	require.Len(t, op.Responses, 1)
 	headers := op.Responses[0].Headers
 	for wire, encoded := range map[string]bool{"Last-Modified": true, "Expires": true, "Date": false, "X-Modified": false} {
-		h, ok := headerByWire(headers, wire)
+		header, ok := headerByWire(headers, wire)
 		require.True(t, ok, wire)
 		if !encoded {
-			assert.Nil(t, h.Encoding, wire)
-			assert.Empty(t, h.Provenance.Inferred, wire)
+			assert.Nil(t, header.Encoding, wire)
+			assert.Empty(t, header.Provenance.Inferred, wire)
 			continue
 		}
-		assert.Equal(t, &ir.Encoding{Name: "http-date"}, h.Encoding, wire)
-		assert.Equal(t, openapi.HTTPDateInferenceHeuristic, h.Provenance.Inferred, wire)
+		assert.Equal(t, &ir.Encoding{Name: "http-date"}, header.Encoding, wire)
+		assert.Equal(t, openapi.HTTPDateInferenceHeuristic, header.Provenance.Inferred, wire)
 		assert.Equal(t, 1, countCode(diags, diag.InferredHTTPDate,
 			"/paths/~1files~1{name}/put/responses/204/headers/"+wire), wire)
 	}
 	// A header whose format names its text carries that encoding on its type,
 	// so the document has spoken for it (docs/compilers/openapi.md#string-formats).
 	for wire, encoding := range map[string]string{"Sunset": "http-date", "Retry-After": "unixTimestamp"} {
-		h, ok := headerByWire(headers, wire)
+		header, ok := headerByWire(headers, wire)
 		require.True(t, ok, wire)
-		assert.Nil(t, h.Encoding, wire)
-		assert.Empty(t, h.Provenance.Inferred, wire)
-		sc, ok := doc.Types[h.Type.Target].(*ir.Scalar)
+		assert.Nil(t, header.Encoding, wire)
+		assert.Empty(t, header.Provenance.Inferred, wire)
+		sc, ok := doc.Types[header.Type.Target].(*ir.Scalar)
 		require.True(t, ok, "%s: the format hoists a Scalar", wire)
 		require.NotNil(t, sc.Encoding, wire)
 		assert.Equal(t, encoding, sc.Encoding.Name, wire)
@@ -195,8 +195,8 @@ func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	assert.Equal(t, openapi.HTTPDateInferenceHeuristic, since.Provenance.Inferred)
 	assert.Equal(t, 1, countCode(diags, diag.InferredHTTPDate, "/paths/~1files~1{name}/put/parameters/1"))
 	reported := 0
-	for _, d := range diags {
-		if d.Code == diag.InferredHTTPDate {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.InferredHTTPDate {
 			reported++
 		}
 	}

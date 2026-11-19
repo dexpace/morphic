@@ -34,9 +34,9 @@ func (p places) position(at reftable.DocumentPointer) ir.Provenance {
 
 // in returns where pointer of the document a reference reads by name is placed.
 func (p places) in(name string, pointer jsontext.Pointer) ir.Provenance {
-	o, ok := p.others.Named(name)
+	other, ok := p.others.Named(name)
 	if !ok {
 		return p.source.At("")
 	}
-	return provenance.Doc{Source: o.Index}.At(pointer)
+	return provenance.Doc{Source: other.Index}.At(pointer)
 }

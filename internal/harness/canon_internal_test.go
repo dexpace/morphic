@@ -22,11 +22,11 @@ var abOrder = permutation{
 	moved:   sequences{"/components/schemas/AB/allOf": 2},
 }
 
-// declaring is a model of the name holding one member, p, of the target type.
+// declaring is a model of the name holding one member, typeID, of the target type.
 // Its IDs and pointers are the ones the compiler gives a schema declared under
 // components.schemas, the member's provenance included, so a shape line that
 // kept it would tell two declarations apart.
-func declaring(name string, p ir.TypeID) *ir.Model {
+func declaring(name string, typeID ir.TypeID) *ir.Model {
 	return &ir.Model{
 		ID:   ir.TypeID("type/openapi/components/schemas/" + name),
 		Name: ir.Naming{Source: name, Canonical: strings.ToLower(name)},
@@ -34,7 +34,7 @@ func declaring(name string, p ir.TypeID) *ir.Model {
 			ID:       ir.PropertyID("property/openapi/components/schemas/" + name + "/properties/p"),
 			Name:     ir.Naming{Source: "p", Canonical: "p"},
 			WireName: "p",
-			Type:     ir.TypeRef{Target: p},
+			Type:     ir.TypeRef{Target: typeID},
 			Provenance: ir.Provenance{
 				Pointer: jsontext.Pointer("/components/schemas/" + name + "/properties/p"),
 			},
@@ -110,11 +110,11 @@ func TestDiffSequenceInvariants_ASelfReferenceEndsTheWalk(t *testing.T) {
 	t.Parallel()
 	const self ir.TypeID = "type/anonymous/components/schemas/AB/allOf/0"
 	cyclic := func() *ir.Document {
-		m := declaring("AB", self)
-		m.ID = self
-		m.Properties[0].ID = "property/anonymous/components/schemas/AB/allOf/0/properties/p"
-		m.Properties[0].Provenance.Pointer = "/components/schemas/AB/allOf/0/properties/p"
-		return &ir.Document{Types: ir.TypeRegistry{self: m}}
+		model := declaring("AB", self)
+		model.ID = self
+		model.Properties[0].ID = "property/anonymous/components/schemas/AB/allOf/0/properties/p"
+		model.Properties[0].Provenance.Pointer = "/components/schemas/AB/allOf/0/properties/p"
+		return &ir.Document{Types: ir.TypeRegistry{self: model}}
 	}
 
 	detail, ok, why := diffSequenceInvariants(cyclic(), nil, cyclic(), nil, abOrder)
@@ -146,11 +146,11 @@ func TestRewriterText_OnlyACycleOfTwoOrMoreFails(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			r := rewriter{seqs: abOrder.written, owners: tc.owners, digests: map[string]string{}, visiting: map[string]bool{}}
+			rewriterValue := rewriter{seqs: abOrder.written, owners: tc.owners, digests: map[string]string{}, visiting: map[string]bool{}}
 
-			r.text(tc.start, 0)
+			rewriterValue.text(tc.start, 0)
 
-			assert.ErrorIs(t, r.err, tc.want)
+			assert.ErrorIs(t, rewriterValue.err, tc.want)
 		})
 	}
 }
@@ -178,10 +178,10 @@ func TestRewriterIndex_RecordsOwnersInNameOrder(t *testing.T) {
 	tree := map[string]any{"chain": chain, "owners": owners}
 
 	for range 20 {
-		r := rewriter{seqs: abOrder.written, owners: map[string][]map[string]any{}, digests: map[string]string{}, visiting: map[string]bool{}}
-		r.index(tree, 0)
-		r.text(shared, 0)
-		assert.ErrorIs(t, r.err, errTooDeep, "the head comes first in name order")
+		rewriterValue := rewriter{seqs: abOrder.written, owners: map[string][]map[string]any{}, digests: map[string]string{}, visiting: map[string]bool{}}
+		rewriterValue.index(tree, 0)
+		rewriterValue.text(shared, 0)
+		assert.ErrorIs(t, rewriterValue.err, errTooDeep, "the head comes first in name order")
 	}
 }
 
@@ -269,19 +269,19 @@ func TestDiffSequenceInvariants_ForgivesOnlyWhatTheReversalMoves(t *testing.T) {
 	// tied reports at one index in either order, which the reversal moves, so
 	// the site is a tie, and changes what a model says there.
 	tied := func(doc *ir.Document, i int) []ir.Diagnostic {
-		m := declaring("C", "type/primitive/string")
-		m.Provenance = ir.Provenance{Pointer: ab + "/0/properties/p"}
-		m.Docs.Description = strconv.Itoa(i)
-		doc.Types[m.ID] = m
+		model := declaring("C", "type/primitive/string")
+		model.Provenance = ir.Provenance{Pointer: ab + "/0/properties/p"}
+		model.Docs.Description = strconv.Itoa(i)
+		doc.Types[model.ID] = model
 		return []ir.Diagnostic{{Severity: ir.SeverityWarning, Code: "x/tie",
 			Provenance: ir.Provenance{Pointer: ab + "/1/properties/p"}}}
 	}
 	model := func(seq string) func(*ir.Document, int) []ir.Diagnostic {
 		return func(doc *ir.Document, i int) []ir.Diagnostic {
-			m := declaring("C", "type/primitive/string")
-			m.ID = ir.TypeID("type/openapi" + seq + "/" + strconv.Itoa(i))
-			m.Provenance = ir.Provenance{Pointer: jsontext.Pointer(seq + "/" + strconv.Itoa(i))}
-			doc.Types[m.ID] = m
+			model := declaring("C", "type/primitive/string")
+			model.ID = ir.TypeID("type/openapi" + seq + "/" + strconv.Itoa(i))
+			model.Provenance = ir.Provenance{Pointer: jsontext.Pointer(seq + "/" + strconv.Itoa(i))}
+			doc.Types[model.ID] = model
 			return nil
 		}
 	}

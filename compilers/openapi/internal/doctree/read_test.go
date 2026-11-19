@@ -302,8 +302,8 @@ func TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise(t *testing.T) {
 		inComment bool
 	}
 	got := make([]entry, 0, len(doc.Legacy))
-	for _, l := range doc.Legacy {
-		got = append(got, entry{l.Node.Value, l.Break, l.InComment})
+	for _, legacy := range doc.Legacy {
+		got = append(got, entry{legacy.Node.Value, legacy.Break, legacy.InComment})
 	}
 	want := []entry{
 		{"a" + nel + "b", 0x85, false},
@@ -334,8 +334,8 @@ func TestRead_AYAML11DocumentRecordsAnIntegerTaggedOutrightThatReadsApart(t *tes
 	doc := read(t, "%YAML 1.1\n---\n"+body)
 
 	got := make([]string, 0, len(doc.Legacy))
-	for _, l := range doc.Legacy {
-		got = append(got, l.Node.Value+": "+l.Is+" / "+l.Was)
+	for _, legacy := range doc.Legacy {
+		got = append(got, legacy.Node.Value+": "+legacy.Is+" / "+legacy.Was)
 	}
 	assert.Equal(t, []string{"0644: the integer 644 / the integer 420", "-010: the integer -10 / the integer -8"}, got)
 	assert.Empty(t, read(t, body).Legacy, "a document that does not declare YAML 1.1 records nothing")
@@ -507,9 +507,9 @@ func TestRead_AnEscapedSlashReadsAsASlashOnlyWhereTheStyleSaysSo(t *testing.T) {
 	assert.Equal(t, "x"+bs+"/y", nodeAtSteps(t, doc.Root, "f").Value, "an escaped backslash, then an escaped slash")
 	assert.Empty(t, cmp.Diff(positions(read(t, twin).Root), positions(doc.Root)), "positions as the one-for-one twin's")
 
-	d := read(t, "t: \"x"+bs+bs+bs+"x61y\"\nu: \"p"+bs+"/q\"\n")
-	assert.Equal(t, "x"+bs+"ay", nodeAtSteps(t, d.Root, "t").Value, "an escaped backslash then the escape of a")
-	assert.Equal(t, "p/q", nodeAtSteps(t, d.Root, "u").Value)
+	parsedYAMLDocument := read(t, "t: \"x"+bs+bs+bs+"x61y\"\nu: \"p"+bs+"/q\"\n")
+	assert.Equal(t, "x"+bs+"ay", nodeAtSteps(t, parsedYAMLDocument.Root, "t").Value, "an escaped backslash then the escape of a")
+	assert.Equal(t, "p/q", nodeAtSteps(t, parsedYAMLDocument.Root, "u").Value)
 }
 
 // TestRead_ALineBreakYAML11EndsALineAtIsACharacter pins the three characters

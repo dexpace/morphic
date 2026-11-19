@@ -228,9 +228,9 @@ func TestEncoding_ArrangingFieldsLowerWhereTheyTakeEffect(t *testing.T) {
 			assert.Equal(t, map[ir.PropertyID]ir.PartEncoding{partProp(requestMedia(tc.mt), "v"): tc.want}, content.Encoding)
 			assert.Equal(t, tc.kept, keptEncodingNames(content.Unmodeled))
 			var warned []string
-			for _, d := range diags {
-				if d.Code == noEffect {
-					warned = append(warned, strings.TrimPrefix(string(d.Provenance.Pointer), requestMedia(tc.mt)+"/encoding/"))
+			for _, diagnostic := range diags {
+				if diagnostic.Code == noEffect {
+					warned = append(warned, strings.TrimPrefix(string(diagnostic.Provenance.Pointer), requestMedia(tc.mt)+"/encoding/"))
 				}
 			}
 			slices.Sort(warned)

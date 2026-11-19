@@ -29,12 +29,12 @@ const (
 // control: each changes nothing.
 var notCarried = []string{"$anchor", "$comment", "$defs", "$dynamicAnchor"}
 
-// presence returns r's verdict of the presence oracle.
-func presence(t *testing.T, r harness.Result) harness.Verdict {
+// presence returns result's verdict of the presence oracle.
+func presence(t *testing.T, result harness.Result) harness.Verdict {
 	t.Helper()
-	i := slices.IndexFunc(r.Verdicts, func(v harness.Verdict) bool { return v.Oracle == harness.OraclePresence })
-	require.GreaterOrEqual(t, i, 0, r.Spec)
-	return r.Verdicts[i]
+	i := slices.IndexFunc(result.Verdicts, func(verdict harness.Verdict) bool { return verdict.Oracle == harness.OraclePresence })
+	require.GreaterOrEqual(t, i, 0, result.Spec)
+	return result.Verdicts[i]
 }
 
 // TestCore_EveryKeywordIsCarriedEverywhere holds each keyword of the rule
@@ -46,8 +46,8 @@ func presence(t *testing.T, r harness.Result) harness.Verdict {
 // fault gives no verdict, so -update would delete the line of a case it ended.
 func TestCore_EveryKeywordIsCarriedEverywhere(t *testing.T) {
 	results := coreResults(t)
-	for _, r := range results {
-		require.False(t, r.Faulted(), "%s: %s: %s", r.Spec, r.Outcome, r.Detail)
+	for _, result := range results {
+		require.False(t, result.Faulted(), "%s: %s: %s", result.Spec, result.Outcome, result.Detail)
 	}
 	found := harness.Findings(results, harness.OraclePresence)
 	record, err := openapicases.Record(harness.OraclePresence)
@@ -64,11 +64,11 @@ func TestCore_EveryKeywordIsCarriedEverywhere(t *testing.T) {
 	assert.Empty(t, unreasoned)
 
 	askedAt := map[string]map[string]int{}
-	for _, r := range results {
-		parts := strings.Split(r.Spec, "/")
-		v := presence(t, r)
-		if !v.Asked() {
-			assert.Contains(t, []harness.Decline{harness.DeclineNoConstruct, harness.DeclineErrorDiagnostic}, v.Declined, r.Spec)
+	for _, result := range results {
+		parts := strings.Split(result.Spec, "/")
+		verdict := presence(t, result)
+		if !verdict.Asked() {
+			assert.Contains(t, []harness.Decline{harness.DeclineNoConstruct, harness.DeclineErrorDiagnostic}, verdict.Declined, result.Spec)
 			continue
 		}
 		if askedAt[parts[2]] == nil {
@@ -91,14 +91,14 @@ func TestCore_EveryKeywordIsCarriedEverywhere(t *testing.T) {
 // compiles to what the case leaving it out does, at every position.
 func TestCore_TheControlsAreAskedAndChangeNothing(t *testing.T) {
 	asked := map[string]int{}
-	for _, r := range coreResults(t) {
-		keyword := strings.Split(r.Spec, "/")[2]
+	for _, result := range coreResults(t) {
+		keyword := strings.Split(result.Spec, "/")[2]
 		if !slices.Contains(notCarried, keyword) {
 			continue
 		}
-		v := presence(t, r)
-		assert.True(t, v.Asked(), "%s: %s", r.Spec, v.Declined)
-		assert.False(t, v.Found(), "%s: %s", r.Spec, v.Detail)
+		verdict := presence(t, result)
+		assert.True(t, verdict.Asked(), "%s: %s", result.Spec, verdict.Declined)
+		assert.False(t, verdict.Found(), "%s: %s", result.Spec, verdict.Detail)
 		asked[keyword]++
 	}
 	for _, keyword := range notCarried {
@@ -116,9 +116,9 @@ var from31Positions = []string{"prefixItem", "patternProperty", "contentSchema"}
 func keywords(t *testing.T) []string {
 	t.Helper()
 	var out []string
-	for _, v := range openapicases.New().Axes()[2].Values {
-		if v.Name != "none" && !strings.HasSuffix(v.Name, "~") {
-			out = append(out, v.Name)
+	for _, value := range openapicases.New().Axes()[2].Values {
+		if value.Name != "none" && !strings.HasSuffix(value.Name, "~") {
+			out = append(out, value.Name)
 		}
 	}
 	require.NotEmpty(t, out)
@@ -135,16 +135,16 @@ func keywords(t *testing.T) []string {
 // on. The case writing nothing and a keyword's other value name none. A second
 // is held at one position (alone).
 func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
-	c := openapicases.New()
-	axes := c.Axes()
+	cases := openapicases.New()
+	axes := cases.Axes()
 	var kept, replaced []string
-	each, err := harness.Each(c)
+	each, err := harness.Each(cases)
 	require.NoError(t, err)
 	for _, at := range each {
 		if !alone(at) {
 			continue
 		}
-		doc, ok := c.Write(at)
+		doc, ok := cases.Write(at)
 		if !ok {
 			continue
 		}
@@ -157,12 +157,12 @@ func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 		with := func(neighbour []int) []int { return slices.Concat(at[:2], neighbour, at[3:]) }
 		absent := with([]int{0})
 		second := axes[3].Values[at[3]].Name
-		row := slices.IndexFunc(axes[2].Values, func(v harness.Value) bool { return v.Name == second })
+		row := slices.IndexFunc(axes[2].Values, func(value harness.Value) bool { return value.Name == second })
 		switch s := axes[5].Values[at[5]].Name; {
 		case second != "none" && row >= 0:
 			absent[2], absent[3] = row, 0 // a second named as a construct, alone, is that construct's case
 		case (second == "none" || second == "secondRef") && (s == "entry" || s == "entryFirst" || s == "besideEntry"):
-			absent[5] = slices.IndexFunc(axes[5].Values, func(v harness.Value) bool { return v.Name == "wrap" })
+			absent[5] = slices.IndexFunc(axes[5].Values, func(value harness.Value) bool { return value.Name == "wrap" })
 		}
 		assert.Equal(t, absent, doc.Absent, "%v", at)
 		assert.Equal(t, doc.Carried, doc.Reason == "", "%v: a keyword nothing carries says why", at)

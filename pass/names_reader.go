@@ -69,13 +69,13 @@ type party struct {
 	words, source string
 }
 
-// partyOf reads n as a party.
-func partyOf(n ir.Naming) party {
-	words := n.Canonical
+// partyOf reads naming as a party.
+func partyOf(naming ir.Naming) party {
+	words := naming.Canonical
 	if words == "" {
-		words = n.Hint
+		words = naming.Hint
 	}
-	return party{words: words, source: n.Source}
+	return party{words: words, source: naming.Source}
 }
 
 // scope says how to report on the parties a nameReader read: what holds them,
@@ -162,15 +162,15 @@ func (r *nameReader) read(by comparison) bool {
 	seen, n := r.seen.Emptied(), len(r.parties)
 	r.later, r.last, r.other = sized(r.later, n), sized(r.last, n), sized(r.other, n)
 	r.shared, r.bare = r.shared[:0], r.bare[:0]
-	for i, p := range r.parties {
+	for i, party := range r.parties {
 		r.later[i] = -1
-		if p.words == "" {
-			if p.source == "" {
+		if party.words == "" {
+			if party.source == "" {
 				continue
 			}
 			r.bare = append(r.bare, i)
 		}
-		r.place(by, seen, r.sum(by, p), i)
+		r.place(by, seen, r.sum(by, party), i)
 	}
 	return len(r.shared) > 0 || len(r.bare) > 0
 }
@@ -180,23 +180,23 @@ func sized(s []int, n int) []int {
 	return slices.Grow(s[:0], n)[:n]
 }
 
-// sum hashes the name by compares p by: its words, joined where by joins them,
+// sum hashes the name by compares partyValue by: its words, joined where by joins them,
 // or else its spelling.
-func (r *nameReader) sum(by comparison, p party) uint64 {
+func (r *nameReader) sum(by comparison, partyValue party) uint64 {
 	r.hash.Reset()
 	switch {
-	case p.words == "":
-		r.hash.WriteString(p.source)
+	case partyValue.words == "":
+		r.hash.WriteString(partyValue.source)
 	case by == byJoinedWords:
 		r.joined = r.joined[:0]
-		for i := range len(p.words) {
-			if p.words[i] != '_' {
-				r.joined = append(r.joined, p.words[i])
+		for i := range len(partyValue.words) {
+			if partyValue.words[i] != '_' {
+				r.joined = append(r.joined, partyValue.words[i])
 			}
 		}
 		r.hash.Write(r.joined)
 	default:
-		r.hash.WriteString(p.words)
+		r.hash.WriteString(partyValue.words)
 	}
 	return r.hash.Sum64()
 }

@@ -33,10 +33,10 @@ func TestVerify_MalformedTypeIDIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m := &ir.Model{
+			model := &ir.Model{
 				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
 			}
-			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: m}}
+			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: model}}
 			assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/id-malformed",
 				"%q is not an ID the grammar produces", tc.id)
 		})
@@ -48,11 +48,11 @@ func TestVerify_MalformedTypeIDIsAViolation(t *testing.T) {
 // checks spell it.
 func TestVerify_RegistryIDDefectIsPlacedOnItsEntry(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{ID: "type//path", Name: ir.Naming{Source: "M", Canonical: "m"}}
+	model := &ir.Model{ID: "type//path", Name: ir.Naming{Source: "M", Canonical: "m"}}
 	scheme := ir.AuthScheme{ID: "a//path", Name: ir.Naming{Source: "S", Canonical: "s"}, Kind: ir.AuthKindHTTPBearer}
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion,
-		Types:     ir.TypeRegistry{m.ID: m},
+		Types:     ir.TypeRegistry{model.ID: model},
 		Auth:      map[ir.AuthID]ir.AuthScheme{scheme.ID: scheme},
 	}
 	assert.Equal(t, []string{"auth[a//path]", "types[type//path]"}, violationPaths(verifyDeclared(doc), "ir/id-malformed"))
@@ -65,12 +65,12 @@ func TestVerify_RegistryIDDefectIsPlacedOnItsEntry(t *testing.T) {
 // source pointer recorded beside it, which the path no longer matches.
 func TestVerify_IDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{
+	model := &ir.Model{
 		ID:         "type/anonaddr",
 		Name:       ir.Naming{Source: "Addr", Canonical: "addr"},
 		Provenance: ir.Provenance{Pointer: "addr"},
 	}
-	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 
 	got := verifyDeclared(doc)
 	assert.Contains(t, violationCodes(got), "ir/id-provenance-disagreement")
@@ -84,12 +84,12 @@ func TestVerify_IDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 // it passes the wrong `at`, which nothing else in the repository can see.
 func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{
+	model := &ir.Model{
 		ID:         "type/openapi/components/schemas/Child",
 		Name:       ir.Naming{Source: "Child", Canonical: "child"},
 		Provenance: ir.Provenance{Pointer: "/components/schemas/Parent"},
 	}
-	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 	assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/id-provenance-disagreement")
 }
 
@@ -100,8 +100,8 @@ func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 // have would make every document violate.
 func TestVerify_PointerlessIDIsClean(t *testing.T) {
 	t.Parallel()
-	p := &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
-	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{p.ID: p}}
+	primitive := &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{primitive.ID: primitive}}
 	assert.Empty(t, verifyDeclared(doc))
 }
 
@@ -131,8 +131,8 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := &ir.Primitive{ID: tc.id, PrimitiveKind: tc.kind, Provenance: ir.Provenance{Source: ir.NoSource}}
-			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: p}}
+			primitive := &ir.Primitive{ID: tc.id, PrimitiveKind: tc.kind, Provenance: ir.Provenance{Source: ir.NoSource}}
+			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: primitive}}
 
 			got := verifyDeclared(doc)
 			assert.Contains(t, violationCodes(got), "ir/prim-id-not-derived")
@@ -185,10 +185,10 @@ func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m := &ir.Model{
+			model := &ir.Model{
 				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
 			}
-			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: m}}
+			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: model}}
 			assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/prim-space-reserved")
 		})
 	}
@@ -315,17 +315,17 @@ func declaredIDClasses() []declaredIDClass {
 		{
 			name: "enum member", noun: "enummember", prefix: ir.IDKindEnumMember, path: "document.Types[type/x/E].Members[0]",
 			doc: func(id, _ string) *ir.Document {
-				e := &ir.Enum{ID: "type/x/E", Members: []ir.EnumMember{{ID: ir.EnumMemberID(id)}}}
-				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{e.ID: e}}
+				enum := &ir.Enum{ID: "type/x/E", Members: []ir.EnumMember{{ID: ir.EnumMemberID(id)}}}
+				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{enum.ID: enum}}
 			},
 		},
 		{
 			name: "property", noun: "property", prefix: ir.IDKindProperty, path: "document.Types[type/x/M].Properties[0]",
 			doc: func(id, pointer string) *ir.Document {
-				m := &ir.Model{ID: "type/x/M", Properties: []ir.Property{{
+				model := &ir.Model{ID: "type/x/M", Properties: []ir.Property{{
 					ID: ir.PropertyID(id), Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)},
 				}}}
-				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 			},
 		},
 	}

@@ -60,15 +60,15 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	if !ok {
 		return SchemaRules{}, false
 	}
-	d, unread := dialectOf(minor, dialect)
-	rows := &schemaRows{minor: minor, ignoresRefFields: d.ignoresRefFields, draft: d.keywords != nil,
+	dialectValue, unread := dialectOf(minor, dialect)
+	rows := &schemaRows{minor: minor, ignoresRefFields: dialectValue.ignoresRefFields, draft: dialectValue.keywords != nil,
 		booleans: obj.Boolean.Holds(minor)}
 	rows.object = obj
-	rows.object.Fields = definedAt(obj, minor, d)
+	rows.object.Fields = definedAt(obj, minor, dialectValue)
 	if rows.draft {
-		rows.booleans = d.booleans
-		if d.rules != nil {
-			rows.object.Rules = slices.Concat(obj.Rules, d.rules())
+		rows.booleans = dialectValue.booleans
+		if dialectValue.rules != nil {
+			rows.object.Rules = slices.Concat(obj.Rules, dialectValue.rules())
 		}
 	}
 	rows.object.Boolean = MinorVersionRange{}
@@ -76,30 +76,30 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 		rows.object.Boolean = Always()
 	}
 	rows.fields = make(map[string]Field, len(rows.object.Fields))
-	for _, f := range rows.object.Fields {
-		rows.fields[f.Name] = f
+	for _, field := range rows.object.Fields {
+		rows.fields[field.Name] = field
 	}
 	rows.later = laterThan(obj, minor, rows.draft, rows.fields)
-	for _, r := range obj.Rules {
-		if r.Kind == RuleRequiredWhen && r.Span.Holds(minor) {
-			rows.required = append(rows.required, r)
+	for _, rule := range obj.Rules {
+		if rule.Kind == RuleRequiredWhen && rule.Span.Holds(minor) {
+			rows.required = append(rows.required, rule)
 		}
 	}
 	return SchemaRules{rows: rows}, unread
 }
 
 // definedAt returns the Schema Object's fields obj defines at minor in dialect
-// d, in table order: every one the minor defines where d reads the minor's own
-// keywords, else OpenAPI's own fields and then d's keywords.
-func definedAt(obj Object, minor Minor, d dialect) []Field {
+// dialectValue, in table order: every one the minor defines where dialectValue reads the minor's own
+// keywords, else OpenAPI's own fields and then dialectValue's keywords.
+func definedAt(obj Object, minor Minor, dialectValue dialect) []Field {
 	var keywords []Field
-	if d.keywords != nil {
-		keywords = readBounds(d.keywords())
+	if dialectValue.keywords != nil {
+		keywords = readBounds(dialectValue.keywords())
 	}
 	defined := make([]Field, 0, len(obj.Fields)+len(keywords))
-	for _, f := range obj.Fields {
-		if f.Defined.Holds(minor) && (keywords == nil || !f.IsJSONSchemaKeyword) {
-			defined = append(defined, f)
+	for _, field := range obj.Fields {
+		if field.Defined.Holds(minor) && (keywords == nil || !field.IsJSONSchemaKeyword) {
+			defined = append(defined, field)
 		}
 	}
 	return append(defined, keywords...)
@@ -120,12 +120,12 @@ func laterThan(obj Object, minor Minor, draft bool, fields map[string]Field) map
 	}
 	_, spelledOtherwise := fields["id"]
 	later := map[string]Field{}
-	for _, f := range obj.Fields {
-		if _, defined := fields[f.Name]; defined || !f.Defined.Holds(native) || draft && !f.IsJSONSchemaKeyword {
+	for _, field := range obj.Fields {
+		if _, defined := fields[field.Name]; defined || !field.Defined.Holds(native) || draft && !field.IsJSONSchemaKeyword {
 			continue
 		}
-		if f.Name != "$id" || !spelledOtherwise {
-			later[f.Name] = f
+		if field.Name != "$id" || !spelledOtherwise {
+			later[field.Name] = field
 		}
 	}
 	return later
@@ -136,7 +136,7 @@ func laterThan(obj Object, minor Minor, draft bool, fields map[string]Field) map
 // has rows for, and whether id is an absolute URI the table has no rows for. A
 // dialect is compared without a trailing empty fragment, which draft 4's id
 // writes and 2020-12's does not, as `$schema` values spell both.
-func dialectOf(minor Minor, id string) (d dialect, unread bool) {
+func dialectOf(minor Minor, id string) (dialectValue dialect, unread bool) {
 	if id == "" || minor == V30 {
 		return dialect{}, false
 	}
@@ -183,10 +183,10 @@ func (r SchemaRules) Identifier() string {
 	}
 }
 
-// Formatted reports whether the rows give the field name the format f.
-func (r SchemaRules) Formatted(name string, f Format) bool {
+// Formatted reports whether the rows give the field name the format format.
+func (r SchemaRules) Formatted(name string, format Format) bool {
 	fld, ok := r.field(name)
-	return ok && fld.Format == f
+	return ok && fld.Format == format
 }
 
 // NamesDialect reports whether a `$schema` or jsonSchemaDialect value names a
@@ -204,11 +204,11 @@ func (r SchemaRules) Defines(name string) bool {
 // Takes reports whether the field name, defined at the minor, takes a value of
 // shape there: its own shape, or another it admits from a minor up to this one.
 func (r SchemaRules) Takes(name string, shape Shape) bool {
-	f, ok := r.field(name)
+	field, ok := r.field(name)
 	if !ok {
 		return false
 	}
-	return f.Shape == shape || slices.ContainsFunc(f.Alts, func(a Alt) bool {
+	return field.Shape == shape || slices.ContainsFunc(field.Alts, func(a Alt) bool {
 		return a.Shape == shape && a.Span.Holds(r.rows.minor)
 	})
 }
@@ -221,8 +221,8 @@ func (r SchemaRules) RequiredWhen(name, beside, value string) bool {
 		return false
 	}
 	return slices.ContainsFunc(r.rows.required, func(rule Rule) bool {
-		return rule.Field == name && !slices.ContainsFunc(rule.When, func(t Term) bool {
-			return t.Field != beside || !slices.Contains(t.In, value)
+		return rule.Field == name && !slices.ContainsFunc(rule.When, func(term Term) bool {
+			return term.Field != beside || !slices.Contains(term.In, value)
 		})
 	})
 }
@@ -232,6 +232,6 @@ func (r SchemaRules) field(name string) (Field, bool) {
 	if r.rows == nil {
 		return Field{}, false
 	}
-	f, ok := r.rows.fields[name]
-	return f, ok
+	field, ok := r.rows.fields[name]
+	return field, ok
 }

@@ -18,8 +18,8 @@ import (
 // about the document, which is what the required-field cases below are about.
 func assertNoValidationFinding(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
-	for _, d := range diags {
-		assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "unexpected validation finding: %+v", d)
+	for _, diagnostic := range diags {
+		assert.False(t, strings.HasPrefix(diagnostic.Code, diag.Validation+"/"), "unexpected validation finding: %+v", diagnostic)
 	}
 }
 
@@ -93,8 +93,8 @@ func assertEmptyRequestContent(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		assert.Empty(t, shared.Contents, name)
 	}
 	n := 0
-	for _, d := range diags {
-		if d.Code == code {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
 			n++
 		}
 	}
@@ -119,8 +119,8 @@ func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnost
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, later, at), "%s", at)
 	}
 	n := 0
-	for _, d := range diags {
-		if d.Code == later {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == later {
 			n++
 		}
 	}
@@ -136,23 +136,23 @@ func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnost
 // lowers where it is declared, once (docs/compilers/openapi.md#references).
 func assertReferenceObjectChains(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	var findings []ir.Diagnostic
-	for _, d := range diags {
-		if d.Severity != ir.SeverityInfo {
-			findings = append(findings, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity != ir.SeverityInfo {
+			findings = append(findings, diagnostic)
 		}
 	}
 	assert.Empty(t, findings, "every reference resolves; what an inference notes is no finding")
 	op, ok := opByName(doc, "createOrder")
 	require.True(t, ok)
 	names := make([]string, 0, len(op.Params))
-	for _, p := range op.Params {
-		names = append(names, p.Name.Source)
+	for _, parameter := range op.Params {
+		names = append(names, parameter.Name.Source)
 	}
 	assert.Equal(t, []string{"page", "limit", "cursor", "key"}, names)
 	assert.Equal(t, bodyAt("/paths/~1archive/post"), requestContent(t, op).Type.Target, "the body /archive declares")
-	h, ok := headerByWire(op.Responses[0].Headers, "X-Rate")
+	header, ok := headerByWire(op.Responses[0].Headers, "X-Rate")
 	require.True(t, ok, "the header inside the raw response lowers")
-	assert.Equal(t, ir.TypeID("type/primitive/integer"), h.Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), header.Type.Target)
 	assert.Equal(t, bodyAt("/paths/~1drafts/put"), requestType(t, doc, "replaceOrder"), "the field beside the $ref")
 	assert.Equal(t, ir.TypeID("type/anonymous/components/parameters/Page/schema"), useTarget(t, doc, "PageSize"), "the schema Page declares")
 	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/parameters/Alias/schema"), "no second node")

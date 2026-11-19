@@ -18,7 +18,7 @@ import (
 // and requires the names in requires.
 func requiresDoc(requires []string) *ir.Document {
 	str := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
-	m := &ir.Model{
+	model := &ir.Model{
 		ID:   "type/x/M",
 		Name: named("m"),
 		Properties: []ir.Property{{
@@ -26,15 +26,15 @@ func requiresDoc(requires []string) *ir.Document {
 		}},
 		Requires: requires,
 	}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{str.ID: str, m.ID: m}}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{str.ID: str, model.ID: model}}
 }
 
 // requiresViolations returns the violations in vs carrying code, in Verify's order.
 func requiresViolations(vs []irverify.Violation, code string) []irverify.Violation {
 	var out []irverify.Violation
-	for _, v := range vs {
-		if v.Code == code {
-			out = append(out, v)
+	for _, violation := range vs {
+		if violation.Code == code {
+			out = append(out, violation)
 		}
 	}
 	return out
@@ -118,8 +118,8 @@ func TestVerify_RequiresHoldsNoOwnPropertyAndNoRepeat(t *testing.T) {
 			t.Parallel()
 			doc := &ir.Document{Types: ir.TypeRegistry{"type/x/M": tc.td}}
 
-			for _, v := range irverify.Verify(doc) {
-				assert.False(t, strings.HasPrefix(v.Code, "ir/requires-"), "unexpected %+v", v)
+			for _, violation := range irverify.Verify(doc) {
+				assert.False(t, strings.HasPrefix(violation.Code, "ir/requires-"), "unexpected %+v", violation)
 			}
 		})
 	}

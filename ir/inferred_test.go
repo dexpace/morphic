@@ -107,10 +107,10 @@ func TestInferred_IsCanonicalAgreesWithJoinInferredOnEveryShortList(t *testing.T
 	level := []string{""}
 	for length := 0; ; length++ {
 		for _, list := range level {
-			l := ir.Inferred(list)
-			joined := ir.JoinInferred(l)
-			if l.IsCanonical() != (joined == l) {
-				t.Fatalf("IsCanonical(%q) = %v, but JoinInferred writes %q", list, l.IsCanonical(), joined)
+			inferred := ir.Inferred(list)
+			joined := ir.JoinInferred(inferred)
+			if inferred.IsCanonical() != (joined == inferred) {
+				t.Fatalf("IsCanonical(%q) = %v, but JoinInferred writes %q", list, inferred.IsCanonical(), joined)
 			}
 			if !joined.IsCanonical() {
 				t.Fatalf("JoinInferred(%q) = %q, which IsCanonical refuses", list, joined)
@@ -145,8 +145,8 @@ func TestInferred_IsCanonicalFindsEveryRepeatAndEmptyName(t *testing.T) {
 		assert.True(t, distinctNames(n).IsCanonical(), "%d distinct names", n)
 		for i := range n {
 			for j := i + 1; j < n; j++ {
-				l := withName(distinct, j, distinct[i])
-				assert.False(t, l.IsCanonical(), "%d names, the one at %d repeated at %d", n, i, j)
+				inferred := withName(distinct, j, distinct[i])
+				assert.False(t, inferred.IsCanonical(), "%d names, the one at %d repeated at %d", n, i, j)
 			}
 			assert.False(t, withName(distinct, i, "").IsCanonical(), "%d names, empty at %d", n, i)
 		}
@@ -166,8 +166,8 @@ func withName(list []string, i int, name string) ir.Inferred {
 // AllocsPerRun measures the process.
 func TestInferred_IsCanonicalAllocatesNothingForAFewNames(t *testing.T) {
 	for n := 1; n <= stackNames; n++ {
-		l := distinctNames(n)
-		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = l.IsCanonical() }), "%d distinct names", n)
+		inferred := distinctNames(n)
+		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = inferred.IsCanonical() }), "%d distinct names", n)
 	}
 	repeat := distinctNames(stackNames-1) + ",n0"
 	assert.Zero(t, testing.AllocsPerRun(10, func() { _ = repeat.IsCanonical() }), "%q", repeat)

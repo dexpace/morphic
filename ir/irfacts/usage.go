@@ -55,19 +55,19 @@ type usageStep struct {
 	flags  UsageFlags
 }
 
-// newUsage derives the usage of every type of doc over g, the graph of its
+// newUsage derives the usage of every type of doc over typeGraphValue, the graph of its
 // registry. A vertex passes on only the flags it had not reached before, so it
 // is expanded at most once per flag and a cycle ends.
-func newUsage(doc *ir.Document, g *typeGraph) map[ir.TypeID]UsageFlags {
+func newUsage(doc *ir.Document, typeGraphValue *typeGraph) map[ir.TypeID]UsageFlags {
 	roots := usageRoots{}
 	roots.document(doc)
 	var pending []usageStep
 	for id, flags := range roots {
-		if v, ok := g.reference(id); ok && flags&spreadingUsage != 0 {
+		if v, ok := typeGraphValue.reference(id); ok && flags&spreadingUsage != 0 {
 			pending = append(pending, usageStep{vertex: v, flags: flags & spreadingUsage})
 		}
 	}
-	reached := make([]UsageFlags, len(g.next))
+	reached := make([]UsageFlags, len(typeGraphValue.next))
 	for len(pending) > 0 {
 		step := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
@@ -76,17 +76,17 @@ func newUsage(doc *ir.Document, g *typeGraph) map[ir.TypeID]UsageFlags {
 			continue
 		}
 		reached[step.vertex] |= fresh
-		for _, w := range g.next[step.vertex] {
+		for _, w := range typeGraphValue.next[step.vertex] {
 			pending = append(pending, usageStep{vertex: w, flags: fresh})
 		}
-		for _, w := range g.args[step.vertex] {
+		for _, w := range typeGraphValue.args[step.vertex] {
 			pending = append(pending, usageStep{vertex: w, flags: UsageInput})
 		}
 	}
 	usage := map[ir.TypeID]UsageFlags{}
 	for v, flags := range reached {
 		if flags != 0 {
-			usage[g.typeOf(v)] |= flags
+			usage[typeGraphValue.typeOf(v)] |= flags
 		}
 	}
 	for id, flags := range roots {
@@ -227,27 +227,27 @@ func (r usageRoots) messages(doc *ir.Document, b *ir.MessageBinding) {
 
 // message records the payload and headers of the message id, if doc has one.
 func (r usageRoots) message(doc *ir.Document, id ir.MessageID, flags UsageFlags) {
-	m, ok := doc.Messages[id]
+	message, ok := doc.Messages[id]
 	if !ok {
 		return
 	}
-	r.payload(&m.Payload, flags)
-	r.ref(m.Headers, flags)
+	r.payload(&message.Payload, flags)
+	r.ref(message.Headers, flags)
 }
 
-// errorCase records the payload and headers of e as errors travelling on side.
-func (r usageRoots) errorCase(e *ir.ErrorCase, side UsageFlags) {
-	r.payload(e.Payload, side|UsageError)
-	r.headers(e.Headers, side|UsageError)
+// errorCase records the payload and headers of errorCase as errors travelling on side.
+func (r usageRoots) errorCase(errorCase *ir.ErrorCase, side UsageFlags) {
+	r.payload(errorCase.Payload, side|UsageError)
+	r.headers(errorCase.Headers, side|UsageError)
 }
 
-// stream records the event and initial-message types of s, when there is one.
-func (r usageRoots) stream(s *ir.StreamDetail, flags UsageFlags) {
-	if s == nil {
+// stream records the event and initial-message types of streamDetail, when there is one.
+func (r usageRoots) stream(streamDetail *ir.StreamDetail, flags UsageFlags) {
+	if streamDetail == nil {
 		return
 	}
-	r.ref(s.Events, flags)
-	r.ref(s.Initial, flags)
+	r.ref(streamDetail.Events, flags)
+	r.ref(streamDetail.Initial, flags)
 }
 
 // params records the type of each parameter in ps, and the type its encoding
@@ -255,8 +255,8 @@ func (r usageRoots) stream(s *ir.StreamDetail, flags UsageFlags) {
 func (r usageRoots) params(ps []ir.Parameter, flags UsageFlags) {
 	for i := range ps {
 		r.ref(&ps[i].Type, flags)
-		if e := ps[i].Encoding; e != nil {
-			r.ref(e.Schema, flags)
+		if encoding := ps[i].Encoding; encoding != nil {
+			r.ref(encoding.Schema, flags)
 		}
 	}
 }
@@ -267,19 +267,19 @@ func (r usageRoots) params(ps []ir.Parameter, flags UsageFlags) {
 func (r usageRoots) headers(hs []ir.Header, flags UsageFlags) {
 	for i := range hs {
 		r.ref(&hs[i].Type, flags)
-		if e := hs[i].Encoding; e != nil {
-			r.ref(e.Schema, flags)
+		if encoding := hs[i].Encoding; encoding != nil {
+			r.ref(encoding.Schema, flags)
 		}
 	}
 }
 
-// payload records the types of each content of p, when there is a payload.
-func (r usageRoots) payload(p *ir.Payload, flags UsageFlags) {
-	if p == nil {
+// payload records the types of each content of payload, when there is a payload.
+func (r usageRoots) payload(payload *ir.Payload, flags UsageFlags) {
+	if payload == nil {
 		return
 	}
-	for i := range p.Contents {
-		r.content(&p.Contents[i], flags)
+	for i := range payload.Contents {
+		r.content(&payload.Contents[i], flags)
 	}
 }
 
@@ -287,22 +287,22 @@ func (r usageRoots) payload(p *ir.Payload, flags UsageFlags) {
 // holders of its catch-alls, which are among its type's shapes, and the headers
 // of its parts. A multipart media type also marks the content's own type, and
 // only that one.
-func (r usageRoots) content(c *ir.Content, flags UsageFlags) {
-	r.ref(&c.Type, flags)
-	if strings.HasPrefix(strings.ToLower(c.MediaType), multipartPrefix) {
-		r.ref(&c.Type, UsageMultipart)
+func (r usageRoots) content(content *ir.Content, flags UsageFlags) {
+	r.ref(&content.Type, flags)
+	if strings.HasPrefix(strings.ToLower(content.MediaType), multipartPrefix) {
+		r.ref(&content.Type, UsageMultipart)
 	}
-	r.ref(c.Item, flags)
-	if c.File != nil {
-		r.ref(c.File.Contents, flags)
+	r.ref(content.Item, flags)
+	if content.File != nil {
+		r.ref(content.File.Contents, flags)
 	}
-	if c.ItemEncoding != nil {
-		r.headers(c.ItemEncoding.Headers, flags)
+	if content.ItemEncoding != nil {
+		r.headers(content.ItemEncoding.Headers, flags)
 	}
-	for _, part := range c.Encoding {
+	for _, part := range content.Encoding {
 		r.headers(part.Headers, flags)
 	}
-	for holder, parts := range c.CatchAllEncoding {
+	for holder, parts := range content.CatchAllEncoding {
 		r.ref(&ir.TypeRef{Target: holder}, flags)
 		if parts.Value != nil {
 			r.headers(parts.Value.Headers, flags)

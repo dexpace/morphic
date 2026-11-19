@@ -107,14 +107,14 @@ func TestPrincipalApart_AKeywordThePrincipalAndThePositionKeepHoldsBoth(t *testi
 					assert.Equal(t, tc.reportedAt, held[tc.entryKey].Provenance.Pointer, "kept where the principal writes it")
 				}
 				var said []string
-				for _, d := range diags {
-					if d.Code != diag.DegradedConstruct || d.Provenance.Pointer != tc.reportedAt {
+				for _, diagnostic := range diags {
+					if diagnostic.Code != diag.DegradedConstruct || diagnostic.Provenance.Pointer != tc.reportedAt {
 						continue
 					}
-					if strings.Contains(d.Message, "otherwise than this inline branch") {
-						said = append(said, d.Message)
+					if strings.Contains(diagnostic.Message, "otherwise than this inline branch") {
+						said = append(said, diagnostic.Message)
 					}
-					if _, listed, ok := strings.Cut(d.Message, "which has no home for "); ok {
+					if _, listed, ok := strings.Cut(diagnostic.Message, "which has no home for "); ok {
 						for key := range tc.entry {
 							assert.NotContains(t, strings.Fields(strings.ReplaceAll(listed, ",", "")), key,
 								"the principal's %s draws no second report", key)
@@ -159,9 +159,9 @@ func TestPrincipalApart_AReportNamesTheEntryWhereACarrierKeepsIt(t *testing.T) {
 	assert.Contains(t, string(raw), `"openapi:schema/allOf/0":`)
 	assert.NotContains(t, string(raw), `"openapi:allOf/0":`)
 	var said []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/paths/~1a/get/parameters/0/schema/allOf/0" {
-			said = append(said, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/paths/~1a/get/parameters/0/schema/allOf/0" {
+			said = append(said, diagnostic.Message)
 		}
 	}
 	require.Len(t, said, 1)
@@ -190,8 +190,8 @@ func TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping(t *testing.T) {
 			held := doc.Types[ir.TypeID("type/openapi/components/schemas/"+name)].Common().Unmodeled
 			assert.Contains(t, string(unmodeledEntry(t, held, "openapi:allOf/0").Value), "#/components/schemas/Nope", name)
 			at := jsontext.Pointer("/components/schemas/" + name + "/allOf/0/discriminator/mapping/x")
-			errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
-				return d.Code != diag.UnresolvedRef || d.Provenance.Pointer != at
+			errs := slices.DeleteFunc(slices.Clone(diags), func(diagnostic ir.Diagnostic) bool {
+				return diagnostic.Code != diag.UnresolvedRef || diagnostic.Provenance.Pointer != at
 			})
 			assert.Len(t, errs, 1, "%s: the mapping naming no schema is reported once at %s", name, at)
 		}

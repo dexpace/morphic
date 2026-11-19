@@ -21,9 +21,9 @@ func emptyReferencesOf(doc *ir.Document) []ir.EmptyReference {
 	return found.List()
 }
 
-// emptyRefService wraps s as the one service of a document.
-func emptyRefService(s ir.Service) *ir.Document {
-	return &ir.Document{Services: []ir.Service{s}}
+// emptyRefService wraps service as the one service of a document.
+func emptyRefService(service ir.Service) *ir.Document {
+	return &ir.Document{Services: []ir.Service{service}}
 }
 
 // emptyRefOperation wraps op in one service and group.
@@ -164,8 +164,8 @@ func TestEmptyReferences_ListIsInWalkOrder(t *testing.T) {
 
 	first := emptyReferencesOf(doc)
 	paths := make([]string, 0, len(first))
-	for _, e := range first {
-		paths = append(paths, e.Path)
+	for _, emptyReference := range first {
+		paths = append(paths, emptyReference.Path)
 	}
 
 	assert.Equal(t, []string{
@@ -181,8 +181,8 @@ func TestEmptyReferences_ListIsInWalkOrder(t *testing.T) {
 	}}})
 	listed := emptyReferencesOf(lifecycle)
 	keyed := make([]string, 0, len(listed))
-	for _, e := range listed {
-		keyed = append(keyed, e.Path)
+	for _, emptyReference := range listed {
+		keyed = append(keyed, emptyReference.Path)
 	}
 	assert.Equal(t, []string{
 		"document.Services[0].Groups[0].Resource.Lifecycle[delete]",

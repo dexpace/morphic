@@ -18,7 +18,7 @@ import (
 // the walk does neither, and another declaration is a read of its own.
 func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
 	t.Parallel()
-	w := operationLoweringState{kept: newKeptOnce()}
+	loweringState := operationLoweringState{kept: newKeptOnce()}
 	reads := 0
 	keep := func(key string) func() (ir.Unmodeled, []ir.Diagnostic) {
 		return func() (ir.Unmodeled, []ir.Diagnostic) {
@@ -30,10 +30,10 @@ func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
 		return copied.kept.once(coordinate, keep(coordinate))
 	}
 
-	assert.Len(t, reach(w, "a"), 1, "the first reach reports")
-	assert.Empty(t, reach(w, "a"), "a copy shares what was read")
-	assert.Len(t, reach(w, "b"), 1)
+	assert.Len(t, reach(loweringState, "a"), 1, "the first reach reports")
+	assert.Empty(t, reach(loweringState, "a"), "a copy shares what was read")
+	assert.Len(t, reach(loweringState, "b"), 1)
 
 	assert.Equal(t, 2, reads)
-	assert.Equal(t, []string{"a", "b"}, slices.Sorted(maps.Keys(w.kept.entries)))
+	assert.Equal(t, []string{"a", "b"}, slices.Sorted(maps.Keys(loweringState.kept.entries)))
 }

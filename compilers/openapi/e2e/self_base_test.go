@@ -206,8 +206,8 @@ func TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing(t *testing.T) {
 	_, diags := compileWithReader(t, "api/openapi.yaml", head32+"$self: '"+selfURL+"#frag'\n"+body, openapi.Options{}, loopbackDisk{})
 
 	got := make([]string, 0, len(diags))
-	for _, d := range diags {
-		got = append(got, string(d.Severity)+" "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		got = append(got, string(diagnostic.Severity)+" "+string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{"error /$self", "error /components/schemas/U"}, got, "%+v", diags)
 	format := diagsAtPointer(diags, "/$self")
@@ -227,9 +227,9 @@ func TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing(t *testing.T) {
 // diagsAtPointer returns the diagnostics placed at pointer.
 func diagsAtPointer(diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if string(d.Provenance.Pointer) == pointer {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if string(diagnostic.Provenance.Pointer) == pointer {
+			out = append(out, diagnostic)
 		}
 	}
 	return out

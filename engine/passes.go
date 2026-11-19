@@ -48,11 +48,11 @@ type namedPass struct {
 func bindPasses(ps []pass.Pass) ([]namedPass, error) {
 	bound := make([]namedPass, 0, len(ps))
 	at := make(map[string]int, len(ps))
-	for i, p := range ps {
-		if isNilPass(p) {
+	for i, passValue := range ps {
+		if isNilPass(passValue) {
 			return nil, fmt.Errorf("engine: pass %d is nil", i)
 		}
-		name, err := nameOf(p)
+		name, err := nameOf(passValue)
 		if err != nil {
 			return nil, fmt.Errorf("engine: pass %d: %w", i, err)
 		}
@@ -64,25 +64,25 @@ func bindPasses(ps []pass.Pass) ([]namedPass, error) {
 				first, i, name)
 		}
 		at[name] = i
-		bound = append(bound, namedPass{name: name, pass: p})
+		bound = append(bound, namedPass{name: name, pass: passValue})
 	}
 	return bound, nil
 }
 
-// nameOf asks p for its name, behind a barrier.
-func nameOf(p pass.Pass) (string, error) {
+// nameOf asks passValue for its name, behind a barrier.
+func nameOf(passValue pass.Pass) (string, error) {
 	var name string
-	err := caught("Name", func() { name = p.Name() })
+	err := caught("Name", func() { name = passValue.Name() })
 	return name, err
 }
 
-// isNilPass reports whether p is unsafe to call: an untyped nil interface or a
+// isNilPass reports whether passValue is unsafe to call: an untyped nil interface or a
 // typed nil pointer, which a method with a value receiver dereferences.
-func isNilPass(p pass.Pass) bool {
-	if p == nil {
+func isNilPass(passValue pass.Pass) bool {
+	if passValue == nil {
 		return true
 	}
-	rv := reflect.ValueOf(p)
+	rv := reflect.ValueOf(passValue)
 	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
@@ -91,8 +91,8 @@ func isNilPass(p pass.Pass) bool {
 // RunOptions.DisablePasses gives.
 func (e *Engine) enabledPasses(disabled []string) ([]namedPass, error) {
 	names := make([]string, 0, len(e.passes))
-	for _, p := range e.passes {
-		names = append(names, p.name)
+	for _, namedPass := range e.passes {
+		names = append(names, namedPass.name)
 	}
 	for _, name := range disabled {
 		if !slices.Contains(names, name) {
@@ -101,7 +101,7 @@ func (e *Engine) enabledPasses(disabled []string) ([]namedPass, error) {
 		}
 	}
 
-	return slices.DeleteFunc(slices.Clone(e.passes), func(p namedPass) bool {
-		return slices.Contains(disabled, p.name)
+	return slices.DeleteFunc(slices.Clone(e.passes), func(namedPassValue namedPass) bool {
+		return slices.Contains(disabled, namedPassValue.name)
 	}), nil
 }

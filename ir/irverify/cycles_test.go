@@ -32,13 +32,13 @@ func examplesDoc(values ...ir.Value) *ir.Document {
 	}
 }
 
-// ctorValue returns a constructor value over c.
-func ctorValue(c *ir.ConstructorValue) ir.Value {
-	return ir.Value{Kind: ir.ValueConstructor, Constructor: c}
+// ctorValue returns a constructor value over constructorValue.
+func ctorValue(constructorValue *ir.ConstructorValue) ir.Value {
+	return ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}
 }
 
-// listValue returns a list value over l.
-func listValue(l []ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: l} }
+// listValue returns a list value over values.
+func listValue(values []ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: values} }
 
 // cyclePaths returns where Verify reports ir/cyclic-structure, and requires that
 // it reports nothing else: a fixture built for one defect that draws another has
@@ -47,8 +47,8 @@ func listValue(l []ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List
 func cyclePaths(t *testing.T, doc *ir.Document) []string {
 	t.Helper()
 	got := verifyDeclared(doc)
-	for _, v := range got {
-		require.Equal(t, "ir/cyclic-structure", v.Code, "%s at %s", v.Message, v.Path)
+	for _, violation := range got {
+		require.Equal(t, "ir/cyclic-structure", violation.Code, "%s at %s", violation.Message, violation.Path)
 	}
 	return violationPaths(got, "ir/cyclic-structure")
 }
@@ -74,9 +74,9 @@ var cyclicDocs = []struct {
 	{
 		name: "a constructor that is both of its arguments",
 		doc: func() *ir.Document {
-			c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
-			c.Args = []ir.Value{ctorValue(c), ctorValue(c)}
-			return examplesDoc(ctorValue(c))
+			constructorValue := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
+			constructorValue.Args = []ir.Value{ctorValue(constructorValue), ctorValue(constructorValue)}
+			return examplesDoc(ctorValue(constructorValue))
 		},
 		want: []string{
 			"document.Types[type/x/M].Examples[0].Value.Constructor.Args[0].Constructor",
@@ -100,20 +100,20 @@ var cyclicDocs = []struct {
 		name:  "a list that is its own element",
 		types: []string{"[]ir.Value"},
 		doc: func() *ir.Document {
-			l := make([]ir.Value, 1)
-			l[0] = listValue(l)
-			return examplesDoc(listValue(l))
+			values := make([]ir.Value, 1)
+			values[0] = listValue(values)
+			return examplesDoc(listValue(values))
 		},
 		want: []string{"document.Types[type/x/M].Examples[0].Value.List[0].List"},
 	},
 	{
 		name: "a list that is each of its three elements",
 		doc: func() *ir.Document {
-			l := make([]ir.Value, 3)
-			for i := range l {
-				l[i] = listValue(l)
+			values := make([]ir.Value, 3)
+			for i := range values {
+				values[i] = listValue(values)
 			}
-			return examplesDoc(listValue(l))
+			return examplesDoc(listValue(values))
 		},
 		want: []string{
 			"document.Types[type/x/M].Examples[0].Value.List[0].List",
@@ -124,9 +124,9 @@ var cyclicDocs = []struct {
 	{
 		name: "a list whose prefix holds the list it is a prefix of",
 		doc: func() *ir.Document {
-			l := []ir.Value{{}, {Kind: ir.ValueNull}}
-			l[0] = listValue(l[:1])
-			return examplesDoc(listValue(l[:1]))
+			values := []ir.Value{{}, {Kind: ir.ValueNull}}
+			values[0] = listValue(values[:1])
+			return examplesDoc(listValue(values[:1]))
 		},
 		want: []string{"document.Types[type/x/M].Examples[0].Value.List[0].List"},
 	},
@@ -134,9 +134,9 @@ var cyclicDocs = []struct {
 		name:  "an object that is its own member",
 		types: []string{"[]ir.Field"},
 		doc: func() *ir.Document {
-			f := make([]ir.Field, 1)
-			f[0] = ir.Field{Name: "a", Value: ir.Value{Kind: ir.ValueObject, Object: f}}
-			return examplesDoc(ir.Value{Kind: ir.ValueObject, Object: f})
+			fields := make([]ir.Field, 1)
+			fields[0] = ir.Field{Name: "a", Value: ir.Value{Kind: ir.ValueObject, Object: fields}}
+			return examplesDoc(ir.Value{Kind: ir.ValueObject, Object: fields})
 		},
 		want: []string{"document.Types[type/x/M].Examples[0].Value.Object[0].Value.Object"},
 	},
@@ -144,9 +144,9 @@ var cyclicDocs = []struct {
 		name:  "a group that is each of its two subgroups",
 		types: []string{"[]ir.OperationGroup"},
 		doc: func() *ir.Document {
-			g := []ir.OperationGroup{{ID: "operation-group/x/A", Name: named("a")}, {ID: "operation-group/x/B", Name: named("b")}}
-			g[0].Groups, g[1].Groups = g, g
-			return groupsDoc(g)
+			operationGroups := []ir.OperationGroup{{ID: "operation-group/x/A", Name: named("a")}, {ID: "operation-group/x/B", Name: named("b")}}
+			operationGroups[0].Groups, operationGroups[1].Groups = operationGroups, operationGroups
+			return groupsDoc(operationGroups)
 		},
 		want: []string{
 			"document.Services[0].Groups[0].Groups",
@@ -158,16 +158,16 @@ var cyclicDocs = []struct {
 // selfArgumentDoc is GitHub #573's reproducer: a constructor whose one argument
 // is a value holding the same constructor, as the first example of a model.
 func selfArgumentDoc() *ir.Document {
-	c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
-	c.Args = []ir.Value{ctorValue(c)}
-	return examplesDoc(ctorValue(c))
+	constructorValue := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
+	constructorValue.Args = []ir.Value{ctorValue(constructorValue)}
+	return examplesDoc(ctorValue(constructorValue))
 }
 
-// groupsDoc returns a document whose one service holds g as its groups.
-func groupsDoc(g []ir.OperationGroup) *ir.Document {
+// groupsDoc returns a document whose one service holds operationGroups as its groups.
+func groupsDoc(operationGroups []ir.OperationGroup) *ir.Document {
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
-		Services:  []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: g}},
+		Services:  []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: operationGroups}},
 	}
 }
 
@@ -209,8 +209,8 @@ var sharedDocs = []struct {
 	{
 		name: "a constructor two examples share",
 		doc: func() *ir.Document {
-			c := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
-			return examplesDoc(ctorValue(c), ctorValue(c))
+			constructorValue := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
+			return examplesDoc(ctorValue(constructorValue), ctorValue(constructorValue))
 		},
 	},
 	{
@@ -224,23 +224,23 @@ var sharedDocs = []struct {
 	{
 		name: "a list two examples share",
 		doc: func() *ir.Document {
-			l := []ir.Value{{Kind: ir.ValueNull}}
-			return examplesDoc(listValue(l), listValue(l))
+			values := []ir.Value{{Kind: ir.ValueNull}}
+			return examplesDoc(listValue(values), listValue(values))
 		},
 	},
 	{
 		name: "a list that holds a prefix of itself",
 		doc: func() *ir.Document {
-			l := []ir.Value{{Kind: ir.ValueNull}, {}}
-			l[1] = listValue(l[:1])
-			return examplesDoc(listValue(l))
+			values := []ir.Value{{Kind: ir.ValueNull}, {}}
+			values[1] = listValue(values[:1])
+			return examplesDoc(listValue(values))
 		},
 	},
 	{
 		name: "an object two examples share",
 		doc: func() *ir.Document {
-			f := []ir.Field{{Name: "a", Value: ir.Value{Kind: ir.ValueNull}}}
-			return examplesDoc(ir.Value{Kind: ir.ValueObject, Object: f}, ir.Value{Kind: ir.ValueObject, Object: f})
+			fields := []ir.Field{{Name: "a", Value: ir.Value{Kind: ir.ValueNull}}}
+			return examplesDoc(ir.Value{Kind: ir.ValueObject, Object: fields}, ir.Value{Kind: ir.ValueObject, Object: fields})
 		},
 	},
 }
@@ -282,9 +282,9 @@ func TestVerify_RegistryKeysCannotMakeASharedPointerACycle(t *testing.T) {
 // reported from each, at the path that way meets itself.
 func TestVerify_CyclicStructureIsReportedOnceAtEachWayIn(t *testing.T) {
 	t.Parallel()
-	l := make([]ir.Value, 1)
-	l[0] = listValue(l)
-	doc := examplesDoc(listValue(l), listValue(l))
+	values := make([]ir.Value, 1)
+	values[0] = listValue(values)
+	doc := examplesDoc(listValue(values), listValue(values))
 
 	assert.Equal(t, []string{
 		"document.Types[type/x/M].Examples[0].Value.List[0].List",
@@ -301,8 +301,8 @@ func TestVerify_CyclicStructureInADeepDocumentIsStillFound(t *testing.T) {
 	t.Parallel()
 	got := verifyDeclared(deepDocWithCycle())
 	var truncations int
-	for _, v := range got {
-		if v.Code == "ir/walk-truncated" {
+	for _, violation := range got {
+		if violation.Code == "ir/walk-truncated" {
 			truncations++
 		}
 	}
@@ -317,9 +317,9 @@ func deepDocWithCycle() *ir.Document {
 	for range ir.MaxWalkDepth {
 		deep = listValue([]ir.Value{deep})
 	}
-	l := make([]ir.Value, 1)
-	l[0] = listValue(l)
-	return examplesDoc(deep, listValue(l))
+	values := make([]ir.Value, 1)
+	values[0] = listValue(values)
+	return examplesDoc(deep, listValue(values))
 }
 
 // TestVerify_CyclicDocsCoverEverySelfReachableType holds the table above to what

@@ -54,21 +54,21 @@ func statusNames(rs []ir.StatusRange) string {
 		return "no status"
 	}
 	names := make([]string, 0, len(rs))
-	for _, r := range rs {
+	for _, statusRange := range rs {
 		switch {
-		case r == (ir.StatusRange{}):
+		case statusRange == (ir.StatusRange{}):
 			names = append(names, "the catch-all")
-		case r.From == r.To:
-			names = append(names, strconv.Itoa(r.From))
+		case statusRange.From == statusRange.To:
+			names = append(names, strconv.Itoa(statusRange.From))
 		default:
-			names = append(names, strconv.Itoa(r.From)+"-"+strconv.Itoa(r.To))
+			names = append(names, strconv.Itoa(statusRange.From)+"-"+strconv.Itoa(statusRange.To))
 		}
 	}
 	return strings.Join(names, " and ")
 }
 
-// answersCatchAllOnly reports whether c is the catch-all condition alone: one
+// answersCatchAllOnly reports whether responseConditions is the catch-all condition alone: one
 // range, the zero one (docs/ir/responses.md).
-func answersCatchAllOnly(c ir.ResponseConditions) bool {
-	return len(c.StatusCodes) == 1 && c.StatusCodes[0] == ir.StatusRange{}
+func answersCatchAllOnly(responseConditions ir.ResponseConditions) bool {
+	return len(responseConditions.StatusCodes) == 1 && responseConditions.StatusCodes[0] == ir.StatusRange{}
 }

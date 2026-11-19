@@ -59,12 +59,12 @@ func TestReaders_AnswerAlikeThroughTheContract(t *testing.T) {
 		{name: "a missing file", req: compilers.DocumentRequest{Location: filepath.Join(dir, "missing.yaml")},
 			wantIs: fs.ErrNotExist},
 	}
-	for name, r := range readers {
+	for name, documentReader := range readers {
 		for _, tc := range tests {
 			t.Run(name+", "+tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				got, err := r.ReadDocument(t.Context(), tc.req)
+				got, err := documentReader.ReadDocument(t.Context(), tc.req)
 
 				if tc.wantIs != nil {
 					require.ErrorIs(t, err, tc.wantIs)

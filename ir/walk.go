@@ -119,12 +119,12 @@ func walkValues(ask func() error, limit int, root any, path string, visitors []V
 	v := reflect.ValueOf(root)
 	var out walkEnd
 	for group := range slices.Chunk(visitors, maxSharedVisitors) {
-		w := newValueWalk(path, group)
-		w.ask, w.limit = ask, limit
-		w.walk(v, 0, w.all)
-		out.truncated = out.truncated || w.truncated
-		if w.refusal != nil {
-			out.err = w.refusal
+		valueWalk := newValueWalk(path, group)
+		valueWalk.ask, valueWalk.limit = ask, limit
+		valueWalk.walk(v, 0, valueWalk.all)
+		out.truncated = out.truncated || valueWalk.truncated
+		if valueWalk.refusal != nil {
+			out.err = valueWalk.refusal
 			return out
 		}
 	}
@@ -171,8 +171,8 @@ func (p WalkPath) AppendTo(b []byte) []byte {
 		return b
 	}
 	b = append(b, p.walk.root...)
-	for _, s := range p.walk.steps[:p.depth] {
-		b = s.appendTo(b)
+	for _, pathStep := range p.walk.steps[:p.depth] {
+		b = pathStep.appendTo(b)
 	}
 	return b
 }
@@ -311,20 +311,20 @@ type valueWalk struct {
 // of which there are at most maxSharedVisitors. The step stack is sized up front
 // so that a walk deeper than a struct or two costs no allocation per level.
 func newValueWalk(root string, visitors []Visitor) *valueWalk {
-	w := &valueWalk{
+	valueWalkValue := &valueWalk{
 		root:     root,
 		visitors: visitors,
 		cycles:   make([]CycleVisitor, len(visitors)),
 		steps:    make([]pathStep, 0, 32),
 	}
-	for i, v := range visitors {
-		if v == nil {
+	for i, visitor := range visitors {
+		if visitor == nil {
 			continue
 		}
-		w.all |= 1 << i
-		w.cycles[i], _ = v.(CycleVisitor)
+		valueWalkValue.all |= 1 << i
+		valueWalkValue.cycles[i], _ = visitor.(CycleVisitor)
 	}
-	return w
+	return valueWalkValue
 }
 
 // here is the path to the value the walk is at.
@@ -403,9 +403,9 @@ func (w *valueWalk) refused() bool {
 	return false
 }
 
-// step descends into child, reached from its parent by s.
-func (w *valueWalk) step(s pathStep, child reflect.Value, depth int, active visitorSet) {
-	w.steps = append(w.steps, s)
+// step descends into child, reached from its parent by pathStepValue.
+func (w *valueWalk) step(pathStepValue pathStep, child reflect.Value, depth int, active visitorSet) {
+	w.steps = append(w.steps, pathStepValue)
 	w.descend(child, depth, active)
 	w.steps = w.steps[:len(w.steps)-1]
 }
@@ -490,8 +490,8 @@ func (w *valueWalk) closesCycle(key refKey, active visitorSet) bool {
 		}
 		at, entered := w.here(), WalkPath{walk: w, depth: ref.depth}
 		for set := active; set != 0; set &= set - 1 {
-			if c := w.cycles[bits.TrailingZeros64(uint64(set))]; c != nil {
-				c.Cycle(at, entered, key.typ)
+			if cycleVisitor := w.cycles[bits.TrailingZeros64(uint64(set))]; cycleVisitor != nil {
+				cycleVisitor.Cycle(at, entered, key.typ)
 			}
 		}
 		return true
@@ -549,12 +549,12 @@ func (w *valueWalk) mapping(v reflect.Value, depth int, active visitorSet) {
 // The entries sit on one stack the walk reuses: a map nested inside an entry
 // stacks its own above them and takes them off again.
 func (w *valueWalk) entries(v reflect.Value, depth int, active visitorSet) {
-	f := w.ranging.push(v)
-	for i := f.base; i < f.end; i++ {
+	entryFrame := w.ranging.push(v)
+	for i := entryFrame.base; i < entryFrame.end; i++ {
 		// Indexed afresh: a nested map can move the stack while stacking its own.
-		e := w.ranging.entries[i]
-		w.step(pathStep{kind: stepMapKey, form: e.form, n: e.num, label: e.label}, e.key, depth+1, active)
-		w.step(pathStep{kind: stepMapValue, form: e.form, n: e.num, label: e.label}, e.value, depth+1, active)
+		mapEntry := w.ranging.entries[i]
+		w.step(pathStep{kind: stepMapKey, form: mapEntry.form, n: mapEntry.num, label: mapEntry.label}, mapEntry.key, depth+1, active)
+		w.step(pathStep{kind: stepMapValue, form: mapEntry.form, n: mapEntry.num, label: mapEntry.label}, mapEntry.value, depth+1, active)
 	}
-	w.ranging.pop(f)
+	w.ranging.pop(entryFrame)
 }

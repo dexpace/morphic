@@ -633,8 +633,8 @@ func TestDocument_EncodesWhatOnlyTheVerifierRefuses(t *testing.T) {
 // it: json.go's unmarshalKinded compares the tag against its own constant.
 func TestTypeDef_UnmarshalRefusesForeignKindTag(t *testing.T) {
 	t.Parallel()
-	var m ir.Model
-	err := json.Unmarshal([]byte(`{"kind":"enum"}`), &m)
+	var model ir.Model
+	err := json.Unmarshal([]byte(`{"kind":"enum"}`), &model)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, `model carries the kind tag "enum"`)
 }
@@ -659,8 +659,8 @@ func TestTypeRegistry_UnmarshalNamesTheFirstBadEntryByID(t *testing.T) {
 // json.go's named rewrite.
 func TestTypeDef_UnknownMemberErrorNamesThePublicType(t *testing.T) {
 	t.Parallel()
-	var m ir.Model
-	err := json.Unmarshal([]byte(`{"kind":"model","bogus":1}`), &m, json.RejectUnknownMembers(true))
+	var model ir.Model
+	err := json.Unmarshal([]byte(`{"kind":"model","bogus":1}`), &model, json.RejectUnknownMembers(true))
 	require.Error(t, err)
 	serr, ok := errors.AsType[*json.SemanticError](err)
 	require.True(t, ok, "want a *json.SemanticError in the chain, got %T: %v", err, err)

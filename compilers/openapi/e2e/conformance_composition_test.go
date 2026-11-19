@@ -22,20 +22,20 @@ import (
 )
 
 func assertAllOfInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	d, ok := doc.Types[componentID("Derived")].(*ir.Model)
+	model, ok := doc.Types[componentID("Derived")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, d.Base, "sole allOf $ref becomes Base")
-	assert.Equal(t, componentID("Base"), d.Base.Target)
-	assert.Empty(t, d.Mixins)
-	_, ok = propByWire(d, "extra")
+	require.NotNil(t, model.Base, "sole allOf $ref becomes Base")
+	assert.Equal(t, componentID("Base"), model.Base.Target)
+	assert.Empty(t, model.Mixins)
+	_, ok = propByWire(model, "extra")
 	assert.True(t, ok, "property declared alongside allOf survives")
 	// Model-level detail declared alongside allOf must be captured, not dropped.
-	assert.Equal(t, "A Base specialized with one extra field.", d.Docs.Description,
+	assert.Equal(t, "A Base specialized with one extra field.", model.Docs.Description,
 		"composed schema keeps its description")
-	assert.NotNil(t, d.Deprecation, "composed schema keeps deprecated")
-	assert.Equal(t, ir.AdditionalClosed, d.Additional,
+	assert.NotNil(t, model.Deprecation, "composed schema keeps deprecated")
+	assert.Equal(t, ir.AdditionalClosed, model.Additional,
 		"composed schema keeps additionalProperties: false")
-	assert.Contains(t, d.Unmodeled, "openapi:x-team", "composed schema keeps x-* extensions")
+	assert.Contains(t, model.Unmodeled, "openapi:x-team", "composed schema keeps x-* extensions")
 
 	leaf, ok := doc.Types[componentID("Leaf")].(*ir.Model)
 	require.True(t, ok)
@@ -46,20 +46,20 @@ func assertAllOfInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 func assertAllOfMixins(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	c, ok := doc.Types[componentID("C")].(*ir.Model)
+	model, ok := doc.Types[componentID("C")].(*ir.Model)
 	require.True(t, ok)
-	assert.Nil(t, c.Base, "multiple non-hierarchy refs stay Mixins, none is Base")
-	require.Len(t, c.Mixins, 2)
-	assert.Equal(t, componentID("A"), c.Mixins[0].Target)
-	assert.Equal(t, componentID("B"), c.Mixins[1].Target)
+	assert.Nil(t, model.Base, "multiple non-hierarchy refs stay Mixins, none is Base")
+	require.Len(t, model.Mixins, 2)
+	assert.Equal(t, componentID("A"), model.Mixins[0].Target)
+	assert.Equal(t, componentID("B"), model.Mixins[1].Target)
 }
 
 func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("Merged")].(*ir.Model)
+	model, ok := doc.Types[componentID("Merged")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, m.Base)
-	assert.Equal(t, componentID("Base"), m.Base.Target)
-	_, ok = propByWire(m, "name")
+	require.NotNil(t, model.Base)
+	assert.Equal(t, componentID("Base"), model.Base.Target)
+	_, ok = propByWire(model, "name")
 	assert.True(t, ok, "inline allOf branch contributes its properties")
 }
 
@@ -70,22 +70,22 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // every member the conjunction declares closes the model and is kept nowhere
 // either.
 func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("M")].(*ir.Model)
+	model, ok := doc.Types[componentID("M")].(*ir.Model)
 	require.True(t, ok)
-	assert.Nil(t, m.Base, "two refs and no hierarchy: none is Base")
-	require.Len(t, m.Mixins, 2)
-	assert.Equal(t, componentID("A"), m.Mixins[0].Target)
-	assert.Equal(t, componentID("B"), m.Mixins[1].Target)
-	assert.Empty(t, m.Unmodeled, "the wrapper is flattened, not kept verbatim")
+	assert.Nil(t, model.Base, "two refs and no hierarchy: none is Base")
+	require.Len(t, model.Mixins, 2)
+	assert.Equal(t, componentID("A"), model.Mixins[0].Target)
+	assert.Equal(t, componentID("B"), model.Mixins[1].Target)
+	assert.Empty(t, model.Unmodeled, "the wrapper is flattened, not kept verbatim")
 
-	n, ok := doc.Types[componentID("Nested2")].(*ir.Model)
+	irModel, ok := doc.Types[componentID("Nested2")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, n.Base, "the sole ref two wrappers down is the Base")
-	assert.Equal(t, componentID("A"), n.Base.Target)
-	c, ok := propByWire(n, "c")
+	require.NotNil(t, irModel.Base, "the sole ref two wrappers down is the Base")
+	assert.Equal(t, componentID("A"), irModel.Base.Target)
+	property, ok := propByWire(irModel, "c")
 	require.True(t, ok)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Nested2/allOf/0/allOf/1/properties/c"),
-		c.Provenance.Pointer)
+		property.Provenance.Pointer)
 
 	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Model)
 	require.True(t, ok)
@@ -93,8 +93,8 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	require.True(t, ok)
 	assert.True(t, mc.Required, "the wrapper's required list reaches the property inside it")
 	wires := make([]string, 0, len(mixed.Properties))
-	for _, p := range mixed.Properties {
-		wires = append(wires, p.WireName)
+	for _, irProperty := range mixed.Properties {
+		wires = append(wires, irProperty.WireName)
 	}
 	assert.Equal(t, []string{"c", "w"}, wires, "the wrapper's own property merges after its branches'")
 
@@ -124,16 +124,16 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		assert.True(t, a.Required, "%s: the wrapper's required list reaches the variant's property", id)
 	}
 
-	for _, d := range diags {
-		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "flattening is exact: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.DegradedConstruct, diagnostic.Code, "flattening is exact: %+v", diagnostic)
 	}
 }
 
 func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	d, ok := doc.Types[componentID("Derived")].(*ir.Model)
+	model, ok := doc.Types[componentID("Derived")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, d.Base, "the $ref branch still becomes Base")
-	name, ok := propByWire(d, "name")
+	require.NotNil(t, model.Base, "the $ref branch still becomes Base")
+	name, ok := propByWire(model, "name")
 	require.True(t, ok, "the inline branch's own property survives")
 	assert.True(t, name.Required,
 		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
@@ -179,9 +179,9 @@ func assertRequiredMembers(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	either, ok := doc.Types[componentID("Either")].(*ir.Union)
 	require.True(t, ok)
 	var object *ir.Model
-	for _, v := range either.Variants {
-		if m, isModel := doc.Types[v.Type.Target].(*ir.Model); isModel {
-			object = m
+	for _, variant := range either.Variants {
+		if model, isModel := doc.Types[variant.Type.Target].(*ir.Model); isModel {
+			object = model
 		}
 	}
 	require.NotNil(t, object, "the object variant is a Model")
@@ -205,15 +205,15 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	require.True(t, ok, "the union is the value, not a preserved sibling")
 	require.Len(t, combo.Variants, 2)
 	for i, branch := range []string{"A", "B"} {
-		v, ok := doc.Types[combo.Variants[i].Type.Target].(*ir.Model)
+		model, ok := doc.Types[combo.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d composes as a model", i)
-		require.NotNil(t, v.Base, "the allOf composition rides on every variant")
-		assert.Equal(t, componentID("Base"), v.Base.Target)
-		require.Len(t, v.Mixins, 1)
-		assert.Equal(t, componentID(branch), v.Mixins[0].Target)
-		require.NotNil(t, v.Constraints, "the enclosing schema's own minProperties rides on every variant too (GitHub #407)")
-		require.NotNil(t, v.Constraints.MinProperties)
-		assert.Equal(t, int64(2), *v.Constraints.MinProperties)
+		require.NotNil(t, model.Base, "the allOf composition rides on every variant")
+		assert.Equal(t, componentID("Base"), model.Base.Target)
+		require.Len(t, model.Mixins, 1)
+		assert.Equal(t, componentID(branch), model.Mixins[0].Target)
+		require.NotNil(t, model.Constraints, "the enclosing schema's own minProperties rides on every variant too (GitHub #407)")
+		require.NotNil(t, model.Constraints.MinProperties)
+		assert.Equal(t, int64(2), *model.Constraints.MinProperties)
 	}
 
 	mixed, ok := doc.Types[componentID("MixedKinds")].(*ir.Union)
@@ -221,11 +221,11 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	require.Len(t, mixed.Variants, 2, "no instance of the body is a string")
 	bases := []ir.TypeID{componentID("A"), "type/anonymous/components/schemas/MixedKinds/oneOf/1"}
 	for i, base := range bases {
-		v, ok := doc.Types[mixed.Variants[i].Type.Target].(*ir.Model)
+		model, ok := doc.Types[mixed.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d composes as a model", i)
-		require.Len(t, v.Properties, 1, "the body rides on every variant")
-		require.NotNil(t, v.Base)
-		assert.Equal(t, base, v.Base.Target, "an object branch is the variant's base")
+		require.Len(t, model.Properties, 1, "the body rides on every variant")
+		require.NotNil(t, model.Base)
+		assert.Equal(t, base, model.Base.Target, "an object branch is the variant's base")
 	}
 	require.Contains(t, mixed.Unmodeled, "openapi:oneOf/2", "the union keeps the string branch")
 	assert.JSONEq(t, `{"type":"string"}`, string(mixed.Unmodeled["openapi:oneOf/2"].Value))
@@ -472,9 +472,9 @@ func assertRefinedNodes(t *testing.T, doc *ir.Document) {
 // warningPointers returns where each warning is reported, in order.
 func warningPointers(diags []ir.Diagnostic) []jsontext.Pointer {
 	var out []jsontext.Pointer
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			out = append(out, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			out = append(out, diagnostic.Provenance.Pointer)
 		}
 	}
 	slices.Sort(out)
@@ -503,15 +503,15 @@ func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 // (docs/ir/unions.md): a discriminator on an anyOf tags the union without
 // making it exclusive, since a payload may still satisfy both branches.
 func assertAnyOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	u, ok := doc.Types[componentID("Resource")].(*ir.Union)
+	union, ok := doc.Types[componentID("Resource")].(*ir.Union)
 	require.True(t, ok, "anyOf survives as a Union node, never collapsed")
-	assert.False(t, u.Exclusive, "anyOf admits a payload both branches satisfy")
-	assert.True(t, u.WireTagged, "the discriminator's tag names the variant")
-	require.Len(t, u.Variants, 2)
-	require.NotNil(t, u.Discriminator)
-	assert.Equal(t, "kind", u.Discriminator.PropertyName)
-	assert.Equal(t, componentID("Named"), u.Discriminator.Mapping["named"])
-	assert.Equal(t, componentID("Labelled"), u.Discriminator.Mapping["labelled"])
+	assert.False(t, union.Exclusive, "anyOf admits a payload both branches satisfy")
+	assert.True(t, union.WireTagged, "the discriminator's tag names the variant")
+	require.Len(t, union.Variants, 2)
+	require.NotNil(t, union.Discriminator)
+	assert.Equal(t, "kind", union.Discriminator.PropertyName)
+	assert.Equal(t, componentID("Named"), union.Discriminator.Mapping["named"])
+	assert.Equal(t, componentID("Labelled"), union.Discriminator.Mapping["labelled"])
 }
 
 // assertDiscriminatorInheritance covers the model-hierarchy form of a
@@ -761,19 +761,19 @@ func assertDiscriminatedUnionDistributed(t *testing.T, doc *ir.Document, diags [
 	assert.Empty(t, found)
 
 	for name, keys := range map[string][2]string{"Payment": {"card", "bank"}, "Refund": {"Card", "Bank"}} {
-		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		union, ok := doc.Types[componentID(name)].(*ir.Union)
 		require.True(t, ok, "%s distributes; got %T", name, doc.Types[componentID(name)])
-		require.Len(t, u.Variants, 2)
-		require.NotNil(t, u.Discriminator, name)
-		assert.True(t, u.WireTagged, name)
-		assert.Equal(t, map[string]ir.TypeID{keys[0]: u.Variants[0].Type.Target, keys[1]: u.Variants[1].Type.Target},
-			u.Discriminator.Mapping, "%s routes each tag to the variant composed over its branch", name)
-		assert.False(t, u.Discriminator.Inferred, name)
+		require.Len(t, union.Variants, 2)
+		require.NotNil(t, union.Discriminator, name)
+		assert.True(t, union.WireTagged, name)
+		assert.Equal(t, map[string]ir.TypeID{keys[0]: union.Variants[0].Type.Target, keys[1]: union.Variants[1].Type.Target},
+			union.Discriminator.Mapping, "%s routes each tag to the variant composed over its branch", name)
+		assert.False(t, union.Discriminator.Inferred, name)
 		for i, branch := range []string{"Card", "Bank"} {
-			m, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+			model, ok := doc.Types[union.Variants[i].Type.Target].(*ir.Model)
 			require.True(t, ok)
-			require.NotNil(t, m.Base)
-			assert.Equal(t, componentID(branch), m.Base.Target, "%s variant %d conjoins %s", name, i, branch)
+			require.NotNil(t, model.Base)
+			assert.Equal(t, componentID(branch), model.Base.Target, "%s variant %d conjoins %s", name, i, branch)
 		}
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/"+name))
 		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name))
@@ -827,16 +827,16 @@ func assertDiscriminatorInferred(t *testing.T, doc *ir.Document, diags []ir.Diag
 	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, styled.Provenance.Inferred)
 
 	for _, name := range []string{"Coded", "Optional"} {
-		u := unionNamed(t, doc, name)
-		assert.Nil(t, u.Discriminator, name)
-		assert.False(t, u.WireTagged, name)
-		assert.Empty(t, u.Provenance.Inferred, name)
+		union := unionNamed(t, doc, name)
+		assert.Nil(t, union.Discriminator, name)
+		assert.False(t, union.WireTagged, name)
+		assert.Empty(t, union.Provenance.Inferred, name)
 	}
 	for name, tag := range map[string]string{"Circle": "circle", "Square": "square", "Polygon": ""} {
-		m, ok := doc.Types[componentID(name)].(*ir.Model)
+		model, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s is a subtype of Shape", name)
-		assert.Equal(t, tag, m.DiscriminatorValue, "%s carries the tag it pins, not its name", name)
-		assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, m.Provenance.Inferred, name)
+		assert.Equal(t, tag, model.DiscriminatorValue, "%s carries the tag it pins, not its name", name)
+		assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, model.Provenance.Inferred, name)
 	}
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
 		"/components/schemas/Circle"), `it carries "circle" instead`)
@@ -877,9 +877,9 @@ func assertInferredSets(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // unionNamed returns the union the component name lowers to.
 func unionNamed(t *testing.T, doc *ir.Document, name string) *ir.Union {
 	t.Helper()
-	u, ok := doc.Types[componentID(name)].(*ir.Union)
+	union, ok := doc.Types[componentID(name)].(*ir.Union)
 	require.True(t, ok, "%s lowers to a union; got %T", name, doc.Types[componentID(name)])
-	return u
+	return union
 }
 
 // assertNullableUnionDiscriminator pins that a discriminator beside a oneOf or
@@ -900,12 +900,12 @@ func assertNullableUnionDiscriminator(t *testing.T, doc *ir.Document, diags []ir
 }
 
 func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	u, ok := doc.Types[componentID("StringOrNumber")].(*ir.Union)
+	union, ok := doc.Types[componentID("StringOrNumber")].(*ir.Union)
 	require.True(t, ok)
-	assert.False(t, u.Exclusive, "anyOf is a non-exclusive union")
-	assert.False(t, u.WireTagged, "with no discriminator, validation infers the variant")
-	assert.Nil(t, u.Discriminator)
-	assert.Len(t, u.Variants, 2)
+	assert.False(t, union.Exclusive, "anyOf is a non-exclusive union")
+	assert.False(t, union.WireTagged, "with no discriminator, validation infers the variant")
+	assert.Nil(t, union.Discriminator)
+	assert.Len(t, union.Variants, 2)
 }
 
 // assertUnionDecoratedBranch pins a union branch annotated the only way 3.0
@@ -913,13 +913,13 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // over Pet that keeps the description, so no information is lost, and its
 // variant is named for Pet while the node keeps the positional hint.
 func assertUnionDecoratedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	u, ok := doc.Types[componentID("U")].(*ir.Union)
+	union, ok := doc.Types[componentID("U")].(*ir.Union)
 	require.True(t, ok)
-	require.Len(t, u.Variants, 2)
-	assert.Equal(t, "user", u.Variants[0].Name.Hint)
-	assert.Equal(t, "pet", u.Variants[1].Name.Hint, "named for the $ref it wraps, as 3.1's sibling spelling is")
+	require.Len(t, union.Variants, 2)
+	assert.Equal(t, "user", union.Variants[0].Name.Hint)
+	assert.Equal(t, "pet", union.Variants[1].Name.Hint, "named for the $ref it wraps, as 3.1's sibling spelling is")
 
-	branch, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Model)
+	branch, ok := doc.Types[union.Variants[1].Type.Target].(*ir.Model)
 	require.True(t, ok, "the wrapped branch is a node of its own")
 	base, decorates := ir.Decorated(branch)
 	require.True(t, decorates, "a description beside the wrapped $ref is an annotation, not a shape")
@@ -929,17 +929,17 @@ func assertUnionDecoratedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnosti
 }
 
 func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("NotFoo")].(*ir.Model)
+	model, ok := doc.Types[componentID("NotFoo")].(*ir.Model)
 	require.True(t, ok)
-	raw, ok := m.Unmodeled["openapi:not"]
+	raw, ok := model.Unmodeled["openapi:not"]
 	require.True(t, ok, "not-keyword kept verbatim under Unmodeled")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 	var found bool
-	for _, d := range diags {
-		if d.Code == "openapi/validation-only-keyword" {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/validation-only-keyword" {
 			found = true
-			assert.Equal(t, ir.SeverityInfo, d.Severity)
+			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
 		}
 	}
 	assert.True(t, found, "expected a validation-only-keyword info diagnostic")
@@ -957,10 +957,10 @@ func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 		"RenderExclusive": "openapi:oneOf", "RenderBounded": "openapi:oneOf", "RenderDescribed": "openapi:oneOf",
 		"RenderConjoined": "openapi:anyOf", "RenderSelf": "openapi:oneOf",
 	} {
-		m, ok := doc.Types[componentID(name)].(*ir.Model)
+		model, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s lowers to its body", name)
-		assert.Len(t, m.Properties, 2, "%s", name)
-		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, m.Unmodeled, keyword).Reason, "%s", name)
+		assert.Len(t, model.Properties, 2, "%s", name)
+		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, model.Unmodeled, keyword).Reason, "%s", name)
 	}
 	joint, ok := doc.Types[componentID("RenderJoint")].(*ir.Model)
 	require.True(t, ok, "RenderJoint lowers to its body")
@@ -975,17 +975,17 @@ func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/RenderTagged"))
 	sizes, ok := doc.Types[componentID("RenderSizes")].(*ir.Union)
 	require.True(t, ok, "RenderSizes is the union its branches restate")
-	for _, v := range sizes.Variants {
-		_, isList := doc.Types[v.Type.Target].(*ir.List)
+	for _, variant := range sizes.Variants {
+		_, isList := doc.Types[variant.Type.Target].(*ir.List)
 		assert.True(t, isList, "each branch is the list its items imply")
 	}
 	formats, ok := doc.Types[componentID("RenderFormats")]
 	require.True(t, ok, "RenderFormats lowers")
 	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, formats.Common().Unmodeled, "openapi:oneOf").Reason)
 	var degraded []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			degraded = append(degraded, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			degraded = append(degraded, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.ElementsMatch(t, []string{"/components/schemas/RenderFormats"}, degraded)
@@ -1001,13 +1001,13 @@ func assertUnionRestatedType(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"Ttl":     {"type/anonymous/components/schemas/Ttl/anyOf/0", "type/anonymous/components/schemas/Ttl/anyOf/1"},
 		"Entry":   {componentID("Item"), "type/anonymous/components/schemas/Entry/oneOf/1"},
 	} {
-		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		union, ok := doc.Types[componentID(name)].(*ir.Union)
 		require.True(t, ok, "%s is the union alone; got %T", name, doc.Types[componentID(name)])
-		require.Len(t, u.Variants, len(variants), name)
-		for i, v := range variants {
-			assert.Equal(t, ir.TypeRef{Target: v}, u.Variants[i].Type, "%s variant %d", name, i)
+		require.Len(t, union.Variants, len(variants), name)
+		for i, typeID := range variants {
+			assert.Equal(t, ir.TypeRef{Target: typeID}, union.Variants[i].Type, "%s variant %d", name, i)
 		}
-		assert.Empty(t, u.Unmodeled, "%s keeps nothing", name)
+		assert.Empty(t, union.Unmodeled, "%s keeps nothing", name)
 		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name), name)
 	}
 
@@ -1039,16 +1039,16 @@ func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Empty(t, found)
 
 	for _, name := range []string{"Placement", "Check"} {
-		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		union, ok := doc.Types[componentID(name)].(*ir.Union)
 		require.True(t, ok, "%s is the union, the body distributed across it", name)
-		require.Len(t, u.Variants, 2)
-		for i := range u.Variants {
-			v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+		require.Len(t, union.Variants, 2)
+		for i := range union.Variants {
+			model, ok := doc.Types[union.Variants[i].Type.Target].(*ir.Model)
 			require.True(t, ok, "%s variant %d is a composed model", name, i)
-			require.Len(t, v.Properties, 1, "the body rides on %s variant %d", name, i)
-			require.NotNil(t, v.Base)
+			require.Len(t, model.Properties, 1, "the body rides on %s variant %d", name, i)
+			require.NotNil(t, model.Base)
 			branch := ir.TypeID(fmt.Sprintf("type/anonymous/components/schemas/%s/oneOf/%d", name, i))
-			assert.Equal(t, branch, v.Base.Target, "%s variant %d conjoins its branch's node", name, i)
+			assert.Equal(t, branch, model.Base.Target, "%s variant %d conjoins its branch's node", name, i)
 		}
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/"+name))
 	}
@@ -1076,15 +1076,15 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 		"App":        {"type/anonymous/components/schemas/App/allOf/1/oneOf/0", "type/anonymous/components/schemas/App/allOf/1/oneOf/1"},
 		"AppRequest": {"type/anonymous/components/schemas/AppRequest/allOf/0/oneOf/0", "type/anonymous/components/schemas/AppRequest/allOf/0/oneOf/1"},
 	} {
-		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		union, ok := doc.Types[componentID(name)].(*ir.Union)
 		require.True(t, ok, "%s is the union, the composition distributed across it; got %T", name, doc.Types[componentID(name)])
-		require.Len(t, u.Variants, len(bases), name)
+		require.Len(t, union.Variants, len(bases), name)
 		for i, base := range bases {
-			v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+			model, ok := doc.Types[union.Variants[i].Type.Target].(*ir.Model)
 			require.True(t, ok, "%s variant %d is a composed model", name, i)
-			require.NotNil(t, v.Base, "%s variant %d", name, i)
-			assert.Equal(t, base, v.Base.Target, "%s variant %d conjoins its branch", name, i)
-			assert.NotEmpty(t, v.Properties, "%s variant %d carries the shared fields", name, i)
+			require.NotNil(t, model.Base, "%s variant %d", name, i)
+			assert.Equal(t, base, model.Base.Target, "%s variant %d conjoins its branch", name, i)
+			assert.NotEmpty(t, model.Properties, "%s variant %d carries the shared fields", name, i)
 		}
 		assert.Contains(t,
 			openapitest.DiagMessageAt(t, diags, diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/"+name),
@@ -1092,8 +1092,8 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	}
 	request, ok := doc.Types[componentID("AppRequest")].(*ir.Union)
 	require.True(t, ok)
-	for _, v := range request.Variants {
-		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, doc.Types[v.Type.Target].Common().Unmodeled, "openapi:anyOf").Reason,
+	for _, variant := range request.Variants {
+		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, doc.Types[variant.Type.Target].Common().Unmodeled, "openapi:anyOf").Reason,
 			"the union that only narrows is kept on every variant as validation logic")
 	}
 
@@ -1125,10 +1125,10 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	_, ok = doc.Types[resident.Type.Target].(*ir.Union)
 	assert.True(t, ok, "an inline schema no route names distributes")
 	for _, name := range []string{"Payment", "Refund"} {
-		u := unionNamed(t, doc, name)
-		require.NotNil(t, u.Discriminator, name)
-		assert.True(t, u.WireTagged, name)
-		assert.Equal(t, []string{"Bank", "Card"}, slices.Sorted(maps.Keys(u.Discriminator.Mapping)), name)
+		union := unionNamed(t, doc, name)
+		require.NotNil(t, union.Discriminator, name)
+		assert.True(t, union.WireTagged, name)
+		assert.Equal(t, []string{"Bank", "Card"}, slices.Sorted(maps.Keys(union.Discriminator.Mapping)), name)
 	}
 }
 
@@ -1154,9 +1154,9 @@ func assertAllOfValueSetBesideEntry(t *testing.T, doc *ir.Document, diags []ir.D
 			assertKeptRaw(t, union.Unmodeled, key, value)
 		}
 		reported := 0
-		for _, d := range diags {
-			if d.Code == "openapi/degraded-construct" && d.Provenance.Pointer == jsontext.Pointer("/components/schemas/"+name) &&
-				strings.Contains(d.Message, "beside its enum") {
+		for _, diagnostic := range diags {
+			if diagnostic.Code == "openapi/degraded-construct" && diagnostic.Provenance.Pointer == jsontext.Pointer("/components/schemas/"+name) &&
+				strings.Contains(diagnostic.Message, "beside its enum") {
 				reported++
 			}
 		}

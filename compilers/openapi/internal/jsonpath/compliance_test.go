@@ -60,17 +60,17 @@ type ctsCase struct {
 // the suite's snake_case names are the file's, not this package's.
 func readCase(t testing.TB, members map[string]jsontext.Value) ctsCase {
 	t.Helper()
-	var c ctsCase
+	var ctsCaseValue ctsCase
 	for name, into := range map[string]any{
-		"name": &c.Name, "selector": &c.Selector, "result": &c.Result, "result_paths": &c.ResultPaths,
-		"results": &c.Results, "results_paths": &c.ResultsPaths, "invalid_selector": &c.Invalid,
+		"name": &ctsCaseValue.Name, "selector": &ctsCaseValue.Selector, "result": &ctsCaseValue.Result, "result_paths": &ctsCaseValue.ResultPaths,
+		"results": &ctsCaseValue.Results, "results_paths": &ctsCaseValue.ResultsPaths, "invalid_selector": &ctsCaseValue.Invalid,
 	} {
 		if raw, ok := members[name]; ok {
 			require.NoError(t, json.Unmarshal(raw, into), "the member %q of a case", name)
 		}
 	}
-	c.Document = members["document"]
-	return c
+	ctsCaseValue.Document = members["document"]
+	return ctsCaseValue
 }
 
 // alternatives returns each acceptable answer of a valid case: its values and
@@ -136,7 +136,7 @@ func TestCompliance(t *testing.T) {
 // case can be told to fail and a skip that no longer does can be reported.
 func checkCase(t *testing.T, tc ctsCase) error {
 	t.Helper()
-	q, err := jsonpath.Parse(tc.Selector)
+	query, err := jsonpath.Parse(tc.Selector)
 	if tc.Invalid {
 		if err == nil {
 			return fmt.Errorf("the selector %q is no RFC 9535 query, and Parse accepted it", tc.Selector)
@@ -152,15 +152,15 @@ func checkCase(t *testing.T, tc ctsCase) error {
 
 	root := jsonTree(t, tc.Document)
 	b := budget.New(budget.Unbounded())
-	got, err := q.Select(t.Context(), nodeview.New(), root, &b)
+	got, err := query.Select(t.Context(), nodeview.New(), root, &b)
 	if err != nil {
 		return fmt.Errorf("selecting: %w", err)
 	}
 	gotValues := make([]string, len(got))
 	gotPaths := make([]string, len(got))
-	for i, l := range got {
-		gotValues[i] = string(canonical(t, renderJSON(t, l.Node)))
-		gotPaths[i] = l.Path.String()
+	for i, located := range got {
+		gotValues[i] = string(canonical(t, renderJSON(t, located.Node)))
+		gotPaths[i] = located.Path.String()
 	}
 
 	values, paths := tc.alternatives()

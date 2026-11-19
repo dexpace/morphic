@@ -47,8 +47,8 @@ func utf8Carriers() []utf8Carrier {
 			name: "type registry key and its node ID",
 			plant: func(s string) (*ir.Document, []string) {
 				id := ir.TypeID("type/x/" + s)
-				m := &ir.Model{ID: id, Name: ir.Naming{Source: "Model", Canonical: "model"}}
-				doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: m}}
+				model := &ir.Model{ID: id, Name: ir.Naming{Source: "Model", Canonical: "model"}}
+				doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: model}}
 				path := "document.Types[" + string(id) + "]"
 				return doc, []string{path + ".key", path + ".ID"}
 			},
@@ -190,29 +190,29 @@ func TestVerify_InvalidUTF8IsReported(t *testing.T) {
 	ill := string([]byte{'c', 'a', 'f', 0xe9})
 	require.False(t, utf8.ValidString(ill), "the fixture has to be ill-formed to test anything")
 
-	for _, c := range utf8Carriers() {
-		t.Run(c.name, func(t *testing.T) {
+	for _, utf8Carrier := range utf8Carriers() {
+		t.Run(utf8Carrier.name, func(t *testing.T) {
 			t.Parallel()
-			doc, wantPaths := c.plant(ill)
+			doc, wantPaths := utf8Carrier.plant(ill)
 			got := verifyDeclared(doc)
 
 			var utf8Paths, others []string
-			for _, v := range got {
-				if v.Code != "ir/invalid-utf8" {
-					others = append(others, v.Code)
+			for _, violation := range got {
+				if violation.Code != "ir/invalid-utf8" {
+					others = append(others, violation.Code)
 					continue
 				}
-				utf8Paths = append(utf8Paths, v.Path)
-				assert.NotContains(t, v.Message, ill, "the report does not repeat the bad bytes")
-				assert.True(t, utf8.ValidString(v.Message), "the report is itself readable")
+				utf8Paths = append(utf8Paths, violation.Path)
+				assert.NotContains(t, violation.Message, ill, "the report does not repeat the bad bytes")
+				assert.True(t, utf8.ValidString(violation.Message), "the report is itself readable")
 			}
 			assert.ElementsMatch(t, wantPaths, utf8Paths)
-			assert.ElementsMatch(t, c.others, others, "codes other than ir/invalid-utf8")
+			assert.ElementsMatch(t, utf8Carrier.others, others, "codes other than ir/invalid-utf8")
 
 			_, err := json.Marshal(doc)
 			require.Error(t, err, "a document holding one ill-formed string must not encode")
 
-			clean, _ := c.plant(c.repair)
+			clean, _ := utf8Carrier.plant(utf8Carrier.repair)
 			assert.Empty(t, verifyDeclared(clean), "repairing the one bad string leaves nothing to report")
 			_, err = json.Marshal(clean)
 			require.NoError(t, err, "a document holding only well-formed strings must encode")

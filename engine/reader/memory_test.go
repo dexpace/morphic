@@ -38,10 +38,10 @@ func memorySources() []compilers.Source {
 // cannot.
 func newMemory(t *testing.T, sources []compilers.Source) *reader.Memory {
 	t.Helper()
-	m, err := reader.NewMemory(sources)
+	memory, err := reader.NewMemory(sources)
 	require.NoError(t, err)
-	require.NotNil(t, m)
-	return m
+	require.NotNil(t, memory)
+	return memory
 }
 
 // TestMemory_ReadDocumentFindsASourceByTheDocumentItNames pins how a request
@@ -53,7 +53,7 @@ func newMemory(t *testing.T, sources []compilers.Source) *reader.Memory {
 // fs.ErrNotExist.
 func TestMemory_ReadDocumentFindsASourceByTheDocumentItNames(t *testing.T) {
 	t.Parallel()
-	m := newMemory(t, memorySources())
+	memory := newMemory(t, memorySources())
 	tests := []struct {
 		name, location string
 		want           string
@@ -86,7 +86,7 @@ func TestMemory_ReadDocumentFindsASourceByTheDocumentItNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: tc.location})
+			got, err := memory.ReadDocument(t.Context(), compilers.DocumentRequest{Location: tc.location})
 
 			if tc.wantIs == nil && !tc.fails {
 				require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestMemory_ReadDocumentFindsASourceByTheDocumentItNames(t *testing.T) {
 // missing, not outside.
 func TestMemory_ReadDocumentConfined(t *testing.T) {
 	t.Parallel()
-	m := newMemory(t, memorySources())
+	memory := newMemory(t, memorySources())
 	tests := []struct {
 		name, within, location string
 		want                   string
@@ -140,7 +140,7 @@ func TestMemory_ReadDocumentConfined(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := m.ReadDocument(t.Context(),
+			got, err := memory.ReadDocument(t.Context(),
 				compilers.DocumentRequest{Location: tc.location, Within: tc.within})
 
 			if tc.wantIs == nil {
@@ -160,7 +160,7 @@ func TestMemory_ReadDocumentConfined(t *testing.T) {
 // document whole.
 func TestMemory_ReadDocumentHoldsTheLimit(t *testing.T) {
 	t.Parallel()
-	m := newMemory(t, memorySources())
+	memory := newMemory(t, memorySources())
 	tests := []struct {
 		name  string
 		limit int
@@ -177,7 +177,7 @@ func TestMemory_ReadDocumentHoldsTheLimit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := m.ReadDocument(t.Context(),
+			got, err := memory.ReadDocument(t.Context(),
 				compilers.DocumentRequest{Location: "specs/a.yaml", Limit: tc.limit})
 
 			if tc.over {
@@ -198,14 +198,14 @@ func TestMemory_ReadDocumentHoldsTheLimit(t *testing.T) {
 func TestMemory_ReadDocumentHandsBackACopy(t *testing.T) {
 	t.Parallel()
 	sources := memorySources()
-	m := newMemory(t, sources)
+	memory := newMemory(t, sources)
 	req := compilers.DocumentRequest{Location: "specs/a.yaml"}
-	first, err := m.ReadDocument(t.Context(), req)
+	first, err := memory.ReadDocument(t.Context(), req)
 	require.NoError(t, err)
 
 	first.Data[0] = 'X'
 
-	second, err := m.ReadDocument(t.Context(), req)
+	second, err := memory.ReadDocument(t.Context(), req)
 	require.NoError(t, err)
 	assert.Equal(t, "alpha", string(second.Data), "the next read")
 	assert.Equal(t, "alpha", string(sources[0].Data), "the source's own bytes")
@@ -216,9 +216,9 @@ func TestMemory_ReadDocumentHandsBackACopy(t *testing.T) {
 // included.
 func TestMemory_ReadDocumentWithACancelledContext(t *testing.T) {
 	t.Parallel()
-	m := newMemory(t, memorySources())
+	memory := newMemory(t, memorySources())
 
-	got, err := m.ReadDocument(cancelled(t), compilers.DocumentRequest{Location: "specs/a.yaml"})
+	got, err := memory.ReadDocument(cancelled(t), compilers.DocumentRequest{Location: "specs/a.yaml"})
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, got.Data)
@@ -256,16 +256,16 @@ func TestNewMemory_RefusesSourcesNamingOneDocument(t *testing.T) {
 				sources[i] = compilers.Source{Path: p, Data: []byte(p)}
 			}
 
-			m, err := reader.NewMemory(sources)
+			memory, err := reader.NewMemory(sources)
 
 			if tc.names == "" {
 				require.NoError(t, err)
-				assert.NotNil(t, m)
+				assert.NotNil(t, memory)
 				return
 			}
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.names, "the Path of the second source")
-			assert.Nil(t, m)
+			assert.Nil(t, memory)
 		})
 	}
 }
@@ -279,11 +279,11 @@ func TestNewMemory_RefusesAFileURINamingNoLocalFile(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 
-			m, err := reader.NewMemory([]compilers.Source{{Path: "ok.yaml"}, {Path: path}})
+			memory, err := reader.NewMemory([]compilers.Source{{Path: "ok.yaml"}, {Path: path}})
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), path)
-			assert.Nil(t, m)
+			assert.Nil(t, memory)
 		})
 	}
 }
@@ -292,9 +292,9 @@ func TestNewMemory_RefusesAFileURINamingNoLocalFile(t *testing.T) {
 // every request of which is a document that does not exist.
 func TestNewMemory_ServesNothingFromNoSources(t *testing.T) {
 	t.Parallel()
-	m := newMemory(t, nil)
+	memory := newMemory(t, nil)
 
-	got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "a.yaml"})
+	got, err := memory.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "a.yaml"})
 
 	require.ErrorIs(t, err, fs.ErrNotExist)
 	assert.Nil(t, got.Data)
@@ -309,12 +309,12 @@ func TestMemory_ReadsAFileURIAsTheHostSystemDoes(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("a backslash is a separator here, so no file URI may carry one")
 	}
-	m := newMemory(t, []compilers.Source{{Path: "file:///abs/c%5Cd.yaml", Data: []byte("slashed")}})
+	memory := newMemory(t, []compilers.Source{{Path: "file:///abs/c%5Cd.yaml", Data: []byte("slashed")}})
 	for _, location := range []string{`/abs/c\d.yaml`, "file:///abs/c%5Cd.yaml"} {
 		t.Run(location, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
+			got, err := memory.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
 
 			require.NoError(t, err)
 			assert.Equal(t, "slashed", string(got.Data))
@@ -329,7 +329,7 @@ func TestMemory_ReadsAFileURIAsTheHostSystemDoes(t *testing.T) {
 func TestMemory_ConcurrentReadsAreSafe(t *testing.T) {
 	t.Parallel()
 	const workers, rounds = 8, 50
-	m := newMemory(t, memorySources())
+	memory := newMemory(t, memorySources())
 	want := map[string]string{"specs/a.yaml": "alpha", "/abs/b.yaml": "bravo", "https://example.com/c.yaml": "charlie"}
 	var wg sync.WaitGroup
 
@@ -337,7 +337,7 @@ func TestMemory_ConcurrentReadsAreSafe(t *testing.T) {
 		wg.Go(func() {
 			for range rounds {
 				for location, doc := range want {
-					got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
+					got, err := memory.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
 					if !assert.NoError(t, err) {
 						return
 					}
@@ -356,7 +356,7 @@ func TestMemory_ConcurrentReadsAreSafe(t *testing.T) {
 // dials nothing, and none for a path, which no address is dialled for.
 func TestMemory_AHeldURLStatesTheSpaceItsHostNames(t *testing.T) {
 	t.Parallel()
-	m := newMemory(t, []compilers.Source{
+	memory := newMemory(t, []compilers.Source{
 		{Path: "https://pub.example/a.yaml", Data: []byte("a")},
 		{Path: "http://10.0.0.5/b.yaml", Data: []byte("b")},
 		{Path: "specs/c.yaml", Data: []byte("c")},
@@ -374,7 +374,7 @@ func TestMemory_AHeldURLStatesTheSpaceItsHostNames(t *testing.T) {
 		"http://intranet.invalid/f.yaml": compilers.SpacePublic,
 		"http://10.0.0.5:8080/g.yaml":    compilers.SpacePrivate,
 	} {
-		got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location, Reach: compilers.SpacePublic})
+		got, err := memory.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location, Reach: compilers.SpacePublic})
 		require.NoError(t, err, location)
 		assert.Equal(t, want, got.Space, location)
 		assert.Equal(t, want, got.Bound, location)

@@ -113,19 +113,19 @@ func formats() []format {
 // code: 1 when anything is left to report.
 func checkCases(ctx context.Context, fmts []format, core bool, stdout, stderr io.Writer) int {
 	var all, left []harness.Result
-	for _, f := range fmts {
+	for _, format := range fmts {
 		pick := func([]int) bool { return true }
 		if core {
-			pick = harness.Core(f.cases)
+			pick = harness.Core(format.cases)
 		}
-		results, err := harness.CheckCases(ctx, f.cases, pick)
+		results, err := harness.CheckCases(ctx, format.cases, pick)
 		if err != nil {
 			emitf(stderr, "morphic-harness: %v\n", err)
 			return 2
 		}
 		records := map[harness.Oracle]harness.Recorded{}
-		for _, o := range harness.CaseOracles() {
-			if records[o], err = f.record(o); err != nil {
+		for _, oracle := range harness.CaseOracles() {
+			if records[oracle], err = format.record(oracle); err != nil {
 				emitf(stderr, "morphic-harness: %v\n", err)
 				return 2
 			}
@@ -149,11 +149,11 @@ func checkCases(ctx context.Context, fmts []format, core bool, stdout, stderr io
 // what writeCase returns for the case.
 func checkOne(ctx context.Context, fmts []format, n int, stdout, stderr io.Writer) int {
 	first := 0
-	for _, f := range fmts {
-		if at, err := harness.Coordinates(f.cases, n-first); err == nil {
-			return writeCase(ctx, f.cases, at, stdout)
+	for _, format := range fmts {
+		if at, err := harness.Coordinates(format.cases, n-first); err == nil {
+			return writeCase(ctx, format.cases, at, stdout)
 		}
-		count, err := harness.CaseCount(f.cases)
+		count, err := harness.CaseCount(format.cases)
 		if err != nil {
 			emitf(stderr, "morphic-harness: %v\n", err)
 			return 2
@@ -164,14 +164,14 @@ func checkOne(ctx context.Context, fmts []format, n int, stdout, stderr io.Write
 	return 2
 }
 
-// writeCase applies the case oracles to c's case at and writes its name, its
+// writeCase applies the case oracles to cases's case at and writes its name, its
 // sources and each verdict, and returns 1 when the case holds what a run of
 // the cases reports with no record to explain it: a finding, a decline a
 // record lists as one, or a fault. A case a fault such as a panic ended is
 // written with the fault in place of its sources: the fault may lie in Write,
 // which writing the case again would raise again.
-func writeCase(ctx context.Context, c harness.Cases, at []int, stdout io.Writer) int {
-	res, written := harness.CheckCase(ctx, c, at)
+func writeCase(ctx context.Context, cases harness.Cases, at []int, stdout io.Writer) int {
+	res, written := harness.CheckCase(ctx, cases, at)
 	if !written {
 		emitf(stdout, "%s writes no document\n", res.Spec)
 		return 0
@@ -180,17 +180,17 @@ func writeCase(ctx context.Context, c harness.Cases, at []int, stdout io.Writer)
 	if res.Faulted() {
 		emitf(stdout, "%s %s\n", res.Outcome, res.Detail)
 	} else {
-		doc, _ := c.Write(at)
-		for _, s := range doc.Sources {
-			emitf(stdout, "--- %s\n%s\n", s.Path, s.Data)
+		doc, _ := cases.Write(at)
+		for _, source := range doc.Sources {
+			emitf(stdout, "--- %s\n%s\n", source.Path, source.Data)
 		}
 	}
-	for _, v := range res.Verdicts {
-		answer := string(v.Outcome)
-		if !v.Asked() {
-			answer = "declined: " + string(v.Declined)
+	for _, verdict := range res.Verdicts {
+		answer := string(verdict.Outcome)
+		if !verdict.Asked() {
+			answer = "declined: " + string(verdict.Declined)
 		}
-		emitf(stdout, "%s\n", strings.TrimSuffix(fmt.Sprintf("%s %s %s", v.Oracle, answer, v.Detail), " "))
+		emitf(stdout, "%s\n", strings.TrimSuffix(fmt.Sprintf("%s %s %s", verdict.Oracle, answer, verdict.Detail), " "))
 	}
 	if len(harness.Unexplained([]harness.Result{res}, nil)) > 0 {
 		return 1
@@ -200,7 +200,7 @@ func writeCase(ctx context.Context, c harness.Cases, at []int, stdout io.Writer)
 
 // exitCode returns 1 when any result is not OutcomeOK, otherwise 0.
 func exitCode(results []harness.Result) int {
-	if slices.ContainsFunc(results, func(r harness.Result) bool { return r.Outcome != harness.OutcomeOK }) {
+	if slices.ContainsFunc(results, func(result harness.Result) bool { return result.Outcome != harness.OutcomeOK }) {
 		return 1
 	}
 	return 0

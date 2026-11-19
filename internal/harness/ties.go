@@ -39,17 +39,17 @@ type fact struct {
 // reports carrying none, in order: one naming one kept place, a member at
 // least and nothing of another role. written erases the IDs and the places.
 func factsOf(rs []report, written sequences) (facts []fact, rest []report) {
-	for _, r := range rs {
-		kept, decided, known := r.concerns()
+	for _, report := range rs {
+		kept, decided, known := report.concerns()
 		if !known || len(kept) != 1 || len(decided) == 0 {
-			rest = append(rest, r)
+			rest = append(rest, report)
 			continue
 		}
-		lostAt, keptAt := placeOf(r.rebased.Provenance), placeOf(kept[0])
+		lostAt, keptAt := placeOf(report.rebased.Provenance), placeOf(kept[0])
 		for _, member := range decided {
 			facts = append(facts, fact{
 				member: erase(member.Node, written), lost: erase(lostAt, written), kept: erase(keptAt, written),
-				says: sayingOf(r.rebased, member, written), lostAt: lostAt, keptAt: keptAt, report: r,
+				says: sayingOf(report.rebased, member, written), lostAt: lostAt, keptAt: keptAt, report: report,
 			})
 		}
 	}
@@ -74,23 +74,23 @@ func (r report) concerns() (kept, decided []ir.Provenance, known bool) {
 	return kept, decided, known
 }
 
-// placeOf is where p locates a declaration, as one string: its pointer, then
+// placeOf is where provenance locates a declaration, as one string: its pointer, then
 // its source, the input that wrote it, whether it has a position, and the
 // heuristics that produced what it locates, each of which describes the place
 // and so changes sides with it in a mirrored report.
-func placeOf(p ir.Provenance) string {
-	return string(p.Pointer) + "\x00" + strconv.Itoa(p.Source) + "\x00" + strconv.Itoa(p.WrittenBy) + "\x00" +
-		strconv.FormatBool(p.Position != ir.Position{}) + "\x00" + string(p.Inferred)
+func placeOf(provenance ir.Provenance) string {
+	return string(provenance.Pointer) + "\x00" + strconv.Itoa(provenance.Source) + "\x00" + strconv.Itoa(provenance.WrittenBy) + "\x00" +
+		strconv.FormatBool(provenance.Position != ir.Position{}) + "\x00" + string(provenance.Inferred)
 }
 
-// sayingOf is what d, a report carrying a pair, says beside its two places of
+// sayingOf is what diagnostic, a report carrying a pair, says beside its two places of
 // the member its entry member lists, as diagnosticKey reads it: its severity,
 // its code, and that entry but for its node, each index of a reversed
 // sequence, written, erased.
-func sayingOf(d ir.Diagnostic, member ir.Provenance, written sequences) string {
+func sayingOf(diagnostic ir.Diagnostic, member ir.Provenance, written sequences) string {
 	member.Node, member.Pointer = "", jsontext.Pointer(erase(string(member.Pointer), written))
 	return diagnosticKey(ir.Diagnostic{
-		Severity: d.Severity, Code: d.Code, Related: []ir.Related{{Role: ir.RelatedDecided, Provenance: member}},
+		Severity: diagnostic.Severity, Code: diagnostic.Code, Related: []ir.Related{{Role: ir.RelatedDecided, Provenance: member}},
 	})
 }
 
@@ -103,15 +103,15 @@ func sayingOf(d ir.Diagnostic, member ir.Provenance, written sequences) string {
 // compiler reports as one in both orders.
 func tiedBy(a, b []fact) []string {
 	mirrored, exactly := make(map[decision]bool, len(b)), make(map[decision]bool, len(b))
-	for _, f := range b {
-		mirrored[decision{member: f.member, lost: f.kept, kept: f.lost, says: f.says}] = true
-		exactly[decision{member: f.member, lost: f.keptAt, kept: f.lostAt, says: f.says}] = true
+	for _, fact := range b {
+		mirrored[decision{member: fact.member, lost: fact.kept, kept: fact.lost, says: fact.says}] = true
+		exactly[decision{member: fact.member, lost: fact.keptAt, kept: fact.lostAt, says: fact.says}] = true
 	}
 	var tied []string
-	for _, f := range a {
-		apart := f.lost != f.kept || exactly[decision{member: f.member, lost: f.lostAt, kept: f.keptAt, says: f.says}]
-		if mirrored[f.decision] && apart {
-			tied = append(tied, f.member)
+	for _, fact := range a {
+		apart := fact.lost != fact.kept || exactly[decision{member: fact.member, lost: fact.lostAt, kept: fact.keptAt, says: fact.says}]
+		if mirrored[fact.decision] && apart {
+			tied = append(tied, fact.member)
 		}
 	}
 	slices.Sort(tied)
@@ -138,24 +138,24 @@ func unpairedFacts(a, b []fact, tied []string) (left, right []report) {
 func factsWithout(a, b []fact, tied []string) []report {
 	type lost struct{ member, at, says string }
 	open := map[lost][]string{}
-	for _, f := range b {
-		key := lost{f.member, f.lost, f.says}
-		open[key] = append(open[key], f.keptBy)
+	for _, fact := range b {
+		key := lost{fact.member, fact.lost, fact.says}
+		open[key] = append(open[key], fact.keptBy)
 	}
 	var out []report
 	seen := map[string]bool{}
-	for _, f := range a {
-		key := lost{f.member, f.lost, f.says}
-		if _, isTied := slices.BinarySearch(tied, f.member); isTied {
+	for _, fact := range a {
+		key := lost{fact.member, fact.lost, fact.says}
+		if _, isTied := slices.BinarySearch(tied, fact.member); isTied {
 			continue
 		}
-		if i := pairing(open[key], f.keptBy); i >= 0 {
+		if i := pairing(open[key], fact.keptBy); i >= 0 {
 			open[key] = slices.Delete(open[key], i, i+1)
 			continue
 		}
-		if !seen[f.report.key] {
-			seen[f.report.key] = true
-			out = append(out, f.report)
+		if !seen[fact.report.key] {
+			seen[fact.report.key] = true
+			out = append(out, fact.report)
 		}
 	}
 	return out
@@ -182,9 +182,9 @@ func pairing(kept []string, keptBy string) int {
 func keptTypes(facts []fact, held map[string]held) []fact {
 	out := slices.Clone(facts)
 	for i := range out {
-		h := held[out[i].member]
-		out[i].keptBy = h.named[pointerOf(out[i].keptAt)]
-		if takes, _, _ := strings.Cut(h.takes, " "); out[i].keptBy != "" && composed(takes) {
+		heldValue := held[out[i].member]
+		out[i].keptBy = heldValue.named[pointerOf(out[i].keptAt)]
+		if takes, _, _ := strings.Cut(heldValue.takes, " "); out[i].keptBy != "" && composed(takes) {
 			out[i].keptBy = takes
 		}
 	}
@@ -209,23 +209,25 @@ func heldBy(doc *ir.Document, seqs, from sequences) map[string]held {
 	if doc == nil {
 		return out
 	}
-	nodeOf := func(p *ir.Property) string { return erase(string(p.Type.Target), seqs) }
-	typeOf := func(p *ir.Property) string { return nodeOf(p) + " " + strconv.FormatBool(p.Type.Nullable) }
+	nodeOf := func(property *ir.Property) string { return erase(string(property.Type.Target), seqs) }
+	typeOf := func(property *ir.Property) string {
+		return nodeOf(property) + " " + strconv.FormatBool(property.Type.Nullable)
+	}
 	for id, td := range doc.Types {
 		if _, isModel := td.(*ir.Model); !isModel {
 			continue
 		}
-		for _, p := range ir.FlattenedProperties(doc.Types, id).Properties {
-			if p.Owner != id || len(p.Overridden) == 0 {
+		for _, flatProperty := range ir.FlattenedProperties(doc.Types, id).Properties {
+			if flatProperty.Owner != id || len(flatProperty.Overridden) == 0 {
 				continue
 			}
-			h := held{takes: typeOf(p.Property), said: make(map[string]string, len(p.Overridden)),
-				named: make(map[string]string, len(p.Overridden))}
-			for _, d := range p.Overridden {
-				at := rebase(string(d.Property.Provenance.Pointer), from)
-				h.said[at], h.named[at] = typeOf(d.Property), nodeOf(d.Property)
+			heldValue := held{takes: typeOf(flatProperty.Property), said: make(map[string]string, len(flatProperty.Overridden)),
+				named: make(map[string]string, len(flatProperty.Overridden))}
+			for _, propertyDecl := range flatProperty.Overridden {
+				at := rebase(string(propertyDecl.Property.Provenance.Pointer), from)
+				heldValue.said[at], heldValue.named[at] = typeOf(propertyDecl.Property), nodeOf(propertyDecl.Property)
 			}
-			out[erase(string(p.Property.ID), seqs)] = h
+			out[erase(string(flatProperty.Property.ID), seqs)] = heldValue
 		}
 	}
 	return out
@@ -244,16 +246,16 @@ func contradicted(written, reversed map[string]held, stated []fact, tied []strin
 		return nil
 	}
 	var out []string
-	for _, f := range stated {
-		if _, isTied := slices.BinarySearch(tied, f.member); !isTied {
+	for _, fact := range stated {
+		if _, isTied := slices.BinarySearch(tied, fact.member); !isTied {
 			continue
 		}
-		w, r := written[f.member], reversed[f.member]
-		lost, saysLost := w.said[pointerOf(f.lostAt)]
-		kept, saysKept := w.said[pointerOf(f.keptAt)]
-		if saysLost && saysKept && lost != kept && w.takes == lost && r.takes == kept {
-			out = append(out, f.member+" takes in each order the type of the declaration its report says lost: "+
-				strconv.Quote(lost)+" as written, at "+pointerOf(f.lostAt)+", and "+strconv.Quote(kept)+" reversed, at "+pointerOf(f.keptAt))
+		held, heldValue := written[fact.member], reversed[fact.member]
+		lost, saysLost := held.said[pointerOf(fact.lostAt)]
+		kept, saysKept := held.said[pointerOf(fact.keptAt)]
+		if saysLost && saysKept && lost != kept && held.takes == lost && heldValue.takes == kept {
+			out = append(out, fact.member+" takes in each order the type of the declaration its report says lost: "+
+				strconv.Quote(lost)+" as written, at "+pointerOf(fact.lostAt)+", and "+strconv.Quote(kept)+" reversed, at "+pointerOf(fact.keptAt))
 		}
 	}
 	slices.Sort(out)
@@ -287,13 +289,13 @@ func statedAlone(stated []string, moved tieSites, tied []string, doc *ir.Documen
 		if _, isModel := td.(*ir.Model); !isModel {
 			continue
 		}
-		for _, p := range ir.FlattenedProperties(doc.Types, id).Properties {
-			settled := slices.ContainsFunc(p.Overridden, func(d ir.PropertyDecl) bool {
-				_, isTied := slices.BinarySearch(tied, erase(string(d.Property.ID), seqs))
+		for _, flatProperty := range ir.FlattenedProperties(doc.Types, id).Properties {
+			settled := slices.ContainsFunc(flatProperty.Overridden, func(propertyDecl ir.PropertyDecl) bool {
+				_, isTied := slices.BinarySearch(tied, erase(string(propertyDecl.Property.ID), seqs))
 				return isTied
 			})
-			if p.Owner == id && (settled || atSite(moved.pointers, erase(string(p.Property.Provenance.Pointer), seqs))) {
-				reached[erase(string(p.Property.ID), seqs)] = true
+			if flatProperty.Owner == id && (settled || atSite(moved.pointers, erase(string(flatProperty.Property.Provenance.Pointer), seqs))) {
+				reached[erase(string(flatProperty.Property.ID), seqs)] = true
 			}
 		}
 	}

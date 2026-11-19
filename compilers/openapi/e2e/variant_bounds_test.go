@@ -112,11 +112,11 @@ func variantSchema(keyword string, branches []variantBranch) string {
 // distributes its body over one variant per branch.
 func variantUnionAt(t *testing.T, doc *ir.Document, at string, branches int) *ir.Union {
 	t.Helper()
-	for _, p := range conjunctionPositions {
-		if string(p) != at {
+	for _, pointer := range conjunctionPositions {
+		if string(pointer) != at {
 			continue
 		}
-		union, ok := kindNode(t, doc, usedAt(t, doc, p)).(*ir.Union)
+		union, ok := kindNode(t, doc, usedAt(t, doc, pointer)).(*ir.Union)
 		require.True(t, ok, "a union at %s", at)
 		require.Len(t, union.Variants, branches, "a variant for each branch at %s", at)
 		return union
@@ -374,12 +374,12 @@ func TestVariantBounds_AVariantNamesOnlyAnObjectBranchAsItsBase(t *testing.T) {
 										"the union keeps %s at %s where it is no variant", b.name, at)
 								}
 								for j, b := range live {
-									v, ok := doc.Types[union.Variants[j].Type.Target].(*ir.Model)
+									model, ok := doc.Types[union.Variants[j].Type.Target].(*ir.Model)
 									require.True(t, ok, "the variant over %s at %s is a model", b.name, at)
-									assert.Empty(t, v.Mixins, "%s at %s", b.name, at)
-									require.NotNil(t, v.Base, "the variant over %s at %s", b.name, at)
-									assert.Equal(t, variantBases[b.name], v.Base.Target, "the variant over %s at %s", b.name, at)
-									assert.Empty(t, v.Unmodeled, "%s keeps nothing at %s", b.name, at)
+									assert.Empty(t, model.Mixins, "%s at %s", b.name, at)
+									require.NotNil(t, model.Base, "the variant over %s at %s", b.name, at)
+									assert.Equal(t, variantBases[b.name], model.Base.Target, "the variant over %s at %s", b.name, at)
+									assert.Empty(t, model.Unmodeled, "%s keeps nothing at %s", b.name, at)
 								}
 							}
 						})

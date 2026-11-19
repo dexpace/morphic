@@ -191,8 +191,8 @@ func TestVerify_SourceFindingsNameTheEntryAtFault(t *testing.T) {
 
 			found := irverify.Verify(doc)
 			got := make([]string, 0, len(found))
-			for _, v := range found {
-				got = append(got, v.Path)
+			for _, violation := range found {
+				got = append(got, violation.Path)
 			}
 			if len(tc.want) == 0 {
 				assert.Empty(t, got)

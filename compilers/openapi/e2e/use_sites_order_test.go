@@ -33,11 +33,11 @@ func compileAtLimit(t *testing.T, src []byte, limit int) (*ir.Document, []string
 // model Holder of doc.
 func holderProperty(t *testing.T, doc *ir.Document, wire string) ir.Property {
 	t.Helper()
-	m, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	model, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
-	p, ok := propByWire(m, wire)
+	property, ok := propByWire(model, wire)
 	require.True(t, ok, "no property %s", wire)
-	return p
+	return property
 }
 
 // assertOneReadingInEitherOrder compiles head followed by the blocks, then by

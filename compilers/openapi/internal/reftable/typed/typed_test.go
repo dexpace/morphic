@@ -141,9 +141,9 @@ components:
 func TestBindings_AnswerAMappingValueByItsDiscriminator(t *testing.T) {
 	t.Parallel()
 	b, _, _ := bindings(t)
-	m, ok := b.Mapping(reftable.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/S")
+	mapping, ok := b.Mapping(reftable.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/S")
 	require.True(t, ok)
-	assert.Equal(t, reftable.DocumentPointer{Pointer: "/x-lib/S"}, m.Hop.Target)
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/x-lib/S"}, mapping.Hop.Target)
 	_, ok = b.Mapping(reftable.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/T")
 	assert.False(t, ok, "a value the mapping does not write")
 	_, ok = b.Mapping(reftable.DocumentPointer{}, "#/x-lib/S")
@@ -162,9 +162,9 @@ func TestBuilder_BuildsEachLandingOnce(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/x-lib/S"), built[0].Landing.At.Pointer)
 	assert.Equal(t, jsontext.Pointer("/x-lib/S/properties/x"), built[1].Landing.At.Pointer)
 	assert.Equal(t, jsontext.Pointer("/x-lib/T"), built[2].Landing.At.Pointer)
-	for _, x := range built {
-		require.NoError(t, x.Err)
-		assert.Same(t, x.Schema, b.At(x.Landing.At))
+	for _, builtValue := range built {
+		require.NoError(t, builtValue.Err)
+		assert.Same(t, builtValue.Schema, b.At(builtValue.Landing.At))
 	}
 	x, ok := built[0].Schema.GetSchema().GetProperties().Get("x")
 	require.True(t, ok)
@@ -203,22 +203,22 @@ func TestBindings_ANilOneKnowsNothing(t *testing.T) {
 func TestBindings_HoldsTheFirstObjectRecordedAtAPosition(t *testing.T) {
 	t.Parallel()
 	bd := typed.NewBuilder(nil)
-	p := reftable.DocumentPointer{Pointer: "/components/parameters/P"}
+	documentPointer := reftable.DocumentPointer{Pointer: "/components/parameters/P"}
 	first, second, header := &soa.ReferencedParameter{}, &soa.ReferencedParameter{}, &soa.ReferencedHeader{}
-	bd.Object(first, reftable.RefParameter, p)
-	bd.Object(second, reftable.RefParameter, p)
-	bd.Object(header, reftable.RefHeader, p)
+	bd.Object(first, reftable.RefParameter, documentPointer)
+	bd.Object(second, reftable.RefParameter, documentPointer)
+	bd.Object(header, reftable.RefHeader, documentPointer)
 	bd.Object(nil, reftable.RefParameter, reftable.DocumentPointer{Pointer: "/x"})
 	bd.Object(&soa.ReferencedLink{}, 0, reftable.DocumentPointer{Pointer: "/y"})
 	b := bd.Bindings()
 
-	assert.Same(t, first, b.ObjectAt(p, reftable.RefParameter), "the first recorded is held")
-	assert.Same(t, header, b.ObjectAt(p, reftable.RefHeader), "another kind beside it")
-	assert.True(t, bd.HoldsObject(p, reftable.RefParameter))
-	assert.False(t, bd.HoldsObject(p, reftable.RefLink))
+	assert.Same(t, first, b.ObjectAt(documentPointer, reftable.RefParameter), "the first recorded is held")
+	assert.Same(t, header, b.ObjectAt(documentPointer, reftable.RefHeader), "another kind beside it")
+	assert.True(t, bd.HoldsObject(documentPointer, reftable.RefParameter))
+	assert.False(t, bd.HoldsObject(documentPointer, reftable.RefLink))
 	at, kind, ok := b.ObjectSite(second)
 	require.True(t, ok, "a wrapper not held is placed all the same")
-	assert.Equal(t, p, at)
+	assert.Equal(t, documentPointer, at)
 	assert.Equal(t, reftable.RefParameter, kind)
 	assert.Nil(t, b.ObjectAt(reftable.DocumentPointer{Pointer: "/x"}, reftable.RefParameter), "no wrapper, none held")
 	assert.Nil(t, b.ObjectAt(reftable.DocumentPointer{Pointer: "/y"}, 0), "no kind, none held")
@@ -248,9 +248,9 @@ components:
 	bd.Object(other, reftable.RefHeader, reftable.DocumentPointer{Pointer: "/components/parameters/P"})
 	b := bd.Bindings()
 
-	r, ok := b.Reference(p)
+	reference, ok := b.Reference(p)
 	require.True(t, ok)
-	assert.Equal(t, reftable.DocumentPointer{Pointer: "/components/parameters/Q"}, r.Chain.End)
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/components/parameters/Q"}, reference.Chain.End)
 	_, ok = b.Reference(q)
 	assert.False(t, ok, "an inline object writes no reference")
 	_, ok = b.Reference(other)

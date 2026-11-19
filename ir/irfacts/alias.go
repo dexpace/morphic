@@ -23,8 +23,8 @@ func newAliasTargets(types ir.TypeRegistry) aliasTargets {
 	for id := range types {
 		path = path[:0]
 		for cur := id; ; {
-			if t, done := a[cur]; done {
-				a.settle(path, t)
+			if typeID, done := a[cur]; done {
+				a.settle(path, typeID)
 				break
 			}
 			if at, cyclic := walked[cur]; cyclic {
@@ -64,8 +64,8 @@ func (a aliasTargets) settleCycle(path []ir.TypeID, at int) {
 // target returns the type id stands for, which is id itself when it names no
 // alias scalar.
 func (a aliasTargets) target(id ir.TypeID) ir.TypeID {
-	if t, ok := a[id]; ok {
-		return t
+	if typeID, ok := a[id]; ok {
+		return typeID
 	}
 	return id
 }

@@ -73,21 +73,21 @@ func New() harness.Cases {
 func (c cases) Axes() []harness.Axis {
 	axes := []harness.Axis{{Name: versionAxis}, {Name: targetAxis}, {Name: constructAxis}, {Name: secondAxis},
 		{Name: positionAxis}, {Name: spellingAxis}}
-	for _, v := range c.versions {
-		axes[0].Values = append(axes[0].Values, harness.Value{Name: v.name, Like: v.like})
+	for _, version := range c.versions {
+		axes[0].Values = append(axes[0].Values, harness.Value{Name: version.name, Like: version.like})
 	}
-	for _, t := range c.targets {
-		axes[1].Values = append(axes[1].Values, harness.Value{Name: t.name, Like: narrowed(t.name)})
+	for _, target := range c.targets {
+		axes[1].Values = append(axes[1].Values, harness.Value{Name: target.name, Like: narrowed(target.name)})
 	}
 	axes[2].Values = append(axes[2].Values, harness.Value{Name: none})
-	for _, k := range c.constructs {
-		axes[2].Values = append(axes[2].Values, harness.Value{Name: k.keyword}, harness.Value{Name: k.keyword + otherMark})
+	for _, construct := range c.constructs {
+		axes[2].Values = append(axes[2].Values, harness.Value{Name: construct.keyword}, harness.Value{Name: construct.keyword + otherMark})
 	}
 	for _, sec := range c.seconds {
 		axes[3].Values = append(axes[3].Values, harness.Value{Name: sec.name, Like: secondLike(sec.name)})
 	}
-	for _, p := range c.positions {
-		axes[4].Values = append(axes[4].Values, harness.Value{Name: p.name})
+	for _, position := range c.positions {
+		axes[4].Values = append(axes[4].Values, harness.Value{Name: position.name})
 	}
 	axes[5].Values = spellingValues(c.spellings)
 	return axes
@@ -136,54 +136,54 @@ func (c cases) Write(at []int) (harness.CaseDocument, bool) {
 	if !c.holds(at) {
 		return harness.CaseDocument{}, false
 	}
-	v, t, p, s := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]], c.spellings[at[5]]
-	if !p.span.holds(v) {
+	version, target, position, s := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]], c.spellings[at[5]]
+	if !position.span.holds(version) {
 		return harness.CaseDocument{}, false
 	}
-	u, ok := c.unit(at, v, t)
+	written, ok := c.unit(at, version, target)
 	if !ok {
 		return harness.CaseDocument{}, false
 	}
-	use, ok := c.spelt(u, s, t)
+	use, ok := c.spelt(written, s, target)
 	if !ok {
 		return harness.CaseDocument{}, false
 	}
 
-	paths, schemas := p.place(use)
+	paths, schemas := position.place(use)
 	if s != inline {
-		schemas = append(schemas, member{targetSchema, t.body})
+		schemas = append(schemas, member{targetSchema, target.body})
 	}
 	data, err := encode(object{
-		{"openapi", v.name},
+		{"openapi", version.name},
 		{"info", object{{"title", "cases"}, {"version", "1"}}},
 		{"paths", paths},
-		{"components", object{{"schemas", append(schemas, u.components...)}}},
+		{"components", object{{"schemas", append(schemas, written.components...)}}},
 	})
 	if err != nil {
 		panic(fmt.Sprintf("openapicases: case %v: %v", at, err))
 	}
 	doc := harness.CaseDocument{
 		Sources: []compilers.Source{{Path: specPath, Data: data}},
-		Options: optionsFor(u),
-		Equal:   c.equal(at, u),
+		Options: optionsFor(written),
+		Equal:   c.equal(at, written),
 	}
 	if doc.Equal != nil && at[2] > 0 && at[3] > 0 {
 		doc.Equal.Parts = c.parts(at)
 	}
-	c.neighbours(&doc, v, t, at)
+	c.neighbours(&doc, version, target, at)
 	return doc, true
 }
 
-// optionsFor returns the compiler options a case writing u compiles under:
+// optionsFor returns the compiler options a case writing writtenValue compiles under:
 // for a type admitting null, the nullable-inference policy off. The policy
 // reads such a type beside a $ref as admitting null for the whole reference,
 // and beside an allOf conjoins it with the rest, as the standard does
 // (docs/compilers/openapi.md#nullable), so only with it off are the spellings
 // one; off, each reads the keyword as its version defines it.
-func optionsFor(u written) map[string]string {
-	if slices.ContainsFunc(u.members, func(m member) bool {
-		values, ok := m.value.([]any)
-		return m.name == "type" && ok && slices.Contains(values, any("null"))
+func optionsFor(writtenValue written) map[string]string {
+	if slices.ContainsFunc(writtenValue.members, func(memberValue member) bool {
+		values, ok := memberValue.value.([]any)
+		return memberValue.name == "type" && ok && slices.Contains(values, any("null"))
 	}) {
 		return map[string]string{"nullable-inference": "false"}
 	}
@@ -202,18 +202,18 @@ func (c cases) parts(at []int) [][]int {
 	return [][]int{first, second}
 }
 
-// unit returns what the case at writes in one unit on t at v: its construct's
+// unit returns what the case at writes in one unit on targetValue at versionValue: its construct's
 // members then its second's, the components they name, the second's entries
 // and where the unit is written, the stricter of the two, and false where
 // either writes nothing. A row's second beside no construct is that row's
 // case, which writes it.
-func (c cases) unit(at []int, v version, t target) (written, bool) {
-	members, components, ok := c.construct(at[2], v, t)
+func (c cases) unit(at []int, versionValue version, targetValue target) (written, bool) {
+	members, components, ok := c.construct(at[2], versionValue, targetValue)
 	if !ok {
 		return written{}, false
 	}
-	sec, ok := c.secondAt(at[3], v, t)
-	if !ok || (sec.row >= 0 && at[2] == 0) || !c.fits(at, sec, members, t) {
+	sec, ok := c.secondAt(at[3], versionValue, targetValue)
+	if !ok || (sec.row >= 0 && at[2] == 0) || !c.fits(at, sec, members, targetValue) {
 		return written{}, false
 	}
 	return written{
@@ -233,24 +233,24 @@ func (c cases) unit(at []int, v version, t target) (written, bool) {
 // entry spelling wrap's document; left beside a row's second, it leaves that
 // row's case. A keyword the target's body writes already is replaced by the
 // construct, so no case leaves it out (Document.Replaces).
-func (c cases) neighbours(doc *harness.CaseDocument, v version, t target, at []int) {
+func (c cases) neighbours(doc *harness.CaseDocument, versionValue version, targetValue target, at []int) {
 	if at[2] == 0 || (at[2]-1)%2 != 0 {
 		return
 	}
-	k := c.constructs[(at[2]-1)/2]
+	construct := c.constructs[(at[2]-1)/2]
 	doc.Absent = slices.Concat(at[:2], []int{0}, at[3:])
 	if row := c.rowOf(at[3]); row >= 0 {
 		doc.Absent[2], doc.Absent[3] = 1+2*row, 0 // the row's second alone is the row's case
 	} else if writesWrapEmpty(c.spellings[at[5]]) {
-		if sec, _ := c.secondAt(at[3], v, t); len(sec.members) == 0 {
+		if sec, _ := c.secondAt(at[3], versionValue, targetValue); len(sec.members) == 0 {
 			doc.Absent[5] = slices.Index(c.spellings, wrap) // an entry saying nothing writes wrap's document
 		}
 	}
-	doc.Carried, doc.Reason = k.reason == "", k.reason
+	doc.Carried, doc.Reason = construct.reason == "", construct.reason
 	if doc.Carried {
 		doc.Other = slices.Concat(at[:2], []int{at[2] + 1}, at[3:])
 	}
-	doc.Replaces = slices.ContainsFunc(t.body, func(m member) bool { return m.name == k.keyword })
+	doc.Replaces = slices.ContainsFunc(targetValue.body, func(memberValue member) bool { return memberValue.name == construct.keyword })
 }
 
 // holds reports whether at names a case of c: one index per axis, each within
@@ -270,15 +270,15 @@ func (c cases) holds(at []int) bool {
 }
 
 // construct returns the members the construct at index i of the construct axis
-// merges into t's body at v, and the components it names, or false where v
-// lacks it or it is not said of t. Index 0 is none, which writes nothing.
-func (c cases) construct(i int, v version, t target) (object, object, bool) {
+// merges into targetValue's body at versionValue, and the components it names, or false where versionValue
+// lacks it or it is not said of targetValue. Index 0 is none, which writes nothing.
+func (c cases) construct(i int, versionValue version, targetValue target) (object, object, bool) {
 	if i == 0 {
 		return nil, nil, true
 	}
-	k := c.constructs[(i-1)/2]
-	if !k.span.holds(v) || !k.saidOf(t) {
+	construct := c.constructs[(i-1)/2]
+	if !construct.span.holds(versionValue) || !construct.saidOf(targetValue) {
 		return nil, nil, false
 	}
-	return k.values(t, v)[(i-1)%2], k.components, true
+	return construct.values(targetValue, versionValue)[(i-1)%2], construct.components, true
 }

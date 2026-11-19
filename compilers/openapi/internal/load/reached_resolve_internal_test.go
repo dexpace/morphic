@@ -133,11 +133,11 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 	if d := cmp.Diff(reachWantDiags(), diags); d != "" {
 		t.Errorf("diagnostics did not match (-want +got):\n%s", d)
 	}
-	for _, d := range diags {
-		assert.NotEqual(t, ir.Position{Line: 17, Column: 25}, d.Provenance.Position,
-			"/unreached's own finding must not appear: %+v", d)
-		assert.NotEqual(t, ir.Position{Line: 21, Column: 40}, d.Provenance.Position,
-			"the numeric literal must not appear: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, ir.Position{Line: 17, Column: 25}, diagnostic.Provenance.Position,
+			"/unreached's own finding must not appear: %+v", diagnostic)
+		assert.NotEqual(t, ir.Position{Line: 21, Column: 40}, diagnostic.Provenance.Position,
+			"the numeric literal must not appear: %+v", diagnostic)
 	}
 }
 
@@ -299,8 +299,8 @@ components:
 	_, diags := loadExternal(t, dir, root, Options{})
 
 	got := make([]string, 0, len(diags))
-	for _, d := range diags {
-		got = append(got, fmt.Sprintf("%d %s %s %s", d.Provenance.Source, d.Provenance.Pointer, d.Severity, d.Code))
+	for _, diagnostic := range diags {
+		got = append(got, fmt.Sprintf("%d %s %s %s", diagnostic.Provenance.Source, diagnostic.Provenance.Pointer, diagnostic.Severity, diagnostic.Code))
 	}
 	want := []string{
 		"1 /components/securitySchemes/S/type error openapi/validation/validation-allowed-values",
@@ -395,8 +395,8 @@ paths:
 			"is no more than it: %+v", diags)
 		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
-		for _, d := range diags {
-			assert.NotEqual(t, diag.BudgetExceeded, d.Code, "%+v", d)
+		for _, diagnostic := range diags {
+			assert.NotEqual(t, diag.BudgetExceeded, diagnostic.Code, "%+v", diagnostic)
 		}
 	})
 
@@ -435,8 +435,8 @@ components:
 		diags := compile(t, other, root, Options{})
 
 		sites := map[jsontext.Pointer][]string{}
-		for _, d := range diags {
-			sites[d.Provenance.Pointer] = append(sites[d.Provenance.Pointer], d.Message)
+		for _, diagnostic := range diags {
+			sites[diagnostic.Provenance.Pointer] = append(sites[diagnostic.Provenance.Pointer], diagnostic.Message)
 		}
 		const minLength = "/components/responses/R/content/application~1json/schema/minLength"
 		require.Len(t, sites[minLength], 1, "read as a response: %+v", diags)
@@ -503,8 +503,8 @@ components:
 			"\ncomponents:\n  parameters:\n    " + strings.Join(parameters, "\n    ") + "\n"
 		_, diags := loadExternal(t, dir, src, Options{})
 		out := make([]string, 0, len(diags))
-		for _, d := range diags {
-			out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Provenance.Pointer, d.Message))
+		for _, diagnostic := range diags {
+			out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Code, diagnostic.Provenance.Pointer, diagnostic.Message))
 		}
 		slices.Sort(out)
 		return out
@@ -576,9 +576,9 @@ func TestResolve_AReachedSchemaIsHeldToTheSourcesMinor(t *testing.T) {
 
 		_, diags := loadExternal(t, dir, v32RootFixture, Options{})
 
-		for _, d := range diags {
-			assert.Equal(t, jsontext.Pointer("/components/schemas/Broken/type"), d.Provenance.Pointer,
-				"S's defaultMapping is a 3.2 keyword and reports nothing: %+v", d)
+		for _, diagnostic := range diags {
+			assert.Equal(t, jsontext.Pointer("/components/schemas/Broken/type"), diagnostic.Provenance.Pointer,
+				"S's defaultMapping is a 3.2 keyword and reports nothing: %+v", diagnostic)
 		}
 		assert.NotEmpty(t, diags, "Broken's type: 42 is a defect")
 	})
@@ -647,8 +647,8 @@ func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
 			_, diags := loadExternal(t, dir, c.root, Options{})
 
 			require.Len(t, diags, 3, "%+v", diags)
-			for _, d := range diags[:2] {
-				assert.Equal(t, diag.Validation+"/validation-type-mismatch", d.Code)
+			for _, diagnostic := range diags[:2] {
+				assert.Equal(t, diag.Validation+"/validation-type-mismatch", diagnostic.Code)
 			}
 			assert.Contains(t, diags[0].Message, `Schema Object field "minLength" must be a non-negative integer in OpenAPI 3.0`)
 			assert.Contains(t, diags[1].Message, `Schema Object field "type" must be a string in OpenAPI 3.0`)
@@ -804,16 +804,16 @@ func TestResolve_ValidatesOnceUnderAnUpperCasedScheme(t *testing.T) {
 	}
 	made := map[string]bool{}
 	recovered := 0
-	for _, d := range upper {
-		assert.Equal(t, 1, d.Provenance.Source, "placed in other.yaml, where its node is: %+v", d)
-		key := fmt.Sprint(d.Code, d.Provenance, d.Message)
-		assert.False(t, made[key], "made once: %+v", d)
+	for _, diagnostic := range upper {
+		assert.Equal(t, 1, diagnostic.Provenance.Source, "placed in other.yaml, where its node is: %+v", diagnostic)
+		key := fmt.Sprint(diagnostic.Code, diagnostic.Provenance, diagnostic.Message)
+		assert.False(t, made[key], "made once: %+v", diagnostic)
 		made[key] = true
-		assert.False(t, strings.HasPrefix(string(d.Provenance.Pointer), "/paths/~1unreached"),
-			"/unreached must not be validated: %+v", d)
-		if d.Provenance.Position == (ir.Position{Line: 8, Column: 25}) {
+		assert.False(t, strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/paths/~1unreached"),
+			"/unreached must not be validated: %+v", diagnostic)
+		if diagnostic.Provenance.Position == (ir.Position{Line: 8, Column: 25}) {
 			recovered++
-			assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), d.Provenance.Pointer)
+			assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.Equal(t, 1, recovered, "the anchored get's own finding, exactly once: %+v", upper)
@@ -839,9 +839,9 @@ func (f inSourceFinding) render(t *testing.T, spec string) string {
 // message, sorted.
 func renderDiags(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		at := d.Provenance.Position
-		out = append(out, fmt.Sprintf("%s %d:%d %s %s", d.Provenance.Pointer, at.Line, at.Column, d.Code, d.Message))
+	for _, diagnostic := range diags {
+		at := diagnostic.Provenance.Position
+		out = append(out, fmt.Sprintf("%s %d:%d %s %s", diagnostic.Provenance.Pointer, at.Line, at.Column, diagnostic.Code, diagnostic.Message))
 	}
 	slices.Sort(out)
 	return out
@@ -949,8 +949,8 @@ func TestResolve_WhatAReferenceReachesInTheSourceIsValidated(t *testing.T) {
 			t.Run(fmt.Sprintf("%s, external references %t", c.name, external), func(t *testing.T) {
 				t.Parallel()
 				want := make([]string, 0, len(c.want))
-				for _, f := range c.want {
-					want = append(want, f.render(t, c.spec))
+				for _, inSourceFinding := range c.want {
+					want = append(want, inSourceFinding.render(t, c.spec))
 				}
 				slices.Sort(want)
 
@@ -1141,27 +1141,27 @@ paths:
 	require.NoError(t, err)
 
 	var placed []string
-	for _, d := range diags {
-		if strings.HasPrefix(d.Code, diag.Validation+"/") {
-			other, ok := doc.Others.At(d.Provenance.Source)
-			require.True(t, ok, "placed in a document read beside the source: %+v", d)
-			placed = append(placed, fmt.Sprintf("%s#%s %d:%d", other.Label, d.Provenance.Pointer,
-				d.Provenance.Position.Line, d.Provenance.Position.Column))
+	for _, diagnostic := range diags {
+		if strings.HasPrefix(diagnostic.Code, diag.Validation+"/") {
+			other, ok := doc.Others.At(diagnostic.Provenance.Source)
+			require.True(t, ok, "placed in a document read beside the source: %+v", diagnostic)
+			placed = append(placed, fmt.Sprintf("%s#%s %d:%d", other.Label, diagnostic.Provenance.Pointer,
+				diagnostic.Provenance.Position.Line, diagnostic.Provenance.Position.Column))
 		}
 	}
 	assert.Equal(t, []string{
 		"ext.yaml#/components/responses/R 3:8",
 		"sub/ext2.yaml#/components/responses/R2 4:9",
 	}, placed)
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/paths/~1a/get/responses/202" {
-			assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "a reference that fails reaches no object to check: %+v", d)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/paths/~1a/get/responses/202" {
+			assert.False(t, strings.HasPrefix(diagnostic.Code, diag.Validation+"/"), "a reference that fails reaches no object to check: %+v", diagnostic)
 		}
 	}
 	var failed []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			failed = append(failed, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnresolvedRef {
+			failed = append(failed, diagnostic)
 		}
 	}
 	require.Len(t, failed, 1, "%+v", diags)
@@ -1206,10 +1206,10 @@ paths:
 			require.NoError(t, err)
 
 			var placed []string
-			for _, d := range diags {
-				if strings.HasPrefix(d.Code, diag.Validation+"/") {
-					placed = append(placed, fmt.Sprintf("%d %s %d:%d", d.Provenance.Source, d.Provenance.Pointer,
-						d.Provenance.Position.Line, d.Provenance.Position.Column))
+			for _, diagnostic := range diags {
+				if strings.HasPrefix(diagnostic.Code, diag.Validation+"/") {
+					placed = append(placed, fmt.Sprintf("%d %s %d:%d", diagnostic.Provenance.Source, diagnostic.Provenance.Pointer,
+						diagnostic.Provenance.Position.Line, diagnostic.Provenance.Position.Column))
 				}
 			}
 			slices.Sort(placed)
@@ -1259,11 +1259,11 @@ components:
 
 			read := map[jsontext.Pointer]string{}
 			found := 0
-			for _, d := range diags {
-				if strings.HasPrefix(d.Code, diag.Validation+"/") {
-					require.Equal(t, 1, d.Provenance.Source, "%+v", d)
-					_, at, _ := strings.Cut(d.Message, "; read at ")
-					read[d.Provenance.Pointer] = at
+			for _, diagnostic := range diags {
+				if strings.HasPrefix(diagnostic.Code, diag.Validation+"/") {
+					require.Equal(t, 1, diagnostic.Provenance.Source, "%+v", diagnostic)
+					_, at, _ := strings.Cut(diagnostic.Message, "; read at ")
+					read[diagnostic.Provenance.Pointer] = at
 					found++
 				}
 			}
@@ -1316,8 +1316,8 @@ func TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder(t *testing.T) {
 			compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 		out := make([]string, 0, len(diags))
-		for _, d := range diags {
-			out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Provenance.Pointer, d.Message))
+		for _, diagnostic := range diags {
+			out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Code, diagnostic.Provenance.Pointer, diagnostic.Message))
 		}
 		slices.Sort(out)
 		return out

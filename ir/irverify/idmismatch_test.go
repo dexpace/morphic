@@ -77,8 +77,8 @@ func pointerOf(id string) ir.Provenance {
 // violationList spells each violation as its code and path.
 func violationList(vs []irverify.Violation) []string {
 	out := make([]string, 0, len(vs))
-	for _, v := range vs {
-		out = append(out, v.Code+" @ "+v.Path)
+	for _, violation := range vs {
+		out = append(out, violation.Code+" @ "+violation.Path)
 	}
 	return out
 }

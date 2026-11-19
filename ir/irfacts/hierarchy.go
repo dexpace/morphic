@@ -22,12 +22,12 @@ type hierarchy struct {
 
 // newHierarchy indexes the subtype relation of the models in types.
 func newHierarchy(types ir.TypeRegistry) *hierarchy {
-	h := &hierarchy{
+	hierarchyValue := &hierarchy{
 		vertex:  make(map[ir.TypeID]int, len(types)),
 		aliases: newAliasTargets(types),
 	}
-	h.reach = newIntervals(h.supertypeEdges(types))
-	return h
+	hierarchyValue.reach = newIntervals(hierarchyValue.supertypeEdges(types))
+	return hierarchyValue
 }
 
 // childrenOf returns the declared models naming id among their supertypes.
@@ -38,15 +38,15 @@ func (h *hierarchy) childrenOf(id ir.TypeID) []ir.TypeID {
 	return nil
 }
 
-// supertypes appends the supertypes of m to dst as ir.Supertypes returns them:
+// supertypes appends the supertypes of model to dst as ir.Supertypes returns them:
 // its Base, then each Implements entry, each read through its alias scalars,
 // skipping a reference that names no type.
-func (h *hierarchy) supertypes(dst []ir.TypeID, m *ir.Model) []ir.TypeID {
-	if m.Base != nil {
-		dst = appendTarget(dst, h.aliases.target(m.Base.Target))
+func (h *hierarchy) supertypes(dst []ir.TypeID, model *ir.Model) []ir.TypeID {
+	if model.Base != nil {
+		dst = appendTarget(dst, h.aliases.target(model.Base.Target))
 	}
-	for _, r := range m.Implements {
-		dst = appendTarget(dst, h.aliases.target(r.Target))
+	for _, typeRef := range model.Implements {
+		dst = appendTarget(dst, h.aliases.target(typeRef.Target))
 	}
 	return dst
 }
@@ -64,11 +64,11 @@ func (h *hierarchy) supertypeEdges(types ir.TypeRegistry) [][]int {
 	edges, children := pairsOf[int](most), pairsOf[ir.TypeID](most)
 	var supers []ir.TypeID
 	for i, id := range ids {
-		m, ok := types[id].(*ir.Model)
-		if !ok || m == nil {
+		model, ok := types[id].(*ir.Model)
+		if !ok || model == nil {
 			continue
 		}
-		supers = h.supertypes(supers[:0], m)
+		supers = h.supertypes(supers[:0], model)
 		for _, super := range supers {
 			v, named := h.vertex[super]
 			if !named {
@@ -88,9 +88,9 @@ func (h *hierarchy) supertypeEdges(types ir.TypeRegistry) [][]int {
 func mostSupertypes(types ir.TypeRegistry) int {
 	most := 0
 	for _, td := range types {
-		if m, ok := td.(*ir.Model); ok && m != nil {
-			most += len(m.Implements)
-			if m.Base != nil {
+		if model, ok := td.(*ir.Model); ok && model != nil {
+			most += len(model.Implements)
+			if model.Base != nil {
 				most++
 			}
 		}

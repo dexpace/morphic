@@ -5,13 +5,13 @@ package compileddoc
 
 import "github.com/dexpace/morphic/ir"
 
-// CountFlattenings makes w count each whole flattening it takes from now on,
+// CountFlattenings makes compiledDocumentView count each whole flattening it takes from now on,
 // and returns the count, so an external test can hold a read that must name one
 // member to flattening no model.
-func CountFlattenings(w *CompiledDocumentView) *int {
+func CountFlattenings(compiledDocumentView *CompiledDocumentView) *int {
 	n := new(int)
-	flatten := w.flatten
-	w.flatten = func(types ir.TypeRegistry, id ir.TypeID) ir.Flattening {
+	flatten := compiledDocumentView.flatten
+	compiledDocumentView.flatten = func(types ir.TypeRegistry, id ir.TypeID) ir.Flattening {
 		*n++
 		return flatten(types, id)
 	}

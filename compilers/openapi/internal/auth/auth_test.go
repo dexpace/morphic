@@ -21,15 +21,15 @@ func TestAuth_SchemeKinds(t *testing.T) {
 	cases := []struct {
 		name   string
 		scheme string
-		check  func(t *testing.T, s ir.AuthScheme)
+		check  func(t *testing.T, authScheme ir.AuthScheme)
 	}{
 		{
 			name:   "apiKey",
 			scheme: "{type: apiKey, in: header, name: X-Key}",
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindAPIKey, s.Kind)
-				assert.Equal(t, "header", s.In)
-				assert.Equal(t, "X-Key", s.KeyName)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindAPIKey, authScheme.Kind)
+				assert.Equal(t, "header", authScheme.In)
+				assert.Equal(t, "X-Key", authScheme.KeyName)
 			},
 		},
 		{
@@ -39,58 +39,58 @@ func TestAuth_SchemeKinds(t *testing.T) {
 			// SDK emitter renders as an opaque header rather than as basic auth.
 			name:   "http basic, capitalised as the RFC spells it",
 			scheme: "{type: http, scheme: Basic}",
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindHTTPBasic, s.Kind)
-				assert.Empty(t, s.Scheme, "a recognised token is not also carried as a custom one")
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindHTTPBasic, authScheme.Kind)
+				assert.Empty(t, authScheme.Scheme, "a recognised token is not also carried as a custom one")
 			},
 		},
 		{
 			name:   "http bearer, upper case",
 			scheme: "{type: http, scheme: BEARER, bearerFormat: JWT}",
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindHTTPBearer, s.Kind)
-				assert.Equal(t, "JWT", s.BearerFormat)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindHTTPBearer, authScheme.Kind)
+				assert.Equal(t, "JWT", authScheme.BearerFormat)
 			},
 		},
 		{
 			name:   "http basic",
 			scheme: "{type: http, scheme: basic}",
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindHTTPBasic, s.Kind)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindHTTPBasic, authScheme.Kind)
 			},
 		},
 		{
 			name:   "http bearer",
 			scheme: "{type: http, scheme: bearer, bearerFormat: JWT}",
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindHTTPBearer, s.Kind)
-				assert.Equal(t, "JWT", s.BearerFormat)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindHTTPBearer, authScheme.Kind)
+				assert.Equal(t, "JWT", authScheme.BearerFormat)
 			},
 		},
 		{
 			name:   "oauth2 implicit",
 			scheme: `{type: oauth2, flows: {implicit: {authorizationUrl: "https://a.example/auth", scopes: {read: r}}}}`,
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindOAuth2, s.Kind)
-				require.Len(t, s.Flows, 1)
-				assert.Equal(t, "implicit", s.Flows[0].Kind)
-				assert.Equal(t, "https://a.example/auth", s.Flows[0].AuthorizationURL)
-				assert.Equal(t, []ir.OAuthScope{{Name: "read", Description: "r"}}, s.Flows[0].Scopes)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindOAuth2, authScheme.Kind)
+				require.Len(t, authScheme.Flows, 1)
+				assert.Equal(t, "implicit", authScheme.Flows[0].Kind)
+				assert.Equal(t, "https://a.example/auth", authScheme.Flows[0].AuthorizationURL)
+				assert.Equal(t, []ir.OAuthScope{{Name: "read", Description: "r"}}, authScheme.Flows[0].Scopes)
 			},
 		},
 		{
 			name:   "openIdConnect",
 			scheme: `{type: openIdConnect, openIdConnectUrl: "https://a.example/.well-known"}`,
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindOpenIDConnect, s.Kind)
-				assert.Equal(t, "https://a.example/.well-known", s.OpenIDConnectURL)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindOpenIDConnect, authScheme.Kind)
+				assert.Equal(t, "https://a.example/.well-known", authScheme.OpenIDConnectURL)
 			},
 		},
 		{
 			name:   "mutualTLS",
 			scheme: "{type: mutualTLS}",
-			check: func(t *testing.T, s ir.AuthScheme) {
-				assert.Equal(t, ir.AuthKindMutualTLS, s.Kind)
+			check: func(t *testing.T, authScheme ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindMutualTLS, authScheme.Kind)
 			},
 		},
 	}
@@ -105,9 +105,9 @@ func TestAuth_SchemeKinds(t *testing.T) {
 				"    s: " + tc.scheme + "\n"
 			doc, _, diags := serviceSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			s, ok := doc.Auth[ids.Auth("s")]
+			authScheme, ok := doc.Auth[ids.Auth("s")]
 			require.True(t, ok)
-			tc.check(t, s)
+			tc.check(t, authScheme)
 		})
 	}
 }
@@ -187,8 +187,8 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 	t.Parallel()
 	doc, _, _ := serviceSpec(t, authSpec)
 	byKind := map[ir.AuthKind]ir.AuthScheme{}
-	for _, s := range doc.Auth {
-		byKind[s.Kind] = s
+	for _, authScheme := range doc.Auth {
+		byKind[authScheme.Kind] = authScheme
 	}
 	assert.Equal(t, "header", byKind[ir.AuthKindAPIKey].In)
 	require.NotNil(t, byKind[ir.AuthKindHTTPBasic].Deprecation, "deprecated basic scheme")
@@ -200,7 +200,7 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 
 	oauth := byKind[ir.AuthKindOAuth2]
 	assert.NotEmpty(t, oauth.Unmodeled, "oauth x-* extension")
-	kinds := openapitest.IndexBy(oauth.Flows, func(f ir.OAuthFlow) string { return f.Kind })
+	kinds := openapitest.IndexBy(oauth.Flows, func(oAuthFlow ir.OAuthFlow) string { return oAuthFlow.Kind })
 	assert.Len(t, oauth.Flows, 5)
 	assert.Equal(t, "https://r", kinds["authorization_code"].RefreshURL)
 	assert.NotEmpty(t, kinds["authorization_code"].Scopes)
@@ -209,8 +209,8 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 
 	// The negotiate HTTP scheme is custom with the token preserved.
 	var sawCustomHTTP bool
-	for _, s := range doc.Auth {
-		if s.Kind == ir.AuthKindCustom && s.Scheme == "negotiate" {
+	for _, authScheme := range doc.Auth {
+		if authScheme.Kind == ir.AuthKindCustom && authScheme.Scheme == "negotiate" {
 			sawCustomHTTP = true
 		}
 	}
@@ -229,12 +229,12 @@ components:
 `)
 	doc, _, _ := serviceSpec(t, spec)
 	var oauth, custom ir.AuthScheme
-	for _, s := range doc.Auth {
-		if s.Kind == ir.AuthKindOAuth2 {
-			oauth = s
+	for _, authScheme := range doc.Auth {
+		if authScheme.Kind == ir.AuthKindOAuth2 {
+			oauth = authScheme
 		}
-		if s.Kind == ir.AuthKindCustom {
-			custom = s
+		if authScheme.Kind == ir.AuthKindCustom {
+			custom = authScheme
 		}
 	}
 	assert.Equal(t, ir.AuthKindOAuth2, oauth.Kind)

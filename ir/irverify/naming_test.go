@@ -33,9 +33,9 @@ func hintOnly(hint string) *ir.Document {
 // carries the schema stamp for the same reason the model carries an ID keyed to
 // itself: a document missing either has a violation of its own, and a fixture
 // about naming must contribute none.
-func modelNamed(n ir.Naming) *ir.Document {
-	m := &ir.Model{ID: "type/x/M", Name: n}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+func modelNamed(naming ir.Naming) *ir.Document {
+	model := &ir.Model{ID: "type/x/M", Name: naming}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 }
 
 func TestVerify_NeutralCanonicalIsClean(t *testing.T) {
@@ -240,7 +240,7 @@ func ok200() ir.ResponseConditions {
 
 // respondingDoc is a named service/group/operation chain holding one response,
 // so a fixture about the response itself contributes no violations of its own.
-func respondingDoc(r ir.Response) *ir.Document {
+func respondingDoc(response ir.Response) *ir.Document {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
 		ID:   "service/x/S",
@@ -251,7 +251,7 @@ func respondingDoc(r ir.Response) *ir.Document {
 			Operations: []ir.Operation{{
 				ID:        "operation/x/S/op",
 				Name:      named("op"),
-				Responses: []ir.Response{r},
+				Responses: []ir.Response{response},
 			}},
 		}},
 	}}
@@ -297,14 +297,14 @@ func TestVerify_AbsentNameIsAViolation(t *testing.T) {
 // checks and the compilers decide that — only that one of them is.
 func TestVerify_AnyOneChannelIsAName(t *testing.T) {
 	t.Parallel()
-	for _, n := range []ir.Naming{
+	for _, naming := range []ir.Naming{
 		{Source: "user", Canonical: "user"},
 		{Canonical: "user"},         // a canonical carried without a source
 		{Hint: "connection_domain"}, // an anonymous type's generated name
 		{Source: "***"},             // a spelling with no word rune in it
 	} {
-		assert.NotContains(t, codesOf(verifyDeclared(modelNamed(n))), "ir/naming-absent",
-			"naming %+v names the entity", n)
+		assert.NotContains(t, codesOf(verifyDeclared(modelNamed(naming))), "ir/naming-absent",
+			"naming %+v names the entity", naming)
 	}
 }
 
@@ -447,14 +447,14 @@ func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 			assert.Equal(t, tc.path, reported.Path)
 			assert.NotContains(t, reported.Message, ill, "the report does not repeat the bad bytes")
 
-			for _, v := range got {
-				assert.True(t, utf8.ValidString(v.Message),
-					"%s: message %q is valid UTF-8", v.Code, v.Message)
-				if v.Code == "ir/invalid-utf8" {
+			for _, violation := range got {
+				assert.True(t, utf8.ValidString(violation.Message),
+					"%s: message %q is valid UTF-8", violation.Code, violation.Message)
+				if violation.Code == "ir/invalid-utf8" {
 					continue // it quotes nothing, so there is no name to spell out
 				}
-				assert.Contains(t, v.Message, `\xe9`,
-					"%s: the quoted name carries the ill-formed byte as an escape", v.Code)
+				assert.Contains(t, violation.Message, `\xe9`,
+					"%s: the quoted name carries the ill-formed byte as an escape", violation.Code)
 			}
 		})
 	}

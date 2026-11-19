@@ -34,15 +34,15 @@ func TestMeasure_MeasuresEachNodeOnce(t *testing.T) {
 	}
 	root := openapitest.YAMLDocument(t, b.String())
 	idx := Build(t.Context(), root, MaxIndexedNodes)
-	m := NewMeasure(MaxIndexedNodes)
+	measure := NewMeasure(MaxIndexedNodes)
 
-	assert.Equal(t, anchors+1, m.Of(t.Context(), idx.Root()))
-	assert.LessOrEqual(t, m.steps.Spent(), 4*idx.Nodes(), "a step per frame, a frame per edge")
-	assert.Equal(t, 2*len(m.memo)+anchors-1, m.steps.Spent(),
+	assert.Equal(t, anchors+1, measure.Of(t.Context(), idx.Root()))
+	assert.LessOrEqual(t, measure.steps.Spent(), 4*idx.Nodes(), "a step per frame, a frame per edge")
+	assert.Equal(t, 2*len(measure.memo)+anchors-1, measure.steps.Spent(),
 		"two steps a node, and one each to pop the lists the root pushed before an alias measured them")
-	steps := m.steps.Spent()
-	assert.Equal(t, anchors+1, m.Of(t.Context(), idx.Root()))
-	assert.Equal(t, steps+1, m.steps.Spent(), "a node measured once is not measured again")
+	steps := measure.steps.Spent()
+	assert.Equal(t, anchors+1, measure.Of(t.Context(), idx.Root()))
+	assert.Equal(t, steps+1, measure.steps.Spent(), "a node measured once is not measured again")
 }
 
 // TestMeasure_EndsAnAliasCycleNoAncestorHolds pins the defence the in-flight
@@ -81,19 +81,19 @@ func TestMeasure_StopsAtItsLimit(t *testing.T) {
 	assert.False(t, Build(t.Context(), whole, nodes).Truncated(),
 		"a parsed tree at its node bound, its alias measuring half of it, stays within the limit")
 
-	m := NewMeasure(1)
-	m.Of(t.Context(), outside)
-	assert.True(t, m.Truncated())
+	measure := NewMeasure(1)
+	measure.Of(t.Context(), outside)
+	assert.True(t, measure.Truncated())
 }
 
 // TestMeasure_NilAndTargetlessAliasNestNothing pins the two nodes that name
 // nothing to measure.
 func TestMeasure_NilAndTargetlessAliasNestNothing(t *testing.T) {
 	t.Parallel()
-	m := NewMeasure(MaxIndexedNodes)
-	assert.Equal(t, 0, m.Of(t.Context(), nil))
-	assert.Equal(t, 0, m.Of(t.Context(), &yaml.Node{Kind: yaml.AliasNode}))
-	assert.Equal(t, 1, m.Of(t.Context(), ynode.Seq(nil)), "a nil child adds nothing to its sequence")
+	measure := NewMeasure(MaxIndexedNodes)
+	assert.Equal(t, 0, measure.Of(t.Context(), nil))
+	assert.Equal(t, 0, measure.Of(t.Context(), &yaml.Node{Kind: yaml.AliasNode}))
+	assert.Equal(t, 1, measure.Of(t.Context(), ynode.Seq(nil)), "a nil child adds nothing to its sequence")
 }
 
 // TestNewMeasure_SaturatesALimitPastOverflow pins the node bound so large that
@@ -123,19 +123,19 @@ func TestMeasure_StopsOnceTheContextIsDone(t *testing.T) {
 	}
 
 	live := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-	m := NewMeasure(MaxIndexedNodes)
-	assert.Equal(t, depth, m.Of(live, deep))
-	assert.False(t, m.Truncated())
+	measure := NewMeasure(MaxIndexedNodes)
+	assert.Equal(t, depth, measure.Of(live, deep))
+	assert.False(t, measure.Truncated())
 	assert.GreaterOrEqual(t, live.Calls, 2*depth/nodeview.AskEvery, "an ask every AskEvery of two steps a node")
 
 	cut := &ctxtest.Countdown{Context: t.Context(), Left: 1}
-	m = NewMeasure(MaxIndexedNodes)
-	assert.Less(t, m.Of(cut, deep), depth)
-	assert.True(t, m.Truncated())
-	asked, steps := cut.Calls, m.steps.Spent()
-	m.Of(cut, deep)
+	measure = NewMeasure(MaxIndexedNodes)
+	assert.Less(t, measure.Of(cut, deep), depth)
+	assert.True(t, measure.Truncated())
+	asked, steps := cut.Calls, measure.steps.Spent()
+	measure.Of(cut, deep)
 	assert.Equal(t, asked+1, cut.Calls, "a later call asks once")
-	assert.Equal(t, steps, m.steps.Spent(), "and takes no step")
+	assert.Equal(t, steps, measure.steps.Spent(), "and takes no step")
 }
 
 // TestMeasure_ShapesATreeAsTheIndexWalksIt holds the two ways a tree's shape is

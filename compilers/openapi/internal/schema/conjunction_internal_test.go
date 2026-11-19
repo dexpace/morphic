@@ -15,7 +15,7 @@ import (
 // reference and no allOf.
 func TestConjunctsIn_ANilSchemaWritesNone(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	assert.Empty(t, conjunctsIn(l.Ctx, nil))
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
+	assert.Empty(t, conjunctsIn(lowerer.Ctx, nil))
 	assert.Empty(t, allOfIn(nil))
 }

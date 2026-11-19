@@ -16,7 +16,7 @@ import (
 // defines it, and itself in one that does not, as is every other keyword.
 func TestTwinKeyword_SpellsADraftsKeywordAs2020Does(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec(
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(
 		"    D4: {$schema: 'http://json-schema.org/draft-04/schema#'}\n"+
 			"    D7: {$schema: 'http://json-schema.org/draft-07/schema#'}\n"+
 			"    D19: {$schema: 'https://json-schema.org/draft/2019-09/schema'}\n"+
@@ -28,6 +28,6 @@ func TestTwinKeyword_SpellsADraftsKeywordAs2020Does(t *testing.T) {
 		{"D19", "$recursiveAnchor", "$dynamicAnchor"}, {"D7", "$recursiveAnchor", "$recursiveAnchor"},
 		{"D4", "type", "type"},
 	} {
-		assert.Equal(t, tc.want, TwinKeyword(l.Ctx, StatedIn(l, componentSchema(t, l, tc.schema)), tc.key), "%s in %s", tc.key, tc.schema)
+		assert.Equal(t, tc.want, TwinKeyword(lowerer.Ctx, StatedIn(lowerer, componentSchema(t, lowerer, tc.schema)), tc.key), "%s in %s", tc.key, tc.schema)
 	}
 }

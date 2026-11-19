@@ -194,27 +194,27 @@ type binder struct {
 // stands, so no declaration order reaches an answer (reread); each reads what
 // none before it did (identifiers.commit).
 func Bind(ctx context.Context, src *yaml.Node, cfg Config) *ReferenceTargetTable {
-	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
-	d := newDocs(src, cfg, w)
-	ids := newIdentifiers(resources{d}.document(Source))
+	workValue := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
+	docs := newDocs(src, cfg, workValue)
+	ids := newIdentifiers(resources{docs}.document(Source))
 	asked := newReads()
 	for passes := 1; ; passes++ {
-		b := newBinder(cfg, d, w, ids, asked)
-		t := run(b)
+		b := newBinder(cfg, docs, workValue, ids, asked)
+		referenceTargetTable := run(b)
 		if !reread(b) {
-			t.passes = passes
-			return b.table(t)
+			referenceTargetTable.passes = passes
+			return b.table(referenceTargetTable)
 		}
 	}
 }
 
-// newBinder returns a pass over d, knowing what ids holds and who asked for
+// newBinder returns a pass over docsValue, knowing what ids holds and who asked for
 // what (asked), and nothing else.
-func newBinder(cfg Config, d *docs, w *work, ids *identifiers, asked *reads) *binder {
-	d.reached, d.fresh = map[DocID]bool{Source: true}, nil
+func newBinder(cfg Config, docsValue *docs, workValue *work, ids *identifiers, asked *reads) *binder {
+	docsValue.reached, docsValue.fresh = map[DocID]bool{Source: true}, nil
 	clear(asked.held)
-	b := &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
-		find: newFinder(d, w, ids), ids: ids, reads: asked, wait: newWaits(), hops: map[DocumentPointer]Hop{},
+	b := &binder{cfg: cfg, docs: docsValue, work: workValue, defs: definitions{docs: docsValue, work: workValue}, resources: resources{docsValue},
+		find: newFinder(docsValue, workValue, ids), ids: ids, reads: asked, wait: newWaits(), hops: map[DocumentPointer]Hop{},
 		chains: map[DocumentPointer]Chain{}, dyn: newDynamicRefs()}
 	b.objs = &objects{b: b, hops: map[DocumentPointer]objectHop{}, chains: map[objectKey]Chain{}}
 	return b
@@ -227,17 +227,17 @@ func newBinder(cfg Config, d *docs, w *work, ids *identifiers, asked *reads) *bi
 func run(b *binder) *ReferenceTargetTable {
 	b.find.walk(rootOf(Source, sDocument), false)
 	b.ids.begin()
-	t := &ReferenceTargetTable{entries: map[DocumentPointer]ReferenceSite{}, mappings: map[mappingKey]Mapping{}, references: map[objectKey]Reference{}}
+	referenceTargetTable := &ReferenceTargetTable{entries: map[DocumentPointer]ReferenceSite{}, mappings: map[mappingKey]Mapping{}, references: map[objectKey]Reference{}}
 	for {
 		for more := true; more && !b.work.over(); more = b.find.walkPending() {
-			b.settle(t)
+			b.settle(referenceTargetTable)
 		}
 		if b.work.over() || !goOn(b) {
 			break
 		}
 	}
 	b.placeLoops()
-	return t
+	return referenceTargetTable
 }
 
 // goOn reports whether the pass b, its walks done, goes on. It does while
@@ -324,24 +324,24 @@ func reachDeclaring(b *binder) bool {
 // declaredFor reports whether a document open declares uri to the document
 // asker (admitted, reads.admits).
 func declaredFor(b *binder, uri string, asker DocID) bool {
-	for _, p := range b.ids.declared[uri] {
-		if admitted(b.docs, p.Doc, asker, uri) && b.reads.admits(b.docs, p.Doc, asker) {
+	for _, documentPointer := range b.ids.declared[uri] {
+		if admitted(b.docs, documentPointer.Doc, asker, uri) && b.reads.admits(b.docs, documentPointer.Doc, asker) {
 			return true
 		}
 	}
 	return false
 }
 
-// rootOf is the root at the root of document id, read at s.
-func rootOf(id DocID, s state) root {
-	return root{at: DocumentPointer{Doc: id}, state: s}
+// rootOf is the root at the root of document id, read at stateValue.
+func rootOf(id DocID, stateValue state) root {
+	return root{at: DocumentPointer{Doc: id}, state: stateValue}
 }
 
 // settle answers every site, mapping value and reference object noted since it
 // last ran, in order, so that where the budget runs out does not depend on what
 // was noted first. Each is sorted once, in the round that noted it, and costs a
 // step, so a round that answered one again would show in the work.
-func (b *binder) settle(t *ReferenceTargetTable) {
+func (b *binder) settle(referenceTargetTable *ReferenceTargetTable) {
 	staticSites(b)
 	sites, keys, objects := b.find.fresh, b.find.freshMappings, b.find.freshObjects
 	b.find.fresh, b.find.freshMappings, b.find.freshObjects = nil, nil, nil
@@ -354,24 +354,24 @@ func (b *binder) settle(t *ReferenceTargetTable) {
 		if resettle(b, site) {
 			continue
 		}
-		if c, waits := b.chain(site); waits {
+		if chain, waits := b.chain(site); waits {
 			b.wait.sites[site] = true
 		} else {
-			t.entries[site] = ReferenceSite{Site: site, Hop: b.hops[site], Chain: c, Keyword: keywordAt(b, site)}
+			referenceTargetTable.entries[site] = ReferenceSite{Site: site, Hop: b.hops[site], Chain: chain, Keyword: keywordAt(b, site)}
 		}
 	}
 	slices.SortFunc(keys, mappingOrder(b.docs))
-	for _, k := range keys {
+	for _, mappingKey := range keys {
 		if b.work.cancelled() {
 			return
 		}
-		if m, waits := b.mapping(k); waits {
-			b.wait.mappings[k] = true
+		if mapping, waits := b.mapping(mappingKey); waits {
+			b.wait.mappings[mappingKey] = true
 		} else {
-			t.mappings[k] = m
+			referenceTargetTable.mappings[mappingKey] = mapping
 		}
 	}
-	b.objs.settleAll(t, objects)
+	b.objs.settleAll(referenceTargetTable, objects)
 	landDynamic(b)
 }
 
@@ -387,90 +387,92 @@ func (b *binder) settle(t *ReferenceTargetTable) {
 func landDynamic(b *binder) {
 	dynamic, recursive := b.find.freshDynamic, b.find.freshRecursive
 	b.find.freshDynamic, b.find.freshRecursive = nil, nil
-	for _, d := range dynamic {
-		name, _, ok := DynamicFragment(d.value)
+	for _, dynamicSite := range dynamic {
+		name, _, ok := DynamicFragment(dynamicSite.value)
 		if !ok {
 			continue
 		}
-		b.find.identify(d.at.Doc)
-		at := b.ids.dynamic[dynamicKey{doc: d.at.Doc, name: name}]
+		b.find.identify(dynamicSite.at.Doc)
+		at := b.ids.dynamic[dynamicKey{doc: dynamicSite.at.Doc, name: name}]
 		if len(at) != 1 {
 			continue
 		}
-		path, _ := b.docs.path(d.at)
-		if h := b.resolve(d.at, path, "#"+url.PathEscape(name), true); h.Status == Resolved && h.Target == at[0] {
-			b.find.landOn(d.at, h)
+		path, _ := b.docs.path(dynamicSite.at)
+		if hop := b.resolve(dynamicSite.at, path, "#"+url.PathEscape(name), true); hop.Status == Resolved && hop.Target == at[0] {
+			b.find.landOn(dynamicSite.at, hop)
 		}
 	}
 	for _, site := range recursive {
 		path, _ := b.docs.path(site)
-		if h := b.resolve(site, path, "#", true); h.Status == Resolved {
-			b.find.landOn(site, h)
+		if hop := b.resolve(site, path, "#", true); hop.Status == Resolved {
+			b.find.landOn(site, hop)
 		}
 	}
 }
 
-// mappingOrder orders mapping values by their discriminator's position in d,
+// mappingOrder orders mapping values by their discriminator's position in docsValue,
 // then by value.
-func mappingOrder(d *docs) func(x, y mappingKey) int {
-	return func(x, y mappingKey) int {
-		if c := d.compare(x.at, y.at); c != 0 {
+func mappingOrder(docsValue *docs) func(mappingKeyValue, otherMappingKey mappingKey) int {
+	return func(mappingKeyValue, otherMappingKey mappingKey) int {
+		if c := docsValue.compare(mappingKeyValue.at, otherMappingKey.at); c != 0 {
 			return c
 		}
-		return cmp.Compare(x.value, y.value)
+		return cmp.Compare(mappingKeyValue.value, otherMappingKey.value)
 	}
 }
 
-// table finishes t: an entry for each position a chain passed that no walk
+// table finishes referenceTargetTable: an entry for each position a chain passed that no walk
 // found, which only a budget cutting the walks leaves, the loops, the
 // landings, and the verdicts of the budget and of the merge bound.
-func (b *binder) table(t *ReferenceTargetTable) *ReferenceTargetTable {
-	for p, c := range b.chains {
-		if _, found := t.entries[p]; !found {
-			t.entries[p] = ReferenceSite{Site: p, Hop: b.hops[p], Chain: c, Keyword: keywordAt(b, p)}
+func (b *binder) table(referenceTargetTable *ReferenceTargetTable) *ReferenceTargetTable {
+	for documentPointer, chain := range b.chains {
+		if _, found := referenceTargetTable.entries[documentPointer]; !found {
+			referenceTargetTable.entries[documentPointer] = ReferenceSite{Site: documentPointer, Hop: b.hops[documentPointer], Chain: chain, Keyword: keywordAt(b, documentPointer)}
 		}
 	}
-	for k, c := range b.objs.chains {
-		if _, found := t.references[k]; !found {
-			_, key := b.docs.keyRefs[k.at]
-			t.references[k] = Reference{Site: k.at, Kind: k.kind, Hop: ofKind(b.objs.hops[k.at], k.kind), Chain: c,
+	for objectKey, chain := range b.objs.chains {
+		if _, found := referenceTargetTable.references[objectKey]; !found {
+			_, key := b.docs.keyRefs[objectKey.at]
+			referenceTargetTable.references[objectKey] = Reference{Site: objectKey.at, Kind: objectKey.kind, Hop: ofKind(b.objs.hops[objectKey.at], objectKey.kind), Chain: chain,
 				IsSecurityRequirementKey: key}
 		}
 	}
-	t.entryList = slices.SortedFunc(maps.Values(t.entries), func(x, y ReferenceSite) int { return b.docs.compare(x.Site, y.Site) })
-	t.roots, t.bases, t.ids = b.find.roots, newBases(b.resources, b.ids), b.ids
+	referenceTargetTable.entryList = slices.SortedFunc(maps.Values(referenceTargetTable.entries), func(referenceSite, referenceSiteValue ReferenceSite) int {
+		return b.docs.compare(referenceSite.Site, referenceSiteValue.Site)
+	})
+	referenceTargetTable.roots, referenceTargetTable.bases, referenceTargetTable.ids = b.find.roots, newBases(b.resources, b.ids), b.ids
 	shared := sharedNames(b.ids)
 	var graph reach
 	if len(b.ids.recursive) > 0 || len(shared) > 0 {
-		graph = reachOf(b, t)
+		graph = reachOf(b, referenceTargetTable)
 	}
-	t.recursive = recursiveAnchorsOf(b.ids, t.bases, graph)
-	reached := dynamicReachOf(b.ids, t.bases, graph, shared)
-	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
-	t.dynamic = dynamicAnchorsOf(b.ids, t.exhausted, reached)
+	referenceTargetTable.recursive = recursiveAnchorsOf(b.ids, referenceTargetTable.bases, graph)
+	reached := dynamicReachOf(b.ids, referenceTargetTable.bases, graph, shared)
+	referenceTargetTable.loops, referenceTargetTable.steps, referenceTargetTable.limit, referenceTargetTable.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
+	referenceTargetTable.dynamic = dynamicAnchorsOf(b.ids, referenceTargetTable.exhausted, reached)
 	dialects := dialectsByDocument(withLandingRoots(b.find, b.ids.dialects))
-	for id, d := range b.docs.list {
+	for id, document := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
-		t.docs = append(t.docs, ReferencedDocument{Name: d.name, Self: d.self, Root: d.root, Unreached: !reached,
+		referenceTargetTable.docs = append(referenceTargetTable.docs, ReferencedDocument{Name: document.name, Self: document.self, Root: document.root, Unreached: !reached,
 			Dialects: dialects[DocID(id)]})
-		t.truncated = t.truncated || reached && d.view.Exhausted()
+		referenceTargetTable.truncated = referenceTargetTable.truncated || reached && document.view.Exhausted()
 	}
-	reach := b.attribute(t)
+	reach := b.attribute(referenceTargetTable)
 	for at := range b.find.landings {
 		site, reached := reach[at]
-		t.landings = append(t.landings, Landing{At: at, Name: t.docs[at.Doc].Name, Site: site, Reached: reached})
+		referenceTargetTable.landings = append(referenceTargetTable.landings, Landing{At: at, Name: referenceTargetTable.docs[at.Doc].Name, Site: site, Reached: reached})
 	}
 	for at, holder := range b.find.tupled {
 		if !b.find.landings[at] {
-			t.landings = append(t.landings, Landing{At: at, Name: t.docs[at.Doc].Name, Site: holder, Reached: true})
+			referenceTargetTable.landings = append(referenceTargetTable.landings, Landing{At: at, Name: referenceTargetTable.docs[at.Doc].Name, Site: holder, Reached: true})
 		}
 	}
-	slices.SortFunc(t.landings, func(x, y Landing) int { return b.docs.compare(x.At, y.At) })
-	t.objLandings = b.objs.landings(t)
-	t.refList = slices.SortedFunc(maps.Values(t.references), func(x, y Reference) int {
-		return compareObjects(b.docs)(objectKey{at: x.Site, kind: x.Kind}, objectKey{at: y.Site, kind: y.Kind})
+	slices.SortFunc(referenceTargetTable.landings, func(landing, landingValue Landing) int { return b.docs.compare(landing.At, landingValue.At) })
+	referenceTargetTable.objLandings = b.objs.landings(referenceTargetTable)
+	referenceTargetTable.refList = slices.SortedFunc(maps.Values(referenceTargetTable.references), func(reference, referenceValue Reference) int {
+		return compareObjects(b.docs)(objectKey{at: reference.Site, kind: reference.Kind}, objectKey{at: referenceValue.Site, kind: referenceValue.Kind})
 	})
-	return t
+	return referenceTargetTable
 }
 
 // attribute returns, for each position some $ref's, mapping value's or
@@ -478,43 +480,43 @@ func (b *binder) table(t *ReferenceTargetTable) *ReferenceTargetTable {
 // document. Starting from each in order, a chain is followed until it meets a
 // position a lesser start reached, whose chain on from there that start has
 // marked, so each position is marked once.
-func (b *binder) attribute(t *ReferenceTargetTable) map[DocumentPointer]DocumentPointer {
+func (b *binder) attribute(referenceTargetTable *ReferenceTargetTable) map[DocumentPointer]DocumentPointer {
 	type start struct {
 		from, first DocumentPointer
 	}
 	var starts []start
-	add := func(from DocumentPointer, h Hop) {
-		if h.Status == Resolved {
-			starts = append(starts, start{from: from, first: h.Target})
+	add := func(from DocumentPointer, hop Hop) {
+		if hop.Status == Resolved {
+			starts = append(starts, start{from: from, first: hop.Target})
 		}
 	}
-	for _, e := range t.entries {
-		add(e.Site, e.Hop)
+	for _, referenceSite := range referenceTargetTable.entries {
+		add(referenceSite.Site, referenceSite.Hop)
 	}
-	for _, m := range t.mappings {
-		add(m.At, m.Hop)
+	for _, mapping := range referenceTargetTable.mappings {
+		add(mapping.At, mapping.Hop)
 	}
-	for _, e := range b.find.expansions {
-		add(e.from, Hop{Status: Resolved, Target: e.to})
+	for _, expansion := range b.find.expansions {
+		add(expansion.from, Hop{Status: Resolved, Target: expansion.to})
 	}
-	slices.SortFunc(starts, func(x, y start) int {
-		if c := b.docs.compare(x.from, y.from); c != 0 {
+	slices.SortFunc(starts, func(startValue, otherStart start) int {
+		if c := b.docs.compare(startValue.from, otherStart.from); c != 0 {
 			return c
 		}
-		return b.docs.compare(x.first, y.first)
+		return b.docs.compare(startValue.first, otherStart.first)
 	})
 	reach := map[DocumentPointer]DocumentPointer{}
-	for _, s := range starts {
-		for p := s.first; ; {
-			if _, seen := reach[p]; seen {
+	for _, start := range starts {
+		for documentPointer := start.first; ; {
+			if _, seen := reach[documentPointer]; seen {
 				break
 			}
-			reach[p] = s.from
-			h, ok := b.hops[p]
-			if !ok || h.Status != Resolved {
+			reach[documentPointer] = start.from
+			hop, ok := b.hops[documentPointer]
+			if !ok || hop.Status != Resolved {
 				break
 			}
-			p = h.Target
+			documentPointer = hop.Target
 		}
 	}
 	return reach
@@ -573,8 +575,8 @@ func (t *ReferenceTargetTable) Entry(site DocumentPointer) (ReferenceSite, bool)
 	if t == nil {
 		return ReferenceSite{}, false
 	}
-	e, ok := t.entries[site]
-	return e, ok
+	referenceSite, ok := t.entries[site]
+	return referenceSite, ok
 }
 
 // Entries returns every entry, ordered by site.
@@ -584,8 +586,8 @@ func (t *ReferenceTargetTable) Entries() []ReferenceSite { return slices.Clone(t
 // lands, and false for one the table did not read: a value naming a schema
 // component of the source (Config.Components), or one it left unread (Unread).
 func (t *ReferenceTargetTable) Mapping(at DocumentPointer, value string) (Mapping, bool) {
-	m, ok := t.mappings[mappingKey{at: at, value: value}]
-	return m, ok
+	mapping, ok := t.mappings[mappingKey{at: at, value: value}]
+	return mapping, ok
 }
 
 // Loops returns every loop of $refs.
@@ -605,8 +607,8 @@ func (t *ReferenceTargetTable) Documents() int { return len(t.docs) }
 // writing no $ref, one no walk read as that kind, or one the budget left
 // unread.
 func (t *ReferenceTargetTable) Reference(site DocumentPointer, kind RefKind) (Reference, bool) {
-	r, ok := t.references[objectKey{at: site, kind: kind}]
-	return r, ok
+	reference, ok := t.references[objectKey{at: site, kind: kind}]
+	return reference, ok
 }
 
 // References returns every Reference Object's entry, ordered by site, then
@@ -646,9 +648,9 @@ func (t *ReferenceTargetTable) DynamicAnchor(id DocID, name string) DynamicAncho
 // document's declaring resource reaches the first, as reached read it.
 func dynamicAnchorsOf(ids *identifiers, exhausted bool, reached dynamicReach) map[dynamicKey]DynamicAnchor {
 	out := make(map[dynamicKey]DynamicAnchor, len(ids.dynamic))
-	for k, sites := range ids.dynamic {
-		out[k] = DynamicAnchor{Site: slices.MinFunc(sites, comparePositions), Count: len(sites),
-			Reached: reached.by[k], Complete: !exhausted && !ids.truncated[k.doc] && !reached.unknown[k]}
+	for dynamicKey, sites := range ids.dynamic {
+		out[dynamicKey] = DynamicAnchor{Site: slices.MinFunc(sites, comparePositions), Count: len(sites),
+			Reached: reached.by[dynamicKey], Complete: !exhausted && !ids.truncated[dynamicKey.doc] && !reached.unknown[dynamicKey]}
 	}
 	return out
 }
@@ -664,8 +666,8 @@ func (t *ReferenceTargetTable) RecursiveAnchor(root DocumentPointer) (declared, 
 	if t == nil {
 		return false, false, true
 	}
-	r := t.recursive[root.Doc]
-	return r.sites[root], r.reached[root], !t.exhausted && !t.ids.truncated[root.Doc] && !r.unplaced
+	recursiveAnchors := t.recursive[root.Doc]
+	return recursiveAnchors.sites[root], recursiveAnchors.reached[root], !t.exhausted && !t.ids.truncated[root.Doc] && !recursiveAnchors.unplaced
 }
 
 // recursiveAnchors is what the `$recursiveAnchor: true` declarations of one
@@ -681,58 +683,58 @@ type recursiveAnchors struct {
 
 // recursiveAnchorsOf returns what the declarations ids holds say, by document,
 // the resource of each read from b once, and which resource another declaring
-// one reaches read over g in one walk, so a $recursiveRef asks a lookup rather
+// one reaches read over reachValue in one walk, so a $recursiveRef asks a lookup rather
 // than a read of every declaration.
-func recursiveAnchorsOf(ids *identifiers, b *bases, g reach) map[DocID]recursiveAnchors {
+func recursiveAnchorsOf(ids *identifiers, b *bases, reachValue reach) map[DocID]recursiveAnchors {
 	out := make(map[DocID]recursiveAnchors, len(ids.recursive))
 	var origins []DocumentPointer
 	for id, sites := range ids.recursive {
-		r := recursiveAnchors{sites: make(map[DocumentPointer]bool, len(sites)), reached: map[DocumentPointer]bool{},
-			unplaced: !g.known}
+		recursiveAnchorsValue := recursiveAnchors{sites: make(map[DocumentPointer]bool, len(sites)), reached: map[DocumentPointer]bool{},
+			unplaced: !reachValue.known}
 		for _, site := range sites {
-			r.sites[site] = true
-			if !g.known {
+			recursiveAnchorsValue.sites[site] = true
+			if !reachValue.known {
 				continue // no verdict is known, so none is read
 			}
 			res, known := b.holding(site)
-			r.reached[res.root] = false
-			r.unplaced = r.unplaced || !known
+			recursiveAnchorsValue.reached[res.root] = false
+			recursiveAnchorsValue.unplaced = recursiveAnchorsValue.unplaced || !known
 			origins = append(origins, res.root)
 		}
-		out[id] = r
+		out[id] = recursiveAnchorsValue
 	}
-	reached := g.reachers(origins)
-	for _, r := range out {
-		for root := range r.reached {
-			r.reached[root] = reached(root)
+	reached := reachValue.reachers(origins)
+	for _, recursiveAnchors := range out {
+		for root := range recursiveAnchors.reached {
+			recursiveAnchors.reached[root] = reached(root)
 		}
 	}
 	return out
 }
 
-// Resource returns the root of the schema resource the schema at p lies in,
+// Resource returns the root of the schema resource the schema at documentPointer lies in,
 // its own identifier counted: the schema whose identifier starts it, or its
 // document's root where none on the way does. It is false where a schema on
 // the way may hide one past the merge bound. A nil table reads every position
 // as its document's.
-func (t *ReferenceTargetTable) Resource(p DocumentPointer) (root DocumentPointer, known bool) {
+func (t *ReferenceTargetTable) Resource(documentPointer DocumentPointer) (root DocumentPointer, known bool) {
 	if t == nil {
-		return DocumentPointer{Doc: p.Doc}, true
+		return DocumentPointer{Doc: documentPointer.Doc}, true
 	}
-	res, known := t.bases.holding(p)
+	res, known := t.bases.holding(documentPointer)
 	return res.root, known
 }
 
-// Base returns the URI a reference written in the schema at p resolves
+// Base returns the URI a reference written in the schema at documentPointer resolves
 // against, its own identifier counted: its document's, or the resource's an
 // identifier at or above it names. Two schemas with one base read every
 // reference they write alike. It is false where a schema on the way may hide
 // one past the merge bound, and a nil table knows none.
-func (t *ReferenceTargetTable) Base(p DocumentPointer) (string, bool) {
+func (t *ReferenceTargetTable) Base(documentPointer DocumentPointer) (string, bool) {
 	if t == nil {
 		return "", false
 	}
-	res, known := t.bases.holding(p)
+	res, known := t.bases.holding(documentPointer)
 	return res.uri, known
 }
 

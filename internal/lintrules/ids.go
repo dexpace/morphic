@@ -44,15 +44,15 @@ func (l layout) runIDDerivations(pass *analysis.Pass) (any, error) {
 	if !l.within(path, "compilers") || l.within(path, "compilers/compile") {
 		return nil, nil
 	}
-	c := idCheck{pass: pass, ids: idTypes(imported(pass.Pkg, irPath))}
+	idCheckValue := idCheck{pass: pass, ids: idTypes(imported(pass.Pkg, irPath))}
 	if space := typeNamed(pass.Pkg, compilePath, "Space"); space != nil {
-		c.space = space.Type()
+		idCheckValue.space = space.Type()
 	}
-	if len(c.ids) == 0 && c.space == nil {
+	if len(idCheckValue.ids) == 0 && idCheckValue.space == nil {
 		return nil, nil // a package that reaches neither builds none of them
 	}
 	for _, f := range productionFiles(pass) {
-		ast.Inspect(f, func(n ast.Node) bool { return !c.reported(n) })
+		ast.Inspect(f, func(n ast.Node) bool { return !idCheckValue.reported(n) })
 	}
 	return nil, nil
 }

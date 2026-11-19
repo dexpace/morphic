@@ -53,15 +53,15 @@ func checkRawPayloads(*ir.Document) walkCheck {
 }
 
 // appendEntries appends check's verdict on every entry of the payload map m, at
-// at, to vs, reading the entries through r and their payloads through p. Both
+// at, to vs, reading the entries through entryReaderValue and their payloads through payloadReaderValue. Both
 // callers key on a plain string, so the key spells the entry's path.
-func appendEntries(vs []Violation, r *entryReader, p *payloadReader, m reflect.Value, at ir.WalkPath,
-	check func(p *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation,
+func appendEntries(vs []Violation, entryReaderValue *entryReader, payloadReaderValue *payloadReader, m reflect.Value, at ir.WalkPath,
+	check func(otherPayloadReader *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation,
 ) []Violation {
-	held := r.heldFor(m)
+	held := entryReaderValue.heldFor(m)
 	for iter := m.MapRange(); iter.Next(); {
 		key, entry := held.read(iter)
-		vs = append(vs, check(p, key.String(), entry, at)...)
+		vs = append(vs, check(payloadReaderValue, key.String(), entry, at)...)
 	}
 	return vs
 }
@@ -75,7 +75,7 @@ func appendEntries(vs []Violation, r *entryReader, p *payloadReader, m reflect.V
 //
 // The three are checked independently so a doubly-broken entry names each of its
 // defects rather than stopping at the first.
-func unmodeledEntry(p *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
+func unmodeledEntry(payloadReaderValue *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
 	var vs []Violation
 	if key == "" {
 		vs = append(vs, Violation{
@@ -83,7 +83,7 @@ func unmodeledEntry(p *payloadReader, key string, entry reflect.Value, at ir.Wal
 			Message: "unmodeled map has an empty key",
 		})
 	}
-	vs = appendRawValue(vs, p, entry.FieldByName("Value"), "unmodeled entry")
+	vs = appendRawValue(vs, payloadReaderValue, entry.FieldByName("Value"), "unmodeled entry")
 
 	switch reason := ir.UnmodeledReason(entry.FieldByName("Reason").String()); {
 	case reason == "":
@@ -103,8 +103,8 @@ func unmodeledEntry(p *payloadReader, key string, entry reflect.Value, at ir.Wal
 // rawConfigEntry checks one entry of a RawConfig map. Unlike an Unmodeled entry
 // it carries no reason to check — the source declared it where the IR expects it
 // — so the payload is all there is to hold it to.
-func rawConfigEntry(p *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
-	return placeEntry(appendRawValue(nil, p, entry, "protocol config"), at, key, "[]")
+func rawConfigEntry(payloadReaderValue *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
+	return placeEntry(appendRawValue(nil, payloadReaderValue, entry, "protocol config"), at, key, "[]")
 }
 
 // placeEntry gives each of one entry's violations vs the entry's path: the map
@@ -125,7 +125,7 @@ func placeEntry(vs []Violation, at ir.WalkPath, key, empty string) []Violation {
 }
 
 // appendRawValue appends a violation to vs when the payload at value is not a
-// JSON value, as p reads it, naming its carrier in what.
+// JSON value, as payloadReaderValue reads it, naming its carrier in what.
 //
 // Reading through reflect.Value.Bytes rather than Interface() keeps Verify a
 // report-only oracle: the caller has matched the map's exact type, so Bytes
@@ -134,9 +134,9 @@ func placeEntry(vs []Violation, at ir.WalkPath, key, empty string) []Violation {
 // Nil is reported with malformed and empty bytes: a nil jsontext.Value encodes
 // as null but decodes back as the four bytes "null", so the document stops
 // round-tripping to an equal one.
-func appendRawValue(vs []Violation, p *payloadReader, value reflect.Value, what string) []Violation {
+func appendRawValue(vs []Violation, payloadReaderValue *payloadReader, value reflect.Value, what string) []Violation {
 	raw := value.Bytes()
-	if p.valid(raw) {
+	if payloadReaderValue.valid(raw) {
 		return vs
 	}
 	msg := what + " value is not a JSON value, so the document cannot be marshaled"

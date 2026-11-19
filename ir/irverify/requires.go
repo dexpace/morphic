@@ -22,16 +22,16 @@ func checkRequires(doc *ir.Document) []Violation {
 	var owned scratchstate.Map[string, bool]
 	var listed scratchstate.Map[string, int]
 	for id, td := range doc.Types {
-		m, isModel := td.(*ir.Model)
-		if !isModel || m == nil || len(m.Requires) == 0 {
+		model, isModel := td.(*ir.Model)
+		if !isModel || model == nil || len(model.Requires) == 0 {
 			continue // a nil entry is checkRegistryKeys's to report
 		}
 		own := owned.Emptied()
-		for _, p := range m.Properties {
-			own[p.EffectiveWireName()] = true
+		for _, property := range model.Properties {
+			own[property.EffectiveWireName()] = true
 		}
 		first := listed.Emptied()
-		for i, name := range m.Requires {
+		for i, name := range model.Requires {
 			if own[name] {
 				vs = append(vs, Violation{
 					Code:    "ir/requires-own-property",

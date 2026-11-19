@@ -48,9 +48,9 @@ const schemaGolden = "testdata/schema.golden.txt"
 // table, so it cannot settle either.
 func TestSchemaVersion_PinsTheEncodedShape(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load("github.com/dexpace/morphic/engine/report")
+	loadedPackage, err := decls.Load("github.com/dexpace/morphic/engine/report")
 	require.NoError(t, err)
-	desc, err := jsonshape.Describe(p, "versioned")
+	desc, err := jsonshape.Describe(loadedPackage, "versioned")
 	require.NoError(t, err)
 	irtest.CompareBytes(t, schemaGolden, []byte(desc))
 
@@ -85,9 +85,9 @@ func sampleReport(t *testing.T) report.Report {
 		{Code: "openapi/y", Pointer: "/a", Accept: true, Reason: "accepted"},
 		{Code: "openapi/z", Node: "service/x", Severity: ir.SeverityInfo, Reason: "unused"},
 	}
-	s, err := triage.NewRuleset(rules)
+	ruleset, err := triage.NewRuleset(rules)
 	require.NoError(t, err)
-	findings, unused := s.Rate([]ir.Diagnostic{
+	findings, unused := ruleset.Rate([]ir.Diagnostic{
 		{Severity: ir.SeverityError, Code: "openapi/x", Message: "esc \x1b[31m", Provenance: ir.Provenance{Pointer: "/b"}},
 		{Severity: ir.SeverityInfo, Code: "openapi/y", Message: "m", Provenance: ir.Provenance{Pointer: "/a"}},
 		{Severity: ir.SeverityInfo, Code: "pass/w", Message: "m", Provenance: ir.Provenance{Source: ir.NoSource, Node: "operation-group/x"}},
@@ -106,9 +106,9 @@ func sampleReport(t *testing.T) report.Report {
 // the text of a rated finding as literal JSON a consumer's query names.
 func TestWriteJSON_WritesTheReportAsData(t *testing.T) {
 	t.Parallel()
-	r := sampleReport(t)
+	runReport := sampleReport(t)
 	var w strings.Builder
-	require.NoError(t, report.WriteJSON(&w, r))
+	require.NoError(t, report.WriteJSON(&w, runReport))
 
 	out := w.String()
 	require.True(t, strings.HasSuffix(out, "}\n"), "one object, a newline after it")
@@ -119,7 +119,7 @@ func TestWriteJSON_WritesTheReportAsData(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(out), &back, json.RejectUnknownMembers(true)))
 	assert.Equal(t, report.SchemaVersion, back.Version)
-	assert.Empty(t, cmp.Diff(r, back.Report))
+	assert.Empty(t, cmp.Diff(runReport, back.Report))
 
 	assert.Contains(t, out, `{"diagnostic":{"severity":"error","code":"openapi/x","message":"esc \u001b[31m",`+
 		`"provenance":{"source":0,"pointer":"/b"}},"severity":"warning","rule":{"code":"openapi/x","severity":"warning","reason":"rated"}}`)
@@ -140,19 +140,19 @@ func TestWriteJSON_WritesEveryListWhenEmpty(t *testing.T) {
 // refused before anything is written, so a reader never meets half a report.
 func TestWriteJSON_RefusesWhatJSONCannotCarry(t *testing.T) {
 	t.Parallel()
-	r := report.Report{Findings: rated([]ir.Diagnostic{diag("c", ir.Provenance{Pointer: "/\xff"})})}
-	w := &failingWriter{failAt: 1}
-	err := report.WriteJSON(w, r)
+	runReport := report.Report{Findings: rated([]ir.Diagnostic{diag("c", ir.Provenance{Pointer: "/\xff"})})}
+	failingWriterValue := &failingWriter{failAt: 1}
+	err := report.WriteJSON(failingWriterValue, runReport)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "report: encode:")
-	assert.Zero(t, w.attempts)
+	assert.Zero(t, failingWriterValue.attempts)
 }
 
 // TestWriteJSON_ReturnsTheWritersError pins a destination refusing the report
 // as the error WriteJSON returns.
 func TestWriteJSON_ReturnsTheWritersError(t *testing.T) {
 	t.Parallel()
-	w := &failingWriter{failAt: 1}
-	require.ErrorIs(t, report.WriteJSON(w, sampleReport(t)), errDisk)
-	assert.Equal(t, 1, w.attempts, "the report is one write")
+	failingWriterValue := &failingWriter{failAt: 1}
+	require.ErrorIs(t, report.WriteJSON(failingWriterValue, sampleReport(t)), errDisk)
+	assert.Equal(t, 1, failingWriterValue.attempts, "the report is one write")
 }

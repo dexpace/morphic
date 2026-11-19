@@ -26,7 +26,7 @@ const pathLiteralBytes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 // template: the name hint of an operation with no operationId derives from the
 // whole key, and the URI template and the path-prefix group from the rest,
 // unrepaired.
-func pathKeyDiags(c service.Ctx, key string) []ir.Diagnostic {
+func pathKeyDiags(serviceContext service.Ctx, key string) []ir.Diagnostic {
 	defects := pathKeyDefects(key)
 	if len(defects) == 0 {
 		return nil
@@ -35,7 +35,7 @@ func pathKeyDiags(c service.Ctx, key string) []ir.Diagnostic {
 	if _, _, fragmented := pathRoute(key); fragmented {
 		used = "the URI template is the key less its fragment, which each operation's HTTP binding keeps"
 	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.InvalidPathKey, ids.Ptr("paths", key),
+	return []ir.Diagnostic{serviceContext.DiagAt(ir.SeverityWarning, diag.InvalidPathKey, ids.Ptr("paths", key),
 		"path key %q is not a valid path template: %s; %s", key, strings.Join(defects, "; "), used)}
 }
 
@@ -49,9 +49,9 @@ func pathKeyDiags(c service.Ctx, key string) []ir.Diagnostic {
 // Only the path is judged. A "?" ends it in a query, and a "#" outside a
 // template expression in a fragment, each named whole and nothing in it read.
 func pathKeyDefects(key string) []string {
-	s := pathKeyScan{key: key, fragmentAt: -1}
-	s.read()
-	return s.defects()
+	pathKeyScanValue := pathKeyScan{key: key, fragmentAt: -1}
+	pathKeyScanValue.read()
+	return pathKeyScanValue.defects()
 }
 
 // pathRoute splits a Paths Object key into the route a request is sent to and
@@ -59,21 +59,21 @@ func pathKeyDefects(key string) []string {
 // which no request sends (RFC 3986 §3.5), without the "#". fragmented reports
 // whether the key carries one, empty or not.
 func pathRoute(key string) (route, fragment string, fragmented bool) {
-	s := pathKeyScan{key: key, fragmentAt: -1}
-	s.read()
-	if s.fragmentAt < 0 {
+	pathKeyScanValue := pathKeyScan{key: key, fragmentAt: -1}
+	pathKeyScanValue.read()
+	if pathKeyScanValue.fragmentAt < 0 {
 		return key, "", false
 	}
-	return key[:s.fragmentAt], key[s.fragmentAt+1:], true
+	return key[:pathKeyScanValue.fragmentAt], key[pathKeyScanValue.fragmentAt+1:], true
 }
 
 // pathOnly returns template, a URI template carrying no fragment, less the
 // query it carries: from the "?" a pathKeyScan reads as beginning one, so a
 // "?" inside a template expression begins none.
 func pathOnly(template string) string {
-	s := pathKeyScan{key: template, fragmentAt: -1}
-	s.read()
-	return template[:len(template)-len(s.query)]
+	pathKeyScanValue := pathKeyScan{key: template, fragmentAt: -1}
+	pathKeyScanValue.read()
+	return template[:len(template)-len(pathKeyScanValue.query)]
 }
 
 // pathKeyScan is one left-to-right reading of a Paths key, recording the path

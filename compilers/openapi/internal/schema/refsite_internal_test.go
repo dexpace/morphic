@@ -29,9 +29,9 @@ import (
 // no schema, as when building one failed, which the load phase reports.
 func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	t.Parallel()
-	message := func(t *testing.T, l *Lowerer, js *oas3.JSONSchema[oas3.Referenceable]) string {
+	message := func(t *testing.T, lowerer *Lowerer, js *oas3.JSONSchema[oas3.Referenceable]) string {
 		t.Helper()
-		ref, diags := refTypeRef(l.Ctx, l.Types, l.Ctx.Statements().Of(js), "/components/schemas/A")
+		ref, diags := refTypeRef(lowerer.Ctx, lowerer.Types, lowerer.Ctx.Statements().Of(js), "/components/schemas/A")
 		assert.Equal(t, ir.TypeID("type/primitive/any"), ref.Target)
 		require.Len(t, diags, 1)
 		return diags[0].Message
@@ -64,49 +64,49 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 // cannot hoist resolves to nothing.
 func TestResolvePointer_PromisesWhatItNames(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok := resolvePointer(l.Ctx, l.Types, deepPointer, Standalone(object))
+	id, ok := resolvePointer(lowerer.Ctx, lowerer.Types, deepPointer, Standalone(object))
 	require.True(t, ok)
 	assert.Equal(t, ids.DocumentIDNamespace{}.AnonType(deepPointer), id)
-	_, built := l.Types.Lookup(deepPointer)
+	_, built := lowerer.Types.Lookup(deepPointer)
 	assert.False(t, built, "the reference builds nothing itself")
 
-	_, finished := l.Types.Finish(t.Context())
+	_, finished := lowerer.Types.Finish(t.Context())
 	assert.Empty(t, finished, "an object body hoists cleanly, and nothing is refused")
-	seeded, built := l.Types.Lookup(deepPointer)
+	seeded, built := lowerer.Types.Lookup(deepPointer)
 	require.True(t, built, "Finish builds what no lowering interned")
 	assert.Equal(t, id, seeded)
 
-	_, ok = resolvePointer(l.Ctx, l.Types, deepPointer, nil)
+	_, ok = resolvePointer(lowerer.Ctx, lowerer.Types, deepPointer, nil)
 	assert.False(t, ok, "a target the bindings hold no schema at cannot be hoisted")
 }
 
 func TestResolveSchemaRef_UnboundDeepRefDropped(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
 	// A same-file $ref to a deep pointer no binding read: no interned node and
 	// nothing the bindings know it lands on, so the reference is dropped.
 	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
 
-	_, ok := resolveSchemaRef(l.Ctx, l.Types, Standalone(js))
+	_, ok := resolveSchemaRef(lowerer.Ctx, lowerer.Types, Standalone(js))
 	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
 }
 
 func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
 	// An object body interns a node at the sub-schema's own pointer, so the
 	// pointer-owns-a-node branch keeps that node rather than aliasing it.
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	assert.Empty(t, hoistSubSchema(l.Ctx, l.Types, Standalone(object), deepPointer), "an object body hoists cleanly")
-	seeded, _ := l.Types.Lookup(deepPointer)
+	assert.Empty(t, hoistSubSchema(lowerer.Ctx, lowerer.Types, Standalone(object), deepPointer), "an object body hoists cleanly")
+	seeded, _ := lowerer.Types.Lookup(deepPointer)
 	assert.Equal(t, ids.DocumentIDNamespace{}.AnonType(deepPointer), seeded)
-	td, ok := l.Types.NodeAt(deepPointer)
+	td, ok := lowerer.Types.NodeAt(deepPointer)
 	require.True(t, ok)
 	assert.Equal(t, ir.KindModel, td.Kind(), "the body's own node, not an alias over it")
 }

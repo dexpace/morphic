@@ -35,8 +35,8 @@ func idempotent(ctx context.Context, spec string, data []byte, result *ir.Docume
 	if doc == nil {
 		return "compile without the passes produced no document", false
 	}
-	for _, p := range alone {
-		once, detail, ok := p.twice(ctx, doc)
+	for _, solo := range alone {
+		once, detail, ok := solo.twice(ctx, doc)
 		if !ok {
 			return detail, false
 		}
@@ -55,12 +55,12 @@ type solo struct {
 // eachAlone returns, for each of ps in order, an engine running it alone.
 func eachAlone(ps []pass.Pass) ([]solo, error) {
 	alone := make([]solo, 0, len(ps))
-	for _, p := range ps {
-		e, err := newEngine([]pass.Pass{p})
+	for _, passValue := range ps {
+		compileEngine, err := newEngine([]pass.Pass{passValue})
 		if err != nil {
 			return nil, err
 		}
-		alone = append(alone, solo{name: p.Name(), engine: e})
+		alone = append(alone, solo{name: passValue.Name(), engine: compileEngine})
 	}
 	return alone, nil
 }
@@ -94,23 +94,23 @@ func settled(ctx context.Context, alone []solo, result *ir.Document) (string, bo
 	if err != nil {
 		return "encode the run's result: " + err.Error(), false
 	}
-	for _, p := range alone {
-		_, got, err := runEncoded(ctx, p.engine, result)
+	for _, solo := range alone {
+		_, got, err := runEncoded(ctx, solo.engine, result)
 		if err != nil {
-			return fmt.Sprintf("pass %q over the run's result: %v", p.name, err), false
+			return fmt.Sprintf("pass %q over the run's result: %v", solo.name, err), false
 		}
 		if !bytes.Equal(want, got) {
 			return fmt.Sprintf("pass %q changes the run's result (-run +rerun):\n%s",
-				p.name, lineDifference(lines(want), lines(got))), false
+				solo.name, lineDifference(lines(want), lines(got))), false
 		}
 	}
 	return "", true
 }
 
-// runEncoded runs e's passes over doc and returns the document the run
+// runEncoded runs compileEngine's passes over doc and returns the document the run
 // returned, beside its encoding (encodeOwn).
-func runEncoded(ctx context.Context, e *engine.Engine, doc *ir.Document) (*ir.Document, []byte, error) {
-	res, err := e.RunDocument(ctx, doc, runOptions())
+func runEncoded(ctx context.Context, compileEngine *engine.Engine, doc *ir.Document) (*ir.Document, []byte, error) {
+	res, err := compileEngine.RunDocument(ctx, doc, runOptions())
 	if err != nil {
 		return nil, nil, reraise(err)
 	}

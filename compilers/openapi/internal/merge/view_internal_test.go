@@ -19,9 +19,9 @@ import (
 // a scalar, a list, a map, a tuple and a model, each with aliases over it.
 func viewRegistry() map[ir.TypeID]ir.TypeDef {
 	reg := narrowingRegistry()
-	alias := func(id, base ir.TypeID, c ir.TypeCommon, bounds *ir.Constraints) {
-		c.ID, c.Provenance = id, ptrAt("/alias/"+jsontext.Pointer(id))
-		reg[id] = &ir.Scalar{TypeCommon: c, Base: &ir.TypeRef{Target: base}, Constraints: bounds}
+	alias := func(id, base ir.TypeID, typeCommon ir.TypeCommon, bounds *ir.Constraints) {
+		typeCommon.ID, typeCommon.Provenance = id, ptrAt("/alias/"+jsontext.Pointer(id))
+		reg[id] = &ir.Scalar{TypeCommon: typeCommon, Base: &ir.TypeRef{Target: base}, Constraints: bounds}
 	}
 	described := func(d string) ir.TypeCommon { return ir.TypeCommon{Docs: ir.Docs{Description: d}} }
 	kept := func(key, v string) ir.Unmodeled { return ir.Unmodeled{key: {Value: ir.RawValue(v)}} }
@@ -74,23 +74,23 @@ func viewRegistry() map[ir.TypeID]ir.TypeDef {
 // are named. A chain the view cannot read so stands for itself.
 func TestView_ReadsAnAliasAsTheNodeItStandsFor(t *testing.T) {
 	t.Parallel()
-	r := registry{resolve: stubResolve(viewRegistry())}
+	registryValue := registry{resolve: stubResolve(viewRegistry())}
 	read := func(id ir.TypeID) ir.TypeDef {
-		td, ok := r.resolve(id)
+		td, ok := registryValue.resolve(id)
 		require.True(t, ok, id)
-		return r.view(td, "")
+		return registryValue.view(td, "")
 	}
 
-	e, ok := read("type/E-docs").(*ir.Enum)
+	enum, ok := read("type/E-docs").(*ir.Enum)
 	require.True(t, ok, "an alias of an enum reads as the enum")
-	assert.Equal(t, ir.TypeID("type/E"), e.ID, "named as the enum its members are named beneath")
-	assert.Equal(t, ptrAt("/alias/type/E-docs"), e.Provenance, "written where the alias is")
-	assert.False(t, e.Anonymous, "as the alias is, not its end")
-	assert.Equal(t, "near", e.Docs.Description, "the nearest description")
-	assert.True(t, e.Sensitive, "a redaction the end asks for")
+	assert.Equal(t, ir.TypeID("type/E"), enum.ID, "named as the enum its members are named beneath")
+	assert.Equal(t, ptrAt("/alias/type/E-docs"), enum.Provenance, "written where the alias is")
+	assert.False(t, enum.Anonymous, "as the alias is, not its end")
+	assert.Equal(t, "near", enum.Docs.Description, "the nearest description")
+	assert.True(t, enum.Sensitive, "a redaction the end asks for")
 	assert.Equal(t, ir.Unmodeled{"openapi:x-e": {Value: ir.RawValue("1")}, "openapi:x-near": {Value: ir.RawValue("2")}},
-		e.Unmodeled, "every key either keeps")
-	assert.Equal(t, viewRegistry()["type/E"].(*ir.Enum).Members, e.Members)
+		enum.Unmodeled, "every key either keeps")
+	assert.Equal(t, viewRegistry()["type/E"].(*ir.Enum).Members, enum.Members)
 	assert.Equal(t, ir.RawValue("1"), viewRegistry()["type/E"].Common().Unmodeled["openapi:x-e"].Value, "the end is as it was")
 
 	same, ok := read("type/E-same-key").(*ir.Enum)
@@ -112,20 +112,20 @@ func TestView_ReadsAnAliasAsTheNodeItStandsFor(t *testing.T) {
 	assert.Equal(t, str("abc"), lit.Value)
 	assert.Equal(t, "near", read("type/C-docs").Common().Docs.Description)
 
-	s, ok := read("type/S-min").(*ir.Scalar)
+	scalar, ok := read("type/S-min").(*ir.Scalar)
 	require.True(t, ok)
-	assert.Equal(t, &ir.Constraints{MinLength: new(int64(2)), MaxLength: new(int64(5))}, s.Constraints, "bounds meet")
-	assert.Equal(t, ir.TypeRef{Target: "type/primitive/string"}, *s.Base, "an alias of a scalar reads as the scalar over its kind")
-	l, ok := read("type/L-max-docs").(*ir.List)
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(2)), MaxLength: new(int64(5))}, scalar.Constraints, "bounds meet")
+	assert.Equal(t, ir.TypeRef{Target: "type/primitive/string"}, *scalar.Base, "an alias of a scalar reads as the scalar over its kind")
+	list, ok := read("type/L-max-docs").(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(3))}, l.Constraints,
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(3))}, list.Constraints,
 		"bounds meet down the chain")
-	assert.Equal(t, "near", l.Docs.Description)
+	assert.Equal(t, "near", list.Docs.Description)
 	assert.Equal(t, ir.Unmodeled{"openapi:x-k": {Value: ir.RawValue("1")}}, read("type/L-kept").Common().Unmodeled,
 		"a key only the alias keeps")
-	m, ok := read("type/M-docs").(*ir.MapT)
+	mapT, ok := read("type/M-docs").(*ir.MapT)
 	require.True(t, ok)
-	assert.Equal(t, &ir.Constraints{MinProperties: new(int64(1))}, m.Constraints)
+	assert.Equal(t, &ir.Constraints{MinProperties: new(int64(1))}, mapT.Constraints)
 	tuple, ok := read("type/T-docs").(*ir.Tuple)
 	require.True(t, ok)
 	assert.Nil(t, tuple.Constraints, "a chain bounding nothing adds no bounds")
@@ -134,7 +134,7 @@ func TestView_ReadsAnAliasAsTheNodeItStandsFor(t *testing.T) {
 		"type/E-cut", "type/E-pattern", "type/OE-max", "type/C-cut", "type/S-pattern-b", "type/L-encoded", "type/L-ref", "type/Ref-docs",
 		"type/Model-docs", "type/gone", "type/gone-deep", "type/S", "type/E", "type/primitive/string",
 	} {
-		td, _ := r.resolve(id)
+		td, _ := registryValue.resolve(id)
 		assert.Same(t, td, read(id), "%s stands for itself", id)
 	}
 }
@@ -143,16 +143,16 @@ func TestView_ReadsAnAliasAsTheNodeItStandsFor(t *testing.T) {
 // an alias naming it is the node, and a chain past it reads to its own end.
 func TestView_StopsAtTheNodeTheChainsShare(t *testing.T) {
 	t.Parallel()
-	r := registry{resolve: stubResolve(viewRegistry())}
-	maxDocs, _ := r.resolve("type/L-max-docs")
-	maxOnly, _ := r.resolve("type/L-max")
+	registryValue := registry{resolve: stubResolve(viewRegistry())}
+	maxDocs, _ := registryValue.resolve("type/L-max-docs")
+	maxOnly, _ := registryValue.resolve("type/L-max")
 
-	assert.Same(t, maxOnly, r.view(maxOnly, "type/L"), "an alias naming the stop is the node")
-	v, ok := r.view(maxDocs, "type/L").(*ir.Scalar)
+	assert.Same(t, maxOnly, registryValue.view(maxOnly, "type/L"), "an alias naming the stop is the node")
+	scalar, ok := registryValue.view(maxDocs, "type/L").(*ir.Scalar)
 	require.True(t, ok, "a chain read down to the stop is an alias of it")
-	assert.Equal(t, ir.TypeRef{Target: "type/L"}, *v.Base)
-	assert.Equal(t, &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(3))}, v.Constraints)
-	assert.Equal(t, "near", v.Docs.Description)
+	assert.Equal(t, ir.TypeRef{Target: "type/L"}, *scalar.Base)
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(3))}, scalar.Constraints)
+	assert.Equal(t, "near", scalar.Docs.Description)
 }
 
 // TestSharedLink_NamesTheFirstNodeEveryChainNames pins where aliases stop being
@@ -160,8 +160,8 @@ func TestView_StopsAtTheNodeTheChainsShare(t *testing.T) {
 // none, or no node all of them name.
 func TestSharedLink_NamesTheFirstNodeEveryChainNames(t *testing.T) {
 	t.Parallel()
-	r := registry{resolve: stubResolve(viewRegistry())}
-	node := func(id ir.TypeID) ir.TypeDef { td, _ := r.resolve(id); return td }
+	registryValue := registry{resolve: stubResolve(viewRegistry())}
+	node := func(id ir.TypeID) ir.TypeDef { td, _ := registryValue.resolve(id); return td }
 	for _, tc := range []struct {
 		name string
 		ids  []ir.TypeID
@@ -180,7 +180,7 @@ func TestSharedLink_NamesTheFirstNodeEveryChainNames(t *testing.T) {
 		for k, id := range tc.ids {
 			tds[k] = node(id)
 		}
-		assert.Equal(t, tc.want, r.sharedLink(tds...), tc.name)
+		assert.Equal(t, tc.want, registryValue.sharedLink(tds...), tc.name)
 	}
 }
 
@@ -204,12 +204,12 @@ func TestAliasedNode_ReadsAChainUpToItsBound(t *testing.T) {
 			reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: next}}
 			next = id
 		}
-		r := registry{resolve: stubResolve(reg)}
+		registryValue := registry{resolve: stubResolve(reg)}
 
-		_, isList := r.view(reg[next], "").(*ir.List)
+		_, isList := registryValue.view(reg[next], "").(*ir.List)
 
 		assert.Equal(t, tc.read, isList, tc.name)
-		assert.Equal(t, tc.read, r.standsFor(reg[next], "type/L") == firstTypeIsNarrower, "%s: standsFor reads as far", tc.name)
+		assert.Equal(t, tc.read, registryValue.standsFor(reg[next], "type/L") == firstTypeIsNarrower, "%s: standsFor reads as far", tc.name)
 	}
 }
 
@@ -221,7 +221,7 @@ func TestAliasedNode_ReadsAChainUpToItsBound(t *testing.T) {
 func TestStandsFor_ReadsOnlyAnAliasChain(t *testing.T) {
 	t.Parallel()
 	reg := nullableAliases(viewRegistry())
-	r := registry{resolve: stubResolve(reg)}
+	registryValue := registry{resolve: stubResolve(reg)}
 	for _, tc := range []struct {
 		td   ir.TypeID
 		id   ir.TypeID
@@ -241,11 +241,11 @@ func TestStandsFor_ReadsOnlyAnAliasChain(t *testing.T) {
 		{"type/L-over-null-docs", "type/L", relUnrelated},
 		{"type/L-over-null-bare", "type/L", secondTypeIsNarrower},
 	} {
-		assert.Equal(t, tc.want, r.standsFor(reg[tc.td], tc.id), "%s for %s", tc.td, tc.id)
+		assert.Equal(t, tc.want, registryValue.standsFor(reg[tc.td], tc.id), "%s for %s", tc.td, tc.id)
 	}
-	assert.True(t, r.nullThroughChain(reg["type/L-over-null"]), "a link past the first admits null")
-	assert.False(t, r.nullThroughChain(reg["type/L-max-docs"]))
-	assert.False(t, r.nullThroughChain(reg["type/L"]), "no alias")
+	assert.True(t, registryValue.nullThroughChain(reg["type/L-over-null"]), "a link past the first admits null")
+	assert.False(t, registryValue.nullThroughChain(reg["type/L-max-docs"]))
+	assert.False(t, registryValue.nullThroughChain(reg["type/L"]), "no alias")
 	assert.Empty(t, cmp.Diff(nullableAliases(viewRegistry()), reg), "reading writes to no node")
 }
 
@@ -253,9 +253,9 @@ func TestStandsFor_ReadsOnlyAnAliasChain(t *testing.T) {
 // null alone, one adding docs, one adding a bound, and over the first two, one
 // holding docs and one holding nothing.
 func nullableAliases(reg map[ir.TypeID]ir.TypeDef) map[ir.TypeID]ir.TypeDef {
-	nullable := func(id ir.TypeID, c ir.TypeCommon, bounds *ir.Constraints) {
-		c.ID = id
-		reg[id] = &ir.Scalar{TypeCommon: c, Base: &ir.TypeRef{Target: "type/L", Nullable: true}, Constraints: bounds}
+	nullable := func(id ir.TypeID, typeCommon ir.TypeCommon, bounds *ir.Constraints) {
+		typeCommon.ID = id
+		reg[id] = &ir.Scalar{TypeCommon: typeCommon, Base: &ir.TypeRef{Target: "type/L", Nullable: true}, Constraints: bounds}
 	}
 	nullable("type/L-null", ir.TypeCommon{}, nil)
 	nullable("type/L-null-docs", ir.TypeCommon{Docs: ir.Docs{Description: "near"}}, nil)

@@ -32,10 +32,10 @@ type Declared struct {
 	TypeAt []ir.Provenance
 }
 
-// DeclaredAt is d as a model's flattening takes it unsettled: its type is
+// DeclaredAt is propertyDecl as a model's flattening takes it unsettled: its type is
 // written where it is.
-func DeclaredAt(d ir.PropertyDecl) Declared {
-	return Declared{PropertyDecl: d, TypeAt: []ir.Provenance{d.Property.Provenance}}
+func DeclaredAt(propertyDecl ir.PropertyDecl) Declared {
+	return Declared{PropertyDecl: propertyDecl, TypeAt: []ir.Provenance{propertyDecl.Property.Provenance}}
 }
 
 // Settle folds each member of the model more than one declaration decides,
@@ -47,19 +47,19 @@ func DeclaredAt(d ir.PropertyDecl) Declared {
 // settled. tables holds the Table of each type the model composes
 // (ComposedOf), settled first, and shared the names more than one model
 // declares. It returns the model's Table.
-func (idx *ModelPropertyDeclarations) Settle(g Merger, tables map[ir.TypeID]RedeclaredWireNameTable, shared map[string]bool) ([]ir.Diagnostic, RedeclaredWireNameTable) {
-	brought, inherited := idx.brought(g, tables)
+func (idx *ModelPropertyDeclarations) Settle(merger Merger, tables map[ir.TypeID]RedeclaredWireNameTable, shared map[string]bool) ([]ir.Diagnostic, RedeclaredWireNameTable) {
+	brought, inherited := idx.brought(merger, tables)
 	diags := make([]ir.Diagnostic, 0, len(idx.byWire))
-	for _, f := range slices.SortedFunc(maps.Values(idx.byWire), func(a, b *field) int { return cmp.Compare(a.pos, b.pos) }) {
-		decls := slices.Clone(f.decls)
-		decls[0].prop = idx.m.Properties[f.pos]
+	for _, fieldValue := range slices.SortedFunc(maps.Values(idx.byWire), func(a, b *field) int { return cmp.Compare(a.pos, b.pos) }) {
+		decls := slices.Clone(fieldValue.decls)
+		decls[0].prop = idx.m.Properties[fieldValue.pos]
 		wire := decls[0].prop.WireName
 		decls = inOrder(decls, brought[wire])
 		delete(brought, wire)
-		diags = append(diags, idx.settle(g, f.pos, decls)...)
+		diags = append(diags, idx.settle(merger, fieldValue.pos, decls)...)
 	}
 	for _, wire := range slices.Sorted(maps.Keys(brought)) {
-		diags = append(diags, idx.settle(g, -1, brought[wire])...)
+		diags = append(diags, idx.settle(merger, -1, brought[wire])...)
 	}
 	return diags, idx.members(shared, inherited)
 }
@@ -72,15 +72,15 @@ func (idx *ModelPropertyDeclarations) members(shared map[string]bool, inherited 
 	out := make(RedeclaredWireNameTable, len(inherited))
 	maps.Copy(out, inherited)
 	for i := range idx.m.Properties {
-		p := &idx.m.Properties[i]
-		if !shared[p.WireName] {
+		property := &idx.m.Properties[i]
+		if !shared[property.WireName] {
 			continue
 		}
-		d := DeclaredAt(ir.PropertyDecl{Owner: idx.m.ID, Property: p})
-		if at, settled := idx.typeAt[p.WireName]; settled {
-			d.TypeAt = at
+		declared := DeclaredAt(ir.PropertyDecl{Owner: idx.m.ID, Property: property})
+		if at, settled := idx.typeAt[property.WireName]; settled {
+			declared.TypeAt = at
 		}
-		out[p.WireName] = d
+		out[property.WireName] = declared
 	}
 	return out
 }
@@ -94,19 +94,19 @@ func (idx *ModelPropertyDeclarations) members(shared map[string]bool, inherited 
 // (composedMember), placed by where its declarations are written
 // (assembledFrom). Where an entry brings a declaration, each report names the
 // member (naming).
-func (idx *ModelPropertyDeclarations) settle(g Merger, pos int, decls []declaration) []ir.Diagnostic {
+func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []declaration) []ir.Diagnostic {
 	if len(decls) < 2 {
 		return nil
 	}
 	if !slices.ContainsFunc(decls, isBrought) {
-		merged, diags := g.fold(decls)
+		merged, diags := merger.fold(decls)
 		idx.place(pos, merged)
-		idx.typeAt[merged.WireName] = g.typeSites(merged, decls)
+		idx.typeAt[merged.WireName] = merger.typeSites(merged, decls)
 		return deciding(diags, merged.ID)
 	}
 	own := slices.DeleteFunc(slices.Clone(decls), isBrought)
-	field := composedMember(g.IDs, idx.m, decls[0].prop.WireName)
-	kept := len(own) > 0 && idx.heldAlone(g, own[0])
+	field := composedMember(merger.IDs, idx.m, decls[0].prop.WireName)
+	kept := len(own) > 0 && idx.heldAlone(merger, own[0])
 	if kept {
 		_, field = fieldSpan(own[:min(len(own), maxFoldDeclarations)])
 	}
@@ -114,12 +114,12 @@ func (idx *ModelPropertyDeclarations) settle(g Merger, pos int, decls []declarat
 	if !kept {
 		assembled = assembledFrom(decls)
 	}
-	merged, diags := g.foldAt(decls, field, assembled)
+	merged, diags := merger.foldAt(decls, field, assembled)
 	inferred := merged.Provenance.Inferred
 	if kept {
 		merged.ID, merged.Provenance = own[0].prop.ID, own[0].prop.Provenance
 	} else {
-		merged.ID, merged.Provenance = g.IDs.ComposedProp(field), g.Doc.At(field, assembled...)
+		merged.ID, merged.Provenance = merger.IDs.ComposedProp(field), merger.Doc.At(field, assembled...)
 	}
 	merged.Provenance.Inferred = inferred
 	if i := slices.Index(idx.m.Requires, merged.WireName); i >= 0 {
@@ -127,7 +127,7 @@ func (idx *ModelPropertyDeclarations) settle(g Merger, pos int, decls []declarat
 		merged.Required = true
 	}
 	idx.place(pos, merged)
-	idx.typeAt[merged.WireName] = g.typeSites(merged, decls)
+	idx.typeAt[merged.WireName] = merger.typeSites(merged, decls)
 	return deciding(naming(diags, merged.ID), merged.ID)
 }
 
@@ -144,9 +144,9 @@ const maxTypeSites = 2 * maxFoldDeclarations
 // places hold it says; and builtSites for a node the fold built.
 func (g *Merger) typeSites(merged ir.Property, decls []declaration) []ir.Provenance {
 	var naming [][]ir.Provenance
-	for _, d := range decls {
-		if d.prop.Type.Target == merged.Type.Target {
-			naming = append(naming, d.sites())
+	for _, declaration := range decls {
+		if declaration.prop.Type.Target == merged.Type.Target {
+			naming = append(naming, declaration.sites())
 		}
 	}
 	td, registered := g.resolve(merged.Type.Target)
@@ -171,8 +171,8 @@ func (g *Merger) typeSites(merged ir.Property, decls []declaration) []ir.Provena
 // maxTypeSites of them at most.
 func (g *Merger) builtSites(td ir.TypeDef, decls []declaration) []ir.Provenance {
 	places := make([][]ir.Provenance, len(decls))
-	for i, d := range decls {
-		places[i] = d.sites()
+	for i, declaration := range decls {
+		places[i] = declaration.sites()
 	}
 	out := []ir.Provenance{td.Common().Provenance}
 	seen := map[ir.TypeID]bool{}
@@ -200,10 +200,10 @@ func (g *Merger) builtSites(td ir.TypeDef, decls []declaration) []ir.Provenance 
 // writtenAt returns the first of places, each declaration's in order, that
 // node is hoisted at or under (hoistedUnder), and false where none is.
 func writtenAt(node ir.TypeDef, places [][]ir.Provenance) (ir.Provenance, bool) {
-	c := node.Common()
+	typeCommon := node.Common()
 	for _, sites := range places {
 		for _, at := range sites {
-			if hoistedUnder(c, at) {
+			if hoistedUnder(typeCommon, at) {
 				return at, true
 			}
 		}
@@ -222,8 +222,8 @@ func heldTypes(td ir.TypeDef) []ir.TypeID {
 		return []ir.TypeID{t.Value.Target}
 	case *ir.Tuple:
 		held := make([]ir.TypeID, 0, len(t.ElementTypes)+1)
-		for _, e := range t.ElementTypes {
-			held = append(held, e.Target)
+		for _, typeRef := range t.ElementTypes {
+			held = append(held, typeRef.Target)
 		}
 		if t.Rest != nil {
 			held = append(held, t.Rest.Target)
@@ -234,19 +234,19 @@ func heldTypes(td ir.TypeDef) []ir.TypeID {
 	}
 }
 
-// composedMember is where m declares a member named wire that takes an
+// composedMember is where model declares a member named wire that takes an
 // identity in the composed namespace, which no schema occupies:
 // <model>/allOf/properties/<name>, and one allOf deeper for a model the merge
 // composed, a field's composition or a distributed variant, since the schema
 // written at its pointer may settle a member of that name too. No schema is
 // written at an allOf, so neither path is a declaration's.
-func composedMember(d ids.DocumentIDNamespace, m *ir.Model, wire string) jsontext.Pointer {
-	return settledAt(m, wire, d.ComposedType(m.Provenance.Pointer) == m.ID)
+func composedMember(documentIDNamespace ids.DocumentIDNamespace, model *ir.Model, wire string) jsontext.Pointer {
+	return settledAt(model, wire, documentIDNamespace.ComposedType(model.Provenance.Pointer) == model.ID)
 }
 
-// settledAt is composedMember's path for m, one allOf deeper where deeper.
-func settledAt(m *ir.Model, wire string, deeper bool) jsontext.Pointer {
-	at := m.Provenance.Pointer + ids.Ptr("allOf")
+// settledAt is composedMember's path for model, one allOf deeper where deeper.
+func settledAt(model *ir.Model, wire string, deeper bool) jsontext.Pointer {
+	at := model.Provenance.Pointer + ids.Ptr("allOf")
 	if deeper {
 		at += ids.Ptr("allOf")
 	}
@@ -259,43 +259,43 @@ func settledAt(m *ir.Model, wire string, deeper bool) jsontext.Pointer {
 // that wrote each (provenance.Attribution.WriterOf).
 func assembledFrom(decls []declaration) []jsontext.Pointer {
 	out := make([]jsontext.Pointer, len(decls))
-	for i, d := range decls {
-		out[i] = d.reportAt()
+	for i, declaration := range decls {
+		out[i] = declaration.reportAt()
 	}
 	return out
 }
 
-// isBrought reports whether d is a declaration an entry brings, which another
+// isBrought reports whether declarationValue is a declaration an entry brings, which another
 // model holds.
-func isBrought(d declaration) bool { return d.via != nil }
+func isBrought(declarationValue declaration) bool { return declarationValue.via != nil }
 
-// heldAlone reports whether no model but this one holds d, its own
-// declaration, so the member it decides may keep d's identity: d is written
+// heldAlone reports whether no model but this one holds declarationValue, its own
+// declaration, so the member it decides may keep declarationValue's identity: declarationValue is written
 // inside the model's schema, as the body a distributed variant shares with its
 // siblings is not, and no schema between the two stands as a node of its own
 // (Merger.carriedApart).
-func (idx *ModelPropertyDeclarations) heldAlone(g Merger, d declaration) bool {
-	model, at := idx.m.Provenance.Pointer, d.prop.Provenance.Pointer
-	return model.Contains(at) && !g.carriedApart(at, model)
+func (idx *ModelPropertyDeclarations) heldAlone(merger Merger, declarationValue declaration) bool {
+	model, at := idx.m.Provenance.Pointer, declarationValue.prop.Provenance.Pointer
+	return model.Contains(at) && !merger.carriedApart(at, model)
 }
 
-// place writes p as the model's property at pos, or appends it where pos is
-// -1. A discriminator naming the property it replaces names p, and so does one
+// place writes property as the model's property at pos, or appends it where pos is
+// -1. A discriminator naming the property it replaces names property, and so does one
 // naming by its name a member the model did not declare when the walk read
 // it, which the model now declares (docs/compilers/openapi.md#discriminator).
-func (idx *ModelPropertyDeclarations) place(pos int, p ir.Property) {
-	d := idx.m.Discriminator
+func (idx *ModelPropertyDeclarations) place(pos int, property ir.Property) {
+	discriminator := idx.m.Discriminator
 	if pos < 0 {
-		idx.m.Properties = append(idx.m.Properties, p)
-		if d != nil && d.Property == "" && d.PropertyName != "" && d.PropertyName == p.Name.Source {
-			d.Property, d.PropertyName = p.ID, ""
+		idx.m.Properties = append(idx.m.Properties, property)
+		if discriminator != nil && discriminator.Property == "" && discriminator.PropertyName != "" && discriminator.PropertyName == property.Name.Source {
+			discriminator.Property, discriminator.PropertyName = property.ID, ""
 		}
 		return
 	}
-	if d != nil && d.Property == idx.m.Properties[pos].ID {
-		d.Property = p.ID
+	if discriminator != nil && discriminator.Property == idx.m.Properties[pos].ID {
+		discriminator.Property = property.ID
 	}
-	idx.m.Properties[pos] = p
+	idx.m.Properties[pos] = property
 }
 
 // naming returns diags, each naming id, the property the fold decided, as the
@@ -339,17 +339,17 @@ type candidate struct {
 // already. A part on a cycle may hold the model's own declaration, which the
 // model reads as its own, not brought. Names are read in order, as their walks
 // spend the run's reads (ownership).
-func (idx *ModelPropertyDeclarations) brought(g Merger, tables map[ir.TypeID]RedeclaredWireNameTable) (map[string][]declaration, RedeclaredWireNameTable) {
+func (idx *ModelPropertyDeclarations) brought(merger Merger, tables map[ir.TypeID]RedeclaredWireNameTable) (map[string][]declaration, RedeclaredWireNameTable) {
 	parts := idx.parts()
 	byWire := map[string][]candidate{}
 	for i, part := range parts {
-		for wire, d := range tables[part.target] {
-			if d.Owner != idx.m.ID {
-				byWire[wire] = append(byWire[wire], candidate{decl: d, part: i})
+		for wire, declared := range tables[part.target] {
+			if declared.Owner != idx.m.ID {
+				byWire[wire] = append(byWire[wire], candidate{decl: declared, part: i})
 			}
 		}
 	}
-	owners := newOwnership(registry{g.resolve}, g.Reads)
+	owners := newOwnership(registry{merger.resolve}, merger.Reads)
 	out, inherited := map[string][]declaration{}, RedeclaredWireNameTable{}
 	for _, wire := range slices.Sorted(maps.Keys(byWire)) {
 		left := owners.left(byWire[wire])
@@ -376,13 +376,13 @@ type ownership struct {
 	walks map[ir.TypeID]*ownerWalk
 }
 
-// newOwnership returns the ownership one settlement reads through r, charging
+// newOwnership returns the ownership one settlement reads through registryValue, charging
 // reads, which nil leaves without bound, as a Merger naming none does.
-func newOwnership(r registry, reads *budget.Budget) ownership {
+func newOwnership(registryValue registry, reads *budget.Budget) ownership {
 	if reads == nil {
 		reads = new(budget.Budget)
 	}
-	return ownership{r: r, reads: reads, walks: map[ir.TypeID]*ownerWalk{}}
+	return ownership{r: registryValue, reads: reads, walks: map[ir.TypeID]*ownerWalk{}}
 }
 
 // ownerWalk is how far one model's composition has been read breadth first:
@@ -399,35 +399,35 @@ type ownerWalk struct {
 // composing at every level a model redeclaring a name it holds reads its whole
 // depth at each, its depth squared, until the reads run out (GitHub #1993).
 func (o ownership) reaching(owner ir.TypeID, owners map[ir.TypeID]bool) map[ir.TypeID]bool {
-	w, read := o.walks[owner]
+	ownerWalkValue, read := o.walks[owner]
 	if !read {
-		w = &ownerWalk{reached: map[ir.TypeID]bool{}, queued: map[ir.TypeID]bool{owner: true}, queue: []ir.TypeID{owner}}
-		o.walks[owner] = w
+		ownerWalkValue = &ownerWalk{reached: map[ir.TypeID]bool{}, queued: map[ir.TypeID]bool{owner: true}, queue: []ir.TypeID{owner}}
+		o.walks[owner] = ownerWalkValue
 	}
-	missing := len(owners) - 1 - len(reachedOthers(w.reached, owners, owner))
-	for len(w.queue) > 0 && missing > 0 {
-		td, ok := o.r.resolve(w.queue[0])
-		w.queue = w.queue[1:]
+	missing := len(owners) - 1 - len(reachedOthers(ownerWalkValue.reached, owners, owner))
+	for len(ownerWalkValue.queue) > 0 && missing > 0 {
+		td, ok := o.r.resolve(ownerWalkValue.queue[0])
+		ownerWalkValue.queue = ownerWalkValue.queue[1:]
 		if !ok {
 			continue
 		}
 		parts := ComposedOf(td)
 		if !o.reads.Spend(1 + len(parts)) {
-			w.queue = nil
+			ownerWalkValue.queue = nil
 			break
 		}
 		for _, part := range parts {
-			if !w.reached[part] && part != owner && owners[part] {
+			if !ownerWalkValue.reached[part] && part != owner && owners[part] {
 				missing--
 			}
-			w.reached[part] = true
-			if !w.queued[part] {
-				w.queued[part] = true
-				w.queue = append(w.queue, part)
+			ownerWalkValue.reached[part] = true
+			if !ownerWalkValue.queued[part] {
+				ownerWalkValue.queued[part] = true
+				ownerWalkValue.queue = append(ownerWalkValue.queue, part)
 			}
 		}
 	}
-	return w.reached
+	return ownerWalkValue.reached
 }
 
 // reachedOthers returns the members of owners but owner that reached holds,
@@ -472,11 +472,11 @@ func (o ownership) left(cs []candidate) []candidate {
 	}
 	var out []candidate
 	for _, cd := range cs {
-		k := key{owner: cd.decl.Owner, id: cd.decl.Property.ID}
-		if brought[k] {
+		keyValue := key{owner: cd.decl.Owner, id: cd.decl.Property.ID}
+		if brought[keyValue] {
 			continue
 		}
-		brought[k] = true
+		brought[keyValue] = true
 		within := func(by ir.TypeID) bool { return !reach[cd.decl.Owner][by] }
 		if !slices.ContainsFunc(composers[cd.decl.Owner], within) {
 			out = append(out, cd)
@@ -492,7 +492,7 @@ func (o ownership) left(cs []candidate) []candidate {
 func (idx *ModelPropertyDeclarations) parts() []composedEntry {
 	var out []composedEntry
 	for _, target := range ComposedOf(idx.m) {
-		at := slices.IndexFunc(idx.entries, func(e composedEntry) bool { return e.target == target })
+		at := slices.IndexFunc(idx.entries, func(composedEntryValue composedEntry) bool { return composedEntryValue.target == target })
 		if at < 0 {
 			out = append(out, composedEntry{target: target, at: idx.m.Provenance.Pointer})
 			continue
@@ -510,9 +510,9 @@ func TakenOutside(member ir.FlatProperty, from ir.TypeID) (ir.PropertyDecl, bool
 	if member.Owner != from {
 		return member.PropertyDecl, true
 	}
-	for _, d := range slices.Backward(member.Overridden) {
-		if d.Owner != from {
-			return d, true
+	for _, propertyDecl := range slices.Backward(member.Overridden) {
+		if propertyDecl.Owner != from {
+			return propertyDecl, true
 		}
 	}
 	return ir.PropertyDecl{}, false
@@ -524,11 +524,11 @@ func TakenOutside(member ir.FlatProperty, from ir.TypeID) (ir.PropertyDecl, bool
 // its marker is read as covering that too (declaration.secretBy), as
 // foldAnnotations reads one covering a deprecation.
 func broughtDeclaration(from Declared, via *composedEntry) declaration {
-	d := declaration{prop: *from.Property, order: via.order, via: via, typeAt: from.TypeAt, owner: from.Owner}
-	if d.prop.Secret {
-		d.secretBy = d.prop.Provenance.Inferred
+	declarationValue := declaration{prop: *from.Property, order: via.order, via: via, typeAt: from.TypeAt, owner: from.Owner}
+	if declarationValue.prop.Secret {
+		declarationValue.secretBy = declarationValue.prop.Provenance.Inferred
 	}
-	return d
+	return declarationValue
 }
 
 // inOrder returns own and brought, the declarations of one member, in the

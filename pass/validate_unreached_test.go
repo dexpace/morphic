@@ -26,11 +26,11 @@ func TestValidate_TheChecksOfWhatASourceSaysSkipAReferenceWithNoDeclaration(t *t
 			t.Parallel()
 			missing := ir.TypeRef{Target: target}
 			blank := func(id string) ir.Property {
-				return prop(id, missing, func(p *ir.Property) {
-					p.Required = true
-					p.Constraints = lengths(6, 5)
-					p.Default = text("x")
-					p.Examples = []ir.Example{{Value: text("x")}}
+				return prop(id, missing, func(property *ir.Property) {
+					property.Required = true
+					property.Constraints = lengths(6, 5)
+					property.Default = text("x")
+					property.Examples = []ir.Example{{Value: text("x")}}
 				})
 			}
 			doc := noFiniteValueDoc(

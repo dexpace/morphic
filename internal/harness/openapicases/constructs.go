@@ -19,7 +19,7 @@ type construct struct {
 	targets []string
 	// values returns the members each of the two values merges into t's body
 	// at v: the keyword, and what a value needs beside it.
-	values func(t target, v version) [2]object
+	values func(targetValue target, versionValue version) [2]object
 	// components are the component schemas the values name. The case leaving
 	// the keyword out writes none of them, so it differs from the keyword's
 	// by them whatever the keyword does: such a keyword is held to its other
@@ -62,21 +62,21 @@ const (
 	from31
 )
 
-// holds reports whether s writes at v.
-func (s span) holds(v version) bool {
+// holds reports whether s writes at versionValue.
+func (s span) holds(versionValue version) bool {
 	switch s {
 	case only30:
-		return !v.dialect
+		return !versionValue.dialect
 	case from31:
-		return v.dialect
+		return versionValue.dialect
 	default:
 		return s == every
 	}
 }
 
-// saidOf reports whether c is said of t.
-func (c construct) saidOf(t target) bool {
-	return c.targets == nil || slices.Contains(c.targets, t.name)
+// saidOf reports whether c is said of targetValue.
+func (c construct) saidOf(targetValue target) bool {
+	return c.targets == nil || slices.Contains(c.targets, targetValue.name)
 }
 
 // The groups of targets a keyword is said of, by the type JSON Schema gives it
@@ -96,8 +96,8 @@ func fixed(keyword string, one, other raw) func(target, version) [2]object {
 // instances is the values of a keyword written as the target's instances,
 // each spelled by layout, a fmt layout of one %s.
 func instances(keyword, layout string) func(target, version) [2]object {
-	return func(t target, _ version) [2]object {
-		at := func(i int) object { return object{{keyword, raw(fmt.Sprintf(layout, t.instances[i]))}} }
+	return func(targetValue target, _ version) [2]object {
+		at := func(i int) object { return object{{keyword, raw(fmt.Sprintf(layout, targetValue.instances[i]))}} }
 		return [2]object{at(0), at(1)}
 	}
 }
@@ -105,8 +105,8 @@ func instances(keyword, layout string) func(target, version) [2]object {
 // exclusive is the values of an exclusive bound: before 2020-12 a flag on the
 // bound beside it, true and false; from it a number of its own.
 func exclusive(keyword, bound string) func(target, version) [2]object {
-	return func(_ target, v version) [2]object {
-		if v.dialect {
+	return func(_ target, versionValue version) [2]object {
+		if versionValue.dialect {
 			return [2]object{{{keyword, raw("9")}}, {{keyword, raw("8")}}}
 		}
 		return [2]object{{{bound, raw("9")}, {keyword, raw("true")}}, {{bound, raw("9")}, {keyword, raw("false")}}}
@@ -118,9 +118,9 @@ func exclusive(keyword, bound string) func(target, version) [2]object {
 // is observable. A union whose branches the target already says changes
 // nothing (docs/compilers/openapi.md#allof-refinement), so no case writes one.
 func narrowing(keyword string) func(target, version) [2]object {
-	return func(t target, _ version) [2]object {
+	return func(targetValue target, _ version) [2]object {
 		var one, other string
-		switch t.name {
+		switch targetValue.name {
 		case stringTarget, enumTarget, formattedTarget:
 			one, other = `[{"type": "string", "maxLength": 5}, {"type": "boolean"}]`,
 				`[{"type": "string", "maxLength": 6}, {"type": "boolean"}]`

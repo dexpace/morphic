@@ -106,9 +106,9 @@ func applyOverlay(ctx context.Context, srcIndex int, root, ov *yaml.Node, opts O
 	// The overlay builds within the node budget the source was read within,
 	// which alone holds the patched tree to it: an action past it is refused
 	// before it builds anything.
-	o := *opts.Overlay
-	o.MaxNodes = opts.MaxSourceNodes
-	origin, diags := overlay.Apply(ctx, opts.OverlaySrcIndex, root, ov, o)
+	options := *opts.Overlay
+	options.MaxNodes = opts.MaxSourceNodes
+	origin, diags := overlay.Apply(ctx, opts.OverlaySrcIndex, root, ov, options)
 	diags = append(pre, diags...)
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
@@ -149,8 +149,8 @@ func overlayRefusals(ctx context.Context, opts Options) (doctree.ParsedYAMLDocum
 		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{overlayPastBudget(opts)}
 	}
 	doc, err := doctree.Read(ctx, opts.Overlay.Data, opts.MaxSourceNodes)
-	if d, past := pastNodes(at, "overlay", err); past {
-		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{d}
+	if diagnostic, past := pastNodes(at, "overlay", err); past {
+		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{diagnostic}
 	}
 	if err != nil {
 		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,

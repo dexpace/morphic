@@ -191,11 +191,11 @@ func TestCheck_IdempotenceOutcome(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			withPasses(t, tc.passes...)
 
-			r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+			result := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
 
-			assert.Equal(t, tc.want, r.Outcome, r.Detail)
+			assert.Equal(t, tc.want, result.Outcome, result.Detail)
 			for _, want := range tc.detail {
-				assert.Contains(t, r.Detail, want)
+				assert.Contains(t, result.Detail, want)
 			}
 		})
 	}
@@ -207,10 +207,10 @@ func TestCheck_IdempotenceOutcome(t *testing.T) {
 func TestCheck_APassWritingIntoItsInputIsAContractError(t *testing.T) {
 	withPasses(t, stamping{})
 
-	r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+	result := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
 
-	assert.Equal(t, OutcomeError, r.Outcome, r.Detail)
-	assert.Contains(t, r.Detail, `run pass "stamping": changed the document it was handed`)
+	assert.Equal(t, OutcomeError, result.Outcome, result.Detail)
+	assert.Contains(t, result.Detail, `run pass "stamping": changed the document it was handed`)
 }
 
 // TestCheck_ANondeterministicPassIsNotReadAsNonIdempotent pins the oracle's
@@ -219,9 +219,9 @@ func TestCheck_APassWritingIntoItsInputIsAContractError(t *testing.T) {
 func TestCheck_ANondeterministicPassIsNotReadAsNonIdempotent(t *testing.T) {
 	withPasses(t, counting{n: new(atomic.Int32)})
 
-	r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+	result := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
 
-	assert.Equal(t, OutcomeNondeterministic, r.Outcome, r.Detail)
+	assert.Equal(t, OutcomeNondeterministic, result.Outcome, result.Detail)
 }
 
 // TestIdempotent_Faults pins each way the oracle stops short of a comparison,
@@ -270,10 +270,10 @@ func TestIdempotent_Faults(t *testing.T) {
 func TestCheck_APassOverTheRunsResultThatFails(t *testing.T) {
 	withPasses(t, dropping{fault: func(*ir.Document) *ir.Document { return nil }}, flagging{})
 
-	r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+	result := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
 
-	assert.Equal(t, OutcomeNonIdempotent, r.Outcome, r.Detail)
-	assert.Contains(t, r.Detail, `pass "dropping" over the run's result: engine: run pass "dropping": returned no document`)
+	assert.Equal(t, OutcomeNonIdempotent, result.Outcome, result.Detail)
+	assert.Contains(t, result.Detail, `pass "dropping" over the run's result: engine: run pass "dropping": returned no document`)
 }
 
 // TestCheck_APassesPanicIsAPanicOutcome pins the first oracle for a pass,
@@ -294,10 +294,10 @@ func TestCheck_APassesPanicIsAPanicOutcome(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			withPasses(t, tc.passes...)
 
-			r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+			result := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
 
-			assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
-			assert.Contains(t, r.Detail, "pass exploded")
+			assert.Equal(t, OutcomePanic, result.Outcome, result.Detail)
+			assert.Contains(t, result.Detail, "pass exploded")
 		})
 	}
 }

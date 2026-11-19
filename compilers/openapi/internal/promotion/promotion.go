@@ -278,18 +278,18 @@ type Referent struct {
 // lists are copied, so no lowering can write through a promoter into what the
 // caller holds, and nothing the caller does later reaches a run. Copies of the
 // promoter share what it remembers (Referent).
-func New(p ExtensionPromotions) Promoter {
-	if p.Disabled {
+func New(extensionPromotions ExtensionPromotions) Promoter {
+	if extensionPromotions.Disabled {
 		return Promoter{}
 	}
-	targets := p.Targets
+	targets := extensionPromotions.Targets
 	if len(targets) == 0 {
 		targets = DefaultExtensionPromotions()
 	}
 	out := Promoter{
 		targets:   make(map[ExtensionTarget][]ExtensionSource, len(targets)),
 		referents: map[any]Referent{},
-		prefixes:  slices.Compact(slices.Sorted(slices.Values(p.Prefixes))),
+		prefixes:  slices.Compact(slices.Sorted(slices.Values(extensionPromotions.Prefixes))),
 	}
 	for target, sources := range targets {
 		copied := make([]ExtensionSource, len(sources))
@@ -313,8 +313,8 @@ func New(p ExtensionPromotions) Promoter {
 // no reading takes it.
 func readElsewhere(targets map[ExtensionTarget][]ExtensionSource, src ExtensionSource, raw ir.RawValue) bool {
 	for _, sources := range targets {
-		for _, s := range sources {
-			if s.Key == src.Key && s.Member == src.Member && (len(s.Values) == 0 || listsWord(s, raw)) {
+		for _, extensionSource := range sources {
+			if extensionSource.Key == src.Key && extensionSource.Member == src.Member && (len(extensionSource.Values) == 0 || listsWord(extensionSource, raw)) {
 				return true
 			}
 		}
@@ -456,17 +456,17 @@ func deprecationMembers(dep *ir.Deprecation) [4]deprecationMember {
 	}
 }
 
-// Stability fills tier from the vendor extensions kept in unmodeled, by p's
+// Stability fills tier from the vendor extensions kept in unmodeled, by promoter's
 // sources of TargetStability, and marks prov with the heuristic when it does.
-func Stability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.Provenance) []ir.Diagnostic {
+func Stability(promoter Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.Provenance) []ir.Diagnostic {
 	if tier == nil || prov == nil {
 		return nil
 	}
-	stated, found, diags := firstStated(unmodeled, p.Sources(TargetStability), reading[ir.Stability]{
+	stated, found, diags := firstStated(unmodeled, promoter.Sources(TargetStability), reading[ir.Stability]{
 		target: TargetStability,
 		want:   "names no stability tier",
 		read: func(src ExtensionSource, raw ir.RawValue) (ir.Stability, sourceValueMeaning) {
-			return readStability(p, src, raw)
+			return readStability(promoter, src, raw)
 		},
 	})
 	if found {
@@ -479,21 +479,21 @@ func Stability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.
 // GroupStability fills tier from the vendor extensions kept in unmodeled, as
 // Stability does, and records the heuristic in inferred: a group has no
 // Provenance to mark.
-func GroupStability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, inferred *ir.Inferred) []ir.Diagnostic {
+func GroupStability(promoter Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, inferred *ir.Inferred) []ir.Diagnostic {
 	var marked ir.Provenance
-	diags := Stability(p, unmodeled, tier, &marked)
+	diags := Stability(promoter, unmodeled, tier, &marked)
 	if marked.Inferred != "" {
 		*inferred = ir.JoinInferred(*inferred, marked.Inferred)
 	}
 	return diags
 }
 
-// UnformedTier reports each key p reads a tier from that the tag named tag
+// UnformedTier reports each key promoter reads a tier from that the tag named tag
 // keeps in unmodeled, where the tag forms no operation group: the tier is read
 // through the group alone, so it fills no stability.
-func UnformedTier(p Promoter, tag string, unmodeled ir.Unmodeled) []ir.Diagnostic {
+func UnformedTier(promoter Promoter, tag string, unmodeled ir.Unmodeled) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, src := range p.Sources(TargetStability) {
+	for _, src := range promoter.Sources(TargetStability) {
 		if entry, kept := unmodeled[extensionKeyPrefix+src.Key]; kept {
 			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
 				"extension %q states a tier on tag %q, which forms no operation group, so it fills no stability",
@@ -503,24 +503,24 @@ func UnformedTier(p Promoter, tag string, unmodeled ir.Unmodeled) []ir.Diagnosti
 	return diags
 }
 
-// UnheldDeprecation reports each key p reads a deprecation or its members from
+// UnheldDeprecation reports each key promoter reads a deprecation or its members from
 // that the tag named tag keeps in unmodeled, where those keys state one: a tag
 // and the group it forms hold no deprecation, so it fills nothing. A source
 // listing values is reported where its value is one of them, as a tier the
 // same key states is the group's, and a key UnformedTier reports, where the
 // tag forms no group, is not reported again.
-func UnheldDeprecation(p Promoter, tag string, formed bool, unmodeled ir.Unmodeled) []ir.Diagnostic {
+func UnheldDeprecation(promoter Promoter, tag string, formed bool, unmodeled ir.Unmodeled) []ir.Diagnostic {
 	var dep *ir.Deprecation
 	var marked ir.Provenance
-	if p.Deprecation(unmodeled, Referent{}, &dep, &marked); dep == nil {
+	if promoter.Deprecation(unmodeled, Referent{}, &dep, &marked); dep == nil {
 		return nil
 	}
 	var diags []ir.Diagnostic
 	for _, target := range []ExtensionTarget{TargetDeprecation, TargetDeprecationMessage, TargetDeprecationSince,
 		TargetDeprecationRemovalVersion, TargetDeprecationRemovalDate} {
-		for _, src := range p.Sources(target) {
+		for _, src := range promoter.Sources(target) {
 			entry, kept := unmodeled[extensionKeyPrefix+src.Key]
-			if !kept || (len(src.Values) > 0 && !listsWord(src, entry.Value)) || (!formed && readsTier(p, src.Key)) {
+			if !kept || (len(src.Values) > 0 && !listsWord(src, entry.Value)) || (!formed && readsTier(promoter, src.Key)) {
 				continue
 			}
 			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
@@ -531,9 +531,9 @@ func UnheldDeprecation(p Promoter, tag string, formed bool, unmodeled ir.Unmodel
 	return diags
 }
 
-// readsTier reports whether key is a source p reads a tier from.
-func readsTier(p Promoter, key string) bool {
-	return slices.ContainsFunc(p.Sources(TargetStability), func(src ExtensionSource) bool { return src.Key == key })
+// readsTier reports whether key is a source promoter reads a tier from.
+func readsTier(promoter Promoter, key string) bool {
+	return slices.ContainsFunc(promoter.Sources(TargetStability), func(src ExtensionSource) bool { return src.Key == key })
 }
 
 // Redaction sets redact from the vendor extensions kept in own, or what from
@@ -553,7 +553,7 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 
 // EnumOpenness clears *closed, an enum's or that of the union a mixed enum
 // lowers to, when the vendor extensions kept in unmodeled state the set open by
-// p's sources of TargetEnumOpen, and marks prov with the heuristic when they do.
+// promoter's sources of TargetEnumOpen, and marks prov with the heuristic when they do.
 //
 // The key's presence is the statement, so every value shape but an explicit
 // `false` reads as open (extensionOpenness).
@@ -562,32 +562,32 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 // so there is nothing to open. Minting an enum from a member-list extension is
 // out of scope; the entry survives verbatim for a consumer that wants it
 // (GitHub #427).
-func EnumOpenness(p Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+func EnumOpenness(promoter Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
 	if closed == nil || prov == nil {
 		return nil
 	}
-	return openness(p, unmodeled, TargetEnumOpen, closed, prov)
+	return openness(promoter, unmodeled, TargetEnumOpen, closed, prov)
 }
 
 // UnionOpenness clears *closed, that of a union a oneOf or anyOf lowers to,
-// when the vendor extensions kept in unmodeled state the union open by p's
+// when the vendor extensions kept in unmodeled state the union open by promoter's
 // sources of TargetUnionOpen, and marks prov with the heuristic when they do,
 // as EnumOpenness opens an enum.
-func UnionOpenness(p Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+func UnionOpenness(promoter Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
 	if closed == nil || prov == nil {
 		return nil
 	}
-	return openness(p, unmodeled, TargetUnionOpen, closed, prov)
+	return openness(promoter, unmodeled, TargetUnionOpen, closed, prov)
 }
 
-// openness clears *closed and marks prov when a source p reads target from
+// openness clears *closed and marks prov when a source promoter reads target from
 // states openness in unmodeled (extensionOpenness).
-func openness(p Promoter, unmodeled ir.Unmodeled, target ExtensionTarget, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
-	open, _, diags := firstStated(unmodeled, p.Sources(target), reading[bool]{
+func openness(promoter Promoter, unmodeled ir.Unmodeled, target ExtensionTarget, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	open, _, diags := firstStated(unmodeled, promoter.Sources(target), reading[bool]{
 		target: target,
 		read: func(src ExtensionSource, raw ir.RawValue) (bool, sourceValueMeaning) {
 			if len(src.Values) > 0 {
-				return listed(p.targets, src, raw)
+				return listed(promoter.targets, src, raw)
 			}
 			return extensionOpenness(raw), states
 		},
@@ -677,14 +677,14 @@ func (p Promoter) redactionReading() reading[bool] {
 // A later source stating another value loses, and is reported at its own key,
 // as is a value the target cannot hold: the entry stays either way, so the
 // report is what tells a reader the field did not take it.
-func firstStated[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource, r reading[T]) (T, bool, []ir.Diagnostic) {
-	kept, _, found, diags := firstStatedAt(unmodeled, sources, r)
+func firstStated[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource, readingValue reading[T]) (T, bool, []ir.Diagnostic) {
+	kept, _, found, diags := firstStatedAt(unmodeled, sources, readingValue)
 	return kept, found, diags
 }
 
 // firstStatedAt is firstStated, also returning the provenance of the source
 // whose value it returns.
-func firstStatedAt[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource, r reading[T]) (T, ir.Provenance, bool, []ir.Diagnostic) {
+func firstStatedAt[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource, readingValue reading[T]) (T, ir.Provenance, bool, []ir.Diagnostic) {
 	var kept T
 	var first ExtensionSource
 	var keptAt ir.Provenance
@@ -705,22 +705,22 @@ func firstStatedAt[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSour
 		if located != states {
 			continue
 		}
-		v, said := r.read(src, raw)
+		v, said := readingValue.read(src, raw)
 		switch {
 		case said == misfit:
-			want := r.want
+			want := readingValue.want
 			if len(src.Values) > 0 {
 				want = "holds none of the values the policy lists"
 			}
 			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
-				"extension %q %s, so it does not fill %s", src, want, r.target))
+				"extension %q %s, so it does not fill %s", src, want, readingValue.target))
 		case said != states:
 		case !found:
 			kept, first, keptAt, found = v, src, at, true
 		case v != kept:
 			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
 				"extension %q states another %s than %q, which the policy reads first, and does not fill it",
-				src, r.target, first))
+				src, readingValue.target, first))
 		}
 	}
 	return kept, keptAt, found, diags
@@ -733,14 +733,14 @@ func firstStatedAt[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSour
 // statement, and what it reports is its report. Answering those here too would
 // report one defect twice, or call a word misread that was read. Any other
 // value, and any value on a key only this target reads, is a misfit.
-func readStability(p Promoter, src ExtensionSource, raw ir.RawValue) (ir.Stability, sourceValueMeaning) {
+func readStability(promoter Promoter, src ExtensionSource, raw ir.RawValue) (ir.Stability, sourceValueMeaning) {
 	if text, ok := extensionText(raw); ok {
 		if tier := stabilityTier(text); tier != ir.StabilityUnstated {
 			return tier, states
 		}
 	}
-	deprecation := p.deprecationReading()
-	for _, other := range p.targets[TargetDeprecation] {
+	deprecation := promoter.deprecationReading()
+	for _, other := range promoter.targets[TargetDeprecation] {
 		if other.Key != src.Key || other.Member != src.Member {
 			continue
 		}

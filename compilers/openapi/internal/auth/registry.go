@@ -37,8 +37,8 @@ type Registry struct {
 // RegistryOf returns a Registry holding a copy of declared, the schemes
 // LowerSecuritySchemes lowers, so a scheme a requirement adds reaches the
 // registry and never the caller's map. Such a scheme is placed at the root of
-// c's source.
-func RegistryOf(c service.Ctx, declared map[ir.AuthID]ir.AuthScheme) *Registry {
+// serviceContext's source.
+func RegistryOf(serviceContext service.Ctx, declared map[ir.AuthID]ir.AuthScheme) *Registry {
 	byID := make(map[ir.AuthID]ir.AuthScheme, len(declared))
 	entries := make(map[string]bool, len(declared))
 	var reaching []string
@@ -50,7 +50,7 @@ func RegistryOf(c service.Ctx, declared map[ir.AuthID]ir.AuthScheme) *Registry {
 		}
 	}
 	return &Registry{byID: byID, entries: entries, near: nearIndexOf(reaching), missed: map[string]string{},
-		root: c.Place().At("")}
+		root: serviceContext.Place().At("")}
 }
 
 // Schemes returns a copy of the registry, or nil when it holds nothing, so a

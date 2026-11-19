@@ -14,36 +14,36 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// DropContained removes from u each entry that another entry of u holds
+// DropContained removes from unmodeled each entry that another entry of unmodeled holds
 // whole: its provenance lies in the same source strictly beneath the other's,
 // and its value is the value found there inside the other's. An entry naming a
-// key p reads stays, unscoped or beneath any scope, since a promotion reads
+// key promoter reads stays, unscoped or beneath any scope, since a promotion reads
 // the kept entries and one inside another's value reaches no field
 // (docs/ir/unmodeled.md#promotion). With whole set, only those entries are
 // asked whether they hold another.
-func DropContained(p Promoter, u *ir.Unmodeled, whole ...string) {
-	dropContained(p, u, holdsWhole, whole)
+func DropContained(promoter Promoter, unmodeled *ir.Unmodeled, whole ...string) {
+	dropContained(promoter, unmodeled, holdsWhole, whole)
 }
 
 // dropContained is DropContained asking holds whether one entry holds another,
 // of the entries whose provenance lies above the other's only: each entry
 // listed as a holder is found by where it is written (holdersAt), and an entry
 // is asked of the holders at each prefix of its own pointer.
-func dropContained(p Promoter, u *ir.Unmodeled, holds func(outer, inner ir.UnmodeledEntry) bool, whole []string) {
-	if u == nil || len(*u) < 2 {
+func dropContained(promoter Promoter, unmodeled *ir.Unmodeled, holds func(outer, inner ir.UnmodeledEntry) bool, whole []string) {
+	if unmodeled == nil || len(*unmodeled) < 2 {
 		return
 	}
 	holders := whole
 	if len(holders) == 0 {
-		holders = slices.Collect(maps.Keys(*u))
+		holders = slices.Collect(maps.Keys(*unmodeled))
 	}
-	at := holdersAt(*u, holders)
-	for key, inner := range *u {
-		if namesReadKey(p.keys, key) {
+	at := holdersAt(*unmodeled, holders)
+	for key, inner := range *unmodeled {
+		if namesReadKey(promoter.keys, key) {
 			continue
 		}
-		if heldBy(*u, at, key, inner, holds) {
-			delete(*u, key)
+		if heldBy(*unmodeled, at, key, inner, holds) {
+			delete(*unmodeled, key)
 		}
 	}
 }
@@ -54,11 +54,11 @@ type entryAt struct {
 	pointer jsontext.Pointer
 }
 
-// holdersAt lists the keys of holders that u holds by where each is written.
-func holdersAt(u ir.Unmodeled, holders []string) map[entryAt][]string {
+// holdersAt lists the keys of holders that unmodeled holds by where each is written.
+func holdersAt(unmodeled ir.Unmodeled, holders []string) map[entryAt][]string {
 	at := make(map[entryAt][]string, len(holders))
 	for _, h := range holders {
-		if outer, held := u[h]; held {
+		if outer, held := unmodeled[h]; held {
 			place := entryAt{outer.Provenance.Source, outer.Provenance.Pointer}
 			at[place] = append(at[place], h)
 		}
@@ -66,16 +66,16 @@ func holdersAt(u ir.Unmodeled, holders []string) map[entryAt][]string {
 	return at
 }
 
-// heldBy reports whether an entry of u other than key, written above inner in
+// heldBy reports whether an entry of unmodeled other than key, written above inner in
 // the same source, holds it. at lists the holders by where they are written
-// (holdersAt); one u no longer holds is no holder.
-func heldBy(u ir.Unmodeled, at map[entryAt][]string, key string, inner ir.UnmodeledEntry,
+// (holdersAt); one unmodeled no longer holds is no holder.
+func heldBy(unmodeled ir.Unmodeled, at map[entryAt][]string, key string, inner ir.UnmodeledEntry,
 	holds func(outer, inner ir.UnmodeledEntry) bool,
 ) bool {
 	pointer := string(inner.Provenance.Pointer)
 	for i := strings.LastIndexByte(pointer, '/'); i >= 0; i = strings.LastIndexByte(pointer[:i], '/') {
 		for _, h := range at[entryAt{inner.Provenance.Source, jsontext.Pointer(pointer[:i])}] {
-			if outer, held := u[h]; h != key && held && holds(outer, inner) {
+			if outer, held := unmodeled[h]; h != key && held && holds(outer, inner) {
 				return true
 			}
 		}

@@ -302,41 +302,41 @@ func layerImports(root string, pkgs []string) ([]importSite, error) {
 // package with no row, which layerCoverage reports.
 func layerViolations(sites []importSite, table map[string]layer, libraries map[layer][]string) []string {
 	var out []string
-	for _, s := range sites {
-		from, ok := table[s.pkg]
+	for _, importSite := range sites {
+		from, ok := table[importSite.pkg]
 		if !ok {
 			continue
 		}
-		if msg := crossing(s, from, table, libraries); msg != "" {
-			out = append(out, s.file+": "+msg)
+		if msg := crossing(importSite, from, table, libraries); msg != "" {
+			out = append(out, importSite.file+": "+msg)
 		}
 	}
 	slices.Sort(out)
 	return out
 }
 
-// crossing explains why site s, in a package of layer from, is refused, or
+// crossing explains why site importSiteValue, in a package of layer from, is refused, or
 // returns "" when it is not.
-func crossing(s importSite, from layer, table map[string]layer, libraries map[layer][]string) string {
-	if rest, ok := strings.CutPrefix(s.path, module+"/"+compilerInternal+"/"); ok {
+func crossing(importSiteValue importSite, from layer, table map[string]layer, libraries map[layer][]string) string {
+	if rest, ok := strings.CutPrefix(importSiteValue.path, module+"/"+compilerInternal+"/"); ok {
 		to, layered := table[rest]
 		switch {
 		case !layered:
-			return fmt.Sprintf("%s (%s) imports %s, which is in no layer", s.pkg, from, rest)
+			return fmt.Sprintf("%s (%s) imports %s, which is in no layer", importSiteValue.pkg, from, rest)
 		case to > from:
-			return fmt.Sprintf("%s (%s) imports %s (%s), a layer above its own", s.pkg, from, rest, to)
+			return fmt.Sprintf("%s (%s) imports %s (%s), a layer above its own", importSiteValue.pkg, from, rest, to)
 		default:
 			return ""
 		}
 	}
-	if strings.HasPrefix(s.path, module+"/") {
+	if strings.HasPrefix(importSiteValue.path, module+"/") {
 		return ""
 	}
 	allowed, restricted := libraries[from]
-	if !restricted || slices.ContainsFunc(allowed, func(entry string) bool { return entryAdmits(entry, s.path) }) {
+	if !restricted || slices.ContainsFunc(allowed, func(entry string) bool { return entryAdmits(entry, importSiteValue.path) }) {
 		return ""
 	}
-	return fmt.Sprintf("%s (%s) imports %q, a library its layer may not reach", s.pkg, from, s.path)
+	return fmt.Sprintf("%s (%s) imports %q, a library its layer may not reach", importSiteValue.pkg, from, importSiteValue.path)
 }
 
 // compilerPackages narrows the production directories of a tree, as

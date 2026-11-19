@@ -97,18 +97,18 @@ func TestUnionTags_ReadsOnlyWhatItWasDeferredFor(t *testing.T) {
 // do not match: reported, and no route written, since none can be paired.
 func TestSpellImplicitRoutes_ReportsAVariantNoBranchStandsFor(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0",
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0",
 		"    U: {oneOf: [{$ref: '#/components/schemas/A'}], discriminator: {propertyName: k}}\n    A: {type: object}\n"))
-	js, ok := l.Doc.Components.Schemas.Get("U")
+	js, ok := lowerer.Doc.Components.Schemas.Get("U")
 	require.True(t, ok)
-	u := &ir.Union{Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/a"}}, {Type: ir.TypeRef{Target: "type/b"}}},
+	union := &ir.Union{Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/a"}}, {Type: ir.TypeRef{Target: "type/b"}}},
 		Discriminator: &ir.Discriminator{PropertyName: "k"}}
 
-	diags := spellImplicitRoutes(l.Ctx, besideUnion(l.Ctx.Statements().Of(js).Schema, ""), u, "/components/schemas/U")
+	diags := spellImplicitRoutes(lowerer.Ctx, besideUnion(lowerer.Ctx.Statements().Of(js).Schema, ""), union, "/components/schemas/U")
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
-	assert.Nil(t, u.Discriminator.Mapping)
+	assert.Nil(t, union.Discriminator.Mapping)
 }
 
 // TestUnionTags_FlattensTheOtherVariantsOnlyForACandidate pins what an

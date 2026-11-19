@@ -20,7 +20,7 @@ import (
 // naming a node no registry entry declares.
 func defaultsRegistry() ir.TypeRegistry {
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
-	prim := func(k ir.PrimitiveKind) ir.TypeRef { return ref(ir.PrimitiveTypeID(k)) }
+	prim := func(primitiveKind ir.PrimitiveKind) ir.TypeRef { return ref(ir.PrimitiveTypeID(primitiveKind)) }
 	reg := ir.TypeRegistry{
 		"type/base64":    &ir.Scalar{ID: "type/base64", Base: new(prim(ir.PrimitiveBytes)), Encoding: &ir.Encoding{Name: "base64"}},
 		"type/base64url": &ir.Scalar{ID: "type/base64url", Base: new(prim(ir.PrimitiveBytes)), Encoding: &ir.Encoding{Name: "base64url"}},
@@ -44,8 +44,8 @@ func defaultsRegistry() ir.TypeRegistry {
 		"type/loop/a":    &ir.Scalar{ID: "type/loop/a", Base: new(ref("type/loop/b"))},
 		"type/loop/b":    &ir.Scalar{ID: "type/loop/b", Base: new(ref("type/loop/a"))},
 	}
-	for _, k := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveBytes, ir.PrimitiveAny, ir.PrimitiveInt64, ir.PrimitiveBool, ir.PrimitiveNumber, ir.PrimitiveDate} {
-		reg[ir.PrimitiveTypeID(k)] = &ir.Primitive{ID: ir.PrimitiveTypeID(k), PrimitiveKind: k}
+	for _, primitiveKind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveBytes, ir.PrimitiveAny, ir.PrimitiveInt64, ir.PrimitiveBool, ir.PrimitiveNumber, ir.PrimitiveDate} {
+		reg[ir.PrimitiveTypeID(primitiveKind)] = &ir.Primitive{ID: ir.PrimitiveTypeID(primitiveKind), PrimitiveKind: primitiveKind}
 	}
 	return reg
 }
@@ -132,11 +132,11 @@ func TestDefaultContentType_ReadsEachValueByItsRow(t *testing.T) {
 func TestDefaultContentType_ReadsUpToItsBound(t *testing.T) {
 	t.Parallel()
 	union := func(n int) ir.TypeRegistry {
-		u := &ir.Union{ID: "type/u"}
+		union := &ir.Union{ID: "type/u"}
 		for range n {
-			u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}})
+			union.Variants = append(union.Variants, ir.Variant{Type: ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}})
 		}
-		return ir.TypeRegistry{"type/u": u, ir.PrimitiveTypeID(ir.PrimitiveString): &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString}}
+		return ir.TypeRegistry{"type/u": union, ir.PrimitiveTypeID(ir.PrimitiveString): &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString}}
 	}
 	rules := specrules.Table().EncodingRules("3.1.0")
 	for n, want := range map[int][]string{maxDefaultValues - 1: {"text/plain"}, maxDefaultValues: nil} {
@@ -175,10 +175,10 @@ func TestPartValues_ReadsEachItemOfEachDeclaration(t *testing.T) {
 // boolean schema saying nothing: none, each, or some writing it.
 func TestReadContentEncoding_ReadsEveryDeclaration(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, openapitest.ComponentSpec(
+	lowerer, _ := loweredFor(t, openapitest.ComponentSpec(
 		"    Plain: {type: string}\n    Encoded: {type: string, contentEncoding: base64}\n    Ref: {$ref: '#/components/schemas/Encoded'}\n"))
 	get := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
-		js, ok := l.ctx.Doc.Components.Schemas.Get(name)
+		js, ok := lowerer.ctx.Doc.Components.Schemas.Get(name)
 		require.True(t, ok, name)
 		return js
 	}
@@ -193,7 +193,7 @@ func TestReadContentEncoding_ReadsEveryDeclaration(t *testing.T) {
 		{"some", []*oas3.JSONSchema[oas3.Referenceable]{get("Plain"), get("Ref")}, partlyEncoded},
 		{"no declaration", nil, unencoded},
 	} {
-		assert.Equal(t, tc.want, readContentEncoding(l.ctx, tc.schemas), tc.name)
+		assert.Equal(t, tc.want, readContentEncoding(lowerer.ctx, tc.schemas), tc.name)
 	}
 }
 

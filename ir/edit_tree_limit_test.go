@@ -28,13 +28,13 @@ func TestEditor_RefusesAGroupItsReadDidNotReach(t *testing.T) {
 	require.Equal(t, 1000, calls)
 
 	whole := ir.NewEditor(doc)
-	whole.UpdateGroup(past, func(g *ir.OperationGroup) { g.Name.Source = "changed" })
+	whole.UpdateGroup(past, func(operationGroup *ir.OperationGroup) { operationGroup.Name.Source = "changed" })
 	_, diags := whole.Finish()
 	require.Empty(t, diags, "the control: a read to the real limit reaches the group")
 
 	held := ir.NewEditorWithin(1000, doc)
 	_, found := held.Group(past)
-	held.UpdateGroup(past, func(g *ir.OperationGroup) { g.Name.Source = "changed" })
+	held.UpdateGroup(past, func(operationGroup *ir.OperationGroup) { operationGroup.Name.Source = "changed" })
 	_, diags = held.Finish()
 
 	assert.False(t, found, "a group the read did not reach is not held")
@@ -58,10 +58,10 @@ func TestEditor_HoldsTheOperationsForEachOperationReachesWithinItsSteps(t *testi
 	var walked []ir.OperationID
 	require.True(t, ir.ForEachOperationWithin(limit, doc, func(op ir.Operation) { walked = append(walked, op.ID) }))
 
-	e := ir.NewEditorWithin(limit, doc)
+	editor := ir.NewEditorWithin(limit, doc)
 	var held []ir.OperationID
 	for _, op := range ops {
-		if _, ok := e.Operation(op.ID); ok {
+		if _, ok := editor.Operation(op.ID); ok {
 			held = append(held, op.ID)
 		}
 	}

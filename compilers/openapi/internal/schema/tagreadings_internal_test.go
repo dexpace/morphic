@@ -36,8 +36,8 @@ func lit(id ir.TypeID, s string) *ir.Literal {
 // unionOf is a closed union at id of the variants targets, exclusive as said.
 func unionOf(id ir.TypeID, exclusive bool, targets ...ir.TypeRef) *ir.Union {
 	variants := make([]ir.Variant, len(targets))
-	for i, t := range targets {
-		variants[i] = ir.Variant{Type: t}
+	for i, typeRef := range targets {
+		variants[i] = ir.Variant{Type: typeRef}
 	}
 	return &ir.Union{ID: id, Variants: variants, Exclusive: exclusive, Closed: true}
 }
@@ -45,10 +45,10 @@ func unionOf(id ir.TypeID, exclusive bool, targets ...ir.TypeRef) *ir.Union {
 // to is a non-nullable reference to id.
 func to(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
-// valueOf returns what a value t names admits, as r reads a member declared
-// by t alone.
-func valueOf(r *tagReadings, reg ir.TypeRegistry, t ir.TypeRef) tagSet {
-	return r.member(reg, ir.FlatProperty{Property: &ir.Property{Type: t}})
+// valueOf returns what a value typeRef names admits, as tagReadingsValue reads a member declared
+// by typeRef alone.
+func valueOf(tagReadingsValue *tagReadings, reg ir.TypeRegistry, typeRef ir.TypeRef) tagSet {
+	return tagReadingsValue.member(reg, ir.FlatProperty{Property: &ir.Property{Type: typeRef}})
 }
 
 // TestTagReadings_ValueReadsAClosedSetOfStrings pins what a type must be to
@@ -122,7 +122,7 @@ func TestTagReadings_AUnionOnACycleAdmitsAnything(t *testing.T) {
 	t.Parallel()
 	reg := ir.TypeRegistry{
 		"type/a": lit("type/a", "a"), "type/b": lit("type/b", "b"),
-		// p and q name each other; r reaches them; s is beside them.
+		// p and q name each other; tagReadings reaches them; s is beside them.
 		"type/p": unionOf("type/p", true, to("type/q"), ir.TypeRef{Target: "type/a", Nullable: true}),
 		"type/q": unionOf("type/q", true, to("type/p"), to("type/b")),
 		"type/r": unionOf("type/r", false, to("type/a"), to("type/p")),
@@ -132,10 +132,10 @@ func TestTagReadings_AUnionOnACycleAdmitsAnything(t *testing.T) {
 	}
 	ids := []ir.TypeID{"type/p", "type/q", "type/r", "type/s", "type/l"}
 	read := func(order []ir.TypeID) map[ir.TypeID]tagSet {
-		r := newReadings(t)
+		tagReadings := newReadings(t)
 		out := map[ir.TypeID]tagSet{}
 		for _, id := range order {
-			out[id] = valueOf(r, reg, to(id))
+			out[id] = valueOf(tagReadings, reg, to(id))
 		}
 		return out
 	}
@@ -169,13 +169,13 @@ func TestTagReadings_ACycleOfCompositionReadsAlikeFromAnyEntry(t *testing.T) {
 		"type/holder": &ir.Model{ID: "type/holder", Mixins: []ir.TypeRef{to("type/shape")}},
 	}
 	read := func(order []ir.TypeID) map[string]tagSet {
-		r := newReadings(t)
+		tagReadings := newReadings(t)
 		out := map[string]tagSet{}
 		for _, id := range order {
 			flat := ir.FlattenedProperties(reg, id)
-			p, declared := flatMember(flat, "kind")
-			out[string(id)] = r.object(reg, flat, p, declared, "kind")
-			out["fold "+string(id)] = r.fold(reg, readKey{id: id, name: "kind", object: true})
+			flatProperty, declared := flatMember(flat, "kind")
+			out[string(id)] = tagReadings.object(reg, flat, flatProperty, declared, "kind")
+			out["fold "+string(id)] = tagReadings.fold(reg, readKey{id: id, name: "kind", object: true})
 		}
 		return out
 	}
@@ -333,25 +333,25 @@ func TestTagReadings_ObjectMeetsWhatAComposedUnionAdmits(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			r := ir.TypeRegistry{"type/u": tc.union, "type/au": &ir.Scalar{ID: "type/au", Base: &ir.TypeRef{Target: "type/u"}},
+			typeRegistry := ir.TypeRegistry{"type/u": tc.union, "type/au": &ir.Scalar{ID: "type/au", Base: &ir.TypeRef{Target: "type/u"}},
 				"type/inner":     unionOf("type/inner", false, to("type/vb"), to("type/vc")),
 				"type/innerac":   unionOf("type/innerac", true, to("type/va"), to("type/vc")),
 				"type/composing": &ir.Model{ID: "type/composing", Mixins: []ir.TypeRef{to("type/innerac")}},
 				"type/looping":   &ir.Model{ID: "type/looping", Mixins: []ir.TypeRef{to("type/u")}},
 				"type/avc":       &ir.Scalar{ID: "type/avc", Base: &ir.TypeRef{Target: "type/vc"}}}
-			maps.Copy(r, reg)
+			maps.Copy(typeRegistry, reg)
 			composed := ir.TypeID("type/u")
 			if tc.through {
 				composed = "type/au"
 			}
-			m := &ir.Model{ID: "type/m", Mixins: []ir.TypeRef{to(composed)}}
+			model := &ir.Model{ID: "type/m", Mixins: []ir.TypeRef{to(composed)}}
 			if tc.own != "" {
-				m.Properties = []ir.Property{{ID: "property/m", Name: ir.Naming{Source: "kind"}, Type: to(tc.own)}}
+				model.Properties = []ir.Property{{ID: "property/m", Name: ir.Naming{Source: "kind"}, Type: to(tc.own)}}
 			}
-			r["type/m"] = m
-			flat := ir.FlattenedProperties(r, "type/m")
-			p, declared := flatMember(flat, "kind")
-			got := newReadings(t).object(r, flat, p, declared, "kind")
+			typeRegistry["type/m"] = model
+			flat := ir.FlattenedProperties(typeRegistry, "type/m")
+			flatProperty, declared := flatMember(flat, "kind")
+			got := newReadings(t).object(typeRegistry, flat, flatProperty, declared, "kind")
 			assert.Equal(t, tc.want != nil, got.closed)
 			if tc.want != nil {
 				assert.Equal(t, tc.want, got.strings)
@@ -405,12 +405,12 @@ func conjunctAllocs(t *testing.T, width int) float64 {
 	}
 	reg["type/u"] = unionOf("type/u", true, variants...)
 	reg["type/m"] = &ir.Model{ID: "type/m", Mixins: []ir.TypeRef{to("type/u")}}
-	r := newReadings(t)
+	tagReadings := newReadings(t)
 	flat := ir.FlattenedProperties(reg, "type/m")
-	r.object(reg, flat, ir.FlatProperty{}, false, "kind")
+	tagReadings.object(reg, flat, ir.FlatProperty{}, false, "kind")
 	fewest := math.Inf(1)
 	for range 20 {
-		fewest = min(fewest, testing.AllocsPerRun(1, func() { r.object(reg, flat, ir.FlatProperty{}, false, "kind") }))
+		fewest = min(fewest, testing.AllocsPerRun(1, func() { tagReadings.object(reg, flat, ir.FlatProperty{}, false, "kind") }))
 	}
 	return fewest
 }
@@ -428,13 +428,13 @@ func valueAllocs(t *testing.T, width int, set func(ir.TypeID, []ir.EnumMember) i
 		members[i] = ir.EnumMember{Value: ir.Value{Kind: ir.ValueString, String: fmt.Sprintf("v%d", i)}}
 	}
 	reg["type/u"] = set("type/u", members)
-	r := newReadings(t)
-	valueOf(r, reg, to("type/u"))
-	_, kept := r.read[readKey{id: "type/u"}]
+	tagReadings := newReadings(t)
+	valueOf(tagReadings, reg, to("type/u"))
+	_, kept := tagReadings.read[readKey{id: "type/u"}]
 	assert.True(t, kept, "the reading is kept for the next to ask")
 	fewest := math.Inf(1)
 	for range 20 {
-		fewest = min(fewest, testing.AllocsPerRun(1, func() { valueOf(r, reg, to("type/u")) }))
+		fewest = min(fewest, testing.AllocsPerRun(1, func() { valueOf(tagReadings, reg, to("type/u")) }))
 	}
 	return fewest
 }
@@ -444,10 +444,10 @@ func valueAllocs(t *testing.T, width int, set func(ir.TypeID, []ir.EnumMember) i
 // while another run's starts empty.
 func TestReadingsOf_SharesOneStorePerRun(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	first, again := readingsOf(c.Ctx), readingsOf(c.Ctx)
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	first, again := readingsOf(serviceContext.Ctx), readingsOf(serviceContext.Ctx)
 	assert.Same(t, first, again)
-	assert.NotSame(t, readingsOf(c.Ctx), readingsOf(servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx))
+	assert.NotSame(t, readingsOf(serviceContext.Ctx), readingsOf(servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx))
 }
 
 // TestModelFields_ReportsAFoldFollowingAStoredReading pins the order the tag
@@ -463,17 +463,17 @@ func TestModelFields_ReportsAFoldFollowingAStoredReading(t *testing.T) {
 		"      properties: {kind: {const: folded}}\n")
 	models := make([]ir.TypeDef, 0, 2)
 	for _, early := range []bool{false, true} {
-		l, loaded := LoweredFor(t, spec)
+		lowerer, loaded := LoweredFor(t, spec)
 		require.Empty(t, loaded)
-		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
+		lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
 		if early {
-			readingsOf(l.Ctx).refOf(ir.TypeRegistry{}, to("type/elsewhere"))
+			readingsOf(lowerer.Ctx).refOf(ir.TypeRegistry{}, to("type/elsewhere"))
 		}
-		doc := l.Document(t)
-		diags := l.Diags.List()
+		doc := lowerer.Document(t)
+		diags := lowerer.Diags.List()
 		assert.Equal(t, early, openapitest.HasDiagCodeAt(diags, diag.InternalInvariant, folded), "early: %v", early)
-		openapitest.RequireNoErrorDiags(t, slices.DeleteFunc(diags, func(d ir.Diagnostic) bool {
-			return d.Code == diag.InternalInvariant && d.Provenance.Pointer == folded
+		openapitest.RequireNoErrorDiags(t, slices.DeleteFunc(diags, func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Code == diag.InternalInvariant && diagnostic.Provenance.Pointer == folded
 		}))
 		models = append(models, doc.Types["type/openapi"+folded])
 	}
@@ -494,15 +494,15 @@ func TestTagReadings_ReadAModelAsTheMapItSwapsFor(t *testing.T) {
 		"type/s":   &ir.Model{ID: "type/s", Mixins: []ir.TypeRef{to("type/u"), to("type/m")}},
 	}
 	read := func() []tagSet {
-		r := newReadings(t)
+		tagReadings := newReadings(t)
 		flat := ir.FlattenedProperties(reg, "type/s")
-		p, declared := flatMember(flat, "kind")
-		return []tagSet{r.object(reg, flat, p, declared, "kind"), valueOf(r, reg, to("type/m"))}
+		flatProperty, declared := flatMember(flat, "kind")
+		return []tagSet{tagReadings.object(reg, flat, flatProperty, declared, "kind"), valueOf(tagReadings, reg, to("type/m"))}
 	}
 	before := read()
-	m, ok := reg["type/m"].(*ir.Model)
+	model, ok := reg["type/m"].(*ir.Model)
 	require.True(t, ok)
-	swapped, isMap := ir.AsMap(m)
+	swapped, isMap := ir.AsMap(model)
 	require.True(t, isMap, "the model is its map")
 	reg["type/m"] = swapped
 

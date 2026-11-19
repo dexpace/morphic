@@ -97,15 +97,15 @@ type edgeSink struct {
 	found   bool
 }
 
-func (s *edgeSink) add(e edge) {
+func (s *edgeSink) add(edgeValue edge) {
 	if s.into != nil {
-		if !s.found && s.into[e.target] {
-			s.first, s.found = e, true
+		if !s.found && s.into[edgeValue.target] {
+			s.first, s.found = edgeValue, true
 		}
 		return
 	}
 	if s.targets != nil {
-		s.targets[s.count] = e.target
+		s.targets[s.count] = edgeValue.target
 	}
 	s.count++
 }
@@ -133,11 +133,11 @@ func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 			sink.emit(ix, t.Base, edgeBase, 0)
 		}
 	case *ir.List:
-		if set != compositionOnly && atLeastOne(t.Constraints, func(c *ir.Constraints) *int64 { return c.MinItems }) {
+		if set != compositionOnly && atLeastOne(t.Constraints, func(constraints *ir.Constraints) *int64 { return constraints.MinItems }) {
 			sink.emit(ix, &t.ElementType, edgeElement, 0)
 		}
 	case *ir.MapT:
-		if set != compositionOnly && atLeastOne(t.Constraints, func(c *ir.Constraints) *int64 { return c.MinProperties }) {
+		if set != compositionOnly && atLeastOne(t.Constraints, func(constraints *ir.Constraints) *int64 { return constraints.MinProperties }) {
 			sink.emit(ix, &t.Value, edgeValue, 0)
 		}
 	case *ir.Tuple:
@@ -155,52 +155,52 @@ func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 	}
 }
 
-// model adds the edges of m that set picks.
-func (s *edgeSink) model(ix typeIndex, m *ir.Model, set edgeSet) {
+// model adds the edges of model that set picks.
+func (s *edgeSink) model(ix typeIndex, model *ir.Model, set edgeSet) {
 	if set != needsExcludingComposition {
-		s.composition(ix, m, set == needsWithComposition)
+		s.composition(ix, model, set == needsWithComposition)
 	}
 	if set == compositionOnly {
 		return
 	}
-	for j := range m.Properties {
-		if m.Properties[j].Required {
-			s.emit(ix, &m.Properties[j].Type, edgeRequired, j)
+	for j := range model.Properties {
+		if model.Properties[j].Required {
+			s.emit(ix, &model.Properties[j].Type, edgeRequired, j)
 		}
 	}
 }
 
-// tuple adds the positions a value of t must fill, its first MinItems: Elems
+// tuple adds the positions a value of tuple must fill, its first MinItems: Elems
 // types positions without requiring them (docs/ir/containers.md), so a tuple
 // with no minimum needs nothing, and Rest types those past Elems.
-func (s *edgeSink) tuple(ix typeIndex, t *ir.Tuple) {
-	if t.Constraints == nil || t.Constraints.MinItems == nil {
+func (s *edgeSink) tuple(ix typeIndex, tuple *ir.Tuple) {
+	if tuple.Constraints == nil || tuple.Constraints.MinItems == nil {
 		return
 	}
-	filled := *t.Constraints.MinItems
-	for j := range t.ElementTypes {
+	filled := *tuple.Constraints.MinItems
+	for j := range tuple.ElementTypes {
 		if int64(j) >= filled {
 			return
 		}
-		s.emit(ix, &t.ElementTypes[j], edgeElementOf, j)
+		s.emit(ix, &tuple.ElementTypes[j], edgeElementOf, j)
 	}
-	if t.Rest != nil && filled > int64(len(t.ElementTypes)) {
-		s.emit(ix, t.Rest, edgeElementOf, len(t.ElementTypes))
+	if tuple.Rest != nil && filled > int64(len(tuple.ElementTypes)) {
+		s.emit(ix, tuple.Rest, edgeElementOf, len(tuple.ElementTypes))
 	}
 }
 
-// composition adds the base and the mixins of m. A model composing a union is
+// composition adds the base and the mixins of model. A model composing a union is
 // its conjunct and no construction of it: Shape's oneOf of Circle beside
 // Circle's allOf of Shape narrows nothing, each instance of the union being a
 // variant (docs/ir/models.md), so for the needs of a value, which forNeeds
 // says the edges are for, an entry that names a union, or an alias of one, is
 // not one.
-func (s *edgeSink) composition(ix typeIndex, m *ir.Model, forNeeds bool) {
-	if m.Base != nil {
-		s.compose(ix, m.Base, forNeeds, edgeBase, 0)
+func (s *edgeSink) composition(ix typeIndex, model *ir.Model, forNeeds bool) {
+	if model.Base != nil {
+		s.compose(ix, model.Base, forNeeds, edgeBase, 0)
 	}
-	for j := range m.Mixins {
-		s.compose(ix, &m.Mixins[j], forNeeds, edgeMixin, j)
+	for j := range model.Mixins {
+		s.compose(ix, &model.Mixins[j], forNeeds, edgeMixin, j)
 	}
 }
 
@@ -213,21 +213,21 @@ func (s *edgeSink) compose(ix typeIndex, ref *ir.TypeRef, forNeeds bool, kind ed
 	s.emit(ix, ref, kind, index)
 }
 
-// atLeastOne reports whether the bound pick reads from c is set and at least 1.
-func atLeastOne(c *ir.Constraints, pick func(*ir.Constraints) *int64) bool {
-	if c == nil {
+// atLeastOne reports whether the bound pick reads from constraints is set and at least 1.
+func atLeastOne(constraints *ir.Constraints, pick func(*ir.Constraints) *int64) bool {
+	if constraints == nil {
 		return false
 	}
-	n := pick(c)
+	n := pick(constraints)
 	return n != nil && *n >= 1
 }
 
-// everyVariantNeeded reports whether each variant of u is a live type that is
+// everyVariantNeeded reports whether each variant of union is a live type that is
 // not nullable: otherwise that variant is a value that needs nothing. A union
 // of no variant has none to need, and no edge.
-func everyVariantNeeded(u *ir.Union, ix typeIndex) bool {
-	for j := range u.Variants {
-		if _, ok := ix.of(&u.Variants[j].Type); !ok {
+func everyVariantNeeded(union *ir.Union, ix typeIndex) bool {
+	for j := range union.Variants {
+		if _, ok := ix.of(&union.Variants[j].Type); !ok {
 			return false
 		}
 	}
@@ -358,18 +358,18 @@ func edgesOf(composition bool, cyclic []bool, i int) edgeSet {
 // buildGraph reads the edges of each of ix's types that edgesOf picks.
 func buildGraph(doc *ir.Document, ix typeIndex, composition bool, cyclic []bool) graph {
 	n := len(ix.ids)
-	g := graph{starts: make([]int32, n+1)}
+	graphValue := graph{starts: make([]int32, n+1)}
 	var count edgeSink
 	for i, id := range ix.ids {
 		eachEdge(doc.Types[id], ix, edgesOf(composition, cyclic, i), &count)
-		g.starts[i+1] = count.count
+		graphValue.starts[i+1] = count.count
 	}
-	g.targets = make([]int32, count.count)
-	fill := edgeSink{targets: g.targets}
+	graphValue.targets = make([]int32, count.count)
+	fill := edgeSink{targets: graphValue.targets}
 	for i, id := range ix.ids {
 		eachEdge(doc.Types[id], ix, edgesOf(composition, cyclic, i), &fill)
 	}
-	return g
+	return graphValue
 }
 
 // checkCompositionCyclesAndInfiniteTypes reports each type that lies on a cycle of bases and mixins
@@ -425,21 +425,21 @@ func appendTypeCycleFindings(diags []ir.Diagnostic, doc *ir.Document, ix typeInd
 }
 
 // entryWords names what an edge is a need for.
-func entryWords(e edge) string {
-	switch e.kind {
+func entryWords(otherEdge edge) string {
+	switch otherEdge.kind {
 	case edgeBase:
 		return "base"
 	case edgeMixin:
-		return "mixin " + strconv.Itoa(e.index)
+		return "mixin " + strconv.Itoa(otherEdge.index)
 	case edgeRequired:
-		return "required property " + strconv.Itoa(e.index)
+		return "required property " + strconv.Itoa(otherEdge.index)
 	case edgeElement:
 		return "element"
 	case edgeValue:
 		return "value"
 	case edgeElementOf:
-		return "element " + strconv.Itoa(e.index)
+		return "element " + strconv.Itoa(otherEdge.index)
 	default:
-		return "variant " + strconv.Itoa(e.index)
+		return "variant " + strconv.Itoa(otherEdge.index)
 	}
 }

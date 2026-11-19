@@ -47,8 +47,8 @@ func lowerBounds(doc *ir.Document) map[jsontext.Pointer][2]ir.BigVal {
 		case *ir.Scalar:
 			add(n.Provenance, n.Constraints)
 		case *ir.Model:
-			for _, p := range n.Properties {
-				add(p.Provenance, p.Constraints)
+			for _, property := range n.Properties {
+				add(property.Provenance, property.Constraints)
 			}
 		}
 	}
@@ -118,9 +118,9 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 			doc, diags := parseFull(t, tc.src)
 			assert.Equal(t, tc.refused, openapitest.PointersOf(diags, diag.ExclusiveBoundForm))
 			assert.Equal(t, tc.bounds, lowerBounds(doc))
-			for _, d := range diags {
-				if d.Code != diag.ExclusiveBoundForm {
-					assert.NotEqual(t, ir.SeverityError, d.Severity, "%s %s", d.Code, d.Message)
+			for _, diagnostic := range diags {
+				if diagnostic.Code != diag.ExclusiveBoundForm {
+					assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "%s %s", diagnostic.Code, diagnostic.Message)
 				}
 			}
 			assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
@@ -137,12 +137,12 @@ func TestDocumentDialect_AParameterReadsItsSchemasDialect(t *testing.T) {
 		"        - {name: q, in: query, schema: {$schema: "+draft04+", type: integer, minimum: 5, exclusiveMinimum: true}}\n"+
 		"      responses: {'200': {description: ok}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	q, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+	parameter, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
 	require.True(t, ok)
-	require.NotNil(t, q.Constraints)
-	require.NotNil(t, q.Constraints.ExclusiveMin)
-	assert.Equal(t, ir.BigVal("5"), *q.Constraints.ExclusiveMin)
-	assert.Nil(t, q.Constraints.Min)
+	require.NotNil(t, parameter.Constraints)
+	require.NotNil(t, parameter.Constraints.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("5"), *parameter.Constraints.ExclusiveMin)
+	assert.Nil(t, parameter.Constraints.Min)
 }
 
 // TestDocumentDialect_AReferenceReadsWhatItNamesInItsRootsDialect pins that a
@@ -244,10 +244,10 @@ func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 		doc := compile(t, "paths: {}\ncomponents:\n  schemas:\n    G: {$ref: './other.yaml#/components/schemas/F'}\n",
 			"jsonSchemaDialect: "+draft07+"\npaths: {}\ncomponents:\n  schemas:\n"+
 				"    F: {type: object, allOf: [{dependencies: {a: [b]}}]}\n")
-		f, ok := doc.Types[ir.TypeID("type/openapi@other.yaml/components/schemas/F")].(*ir.Model)
+		model, ok := doc.Types[ir.TypeID("type/openapi@other.yaml/components/schemas/F")].(*ir.Model)
 		require.True(t, ok)
-		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, f.Unmodeled, "openapi:dependencies").Reason)
-		assert.NotContains(t, f.Unmodeled, "openapi:allOf/0", "the branch folds")
+		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, model.Unmodeled, "openapi:dependencies").Reason)
+		assert.NotContains(t, model.Unmodeled, "openapi:allOf/0", "the branch folds")
 	})
 	t.Run("from another document into a draft's", func(t *testing.T) {
 		t.Parallel()

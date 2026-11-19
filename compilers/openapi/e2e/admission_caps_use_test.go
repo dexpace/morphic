@@ -106,9 +106,9 @@ func useLoweringOf(doc *ir.Document, diags []ir.Diagnostic) useLowering {
 			out.types[id] = td
 		}
 	}
-	for _, d := range diags {
-		if !targetOwned.MatchString(string(d.Provenance.Pointer)) {
-			out.diags = append(out.diags, d)
+	for _, diagnostic := range diags {
+		if !targetOwned.MatchString(string(diagnostic.Provenance.Pointer)) {
+			out.diags = append(out.diags, diagnostic)
 		}
 	}
 	slices.SortFunc(out.diags, func(a, b ir.Diagnostic) int {

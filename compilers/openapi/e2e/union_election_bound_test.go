@@ -35,9 +35,9 @@ func TestElection_AUnionAndTheWordsItTiesWithAreTheUnionHoldingTheBound(t *testi
 			assert.Zero(t, degradedInfosAt(diags, "N"))
 			assert.Zero(t, degradedInfosAt(diags, "C"))
 
-			p := requireModelOf(t, doc, "N").Properties[0]
-			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/N/properties/p"), p.Type.Target, "the union stands at the property")
-			for _, id := range []ir.TypeID{p.Type.Target, componentID("C")} {
+			property := requireModelOf(t, doc, "N").Properties[0]
+			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/N/properties/p"), property.Type.Target, "the union stands at the property")
+			for _, id := range []ir.TypeID{property.Type.Target, componentID("C")} {
 				union, ok := kindNode(t, doc, id).(*ir.Union)
 				require.True(t, ok, "%s is the union, not the string beside it", id)
 				require.NotNil(t, union.Constraints, id)
@@ -45,8 +45,8 @@ func TestElection_AUnionAndTheWordsItTiesWithAreTheUnionHoldingTheBound(t *testi
 				assert.EqualValues(t, 1, *union.Constraints.MinLength, "%s holds the bound", id)
 				assert.Empty(t, keptOn(union), id)
 			}
-			assert.Nil(t, p.Constraints, "the property holds none")
-			assert.Empty(t, p.Unmodeled, "the words are held, not kept")
+			assert.Nil(t, property.Constraints, "the property holds none")
+			assert.Empty(t, property.Unmodeled, "the words are held, not kept")
 		})
 	}
 }

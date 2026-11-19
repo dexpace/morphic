@@ -43,8 +43,8 @@ func TestAllOf_AUnionAloneOnAnEntryLowersAsItsBareSpelling(t *testing.T) {
 		require.True(t, ok, "%s keeps its oneOf", name)
 		assert.Equal(t, ir.ReasonValidationOnly, kept.Reason, name)
 	}
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityWarning, d.Severity, d.Message)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, ir.SeverityWarning, diagnostic.Severity, diagnostic.Message)
 	}
 }
 

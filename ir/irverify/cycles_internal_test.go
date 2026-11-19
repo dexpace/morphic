@@ -29,9 +29,9 @@ func concreteTypeDefs(t *testing.T) []reflect.Type {
 		"the sum holds one concrete type per kind")
 
 	out := make([]reflect.Type, 0, len(kinds))
-	for _, k := range kinds {
-		td, known := ir.NewTypeDef(ir.TypeKind(k.Value))
-		require.True(t, known, "kind %q has no constructor", k.Value)
+	for _, declaredConst := range kinds {
+		td, known := ir.NewTypeDef(ir.TypeKind(declaredConst.Value))
+		require.True(t, known, "kind %q has no constructor", declaredConst.Value)
 		out = append(out, reflect.TypeOf(td))
 	}
 	return out

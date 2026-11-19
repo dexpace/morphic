@@ -70,10 +70,10 @@ func TestUseOf_FallsBackToEachHopOfTheChain(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			for wire, want := range chainWant {
-				p := propertyOf(t, doc, "Holder", wire)
-				require.NotNil(t, p.Default, wire)
-				assert.Equal(t, ir.Value{Kind: ir.ValueString, String: want.def}, *p.Default, "%s: the nearest default", wire)
-				assert.Equal(t, want.desc, p.Docs.Description, "%s: the nearest description", wire)
+				property := propertyOf(t, doc, "Holder", wire)
+				require.NotNil(t, property.Default, wire)
+				assert.Equal(t, ir.Value{Kind: ir.ValueString, String: want.def}, *property.Default, "%s: the nearest default", wire)
+				assert.Equal(t, want.desc, property.Docs.Description, "%s: the nearest description", wire)
 			}
 			assert.Equal(t, []string{
 				"info openapi/degraded-construct /components/schemas/Fine/default",
@@ -112,10 +112,10 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for wire, want := range chainWant {
-		p := propertyOf(t, doc, "Holder", wire)
-		require.NotNil(t, p.Default, wire)
-		assert.Equal(t, ir.Value{Kind: ir.ValueString, String: want.def}, *p.Default, "%s: the nearest default", wire)
-		assert.Equal(t, want.desc, p.Docs.Description, "%s: the nearest description", wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		require.NotNil(t, property.Default, wire)
+		assert.Equal(t, ir.Value{Kind: ir.ValueString, String: want.def}, *property.Default, "%s: the nearest default", wire)
+		assert.Equal(t, want.desc, property.Docs.Description, "%s: the nearest description", wire)
 	}
 }
 
@@ -147,17 +147,17 @@ func TestUseOf_AnAliasHopIsNoReadThrough(t *testing.T) {
 			t.Parallel()
 			bare, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", aliasChain(n, -1)))
 			openapitest.RequireNoErrorDiags(t, diags)
-			p := propertyOf(t, bare, "Holder", "p")
-			require.NotNil(t, p.Default)
-			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *p.Default, "the end's default")
-			assert.Equal(t, "from-end", p.Docs.Description, "the end's description")
+			property := propertyOf(t, bare, "Holder", "p")
+			require.NotNil(t, property.Default)
+			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *property.Default, "the end's default")
+			assert.Equal(t, "from-end", property.Docs.Description, "the end's description")
 
 			written, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", aliasChain(n, n/2)))
 			openapitest.RequireNoErrorDiags(t, diags)
-			p = propertyOf(t, written, "Holder", "p")
-			require.NotNil(t, p.Default)
-			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *p.Default, "no alias writes a default")
-			assert.Equal(t, "from-alias", p.Docs.Description, "the nearest hop that writes a description")
+			property = propertyOf(t, written, "Holder", "p")
+			require.NotNil(t, property.Default)
+			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *property.Default, "no alias writes a default")
+			assert.Equal(t, "from-alias", property.Docs.Description, "the nearest hop that writes a description")
 		})
 	}
 }
@@ -193,10 +193,10 @@ func TestUseOf_AnAliasHopIsNoReadThroughAcrossTwoDocuments(t *testing.T) {
 
 			doc, diags, _ := compileBeside(t, map[string]string{"other.yaml": other.String()}, root.String())
 			openapitest.RequireNoErrorDiags(t, diags)
-			p := propertyOf(t, doc, "Holder", "p")
-			require.NotNil(t, p.Default)
-			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *p.Default)
-			assert.Equal(t, "from-alias", p.Docs.Description)
+			property := propertyOf(t, doc, "Holder", "p")
+			require.NotNil(t, property.Default)
+			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *property.Default)
+			assert.Equal(t, "from-alias", property.Docs.Description)
 		})
 	}
 }
@@ -315,8 +315,8 @@ components:
 	op := openapitest.FirstOp(t, doc.Services[0])
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 2)
-	for _, h := range op.Responses[0].Headers {
-		assert.Nil(t, h.Default, h.WireName)
+	for _, header := range op.Responses[0].Headers {
+		assert.Nil(t, header.Default, header.WireName)
 	}
 }
 
@@ -347,9 +347,9 @@ func findings(diags []ir.Diagnostic) []string {
 // as "severity code pointer", sorted.
 func findingsOf(diags []ir.Diagnostic, code string) []string {
 	var out []string
-	for _, d := range diags {
-		if code == "" || d.Code == code {
-			out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if code == "" || diagnostic.Code == code {
+			out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 		}
 	}
 	slices.Sort(out)
@@ -385,8 +385,8 @@ components:
 		{"G", "applied to a referencing property, header or parameter wherever that carrier has a field for it"},
 	} {
 		at := jsontext.Pointer("/components/schemas/" + tc.name + "/default")
-		i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool {
-			return d.Code == diag.DegradedConstruct && d.Provenance.Pointer == at
+		i := slices.IndexFunc(diags, func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Code == diag.DegradedConstruct && diagnostic.Provenance.Pointer == at
 		})
 		require.GreaterOrEqual(t, i, 0, "%s keeps its default with an info", tc.name)
 		assert.True(t, strings.HasSuffix(diags[i].Message, tc.reach), "%s: %s", tc.name, diags[i].Message)
@@ -412,13 +412,13 @@ func TestUseOf_AReferenceTheTableDidNotReadFallsBackToNothing(t *testing.T) {
 		"    B: {<<: *deep}\n"+
 		"    C: {type: string, description: c, deprecated: true}\n"+
 		"    Holder: {type: object, properties: {p: {$ref: '#/components/schemas/A'}, q: {<<: *deep}}}\n")
-	p := propertyOf(t, doc, "Holder", "p")
-	assert.Equal(t, componentID("A"), p.Type.Target)
-	assert.Equal(t, "a", p.Docs.Description, "the first hop's words")
-	assert.Nil(t, p.Deprecation, "nothing past the unread $ref is lent")
-	q := propertyOf(t, doc, "Holder", "q")
-	assert.Equal(t, ir.TypeID("type/primitive/any"), q.Type.Target)
-	assert.Empty(t, q.Docs.Description, "its words lie past the merge bound, which are not read")
-	assert.Nil(t, q.Deprecation)
+	property := propertyOf(t, doc, "Holder", "p")
+	assert.Equal(t, componentID("A"), property.Type.Target)
+	assert.Equal(t, "a", property.Docs.Description, "the first hop's words")
+	assert.Nil(t, property.Deprecation, "nothing past the unread $ref is lent")
+	irProperty := propertyOf(t, doc, "Holder", "q")
+	assert.Equal(t, ir.TypeID("type/primitive/any"), irProperty.Type.Target)
+	assert.Empty(t, irProperty.Docs.Description, "its words lie past the merge bound, which are not read")
+	assert.Nil(t, irProperty.Deprecation)
 	assert.Len(t, withCode(diags, diag.UnresolvedRef), 2, "B's and q's")
 }

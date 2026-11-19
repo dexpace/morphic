@@ -66,30 +66,30 @@ func Classify(n *yaml.Node) (Scalar, error) {
 	if n == nil || n.Kind != yaml.ScalarNode {
 		return Scalar{}, errors.New("openapi: not a scalar")
 	}
-	s := Scalar{Text: n.Value}
+	scalar := Scalar{Text: n.Value}
 	switch tag := n.ShortTag(); tag {
 	case "!!null":
-		return s, decodes(n, new(any), "null")
+		return scalar, decodes(n, new(any), "null")
 	case "!!bool":
-		s.Kind = ScalarBool
-		return s, decodes(n, &s.Bool, "bool")
+		scalar.Kind = ScalarBool
+		return scalar, decodes(n, &scalar.Bool, "bool")
 	case "!!int", "!!float":
 		num, err := NumericLiteral(n)
 		if err != nil {
 			return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", n.Value, err)
 		}
-		s.Kind, s.Num = ScalarNumber, num
-		return s, nil
+		scalar.Kind, scalar.Num = ScalarNumber, num
+		return scalar, nil
 	case "!!str", "!!merge":
-		return text(n, s)
+		return text(n, scalar)
 	case "!!timestamp":
-		s.Kind = ScalarTimestamp
-		return s, decodes(n, new(time.Time), "timestamp")
+		scalar.Kind = ScalarTimestamp
+		return scalar, decodes(n, new(time.Time), "timestamp")
 	case "!!binary":
-		return binary(n, s)
+		return binary(n, scalar)
 	default:
-		s.Kind = ScalarTagged
-		return s, nil
+		scalar.Kind = ScalarTagged
+		return scalar, nil
 	}
 }
 
@@ -117,20 +117,20 @@ func (s Scalar) JSONKind() ScalarKind {
 //
 // `<<` written as a value, which yaml.v3 tags !!merge wherever it stands, is
 // the text it spells: only a key merges.
-func text(n *yaml.Node, s Scalar) (Scalar, error) {
-	s.Kind = ScalarString
+func text(n *yaml.Node, scalar Scalar) (Scalar, error) {
+	scalar.Kind = ScalarString
 	if n.Style != 0 || n.ShortTag() != "!!str" {
-		return s, nil
+		return scalar, nil
 	}
 	num, err := ir.NewBigVal(n.Value)
 	switch {
 	case err == nil:
-		s.Kind, s.Num = ScalarNumber, num
-		return s, nil
+		scalar.Kind, scalar.Num = ScalarNumber, num
+		return scalar, nil
 	case errors.Is(err, ir.ErrExponentRange):
 		return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", n.Value, err)
 	default:
-		return s, nil
+		return scalar, nil
 	}
 }
 
@@ -138,13 +138,13 @@ func text(n *yaml.Node, s Scalar) (Scalar, error) {
 // holds. yaml.v3 base64-decodes a !!binary node into a string (it rejects a
 // []byte target), so the decode goes through one. The error names no text,
 // which may be any length of bytes.
-func binary(n *yaml.Node, s Scalar) (Scalar, error) {
+func binary(n *yaml.Node, scalar Scalar) (Scalar, error) {
 	var raw string
 	if err := n.Decode(&raw); err != nil {
 		return Scalar{}, fmt.Errorf("openapi: binary literal: %w", err)
 	}
-	s.Kind, s.Bytes = ScalarBinary, []byte(raw)
-	return s, nil
+	scalar.Kind, scalar.Bytes = ScalarBinary, []byte(raw)
+	return scalar, nil
 }
 
 // decodes reports whether yaml.v3 decodes n into target, which is the check
@@ -172,8 +172,8 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	}
 	switch node.ShortTag() {
 	case "!!int":
-		if c, ok := nodeview.ParseCoreInteger(node.Value); ok {
-			return coreLiteral(c)
+		if coreInteger, ok := nodeview.ParseCoreInteger(node.Value); ok {
+			return coreLiteral(coreInteger)
 		}
 		return decodeIntLiteral(node)
 	case "!!float":
@@ -190,22 +190,22 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 // base-ten integer is copied, at any length.
 const maxBasedDigits = 256
 
-// coreLiteral renders c, an integer the core schema spells, as its decimal
+// coreLiteral renders coreInteger, an integer the core schema spells, as its decimal
 // literal: a base-ten one as written, its leading zeros dropped, and an 0o or
 // 0x one converted, up to maxBasedDigits digits.
-func coreLiteral(c nodeview.CoreInteger) (ir.BigVal, error) {
-	if c.Base == 10 {
-		digits := strings.TrimLeft(c.Digits, "0")
-		if digits != "" && c.Negative {
+func coreLiteral(coreInteger nodeview.CoreInteger) (ir.BigVal, error) {
+	if coreInteger.Base == 10 {
+		digits := strings.TrimLeft(coreInteger.Digits, "0")
+		if digits != "" && coreInteger.Negative {
 			digits = "-" + digits
 		}
 		return ir.NewBigVal(cmp.Or(digits, "0"))
 	}
-	if len(c.Digits) > maxBasedDigits {
+	if len(coreInteger.Digits) > maxBasedDigits {
 		return "", fmt.Errorf("openapi: a base-%d integer of %d digits is past the %d digits read",
-			c.Base, len(c.Digits), maxBasedDigits)
+			coreInteger.Base, len(coreInteger.Digits), maxBasedDigits)
 	}
-	v, _ := new(big.Int).SetString(c.Digits, c.Base) // the grammar admits digits of the base alone
+	v, _ := new(big.Int).SetString(coreInteger.Digits, coreInteger.Base) // the grammar admits digits of the base alone
 	return ir.NewBigVal(v.String())
 }
 

@@ -28,20 +28,22 @@ func judge(t *testing.T, kind specrules.Kind, doc string) judgment {
 	t.Helper()
 	var n yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
-	j := judgment{referenced: map[specrules.Kind][]*yaml.Node{}}
-	j.diags = specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
+	judgmentValue := judgment{referenced: map[specrules.Kind][]*yaml.Node{}}
+	judgmentValue.diags = specrules.NewChecker().Check(t.Context(), &n, "3.1.0", specrules.Options{
 		Start:  kind,
-		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+		Locate: func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} },
 		Judged: func(node *yaml.Node, refused bool) {
 			if refused {
-				j.refused = append(j.refused, node)
+				judgmentValue.refused = append(judgmentValue.refused, node)
 				return
 			}
-			j.accepted = append(j.accepted, node)
+			judgmentValue.accepted = append(judgmentValue.accepted, node)
 		},
-		Referenced: func(k specrules.Kind, node *yaml.Node) { j.referenced[k] = append(j.referenced[k], node) },
+		Referenced: func(kind specrules.Kind, node *yaml.Node) {
+			judgmentValue.referenced[kind] = append(judgmentValue.referenced[kind], node)
+		},
 	})
-	return j
+	return judgmentValue
 }
 
 // values returns the Value of each node, for a comparison by what was written.
@@ -59,11 +61,11 @@ func values(nodes []*yaml.Node) []string {
 func TestCheck_JudgedTellsEachValueTheCheckRefusedWhereItIsWritten(t *testing.T) {
 	t.Parallel()
 
-	j := judge(t, specrules.Parameter, "{name: n, in: query, required: \"yes\", explode: on, deprecated: ~, schema: {type: string}}")
+	judgment := judge(t, specrules.Parameter, "{name: n, in: query, required: \"yes\", explode: on, deprecated: ~, schema: {type: string}}")
 
-	assert.ElementsMatch(t, []string{"yes", "on"}, values(j.refused))
-	assert.Empty(t, j.accepted, "outside a shared frame, an accepted value is not told")
-	assert.Len(t, j.diags, 3, "the two errors and the null's warning, which the hook is not told of")
+	assert.ElementsMatch(t, []string{"yes", "on"}, values(judgment.refused))
+	assert.Empty(t, judgment.accepted, "outside a shared frame, an accepted value is not told")
+	assert.Len(t, judgment.diags, 3, "the two errors and the null's warning, which the hook is not told of")
 }
 
 // TestCheck_JudgedTellsAnObjectThatIsNoMappingAndATaggedValue holds the hook to
@@ -72,9 +74,9 @@ func TestCheck_JudgedTellsEachValueTheCheckRefusedWhereItIsWritten(t *testing.T)
 func TestCheck_JudgedTellsAnObjectThatIsNoMappingAndATaggedValue(t *testing.T) {
 	t.Parallel()
 
-	j := judge(t, specrules.Components, "{parameters: {a: hello}, schemas: {S: {title: !local t, description: !!str d, maxLength: !!int 3, example: !!binary aGk=}}}")
+	judgment := judge(t, specrules.Components, "{parameters: {a: hello}, schemas: {S: {title: !local t, description: !!str d, maxLength: !!int 3, example: !!binary aGk=}}}")
 
-	assert.ElementsMatch(t, []string{"hello", "t"}, values(j.refused), "the entry that is no object, and the tagged title")
+	assert.ElementsMatch(t, []string{"hello", "t"}, values(judgment.refused), "the entry that is no object, and the tagged title")
 }
 
 // TestCheck_ATaggedItemOfAListIsNamedByItsTag holds a list refused for an item
@@ -83,11 +85,11 @@ func TestCheck_JudgedTellsAnObjectThatIsNoMappingAndATaggedValue(t *testing.T) {
 func TestCheck_ATaggedItemOfAListIsNamedByItsTag(t *testing.T) {
 	t.Parallel()
 
-	j := judge(t, specrules.Schema, "{type: [string, !acme integer]}")
+	judgment := judge(t, specrules.Schema, "{type: [string, !acme integer]}")
 
-	require.Len(t, j.diags, 1)
-	assert.Equal(t, mismatch, j.diags[0].Code)
-	assert.Contains(t, j.diags[0].Message, `; it is tagged "!acme", outside YAML 1.2's JSON schema ruleset`)
+	require.Len(t, judgment.diags, 1)
+	assert.Equal(t, mismatch, judgment.diags[0].Code)
+	assert.Contains(t, judgment.diags[0].Message, `; it is tagged "!acme", outside YAML 1.2's JSON schema ruleset`)
 }
 
 // TestCheck_ATagOutsideTheRulesetIsRefusedWithTheTagSaid holds the table's error
@@ -96,13 +98,13 @@ func TestCheck_ATaggedItemOfAListIsNamedByItsTag(t *testing.T) {
 func TestCheck_ATagOutsideTheRulesetIsRefusedWithTheTagSaid(t *testing.T) {
 	t.Parallel()
 
-	j := judge(t, specrules.Schema, "{title: !local t, type: !local [string], description: !!str d, maxLength: !!int 3, example: !!binary aGk=}")
+	judgment := judge(t, specrules.Schema, "{title: !local t, type: !local [string], description: !!str d, maxLength: !!int 3, example: !!binary aGk=}")
 
 	got := map[string]string{}
-	for _, d := range j.diags {
-		assert.Equal(t, mismatch, d.Code)
-		assert.Equal(t, ir.SeverityError, d.Severity)
-		got[string(d.Provenance.Pointer)] = d.Message
+	for _, diagnostic := range judgment.diags {
+		assert.Equal(t, mismatch, diagnostic.Code)
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+		got[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 	}
 	assert.Contains(t, got["/title"], `; it is tagged "!local", outside YAML 1.2's JSON schema ruleset, to which OpenAPI 3.1 limits tags (Format)`)
 	assert.Contains(t, got["/type"], `it is tagged "!local", outside YAML 1.2's JSON schema ruleset`)
@@ -118,17 +120,17 @@ func TestCheck_ATagOutsideTheRulesetIsRefusedWithTheTagSaid(t *testing.T) {
 func TestCheck_JudgedTellsEachValueAFrameSharesAcceptedOrRefused(t *testing.T) {
 	t.Parallel()
 
-	j := judge(t, specrules.Components, "{schemas: {A: &m {type: string, maxLength: 3}, B: {type: object, properties: *m}}}")
+	judgment := judge(t, specrules.Components, "{schemas: {A: &m {type: string, maxLength: 3}, B: {type: object, properties: *m}}}")
 
-	assert.Contains(t, values(j.accepted), "3", "A reads maxLength as a keyword")
-	assert.Contains(t, values(j.refused), "3", "B reads it as a schema, and refuses it")
-	assert.Contains(t, values(j.refused), "string")
+	assert.Contains(t, values(judgment.accepted), "3", "A reads maxLength as a keyword")
+	assert.Contains(t, values(judgment.refused), "3", "B reads it as a schema, and refuses it")
+	assert.Contains(t, values(judgment.refused), "string")
 	acceptedNodes := map[*yaml.Node]bool{}
-	for _, n := range j.accepted {
+	for _, n := range judgment.accepted {
 		acceptedNodes[n] = true
 	}
 	var both int
-	for _, n := range j.refused {
+	for _, n := range judgment.refused {
 		if acceptedNodes[n] {
 			both++
 		}
@@ -142,11 +144,11 @@ func TestCheck_JudgedTellsEachValueAFrameSharesAcceptedOrRefused(t *testing.T) {
 func TestCheck_JudgedIsToldOfAValueRefusedInEveryPlaceOfASharedFrame(t *testing.T) {
 	t.Parallel()
 
-	j := judge(t, specrules.Components, "{parameters: {a: &p {name: n, in: query, required: \"yes\"}, b: *p}}")
+	judgment := judge(t, specrules.Components, "{parameters: {a: &p {name: n, in: query, required: \"yes\"}, b: *p}}")
 
-	assert.Contains(t, values(j.refused), "yes")
-	assert.NotContains(t, values(j.accepted), "yes")
-	assert.Contains(t, values(j.accepted), "query", "a value accepted in a shared frame is told so")
+	assert.Contains(t, values(judgment.refused), "yes")
+	assert.NotContains(t, values(judgment.accepted), "yes")
+	assert.Contains(t, values(judgment.accepted), "query", "a value accepted in a shared frame is told so")
 }
 
 // TestCheck_AFieldOfAnyShapeAcceptsNothing holds a shared scalar a parameter's
@@ -165,10 +167,10 @@ func TestCheck_AFieldOfAnyShapeAcceptsNothing(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			j := judge(t, specrules.Components, "{x-r: &r \"yes\", parameters: {a: {name: n, in: query, required: *r, "+use+"}}}")
+			judgment := judge(t, specrules.Components, "{x-r: &r \"yes\", parameters: {a: {name: n, in: query, required: *r, "+use+"}}}")
 
-			assert.Contains(t, values(j.refused), "yes")
-			assert.NotContains(t, values(j.accepted), "yes")
+			assert.Contains(t, values(judgment.refused), "yes")
+			assert.NotContains(t, values(judgment.accepted), "yes")
 		})
 	}
 }
@@ -179,16 +181,16 @@ func TestCheck_AFieldOfAnyShapeAcceptsNothing(t *testing.T) {
 func TestCheck_ReferencedTellsEachMappingReadAsAReferenceObject(t *testing.T) {
 	t.Parallel()
 
-	j := judge(t, specrules.Components,
+	judgment := judge(t, specrules.Components,
 		"{parameters: {a: {$ref: '#/x'}, b: &r {$ref: ~}, c: *r, d: {name: n, in: query, schema: {type: string}}}}")
 
-	got := j.referenced[specrules.Parameter]
+	got := judgment.referenced[specrules.Parameter]
 	require.Len(t, got, 3, "a, b and c")
 	for _, n := range got {
 		assert.Equal(t, yaml.MappingNode, n.Kind, "an alias is followed")
 		assert.Equal(t, "$ref", n.Content[0].Value)
 	}
-	assert.Len(t, j.referenced, 1, "no other kind")
+	assert.Len(t, judgment.referenced, 1, "no other kind")
 }
 
 // TestCheck_AFindingNamesTheLeastPositionThatReadIt holds the position a
@@ -205,8 +207,8 @@ func TestCheck_AFindingNamesTheLeastPositionThatReadIt(t *testing.T) {
 			Locate: func(jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/placed"} },
 			ReadAt: true,
 		})
-		for _, d := range diags {
-			messages = append(messages, d.Message)
+		for _, diagnostic := range diags {
+			messages = append(messages, diagnostic.Message)
 		}
 	}
 

@@ -327,8 +327,8 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 	require.NotEmpty(t, swept, "corpus sweep found no specs under %s", root)
 
 	listed := make(map[string]bool, len(swept))
-	for _, r := range swept {
-		listed[r.Spec] = true
+	for _, result := range swept {
+		listed[result.Spec] = true
 	}
 	var unlisted []string
 	for _, f := range fixtureFiles(t, root) {
@@ -341,23 +341,23 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 
 	invalid, findings, declines := knownInvalid(), knownFindings(), knownDeclines()
 	var unexpected []harness.Result
-	for _, r := range swept {
+	for _, result := range swept {
 		var want []harness.Outcome
-		if invalid[r.Spec] {
+		if invalid[result.Spec] {
 			want = append(want, harness.OutcomeErrorDiag)
 		}
-		want = append(want, findings[r.Spec]...)
+		want = append(want, findings[result.Spec]...)
 		slices.Sort(want)
-		if !slices.Equal(want, foundOutcomes(r)) {
-			unexpected = append(unexpected, r)
+		if !slices.Equal(want, foundOutcomes(result)) {
+			unexpected = append(unexpected, result)
 		}
-		for _, v := range r.Verdicts {
+		for _, verdict := range result.Verdicts {
 			switch {
-			case v.Asked():
-			case v.Oracle == harness.OracleSequenceOrder:
-				assertSequenceDecline(t, r.Spec, v.Declined)
+			case verdict.Asked():
+			case verdict.Oracle == harness.OracleSequenceOrder:
+				assertSequenceDecline(t, result.Spec, verdict.Declined)
 			default:
-				assert.Equal(t, declines[r.Spec], v.Declined, "%s: %s declines it unlisted", r.Spec, v.Oracle)
+				assert.Equal(t, declines[result.Spec], verdict.Declined, "%s: %s declines it unlisted", result.Spec, verdict.Oracle)
 			}
 		}
 	}
@@ -369,18 +369,18 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 	// The sequence-order oracle declines nearly every fixture, so a decline of
 	// its own says nothing of whether another oracle reaches a listed one.
 	declinedBy := func(spec string, wanted func(harness.Oracle) bool) bool {
-		return slices.ContainsFunc(swept, func(r harness.Result) bool {
-			return r.Spec == spec && slices.ContainsFunc(r.Verdicts, func(v harness.Verdict) bool {
-				return !v.Asked() && wanted(v.Oracle)
+		return slices.ContainsFunc(swept, func(result harness.Result) bool {
+			return result.Spec == spec && slices.ContainsFunc(result.Verdicts, func(verdict harness.Verdict) bool {
+				return !verdict.Asked() && wanted(verdict.Oracle)
 			})
 		})
 	}
 	for spec := range declines {
-		assert.True(t, declinedBy(spec, func(o harness.Oracle) bool { return o != harness.OracleSequenceOrder }),
+		assert.True(t, declinedBy(spec, func(oracle harness.Oracle) bool { return oracle != harness.OracleSequenceOrder }),
 			"%s is listed in knownDeclines but every oracle asks it its question", spec)
 	}
 	for spec := range sequenceDeclines {
-		assert.True(t, declinedBy(spec, func(o harness.Oracle) bool { return o == harness.OracleSequenceOrder }),
+		assert.True(t, declinedBy(spec, func(oracle harness.Oracle) bool { return oracle == harness.OracleSequenceOrder }),
 			"%s is listed in knownSequenceDeclines but the sequence-order oracle asks it its question", spec)
 	}
 
@@ -390,13 +390,13 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 	}
 }
 
-// foundOutcomes is what each oracle that found something in r found, sorted,
+// foundOutcomes is what each oracle that found something in result found, sorted,
 // so a list need not follow Check's order to match it.
-func foundOutcomes(r harness.Result) []harness.Outcome {
+func foundOutcomes(result harness.Result) []harness.Outcome {
 	var out []harness.Outcome
-	for _, v := range r.Verdicts {
-		if v.Found() {
-			out = append(out, v.Outcome)
+	for _, verdict := range result.Verdicts {
+		if verdict.Found() {
+			out = append(out, verdict.Outcome)
 		}
 	}
 	slices.Sort(out)

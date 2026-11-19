@@ -220,10 +220,10 @@ func mediaTypeRules(c func(Minor, string) Cite) []Rule {
 
 // encodingExclusions are the rules that keep an object's encoding by name from
 // being written beside its encoding by position.
-func encodingExclusions(c func(Minor, string) Cite, m Minor, sentence string) []Rule {
+func encodingExclusions(c func(Minor, string) Cite, minor Minor, sentence string) []Rule {
 	return []Rule{
-		exclusive(From(m), fields("encoding", "prefixEncoding"), c(m, sentence)),
-		exclusive(From(m), fields("encoding", "itemEncoding"), c(m, sentence)),
+		exclusive(From(minor), fields("encoding", "prefixEncoding"), c(minor, sentence)),
+		exclusive(From(minor), fields("encoding", "itemEncoding"), c(minor, sentence)),
 	}
 }
 
@@ -260,11 +260,11 @@ func encodingObject() Object {
 	}
 }
 
-// arranging returns f, one of the Encoding Object's RFC6570-style fields, with
+// arranging returns field, one of the Encoding Object's RFC6570-style fields, with
 // the media types under which it takes effect, replacing the contentType: a
 // form body at every minor, and a multipart/form-data body from 3.1.
-func arranging(f Field, c func(Minor, string) Cite) Field {
-	return f.
+func arranging(field Field, c func(Minor, string) Cite) Field {
+	return field.
 		within("application/x-www-form-urlencoded", Always(),
 			c(V30, "This field SHALL be ignored if the request body media type is not `application/x-www-form-urlencoded`."),
 			c(V30, "The value of `contentType`, whether it is explicitly defined or has the default value, is to be ignored"),

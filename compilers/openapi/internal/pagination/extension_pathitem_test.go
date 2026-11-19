@@ -57,9 +57,9 @@ func TestPromote_ASilentOperationReadsNeitherItsPathItemNorTheRoot(t *testing.T)
 	assert.Nil(t, purge.Pagination)
 	assert.NotContains(t, string(purge.Provenance.Inferred), "extension-promotion")
 	assert.Contains(t, purge.Unmodeled, "openapi:pathItem/x-fern-pagination")
-	for _, d := range diags {
-		if d.Code == diag.UnpromotedExtension {
-			assert.NotContains(t, string(d.Provenance.Pointer), "/delete", "no finding names purgeDogs")
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnpromotedExtension {
+			assert.NotContains(t, string(diagnostic.Provenance.Pointer), "/delete", "no finding names purgeDogs")
 		}
 	}
 }

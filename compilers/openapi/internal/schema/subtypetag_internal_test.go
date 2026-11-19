@@ -85,18 +85,18 @@ func routesAllocs(t *testing.T, width int) float64 {
 	for i := range width {
 		fmt.Fprintf(&spec, "    S%d: {allOf: [{$ref: '#/components/schemas/Pet'}]}\n", i)
 	}
-	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", spec.String()))
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", spec.String()))
 	schemaNamed := func(name string) *statement.Schema {
-		js, ok := l.Doc.Components.Schemas.Get(name)
+		js, ok := lowerer.Doc.Components.Schemas.Get(name)
 		require.True(t, ok, name)
-		return l.Ctx.Statements().Of(js).Schema
+		return lowerer.Ctx.Statements().Of(js).Schema
 	}
 	pet, last := schemaNamed("Pet"), schemaNamed(fmt.Sprintf("S%d", width-1))
-	require.True(t, routesByName(l.Ctx, pet, last), "a listed subtype is routed by name")
+	require.True(t, routesByName(lowerer.Ctx, pet, last), "a listed subtype is routed by name")
 
 	fewest := math.Inf(1)
 	for range 20 {
-		fewest = min(fewest, testing.AllocsPerRun(1, func() { routesByName(l.Ctx, pet, last) }))
+		fewest = min(fewest, testing.AllocsPerRun(1, func() { routesByName(lowerer.Ctx, pet, last) }))
 	}
 	return fewest
 }

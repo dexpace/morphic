@@ -106,15 +106,15 @@ func duplicateIDs(decls declarations, differs map[occurrence]bool) []Violation {
 	type declared struct{ first, met int }
 	seen := make(map[identity]declared, len(list))
 	var again []redeclaration
-	for i, d := range list {
-		key := identity{class: d.Class, id: d.ID}
+	for i, idDeclaration := range list {
+		key := identity{class: idDeclaration.Class, id: idDeclaration.ID}
 		before, taken := seen[key]
 		if !taken {
 			seen[key] = declared{first: i, met: 1}
 			continue
 		}
 		seen[key] = declared{first: before.first, met: before.met + 1}
-		if d.Class == propIDType && !differs[occurrence{id: d.ID, n: before.met}] {
+		if idDeclaration.Class == propIDType && !differs[occurrence{id: idDeclaration.ID, n: before.met}] {
 			continue // one property materialized at several paths, not two properties
 		}
 		again = append(again, redeclaration{at: i, first: before.first})
@@ -129,17 +129,17 @@ func redeclarationViolations(list []ir.IDDeclaration, again []redeclaration, dec
 		return nil
 	}
 	at := make(map[int]bool, 2*len(again))
-	for _, r := range again {
-		at[r.at], at[r.first] = true, true
+	for _, redeclaration := range again {
+		at[redeclaration.at], at[redeclaration.first] = true, true
 	}
 	paths := decls.pathsAt(at)
 	vs := make([]Violation, 0, len(again))
-	for _, r := range again {
-		d := list[r.at]
+	for _, redeclaration := range again {
+		idDeclaration := list[redeclaration.at]
 		vs = append(vs, Violation{
-			Code:    "ir/duplicate-" + ir.RefNoun(d.Class) + "-id",
-			Message: "id " + strconv.Quote(d.ID) + " is declared here and at " + strconv.Quote(paths[r.first]),
-			Path:    paths[r.at],
+			Code:    "ir/duplicate-" + ir.RefNoun(idDeclaration.Class) + "-id",
+			Message: "id " + strconv.Quote(idDeclaration.ID) + " is declared here and at " + strconv.Quote(paths[redeclaration.first]),
+			Path:    paths[redeclaration.at],
 		})
 	}
 	return vs

@@ -85,10 +85,10 @@ func spacedReads() *spacedReader {
 	}}
 }
 
-// spacedExternal reads through r beside a source at self.
-func spacedExternal(r *spacedReader, self string) *external {
+// spacedExternal reads through spacedReaderValue beside a source at self.
+func spacedExternal(spacedReaderValue *spacedReader, self string) *external {
 	src := sourceDocument{path: self, judged: judgment{checker: specrules.NewChecker()}}
-	return newExternal(Options{Reader: r}, newExternalReads(src, budget.Unbounded()), &aside{})
+	return newExternal(Options{Reader: spacedReaderValue}, newExternalReads(src, budget.Unbounded()), &aside{})
 }
 
 // barredWith asserts err refuses to its asker alone, for why.
@@ -106,37 +106,37 @@ func barredWith(t *testing.T, err error, why string) {
 // read for a wider asker.
 func TestExternal_AFetchedDocumentReadsNoMorePrivateAddressThanItsOwn(t *testing.T) {
 	t.Parallel()
-	r := spacedReads()
-	e := spacedExternal(r, "spec.yaml")
-	_, err := e.document(t.Context(), reachPub, "spec.yaml")
+	spacedReader := spacedReads()
+	external := spacedExternal(spacedReader, "spec.yaml")
+	_, err := external.document(t.Context(), reachPub, "spec.yaml")
 	require.NoError(t, err)
 
-	_, err = e.document(t.Context(), reachPriv, reachPub)
+	_, err = external.document(t.Context(), reachPriv, reachPub)
 	barredWith(t, err, "it is at a private address, which a reference in a document read from a public one does not reach")
-	_, err = e.document(t.Context(), reachPriv, reachPub)
+	_, err = external.document(t.Context(), reachPriv, reachPub)
 	barredWith(t, err, "private address")
-	assert.Equal(t, []compilers.AddressSpace{compilers.SpacePublic}, r.asked(reachPriv), "refused once, unread")
+	assert.Equal(t, []compilers.AddressSpace{compilers.SpacePublic}, spacedReader.asked(reachPriv), "refused once, unread")
 
-	_, err = e.document(t.Context(), reachPriv, "spec.yaml")
+	_, err = external.document(t.Context(), reachPriv, "spec.yaml")
 	require.NoError(t, err, "a wider asker reads it")
-	_, err = e.document(t.Context(), reachPriv, reachPub)
+	_, err = external.document(t.Context(), reachPriv, reachPub)
 	barredWith(t, err, "private address")
-	assert.Len(t, r.asked(reachPriv), 2, "judged as read, asking nothing more")
+	assert.Len(t, spacedReader.asked(reachPriv), 2, "judged as read, asking nothing more")
 
-	_, err = e.document(t.Context(), reachPub, reachPriv)
+	_, err = external.document(t.Context(), reachPub, reachPriv)
 	require.NoError(t, err, "a private document reaches a public one read before")
 
-	_, err = e.document(t.Context(), reachLocal, reachPriv)
+	_, err = external.document(t.Context(), reachLocal, reachPriv)
 	barredWith(t, err, "it is at an address more private than a reference in a document read from a private one reaches")
-	_, err = e.document(t.Context(), reachUnhook, reachPub)
+	_, err = external.document(t.Context(), reachUnhook, reachPub)
 	barredWith(t, err, "the reader cannot bound the addresses its read dials")
-	_, err = e.document(t.Context(), reachUnhook, "spec.yaml")
+	_, err = external.document(t.Context(), reachUnhook, "spec.yaml")
 	require.NoError(t, err, "a reader that cannot bound a read still serves an unbounded one")
-	_, err = e.document(t.Context(), reachMute, "spec.yaml")
+	_, err = external.document(t.Context(), reachMute, "spec.yaml")
 	require.NoError(t, err)
-	_, err = e.document(t.Context(), reachMute, reachPub)
+	_, err = external.document(t.Context(), reachMute, reachPub)
 	barredWith(t, err, "the reader did not say what address it was read from")
-	_, err = e.document(t.Context(), reachPub, reachMute)
+	_, err = external.document(t.Context(), reachPub, reachMute)
 	require.NoError(t, err, "a document whose read stated no space is read as public")
 }
 
@@ -146,15 +146,15 @@ func TestExternal_AFetchedDocumentReadsNoMorePrivateAddressThanItsOwn(t *testing
 func TestExternal_ASourceLocatedAtAURLIsReadAsAPublicDocument(t *testing.T) {
 	t.Parallel()
 	const self = "https://pub.example/spec.yaml"
-	r := spacedReads()
-	e := spacedExternal(r, self)
+	spacedReader := spacedReads()
+	external := spacedExternal(spacedReader, self)
 
-	_, err := e.document(t.Context(), reachPriv, self)
+	_, err := external.document(t.Context(), reachPriv, self)
 
 	barredWith(t, err, "private address, which a reference in a document read from a public one")
-	_, err = e.document(t.Context(), reachPub, self)
+	_, err = external.document(t.Context(), reachPub, self)
 	require.NoError(t, err)
-	assert.Equal(t, []compilers.AddressSpace{compilers.SpacePublic}, r.asked(reachPub))
+	assert.Equal(t, []compilers.AddressSpace{compilers.SpacePublic}, spacedReader.asked(reachPub))
 }
 
 // TestLoad_AFetchedDocumentsReferenceIsJudgedWhereItsTargetWasRead pins the
@@ -167,26 +167,26 @@ func TestLoad_AFetchedDocumentsReferenceIsJudgedWhereItsTargetWasRead(t *testing
 		"    A: {$ref: '" + reachPub + "#/Y'}\n    B: {$ref: '" + reachPriv + "#/S'}\n",
 		"    B: {$ref: '" + reachPriv + "#/S'}\n    A: {$ref: '" + reachPub + "#/Y'}\n",
 	} {
-		r := spacedReads()
-		pub := r.docs[reachPub]
+		spacedReader := spacedReads()
+		pub := spacedReader.docs[reachPub]
 		pub.data = "Y: {$ref: '" + reachPriv + "#/S'}\n"
-		r.docs[reachPub] = pub
+		spacedReader.docs[reachPub] = pub
 		src := compilers.Source{Path: "spec.yaml", Data: []byte(
 			"openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" + schemas)}
 
-		_, diags, err := Load(t.Context(), 0, src, Options{Reader: r, MaxSourceBytes: budget.Unbounded(),
+		_, diags, err := Load(t.Context(), 0, src, Options{Reader: spacedReader, MaxSourceBytes: budget.Unbounded(),
 			MaxSourceNodes: budget.Unbounded(), MaxAliasSurplus: budget.Unbounded(), MaxExternalDocuments: budget.Unbounded()})
 
 		require.NoError(t, err)
 		var refused []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityError {
-				refused = append(refused, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityError {
+				refused = append(refused, diagnostic.Message)
 			}
 		}
 		require.Len(t, refused, 1, "%v", diags)
 		assert.Contains(t, refused[0], "private address")
-		for _, reach := range r.asked(reachPriv) {
+		for _, reach := range spacedReader.asked(reachPriv) {
 			assert.NotEqual(t, compilers.SpacePublic, reach, "a refusal by where it was read asks nothing")
 		}
 	}

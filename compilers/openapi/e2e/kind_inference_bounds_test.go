@@ -102,8 +102,8 @@ func assertBoundedNode(t *testing.T, doc *ir.Document, id ir.TypeID, want bounde
 	union, ok := td.(*ir.Union)
 	require.True(t, ok, id)
 	require.Len(t, union.Variants, len(want.variants), id)
-	for i, v := range union.Variants {
-		assertBoundedNode(t, doc, v.Type.Target, want.variants[i])
+	for i, variant := range union.Variants {
+		assertBoundedNode(t, doc, variant.Type.Target, want.variants[i])
 	}
 }
 
@@ -144,12 +144,12 @@ func TestKindInference_ABoundLandsOnTheInferredNodeOfItsKind(t *testing.T) {
 						assert.Empty(t, encodedBounds(t, holderProps(t, doc)["p"+sh.key]), "the property holds none")
 					}
 					op := doc.Services[0].Groups[0].Operations[0]
-					for _, p := range op.Params {
-						assert.Empty(t, encodedBounds(t, p), "parameter %s holds none", p.Name.Source)
+					for _, parameter := range op.Params {
+						assert.Empty(t, encodedBounds(t, parameter), "parameter %s holds none", parameter.Name.Source)
 					}
-					for _, r := range op.Responses {
-						for _, h := range r.Headers {
-							assert.Empty(t, encodedBounds(t, h), "header %s holds none", h.Name.Source)
+					for _, response := range op.Responses {
+						for _, header := range response.Headers {
+							assert.Empty(t, encodedBounds(t, header), "header %s holds none", header.Name.Source)
 						}
 					}
 				})

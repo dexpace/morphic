@@ -16,10 +16,10 @@ import (
 // code then its path.
 func entityRefFindings(doc *ir.Document) []string {
 	var got []string
-	for _, v := range irverify.Verify(doc) {
-		switch v.Code {
+	for _, violation := range irverify.Verify(doc) {
+		switch violation.Code {
 		case "ir/entity-ref-empty", "ir/entity-ref-ambiguous", "ir/replaced-by-itself":
-			got = append(got, v.Code+" "+v.Path)
+			got = append(got, violation.Code+" "+violation.Path)
 		}
 	}
 	return got

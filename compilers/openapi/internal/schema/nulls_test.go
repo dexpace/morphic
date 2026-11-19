@@ -26,8 +26,8 @@ func inferred(target ir.TypeID) ir.TypeRef {
 	return ir.TypeRef{Target: target, Nullable: true, Inferred: lowering.NullableInferenceHeuristic}
 }
 
-// prim is the shared primitive of kind k.
-func prim(k ir.PrimitiveKind) ir.TypeID { return ir.PrimitiveTypeID(k) }
+// prim is the shared primitive of kind primitiveKind.
+func prim(primitiveKind ir.PrimitiveKind) ir.TypeID { return ir.PrimitiveTypeID(primitiveKind) }
 
 // compileNullable compiles src, a whole document, with the nullable-inference
 // policy on or off. That reach through openapi is why openapitest cannot hold
@@ -45,16 +45,16 @@ func compileNullable(t *testing.T, src string, off bool) (*ir.Document, []ir.Dia
 // holderP is the type of Holder's property p.
 func holderP(t *testing.T, doc *ir.Document) ir.TypeRef {
 	t.Helper()
-	m, ok := typeByName(doc, "Holder").(*ir.Model)
+	model, ok := typeByName(doc, "Holder").(*ir.Model)
 	require.True(t, ok, "Holder lowers to a model")
-	return openapitest.PropsByWire(m.Properties)["p"].Type
+	return openapitest.PropsByWire(model.Properties)["p"].Type
 }
 
 // diagMessage returns the message of the first diagnostic of code in diags.
 func diagMessage(diags []ir.Diagnostic, code string) string {
-	for _, d := range diags {
-		if d.Code == code {
-			return d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			return diagnostic.Message
 		}
 	}
 	return ""
@@ -228,10 +228,10 @@ func TestNullableInference_OnlyABooleanStatesNull(t *testing.T) {
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
 		for _, value := range written {
 			doc, diags := compileNullable(t, openapitest.HolderSpec(version, "{type: string, nullable: "+value+"}", ""), false)
-			p := holderP(t, doc)
-			assert.Equal(t, stated[value], p.Nullable, "%s nullable: %s", version, value)
+			typeRef := holderP(t, doc)
+			assert.Equal(t, stated[value], typeRef.Nullable, "%s nullable: %s", version, value)
 			inferred := stated[value] && version != "3.0.3"
-			assert.Equal(t, inferred, p.Inferred != "", "%s nullable: %s", version, value)
+			assert.Equal(t, inferred, typeRef.Inferred != "", "%s nullable: %s", version, value)
 			assert.Equal(t, inferred, openapitest.HasDiagCodeAt(diags, diag.InferredNullable,
 				"/components/schemas/Holder/properties/p/nullable"), "%s nullable: %s", version, value)
 		}
@@ -359,10 +359,10 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 	require.NotNil(t, alias.Base)
 	assert.Equal(t, ir.TypeRef{Target: componentID("NullableModel"), Nullable: true}, *alias.Base)
 	for _, name := range []string{"WrapPlain"} {
-		m, isModel := typeByName(doc, name).(*ir.Model)
+		model, isModel := typeByName(doc, name).(*ir.Model)
 		require.True(t, isModel, "%s is a model", name)
-		require.NotNil(t, m.Base, "%s composes a sole $ref as its Base", name)
-		assert.False(t, m.Base.Nullable, "%s.Base names a conjunct and carries no Nullable bit", name)
+		require.NotNil(t, model.Base, "%s composes a sole $ref as its Base", name)
+		assert.False(t, model.Base.Nullable, "%s.Base names a conjunct and carries no Nullable bit", name)
 	}
 	_, isModel := typeByName(doc, "WrapScalar").(*ir.Model)
 	assert.False(t, isModel, "a conjunct admitting no object composes nothing")
@@ -473,23 +473,23 @@ func TestNullableInference_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	assert.Contains(t, kept.Unmodeled, "openapi:nullable", "a nullable that folds nothing is kept under its own key")
 
 	off, offDiags := compileNullable(t, src, true)
-	m, ok := doc0Model(off)
+	model, ok := doc0Model(off)
 	require.True(t, ok)
-	assert.Contains(t, m.Unmodeled, "openapi:nullable", "with the policy off nothing reads the keyword, so it stays")
+	assert.Contains(t, model.Unmodeled, "openapi:nullable", "with the policy off nothing reads the keyword, so it stays")
 	assert.Len(t, withCode(offDiags, diag.DegradedConstruct), 1)
 }
 
-// doc0Model is the node Holder's property p lowered to, as a model.
+// doc0Model is the node Holder's property property lowered to, as a model.
 func doc0Model(doc *ir.Document) (*ir.Model, bool) {
-	m, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	model, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	if !ok {
 		return nil, false
 	}
-	p, ok := openapitest.PropsByWire(m.Properties)["p"]
+	property, ok := openapitest.PropsByWire(model.Properties)["p"]
 	if !ok {
 		return nil, false
 	}
-	target, ok := doc.Types[p.Type.Target].(*ir.Model)
+	target, ok := doc.Types[property.Type.Target].(*ir.Model)
 	return target, ok
 }
 
@@ -510,9 +510,9 @@ func TestConst_FixesWhetherTheValueSpaceHoldsNull(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
+	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok, "S is a model")
-	props := openapitest.PropsByWire(m.Properties)
+	props := openapitest.PropsByWire(model.Properties)
 	require.Len(t, props, 2)
 
 	assert.True(t, props["justNull"].Type.Nullable, "a const of null admits null")
@@ -569,8 +569,8 @@ func TestSchema_Ref30NullableSiblings(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	_ = diags
-	m := typeByName(doc, "Owner").(*ir.Model)
-	assert.True(t, m.Properties[0].Type.Nullable, "3.0 nullable at a $ref site lifts to the ref")
+	model := typeByName(doc, "Owner").(*ir.Model)
+	assert.True(t, model.Properties[0].Type.Nullable, "3.0 nullable at a $ref site lifts to the ref")
 }
 
 // TestSchema_RefNullableAcrossSpellings pins that every spelling of "admits
@@ -896,10 +896,10 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 			spec := openapitest.ComponentSpecVer(tc.version, tc.schemas)
 			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			m := typeByName(doc, "Owner").(*ir.Model)
-			require.Len(t, m.Properties, 1)
-			assert.Equal(t, tc.wantNullable, m.Properties[0].Type.Nullable, tc.msg)
-			assert.Equal(t, tc.wantTarget, m.Properties[0].Type.Target,
+			model := typeByName(doc, "Owner").(*ir.Model)
+			require.Len(t, model.Properties, 1)
+			assert.Equal(t, tc.wantNullable, model.Properties[0].Type.Nullable, tc.msg)
+			assert.Equal(t, tc.wantTarget, model.Properties[0].Type.Target,
 				"ref resolves to the expected target")
 		})
 	}
@@ -929,9 +929,9 @@ func TestSchema_NullabilityAgreesAcrossEnumSpellings(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
+	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok, "S is a model")
-	props := openapitest.PropsByWire(m.Properties)
+	props := openapitest.PropsByWire(model.Properties)
 	require.Len(t, props, 4)
 
 	pairs := []struct {
@@ -976,8 +976,8 @@ oneOf: [{type: string}, {type: "null"}]`
 ` + indent(10))
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := typeByName(doc, "Owner").(*ir.Model)
-	props := openapitest.PropsByWire(m.Properties)
+	model := typeByName(doc, "Owner").(*ir.Model)
+	props := openapitest.PropsByWire(model.Properties)
 	require.Len(t, props, 2)
 
 	assert.Equal(t, props["inline"].Type.Nullable, props["viaRef"].Type.Nullable,
@@ -1050,14 +1050,14 @@ func TestNullAlone_ReadsTheSchemasOwnKeywords(t *testing.T) {
 			src := openapitest.ComponentSpecVer(tc.version, "    Nil: {type: \"null\"}\n    Str: {type: string}\n"+
 				"    Node: {$dynamicAnchor: node, type: string}\n    S: "+tc.schema+"\n")
 			for _, off := range []bool{false, true} {
-				l, _ := schema.LoweredWith(t, src, lowering.Policy{NullableInference: lowering.NullableInference{Disabled: off}})
-				js, ok := l.Doc.Components.GetSchemas().Get("S")
+				lowerer, _ := schema.LoweredWith(t, src, lowering.Policy{NullableInference: lowering.NullableInference{Disabled: off}})
+				js, ok := lowerer.Doc.Components.GetSchemas().Get("S")
 				require.True(t, ok)
 				want := tc.on
 				if off {
 					want = tc.off
 				}
-				assert.Equal(t, want, schema.NullAlone(l.Ctx, l.Ctx.Statements().Of(js).Schema), "policy off: %v", off)
+				assert.Equal(t, want, schema.NullAlone(lowerer.Ctx, lowerer.Ctx.Statements().Of(js).Schema), "policy off: %v", off)
 			}
 		})
 	}

@@ -69,9 +69,9 @@ func compileP(t *testing.T, spec string) compiledP {
 	require.NoError(t, err)
 	var out compiledP
 	out.types = string(raw)
-	for _, d := range diags {
-		if strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/P") {
-			out.diags = append(out.diags, d.Code+" "+string(d.Provenance.Pointer)+": "+d.Message)
+	for _, diagnostic := range diags {
+		if strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/P") {
+			out.diags = append(out.diags, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 		}
 	}
 	slices.Sort(out.diags)
@@ -82,21 +82,21 @@ func compileP(t *testing.T, spec string) compiledP {
 // a schema merges past nodeview.MergeDepthLimit.
 func pastBoundReports(diags []ir.Diagnostic, pointer string) int {
 	n := 0
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && string(d.Provenance.Pointer) == pointer &&
-			strings.HasPrefix(d.Message, pastBoundReport) {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && string(diagnostic.Provenance.Pointer) == pointer &&
+			strings.HasPrefix(diagnostic.Message, pastBoundReport) {
 			n++
 		}
 	}
 	return n
 }
 
-// withoutReport returns c without the warning that P merges past the bound.
-func withoutReport(c compiledP) compiledP {
-	c.diags = slices.DeleteFunc(slices.Clone(c.diags), func(d string) bool {
+// withoutReport returns compiledPValue without the warning that P merges past the bound.
+func withoutReport(compiledPValue compiledP) compiledP {
+	compiledPValue.diags = slices.DeleteFunc(slices.Clone(compiledPValue.diags), func(d string) bool {
 		return strings.Contains(d, pastBoundReport)
 	})
-	return c
+	return compiledPValue
 }
 
 // keywordSample is a leaf writing one keyword, what P writes beside the merge
@@ -180,18 +180,18 @@ func TestRead_PastTheMergeBoundNoKeywordIsHalfRead(t *testing.T) {
 			require.Contains(t, keywordSamples, keyword, "a keyword fill reads and the model holds has a sample")
 		}
 	}
-	for keyword, k := range keywordSamples {
+	for keyword, keywordSample := range keywordSamples {
 		t.Run(keyword, func(t *testing.T) {
 			t.Parallel()
 			at := func(n int, leaf string) compiledP {
-				return compileP(t, chained(k.version, n, leaf, k.beside, k.extra))
+				return compileP(t, chained(keywordSample.version, n, leaf, keywordSample.beside, keywordSample.extra))
 			}
-			written := at(0, k.leaf)
+			written := at(0, keywordSample.leaf)
 			require.NotEqual(t, at(0, "{}"), written, "the sample changes what P compiles to")
 
-			assert.Equal(t, written, at(nodeview.MergeDepthLimit-1, k.leaf), "within the bound")
+			assert.Equal(t, written, at(nodeview.MergeDepthLimit-1, keywordSample.leaf), "within the bound")
 
-			past, nothing := at(nodeview.MergeDepthLimit, k.leaf), at(nodeview.MergeDepthLimit, "{}")
+			past, nothing := at(nodeview.MergeDepthLimit, keywordSample.leaf), at(nodeview.MergeDepthLimit, "{}")
 			assert.Equal(t, withoutReport(nothing), withoutReport(past), "past the bound")
 			assert.Equal(t, 1, strings.Count(strings.Join(past.diags, "\n"), "/components/schemas/P: "+pastBoundReport))
 		})
@@ -256,8 +256,8 @@ components:
 		assert.Equal(t, 1, pastBoundReports(diags, pointer), pointer)
 	}
 	total := 0
-	for _, d := range diags {
-		if strings.HasPrefix(d.Message, pastBoundReport) {
+	for _, diagnostic := range diags {
+		if strings.HasPrefix(diagnostic.Message, pastBoundReport) {
 			total++
 		}
 	}
@@ -293,8 +293,8 @@ func TestFill_ATruncatedSchemaHoldsNoKeywordItsKeysDoNotList(t *testing.T) {
 			require.Failf(t, "unhandled field kind", "%s is %s", v.Type().Field(i).Name, f.Kind())
 		}
 	}
-	s := statement.FillTruncated(m)
-	got := reflect.ValueOf(s).Elem()
+	schema := statement.FillTruncated(m)
+	got := reflect.ValueOf(schema).Elem()
 	for i := range got.NumField() {
 		field := got.Type().Field(i)
 		if !field.IsExported() || field.Name == "Truncated" {
@@ -456,25 +456,25 @@ func TestRead_PastTheMergeBoundAKeyNoParserNodeTellsStaysOnlyWhereWritten(t *tes
 	spec := strings.Replace(chained("3.1.0", nodeview.MergeDepthLimit, "{}", "$comment: c, type: object", ""),
 		fmt.Sprintf("P: {<<: *c%d, ", nodeview.MergeDepthLimit),
 		fmt.Sprintf("P: {<<: [*c%d, {dependentRequired: {a: [b]}, minimum: 1}], ", nodeview.MergeDepthLimit), 1)
-	table, c := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
-	p := table.At(component(c, "P"))
-	require.True(t, p.Truncated)
-	_, comment := p.Key("$comment")
+	table, loweringContext := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
+	schemaStatement := table.At(component(loweringContext, "P"))
+	require.True(t, schemaStatement.Truncated)
+	_, comment := schemaStatement.Key("$comment")
 	assert.True(t, comment, "written by the schema itself")
-	require.NotNil(t, p.Notes)
-	assert.Equal(t, "c", text(p.Notes.Comment))
-	_, dependent := p.Key("dependentRequired")
+	require.NotNil(t, schemaStatement.Notes)
+	assert.Equal(t, "c", text(schemaStatement.Notes.Comment))
+	_, dependent := schemaStatement.Key("dependentRequired")
 	assert.False(t, dependent, "merged in, with no node to tell it from one a source past the bound outranks")
-	assert.Nil(t, p.Object)
-	assert.NotContains(t, p.Unknown, "dependentRequired", "nor does the census read it")
-	model := c.Bindings().At(component(c, "P")).GetSchema().GetCore().GetUnknownProperties()
+	assert.Nil(t, schemaStatement.Object)
+	assert.NotContains(t, schemaStatement.Unknown, "dependentRequired", "nor does the census read it")
+	model := loweringContext.Bindings().At(component(loweringContext, "P")).GetSchema().GetCore().GetUnknownProperties()
 	assert.Contains(t, model, "dependentRequired", "the parser's own list is left as it was")
 	compiled := compileP(t, spec)
 	assert.NotContains(t, compiled.types, "dependentRequired")
 	assert.NotContains(t, strings.Join(compiled.diags, "\n"), "dependentRequired")
-	_, minimum := p.Key("minimum")
+	_, minimum := schemaStatement.Key("minimum")
 	assert.True(t, minimum, "merged in, and the node the parser read")
-	assert.Equal(t, "1", text(p.Number.Minimum))
+	assert.Equal(t, "1", text(schemaStatement.Number.Minimum))
 }
 
 // bodySpec writes a document whose one operation takes an octet-stream body

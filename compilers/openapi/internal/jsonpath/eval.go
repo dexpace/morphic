@@ -49,16 +49,16 @@ func (r *reader) spend(ctx context.Context, n int) error {
 	return nil
 }
 
-// emit appends l to the nodelist out, a step for the node returned, and one
+// emit appends located to the nodelist out, a step for the node returned, and one
 // more node the evaluation holds.
-func (r *reader) emit(ctx context.Context, out []Located, l Located) ([]Located, error) {
+func (r *reader) emit(ctx context.Context, out []Located, located Located) ([]Located, error) {
 	if err := r.spend(ctx, 1); err != nil {
 		return nil, err
 	}
 	if err := r.hold(1); err != nil {
 		return nil, err
 	}
-	return append(out, l), nil
+	return append(out, located), nil
 }
 
 // hold counts n more nodes the evaluation's nodelists hold, refusing them
@@ -98,14 +98,14 @@ func (e *evaluator) run(ctx context.Context, segments []segment, from Located) (
 		return nil, err
 	}
 	list := []Located{from}
-	for _, s := range segments {
+	for _, segment := range segments {
 		var next []Located
 		for _, in := range list {
 			var err error
-			if s.descendant {
-				next, err = e.descend(ctx, s.selectors, in, next)
+			if segment.descendant {
+				next, err = e.descend(ctx, segment.selectors, in, next)
 			} else {
-				next, err = e.selectAll(ctx, s.selectors, in, next)
+				next, err = e.selectAll(ctx, segment.selectors, in, next)
 			}
 			if err != nil {
 				return nil, err
@@ -149,9 +149,9 @@ func (r *reader) pushChildren(ctx context.Context, at Located, stack []Located) 
 		if err != nil {
 			return nil, err
 		}
-		for _, p := range slices.Backward(pairs) {
-			if p.Val != nil {
-				stack = append(stack, Located{Path: at.Path.child(p.Key), Node: p.Val})
+		for _, pair := range slices.Backward(pairs) {
+			if pair.Val != nil {
+				stack = append(stack, Located{Path: at.Path.child(pair.Key), Node: pair.Val})
 			}
 		}
 	case yaml.SequenceNode:
@@ -189,19 +189,19 @@ func (e *evaluator) selectAll(ctx context.Context, selectors []selector, in Loca
 	return out, nil
 }
 
-// selectOne applies s to in, appending what it selects to out.
-func (e *evaluator) selectOne(ctx context.Context, s *selector, in Located, out []Located) ([]Located, error) {
-	switch s.kind {
+// selectOne applies selectorValue to in, appending what it selects to out.
+func (e *evaluator) selectOne(ctx context.Context, selectorValue *selector, in Located, out []Located) ([]Located, error) {
+	switch selectorValue.kind {
 	case selName:
-		return e.byName(ctx, s.name, in, out)
+		return e.byName(ctx, selectorValue.name, in, out)
 	case selIndex:
-		return e.byIndex(ctx, s.index, in, out)
+		return e.byIndex(ctx, selectorValue.index, in, out)
 	case selSlice:
-		return e.bySlice(ctx, s.slice, in, out)
+		return e.bySlice(ctx, selectorValue.slice, in, out)
 	case selWildcard:
 		return e.every(ctx, in, out, nil)
 	default:
-		return e.every(ctx, in, out, s.filter)
+		return e.every(ctx, in, out, selectorValue.filter)
 	}
 }
 
@@ -240,23 +240,23 @@ func (e *evaluator) byIndex(ctx context.Context, i int, in Located, out []Locate
 	return e.emit(ctx, out, Located{Path: in.Path.element(i), Node: v})
 }
 
-// bySlice selects the elements of an array s selects, as RFC 9535 section
+// bySlice selects the elements of an array sliceValue selects, as RFC 9535 section
 // 2.3.4.2.2 bounds them: each index from the lower bound to the upper by
 // step, or from the upper to the lower for a negative step. Each iteration
 // selects one element, so the loop is bounded by the array.
-func (e *evaluator) bySlice(ctx context.Context, s slice, in Located, out []Located) ([]Located, error) {
-	if in.Node.Kind != yaml.SequenceNode || s.step == 0 {
+func (e *evaluator) bySlice(ctx context.Context, sliceValue slice, in Located, out []Located) ([]Located, error) {
+	if in.Node.Kind != yaml.SequenceNode || sliceValue.step == 0 {
 		return out, nil
 	}
-	lower, upper := s.bounds(len(in.Node.Content))
+	lower, upper := sliceValue.bounds(len(in.Node.Content))
 	var err error
-	if s.step > 0 {
-		for i := lower; i < upper && err == nil; i += s.step {
+	if sliceValue.step > 0 {
+		for i := lower; i < upper && err == nil; i += sliceValue.step {
 			out, err = e.element(ctx, in, i, out)
 		}
 		return out, err
 	}
-	for i := upper; lower < i && err == nil; i += s.step {
+	for i := upper; lower < i && err == nil; i += sliceValue.step {
 		out, err = e.element(ctx, in, i, out)
 	}
 	return out, err
@@ -306,12 +306,12 @@ func (e *evaluator) every(ctx context.Context, in Located, out []Located, filter
 	if err != nil {
 		return nil, err
 	}
-	for _, c := range children {
+	for _, located := range children {
 		if filter != nil {
 			if err := e.spend(ctx, 1); err != nil {
 				return nil, err
 			}
-			held, err := filter.holds(ctx, e, c)
+			held, err := filter.holds(ctx, e, located)
 			if err != nil {
 				return nil, err
 			}
@@ -319,7 +319,7 @@ func (e *evaluator) every(ctx context.Context, in Located, out []Located, filter
 				continue
 			}
 		}
-		if out, err = e.emit(ctx, out, c); err != nil {
+		if out, err = e.emit(ctx, out, located); err != nil {
 			return nil, err
 		}
 	}

@@ -57,15 +57,15 @@ func pruneOneIn(n uint32, salt string) func(string) bool {
 func sharedAndAlone(root any, rules []func(string) bool) (shared, alone []*recorder, sharedCut, aloneCut bool) {
 	visitors := make([]ir.Visitor, len(rules))
 	for i, rule := range rules {
-		r := &recorder{prune: rule}
-		shared = append(shared, r)
-		visitors[i] = r
+		recorderValue := &recorder{prune: rule}
+		shared = append(shared, recorderValue)
+		visitors[i] = recorderValue
 	}
 	sharedCut = ir.WalkValues(root, "document", visitors...)
 	for _, rule := range rules {
-		r := &recorder{prune: rule}
-		alone = append(alone, r)
-		aloneCut = ir.WalkValues(root, "document", r) || aloneCut
+		recorderValue := &recorder{prune: rule}
+		alone = append(alone, recorderValue)
+		aloneCut = ir.WalkValues(root, "document", recorderValue) || aloneCut
 	}
 	return shared, alone, sharedCut, aloneCut
 }
@@ -208,9 +208,9 @@ func TestWalkValues_TruncationReachesPastOneTraversal(t *testing.T) {
 func TestWalkValues_NilVisitorsAreSkipped(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Name: "api"}
-	r := &recorder{}
-	assert.False(t, ir.WalkValues(doc, "document", nil, r, ir.VisitFunc(nil)))
-	assert.Contains(t, r.paths, "document.Name", "a nil visitor beside it does not stop the others")
+	recorderValue := &recorder{}
+	assert.False(t, ir.WalkValues(doc, "document", nil, recorderValue, ir.VisitFunc(nil)))
+	assert.Contains(t, recorderValue.paths, "document.Name", "a nil visitor beside it does not stop the others")
 
 	deep := irtest.NestedListValue(ir.MaxWalkDepth)
 	assert.False(t, ir.WalkValues(deep, "document"), "no visitor, no walk")

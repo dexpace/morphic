@@ -71,10 +71,10 @@ func TestCompile_ASourceAtAURLReachesNoLocalAddressThroughTheDisk(t *testing.T) 
 		require.NotNil(t, doc)
 		errs := byCode(diags, "openapi/unresolved-ref")
 		require.Len(t, errs, len(tc.hosts), "%s: %v", name, diags)
-		for _, d := range errs {
-			assert.Equal(t, ir.SeverityError, d.Severity)
-			assert.Contains(t, d.Message, "refused: ", "%s: %s", name, d.Message)
-			t.Logf("%s: %s %s", name, d.Provenance.Pointer, d.Message)
+		for _, diagnostic := range errs {
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+			assert.Contains(t, diagnostic.Message, "refused: ", "%s: %s", name, diagnostic.Message)
+			t.Logf("%s: %s %s", name, diagnostic.Provenance.Pointer, diagnostic.Message)
 		}
 	}
 	assert.Zero(t, hits.Load(), "the server was asked nothing")

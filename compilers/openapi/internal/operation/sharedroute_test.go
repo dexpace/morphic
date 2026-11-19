@@ -59,8 +59,8 @@ func TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends(t *testing.T) 
 		shared         bool
 	}
 	got := map[ir.OperationID]binding{}
-	for _, g := range svc.Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range svc.Groups {
+		for _, op := range operationGroup.Operations {
 			hb := op.Bindings.HTTP[0]
 			got[op.ID] = binding{hint: op.Name.Hint, template: hb.URITemplate + hb.WebhookName, shared: hb.SharedRoute}
 		}

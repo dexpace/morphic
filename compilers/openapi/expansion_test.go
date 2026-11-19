@@ -362,7 +362,7 @@ func TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace(t *testing.
 
 	doc, diags, _ := compile(-1)
 	require.NotNil(t, doc)
-	require.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Provenance.Source == 1 }),
+	require.True(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Provenance.Source == 1 }),
 		"the load phase reports in ext.yaml: %+v", diags)
 
 	doc, diags, table := compile(1)

@@ -17,7 +17,7 @@ import (
 // walkChain is a chain of n+1 models, each declaring one property, beside
 // extra models nothing relates to it.
 func walkChain(n, extra int) *ir.Document {
-	defs := factsChain(n, func(i int, m *ir.Model) { m.Properties = []ir.Property{{ID: factsPropID(i)}} })
+	defs := factsChain(n, func(i int, model *ir.Model) { model.Properties = []ir.Property{{ID: factsPropID(i)}} })
 	for k := range extra {
 		defs = append(defs, irtest.ModelOf(factsBaseID(k), nil))
 	}

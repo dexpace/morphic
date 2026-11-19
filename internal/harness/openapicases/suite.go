@@ -119,16 +119,16 @@ func fileGroups(name string, data []byte, release int) ([]Group, error) {
 	}
 	var groups []Group
 	seen := map[string]int{}
-	for i, g := range file.Tests {
-		seen[g.Description]++
-		applies, err := compatible(g.Compatibility, release)
+	for i, suiteGroup := range file.Tests {
+		seen[suiteGroup.Description]++
+		applies, err := compatible(suiteGroup.Compatibility, release)
 		if err != nil {
 			return nil, fmt.Errorf("group %d: %w", i, err)
 		}
 		if !applies {
 			continue
 		}
-		group, err := g.group(name, seen[g.Description])
+		group, err := suiteGroup.group(name, seen[suiteGroup.Description])
 		if err != nil {
 			return nil, fmt.Errorf("group %d: %w", i, err)
 		}
@@ -149,11 +149,11 @@ func (g suiteGroup) group(name string, n int) (Group, error) {
 	if n > 1 {
 		out.Name += "#" + strconv.Itoa(n)
 	}
-	for j, t := range g.Tests {
-		if t.Valid == nil {
+	for j, suiteTest := range g.Tests {
+		if suiteTest.Valid == nil {
 			return Group{}, fmt.Errorf("%q: test %d says nothing of whether it is valid", g.Description, j)
 		}
-		out.Tests = append(out.Tests, Test{Description: t.Description, Data: t.Data, Valid: *t.Valid})
+		out.Tests = append(out.Tests, Test{Description: suiteTest.Description, Data: suiteTest.Data, Valid: *suiteTest.Valid})
 	}
 	return out, nil
 }

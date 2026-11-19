@@ -81,9 +81,9 @@ type Variant struct {
 func (s *Shape) String() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "jsonshape %d: %s.%s\n", Format, s.pkg.Name(), s.root)
-	for _, t := range s.Types {
-		fmt.Fprintf(&b, "\ntype %s %s\n", t.name, t.head)
-		for _, line := range t.lines() {
+	for _, typeValue := range s.Types {
+		fmt.Fprintf(&b, "\ntype %s %s\n", typeValue.name, typeValue.head)
+		for _, line := range typeValue.lines() {
 			fmt.Fprintf(&b, "\t%s\n", line)
 		}
 	}
@@ -98,16 +98,16 @@ func (t *Type) lines() []string {
 	if t.Tag != nil {
 		out = append(out, "tag "+t.tag)
 	}
-	for _, v := range t.Variants {
-		out = append(out, v.line())
+	for _, variant := range t.Variants {
+		out = append(out, variant.line())
 	}
 
 	var embeds, fields []string
-	for _, m := range t.Members {
-		if m.Embedded {
-			embeds = append(embeds, m.line())
+	for _, member := range t.Members {
+		if member.Embedded {
+			embeds = append(embeds, member.line())
 		} else {
-			fields = append(fields, m.line())
+			fields = append(fields, member.line())
 		}
 	}
 	slices.Sort(embeds)

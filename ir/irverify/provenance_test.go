@@ -112,9 +112,9 @@ func TestVerify_ProvenanceIsCheckedEverywhere(t *testing.T) {
 	}
 
 	var paths []string
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == "ir/provenance-source-out-of-range" {
-			paths = append(paths, v.Path)
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == "ir/provenance-source-out-of-range" {
+			paths = append(paths, violation.Path)
 		}
 	}
 	assert.Len(t, paths, 2, "both the diagnostic and the preserved entry must be reported: %v", paths)
@@ -228,9 +228,9 @@ func TestVerify_ProvenanceLocatorRules(t *testing.T) {
 
 			got := verifyDeclared(doc)
 			var codes []string
-			for _, v := range got {
-				codes = append(codes, v.Code)
-				assert.True(t, utf8.ValidString(v.Message),
+			for _, violation := range got {
+				codes = append(codes, violation.Code)
+				assert.True(t, utf8.ValidString(violation.Message),
 					"a violation's message is valid UTF-8 even when it quotes an ill-formed pointer (#400)")
 			}
 			if diff := cmp.Diff(tt.want, codes); diff != "" {
@@ -279,13 +279,13 @@ func TestVerify_ARelatedEntryIsHeldAsAProvenanceIs(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Sources = oneSource()
-	d := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
-	d.Related = []ir.Related{
+	diagnostic := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
+	diagnostic.Related = []ir.Related{
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{Source: 9}},
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "no-slash"}},
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/a"}},
 	}
-	doc.Diagnostics = []ir.Diagnostic{d}
+	doc.Diagnostics = []ir.Diagnostic{diagnostic}
 
 	got := verifyDeclared(doc)
 	assert.Equal(t, []string{"document.Diagnostics[0].Related[0].Provenance"}, violationPaths(got, "ir/provenance-source-out-of-range"))
@@ -302,8 +302,8 @@ func TestVerify_ARelatedEntryNamesSomething(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Sources = oneSource()
-	d := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
-	d.Related = []ir.Related{
+	diagnostic := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
+	diagnostic.Related = []ir.Related{
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{Source: ir.NoSource}},
 		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource}},
 		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Pointer: "/a"}},
@@ -311,7 +311,7 @@ func TestVerify_ARelatedEntryNamesSomething(t *testing.T) {
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/a"}},
 		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/a"}},
 	}
-	doc.Diagnostics = []ir.Diagnostic{d}
+	doc.Diagnostics = []ir.Diagnostic{diagnostic}
 
 	got := verifyDeclared(doc)
 
@@ -319,9 +319,9 @@ func TestVerify_ARelatedEntryNamesSomething(t *testing.T) {
 		violationPaths(got, "ir/empty-related"))
 	assert.Equal(t, []string{"document.Diagnostics[0].Related[1].Provenance", "document.Diagnostics[0].Related[2].Provenance"},
 		violationPaths(got, "ir/related-names-no-node"))
-	for _, v := range got {
-		if v.Code == "ir/empty-related" {
-			assert.Equal(t, "diagnostic's related entry names no place and no node", v.Message)
+	for _, violation := range got {
+		if violation.Code == "ir/empty-related" {
+			assert.Equal(t, "diagnostic's related entry names no place and no node", violation.Message)
 		}
 	}
 }
@@ -333,19 +333,19 @@ func TestVerify_ADecidedEntryNamesItsNode(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Sources = oneSource()
-	d := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
-	d.Related = []ir.Related{
+	diagnostic := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
+	diagnostic.Related = []ir.Related{
 		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/a"}},
 		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource}},
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/a"}},
 	}
-	doc.Diagnostics = []ir.Diagnostic{d}
+	doc.Diagnostics = []ir.Diagnostic{diagnostic}
 
 	got := verifyDeclared(doc)
 	assert.Equal(t, []string{"document.Diagnostics[0].Related[1].Provenance"}, violationPaths(got, "ir/related-names-no-node"))
-	for _, v := range got {
-		if v.Code == "ir/related-names-no-node" {
-			assert.Equal(t, "diagnostic's related entry says the finding decided a node and names none", v.Message)
+	for _, violation := range got {
+		if violation.Code == "ir/related-names-no-node" {
+			assert.Equal(t, "diagnostic's related entry says the finding decided a node and names none", violation.Message)
 		}
 	}
 }

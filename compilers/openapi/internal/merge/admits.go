@@ -35,63 +35,63 @@ const (
 	float64Bits         = 64
 )
 
-// Admits reports whether v is a value of the primitive kind k, judged exactly:
+// Admits reports whether value is a value of the primitive kind primitiveKind, judged exactly:
 // a bounded read of a number rather than a conversion, so an exponent no
 // machine type holds is refused, not overflowed. A kind with no judge admits
 // nothing, which keeps a value off a field it cannot be shown to fit.
 //
 // A null is not judged here: whether null is a value depends on the merged
 // field's nullability, not on a kind.
-func Admits(k ir.PrimitiveKind, v ir.Value) bool {
-	switch k {
+func Admits(primitiveKind ir.PrimitiveKind, value ir.Value) bool {
+	switch primitiveKind {
 	case ir.PrimitiveAny:
 		return true
 	case ir.PrimitiveBool:
-		return v.Kind == ir.ValueBool
+		return value.Kind == ir.ValueBool
 	case ir.PrimitiveString:
-		return v.Kind == ir.ValueString
+		return value.Kind == ir.ValueString
 	case ir.PrimitiveInt8:
-		return inRange(v, int8Min, int8Max)
+		return inRange(value, int8Min, int8Max)
 	case ir.PrimitiveInt16:
-		return inRange(v, int16Min, int16Max)
+		return inRange(value, int16Min, int16Max)
 	case ir.PrimitiveInt32:
-		return inRange(v, int32Min, int32Max)
+		return inRange(value, int32Min, int32Max)
 	case ir.PrimitiveInt64:
-		return inRange(v, int64Min, int64Max)
+		return inRange(value, int64Min, int64Max)
 	case ir.PrimitiveUint8:
-		return inRange(v, "0", uint8Max)
+		return inRange(value, "0", uint8Max)
 	case ir.PrimitiveUint16:
-		return inRange(v, "0", uint16Max)
+		return inRange(value, "0", uint16Max)
 	case ir.PrimitiveUint32:
-		return inRange(v, "0", uint32Max)
+		return inRange(value, "0", uint32Max)
 	case ir.PrimitiveUint64:
-		return inRange(v, "0", uint64Max)
+		return inRange(value, "0", uint64Max)
 	case ir.PrimitiveInteger:
-		d, ok := decimalOf(v)
-		return ok && d.IsInt()
+		decimal, ok := decimalOf(value)
+		return ok && decimal.IsInt()
 	case ir.PrimitiveNumber, ir.PrimitiveFloat, ir.PrimitiveDecimal:
-		_, ok := decimalOf(v)
+		_, ok := decimalOf(value)
 		return ok
 	case ir.PrimitiveDecimal128:
-		return admitsDecimal128(v)
+		return admitsDecimal128(value)
 	case ir.PrimitiveFloat32:
-		return admitsFloat(v, float32Bits)
+		return admitsFloat(value, float32Bits)
 	case ir.PrimitiveFloat64:
-		return admitsFloat(v, float64Bits)
+		return admitsFloat(value, float64Bits)
 	case ir.PrimitiveDate:
-		return v.Kind == ir.ValueString && parses("2006-01-02", v.String)
+		return value.Kind == ir.ValueString && parses("2006-01-02", value.String)
 	case ir.PrimitiveTime:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.String, partialTime)
+		return value.Kind == ir.ValueString && parsesRFC3339(value.String, partialTime)
 	case ir.PrimitiveDatetime:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.String, localDateTime)
+		return value.Kind == ir.ValueString && parsesRFC3339(value.String, localDateTime)
 	case ir.PrimitiveDatetimeOffset:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.String, dateTime)
+		return value.Kind == ir.ValueString && parsesRFC3339(value.String, dateTime)
 	case ir.PrimitiveUUID:
-		return v.Kind == ir.ValueString && isUUID(v.String)
+		return value.Kind == ir.ValueString && isUUID(value.String)
 	case ir.PrimitiveURL:
-		return v.Kind == ir.ValueString && isAbsoluteURI(v.String)
+		return value.Kind == ir.ValueString && isAbsoluteURI(value.String)
 	case ir.PrimitiveDuration:
-		return v.Kind == ir.ValueString && isDuration(v.String)
+		return value.Kind == ir.ValueString && isDuration(value.String)
 	case ir.PrimitiveBytes:
 		return false
 	default:
@@ -99,66 +99,66 @@ func Admits(k ir.PrimitiveKind, v ir.Value) bool {
 	}
 }
 
-// admitsFormat reports whether v is a value of the string format named
+// admitsFormat reports whether value is a value of the string format named
 // format, and whether the compiler holds that format's grammar at all, which
 // the name alone decides. It holds one for a format the table pairs with no
 // kind: time, RFC 3339's full-time, whose offset the time kind does not hold
 // (docs/ir/primitives.md#offsets). A format the table pairs with a kind is
 // judged as that kind, by Admits.
-func admitsFormat(format string, v ir.Value) (admits, held bool) {
+func admitsFormat(format string, value ir.Value) (admits, held bool) {
 	switch format {
 	case "time":
-		return v.Kind == ir.ValueString && parsesRFC3339(v.String, fullTime), true
+		return value.Kind == ir.ValueString && parsesRFC3339(value.String, fullTime), true
 	default:
 		return false, false
 	}
 }
 
-// decimalOf reads v as a number, reporting false for any other kind of value and
+// decimalOf reads value as a number, reporting false for any other kind of value and
 // for a number no Decimal holds: reading that as zero would admit it everywhere.
-func decimalOf(v ir.Value) (ir.Decimal, bool) {
-	if v.Kind != ir.ValueNumber {
+func decimalOf(value ir.Value) (ir.Decimal, bool) {
+	if value.Kind != ir.ValueNumber {
 		return ir.Decimal{}, false
 	}
-	d, err := v.Number.Decimal()
-	return d, err == nil
+	decimal, err := value.Number.Decimal()
+	return decimal, err == nil
 }
 
-// inRange reports whether v is an integral number from lo to hi inclusive. An
+// inRange reports whether value is an integral number from lo to hi inclusive. An
 // end that reads as no number admits nothing.
-func inRange(v ir.Value, lo, hi ir.BigVal) bool {
-	d, ok := decimalOf(v)
+func inRange(value ir.Value, lo, hi ir.BigVal) bool {
+	decimal, ok := decimalOf(value)
 	low, lowErr := lo.Decimal()
 	high, highErr := hi.Decimal()
-	return ok && lowErr == nil && highErr == nil && d.IsInt() && d.Cmp(low) >= 0 && d.Cmp(high) <= 0
+	return ok && lowErr == nil && highErr == nil && decimal.IsInt() && decimal.Cmp(low) >= 0 && decimal.Cmp(high) <= 0
 }
 
-// admitsDecimal128 reports whether v fits IEEE 754 decimal128: at most 34
+// admitsDecimal128 reports whether value fits IEEE 754 decimal128: at most 34
 // significant digits, the leading one no higher than 10^6144 and the last no
 // lower than 10^-6176.
-func admitsDecimal128(v ir.Value) bool {
-	d, ok := decimalOf(v)
+func admitsDecimal128(value ir.Value) bool {
+	decimal, ok := decimalOf(value)
 	if !ok {
 		return false
 	}
-	if d.Sign() == 0 {
+	if decimal.Sign() == 0 {
 		return true
 	}
-	digits := int64(len(d.Digits()))
-	lowest := d.Exponent() - (digits - 1)
-	return digits <= decimal128Digits && d.Exponent() <= decimal128MaxMsdExp && lowest >= decimal128MinLowExp
+	digits := int64(len(decimal.Digits()))
+	lowest := decimal.Exponent() - (digits - 1)
+	return digits <= decimal128Digits && decimal.Exponent() <= decimal128MaxMsdExp && lowest >= decimal128MinLowExp
 }
 
-// admitsFloat reports whether v rounds to a finite value of a binary float of
+// admitsFloat reports whether value rounds to a finite value of a binary float of
 // the given width, which strconv settles exactly: rounding is allowed, as
 // OpenAPI floats round, and a magnitude at or past the point where
 // round-to-nearest overflows is a range error. The float it returns is not kept,
 // so no value passes through one.
-func admitsFloat(v ir.Value, bits int) bool {
-	d, ok := decimalOf(v)
+func admitsFloat(value ir.Value, bits int) bool {
+	decimal, ok := decimalOf(value)
 	if !ok {
 		return false
 	}
-	_, err := strconv.ParseFloat(d.String(), bits)
+	_, err := strconv.ParseFloat(decimal.String(), bits)
 	return err == nil
 }

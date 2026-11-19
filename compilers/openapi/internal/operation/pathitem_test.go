@@ -155,8 +155,8 @@ func TestPathItem_DocsAddNoMarker(t *testing.T) {
 	op := svc.Groups[0].Operations[0]
 	assert.Equal(t, ir.Inferred("group-path-prefix"), op.Provenance.Inferred, "the grouping's marker alone")
 	assert.Equal(t, "path summary", op.Bindings.HTTP[0].PathDocs.Summary)
-	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return strings.HasPrefix(d.Message, "path-item documentation")
+	assert.False(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+		return strings.HasPrefix(diagnostic.Message, "path-item documentation")
 	}), "the pair reached a field, so nothing is reported")
 }
 
@@ -432,9 +432,9 @@ paths:
 
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.InvalidMethodKey, "/paths/~1p/additionalOperations/"),
 		"the unusable method is reported at the entry that declares it")
-	for _, d := range diags {
-		if d.Code == diag.InvalidMethodKey {
-			assert.Equal(t, ir.SeverityWarning, d.Severity,
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.InvalidMethodKey {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity,
 				"a warning: the operation lowers in full, only its method is unusable")
 		}
 	}
@@ -476,8 +476,8 @@ webhooks:
 	assert.Nil(t, openapitest.FindOp(t, doc, "getX").Servers, "nor does another item's operation")
 
 	var announced int
-	for _, d := range diags {
-		if strings.Contains(d.Message, "declares no operation this compiler lowers") {
+	for _, diagnostic := range diags {
+		if strings.Contains(diagnostic.Message, "declares no operation this compiler lowers") {
 			announced++
 		}
 	}
@@ -503,9 +503,9 @@ paths:
 `, service.GroupByTags)
 
 	var at []string
-	for _, d := range diags {
-		if strings.Contains(d.Message, "declares no operation this compiler lowers") {
-			at = append(at, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if strings.Contains(diagnostic.Message, "declares no operation this compiler lowers") {
+			at = append(at, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"/paths/~1a", "/paths/~1b"}, at,
@@ -538,8 +538,8 @@ func TestPathItem_UnmountedAnnouncementFollowsWhatWasKept(t *testing.T) {
 			t.Parallel()
 			_, diags := serviceWithGrouping(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+
 				"paths:\n  /unmounted: "+tc.item+"\n", service.GroupByTags)
-			announced := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-				return strings.Contains(d.Message, "declares no operation this compiler lowers")
+			announced := slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+				return strings.Contains(diagnostic.Message, "declares no operation this compiler lowers")
 			})
 			assert.Equal(t, tc.kept, announced, "the announcement follows what landed: %+v", diags)
 		})
@@ -569,9 +569,9 @@ func TestPathItem_UnmountedAnnouncementSaysWhatLanded(t *testing.T) {
 			_, diags := serviceWithGrouping(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+
 				"paths:\n  /unmounted: "+tc.item+"\n", service.GroupByTags)
 			var found []string
-			for _, d := range diags {
-				if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "declares no operation") {
-					found = append(found, d.Message)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.DegradedConstruct && strings.Contains(diagnostic.Message, "declares no operation") {
+					found = append(found, diagnostic.Message)
 				}
 			}
 			require.Len(t, found, 1)
@@ -618,11 +618,11 @@ paths:
 	assert.Nil(t, op.Servers, "the parent operation does not take its callback item's servers")
 
 	var announced int
-	for _, d := range diags {
-		if strings.Contains(d.Message, "declares no operation this compiler lowers") {
+	for _, diagnostic := range diags {
+		if strings.Contains(diagnostic.Message, "declares no operation this compiler lowers") {
 			announced++
 			assert.Equal(t, jsontext.Pointer("/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}"),
-				d.Provenance.Pointer, "announced at the expression whose item mounts nothing")
+				diagnostic.Provenance.Pointer, "announced at the expression whose item mounts nothing")
 		}
 	}
 	assert.Equal(t, 1, announced)
@@ -642,8 +642,8 @@ paths:
 `, service.GroupByTags)
 
 	assert.Empty(t, svc.Unmodeled)
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "declares no operation this compiler lowers",
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "declares no operation this compiler lowers",
 			"an item with nothing beside its operations announces nothing")
 	}
 }
@@ -694,20 +694,20 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 	svc, diags := serviceAsReported(t, keptOncePerMountSpec)
 
 	var keys []string
-	for _, d := range diags {
-		switch d.Code {
+	for _, diagnostic := range diags {
+		switch diagnostic.Code {
 		case diag.UnknownObjectKey:
-			keys = append(keys, string(d.Provenance.Pointer))
+			keys = append(keys, string(diagnostic.Provenance.Pointer))
 		case diag.DegradedConstruct:
-			assert.Failf(t, "documentation is reported", "%s: %s", d.Provenance.Pointer, d.Message)
+			assert.Failf(t, "documentation is reported", "%s: %s", diagnostic.Provenance.Pointer, diagnostic.Message)
 		}
 	}
 	assert.Empty(t, keys,
 		"the rule table reports each undeclared key once, so the lowering reports none however many operations hold it")
 
 	ops := map[ir.OperationID]ir.Operation{}
-	for _, g := range svc.Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range svc.Groups {
+		for _, op := range operationGroup.Operations {
 			ops[op.ID] = op
 		}
 	}

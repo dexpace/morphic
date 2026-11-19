@@ -27,10 +27,10 @@ func TestDialectRule_ALandingNamingNoDialectRootsNone(t *testing.T) {
 			return reftable.DialectRule{NamesNone: none && dialect == "rel/x"}
 		}
 		table := bound(t, src, cfg)
-		o := docNamed(t, table, "o.yaml")
-		e := entryAt(t, table, "/components/schemas/S")
-		require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-		return table.Document(o).Dialects
+		docID := docNamed(t, table, "o.yaml")
+		referenceSite := entryAt(t, table, "/components/schemas/S")
+		require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
+		return table.Document(docID).Dialects
 	}
 
 	assert.Empty(t, dialectsOf(true), "the value roots no dialect")

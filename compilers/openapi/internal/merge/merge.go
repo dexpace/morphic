@@ -63,34 +63,34 @@ type composedEntry struct {
 	order  int
 }
 
-// NewModelPropertyDeclarations returns an empty index of m's properties; m holds none yet, so
+// NewModelPropertyDeclarations returns an empty index of model's properties; model holds none yet, so
 // every property reaches it through MergeProperty.
-func NewModelPropertyDeclarations(m *ir.Model) *ModelPropertyDeclarations {
-	return &ModelPropertyDeclarations{m: m, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}}
+func NewModelPropertyDeclarations(model *ir.Model) *ModelPropertyDeclarations {
+	return &ModelPropertyDeclarations{m: model, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}}
 }
 
-// MergeProperty appends p to the model, or records it as one more declaration
+// MergeProperty appends property to the model, or records it as one more declaration
 // of the field that already carries its wire name: overlapping allOf branches
 // (and properties co-declared alongside allOf) redeclare one logical field
 // under allOf's intersection semantics
 // (docs/compilers/openapi.md#allof-redeclared-property). Callers must set
-// p.WireName (fillModelProperties always does); it keys idx directly.
+// property.WireName (fillModelProperties always does); it keys idx directly.
 //
-// p.Provenance alone locates the declaration, so no second copy can disagree.
-// secretBy names the heuristics that set p.Secret, empty where a keyword
-// declared it (folding.foldUse). It reports whether p is the model's first
+// property.Provenance alone locates the declaration, so no second copy can disagree.
+// secretBy names the heuristics that set property.Secret, empty where a keyword
+// declared it (folding.foldUse). It reports whether property is the model's first
 // redeclaration, from which the model has members to settle.
-func (idx *ModelPropertyDeclarations) MergeProperty(p ir.Property, source DeclarationConstructRenderer, secretBy ir.Inferred) (firstRedeclaration bool) {
-	d := declaration{prop: p, source: source, secretBy: secretBy, order: idx.next()}
-	f, ok := idx.byWire[p.WireName]
+func (idx *ModelPropertyDeclarations) MergeProperty(property ir.Property, source DeclarationConstructRenderer, secretBy ir.Inferred) (firstRedeclaration bool) {
+	declarationValue := declaration{prop: property, source: source, secretBy: secretBy, order: idx.next()}
+	fieldValue, ok := idx.byWire[property.WireName]
 	if !ok {
-		idx.byWire[p.WireName] = &field{pos: len(idx.m.Properties), decls: []declaration{d}}
-		idx.m.Properties = append(idx.m.Properties, p)
+		idx.byWire[property.WireName] = &field{pos: len(idx.m.Properties), decls: []declaration{declarationValue}}
+		idx.m.Properties = append(idx.m.Properties, property)
 		return false
 	}
 	first := !idx.redeclared
 	idx.redeclared = true
-	f.decls = append(f.decls, d)
+	fieldValue.decls = append(fieldValue.decls, declarationValue)
 	return first
 }
 

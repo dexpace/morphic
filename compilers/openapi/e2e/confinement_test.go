@@ -69,14 +69,14 @@ func requireRefused(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, reaso
 	t.Helper()
 	refused := unresolvedRefs(diags)
 	require.Len(t, refused, 2, "the parameter and the response: %+v", diags)
-	for _, d := range refused {
-		assert.Equal(t, ir.SeverityError, d.Severity)
-		assert.Contains(t, d.Message, reason, "at %s", d.Provenance.Pointer)
+	for _, diagnostic := range refused {
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+		assert.Contains(t, diagnostic.Message, reason, "at %s", diagnostic.Provenance.Pointer)
 	}
 	op := operationAt(t, doc, "GET", "/a")
 	assert.Empty(t, op.Params, "the refused parameter is absent")
-	for _, r := range op.Responses {
-		assert.NotEqual(t, "from the other file", r.Docs.Description, "the refused document was not read")
+	for _, response := range op.Responses {
+		assert.NotEqual(t, "from the other file", response.Docs.Description, "the refused document was not read")
 	}
 }
 

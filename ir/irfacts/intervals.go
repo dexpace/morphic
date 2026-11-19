@@ -21,9 +21,9 @@ type intervals struct {
 // newIntervals indexes the graph whose vertex v has an edge to each vertex in
 // edges[v].
 func newIntervals(edges [][]int) *intervals {
-	r := &intervals{}
-	r.number(r.condense(edges))
-	return r
+	intervalsValue := &intervals{}
+	intervalsValue.number(intervalsValue.condense(edges))
+	return intervalsValue
 }
 
 // condense records each vertex's component and whether each component holds a

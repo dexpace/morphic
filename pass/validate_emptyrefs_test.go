@@ -24,10 +24,10 @@ func TestValidate_ReportsAnEmptyRequiredReference(t *testing.T) {
 	diags := validated(t, docWithOperation(op))
 
 	require.Equal(t, 1, countCode(t, diags, "ir/empty-channel-ref"))
-	for _, d := range diags {
-		if d.Code == "ir/empty-channel-ref" {
-			assert.Equal(t, ir.SeverityError, d.Severity)
-			assert.Equal(t, scenarioOpPath+".Bindings.Message.Channel", d.Provenance.Node)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "ir/empty-channel-ref" {
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+			assert.Equal(t, scenarioOpPath+".Bindings.Message.Channel", diagnostic.Provenance.Node)
 		}
 	}
 
@@ -104,8 +104,8 @@ func TestValidate_DocumentedEmptyPositionsStayLegal(t *testing.T) {
 
 	diags := validated(t, doc)
 
-	for _, d := range diags {
-		assert.NotRegexp(t, `^ir/empty-.*-ref$`, d.Code, "%s at %s", d.Message, d.Provenance.Node)
+	for _, diagnostic := range diags {
+		assert.NotRegexp(t, `^ir/empty-.*-ref$`, diagnostic.Code, "%s at %s", diagnostic.Message, diagnostic.Provenance.Node)
 	}
 }
 
@@ -125,11 +125,11 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 		{
 			name: "a message a binding uses, beside one its channel carries",
 			doc: func() *ir.Document {
-				o := ir.Operation{ID: "operation/x/o"}
-				o.Bindings.Message = &ir.MessageBinding{
+				operation := ir.Operation{ID: "operation/x/o"}
+				operation.Bindings.Message = &ir.MessageBinding{
 					Channel: "channel/x/c", Direction: ir.MessageDirectionSend, Messages: []ir.MessageID{"message/x/m", ""},
 				}
-				doc := docWithOperation(o)
+				doc := docWithOperation(operation)
 				doc.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Messages: []ir.MessageID{"message/x/m"}}}
 				doc.Messages = map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m"}}
 				return doc
@@ -167,11 +167,11 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 			diags := validated(t, tc.doc())
 
 			assert.Equal(t, tc.nodes, nodesOfCode(diags, tc.code))
-			for _, d := range diags {
-				if d.Code == tc.code || d.Severity != ir.SeverityError {
+			for _, diagnostic := range diags {
+				if diagnostic.Code == tc.code || diagnostic.Severity != ir.SeverityError {
 					continue
 				}
-				assert.Failf(t, "a second code", "%s at %s: %s", d.Code, d.Provenance.Node, d.Message)
+				assert.Failf(t, "a second code", "%s at %s: %s", diagnostic.Code, diagnostic.Provenance.Node, diagnostic.Message)
 			}
 		})
 	}

@@ -62,9 +62,9 @@ func compileNamed(t *testing.T, path, src string) (*ir.Document, []ir.Diagnostic
 // duplicateWarnings returns the repeated-key findings, in pointer order.
 func duplicateWarnings(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == duplicateKeyCode {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == duplicateKeyCode {
+			out = append(out, diagnostic)
 		}
 	}
 	slices.SortFunc(out, func(a, b ir.Diagnostic) int {
@@ -78,9 +78,9 @@ func duplicateWarnings(diags []ir.Diagnostic) []ir.Diagnostic {
 func requireNoRefusal(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
 	requireNoErrorDiagnostics(t, diags)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.UnpreservableConstruct, d.Code, "a repeated key is not unpreservable: %+v", d)
-		assert.NotContains(t, d.Message, "could not be serialized", "an extension with a repeated key converts: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.UnpreservableConstruct, diagnostic.Code, "a repeated key is not unpreservable: %+v", diagnostic)
+		assert.NotContains(t, diagnostic.Message, "could not be serialized", "an extension with a repeated key converts: %+v", diagnostic)
 	}
 }
 
@@ -97,11 +97,11 @@ func TestCompile_ARepeatedKeyIsKeptAsItsLastCopy(t *testing.T) {
 	warnings := duplicateWarnings(diags)
 	require.Len(t, warnings, 3, "one warning per repeated key: %+v", warnings)
 	wantPointers := []jsontext.Pointer{jsontext.Pointer(part + "bogus/k"), jsontext.Pointer(part + "encoding/x/contentType"), "/x-limits/rate"}
-	for i, d := range warnings {
-		assert.Equal(t, wantPointers[i], d.Provenance.Pointer)
-		assert.Equal(t, ir.SeverityWarning, d.Severity)
-		assert.Contains(t, d.Message, "more than once")
-		assert.Contains(t, d.Message, "last copy")
+	for i, diagnostic := range warnings {
+		assert.Equal(t, wantPointers[i], diagnostic.Provenance.Pointer)
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+		assert.Contains(t, diagnostic.Message, "more than once")
+		assert.Contains(t, diagnostic.Message, "last copy")
 	}
 	assert.Equal(t, 14, warnings[0].Provenance.Position.Line, "the later copy of bogus.k")
 	assert.Equal(t, 3, warnings[2].Provenance.Position.Line, "the later copy of x-limits.rate")

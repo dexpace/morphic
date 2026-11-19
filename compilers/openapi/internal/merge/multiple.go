@@ -14,28 +14,28 @@ import (
 // coefficient: a number of n decimal digits has fewer than 4n of either.
 const stepFactorsPerDigit = 4
 
-// isMultipleOf reports whether v is an integral multiple of m, exactly. Read v
-// as vc·10^vl and m as mc·10^ml: the coefficients are the digits, and vl and ml
+// isMultipleOf reports whether decimal is an integral multiple of irDecimal, exactly. Read decimal
+// as vc·10^vl and irDecimal as mc·10^ml: the coefficients are the digits, and vl and ml
 // the exponents of their last digits.
 //
-// If vl < ml, v is never a multiple, since mc·10^(ml−vl) divides vc only if 10
-// divides vc, and it does not. Otherwise v is a multiple iff mc divides
-// vc·10^k, with k = min(vl−ml, 4·len(m.Digits())): mc's powers of 2 and 5 are
+// If vl < ml, decimal is never a multiple, since mc·10^(ml−vl) divides vc only if 10
+// divides vc, and it does not. Otherwise decimal is a multiple iff mc divides
+// vc·10^k, with k = min(vl−ml, 4·len(irDecimal.Digits())): mc's powers of 2 and 5 are
 // each below 4 per digit, and the cofactor coprime to 10 is unaffected by the
 // shift. ok is false only for a zero step, which divides nothing.
-func isMultipleOf(v, m ir.Decimal) (multiple, ok bool) {
-	if m.Sign() == 0 {
+func isMultipleOf(decimal, irDecimal ir.Decimal) (multiple, ok bool) {
+	if irDecimal.Sign() == 0 {
 		return false, false
 	}
-	if v.Sign() == 0 {
+	if decimal.Sign() == 0 {
 		return true, true
 	}
-	shift := lowestExponent(v) - lowestExponent(m)
+	shift := lowestExponent(decimal) - lowestExponent(irDecimal)
 	if shift < 0 {
 		return false, true
 	}
-	k := min(shift, int64(stepFactorsPerDigit*len(m.Digits())))
-	return new(big.Int).Rem(scaled(v, k), coefficient(m)).Sign() == 0, true
+	k := min(shift, int64(stepFactorsPerDigit*len(irDecimal.Digits())))
+	return new(big.Int).Rem(scaled(decimal, k), coefficient(irDecimal)).Sign() == 0, true
 }
 
 // maxStepDigits bounds the significant digits of the two steps commonStep folds
@@ -45,24 +45,24 @@ func isMultipleOf(v, m ir.Decimal) (multiple, ok bool) {
 const maxStepDigits = 1024
 
 // commonStep returns the step whose multiples are exactly the multiples of both
-// x and y: one literal written twice, whichever of them is a multiple of the
+// bigVal and irBigVal: one literal written twice, whichever of them is a multiple of the
 // other, or else their least common multiple, a number neither wrote. It returns
 // false where no such step can be read: a literal no Decimal holds, a step that is
 // not positive, a pair past maxStepDigits, or a multiple past what a Decimal holds.
-func commonStep(x, y ir.BigVal) (ir.BigVal, bool) {
-	if x == y {
-		return x, true
+func commonStep(bigVal, irBigVal ir.BigVal) (ir.BigVal, bool) {
+	if bigVal == irBigVal {
+		return bigVal, true
 	}
-	a, errA := x.Decimal()
-	b, errB := y.Decimal()
+	a, errA := bigVal.Decimal()
+	b, errB := irBigVal.Decimal()
 	if errA != nil || errB != nil || a.Sign() <= 0 || b.Sign() <= 0 || len(a.Digits())+len(b.Digits()) > maxStepDigits {
 		return "", false
 	}
 	if multiple, ok := isMultipleOf(a, b); ok && multiple {
-		return x, true
+		return bigVal, true
 	}
 	if multiple, ok := isMultipleOf(b, a); ok && multiple {
-		return y, true
+		return irBigVal, true
 	}
 	lcm, err := ir.NewBigVal(leastCommonMultiple(a, b))
 	return lcm, err == nil
@@ -89,21 +89,21 @@ func leastCommonMultiple(a, b ir.Decimal) string {
 	return lcm
 }
 
-// scaled returns d's coefficient times 10^k.
-func scaled(d ir.Decimal, k int64) *big.Int {
-	c := coefficient(d)
+// scaled returns decimal's coefficient times 10^k.
+func scaled(decimal ir.Decimal, k int64) *big.Int {
+	c := coefficient(decimal)
 	return c.Mul(c, new(big.Int).Exp(big.NewInt(10), big.NewInt(k), nil))
 }
 
-// coefficient returns d's significant digits as an integer.
-func coefficient(d ir.Decimal) *big.Int {
-	c, _ := new(big.Int).SetString(d.Digits(), 10) // Digits is a digit run, by Decimal's invariant
+// coefficient returns decimal's significant digits as an integer.
+func coefficient(decimal ir.Decimal) *big.Int {
+	c, _ := new(big.Int).SetString(decimal.Digits(), 10) // Digits is a digit run, by Decimal's invariant
 	return c
 }
 
-// lowestExponent returns the power of ten d's last significant digit carries.
-// d is not zero, and the result stays inside int64 because Decimal bounds the
+// lowestExponent returns the power of ten decimal's last significant digit carries.
+// decimal is not zero, and the result stays inside int64 because Decimal bounds the
 // leading digit's exponent by ir.MaxDecimalExp.
-func lowestExponent(d ir.Decimal) int64 {
-	return d.Exponent() - int64(len(d.Digits())) + 1
+func lowestExponent(decimal ir.Decimal) int64 {
+	return decimal.Exponent() - int64(len(decimal.Digits())) + 1
 }

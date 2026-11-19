@@ -19,9 +19,9 @@ import (
 // which the table must have.
 func rows(t *testing.T, version, uri string) specrules.SchemaRules {
 	t.Helper()
-	r, unread := specrules.Table().SchemaRules(version, uri)
+	schemaRules, unread := specrules.Table().SchemaRules(version, uri)
 	require.False(t, unread, "%s %s", version, uri)
-	return r
+	return schemaRules
 }
 
 // TestTable_FallsBackFromTheRootToTheDocumentToTheSource pins the order every
@@ -62,9 +62,9 @@ func TestTable_FallsBackFromTheRootToTheDocumentToTheSource(t *testing.T) {
 	if table.Of(held.Content[3]) != root || table.Of(&yaml.Node{Kind: yaml.MappingNode}) != source {
 		t.Error("Of reads a node another root's rows than the one holding it, or than the source's")
 	}
-	r, ok := table.RootAt(reftable.DocumentPointer{Doc: 1, Pointer: "/R"})
+	schemaRules, ok := table.RootAt(reftable.DocumentPointer{Doc: 1, Pointer: "/R"})
 	assert.True(t, ok)
-	assert.Equal(t, root, r)
+	assert.Equal(t, root, schemaRules)
 	_, ok = table.RootAt(reftable.DocumentPointer{Doc: 1, Pointer: "/R/properties/a"})
 	assert.False(t, ok, "a root above a position is not at it")
 	assert.Equal(t, specrules.SchemaRules{}, dialect.SchemaDialectRows{}.At(reftable.DocumentPointer{}), "the zero Table reads the zero rows")

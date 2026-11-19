@@ -38,12 +38,12 @@ func markerCarriers() []markerCarrier {
 			ID: "property/x/M/f", Name: named("f"), Type: ref,
 		}}})
 	}
-	content := func(c ir.Content) *ir.Document {
-		c.MediaType, c.Type = "multipart/form-data", ir.TypeRef{Target: "type/x/M"}
+	content := func(content ir.Content) *ir.Document {
+		content.MediaType, content.Type = "multipart/form-data", ir.TypeRef{Target: "type/x/M"}
 		doc := property(ir.TypeRef{Target: "type/x/Leaf"})
 		doc.Services = []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
 			ID: "operation-group/x/S/g", Name: named("g"), Operations: []ir.Operation{{
-				ID: "operation/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{c}},
+				ID: "operation/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{content}},
 			}},
 		}}}}
 		return doc
@@ -175,8 +175,8 @@ func TestVerify_AnInferredMarkerAnswersToEachRuleItBreaks(t *testing.T) {
 				ID: "property/x/M/f", Name: named("f"), Type: tc.ref,
 			}}})))
 			require.Equal(t, tc.codes, violationCodes(got))
-			for _, v := range got {
-				assert.Equal(t, at, v.Path, v.Code)
+			for _, violation := range got {
+				assert.Equal(t, at, violation.Path, violation.Code)
 			}
 		})
 	}
@@ -202,17 +202,17 @@ func TestVerify_OnlyAnInferredMarkerIsHeldToTheListForm(t *testing.T) {
 func TestVerify_APartMarkerQualifiesItsFilename(t *testing.T) {
 	t.Parallel()
 	const op = "document.Services[0].Groups[0].Operations[0].Request.Contents[0]"
-	doc := func(c ir.Content) *ir.Document {
-		c.MediaType, c.Type = "multipart/form-data", ir.TypeRef{Target: "type/x/M"}
-		d := closedDoc(&ir.Model{ID: "type/x/M", Name: named("m"), Properties: []ir.Property{{
+	doc := func(content ir.Content) *ir.Document {
+		content.MediaType, content.Type = "multipart/form-data", ir.TypeRef{Target: "type/x/M"}
+		document := closedDoc(&ir.Model{ID: "type/x/M", Name: named("m"), Properties: []ir.Property{{
 			ID: "property/x/M/f", Name: named("f"), Type: ir.TypeRef{Target: "type/x/Leaf"},
 		}}})
-		d.Services = []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+		document.Services = []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
 			ID: "operation-group/x/S/g", Name: named("g"), Operations: []ir.Operation{{
-				ID: "operation/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{c}},
+				ID: "operation/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{content}},
 			}},
 		}}}}
-		return stamped(d)
+		return stamped(document)
 	}
 	for _, tc := range []struct {
 		name    string

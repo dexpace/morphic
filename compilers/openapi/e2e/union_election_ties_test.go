@@ -31,15 +31,15 @@ func TestElection_AUnionTyingWithTheWordsIsThePrincipal(t *testing.T) {
 			})
 			requireErrorsAndWarnings(t, diags, nil)
 			assert.Zero(t, degradedInfosAt(diags, "N"))
-			p := requireModelOf(t, doc, "N").Properties[0]
-			u, ok := kindNode(t, doc, p.Type.Target).(*ir.Union)
+			property := requireModelOf(t, doc, "N").Properties[0]
+			irUnion, ok := kindNode(t, doc, property.Type.Target).(*ir.Union)
 			require.True(t, ok, "the property names the union")
-			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/N/properties/p"), p.Type.Target, "standing at the property")
-			require.NotNil(t, u.Constraints)
-			require.NotNil(t, u.Constraints.MinLength)
-			assert.EqualValues(t, 1, *u.Constraints.MinLength)
-			assert.Nil(t, p.Constraints, "the property holds no bound the union does")
-			assert.Empty(t, p.Unmodeled)
+			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/N/properties/p"), property.Type.Target, "standing at the property")
+			require.NotNil(t, irUnion.Constraints)
+			require.NotNil(t, irUnion.Constraints.MinLength)
+			assert.EqualValues(t, 1, *irUnion.Constraints.MinLength)
+			assert.Nil(t, property.Constraints, "the property holds no bound the union does")
+			assert.Empty(t, property.Unmodeled)
 
 			beside, besideDiags := compileAnnotationSpec(t, "beside",
 				admissionSpec(version, "", simple, "B: {type: string, minLength: 1, allOf: ["+union+"]}"))

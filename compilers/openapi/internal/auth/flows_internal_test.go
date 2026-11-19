@@ -93,8 +93,8 @@ func TestFlowFields_AccountForEverySourceField(t *testing.T) {
 	}
 	declared := presentFlows(&all)
 	keywords := make([]string, 0, len(declared))
-	for _, f := range declared {
-		keywords = append(keywords, f.keyword)
+	for _, sourceFlow := range declared {
+		keywords = append(keywords, sourceFlow.keyword)
 	}
 	require.ElementsMatch(t,
 		[]string{"implicit", "authorizationCode", "password", "clientCredentials", "deviceAuthorization"}, keywords,

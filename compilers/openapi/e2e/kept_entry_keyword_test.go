@@ -69,10 +69,10 @@ func TestKeptEntryKeyword_ARelativeReferenceMergedInPlaceKeepsTheEntryApart(t *t
 		finds:   []keptFinding{keptDegraded("/allOf/{i}/$id", "$id")},
 		check: func(t *testing.T, doc *ir.Document, name string) {
 			t.Helper()
-			x, ok := propByWire(requireModelOf(t, doc, name), "x")
+			property, ok := propByWire(requireModelOf(t, doc, name), "x")
 			require.True(t, ok, "%s: the member the entry writes is typed", name)
-			_, isString := doc.Types[x.Type.Target].(*ir.Primitive)
-			alias, isAlias := doc.Types[x.Type.Target].(*ir.Scalar)
+			_, isString := doc.Types[property.Type.Target].(*ir.Primitive)
+			alias, isAlias := doc.Types[property.Type.Target].(*ir.Scalar)
 			assert.True(t, isString || isAlias && alias.Base != nil, "%s: x is the string its entry's base names", name)
 		},
 	}})

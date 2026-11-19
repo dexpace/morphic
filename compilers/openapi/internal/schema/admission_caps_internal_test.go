@@ -24,7 +24,7 @@ import (
 // longer within the caps.
 func TestAdmission_ACapStopsTheElectionsSummaryAlone(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", capsSpec()), service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", capsSpec()), service.Policy{})
 	for name, want := range map[string]struct {
 		cut, within bool
 		kinds       kindSet
@@ -34,11 +34,11 @@ func TestAdmission_ACapStopsTheElectionsSummaryAlone(t *testing.T) {
 		"AtMembers": {within: true, kinds: kindString}, "PastMembers": {kinds: kindString},
 		"AtMembersSummed": {within: true, kinds: kindString}, "PastMembersSummed": {kinds: kindString},
 	} {
-		r := admissionOf(c.Ctx, heldAt(c.Ctx, jsontext.Pointer("/components/schemas/"+name)))
-		assert.Equal(t, want.cut, r.cut, "%s: cut", name)
-		assert.Equal(t, want.within, r.within(), "%s: within the caps", name)
-		assert.Equal(t, want.kinds, r.kinds, "%s: the kinds it lowers to", name)
-		assert.Equal(t, want.within, r.admitted.kinds != kindAny, "%s: the summary an election compares", name)
+		admission := admissionOf(serviceContext.Ctx, heldAt(serviceContext.Ctx, jsontext.Pointer("/components/schemas/"+name)))
+		assert.Equal(t, want.cut, admission.cut, "%s: cut", name)
+		assert.Equal(t, want.within, admission.within(), "%s: within the caps", name)
+		assert.Equal(t, want.kinds, admission.kinds, "%s: the kinds it lowers to", name)
+		assert.Equal(t, want.within, admission.admitted.kinds != kindAny, "%s: the summary an election compares", name)
 	}
 }
 
@@ -48,12 +48,12 @@ func TestAdmission_ACapStopsTheElectionsSummaryAlone(t *testing.T) {
 // one past them lives, since its null is not read.
 func TestDeadBranch_ReadsABranchPastTheCapsByItsKinds(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", capsSpec()), service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", capsSpec()), service.Policy{})
 	for name, dead := range map[string]bool{
 		"ObjectWithin": true, "ObjectPast": true, "NullableWithin": true, "NullablePast": false, "NullableMembersPast": false,
 	} {
-		st := heldAt(c.Ctx, jsontext.Pointer("/components/schemas/"+name))
-		assert.Equal(t, []bool{dead}, deadBranches(c.Ctx, st.Schema, st.Schema), name)
+		st := heldAt(serviceContext.Ctx, jsontext.Pointer("/components/schemas/"+name))
+		assert.Equal(t, []bool{dead}, deadBranches(serviceContext.Ctx, st.Schema, st.Schema), name)
 	}
 }
 

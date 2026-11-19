@@ -143,8 +143,8 @@ func TestTallyOf_ListsGapsInFileThenPositionOrder(t *testing.T) {
 	got := tallyOf(profiles)
 
 	positions := make([]string, 0, len(got.gaps))
-	for _, g := range got.gaps {
-		positions = append(positions, fmt.Sprintf("%s:%d.%d", g.file, g.block.StartLine, g.block.StartCol))
+	for _, gap := range got.gaps {
+		positions = append(positions, fmt.Sprintf("%s:%d.%d", gap.file, gap.block.StartLine, gap.block.StartCol))
 	}
 	assert.Equal(t, []string{"x/a.go:2.1", "x/a.go:2.5", "x/a.go:9.1", "x/b.go:1.1"}, positions)
 	assert.Equal(t, 4, got.total)

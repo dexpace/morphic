@@ -53,8 +53,8 @@ func TestGrafter_RefusesWhatItCannotCopy(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			g := newGrafter(tc.version, nil)
-			_, err := g.write(t.Context(), []*yaml.Node{tc.target}, tc.update)
+			grafter := newGrafter(tc.version, nil)
+			_, err := grafter.write(t.Context(), []*yaml.Node{tc.target}, tc.update)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.says)
 		})
@@ -78,11 +78,11 @@ func deepMapping(depth int) *yaml.Node {
 // where names a node the overlay built rather than inventing a position.
 func TestShape_NamesEveryShape(t *testing.T) {
 	t.Parallel()
-	for s, want := range map[shape]string{
+	for shapeValue, want := range map[shape]string{
 		shapeObject: "an object", shapeArray: "an array", shapePrimitive: "a primitive",
 		shapeAlias: "a YAML alias", shapeNone: "no value",
 	} {
-		assert.Equal(t, want, s.String())
+		assert.Equal(t, want, shapeValue.String())
 	}
 	assert.Equal(t, "a position the overlay built", where(ynode.Scalar("v")))
 	assert.Equal(t, "line 3, column 4", where(&yaml.Node{Line: 3, Column: 4}))
@@ -112,8 +112,8 @@ func TestGrafter_NamesTheKindsOfMixedTargetsInOneOrder(t *testing.T) {
 // so the targets are of two kinds.
 func TestGrafter_RefusesAMixOfAnAliasAndAValue(t *testing.T) {
 	t.Parallel()
-	g := newGrafter(v11, nil)
-	_, err := g.write(t.Context(), []*yaml.Node{ynode.Map(), ynode.Alias(ynode.Map())}, ynode.Map())
+	grafter := newGrafter(v11, nil)
+	_, err := grafter.write(t.Context(), []*yaml.Node{ynode.Map(), ynode.Alias(ynode.Map())}, ynode.Map())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "an object and a YAML alias")
 }
@@ -149,16 +149,16 @@ func TestRemove_TakesTheTargetsOfEachHolderTogether(t *testing.T) {
 	holder := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), inner, ynode.Scalar("c"), ynode.Scalar("3"))
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{holder}}
 	at := func(h *yaml.Node, slot int) position { return position{holder: h, slot: slot, raw: h.Content[slot]} }
-	g := newGrafter(v11, root)
+	grafter := newGrafter(v11, root)
 
-	require.NoError(t, g.remove([]position{at(holder, 1), at(inner, 0), at(inner, 2), at(holder, 5)}))
+	require.NoError(t, grafter.remove([]position{at(holder, 1), at(inner, 0), at(inner, 2), at(holder, 5)}))
 	assert.Equal(t, "b", holder.Content[0].Value)
 	assert.Len(t, holder.Content, 2)
 	assert.Equal(t, "1", inner.Content[0].Value)
 	assert.Len(t, inner.Content, 1)
-	assert.True(t, g.detached)
+	assert.True(t, grafter.detached)
 
-	g = newGrafter(v11, root)
-	require.NoError(t, g.remove([]position{at(holder, 1), at(inner, 0)}))
+	grafter = newGrafter(v11, root)
+	require.NoError(t, grafter.remove([]position{at(holder, 1), at(inner, 0)}))
 	assert.Empty(t, holder.Content, "the array went, and its element with it")
 }

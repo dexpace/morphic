@@ -84,8 +84,8 @@ const parserPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '
 // makes.
 func countErrorsAt(diags []ir.Diagnostic, code string) int {
 	var n int
-	for _, d := range diags {
-		if d.Code == code && d.Severity == ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Severity == ir.SeverityError {
 			n++
 		}
 	}
@@ -96,8 +96,8 @@ func countErrorsAt(diags []ir.Diagnostic, code string) int {
 // comparison and an expectation both need.
 func diagLines(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, string(d.Provenance.Pointer)+" "+d.Code)
+	for _, diagnostic := range diags {
+		out = append(out, string(diagnostic.Provenance.Pointer)+" "+diagnostic.Code)
 	}
 	slices.Sort(out)
 	return out

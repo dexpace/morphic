@@ -13,8 +13,8 @@ type Budget struct {
 	cut bool
 }
 
-// New returns a Budget of l with nothing spent.
-func New(l Limit) Budget { return Budget{limit: l} }
+// New returns a Budget of limit with nothing spent.
+func New(limit Limit) Budget { return Budget{limit: limit} }
 
 // Spend charges n and reports whether the budget is still within its limit.
 // The count is held at math.MaxInt. A negative n is no charge a count makes,

@@ -34,8 +34,8 @@ func specFrom(t *testing.T, dir, name string) string {
 // findings spells each diagnostic as its code, severity and pointer, sorted.
 func findings(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Severity, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Code, diagnostic.Severity, diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -102,8 +102,8 @@ func namedItem(t *testing.T, list any, name string) any {
 // opTree returns the operation named source as its JSON.
 func opTree(t *testing.T, doc *ir.Document, source string) any {
 	t.Helper()
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, op := range operationGroup.Operations {
 			if op.Name.Source == source {
 				return tree(t, op)
 			}

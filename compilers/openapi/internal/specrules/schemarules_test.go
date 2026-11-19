@@ -23,8 +23,8 @@ const (
 
 // rulesOf returns the table's rows at version in dialect.
 func rulesOf(version, dialect string) specrules.SchemaRules {
-	r, _ := specrules.Table().SchemaRules(version, dialect)
-	return r
+	schemaRules, _ := specrules.Table().SchemaRules(version, dialect)
+	return schemaRules
 }
 
 // TestSchemaRules_AnswerAsTheTableDoes pins each question the schema lowering
@@ -50,14 +50,14 @@ func TestSchemaRules_AnswerAsTheTableDoes(t *testing.T) {
 	} {
 		t.Run(tc.version+" "+tc.dialect, func(t *testing.T) {
 			t.Parallel()
-			r := rulesOf(tc.version, tc.dialect)
-			assert.Equal(t, tc.nullable, r.Defines("nullable"))
-			assert.Equal(t, tc.tuple, r.Defines("prefixItems"))
+			schemaRules := rulesOf(tc.version, tc.dialect)
+			assert.Equal(t, tc.nullable, schemaRules.Defines("nullable"))
+			assert.Equal(t, tc.tuple, schemaRules.Defines("prefixItems"))
 			for _, bound := range []string{"exclusiveMinimum", "exclusiveMaximum"} {
-				assert.Equal(t, tc.boolBound, r.Takes(bound, specrules.Boolean), bound)
-				assert.Equal(t, tc.numberBound, r.Takes(bound, specrules.Number), bound)
+				assert.Equal(t, tc.boolBound, schemaRules.Takes(bound, specrules.Boolean), bound)
+				assert.Equal(t, tc.numberBound, schemaRules.Takes(bound, specrules.Number), bound)
 			}
-			assert.Equal(t, tc.items, r.RequiredWhen("items", "type", "array"))
+			assert.Equal(t, tc.items, schemaRules.RequiredWhen("items", "type", "array"))
 		})
 	}
 }
@@ -75,11 +75,11 @@ func TestSchemaRules_ADialectNamesItsKeywordsAlone(t *testing.T) {
 	for _, version := range []string{"3.1.0", "3.2.0"} {
 		own := rulesOf(version, "")
 		for _, dialect := range []string{oasDialect, draft2020, draft2019, draft07, draft06, draft04, "https://example.com/custom"} {
-			r := rulesOf(version, dialect)
+			schemaRules := rulesOf(version, dialect)
 			for _, field := range []string{"nullable", "discriminator", "xml", "externalDocs", "example"} {
-				assert.Equal(t, own.Defines(field), r.Defines(field), "%s %s %s", version, dialect, field)
+				assert.Equal(t, own.Defines(field), schemaRules.Defines(field), "%s %s %s", version, dialect, field)
 			}
-			assert.Equal(t, own.RequiredWhen("items", "type", "array"), r.RequiredWhen("items", "type", "array"))
+			assert.Equal(t, own.RequiredWhen("items", "type", "array"), schemaRules.RequiredWhen("items", "type", "array"))
 		}
 	}
 	d04 := rulesOf("3.1.0", draft04)
@@ -106,10 +106,10 @@ func TestSchemaRules_ADialectNamesItsKeywordsAlone(t *testing.T) {
 		{"3.1.0", "rel/dialect", false}, {"3.1.0", "4", false},
 		{"3.0.3", "https://example.com/custom", false}, {"3.3.0", "https://example.com/custom", false},
 	} {
-		r, unread := specrules.Table().SchemaRules(tc.version, tc.dialect)
+		schemaRules, unread := specrules.Table().SchemaRules(tc.version, tc.dialect)
 		assert.Equal(t, tc.unread, unread, "%s %s", tc.version, tc.dialect)
 		if unread {
-			assert.Equal(t, rulesOf(tc.version, "").Defines("prefixItems"), r.Defines("prefixItems"),
+			assert.Equal(t, rulesOf(tc.version, "").Defines("prefixItems"), schemaRules.Defines("prefixItems"),
 				"%s %s reads as the minor's own", tc.version, tc.dialect)
 		}
 	}
@@ -155,16 +155,16 @@ func TestSchemaRules_EachDraftReadsItsOwnKeywords(t *testing.T) {
 		{oasDialect, false, false, false, false, false, false, false, true, true},
 		{"", false, false, false, false, false, false, false, true, true},
 	} {
-		r := rulesOf("3.1.0", tc.dialect)
-		assert.Equal(t, tc.list, r.Takes("items", specrules.List), "%s items list", tc.dialect)
-		assert.Equal(t, tc.rest, r.Defines("additionalItems"), "%s additionalItems", tc.dialect)
-		assert.Equal(t, tc.dependencies, r.Defines("dependencies"), "%s dependencies", tc.dialect)
-		assert.Equal(t, tc.id, r.Defines("id") && !r.Defines("$id"), "%s id", tc.dialect)
-		assert.Equal(t, tc.boolean, r.Takes("exclusiveMinimum", specrules.Boolean), "%s bound", tc.dialect)
-		assert.Equal(t, tc.inert, r.IgnoresRefFields(), "%s $ref siblings", tc.dialect)
-		assert.Equal(t, tc.recursive, r.Defines("$recursiveRef"), "%s $recursiveRef", tc.dialect)
-		assert.Equal(t, tc.defs, r.Defines("$defs"), "%s $defs", tc.dialect)
-		assert.Equal(t, tc.constant, r.Defines("const"), "%s const", tc.dialect)
+		schemaRules := rulesOf("3.1.0", tc.dialect)
+		assert.Equal(t, tc.list, schemaRules.Takes("items", specrules.List), "%s items list", tc.dialect)
+		assert.Equal(t, tc.rest, schemaRules.Defines("additionalItems"), "%s additionalItems", tc.dialect)
+		assert.Equal(t, tc.dependencies, schemaRules.Defines("dependencies"), "%s dependencies", tc.dialect)
+		assert.Equal(t, tc.id, schemaRules.Defines("id") && !schemaRules.Defines("$id"), "%s id", tc.dialect)
+		assert.Equal(t, tc.boolean, schemaRules.Takes("exclusiveMinimum", specrules.Boolean), "%s bound", tc.dialect)
+		assert.Equal(t, tc.inert, schemaRules.IgnoresRefFields(), "%s $ref siblings", tc.dialect)
+		assert.Equal(t, tc.recursive, schemaRules.Defines("$recursiveRef"), "%s $recursiveRef", tc.dialect)
+		assert.Equal(t, tc.defs, schemaRules.Defines("$defs"), "%s $defs", tc.dialect)
+		assert.Equal(t, tc.constant, schemaRules.Defines("const"), "%s const", tc.dialect)
 	}
 	assert.False(t, rulesOf("3.0.3", "").IgnoresRefFields(), "3.0's own rows: the minor, not a dialect, ignores them")
 	assert.False(t, specrules.SchemaRules{}.IgnoresRefFields())

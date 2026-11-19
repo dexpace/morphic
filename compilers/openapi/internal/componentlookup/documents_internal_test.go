@@ -190,22 +190,22 @@ func (r *linkReader) LocateDirectory(dir string) string {
 // through the link, as its target or by a file URI is one document.
 func TestPlaces_PlacesAFileWhereItsDirectoryLies(t *testing.T) {
 	t.Parallel()
-	r := &linkReader{from: "/link", to: "/real", asked: map[string]int{}}
-	p := NewPlaces(r)
-	require.NotNil(t, p)
+	linkReaderValue := &linkReader{from: "/link", to: "/real", asked: map[string]int{}}
+	places := NewPlaces(linkReaderValue)
+	require.NotNil(t, places)
 
-	assert.Equal(t, "/real/a.yaml", p.File("/link/a.yaml"))
-	assert.Equal(t, "/real/a.yaml", p.File("/link/x/../a.yaml"))
-	assert.Equal(t, "/other/a.yaml", p.File("/other/a.yaml"))
-	assert.Equal(t, "link/a.yaml", p.File("link/a.yaml"), "a relative path, kept as spelled")
-	assert.Equal(t, "/real", p.Directory("/link"))
-	assert.Equal(t, "link", p.Directory("link"))
-	assert.Equal(t, 1, r.asked["/link"], "a directory is asked once")
-	file, ok := p.FileOf("file:///link/a.yaml")
+	assert.Equal(t, "/real/a.yaml", places.File("/link/a.yaml"))
+	assert.Equal(t, "/real/a.yaml", places.File("/link/x/../a.yaml"))
+	assert.Equal(t, "/other/a.yaml", places.File("/other/a.yaml"))
+	assert.Equal(t, "link/a.yaml", places.File("link/a.yaml"), "a relative path, kept as spelled")
+	assert.Equal(t, "/real", places.Directory("/link"))
+	assert.Equal(t, "link", places.Directory("link"))
+	assert.Equal(t, 1, linkReaderValue.asked["/link"], "a directory is asked once")
+	file, ok := places.FileOf("file:///link/a.yaml")
 	assert.True(t, ok)
 	assert.Equal(t, "/real/a.yaml", file)
-	assert.True(t, p.SameDocument("/link/a.yaml", "file:///real/a.yaml"))
-	assert.False(t, p.SameDocument("/link/a.yaml", "/other/a.yaml"))
+	assert.True(t, places.SameDocument("/link/a.yaml", "file:///real/a.yaml"))
+	assert.False(t, places.SameDocument("/link/a.yaml", "/other/a.yaml"))
 
 	assert.Nil(t, NewPlaces(nil), "a reader placing no directory")
 	var none *Places

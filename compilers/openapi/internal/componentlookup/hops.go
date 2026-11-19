@@ -25,20 +25,20 @@ func Hops[T, S any, R interface {
 	*S
 	Referenced[T]
 }](b *typed.Bindings, ref R) []Hop[R] {
-	r, ok := b.Reference(ref)
-	if !ok || r.Chain.Status != reftable.Resolved {
+	reference, ok := b.Reference(ref)
+	if !ok || reference.Chain.Status != reftable.Resolved {
 		return nil
 	}
 	var hops []Hop[R]
-	for range r.Chain.Hops - 1 {
-		at := r.Hop.Target
-		next, ok := b.Table().Reference(at, r.Kind)
-		wrapper, held := b.ObjectAt(at, r.Kind).(R)
+	for range reference.Chain.Hops - 1 {
+		at := reference.Hop.Target
+		next, ok := b.Table().Reference(at, reference.Kind)
+		wrapper, held := b.ObjectAt(at, reference.Kind).(R)
 		if !ok || !held {
 			break
 		}
 		hops = append(hops, Hop[R]{Ref: wrapper, At: at})
-		r = next
+		reference = next
 	}
 	return hops
 }

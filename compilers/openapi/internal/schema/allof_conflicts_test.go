@@ -39,22 +39,22 @@ func TestAllOf_OverlappingInlineBranchesReconcile(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Forkish")].(*ir.Model)
+	model, ok := doc.Types[componentID("Forkish")].(*ir.Model)
 	require.True(t, ok, "Forkish should be a model")
 
 	byWire := map[string]int{}
-	for _, p := range m.Properties {
-		byWire[p.WireName]++
+	for _, property := range model.Properties {
+		byWire[property.WireName]++
 	}
 	assert.Equal(t, 1, byWire["id"], "id declared in both branches reconciles to one property")
 	assert.Equal(t, 1, byWire["name"])
 	assert.Equal(t, 1, byWire["url"])
-	require.Len(t, m.Properties, 3, "no duplicate properties across overlapping inline branches")
+	require.Len(t, model.Properties, 3, "no duplicate properties across overlapping inline branches")
 
 	var id ir.Property
-	for _, p := range m.Properties {
-		if p.WireName == "id" {
-			id = p
+	for _, property := range model.Properties {
+		if property.WireName == "id" {
+			id = property
 		}
 	}
 	assert.True(t, id.Required, "required in the second branch => required on the merged model (allOf intersection)")
@@ -87,11 +87,11 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
+	model, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 	require.True(t, ok, "Tokenish should be a model")
-	require.Len(t, m.Properties, 1, "token reconciles to a single property")
+	require.Len(t, model.Properties, 1, "token reconciles to a single property")
 
-	tok := m.Properties[0]
+	tok := model.Properties[0]
 	assert.True(t, tok.Required, "required in the richer branch => required on the merged property")
 	assert.True(t, tok.Secret, "secrecy (format:password) adopted from the richer branch")
 	assert.Equal(t, "the access token", tok.Docs.Description, "description adopted whichever branch carries it")
@@ -123,10 +123,10 @@ func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 				branch + tc.first + branch + tc.second)
 			doc, diags := schema.LowerSpec(t, spec)
 			assert.Empty(t, diags, "nothing conflicts")
-			m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
+			model, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 			require.True(t, ok, "Tokenish should be a model")
-			require.Len(t, m.Properties, 1, "token reconciles to a single property")
-			tok := m.Properties[0]
+			require.Len(t, model.Properties, 1, "token reconciles to a single property")
+			tok := model.Properties[0]
 			assert.True(t, tok.Secret, "either branch's redaction makes the merged field secret")
 			assert.Equal(t, ir.TypeID("type/primitive/string"), tok.Type.Target, "both branches share the target")
 			require.NotNil(t, tok.Constraints, "the other branch's bound is folded, not dropped")
@@ -163,11 +163,11 @@ func TestAllOf_RedeclarationMarksAPromotedSecretOnly(t *testing.T) {
 			spec := openapitest.ComponentSpec("    Tokenish:\n      allOf:\n" +
 				branch + tc.first + branch + tc.second)
 			doc, _ := schema.LowerSpec(t, spec)
-			m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
+			model, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 			require.True(t, ok, "Tokenish should be a model")
-			require.Len(t, m.Properties, 1, "token reconciles to a single property")
-			assert.True(t, m.Properties[0].Secret)
-			assert.Equal(t, tc.want, m.Properties[0].Provenance.Inferred)
+			require.Len(t, model.Properties, 1, "token reconciles to a single property")
+			assert.True(t, model.Properties[0].Secret)
+			assert.Equal(t, tc.want, model.Properties[0].Provenance.Inferred)
 		})
 	}
 }
@@ -188,10 +188,10 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags) // a description clash is info-level, never an error
-	m, ok := doc.Types[componentID("Clashish")].(*ir.Model)
+	model, ok := doc.Types[componentID("Clashish")].(*ir.Model)
 	require.True(t, ok, "Clashish should be a model")
-	require.Len(t, m.Properties, 1, "id still reconciles to one property")
-	assert.Equal(t, "a different meaning", m.Properties[0].Docs.Description,
+	require.Len(t, model.Properties, 1, "id still reconciles to one property")
+	assert.Equal(t, "a different meaning", model.Properties[0].Docs.Description,
 		"the later declaration in source order wins the description")
 	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"a differing redeclared description is surfaced, not dropped silently")
@@ -215,26 +215,26 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags) // a redeclaration conflict is a warning, not a refusal
-	m, ok := doc.Types[componentID("Conflictish")].(*ir.Model)
+	model, ok := doc.Types[componentID("Conflictish")].(*ir.Model)
 	require.True(t, ok, "Conflictish should be a model")
-	require.Len(t, m.Properties, 1, "id still reconciles to one property")
-	assert.Equal(t, ir.TypeID("type/primitive/integer"), m.Properties[0].Type.Target,
+	require.Len(t, model.Properties, 1, "id still reconciles to one property")
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), model.Properties[0].Type.Target,
 		"the later declaration in source order wins the shape")
 
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "the incompatible type redeclaration is diagnosed exactly once")
-	d := conflicts[0]
-	assert.Equal(t, ir.SeverityWarning, d.Severity, "a usable-but-suspicious model is a warning")
-	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
-	assert.Contains(t, d.Message, "allOf/0", "the diagnostic names the first branch site")
-	assert.Contains(t, d.Message, "allOf/1", "the diagnostic names the second branch site")
+	diagnostic := conflicts[0]
+	assert.Equal(t, ir.SeverityWarning, diagnostic.Severity, "a usable-but-suspicious model is a warning")
+	assert.Contains(t, diagnostic.Message, `"id"`, "the diagnostic names the conflicting field")
+	assert.Contains(t, diagnostic.Message, "allOf/0", "the diagnostic names the first branch site")
+	assert.Contains(t, diagnostic.Message, "allOf/1", "the diagnostic names the second branch site")
 
 	// A diagnostic is not part of the document, so the losing declaration is
 	// also kept where a consumer reading the IR will reach it (GitHub #424).
-	lost, ok := m.Properties[0].Unmodeled["openapi:conflicting-redeclaration"+
+	lost, ok := model.Properties[0].Unmodeled["openapi:conflicting-redeclaration"+
 		"/components/schemas/Conflictish/allOf/0/properties/id"]
 	require.True(t, ok,
-		"the discarded type is kept beside the winner; got %v", m.Properties[0].Unmodeled)
+		"the discarded type is kept beside the winner; got %v", model.Properties[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, lost.Reason)
 	assert.JSONEq(t, `{"type":"string"}`, string(lost.Value),
 		"and it is the declaration the first branch wrote, not the one that won")
@@ -266,22 +266,22 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 `, order[0], bounds[0], order[1], bounds[1]))
 			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[componentID("Overlapish")].(*ir.Model)
+			model, ok := doc.Types[componentID("Overlapish")].(*ir.Model)
 			require.True(t, ok, "Overlapish should be a model")
-			require.Len(t, m.Properties, 1)
-			assert.Equal(t, ir.TypeID("type/primitive/"+order[1]), m.Properties[0].Type.Target, "the later declaration's kind stays")
+			require.Len(t, model.Properties, 1)
+			assert.Equal(t, ir.TypeID("type/primitive/"+order[1]), model.Properties[0].Type.Target, "the later declaration's kind stays")
 
 			assert.Empty(t, conflictDiags(diags), "overlapping kinds are not an unsatisfiable type")
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
 				"overlap", "the overlap is reported at the declaration that lost, as an info")
 			var atProperty []ir.Diagnostic
-			for _, d := range diags {
-				if d.Provenance.Pointer == at {
-					atProperty = append(atProperty, d)
+			for _, diagnostic := range diags {
+				if diagnostic.Provenance.Pointer == at {
+					atProperty = append(atProperty, diagnostic)
 				}
 			}
 			assert.Len(t, atProperty, 1, "exactly one diagnostic at the property; got %v", atProperty)
-			assert.Contains(t, m.Properties[0].Unmodeled,
+			assert.Contains(t, model.Properties[0].Unmodeled,
 				"openapi:conflicting-redeclaration"+at, "and that declaration is kept")
 		})
 	}
@@ -363,12 +363,12 @@ func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
 		{"Referred", `{"$ref":"#/components/schemas/Str"}`},
 		{"Nothing", `false`},
 	} {
-		m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
+		model, ok := doc.Types[componentID(tc.model)].(*ir.Model)
 		require.True(t, ok, "%s should be a model", tc.model)
-		require.Len(t, m.Properties, 1)
+		require.Len(t, model.Properties, 1)
 		key := "openapi:conflicting-redeclaration/components/schemas/" + tc.model + "/allOf/0/properties/id"
-		lost, ok := m.Properties[0].Unmodeled[key]
-		require.True(t, ok, "%s keeps its losing declaration; got %v", tc.model, m.Properties[0].Unmodeled)
+		lost, ok := model.Properties[0].Unmodeled[key]
+		require.True(t, ok, "%s keeps its losing declaration; got %v", tc.model, model.Properties[0].Unmodeled)
 		assert.JSONEq(t, tc.want, string(lost.Value))
 	}
 }
@@ -389,20 +389,20 @@ func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Boundish")].(*ir.Model)
+	model, ok := doc.Types[componentID("Boundish")].(*ir.Model)
 	require.True(t, ok, "Boundish should be a model")
-	require.Len(t, m.Properties, 1, "code reconciles to one property")
-	require.NotNil(t, m.Properties[0].Constraints, "the later declaration's constraints are kept")
-	assert.Equal(t, "^b$", m.Properties[0].Constraints.Pattern,
+	require.Len(t, model.Properties, 1, "code reconciles to one property")
+	require.NotNil(t, model.Properties[0].Constraints, "the later declaration's constraints are kept")
+	assert.Equal(t, "^b$", model.Properties[0].Constraints.Pattern,
 		"the later declaration in source order wins the constraint")
 
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "the incompatible constraint redeclaration is diagnosed exactly once")
-	d := conflicts[0]
-	assert.Equal(t, ir.SeverityWarning, d.Severity)
-	assert.Contains(t, d.Message, `"code"`, "the diagnostic names the conflicting field")
-	assert.Contains(t, d.Message, "allOf/0")
-	assert.Contains(t, d.Message, "allOf/1")
+	diagnostic := conflicts[0]
+	assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+	assert.Contains(t, diagnostic.Message, `"code"`, "the diagnostic names the conflicting field")
+	assert.Contains(t, diagnostic.Message, "allOf/0")
+	assert.Contains(t, diagnostic.Message, "allOf/1")
 }
 
 func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
@@ -422,10 +422,10 @@ func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Compatish")].(*ir.Model)
+	model, ok := doc.Types[componentID("Compatish")].(*ir.Model)
 	require.True(t, ok, "Compatish should be a model")
-	require.Len(t, m.Properties, 1, "id reconciles to one property")
-	assert.True(t, m.Properties[0].Required, "required from the second branch is OR-ed in")
+	require.Len(t, model.Properties, 1, "id reconciles to one property")
+	assert.True(t, model.Properties[0].Required, "required from the second branch is OR-ed in")
 
 	assert.Empty(t, conflictDiags(diags),
 		"a compatible redeclaration is not a conflict")
@@ -448,14 +448,14 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Mixish")].(*ir.Model)
+	model, ok := doc.Types[componentID("Mixish")].(*ir.Model)
 	require.True(t, ok, "Mixish should be a model")
-	require.Len(t, m.Properties, 2, "id (branch + sibling) reconciles to one; name stays its own")
+	require.Len(t, model.Properties, 2, "id (branch + sibling) reconciles to one; name stays its own")
 
 	var id ir.Property
-	for _, p := range m.Properties {
-		if p.WireName == "id" {
-			id = p
+	for _, property := range model.Properties {
+		if property.WireName == "id" {
+			id = property
 		}
 	}
 	assert.True(t, id.Required, "required alongside allOf => required on the reconciled property")
@@ -488,11 +488,11 @@ func TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat(t *testing.T) 
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
+	model, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 	require.True(t, ok, "Tokenish should be a model")
-	require.Len(t, m.Properties, 1, "token reconciles to a single property")
+	require.Len(t, model.Properties, 1, "token reconciles to a single property")
 
-	tok := m.Properties[0]
+	tok := model.Properties[0]
 	assert.Equal(t, ir.KindScalar, doc.Types[tok.Type.Target].Kind(), "the format's scalar types the field")
 	assert.True(t, tok.Required)
 	sc, ok := doc.Types[tok.Type.Target].(*ir.Scalar)
@@ -544,9 +544,9 @@ func TestAllOf_UntypedRedeclarationDoesNotConflict(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "Anyish").(*ir.Model)
+	model, ok := typeByName(doc, "Anyish").(*ir.Model)
 	require.True(t, ok, "Anyish should be a model")
-	require.Len(t, m.Properties, 1, "id reconciles to one property")
+	require.Len(t, model.Properties, 1, "id reconciles to one property")
 	assert.Empty(t, conflictDiags(diags),
 		"the schemaless top type never conflicts with a sibling redeclaration")
 }
@@ -675,31 +675,31 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 	cases := []struct {
 		name         string
 		a, b         string
-		assertMerged func(t *testing.T, c *ir.Constraints)
+		assertMerged func(t *testing.T, constraints *ir.Constraints)
 	}{
 		{
 			name: "one-sided keywords",
 			a:    "{type: string, maxLength: 10}",
 			b:    "{type: string, minLength: 2}",
-			assertMerged: func(t *testing.T, c *ir.Constraints) {
+			assertMerged: func(t *testing.T, constraints *ir.Constraints) {
 				t.Helper()
-				require.NotNil(t, c)
-				require.NotNil(t, c.MaxLength, "the first branch's maxLength is kept")
-				require.NotNil(t, c.MinLength, "the second branch's minLength is adopted, not dropped")
-				assert.Equal(t, int64(10), *c.MaxLength)
-				assert.Equal(t, int64(2), *c.MinLength)
+				require.NotNil(t, constraints)
+				require.NotNil(t, constraints.MaxLength, "the first branch's maxLength is kept")
+				require.NotNil(t, constraints.MinLength, "the second branch's minLength is adopted, not dropped")
+				assert.Equal(t, int64(10), *constraints.MaxLength)
+				assert.Equal(t, int64(2), *constraints.MinLength)
 			},
 		},
 		{
 			name: "one-sided pattern",
 			a:    "{type: string, maxLength: 10}",
 			b:    "{type: string, pattern: '^a'}",
-			assertMerged: func(t *testing.T, c *ir.Constraints) {
+			assertMerged: func(t *testing.T, constraints *ir.Constraints) {
 				t.Helper()
-				require.NotNil(t, c)
-				require.NotNil(t, c.MaxLength, "the first branch's maxLength is kept")
-				assert.Equal(t, int64(10), *c.MaxLength)
-				assert.Equal(t, "^a", c.Pattern, "the second branch's pattern is adopted, not dropped")
+				require.NotNil(t, constraints)
+				require.NotNil(t, constraints.MaxLength, "the first branch's maxLength is kept")
+				assert.Equal(t, int64(10), *constraints.MaxLength)
+				assert.Equal(t, "^a", constraints.Pattern, "the second branch's pattern is adopted, not dropped")
 			},
 		},
 		{
@@ -709,13 +709,13 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			name: "minimum and exclusiveMinimum adopted side by side",
 			a:    "{type: number, minimum: 1}",
 			b:    "{type: number, exclusiveMinimum: 5}",
-			assertMerged: func(t *testing.T, c *ir.Constraints) {
+			assertMerged: func(t *testing.T, constraints *ir.Constraints) {
 				t.Helper()
-				require.NotNil(t, c)
-				require.NotNil(t, c.Min, "the first branch's minimum stays")
-				assert.Equal(t, "1", c.Min.String())
-				require.NotNil(t, c.ExclusiveMin, "the second branch's exclusiveMinimum is adopted beside it")
-				assert.Equal(t, "5", c.ExclusiveMin.String())
+				require.NotNil(t, constraints)
+				require.NotNil(t, constraints.Min, "the first branch's minimum stays")
+				assert.Equal(t, "1", constraints.Min.String())
+				require.NotNil(t, constraints.ExclusiveMin, "the second branch's exclusiveMinimum is adopted beside it")
+				assert.Equal(t, "5", constraints.ExclusiveMin.String())
 			},
 		},
 		{name: "equivalent multipleOf", a: "{type: number, multipleOf: 2}", b: "{type: number, multipleOf: 2.0}"},
@@ -743,10 +743,10 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			if tc.assertMerged == nil {
 				return
 			}
-			m, ok := typeByName(doc, "T").(*ir.Model)
+			model, ok := typeByName(doc, "T").(*ir.Model)
 			require.True(t, ok, "T should be a model")
-			require.Len(t, m.Properties, 1, "v reconciles to one property")
-			tc.assertMerged(t, m.Properties[0].Constraints)
+			require.Len(t, model.Properties, 1, "v reconciles to one property")
+			tc.assertMerged(t, model.Properties[0].Constraints)
 		})
 	}
 }
@@ -887,13 +887,13 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "the co-declared property conflict is diagnosed once")
-	d := conflicts[0]
-	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
-	assert.NotContains(t, d.Message, "allOf branches",
+	diagnostic := conflicts[0]
+	assert.Contains(t, diagnostic.Message, `"id"`, "the diagnostic names the conflicting field")
+	assert.NotContains(t, diagnostic.Message, "allOf branches",
 		"the redeclaration site is a co-declared property, not an allOf branch")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Along/allOf/0/properties/id"), d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Along/allOf/0/properties/id"), diagnostic.Provenance.Pointer,
 		"the diagnostic sits at the branch the co-declared property overrides")
-	assert.Contains(t, d.Message, "/components/schemas/Along/properties/id", "and names the property kept")
+	assert.Contains(t, diagnostic.Message, "/components/schemas/Along/properties/id", "and names the property kept")
 }
 
 // redeclaredModelsSpec declares Meeting, then T and U, which compose it with an
@@ -918,15 +918,15 @@ const redeclaredModelsSpec = `    Meeting:
 // anonymous and points back at that declaration.
 func composedField(t *testing.T, doc *ir.Document, name, wire string) *ir.Model {
 	t.Helper()
-	p := propertyOf(t, doc, name, wire)
+	property := propertyOf(t, doc, name, wire)
 	field := "/components/schemas/" + name + "/allOf/1/properties/" + wire
 	want := ir.TypeID("type/composed" + field)
-	require.Equal(t, want, p.Type.Target)
-	m, ok := doc.Types[want].(*ir.Model)
+	require.Equal(t, want, property.Type.Target)
+	model, ok := doc.Types[want].(*ir.Model)
 	require.True(t, ok, "%s should hold a registered model", want)
-	assert.Equal(t, field, string(m.Provenance.Pointer), "it points back at the declaration")
-	assert.True(t, m.Anonymous)
-	return m
+	assert.Equal(t, field, string(model.Provenance.Pointer), "it points back at the declaration")
+	assert.True(t, model.Anonymous)
+	return model
 }
 
 // TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem pins GitHub #1085 in both
@@ -946,12 +946,12 @@ func TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem(t *testing.T) {
 		{"T", "type/anonymous/components/schemas/T/allOf/1/properties/data"},
 		{"U", "type/anonymous/components/schemas/U/allOf/0/properties/data"},
 	} {
-		m := composedField(t, doc, tc.name, "data")
-		require.NotNil(t, m.Base, tc.name)
-		assert.Equal(t, componentID("Meeting"), m.Base.Target, tc.name)
-		require.Len(t, m.Mixins, 1, tc.name)
-		assert.Equal(t, ir.TypeID(tc.inline), m.Mixins[0].Target, tc.name)
-		assert.Empty(t, m.Properties, "%s: the composition stays in source form", tc.name)
+		model := composedField(t, doc, tc.name, "data")
+		require.NotNil(t, model.Base, tc.name)
+		assert.Equal(t, componentID("Meeting"), model.Base.Target, tc.name)
+		require.Len(t, model.Mixins, 1, tc.name)
+		assert.Equal(t, ir.TypeID(tc.inline), model.Mixins[0].Target, tc.name)
+		assert.Empty(t, model.Properties, "%s: the composition stays in source form", tc.name)
 		assert.Empty(t, propertyOf(t, doc, tc.name, "data").Unmodeled, "%s: nothing is kept", tc.name)
 
 		inline, ok := doc.Types[ir.TypeID(tc.inline)].(*ir.Model)
@@ -982,11 +982,11 @@ func TestAllOf_AComposedFieldKeepsADiscriminatedBase(t *testing.T) {
         - {type: object, properties: {pet: {$ref: '#/components/schemas/Pet'}}}
 `))
 	assert.Empty(t, diags)
-	m := composedField(t, doc, "Owner", "pet")
-	require.NotNil(t, m.Base)
-	assert.Equal(t, componentID("Pet"), m.Base.Target)
-	require.Len(t, m.Mixins, 1)
-	assert.Equal(t, componentID("Plain"), m.Mixins[0].Target)
+	model := composedField(t, doc, "Owner", "pet")
+	require.NotNil(t, model.Base)
+	assert.Equal(t, componentID("Pet"), model.Base.Target)
+	require.Len(t, model.Mixins, 1)
+	assert.Equal(t, componentID("Plain"), model.Mixins[0].Target)
 }
 
 // TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes pins a field declared
@@ -1018,13 +1018,13 @@ func TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes(t *testing.T) {
     FieldUnder: {allOf: [`+field("Plain")+`, `+field("Under")+`]}
 `) {
 		for written, declared := range map[string]string{"WrittenRefund": "FieldRefund", "WrittenUnder": "FieldUnder"} {
-			w, ok := typeByName(doc, written).(*ir.Model)
+			model, ok := typeByName(doc, written).(*ir.Model)
 			require.True(t, ok, written)
-			require.NotNil(t, w.Base, written)
-			m := composedField(t, doc, declared, "f")
-			require.NotNil(t, m.Base, declared)
-			assert.Equal(t, w.Base.Target, m.Base.Target, declared)
-			assert.Equal(t, w.Mixins, m.Mixins, declared)
+			require.NotNil(t, model.Base, written)
+			irModel := composedField(t, doc, declared, "f")
+			require.NotNil(t, irModel.Base, declared)
+			assert.Equal(t, model.Base.Target, irModel.Base.Target, declared)
+			assert.Equal(t, model.Mixins, irModel.Mixins, declared)
 		}
 	}
 }
@@ -1064,10 +1064,10 @@ func TestAllOf_EveryDistributedVariantSharesOneComposedField(t *testing.T) {
 		"type/composed/components/schemas/S/oneOf/0",
 		"type/composed/components/schemas/S/oneOf/1",
 	} {
-		m, ok := doc.Types[variant].(*ir.Model)
+		model, ok := doc.Types[variant].(*ir.Model)
 		require.True(t, ok, variant)
-		require.Len(t, m.Properties, 1, variant)
-		assert.Equal(t, shared, m.Properties[0].Type.Target, variant)
+		require.Len(t, model.Properties, 1, variant)
+		assert.Equal(t, shared, model.Properties[0].Type.Target, variant)
 	}
 	body, ok := doc.Types[shared].(*ir.Model)
 	require.True(t, ok)
@@ -1114,9 +1114,9 @@ func TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor(t *testing.T) {
 			continue
 		}
 		assert.Empty(t, diags, name)
-		m := composedField(t, doc, "T", "v")
-		require.Len(t, m.Mixins, 2, name)
-		assert.Equal(t, tc.mixins, []ir.TypeID{m.Mixins[0].Target, m.Mixins[1].Target}, name)
+		model := composedField(t, doc, "T", "v")
+		require.Len(t, model.Mixins, 2, name)
+		assert.Equal(t, tc.mixins, []ir.TypeID{model.Mixins[0].Target, model.Mixins[1].Target}, name)
 	}
 }
 
@@ -1168,9 +1168,9 @@ func TestAllOf_ATypeHoldingAnotherTakesTheField(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, diags, tc.name)
-			p := propertyOf(t, doc, "T", "v")
-			assert.Empty(t, p.Unmodeled, tc.name)
-			assert.Equal(t, tc.want, p.Type.Target, tc.name)
+			property := propertyOf(t, doc, "T", "v")
+			assert.Empty(t, property.Unmodeled, tc.name)
+			assert.Equal(t, tc.want, property.Type.Target, tc.name)
 		}
 	}
 
@@ -1231,10 +1231,10 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, diags, tc.name)
 			assert.Empty(t, propertyOf(t, doc, "T", "v").Unmodeled, tc.name)
-			m := composedField(t, doc, "T", "v")
-			parts := m.Mixins
-			if m.Base != nil {
-				parts = append(slices.Clip(parts), *m.Base)
+			model := composedField(t, doc, "T", "v")
+			parts := model.Mixins
+			if model.Base != nil {
+				parts = append(slices.Clip(parts), *model.Base)
 			}
 			assert.ElementsMatch(t, []ir.TypeRef{{Target: componentID("A")}, {Target: tc.says(branch)}}, parts, tc.name)
 		}
@@ -1303,11 +1303,11 @@ func TestAllOf_RedeclarationsUnderAnotherBaseStayApart(t *testing.T) {
         - {type: object, properties: {x: `+x+`}}
 `))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
+			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			x, ok := openapitest.PropsByWire(m.Properties)["x"]
+			property, ok := openapitest.PropsByWire(model.Properties)["x"]
 			require.True(t, ok)
-			assert.Contains(t, x.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x",
+			assert.Contains(t, property.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x",
 				"the earlier declaration is kept")
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/0/properties/x"),
 				"%+v", diags)
@@ -1353,9 +1353,9 @@ func TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart(t *testing.T) {
 		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0",
 			"    A: {$anchor: n, type: string, maxLength: 1}\n"+fmt.Sprintf(tc.schemas, x)))
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := typeByName(doc, "S").(*ir.Model)
+		model, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, tc.name)
-		got, ok := openapitest.PropsByWire(m.Properties)["x"]
+		got, ok := openapitest.PropsByWire(model.Properties)["x"]
 		require.True(t, ok, tc.name)
 		assert.NotContains(t, got.Type.Target, "/allOf/", "%s %s: the named schema is the type", tc.name, tc.not)
 		_, kept := got.Unmodeled["openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x"]
@@ -1389,11 +1389,11 @@ func TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase(t *testi
         - {type: object, properties: {x: `+x+`}}
 `))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
+			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			x, ok := openapitest.PropsByWire(m.Properties)["x"]
+			property, ok := openapitest.PropsByWire(model.Properties)["x"]
 			require.True(t, ok)
-			assert.NotContains(t, x.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x")
+			assert.NotContains(t, property.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x")
 			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
 				"%+v", diags)
 		})
@@ -1484,9 +1484,9 @@ func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			name := order[0] + " then " + order[1]
 			assert.Empty(t, diags, name)
-			p := propertyOf(t, doc, "T", "f")
-			assert.Equal(t, tc.want, p.Type.Target, name)
-			assert.Empty(t, p.Unmodeled, name)
+			property := propertyOf(t, doc, "T", "f")
+			assert.Equal(t, tc.want, property.Type.Target, name)
+			assert.Empty(t, property.Unmodeled, name)
 		}
 	}
 
@@ -1543,34 +1543,34 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		"{const: {a: x}}", "{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#dyn'}",
 		"{$recursiveRef: '#'}", "false", ref("Missing"), ref("Refuses"),
 	} {
-		p, diags := compile(entry)
+		property, diags := compile(entry)
 		require.Len(t, withCode(diags, diag.ConflictingRedecl), 1, entry)
-		assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, entry)
-		assert.Len(t, p.Unmodeled, 1, "the structure is kept: %s", entry)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target, entry)
+		assert.Len(t, property.Unmodeled, 1, "the structure is kept: %s", entry)
 	}
 
 	for _, entry := range []string{"true", ref("AliasDoc")} {
-		p, diags := compile(entry)
+		property, diags := compile(entry)
 		openapitest.RequireNoErrorDiags(t, diags)
 		var atT []ir.Diagnostic
-		for _, d := range diags {
-			if strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/T/") {
-				atT = append(atT, d)
+		for _, diagnostic := range diags {
+			if strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/T/") {
+				atT = append(atT, diagnostic)
 			}
 		}
 		assert.Empty(t, atT, "the fold reports nothing: %s", entry)
-		assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, entry)
-		assert.Empty(t, p.Unmodeled, entry)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target, entry)
+		assert.Empty(t, property.Unmodeled, entry)
 	}
 
 	// A union admitting an object and an array makes the structure no model but
 	// a use of the union, which the merge does not compare with a string.
-	p, diags := compile(ref("ObjAnyOf"))
+	irProperty, diags := compile(ref("ObjAnyOf"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union is not compared")
-	assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target)
-	assert.Contains(t, p.Unmodeled, "openapi:properties", "the structure's own keyword is kept beside the use")
-	assert.Len(t, p.Unmodeled, 2, "and so is the union the merge did not compare")
+	assert.Equal(t, ir.TypeID("type/primitive/string"), irProperty.Type.Target)
+	assert.Contains(t, irProperty.Unmodeled, "openapi:properties", "the structure's own keyword is kept beside the use")
+	assert.Len(t, irProperty.Unmodeled, 2, "and so is the union the merge did not compare")
 
 	// A oneOf and an anyOf on one entry distribute the oneOf over the structure,
 	// as on two entries: a union, which the merge does not compare either.
@@ -1578,27 +1578,27 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		"{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
 		"{oneOf: [{type: object}, {type: array}]}, {anyOf: [{type: object}]}",
 	} {
-		p, diags := compile(entry)
+		property, diags := compile(entry)
 		openapitest.RequireNoErrorDiags(t, diags)
 		assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union is not compared: %s", entry)
 		var uncompared []ir.Diagnostic
-		for _, d := range withCode(diags, diag.DegradedConstruct) {
-			if strings.Contains(d.Message, "that the merge does not compare") {
-				uncompared = append(uncompared, d)
+		for _, diagnostic := range withCode(diags, diag.DegradedConstruct) {
+			if strings.Contains(diagnostic.Message, "that the merge does not compare") {
+				uncompared = append(uncompared, diagnostic)
 			}
 		}
 		assert.Len(t, uncompared, 1, "the field keeps the string and says why: %s", entry)
-		assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, entry)
-		assert.Len(t, p.Unmodeled, 1, "the structure is kept: %s", entry)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target, entry)
+		assert.Len(t, property.Unmodeled, 1, "the structure is kept: %s", entry)
 	}
 
 	// An enum of objects is elected before the composition, as written without
 	// the allOf: a union of literals, which the merge does not compare either.
-	p, diags = compile("{enum: [{a: x}]}")
+	irProperty, diags = compile("{enum: [{a: x}]}")
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union of literals is not compared")
-	assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target)
-	assert.Len(t, p.Unmodeled, 1, "the structure is kept")
+	assert.Equal(t, ir.TypeID("type/primitive/string"), irProperty.Type.Target)
+	assert.Len(t, irProperty.Unmodeled, 1, "the structure is kept")
 }
 
 // TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites pins a structure
@@ -1623,10 +1623,10 @@ func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 	}
 	const text, described = "{type: string}", "{$ref: '#/components/schemas/Described'}"
 	for _, order := range [][2]string{{text, described}, {described, text}} {
-		p, diags := compile(order[0], order[1])
+		property, diags := compile(order[0], order[1])
 		assert.Empty(t, diags, "%v", order)
-		assert.Equal(t, ir.TypeID("type/primitive/string"), p.Type.Target, "%v", order)
-		assert.Equal(t, "D", p.Docs.Description, "%v", order)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target, "%v", order)
+		assert.Equal(t, "D", property.Docs.Description, "%v", order)
 	}
 
 	for _, inline := range []string{
@@ -1635,12 +1635,12 @@ func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 		"{description: D, allOf: [" + described + "]}",
 	} {
 		for i, order := range [][2]string{{text, inline}, {inline, text}} {
-			p, diags := compile(order[0], order[1])
+			property, diags := compile(order[0], order[1])
 			require.Len(t, diags, 1, "%v", order)
 			assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "%v", order)
 			want := []ir.TypeID{"type/anonymous/components/schemas/T/allOf/1/properties/f", "type/primitive/string"}[i]
-			assert.Equal(t, want, p.Type.Target, "%v", order)
-			assert.Len(t, p.Unmodeled, 1, "the other is kept: %v", order)
+			assert.Equal(t, want, property.Type.Target, "%v", order)
+			assert.Len(t, property.Unmodeled, 1, "the other is kept: %v", order)
 		}
 	}
 }
@@ -1702,18 +1702,18 @@ func TestAllOf_ModelsAlikeAreOneType(t *testing.T) {
 		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, tc.a, tc.b)))
 		openapitest.RequireNoErrorDiags(t, diags)
 		assert.Empty(t, diags)
-		p := propertyOf(t, doc, "T", "owner")
-		assert.Equal(t, tc.want, p.Type.Target)
-		assert.Empty(t, p.Unmodeled)
+		property := propertyOf(t, doc, "T", "owner")
+		assert.Equal(t, tc.want, property.Type.Target)
+		assert.Empty(t, property.Unmodeled)
 	}
 
 	other := "{type: object, properties: {name: {type: string}, address: {type: object, properties: {city: {type: string}}}}}"
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, owner, other)))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, diags)
-	m := composedField(t, doc, "T", "owner")
-	require.NotNil(t, m.Base)
-	assert.Equal(t, componentID("Owner"), m.Base.Target, "a copy differing in a nested member composes")
+	model := composedField(t, doc, "T", "owner")
+	require.NotNil(t, model.Base)
+	assert.Equal(t, componentID("Owner"), model.Base.Target, "a copy differing in a nested member composes")
 }
 
 // TestAllOf_AModelComposesWithAMapOrAUnion pins GitHub #1182 in both branch
@@ -1741,12 +1741,12 @@ func TestAllOf_AModelComposesWithAMapOrAUnion(t *testing.T) {
 			name := order[0] + " then " + order[1]
 			assert.Empty(t, diags, name)
 			assert.Empty(t, propertyOf(t, doc, "T", "v").Unmodeled, name)
-			m := composedField(t, doc, "T", "v")
-			require.NotNil(t, m.Base, name)
-			assert.Equal(t, componentID("A"), m.Base.Target, name)
-			require.Len(t, m.Mixins, 1, name)
+			model := composedField(t, doc, "T", "v")
+			require.NotNil(t, model.Base, name)
+			assert.Equal(t, componentID("A"), model.Base.Target, name)
+			require.Len(t, model.Mixins, 1, name)
 			inline := fmt.Sprintf("type/anonymous/components/schemas/T/allOf/%d/properties/v", 1-i)
-			assert.Equal(t, ir.TypeID(inline), m.Mixins[0].Target, name)
+			assert.Equal(t, ir.TypeID(inline), model.Mixins[0].Target, name)
 		}
 	}
 }
@@ -1783,14 +1783,14 @@ func TestAllOf_ContainersOfDifferentModelsComposeTheirMembers(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, diags, order[0])
-			p := propertyOf(t, doc, "T", "v")
-			assert.Empty(t, p.Unmodeled, order[0])
-			require.Equal(t, ir.TypeID(field), p.Type.Target, order[0])
-			member := tc.member(doc.Types[p.Type.Target])
+			property := propertyOf(t, doc, "T", "v")
+			assert.Empty(t, property.Unmodeled, order[0])
+			require.Equal(t, ir.TypeID(field), property.Type.Target, order[0])
+			member := tc.member(doc.Types[property.Type.Target])
 			require.Equal(t, ir.TypeID(field+tc.at), member.Target, order[0])
-			m, ok := doc.Types[member.Target].(*ir.Model)
+			model, ok := doc.Types[member.Target].(*ir.Model)
 			require.True(t, ok, order[0])
-			assert.ElementsMatch(t, []ir.TypeID{componentID("A"), componentID("B")}, refTargets(m.Mixins), order[0])
+			assert.ElementsMatch(t, []ir.TypeID{componentID("A"), componentID("B")}, refTargets(model.Mixins), order[0])
 		}
 	}
 }
@@ -1848,10 +1848,10 @@ func TestAllOf_ANullNotOrIfIsTheKeywordLeftOut(t *testing.T) {
 `))
 			assert.Empty(t, findingsOf(diags, diag.ConflictingRedecl), "%s, %s first", tc.name, order[0])
 			for _, name := range []string{"M", "N"} {
-				m, ok := typeByName(doc, name).(*ir.Model)
+				model, ok := typeByName(doc, name).(*ir.Model)
 				require.True(t, ok, name)
-				require.Len(t, m.Properties, 1, name)
-				assert.Equal(t, ir.TypeID("type/primitive/integer"), m.Properties[0].Type.Target, "%s: %s, %s first", name, tc.name, order[0])
+				require.Len(t, model.Properties, 1, name)
+				assert.Equal(t, ir.TypeID("type/primitive/integer"), model.Properties[0].Type.Target, "%s: %s, %s first", name, tc.name, order[0])
 			}
 		}
 	}
@@ -1871,10 +1871,10 @@ func TestAllOf_ADistributedVariantIsReadWithItsUnion(t *testing.T) {
 	}
 	for _, order := range [][]string{schemas, {schemas[1], schemas[0]}} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", order[0]+order[1]))
-		m, ok := typeByName(doc, "Coll").(*ir.Model)
+		model, ok := typeByName(doc, "Coll").(*ir.Model)
 		require.True(t, ok)
-		require.Len(t, m.Properties, 1)
-		assert.True(t, m.Properties[0].Type.Nullable, "the list's null stands")
+		require.Len(t, model.Properties, 1)
+		assert.True(t, model.Properties[0].Type.Nullable, "the list's null stands")
 		assert.Empty(t, findingsOf(diags, diag.ConflictingRedecl))
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 			"/components/schemas/Coll/allOf/0"), "that the merge does not compare")

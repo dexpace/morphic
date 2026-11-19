@@ -212,16 +212,16 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	// The byte budget is checked before anything reads the bytes, because it is
 	// the one bound that can be: every finer measure of the document costs a parse
 	// to take (GitHub #75).
-	if d, over := OverByteBudget(ir.Provenance{Source: srcIndex}, src.Data, opts.MaxSourceBytes); over {
-		return nil, []ir.Diagnostic{d}, nil
+	if diagnostic, over := OverByteBudget(ir.Provenance{Source: srcIndex}, src.Data, opts.MaxSourceBytes); over {
+		return nil, []ir.Diagnostic{diagnostic}, nil
 	}
 
 	if err := opts.enter(ctx, phaseParse); err != nil {
 		return nil, nil, err
 	}
 	parsed, err := parsedFor(ctx, src, opts.MaxSourceNodes)
-	if d, past := pastNodes(ir.Provenance{Source: srcIndex}, "source", err); past {
-		return nil, []ir.Diagnostic{d}, nil
+	if diagnostic, past := pastNodes(ir.Provenance{Source: srcIndex}, "source", err); past {
+		return nil, []ir.Diagnostic{diagnostic}, nil
 	}
 	if err != nil {
 		// A parse its context stopped is no source that will not parse.
@@ -251,14 +251,14 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		src.Location = places.File(location)
 	}
 	opts.Within = places.Directory(opts.Within)
-	l := &loading{srcIndex: srcIndex, src: src, opts: opts, read: parsed.doc, root: parsed.doc.Root, places: places}
+	loadingValue := &loading{srcIndex: srcIndex, src: src, opts: opts, read: parsed.doc, root: parsed.doc.Root, places: places}
 	// A load that ends before reach leaves the tree as the source wrote it.
-	defer l.aside.restore()
-	for _, s := range steps() {
-		if err := opts.enter(ctx, s.phase); err != nil {
+	defer loadingValue.aside.restore()
+	for _, step := range steps() {
+		if err := opts.enter(ctx, step.phase); err != nil {
 			return nil, nil, err
 		}
-		refused, err := s.run(l, ctx)
+		refused, err := step.run(loadingValue, ctx)
 		if err != nil {
 			return nil, nil, stopped(ctx, err)
 		}
@@ -268,10 +268,10 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 			return nil, nil, err
 		}
 		if refused {
-			return nil, l.early, nil
+			return nil, loadingValue.early, nil
 		}
 	}
-	doc, diags := l.document(parsed.Hash())
+	doc, diags := loadingValue.document(parsed.Hash())
 	return doc, diags, nil
 }
 
@@ -283,7 +283,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 func sourceChecks(ctx context.Context, sites places, doc *soa.OpenAPI, sibs Siblings,
 	media MediaTypes, bindings *typed.Bindings,
 ) []ir.Diagnostic {
-	at := func(p jsontext.Pointer) ir.Provenance { return sites.source.At(p) }
+	at := func(pointer jsontext.Pointer) ir.Provenance { return sites.source.At(pointer) }
 	return append(listRepeats(at, sibs, bindings, walkSource(ctx, doc, sibs, media)),
 		landingRepeats(ctx, sites, sibs, bindings)...)
 }
@@ -339,15 +339,15 @@ func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenanc
 	closed bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	if d, deep := scan.Nesting(ctx, tree, idx); deep {
-		diags = append(diags, d)
+	if diagnostic, deep := scan.Nesting(ctx, tree, idx); deep {
+		diags = append(diags, diagnostic)
 	}
 	diags = append(diags, scan.Aliases(ctx, tree, whole, idx, opts.MaxAliasSurplus, opts.MaxSourceBytes)...)
 	if diag.HasError(diags) {
 		return diags
 	}
-	if d, long := scan.PointerAmplification(whole, idx); long && (!closed || !namedWithin(ctx, idx)) {
-		diags = append(diags, d)
+	if diagnostic, long := scan.PointerAmplification(whole, idx); long && (!closed || !namedWithin(ctx, idx)) {
+		diags = append(diags, diagnostic)
 	}
 	return diags
 }
@@ -432,9 +432,9 @@ func rowsAt(spec specrules.Spec, version, uri string) (rows Rows, unread bool) {
 // string and whether the compiler supports it: a minor the rule table covers
 // (specrules.ParseMinor), so no document is compiled that the table holds to nothing.
 func supportedMinor(version string) (string, bool) {
-	m, ok := specrules.ParseMinor(version)
+	minor, ok := specrules.ParseMinor(version)
 	if !ok {
 		return "", false
 	}
-	return m.String(), true
+	return minor.String(), true
 }

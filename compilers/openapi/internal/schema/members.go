@@ -33,22 +33,22 @@ type members struct {
 }
 
 // membersOf returns the run's record of models with members to settle.
-func membersOf(c lowering.Ctx) *members {
-	return lowering.Settled(c, func() *members {
+func membersOf(loweringContext lowering.Ctx) *members {
+	return lowering.Settled(loweringContext, func() *members {
 		return &members{byID: map[ir.TypeID]modelFields{}, settled: map[ir.TypeID]bool{},
 			tables: map[ir.TypeID]merge.RedeclaredWireNameTable{}, reads: budget.New(budget.AtMost(maxMemberReads))}
 	})
 }
 
-// note records the model f builds as one with members to settle, and queues
+// note records the model modelFieldsValue builds as one with members to settle, and queues
 // the settlement at the first model noted (settleMembers). The first fields to
 // note a model place what is minted and reported for it.
-func (rec *members) note(f modelFields) {
+func (rec *members) note(modelFieldsValue modelFields) {
 	if len(rec.byID) == 0 {
-		f.ts.QueueSettlementBeforeDeferredOnes(settleMembers{c: f.c})
+		modelFieldsValue.ts.QueueSettlementBeforeDeferredOnes(settleMembers{c: modelFieldsValue.c})
 	}
-	if _, ok := rec.byID[f.m.ID]; !ok {
-		rec.byID[f.m.ID] = f
+	if _, ok := rec.byID[modelFieldsValue.m.ID]; !ok {
+		rec.byID[modelFieldsValue.m.ID] = modelFieldsValue
 	}
 }
 
@@ -126,8 +126,8 @@ func (rec *members) budgetCut() []ir.Diagnostic {
 	if rec.cut == "" {
 		return nil
 	}
-	f := rec.byID[rec.cut]
-	return []ir.Diagnostic{f.c.DiagAt(ir.SeverityError, diag.BudgetExceeded, f.pointer,
+	modelFields := rec.byID[rec.cut]
+	return []ir.Diagnostic{modelFields.c.DiagAt(ir.SeverityError, diag.BudgetExceeded, modelFields.pointer,
 		"the settlement read past %d declarations and composition entries at this model; it and each model "+
 			"settled after it fold only their own declarations, not those their entries bring", maxMemberReads)}
 }
@@ -184,13 +184,13 @@ func (rec *members) settleOrder(reg ir.TypeRegistry, pending []ir.TypeID) []ir.T
 // the model.
 func (rec *members) settle(reg ir.TypeRegistry, id ir.TypeID, sources []ir.SourceInfo) []ir.Diagnostic {
 	rec.settled[id] = true
-	f := rec.byID[id]
-	g := merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Sources: sources, Reads: &rec.reads, Walk: f}
-	diags, table := f.idx.Settle(g, rec.partTables(reg, f.m), rec.shared)
+	modelFields := rec.byID[id]
+	merger := merge.Merger{Reg: reg, IDs: modelFields.c.IDs(), Doc: modelFields.c.Place(), Sources: sources, Reads: &rec.reads, Walk: modelFields}
+	diags, table := modelFields.idx.Settle(merger, rec.partTables(reg, modelFields.m), rec.shared)
 	rec.tables[id] = table
 	rec.cutAt(id)
-	if readingsOf(f.c).stored() {
-		diags = append(diags, f.c.DiagAt(ir.SeverityError, diag.InternalInvariant, f.pointer,
+	if readingsOf(modelFields.c).stored() {
+		diags = append(diags, modelFields.c.DiagAt(ir.SeverityError, diag.InternalInvariant, modelFields.pointer,
 			"internal: the model's members settle after a discriminator-inference reading is stored, which may "+
 				"have read them unsettled"))
 	}
@@ -207,23 +207,23 @@ func (rec *members) composed(reg ir.TypeRegistry, id ir.TypeID) []ir.TypeID {
 				out = append(out, part)
 				break
 			}
-			s, isAlias := reg[part].(*ir.Scalar)
-			if !isAlias || s.Base == nil {
+			scalar, isAlias := reg[part].(*ir.Scalar)
+			if !isAlias || scalar.Base == nil {
 				break
 			}
-			part = s.Base.Target
+			part = scalar.Base.Target
 		}
 	}
 	slices.Sort(out)
 	return slices.Compact(out)
 }
 
-// partTables returns the Table of each type m composes (merge.ComposedOf),
-// read for m (tableOf).
-func (rec *members) partTables(reg ir.TypeRegistry, m *ir.Model) map[ir.TypeID]merge.RedeclaredWireNameTable {
+// partTables returns the Table of each type model composes (merge.ComposedOf),
+// read for model (tableOf).
+func (rec *members) partTables(reg ir.TypeRegistry, model *ir.Model) map[ir.TypeID]merge.RedeclaredWireNameTable {
 	out := map[ir.TypeID]merge.RedeclaredWireNameTable{}
-	for _, target := range merge.ComposedOf(m) {
-		out[target] = rec.tableOf(reg, target, m.ID)
+	for _, target := range merge.ComposedOf(model) {
+		out[target] = rec.tableOf(reg, target, model.ID)
 	}
 	return out
 }
@@ -292,20 +292,20 @@ func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.Re
 	table := merge.RedeclaredWireNameTable{}
 	for _, member := range ir.FlattenedProperties(reg, id).Properties {
 		rec.reads.Spend(1 + len(member.Overridden))
-		if d, ok := merge.TakenOutside(member, from); ok && rec.shared[member.Property.WireName] {
-			table[member.Property.WireName] = rec.declared(d)
+		if propertyDecl, ok := merge.TakenOutside(member, from); ok && rec.shared[member.Property.WireName] {
+			table[member.Property.WireName] = rec.declared(propertyDecl)
 		}
 	}
 	return table
 }
 
-// declared is d, a declaration a flattening takes, with where its type may be
-// written: where the model declaring it says, once settled, or at d itself.
-func (rec *members) declared(d ir.PropertyDecl) merge.Declared {
-	if settled, ok := rec.tables[d.Owner][d.Property.WireName]; ok && settled.Property.ID == d.Property.ID {
+// declared is propertyDecl, a declaration a flattening takes, with where its type may be
+// written: where the model declaring it says, once settled, or at propertyDecl itself.
+func (rec *members) declared(propertyDecl ir.PropertyDecl) merge.Declared {
+	if settled, ok := rec.tables[propertyDecl.Owner][propertyDecl.Property.WireName]; ok && settled.Property.ID == propertyDecl.Property.ID {
 		return settled
 	}
-	return merge.DeclaredAt(d)
+	return merge.DeclaredAt(propertyDecl)
 }
 
 // chargeComposition spends, of the run's reads, what a flattening of id walks
@@ -337,16 +337,16 @@ func (rec *members) chargeComposition(reg ir.TypeRegistry, id ir.TypeID) bool {
 func sharedNames(reg ir.TypeRegistry) map[string]bool {
 	first, shared := map[string]ir.TypeID{}, map[string]bool{}
 	for id, td := range reg {
-		m, isModel := td.(*ir.Model)
+		model, isModel := td.(*ir.Model)
 		if !isModel {
 			continue
 		}
-		for _, p := range m.Properties {
-			switch owner, seen := first[p.WireName]; {
+		for _, property := range model.Properties {
+			switch owner, seen := first[property.WireName]; {
 			case !seen:
-				first[p.WireName] = id
+				first[property.WireName] = id
 			case owner != id:
-				shared[p.WireName] = true
+				shared[property.WireName] = true
 			}
 		}
 	}

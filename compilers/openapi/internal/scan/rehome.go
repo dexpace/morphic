@@ -95,12 +95,12 @@ func holdingTargets(steps map[*yaml.Node]step, mounts map[*yaml.Node][]*yaml.Nod
 func tokensOf(steps map[*yaml.Node]step, n *yaml.Node) []string {
 	var tokens []string
 	for at := n; ; {
-		s, ok := steps[at]
-		if !ok || s.holder == nil {
+		step, ok := steps[at]
+		if !ok || step.holder == nil {
 			break
 		}
-		tokens = append(tokens, s.token)
-		at = s.holder
+		tokens = append(tokens, step.token)
+		at = step.holder
 	}
 	slices.Reverse(tokens)
 	return tokens

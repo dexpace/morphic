@@ -25,19 +25,19 @@ func leaf() *ir.Scalar {
 
 // closedDoc returns a document holding tds beside the leaf.
 func closedDoc(tds ...ir.TypeDef) *ir.Document {
-	l := leaf()
-	reg := ir.TypeRegistry{l.ID: l}
+	scalar := leaf()
+	reg := ir.TypeRegistry{scalar.ID: scalar}
 	for _, td := range tds {
 		reg[td.Common().ID] = td
 	}
 	return &ir.Document{Types: reg}
 }
 
-// operationDoc returns a closed document whose one operation takes p. It is
+// operationDoc returns a closed document whose one operation takes parameter. It is
 // the fixture outside the type registry: a compiled document holds TypeRefs
 // under Services as well as under Types, so a check walking only document.Types
 // would miss those while every registry fixture stayed green.
-func operationDoc(p ir.Parameter) *ir.Document {
+func operationDoc(parameter ir.Parameter) *ir.Document {
 	doc := closedDoc()
 	doc.Services = []ir.Service{{
 		ID:   "service/x/S",
@@ -45,7 +45,7 @@ func operationDoc(p ir.Parameter) *ir.Document {
 		Groups: []ir.OperationGroup{{ID: "operation-group/x/S/g", Operations: []ir.Operation{{
 			ID:     "operation/x/S/op",
 			Name:   named("op"),
-			Params: []ir.Parameter{p},
+			Params: []ir.Parameter{parameter},
 		}}}},
 	}}
 	return doc
@@ -68,9 +68,9 @@ func credentialsDoc(ref *ir.TypeRef) *ir.Document {
 func typeRefViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
 	t.Helper()
 	var out []irverify.Violation
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == "ir/type-ref-no-target" {
-			out = append(out, v)
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == "ir/type-ref-no-target" {
+			out = append(out, violation)
 		}
 	}
 	return out
@@ -218,9 +218,9 @@ func TestVerify_SchemeCredentialsAreReferences(t *testing.T) {
 func inferredViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
 	t.Helper()
 	var out []irverify.Violation
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == "ir/type-ref-inferred-not-nullable" {
-			out = append(out, v)
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == "ir/type-ref-inferred-not-nullable" {
+			out = append(out, violation)
 		}
 	}
 	return out

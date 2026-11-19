@@ -23,69 +23,69 @@ type boundHomes struct {
 	numberText bool
 }
 
-// reads returns the bounds s writes that a node holding what h says reads,
-// s being the position's own schema or a folded branch of it: the value bounds of the
+// reads returns the bounds schema writes that a node holding what h says reads,
+// schema being the position's own schema or a folded branch of it: the value bounds of the
 // kinds h.value names (boundsRead), and where h.collection holds, the
 // collection bounds a field states, uniqueItems only where it holds it, true
 // (referenceHolds).
-func (h boundHomes) reads(s *statement.Schema) keySet {
-	out := boundsRead(s, h.value, nil)
+func (h boundHomes) reads(schema *statement.Schema) keySet {
+	out := boundsRead(schema, h.value, nil)
 	if h.collection {
-		out |= collectionReads(s) &^ keyBit("uniqueItems")
-		if referenceHolds(s, "uniqueItems") {
+		out |= collectionReads(schema) &^ keyBit("uniqueItems")
+		if referenceHolds(schema, "uniqueItems") {
 			out |= keyBit("uniqueItems")
 		}
 	}
 	return out
 }
 
-// homesAt returns which bounds the position s is written at, lowered to target,
+// homesAt returns which bounds the position schema is written at, lowered to target,
 // holds for its folded branches, as the census asks of those written beside its allOf. A
 // carrier or an alias holds the value bounds the types the position admits take
 // (boundKinds), and collection bounds where it is a use of the principal, a
 // reference (referenceReads), where those types admit an array. A node the position
 // owns holds what the lowering that builds it folds of them (ownHomes).
-func homesAt(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
-	if !LoweredToOwnNode(c, pointer, target) {
-		r, refined := refinementOf(c, s, pointer)
-		takes := boundKinds(c, s)
-		return boundHomes{value: takes, collection: refined && r.principal != nil && takes&kindArray != 0}
+func homesAt(loweringContext lowering.Ctx, schema *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
+	if !LoweredToOwnNode(loweringContext, pointer, target) {
+		refinement, refined := refinementOf(loweringContext, schema, pointer)
+		takes := boundKinds(loweringContext, schema)
+		return boundHomes{value: takes, collection: refined && refinement.principal != nil && takes&kindArray != 0}
 	}
-	return ownHomes(c, s, pointer)
+	return ownHomes(loweringContext, schema, pointer)
 }
 
-// ownHomes returns which bounds the node the refinement s, written at pointer,
+// ownHomes returns which bounds the node the refinement schema, written at pointer,
 // owns holds for the folded branches of its allOf: where an inline principal built it,
 // that principal's (nodeHomes), none for a value set's or a $ref's, and
-// otherwise what s's own election builds.
-func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) boundHomes {
-	takes := boundKinds(c, s)
-	if r, refined := refinementOf(c, s, pointer); refined && r.principal != nil {
-		e := r.principal
-		if _, set := valueSetPrincipal(r); set || e.schema.Ref != nil {
+// otherwise what schema's own election builds.
+func ownHomes(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) boundHomes {
+	takes := boundKinds(loweringContext, schema)
+	if refinement, refined := refinementOf(loweringContext, schema, pointer); refined && refinement.principal != nil {
+		allOfBranch := refinement.principal
+		if _, set := valueSetPrincipal(refinement); set || allOfBranch.schema.Ref != nil {
 			return boundHomes{}
 		}
-		return nodeHomes(c, e.schema.Schema, e.pointer, principalDispatch(*e), takes)
+		return nodeHomes(loweringContext, allOfBranch.schema.Schema, allOfBranch.pointer, principalDispatch(*allOfBranch), takes)
 	}
-	d, _ := electionOf(c, s, pointer)
-	return nodeHomes(c, s, pointer, d, takes)
+	dispatch, _ := electionOf(loweringContext, schema, pointer)
+	return nodeHomes(loweringContext, schema, pointer, dispatch, takes)
 }
 
-// nodeHomes returns which bounds the node s, written at pointer, lowers to by
-// the election d holds, as its builder reads them of the folded branches, takes the
+// nodeHomes returns which bounds the node schema, written at pointer, lowers to by
+// the election dispatchValue holds, as its builder reads them of the folded branches, takes the
 // kinds its position admits: none of a value set's, the value bounds of the
 // types a Scalar built for each type its lowering names takes, the collection
 // bounds of an array's List or Tuple, a type list's variant's among them, a
 // union's of oneOf or anyOf the value bounds alone, and none of an object's,
 // which lowerModel builds with no folded branch.
-func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d dispatch, takes kindSet) boundHomes {
-	if d.won == "const" || d.won == "enum" {
+func nodeHomes(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, dispatchValue dispatch, takes kindSet) boundHomes {
+	if dispatchValue.won == "const" || dispatchValue.won == "enum" {
 		return boundHomes{}
 	}
-	if declaresUnion(s) {
+	if declaresUnion(schema) {
 		return boundHomes{value: takes}
 	}
-	types, top := nodeTypes(c, s, pointer)
+	types, top := nodeTypes(loweringContext, schema, pointer)
 	if top {
 		return boundHomes{value: takes}
 	}
@@ -98,7 +98,7 @@ func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d 
 		default:
 			// A type list's variant takes the format only where no other listed
 			// type pairs with it (variantFormat), as lowerTypeVariant builds it.
-			if carriesText(s, st, variantFormat(s, st, types)) {
+			if carriesText(schema, st, variantFormat(schema, st, types)) {
 				homes.numberText = true
 				continue
 			}
@@ -108,21 +108,21 @@ func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d 
 	return homes
 }
 
-// nodeTypes returns the types the nodes of the position s, written at pointer,
+// nodeTypes returns the types the nodes of the position schema, written at pointer,
 // are built for where it elects no family and declares no union: the types it
 // writes, none where it writes only null, and else the ones its shape keywords
 // speak of (untypedKinds) or its allOf admits (lowerUndecided), top where it
 // admits none, which lowers to an alias of the top type.
-func nodeTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (types []statement.JSONSchemaTypeName, top bool) {
-	if types := effectiveTypes(s); len(types) > 0 {
+func nodeTypes(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (types []statement.JSONSchemaTypeName, top bool) {
+	if types := effectiveTypes(schema); len(types) > 0 {
 		return types, false
 	}
-	if writesType(s) {
+	if writesType(schema) {
 		return nil, false
 	}
-	kinds, _ := untypedKinds(c, s)
+	kinds, _ := untypedKinds(loweringContext, schema)
 	if kinds == 0 {
-		types := undecidedTypes(c, s, pointer)
+		types := undecidedTypes(loweringContext, schema, pointer)
 		return types, len(types) == 0
 	}
 	// An object, an array, or both, as lowerUntyped builds them.

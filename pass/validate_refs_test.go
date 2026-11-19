@@ -33,34 +33,34 @@ type refSite struct {
 // binding fields — the cluster no implemented compiler populates yet.
 func eventAndBindingSites() []refSite {
 	return []refSite{
-		{"message headers", ".Headers", func(d *ir.Document, t ir.TypeID) {
-			putMessage(d, func(m *ir.Message) { m.Headers = &ir.TypeRef{Target: t} })
+		{"message headers", ".Headers", func(document *ir.Document, typeID ir.TypeID) {
+			putMessage(document, func(message *ir.Message) { message.Headers = &ir.TypeRef{Target: typeID} })
 		}, "type/ghost/message-headers"},
-		{"message correlation root", ".CorrelationID.Root", func(d *ir.Document, t ir.TypeID) {
-			putMessage(d, func(m *ir.Message) { m.CorrelationID = &ir.PropPath{Root: &ir.TypeRef{Target: t}} })
+		{"message correlation root", ".CorrelationID.Root", func(document *ir.Document, typeID ir.TypeID) {
+			putMessage(document, func(message *ir.Message) { message.CorrelationID = &ir.PropPath{Root: &ir.TypeRef{Target: typeID}} })
 		}, "type/ghost/correlation-root"},
-		{"channel params", ".Params[0]", func(d *ir.Document, t ir.TypeID) {
-			putChannel(d, func(c *ir.Channel) {
-				c.Params = append(c.Params, ir.Parameter{Name: ir.Naming{Source: "room"}, Type: ir.TypeRef{Target: t}})
+		{"channel params", ".Params[0]", func(document *ir.Document, typeID ir.TypeID) {
+			putChannel(document, func(channel *ir.Channel) {
+				channel.Params = append(channel.Params, ir.Parameter{Name: ir.Naming{Source: "room"}, Type: ir.TypeRef{Target: typeID}})
 			})
 		}, "type/ghost/channel-param"},
-		{"request stream initial", ".RequestStream.Initial", func(d *ir.Document, t ir.TypeID) {
-			firstOp(d).RequestStream = &ir.StreamDetail{Initial: &ir.TypeRef{Target: t}}
+		{"request stream initial", ".RequestStream.Initial", func(document *ir.Document, typeID ir.TypeID) {
+			firstOp(document).RequestStream = &ir.StreamDetail{Initial: &ir.TypeRef{Target: typeID}}
 		}, "type/ghost/stream-initial"},
-		{"response stream events", ".ResponseStream.Events", func(d *ir.Document, t ir.TypeID) {
-			firstOp(d).ResponseStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: t}}
+		{"response stream events", ".ResponseStream.Events", func(document *ir.Document, typeID ir.TypeID) {
+			firstOp(document).ResponseStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: typeID}}
 		}, "type/ghost/stream-events"},
-		{"long-running polling type", ".LongRunning.PollingType", func(d *ir.Document, t ir.TypeID) {
-			longRunning(d).PollingType = &ir.TypeRef{Target: t}
+		{"long-running polling type", ".LongRunning.PollingType", func(document *ir.Document, typeID ir.TypeID) {
+			longRunning(document).PollingType = &ir.TypeRef{Target: typeID}
 		}, "type/ghost/lro-polling"},
-		{"long-running final type", ".LongRunning.FinalType", func(d *ir.Document, t ir.TypeID) {
-			longRunning(d).FinalType = &ir.TypeRef{Target: t}
+		{"long-running final type", ".LongRunning.FinalType", func(document *ir.Document, typeID ir.TypeID) {
+			longRunning(document).FinalType = &ir.TypeRef{Target: typeID}
 		}, "type/ghost/lro-final"},
-		{"long-running result path root", ".LongRunning.ResultPath.Root", func(d *ir.Document, t ir.TypeID) {
-			longRunning(d).ResultPath = &ir.PropPath{Root: &ir.TypeRef{Target: t}}
+		{"long-running result path root", ".LongRunning.ResultPath.Root", func(document *ir.Document, typeID ir.TypeID) {
+			longRunning(document).ResultPath = &ir.PropPath{Root: &ir.TypeRef{Target: typeID}}
 		}, "type/ghost/lro-result"},
-		{"rpc binding input type", ".Bindings.RPC.InputType", func(d *ir.Document, t ir.TypeID) {
-			firstOp(d).Bindings.RPC = &ir.RPCBinding{System: "grpc", InputType: &ir.TypeRef{Target: t}}
+		{"rpc binding input type", ".Bindings.RPC.InputType", func(document *ir.Document, typeID ir.TypeID) {
+			firstOp(document).Bindings.RPC = &ir.RPCBinding{System: "grpc", InputType: &ir.TypeRef{Target: typeID}}
 		}, "type/ghost/rpc-input"},
 	}
 }
@@ -70,43 +70,43 @@ func eventAndBindingSites() []refSite {
 // renames, discriminator defaults, and the versioning timeline.
 func payloadAndVersioningSites() []refSite {
 	return []refSite{
-		{"content file contents", ".File.Contents", func(d *ir.Document, t ir.TypeID) {
-			requestContent(d).File = &ir.FileInfo{Contents: &ir.TypeRef{Target: t}}
+		{"content file contents", ".File.Contents", func(document *ir.Document, typeID ir.TypeID) {
+			requestContent(document).File = &ir.FileInfo{Contents: &ir.TypeRef{Target: typeID}}
 		}, "type/ghost/file-contents"},
-		{"multipart part encoding headers", ".Encoding[", func(d *ir.Document, t ir.TypeID) {
-			// The key names t/m's own property, so only the header target dangles:
+		{"multipart part encoding headers", ".Encoding[", func(document *ir.Document, typeID ir.TypeID) {
+			// The key names typeID/m's own property, so only the header target dangles:
 			// an unknown key is its own defect (checkEncodingKeys).
-			requestContent(d).Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/a": {Headers: []ir.Header{{
-				ID: "property/hdr", Name: ir.Naming{Source: "X-Meta"}, Type: ir.TypeRef{Target: t},
+			requestContent(document).Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/a": {Headers: []ir.Header{{
+				ID: "property/hdr", Name: ir.Naming{Source: "X-Meta"}, Type: ir.TypeRef{Target: typeID},
 			}}}}
 		}, "type/ghost/part-header"},
-		{"property args", ".Args[0]", func(d *ir.Document, t ir.TypeID) {
-			model(d).Properties[0].Args = []ir.Parameter{
-				{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: t}},
+		{"property args", ".Args[0]", func(document *ir.Document, typeID ir.TypeID) {
+			model(document).Properties[0].Args = []ir.Parameter{
+				{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: typeID}},
 			}
 		}, "type/ghost/field-arg"},
-		{"property default value ref", ".Default.Ref.Type", func(d *ir.Document, t ir.TypeID) {
-			model(d).Properties[0].Default = &ir.Value{
-				Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: t, Member: "a"},
+		{"property default value ref", ".Default.Ref.Type", func(document *ir.Document, typeID ir.TypeID) {
+			model(document).Properties[0].Default = &ir.Value{
+				Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: typeID, Member: "a"},
 			}
 		}, "type/ghost/value-ref"},
-		{"availability versioned type", ".Availability.TypeChangedFrom[0]", func(d *ir.Document, t ir.TypeID) {
-			model(d).Properties[0].Availability = &ir.Availability{
-				TypeChangedFrom: []ir.VersionedType{{Version: "v1", Type: ir.TypeRef{Target: t}}},
+		{"availability versioned type", ".Availability.TypeChangedFrom[0]", func(document *ir.Document, typeID ir.TypeID) {
+			model(document).Properties[0].Availability = &ir.Availability{
+				TypeChangedFrom: []ir.VersionedType{{Version: "v1", Type: ir.TypeRef{Target: typeID}}},
 			}
 		}, "type/ghost/versioned-type"},
-		{"discriminator default", ".Discriminator.Default", func(d *ir.Document, t ir.TypeID) {
-			d.Types["type/u"] = &ir.Union{
+		{"discriminator default", ".Discriminator.Default", func(document *ir.Document, typeID ir.TypeID) {
+			document.Types["type/u"] = &ir.Union{
 				ID:            "type/u",
-				Discriminator: &ir.Discriminator{PropertyName: "kind", Default: t},
+				Discriminator: &ir.Discriminator{PropertyName: "kind", Default: typeID},
 			}
 		}, "type/ghost/disc-default"},
-		{"service rename key", ".Renames[", func(d *ir.Document, t ir.TypeID) {
-			service(d).Renames = map[ir.TypeID]ir.Naming{t: {Source: "Ghost"}}
+		{"service rename key", ".Renames[", func(document *ir.Document, typeID ir.TypeID) {
+			service(document).Renames = map[ir.TypeID]ir.Naming{typeID: {Source: "Ghost"}}
 		}, "type/ghost/rename-key"},
-		{"service common errors", ".CommonErrors[0]", func(d *ir.Document, t ir.TypeID) {
-			service(d).CommonErrors = []ir.ErrorCase{{
-				Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: t}}}},
+		{"service common errors", ".CommonErrors[0]", func(document *ir.Document, typeID ir.TypeID) {
+			service(document).CommonErrors = []ir.ErrorCase{{
+				Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: typeID}}}},
 			}}
 		}, "type/ghost/common-error"},
 	}
@@ -187,9 +187,9 @@ func putChannel(doc *ir.Document, mutate func(*ir.Channel)) {
 // danglingDiags returns the dangling-type-ref diagnostics among diags.
 func danglingDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 	out := make([]ir.Diagnostic, 0, len(diags))
-	for _, d := range diags {
-		if d.Code == "ir/dangling-type-ref" {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "ir/dangling-type-ref" {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -253,8 +253,8 @@ func TestValidate_AliasedPointerIsDeterministic(t *testing.T) {
 // pointers returns each diagnostic's IR-space location, in order.
 func pointers(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Provenance.Node)
+	for _, diagnostic := range diags {
+		out = append(out, diagnostic.Provenance.Node)
 	}
 	return out
 }
@@ -331,9 +331,9 @@ func TestValidate_LocatesDanglingRefsWhereIrverifyDoes(t *testing.T) {
 	}
 
 	var got []string
-	for _, v := range irverify.Verify(doc) {
-		if v.Code == "ir/dangling-type-ref" {
-			got = append(got, v.Path)
+	for _, violation := range irverify.Verify(doc) {
+		if violation.Code == "ir/dangling-type-ref" {
+			got = append(got, violation.Path)
 		}
 	}
 	require.Equal(t, sortedRefPointers, got, "irverify must name the same locations")
@@ -343,8 +343,8 @@ func TestValidate_LocatesDanglingRefsWhereIrverifyDoes(t *testing.T) {
 func TestValidate_DanglingTypeRef(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	m := doc.Types["type/m"].(*ir.Model)
-	m.Properties[0].Type.Target = "type/nowhere"
+	model := doc.Types["type/m"].(*ir.Model)
+	model.Properties[0].Type.Target = "type/nowhere"
 	diags := validated(t, doc)
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-type-ref")
@@ -358,8 +358,8 @@ func TestValidate_DanglingTypeRef(t *testing.T) {
 func TestValidate_DanglingDocRef(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	m := doc.Types["type/m"].(*ir.Model)
-	m.Docs = ir.Docs{Description: "{t:t/nowhere} reads Pet", Refs: []ir.DocRef{{StartByte: 20, EndByte: 23, Type: "type/pet"}}}
+	model := doc.Types["type/m"].(*ir.Model)
+	model.Docs = ir.Docs{Description: "{t:t/nowhere} reads Pet", Refs: []ir.DocRef{{StartByte: 20, EndByte: 23, Type: "type/pet"}}}
 	found := withCode(validated(t, doc), "ir/dangling-type-ref")
 	require.Len(t, found, 1, "the token-shaped text is not a reference, and the span is")
 	assert.Contains(t, found[0].Message, "type/pet")
@@ -422,9 +422,9 @@ func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 func TestValidate_ModelImplementsAndAdditionalPropsWalked(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	m := doc.Types["type/m"].(*ir.Model)
-	m.Implements = []ir.TypeRef{{Target: "type/ghost-iface"}}
-	m.AdditionalProperties = &ir.AdditionalProperties{
+	model := doc.Types["type/m"].(*ir.Model)
+	model.Implements = []ir.TypeRef{{Target: "type/ghost-iface"}}
+	model.AdditionalProperties = &ir.AdditionalProperties{
 		Value: &ir.TypeRef{Target: "type/ghost-apval"},
 		Key:   &ir.TypeRef{Target: "type/ghost-apkey"},
 		Patterns: []ir.PatternProperties{
@@ -490,16 +490,16 @@ type idRefSite struct {
 func channelRefSites() []idRefSite {
 	return []idRefSite{
 		{"message binding channel", "ir/dangling-channel-ref", ".Bindings.Message.Channel",
-			func(d *ir.Document, id string) { messageBinding(d).Channel = ir.ChannelID(id) },
+			func(document *ir.Document, id string) { messageBinding(document).Channel = ir.ChannelID(id) },
 			"channel/ghost/binding"},
 		{"reply channel", "ir/dangling-channel-ref", ".Bindings.Message.Reply.Channel",
-			func(d *ir.Document, id string) {
+			func(document *ir.Document, id string) {
 				ch := ir.ChannelID(id)
-				reply(d).Channel = &ch
+				reply(document).Channel = &ch
 			}, "channel/ghost/reply"},
 		{"otp binding process", "ir/dangling-channel-ref", ".Bindings.OTP.Process",
-			func(d *ir.Document, id string) {
-				firstOp(d).Bindings.OTP = &ir.OTPBinding{Behaviour: "gen_server", Kind: "call", Process: ir.ChannelID(id)}
+			func(document *ir.Document, id string) {
+				firstOp(document).Bindings.OTP = &ir.OTPBinding{Behaviour: "gen_server", Kind: "call", Process: ir.ChannelID(id)}
 			}, "channel/ghost/otp"},
 	}
 }
@@ -508,16 +508,16 @@ func channelRefSites() []idRefSite {
 func messageRefSites() []idRefSite {
 	return []idRefSite{
 		{"message binding messages", "ir/dangling-message-ref", ".Bindings.Message.Messages[0]",
-			func(d *ir.Document, id string) {
-				messageBinding(d).Messages = []ir.MessageID{ir.MessageID(id)}
+			func(document *ir.Document, id string) {
+				messageBinding(document).Messages = []ir.MessageID{ir.MessageID(id)}
 			}, "message/ghost/binding"},
 		{"reply messages", "ir/dangling-message-ref", ".Bindings.Message.Reply.Messages[0]",
-			func(d *ir.Document, id string) {
-				reply(d).Messages = []ir.MessageID{ir.MessageID(id)}
+			func(document *ir.Document, id string) {
+				reply(document).Messages = []ir.MessageID{ir.MessageID(id)}
 			}, "message/ghost/reply"},
 		{"channel messages", "ir/dangling-message-ref", ".Messages[0]",
-			func(d *ir.Document, id string) {
-				putChannel(d, func(c *ir.Channel) { c.Messages = []ir.MessageID{ir.MessageID(id)} })
+			func(document *ir.Document, id string) {
+				putChannel(document, func(channel *ir.Channel) { channel.Messages = []ir.MessageID{ir.MessageID(id)} })
 			}, "message/ghost/channel"},
 	}
 }
@@ -526,8 +526,8 @@ func messageRefSites() []idRefSite {
 func authRefSites() []idRefSite {
 	return []idRefSite{
 		{"scheme use", "ir/dangling-auth-ref", ".Auth[0].Schemes[0].Scheme",
-			func(d *ir.Document, id string) {
-				service(d).Auth = []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: ir.AuthID(id)}}}}
+			func(document *ir.Document, id string) {
+				service(document).Auth = []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: ir.AuthID(id)}}}}
 			}, "auth/ghost/service"},
 	}
 }
@@ -537,14 +537,14 @@ func authRefSites() []idRefSite {
 func serverRefSites() []idRefSite {
 	return []idRefSite{
 		{"service servers", "ir/dangling-server-ref", ".Servers[0]",
-			func(d *ir.Document, id string) { service(d).Servers = []ir.ServerID{ir.ServerID(id)} },
+			func(document *ir.Document, id string) { service(document).Servers = []ir.ServerID{ir.ServerID(id)} },
 			"server/ghost/service"},
 		{"channel servers", "ir/dangling-server-ref", ".Servers[0]",
-			func(d *ir.Document, id string) {
-				putChannel(d, func(c *ir.Channel) { c.Servers = []ir.ServerID{ir.ServerID(id)} })
+			func(document *ir.Document, id string) {
+				putChannel(document, func(channel *ir.Channel) { channel.Servers = []ir.ServerID{ir.ServerID(id)} })
 			}, "server/ghost/channel"},
 		{"operation servers", "ir/dangling-server-ref", ".Operations[0].Servers[0]",
-			func(d *ir.Document, id string) { firstOp(d).Servers = []ir.ServerID{ir.ServerID(id)} },
+			func(document *ir.Document, id string) { firstOp(document).Servers = []ir.ServerID{ir.ServerID(id)} },
 			"server/ghost/operation"},
 	}
 }
@@ -558,36 +558,36 @@ func serverRefSites() []idRefSite {
 func opRefSites() []idRefSite {
 	return []idRefSite{
 		{"overload of", "ir/dangling-operation-ref", ".OverloadOf",
-			func(d *ir.Document, id string) {
+			func(document *ir.Document, id string) {
 				op := ir.OperationID(id)
-				firstOp(d).OverloadOf = &op
+				firstOp(document).OverloadOf = &op
 			}, "operation/ghost/overload"},
 		{"polling operation", "ir/dangling-operation-ref", ".LongRunning.PollingOperation",
-			func(d *ir.Document, id string) {
+			func(document *ir.Document, id string) {
 				op := ir.OperationID(id)
-				longRunning(d).PollingOperation = &op
+				longRunning(document).PollingOperation = &op
 			}, "operation/ghost/polling"},
 		{"final operation", "ir/dangling-operation-ref", ".LongRunning.FinalOperation",
-			func(d *ir.Document, id string) {
+			func(document *ir.Document, id string) {
 				op := ir.OperationID(id)
-				longRunning(d).FinalOperation = &op
+				longRunning(document).FinalOperation = &op
 			}, "operation/ghost/final"},
 		{"callback operations", "ir/dangling-operation-ref", ".Bindings.HTTP[0].Callbacks[0].Operations[0]",
-			func(d *ir.Document, id string) {
-				firstOp(d).Bindings.HTTP = []ir.HTTPBinding{{Method: "GET", URITemplate: "/x",
+			func(document *ir.Document, id string) {
+				firstOp(document).Bindings.HTTP = []ir.HTTPBinding{{Method: "GET", URITemplate: "/x",
 					Callbacks: []ir.Callback{{Expression: "$request.body#/cb", Operations: []ir.OperationID{ir.OperationID(id)}}}}}
 			}, "operation/ghost/callback"},
 		{"resource lifecycle", "ir/dangling-operation-ref", ".Groups[0].Resource.Lifecycle[read]",
-			func(d *ir.Document, id string) {
-				resource(d).Lifecycle = map[string]ir.OperationID{"read": ir.OperationID(id)}
+			func(document *ir.Document, id string) {
+				resource(document).Lifecycle = map[string]ir.OperationID{"read": ir.OperationID(id)}
 			}, "operation/ghost/lifecycle"},
 		{"resource instance ops", "ir/dangling-operation-ref", ".Groups[0].Resource.InstanceOps[0]",
-			func(d *ir.Document, id string) {
-				resource(d).InstanceOps = []ir.OperationID{ir.OperationID(id)}
+			func(document *ir.Document, id string) {
+				resource(document).InstanceOps = []ir.OperationID{ir.OperationID(id)}
 			}, "operation/ghost/instance"},
 		{"resource collection ops", "ir/dangling-operation-ref", ".Groups[0].Resource.CollectionOps[0]",
-			func(d *ir.Document, id string) {
-				resource(d).CollectionOps = []ir.OperationID{ir.OperationID(id)}
+			func(document *ir.Document, id string) {
+				resource(document).CollectionOps = []ir.OperationID{ir.OperationID(id)}
 			}, "operation/ghost/collection"},
 	}
 }
@@ -597,8 +597,8 @@ func opRefSites() []idRefSite {
 func serviceRefSites() []idRefSite {
 	return []idRefSite{
 		{"service extends", "ir/dangling-service-ref", ".Extends[0]",
-			func(d *ir.Document, id string) {
-				service(d).Extends = []ir.ServiceID{ir.ServiceID(id)}
+			func(document *ir.Document, id string) {
+				service(document).Extends = []ir.ServiceID{ir.ServiceID(id)}
 			}, "service/ghost/base"},
 	}
 }
@@ -677,9 +677,9 @@ func resolving(dangling string) string {
 // withCode returns the diagnostics carrying the given code.
 func withCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
 	out := make([]ir.Diagnostic, 0, len(diags))
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -803,20 +803,20 @@ func TestValidate_ARegistryNodesOwnIDIsNoReference(t *testing.T) {
 		mismatch  func(doc *ir.Document, key, id string)
 		code, at  string // the dangling reference inside the node, "" for none
 	}{
-		{"channel", "channel/a", func(d *ir.Document, key, id string) {
-			d.Channels[ir.ChannelID(key)] = ir.Channel{ID: ir.ChannelID(id), Servers: []ir.ServerID{"server/none"}}
+		{"channel", "channel/a", func(document *ir.Document, key, id string) {
+			document.Channels[ir.ChannelID(key)] = ir.Channel{ID: ir.ChannelID(id), Servers: []ir.ServerID{"server/none"}}
 		}, "ir/dangling-server-ref", "document.Channels[channel/a].Servers[0]"},
-		{"message", "message/a", func(d *ir.Document, key, id string) {
-			d.Messages[ir.MessageID(key)] = ir.Message{ID: ir.MessageID(id), Headers: &ir.TypeRef{Target: "type/none"}}
+		{"message", "message/a", func(document *ir.Document, key, id string) {
+			document.Messages[ir.MessageID(key)] = ir.Message{ID: ir.MessageID(id), Headers: &ir.TypeRef{Target: "type/none"}}
 		}, "ir/dangling-type-ref", "document.Messages[message/a].Headers.Target"},
-		{"auth", "auth/a", func(d *ir.Document, key, id string) {
-			d.Auth[ir.AuthID(key)] = ir.AuthScheme{ID: ir.AuthID(id), Kind: ir.AuthKindAPIKey, Credentials: &ir.TypeRef{Target: "type/none"}}
+		{"auth", "auth/a", func(document *ir.Document, key, id string) {
+			document.Auth[ir.AuthID(key)] = ir.AuthScheme{ID: ir.AuthID(id), Kind: ir.AuthKindAPIKey, Credentials: &ir.TypeRef{Target: "type/none"}}
 		}, "ir/dangling-type-ref", "document.Auth[auth/a].Credentials.Target"},
-		{"server", "server/a", func(d *ir.Document, key, id string) {
-			d.Servers[ir.ServerID(key)] = ir.Server{ID: ir.ServerID(id), URLTemplate: "https://a.example"}
+		{"server", "server/a", func(document *ir.Document, key, id string) {
+			document.Servers[ir.ServerID(key)] = ir.Server{ID: ir.ServerID(id), URLTemplate: "https://a.example"}
 		}, "", ""},
-		{"type", "type/a", func(d *ir.Document, key, id string) {
-			d.Types[ir.TypeID(key)] = &ir.Model{ID: ir.TypeID(id), Base: &ir.TypeRef{Target: "type/none"}}
+		{"type", "type/a", func(document *ir.Document, key, id string) {
+			document.Types[ir.TypeID(key)] = &ir.Model{ID: ir.TypeID(id), Base: &ir.TypeRef{Target: "type/none"}}
 		}, "ir/dangling-type-ref", "document.Types[type/a].Base.Target"},
 	}
 	for _, tc := range cases {
@@ -830,9 +830,9 @@ func TestValidate_ARegistryNodesOwnIDIsNoReference(t *testing.T) {
 			tc.mismatch(mismatched, tc.key, tc.key[:len(tc.key)-1]+"b")
 			got := validated(t, mismatched)
 			assert.Equal(t, want, pointers(got), "nothing is said at the node's own ID")
-			for _, d := range got {
-				assert.Equal(t, tc.code, d.Code)
-				assert.Equal(t, ir.SeverityError, d.Severity)
+			for _, diagnostic := range got {
+				assert.Equal(t, tc.code, diagnostic.Code)
+				assert.Equal(t, ir.SeverityError, diagnostic.Severity)
 			}
 
 			keyed := registryDoc()
@@ -901,8 +901,8 @@ func TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
 	diags := danglingRefs(t, deep)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
-	for _, d := range diags {
-		assert.NotEqual(t, "ir/dangling-operation-ref", d.Code,
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, "ir/dangling-operation-ref", diagnostic.Code,
 			"%s is declared past the cap, not undeclared", target)
 	}
 
@@ -944,9 +944,9 @@ func TestPropIDSites_KeepOnlyWhatIsNotYetDeclared(t *testing.T) {
 	assert.Empty(t, irtest.AllocatingVisits(doc, pass.WalkVisitors(t, doc)...),
 		"keeping a reference spells no path")
 	var dangling []string
-	for _, d := range validated(t, doc) {
-		if d.Code == "ir/dangling-property-ref" {
-			dangling = append(dangling, d.Provenance.Node)
+	for _, diagnostic := range validated(t, doc) {
+		if diagnostic.Code == "ir/dangling-property-ref" {
+			dangling = append(dangling, diagnostic.Provenance.Node)
 		}
 	}
 	assert.Equal(t, []string{"document.Services[0].Groups[0].Operations[0].Pagination.Items.Segments[1]"}, dangling)

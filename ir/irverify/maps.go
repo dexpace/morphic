@@ -15,11 +15,11 @@ import (
 func checkMaps(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
-		m, isModel := td.(*ir.Model)
+		model, isModel := td.(*ir.Model)
 		if !isModel {
 			continue // a nil entry is checkRegistryKeys's to report
 		}
-		if _, isMap := ir.AsMap(m); !isMap {
+		if _, isMap := ir.AsMap(model); !isMap {
 			continue
 		}
 		vs = append(vs, Violation{
@@ -62,11 +62,11 @@ func checkMapKeys(doc *ir.Document) []Violation {
 func checkCatchAlls(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
-		m, isModel := td.(*ir.Model)
-		if !isModel || m == nil || m.AdditionalProperties == nil {
+		model, isModel := td.(*ir.Model)
+		if !isModel || model == nil || model.AdditionalProperties == nil {
 			continue
 		}
-		extra := m.AdditionalProperties
+		extra := model.AdditionalProperties
 		switch {
 		case extra.Value == nil && len(extra.Patterns) == 0:
 			vs = append(vs, Violation{
@@ -74,7 +74,7 @@ func checkCatchAlls(doc *ir.Document) []Violation {
 				Message: "catch-all types no key: it has neither a value nor a pattern",
 				Path:    typePath(id) + ".AdditionalProperties",
 			})
-		case extra.Value != nil && m.Additional == ir.AdditionalClosed:
+		case extra.Value != nil && model.Additional == ir.AdditionalClosed:
 			vs = append(vs, Violation{
 				Code:    "ir/catch-all-closed",
 				Message: "closed model types keys beyond its declared members and patterns, which its closure forbids",

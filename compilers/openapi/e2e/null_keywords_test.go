@@ -139,9 +139,9 @@ func nullableKeywords(t *testing.T, minor specrules.Minor) []string {
 	schema, ok := specrules.Table().Object(specrules.Schema)
 	require.True(t, ok)
 	var out []string
-	for _, f := range schema.Fields {
-		if f.Defined.Holds(minor) && f.Shape != specrules.AnyShapeUnchecked {
-			out = append(out, f.Name)
+	for _, field := range schema.Fields {
+		if field.Defined.Holds(minor) && field.Shape != specrules.AnyShapeUnchecked {
+			out = append(out, field.Name)
 		}
 	}
 	require.NotEmpty(t, out)
@@ -155,11 +155,11 @@ func nullableKeywords(t *testing.T, minor specrules.Minor) []string {
 func withoutNullWarning(t *testing.T, diags []ir.Diagnostic, keyword string) []ir.Diagnostic {
 	t.Helper()
 	found := false
-	out := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
-		if !strings.HasSuffix(string(d.Provenance.Pointer), "/"+strings.ReplaceAll(keyword, "/", "~1")) {
+	out := slices.DeleteFunc(slices.Clone(diags), func(diagnostic ir.Diagnostic) bool {
+		if !strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/"+strings.ReplaceAll(keyword, "/", "~1")) {
 			return false
 		}
-		require.Equal(t, ir.SeverityWarning, d.Severity, d.Message)
+		require.Equal(t, ir.SeverityWarning, diagnostic.Severity, diagnostic.Message)
 		found = true
 		return true
 	})

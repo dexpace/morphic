@@ -316,11 +316,11 @@ func TestSelect_AsksItsContext(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	q, err := jsonpath.Parse("$..*")
+	query, err := jsonpath.Parse("$..*")
 	require.NoError(t, err)
 	b := budget.New(budget.Unbounded())
 
-	_, err = q.Select(ctx, nodeview.New(), chain(nodeview.AskEvery*2), &b)
+	_, err = query.Select(ctx, nodeview.New(), chain(nodeview.AskEvery*2), &b)
 
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, nodeview.AskEvery, b.Spent(), "the context is asked once every nodeview.AskEvery steps")
@@ -332,18 +332,18 @@ func TestSelect_AsksItsContext(t *testing.T) {
 // root's list itself.
 func TestSelect_HoldsANodelistToItsBound(t *testing.T) {
 	t.Parallel()
-	q, err := jsonpath.Parse("$[*]")
+	query, err := jsonpath.Parse("$[*]")
 	require.NoError(t, err)
 	root := jsonTree(t, []byte(`[1, 2, 3]`))
 
-	got, err := q.SelectHolding(t.Context(), root, 4)
+	got, err := query.SelectHolding(t.Context(), root, 4)
 	require.NoError(t, err)
 	assert.Len(t, got, 3)
 
-	_, err = q.SelectHolding(t.Context(), root, 3)
+	_, err = query.SelectHolding(t.Context(), root, 3)
 	assert.ErrorIs(t, err, jsonpath.ErrResults)
 
-	_, err = q.SelectHolding(t.Context(), root, 0)
+	_, err = query.SelectHolding(t.Context(), root, 0)
 	assert.ErrorIs(t, err, jsonpath.ErrResults)
 }
 
@@ -363,14 +363,14 @@ func TestSelect_HoldsEveryLiveNodelistToOneBound(t *testing.T) {
 		"$[?count($[*]) > 0]": 2*n + 1,
 		"$[?$[0] == 0]":       n + 2,
 	} {
-		q, err := jsonpath.Parse(query)
+		queryValue, err := jsonpath.Parse(query)
 		require.NoError(t, err)
 
-		got, err := q.SelectHolding(t.Context(), root, bound)
+		got, err := queryValue.SelectHolding(t.Context(), root, bound)
 		require.NoError(t, err, query)
 		assert.Len(t, got, n, query)
 
-		_, err = q.SelectHolding(t.Context(), root, bound-1)
+		_, err = queryValue.SelectHolding(t.Context(), root, bound-1)
 		assert.ErrorIs(t, err, jsonpath.ErrResults, query)
 	}
 }
@@ -398,15 +398,15 @@ func TestSelect_ReadsAnAliasNamingNothingAsNoValue(t *testing.T) {
 // boundary: no view or budget, and a tree holding no value.
 func TestSelect_RefusesWhatItCannotEvaluate(t *testing.T) {
 	t.Parallel()
-	q, err := jsonpath.Parse("$")
+	query, err := jsonpath.Parse("$")
 	require.NoError(t, err)
 	b := budget.New(budget.Unbounded())
 
-	_, err = q.Select(t.Context(), nil, chain(1), &b)
+	_, err = query.Select(t.Context(), nil, chain(1), &b)
 	require.Error(t, err)
-	_, err = q.Select(t.Context(), nodeview.New(), chain(1), nil)
+	_, err = query.Select(t.Context(), nodeview.New(), chain(1), nil)
 	require.Error(t, err)
-	_, err = q.Select(t.Context(), nodeview.New(), &yaml.Node{Kind: yaml.DocumentNode}, &b)
+	_, err = query.Select(t.Context(), nodeview.New(), &yaml.Node{Kind: yaml.DocumentNode}, &b)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, jsonpath.ErrSteps)
 }
@@ -513,10 +513,10 @@ func TestParse_NamesThePatternsThatMatchNoString(t *testing.T) {
 		"^ab.*": "", ".*bc$": "", "[$]ref": "", `[\\^]x`: "", "x$|$ref": "", "$r?": "", "$r*": "",
 		"$r{0,2}": "", "$(r)": "", "(a)^b": "", "$^": "", "a|^b": "",
 	} {
-		q, err := jsonpath.Parse("$[?search(@, '" + pattern + "') || match(@, 'x')]")
+		query, err := jsonpath.Parse("$[?search(@, '" + pattern + "') || match(@, 'x')]")
 		require.NoError(t, err, pattern)
 
-		dead := slices.DeleteFunc(q.PatternNotes(), func(n jsonpath.PatternNote) bool { return !n.Dead })
+		dead := slices.DeleteFunc(query.PatternNotes(), func(patternNote jsonpath.PatternNote) bool { return !patternNote.Dead })
 		if want == "" {
 			assert.Empty(t, dead, pattern)
 			continue
@@ -539,10 +539,10 @@ func TestParse_NamesThePatternsWhoseAnchorsReadAsAnchors(t *testing.T) {
 		"(a$)": dollar, "(x(^y))": caret, "$r?": dollar,
 		"ref": "", "[$]ref": "", `[\\^]x`: "", `x\\.y`: "", "[a^$]": "",
 	} {
-		q, err := jsonpath.Parse("$[?search(@, '" + pattern + "')]")
+		query, err := jsonpath.Parse("$[?search(@, '" + pattern + "')]")
 		require.NoError(t, err, pattern)
 
-		notes := q.PatternNotes()
+		notes := query.PatternNotes()
 		if want == "" {
 			assert.Empty(t, notes, pattern)
 			continue
@@ -551,9 +551,9 @@ func TestParse_NamesThePatternsWhoseAnchorsReadAsAnchors(t *testing.T) {
 		assert.False(t, notes[0].Dead, pattern)
 		assert.Contains(t, notes[0].Reason, want, pattern)
 	}
-	q, err := jsonpath.Parse("$[?search(@, '$ref')]")
+	queryValue, err := jsonpath.Parse("$[?search(@, '$ref')]")
 	require.NoError(t, err)
-	notes := q.PatternNotes()
+	notes := queryValue.PatternNotes()
 	require.Len(t, notes, 1, "a pattern matching no string draws that note alone")
 	assert.True(t, notes[0].Dead)
 }

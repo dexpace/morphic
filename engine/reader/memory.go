@@ -34,7 +34,7 @@ type Memory struct {
 // Memory keeps each source's bytes and never writes them, so they must not
 // change while it serves them; every read is handed a copy of its own.
 func NewMemory(sources []compilers.Source) (*Memory, error) {
-	m := &Memory{docs: make(map[string][]byte, len(sources))}
+	memory := &Memory{docs: make(map[string][]byte, len(sources))}
 	for i, src := range sources {
 		if src.Path == "" {
 			continue
@@ -43,12 +43,12 @@ func NewMemory(sources []compilers.Source) (*Memory, error) {
 		if err != nil {
 			return nil, fmt.Errorf("source %d: %w", i, err)
 		}
-		if _, dup := m.docs[key]; dup {
+		if _, dup := memory.docs[key]; dup {
 			return nil, fmt.Errorf("source %d: %q names a document another source names", i, src.Path)
 		}
-		m.docs[key] = src.Data
+		memory.docs[key] = src.Data
 	}
-	return m, nil
+	return memory, nil
 }
 
 // memoryKey returns the key a source at path, or a request for it, is found

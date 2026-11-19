@@ -74,9 +74,9 @@ paths:
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	var said []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/paths/~1a" {
-			said = append(said, strings.TrimPrefix(d.Message, "path item declares no operation this compiler lowers; "))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Provenance.Pointer == "/paths/~1a" {
+			said = append(said, strings.TrimPrefix(diagnostic.Message, "path item declares no operation this compiler lowers; "))
 		}
 	}
 	assert.Equal(t, []string{
@@ -245,10 +245,10 @@ paths:
 	require.NotNil(t, doc)
 
 	var found []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			require.Less(t, d.Provenance.Source, len(doc.Sources))
-			found = append(found, filepath.Base(doc.Sources[d.Provenance.Source].Path)+"#"+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			require.Less(t, diagnostic.Provenance.Source, len(doc.Sources))
+			found = append(found, filepath.Base(doc.Sources[diagnostic.Provenance.Source].Path)+"#"+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"root.yaml#/paths/~1a", "other.yaml#/components/callbacks/C/{$request.body#~1u}"}, found)

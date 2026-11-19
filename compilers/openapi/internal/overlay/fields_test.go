@@ -17,9 +17,9 @@ import (
 // order.
 func invalidAt(diags []ir.Diagnostic) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.OverlayInvalid {
-			out = append(out, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.OverlayInvalid {
+			out = append(out, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	return out

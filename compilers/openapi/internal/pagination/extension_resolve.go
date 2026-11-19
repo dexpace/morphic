@@ -48,18 +48,18 @@ func firstResolved[T any](pg *pager, op *ir.Operation, target promotion.Extensio
 	var diags []ir.Diagnostic
 	written := false
 	for _, src := range pg.p.Sources(target) {
-		r, failure, readDiags := read(src)
+		resolvedValue, failure, readDiags := read(src)
 		diags = append(diags, readDiags...)
-		written = written || r.written
+		written = written || resolvedValue.written
 		switch {
 		case failure != "":
-			return resolved[T]{written: true}, true, append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, r.at,
+			return resolved[T]{written: true}, true, append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, resolvedValue.at,
 				"extension %q %s, so operation %q takes no pagination from its extensions", src, failure, op.ID))
-		case !r.stated:
+		case !resolvedValue.stated:
 		case !kept.stated:
-			kept, first = r, src
-		case !same(kept.value, r.value):
-			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, r.at,
+			kept, first = resolvedValue, src
+		case !same(kept.value, resolvedValue.value):
+			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, resolvedValue.at,
 				"extension %q states another %s than %q, which the policy reads first, and does not fill it",
 				src, target, first))
 		}
@@ -75,14 +75,14 @@ func (pg *pager) input(op *ir.Operation, target promotion.ExtensionTarget) (reso
 			return pg.markedInput(op, target, src)
 		}
 		st, diags := promotion.PageStatementOf(pg.p, target, src, op.Unmodeled, pg.root)
-		r := resolved[*ir.InputPath]{at: st.At, stated: st.Stated, written: st.Written,
+		resolvedValue := resolved[*ir.InputPath]{at: st.At, stated: st.Stated, written: st.Written,
 			read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {
-			return r, "", diags
+			return resolvedValue, "", diags
 		}
 		in, _, failure := runtimeexpr.RequestValue(pg.w, op, st.Expression)
-		r.value = in
-		return r, failure, diags
+		resolvedValue.value = in
+		return resolvedValue, failure, diags
 	}, sameInput)
 }
 
@@ -93,14 +93,14 @@ func (pg *pager) output(op *ir.Operation, target promotion.ExtensionTarget) (res
 			return pg.markedOutput(op, target, src)
 		}
 		st, diags := promotion.PageStatementOf(pg.p, target, src, op.Unmodeled, pg.root)
-		r := resolved[*ir.PropPath]{at: st.At, stated: st.Stated, written: st.Written,
+		resolvedValue := resolved[*ir.PropPath]{at: st.At, stated: st.Stated, written: st.Written,
 			read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {
-			return r, "", diags
+			return resolvedValue, "", diags
 		}
 		out, failure := pg.responseValue(op, st.Expression)
-		r.value = out
-		return r, failure, diags
+		resolvedValue.value = out
+		return resolvedValue, failure, diags
 	}, sameOutput)
 }
 
@@ -120,16 +120,16 @@ func sameOutput(a, b *ir.PropPath) bool {
 // or the shorthand `$response.` and a dotted chain of the body's members. It
 // returns why it resolves nothing.
 func (pg *pager) responseValue(op *ir.Operation, text string) (*ir.PropPath, string) {
-	if e, isExpression, err := runtimeexpr.Parse(text); isExpression && err == nil {
+	if expression, isExpression, err := runtimeexpr.Parse(text); isExpression && err == nil {
 		switch {
-		case e.Source != runtimeexpr.SourceResponse:
+		case expression.Source != runtimeexpr.SourceResponse:
 			return nil, "names no value of a page"
-		case e.Part == runtimeexpr.PartBody:
-			return pg.bodyOutput(op, e.Tokens)
-		case e.Part == runtimeexpr.PartHeader:
-			return headerOutput(pg.w, op, e.Name)
+		case expression.Part == runtimeexpr.PartBody:
+			return pg.bodyOutput(op, expression.Tokens)
+		case expression.Part == runtimeexpr.PartHeader:
+			return headerOutput(pg.w, op, expression.Name)
 		default:
-			return nil, "reads a response's " + e.Part + " parameter, which no response carries"
+			return nil, "reads a response's " + expression.Part + " parameter, which no response carries"
 		}
 	}
 	rest, ok := strings.CutPrefix(text, shorthandResponse)
@@ -168,14 +168,14 @@ func (pg *pager) bodyOutput(op *ir.Operation, tokens []string) (*ir.PropPath, st
 
 // headerOutput is the header name, which every success response of op must
 // declare once: what an extension's expression reads, and what the inference
-// reads a next cursor from (headerCursor). w is the document.
-func headerOutput(w *compileddoc.CompiledDocumentView, op *ir.Operation, name string) (*ir.PropPath, string) {
+// reads a next cursor from (headerCursor). compiledDocumentView is the document.
+func headerOutput(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation, name string) (*ir.PropPath, string) {
 	if len(op.Responses) == 0 {
 		return nil, "reads response header " + strconv.Quote(name) + ", and the operation declares no success response"
 	}
 	var out *ir.PropPath
 	for i := range op.Responses {
-		found := w.Header(compileddoc.ResponseKey{Op: op.ID, List: compileddoc.ListResponses, Index: i}, op.Responses[i].Headers, name)
+		found := compiledDocumentView.Header(compileddoc.ResponseKey{Op: op.ID, List: compileddoc.ListResponses, Index: i}, op.Responses[i].Headers, name)
 		switch {
 		case len(found) != 1:
 			return nil, "reads response header " + strconv.Quote(name) + ", which a success response does not declare once"

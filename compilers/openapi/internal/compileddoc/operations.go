@@ -23,11 +23,11 @@ func operations(svc *ir.Service) []*ir.Operation {
 			continue
 		}
 		for gi := range top.groups {
-			g := &top.groups[gi]
-			for oi := range g.Operations {
-				ops = append(ops, &g.Operations[oi])
+			operationGroup := &top.groups[gi]
+			for oi := range operationGroup.Operations {
+				ops = append(ops, &operationGroup.Operations[oi])
 			}
-			stack = append(stack, level{groups: g.Groups, depth: top.depth + 1})
+			stack = append(stack, level{groups: operationGroup.Groups, depth: top.depth + 1})
 		}
 	}
 	return ops

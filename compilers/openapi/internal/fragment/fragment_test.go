@@ -146,12 +146,12 @@ func TestPointer_AgreesWithTheResolverOnAnEncodedFragment(t *testing.T) {
 		"/$defs/a b",
 		"/$defs/héllo",
 	}
-	for _, p := range tests {
-		t.Run(string(p), func(t *testing.T) {
+	for _, pointer := range tests {
+		t.Run(string(pointer), func(t *testing.T) {
 			t.Parallel()
-			ref := "#" + percentEncoded(p)
-			assert.Equal(t, p, fragment.Pointer(ref))
-			assert.Equal(t, p, jsontext.Pointer(references.Reference(ref).GetJSONPointer()))
+			ref := "#" + percentEncoded(pointer)
+			assert.Equal(t, pointer, fragment.Pointer(ref))
+			assert.Equal(t, pointer, jsontext.Pointer(references.Reference(ref).GetJSONPointer()))
 		})
 	}
 }
@@ -164,10 +164,10 @@ func TestPointer_ReadsEveryEncodedByte(t *testing.T) {
 	t.Parallel()
 	for b := range 256 {
 		for _, key := range []string{string([]byte{byte(b), 'a'}), string([]byte{'a', byte(b), 'b'}), string([]byte{'a', byte(b)})} {
-			p := jsontext.Pointer("/$defs/" + key)
-			ref := references.Reference("#" + percentEncoded(p))
-			require.Equal(t, p, jsontext.Pointer(ref.GetJSONPointer()), "byte 0x%02x in %q", b, key)
-			require.Equal(t, p, fragment.Pointer(string(ref)), "byte 0x%02x in %q", b, key)
+			pointer := jsontext.Pointer("/$defs/" + key)
+			ref := references.Reference("#" + percentEncoded(pointer))
+			require.Equal(t, pointer, jsontext.Pointer(ref.GetJSONPointer()), "byte 0x%02x in %q", b, key)
+			require.Equal(t, pointer, fragment.Pointer(string(ref)), "byte 0x%02x in %q", b, key)
 			require.Empty(t, ref.GetURI(), "byte 0x%02x in %q", b, key)
 		}
 	}

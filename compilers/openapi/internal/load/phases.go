@@ -42,10 +42,10 @@ const (
 )
 
 // enter is the check a load makes before each phase: the test seam is told of
-// p, then ctx is asked.
-func (o Options) enter(ctx context.Context, p phase) error {
+// phaseValue, then ctx is asked.
+func (o Options) enter(ctx context.Context, phaseValue phase) error {
 	if o.entered != nil {
-		o.entered(p)
+		o.entered(phaseValue)
 	}
 	return ctx.Err()
 }
@@ -54,7 +54,7 @@ func (o Options) enter(ctx context.Context, p phase) error {
 // refusal to lower, carried in early.
 type step struct {
 	phase phase
-	run   func(l *loading, ctx context.Context) (refused bool, err error)
+	run   func(loadingValue *loading, ctx context.Context) (refused bool, err error)
 }
 
 // steps returns the phases build runs after the parse, in order.
@@ -313,14 +313,14 @@ func (l *loading) reread(ctx context.Context) error {
 // returns the context's error where that cut the judging short.
 func (l *loading) judgeLandings(ctx context.Context, table *reftable.ReferenceTargetTable) error {
 	var (
-		j   judgment
-		cut error
+		judgmentValue judgment
+		cut           error
 	)
 	l.aside.whileWritten(func() {
-		l.reached, j, cut = judgeReached(ctx, l.sites, table, l.doc, l.opts, l.self, l.bound.others, l.named)
-		turnRefused(j)
+		l.reached, judgmentValue, cut = judgeReached(ctx, l.sites, table, l.doc, l.opts, l.self, l.bound.others, l.named)
+		turnRefused(judgmentValue)
 	})
-	setAside(j, &l.aside)
+	setAside(judgmentValue, &l.aside)
 	return cut
 }
 
@@ -343,13 +343,13 @@ func unreportedRepeats(repeats, reached []ir.Diagnostic) []ir.Diagnostic {
 		pointer jsontext.Pointer
 	}
 	said := make(map[place]bool, len(reached))
-	for _, d := range reached {
-		said[place{d.Code, d.Provenance.Source, d.Provenance.Pointer}] = true
+	for _, diagnostic := range reached {
+		said[place{diagnostic.Code, diagnostic.Provenance.Source, diagnostic.Provenance.Pointer}] = true
 	}
 	var out []ir.Diagnostic
-	for _, d := range repeats {
-		if !said[place{d.Code, d.Provenance.Source, d.Provenance.Pointer}] {
-			out = append(out, d)
+	for _, diagnostic := range repeats {
+		if !said[place{diagnostic.Code, diagnostic.Provenance.Source, diagnostic.Provenance.Pointer}] {
+			out = append(out, diagnostic)
 		}
 	}
 	return out

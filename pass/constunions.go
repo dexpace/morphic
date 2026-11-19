@@ -52,26 +52,26 @@ func (ConstUnions) Run(ctx context.Context, doc *ir.Document) (*ir.Document, []i
 	if len(enums) == 0 || ctx.Err() != nil {
 		return doc, nil
 	}
-	e := ir.NewEditor(doc)
+	editor := ir.NewEditor(doc)
 	for _, enum := range enums {
-		e.ReplaceType(enum)
+		editor.ReplaceType(enum)
 	}
 	for _, id := range dead {
-		e.RemoveType(id)
+		editor.RemoveType(id)
 	}
-	return e.Finish()
+	return editor.Finish()
 }
 
 // readingOf returns the reading of each union of doc, taking a branch of
 // several values only where refs shows the union naming it is its one
 // reference, and none where refs is nil.
 func readingOf(doc *ir.Document, refs *typeRefs) *unionReading {
-	r := &unionReading{types: doc.Types, spaces: doc.IDSpaces[ir.IDKindEnumMember], refs: refs,
+	unionReadingValue := &unionReading{types: doc.Types, spaces: doc.IDSpaces[ir.IDKindEnumMember], refs: refs,
 		values: map[ir.TypeID]*unionValues{}, opened: map[ir.TypeID]bool{}, read: map[ir.TypeID]bool{}}
 	for id := range doc.Types {
-		r.settle(id)
+		unionReadingValue.settle(id)
 	}
-	return r
+	return unionReadingValue
 }
 
 // unionReading reads each union of a registry as valuesOf does, after the
@@ -103,20 +103,20 @@ func (r *unionReading) settle(root ir.TypeID) {
 	r.stack = append(r.stack[:0], root)
 	for len(r.stack) > 0 {
 		id := r.stack[len(r.stack)-1]
-		u := r.union(id)
+		union := r.union(id)
 		switch {
-		case u == nil || r.read[id]:
+		case union == nil || r.read[id]:
 			r.stack = r.stack[:len(r.stack)-1]
 		case !r.opened[id]:
 			r.opened[id] = true
-			for _, v := range u.Variants {
-				r.stack = append(r.stack, v.Type.Target)
+			for _, variant := range union.Variants {
+				r.stack = append(r.stack, variant.Type.Target)
 			}
 		default:
 			r.stack = r.stack[:len(r.stack)-1]
 			r.read[id] = true
 			r.reads++
-			if vs, ok := r.valuesOf(u); ok {
+			if vs, ok := r.valuesOf(union); ok {
 				r.values[id] = vs
 			}
 		}
@@ -125,11 +125,11 @@ func (r *unionReading) settle(root ir.TypeID) {
 
 // union returns the union the registry keys at id under its own ID, or nil.
 func (r *unionReading) union(id ir.TypeID) *ir.Union {
-	u, isUnion := r.types[id].(*ir.Union)
-	if !isUnion || u == nil || u.ID != id {
+	union, isUnion := r.types[id].(*ir.Union)
+	if !isUnion || union == nil || union.ID != id {
 		return nil
 	}
-	return u
+	return union
 }
 
 // rewrite returns, in ID order, the Enum each union read as one becomes, and
@@ -142,8 +142,8 @@ func (r *unionReading) union(id ir.TypeID) *ir.Union {
 func (r *unionReading) rewrite() ([]*ir.Enum, []ir.TypeID) {
 	named := map[ir.TypeID]int{}
 	for _, vs := range r.values {
-		for _, v := range vs.union.Variants {
-			named[v.Type.Target]++
+		for _, variant := range vs.union.Variants {
+			named[variant.Type.Target]++
 		}
 	}
 	var dead []ir.TypeID

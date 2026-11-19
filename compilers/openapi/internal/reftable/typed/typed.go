@@ -58,18 +58,18 @@ func (b *Bindings) Site(js *schemaRef) (reftable.DocumentPointer, bool) {
 	if b == nil || js == nil {
 		return reftable.DocumentPointer{}, false
 	}
-	p, ok := b.at[js]
-	return p, ok
+	documentPointer, ok := b.at[js]
+	return documentPointer, ok
 }
 
 // Entry returns the table's entry for the $ref js writes, and false for a
 // schema b does not know or one the table read no $ref at.
 func (b *Bindings) Entry(js *schemaRef) (reftable.ReferenceSite, bool) {
-	p, ok := b.Site(js)
+	documentPointer, ok := b.Site(js)
 	if !ok {
 		return reftable.ReferenceSite{}, false
 	}
-	return b.table.Entry(p)
+	return b.table.Entry(documentPointer)
 }
 
 // RefKeyword returns the keyword js is a reference site under, which the
@@ -87,8 +87,8 @@ func (b *Bindings) RefKeyword(js *schemaRef) string {
 	if js.GetSchema().Ref != nil {
 		return "$ref"
 	}
-	if e, ok := b.Entry(js); ok && e.Keyword == "$dynamicRef" {
-		return e.Keyword
+	if referenceSite, ok := b.Entry(js); ok && referenceSite.Keyword == "$dynamicRef" {
+		return referenceSite.Keyword
 	}
 	return ""
 }
@@ -108,29 +108,29 @@ func (b *Bindings) Declared(js *schemaRef) *schemaRef {
 // which names the document holding it; the zero position where it lands on
 // none.
 func (b *Bindings) DeclaredAt(js *schemaRef) (*schemaRef, reftable.DocumentPointer) {
-	e, ok := b.Entry(js)
-	if !ok || e.Hop.Status != reftable.Resolved {
+	referenceSite, ok := b.Entry(js)
+	if !ok || referenceSite.Hop.Status != reftable.Resolved {
 		return nil, reftable.DocumentPointer{}
 	}
-	return b.held[e.Hop.Target], e.Hop.Target
+	return b.held[referenceSite.Hop.Target], referenceSite.Hop.Target
 }
 
 // End returns the schema the chain of $refs from js ends on, in whichever
 // document, or nil where it does not end on one.
 func (b *Bindings) End(js *schemaRef) *schemaRef {
-	e, ok := b.Entry(js)
-	if !ok || e.Chain.Status != reftable.Resolved {
+	referenceSite, ok := b.Entry(js)
+	if !ok || referenceSite.Chain.Status != reftable.Resolved {
 		return nil
 	}
-	return b.held[e.Chain.End]
+	return b.held[referenceSite.Chain.End]
 }
 
-// At returns the schema held at p, or nil.
-func (b *Bindings) At(p reftable.DocumentPointer) *schemaRef {
+// At returns the schema held at documentPointer, or nil.
+func (b *Bindings) At(documentPointer reftable.DocumentPointer) *schemaRef {
 	if b == nil {
 		return nil
 	}
-	return b.held[p]
+	return b.held[documentPointer]
 }
 
 // Mapping returns where value, a mapping value of the discriminator read at
@@ -149,8 +149,8 @@ func (b *Bindings) ObjectSite(model any) (reftable.DocumentPointer, reftable.Ref
 	if b == nil {
 		return reftable.DocumentPointer{}, 0, false
 	}
-	s, ok := b.objectSites[model]
-	return s.at, s.kind, ok
+	objectSite, ok := b.objectSites[model]
+	return objectSite.at, objectSite.kind, ok
 }
 
 // Reference returns the table's entry for the Reference Object model's site
@@ -164,13 +164,13 @@ func (b *Bindings) Reference(model any) (reftable.Reference, bool) {
 	return b.table.Reference(at, kind)
 }
 
-// ObjectAt returns the wrapper of kind held at p, the first recorded there, or
+// ObjectAt returns the wrapper of kind held at documentPointer, the first recorded there, or
 // nil.
-func (b *Bindings) ObjectAt(p reftable.DocumentPointer, kind reftable.RefKind) any {
+func (b *Bindings) ObjectAt(documentPointer reftable.DocumentPointer, kind reftable.RefKind) any {
 	if b == nil {
 		return nil
 	}
-	return b.objects[objectSite{at: p, kind: kind}]
+	return b.objects[objectSite{at: documentPointer, kind: kind}]
 }
 
 // Builder builds Bindings over a table: told where each schema of the
@@ -228,19 +228,19 @@ func (bd *Builder) decodeRecovered(ctx context.Context, n *yaml.Node, js *schema
 	return err
 }
 
-// Schema records that js was read at p. The first schema recorded at a
+// Schema records that js was read at documentPointer. The first schema recorded at a
 // position is the one held there. A boolean one is noted, as the parser
 // decodes some written mappings as false (mend).
-func (bd *Builder) Schema(js *schemaRef, p reftable.DocumentPointer) {
+func (bd *Builder) Schema(js *schemaRef, documentPointer reftable.DocumentPointer) {
 	if js == nil {
 		return
 	}
-	bd.b.at[js] = p
-	if _, held := bd.b.held[p]; !held {
-		bd.b.held[p] = js
+	bd.b.at[js] = documentPointer
+	if _, held := bd.b.held[documentPointer]; !held {
+		bd.b.held[documentPointer] = js
 	}
 	if js.IsBool() {
-		bd.bools = append(bd.bools, recorded{js: js, at: p})
+		bd.bools = append(bd.bools, recorded{js: js, at: documentPointer})
 	}
 }
 
@@ -254,54 +254,54 @@ func (bd *Builder) Schema(js *schemaRef, p reftable.DocumentPointer) {
 // nesting. One no decoding reads stays false.
 func (bd *Builder) mend(ctx context.Context) {
 	for len(bd.bools) > 0 && ctx.Err() == nil {
-		r := bd.bools[len(bd.bools)-1]
+		recorded := bd.bools[len(bd.bools)-1]
 		bd.bools = bd.bools[:len(bd.bools)-1]
-		n := nodeview.Deref(r.js.GetCore().GetRootNode())
-		if n == nil || n.Kind != yaml.MappingNode || r.mends >= MaxMends {
+		n := nodeview.Deref(recorded.js.GetCore().GetRootNode())
+		if n == nil || n.Kind != yaml.MappingNode || recorded.mends >= MaxMends {
 			continue
 		}
 		fresh := &schemaRef{}
 		if err := bd.decodeRecovered(ctx, n, fresh); err != nil || fresh.IsBool() {
 			continue
 		}
-		*r.js = *fresh
+		*recorded.js = *fresh
 		below := len(bd.bools)
-		bd.Walk(ctx, r.js, r.at)
+		bd.Walk(ctx, recorded.js, recorded.at)
 		for i := below; i < len(bd.bools); i++ {
-			bd.bools[i].mends = r.mends + 1
+			bd.bools[i].mends = recorded.mends + 1
 		}
 	}
 }
 
 // Object records that model, a reference-or-inline wrapper of kind, was read
-// at p. The first recorded of a kind at a position is the one held there.
-func (bd *Builder) Object(model any, kind reftable.RefKind, p reftable.DocumentPointer) {
+// at documentPointer. The first recorded of a kind at a position is the one held there.
+func (bd *Builder) Object(model any, kind reftable.RefKind, documentPointer reftable.DocumentPointer) {
 	if model == nil || kind == 0 {
 		return
 	}
-	s := objectSite{at: p, kind: kind}
-	bd.b.objectSites[model] = s
-	if _, held := bd.b.objects[s]; !held {
-		bd.b.objects[s] = model
+	objectSiteValue := objectSite{at: documentPointer, kind: kind}
+	bd.b.objectSites[model] = objectSiteValue
+	if _, held := bd.b.objects[objectSiteValue]; !held {
+		bd.b.objects[objectSiteValue] = model
 	}
 }
 
-// HoldsObject reports whether a wrapper of kind is held at p.
-func (bd *Builder) HoldsObject(p reftable.DocumentPointer, kind reftable.RefKind) bool {
-	_, held := bd.b.objects[objectSite{at: p, kind: kind}]
+// HoldsObject reports whether a wrapper of kind is held at documentPointer.
+func (bd *Builder) HoldsObject(documentPointer reftable.DocumentPointer, kind reftable.RefKind) bool {
+	_, held := bd.b.objects[objectSite{at: documentPointer, kind: kind}]
 	return held
 }
 
-// Walk records js, read at p, and every schema below it, at the position each
+// Walk records js, read at documentPointer, and every schema below it, at the position each
 // is read at, until ctx is done: the library's walk reads no
 // context (docs/parser-library.md#context-unread), so Walk asks it before each
 // item.
-func (bd *Builder) Walk(ctx context.Context, js *schemaRef, p reftable.DocumentPointer) {
+func (bd *Builder) Walk(ctx context.Context, js *schemaRef, documentPointer reftable.DocumentPointer) {
 	for item := range oas3.Walk(ctx, js) {
 		if ctx.Err() != nil {
 			return
 		}
-		at := reftable.DocumentPointer{Doc: p.Doc, Pointer: p.Pointer + PointerOf(item.Location)}
+		at := reftable.DocumentPointer{Doc: documentPointer.Doc, Pointer: documentPointer.Pointer + PointerOf(item.Location)}
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(oas3.SchemaMatcher{
 			Schema: func(s *schemaRef) error { bd.Schema(s, at); return nil },
@@ -356,25 +356,25 @@ type Built struct {
 func (bd *Builder) Build(ctx context.Context) []Built {
 	landings := bd.b.table.Landings()
 	out := make([]Built, 0, len(landings))
-	for _, l := range landings {
+	for _, landing := range landings {
 		if ctx.Err() != nil {
 			break
 		}
-		out = append(out, bd.build(ctx, l))
+		out = append(out, bd.build(ctx, landing))
 	}
 	bd.mend(ctx)
 	return out
 }
 
-// build builds the schema at l, unless one is held there already: one inside
+// build builds the schema at landing, unless one is held there already: one inside
 // a landing built before it, or inside an object built for an object landing.
-func (bd *Builder) build(ctx context.Context, l reftable.Landing) Built {
-	built := Built{Landing: l, Schema: bd.b.held[l.At]}
+func (bd *Builder) build(ctx context.Context, landing reftable.Landing) Built {
+	built := Built{Landing: landing, Schema: bd.b.held[landing.At]}
 	if built.Schema != nil {
 		return built
 	}
-	doc := bd.b.table.Document(l.At.Doc)
-	path, complete := bd.view.DocumentPath(doc.Root, l.At.Pointer)
+	doc := bd.b.table.Document(landing.At.Doc)
+	path, complete := bd.view.DocumentPath(doc.Root, landing.At.Pointer)
 	if !complete {
 		built.Err = errNothingThere
 		return built
@@ -385,7 +385,7 @@ func (bd *Builder) build(ctx context.Context, l reftable.Landing) Built {
 		return built
 	}
 	built.Schema = js
-	bd.Walk(ctx, js, l.At)
+	bd.Walk(ctx, js, landing.At)
 	return built
 }
 

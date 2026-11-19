@@ -59,9 +59,9 @@ func TestDiscriminator_ARouteToADeadBranchRoutesNowhere(t *testing.T) {
 		"Unlocated": `no tag of the discriminator routes to it (mapping "s", the name "Str"), the routes it writes`,
 	} {
 		var warned []string
-		for _, d := range diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/"+name) {
-			if d.Severity == ir.SeverityWarning {
-				warned = append(warned, d.Message)
+		for _, diagnostic := range diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/"+name) {
+			if diagnostic.Severity == ir.SeverityWarning {
+				warned = append(warned, diagnostic.Message)
 			}
 		}
 		require.Len(t, warned, 1, name)

@@ -78,10 +78,10 @@ func TestPrincipalWhole_AKeptValueIsKeptOnceAndReportedOnce(t *testing.T) {
 				assert.Equal(t, 1, principal, "the principal's minimum is kept once, inside its whole entry")
 				assert.Equal(t, map[bool]int{true: 1}[tc.beside != ""], beside, "the position's minimum holds the plain key")
 				var said []string
-				for _, d := range diags {
-					at := strings.TrimPrefix(string(d.Provenance.Pointer), "/components/schemas/")
-					if strings.HasPrefix(at, tc.entry) && strings.Contains(d.Message, "minimum") {
-						said = append(said, d.Message)
+				for _, diagnostic := range diags {
+					at := strings.TrimPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/")
+					if strings.HasPrefix(at, tc.entry) && strings.Contains(diagnostic.Message, "minimum") {
+						said = append(said, diagnostic.Message)
 					}
 				}
 				require.Len(t, said, 1, "the principal's minimum is reported once: %v", said)

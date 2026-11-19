@@ -375,7 +375,7 @@ func TestCheck_ARepeatedEntryNamesItsFirstCopyWhereItIsPlaced(t *testing.T) {
 		locate specrules.Locator
 		want   string
 	}{
-		"placed": {func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/placed" + p} },
+		"placed": {func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/placed" + pointer} },
 			"/placed/required/0"},
 		"placed at no pointer": {nil, "/x-raw/T/required/0"},
 	} {

@@ -27,22 +27,22 @@ func TestLocator_RefusesAPathTheTreeNoLongerHolds(t *testing.T) {
 	list := ynode.Seq(ynode.Scalar("x"))
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{ynode.Map(ynode.Scalar("a"), list)}}
 	steps := budget.New(budget.Unbounded())
-	l := newLocator(newGrafter(v11, root), &steps)
+	locator := newLocator(newGrafter(v11, root), &steps)
 
-	_, err := l.slot(t.Context(), l.prefixes[0].node, jsonpath.Step{Name: "missing", IsObjectMemberStep: true}, false)
+	_, err := locator.slot(t.Context(), locator.prefixes[0].node, jsonpath.Step{Name: "missing", IsObjectMemberStep: true}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `the member "missing"`)
 
-	_, err = l.slot(t.Context(), list, jsonpath.Step{Index: 5}, false)
+	_, err = locator.slot(t.Context(), list, jsonpath.Step{Index: 5}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "the element 5")
 
-	_, err = l.slot(t.Context(), list, jsonpath.Step{Name: "x", IsObjectMemberStep: true}, false)
+	_, err = locator.slot(t.Context(), list, jsonpath.Step{Name: "x", IsObjectMemberStep: true}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `the member "x"`, "an array has no member")
 
-	l.prefixes[0].node = nil
-	_, err = l.own(t.Context(), 0)
+	locator.prefixes[0].node = nil
+	_, err = locator.own(t.Context(), 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "the document holds none")
 }
@@ -65,14 +65,14 @@ func TestGrafter_RefusesToWriteWhatIsNoValue(t *testing.T) {
 // once, so this test reads the finding alone.
 func TestSequence_RefusesASelectionPastTheNodelistsBound(t *testing.T) {
 	t.Parallel()
-	s := &sequence{}
+	sequenceValue := &sequence{}
 	a := action{index: 0, of: 1, target: "$..*", kind: kindUpdate, overlay: ir.Provenance{Source: 1}}
 
-	d := s.unselectable(a, errors.Join(jsonpath.ErrResults))
+	diagnostic := sequenceValue.unselectable(a, errors.Join(jsonpath.ErrResults))
 
-	assert.Equal(t, diag.BudgetExceeded, d.Code)
-	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Contains(t, d.Message, "nodes an evaluation's nodelists may hold at once")
+	assert.Equal(t, diag.BudgetExceeded, diagnostic.Code)
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+	assert.Contains(t, diagnostic.Message, "nodes an evaluation's nodelists may hold at once")
 }
 
 // TestLocator_ChargesAnIndexBeforeBuildingIt pins the charge for locating a

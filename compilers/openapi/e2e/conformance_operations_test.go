@@ -34,10 +34,10 @@ func assertTagsGrouping(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertGroupIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, doc.Services, 1)
 	got := map[ir.GroupID][]string{}
-	for _, g := range doc.Services[0].Groups {
-		require.NotContains(t, got, g.ID, "two groups share an ID")
-		for _, op := range g.Operations {
-			got[g.ID] = append(got[g.ID], op.Name.Source)
+	for _, operationGroup := range doc.Services[0].Groups {
+		require.NotContains(t, got, operationGroup.ID, "two groups share an ID")
+		for _, op := range operationGroup.Operations {
+			got[operationGroup.ID] = append(got[operationGroup.ID], op.Name.Source)
 		}
 	}
 	assert.Equal(t, map[ir.GroupID][]string{
@@ -62,10 +62,10 @@ func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, doc.Services, 1)
 	got := map[ir.OperationID][]ir.ParameterID{}
 	svc := doc.Services[0]
-	for _, g := range svc.Groups {
-		for _, op := range g.Operations {
-			for _, p := range op.Params {
-				got[op.ID] = append(got[op.ID], p.ID)
+	for _, operationGroup := range svc.Groups {
+		for _, op := range operationGroup.Operations {
+			for _, parameter := range op.Params {
+				got[op.ID] = append(got[op.ID], parameter.ID)
 			}
 			require.Len(t, op.Bindings.HTTP, 1)
 			var bound []ir.ParameterID
@@ -102,8 +102,8 @@ func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		enum, ok := doc.Types[id].(*ir.Enum)
 		require.True(t, ok, "%s is an enum", id)
 		got := make([]ir.EnumMemberID, 0, len(enum.Members))
-		for _, m := range enum.Members {
-			got = append(got, m.ID)
+		for _, enumMember := range enum.Members {
+			got = append(got, enumMember.ID)
 		}
 		return got
 	}
@@ -126,9 +126,9 @@ func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	}, memberIDs("type/anonymous/paths/~1status/get/responses/200/content/application~1json/schema"))
 
 	var repeats []string
-	for _, d := range diags {
-		if d.Code == "openapi/duplicate-enum-value" {
-			repeats = append(repeats, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/duplicate-enum-value" {
+			repeats = append(repeats, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"/components/schemas/E/enum/4"}, repeats)
@@ -166,9 +166,9 @@ func assertPathKeyFragments(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 		}
 	}
 	var warned []string
-	for _, d := range diags {
-		if d.Code == "openapi/invalid-path-key" {
-			warned = append(warned, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/invalid-path-key" {
+			warned = append(warned, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.ElementsMatch(t, []string{"/paths/~1bearer#oauth2", "/paths/~1bearer#apiKey"}, warned)
@@ -269,8 +269,8 @@ func assertPaginationInferred(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Nil(t, events.Pagination, "two continuations settle no walk")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/undecided-pagination", "/paths/~1events/get"))
 	reported := 0
-	for _, d := range diags {
-		if d.Code == "openapi/undecided-pagination" {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/undecided-pagination" {
 			reported++
 		}
 	}

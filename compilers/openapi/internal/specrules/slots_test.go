@@ -20,17 +20,17 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
-// sample returns a value of f's shape, one its format admits.
-func sample(f specrules.Field) string {
+// sample returns a value of field's shape, one its format admits.
+func sample(field specrules.Field) string {
 	switch {
-	case f.Name == "type":
+	case field.Name == "type":
 		return "string"
-	case f.Format == specrules.AbsoluteURI:
+	case field.Format == specrules.AbsoluteURI:
 		return "'https://example.com/s'"
-	case f.Format == specrules.URI || f.Format == specrules.ResourceURI:
+	case field.Format == specrules.URI || field.Format == specrules.ResourceURI:
 		return "'#/components/schemas/Target'"
 	}
-	switch f.Shape {
+	switch field.Shape {
 	case specrules.Boolean:
 		return "true"
 	case specrules.Number, specrules.PositiveNumber, specrules.Natural:
@@ -81,31 +81,31 @@ func TestSlots_EveryKeywordReadsIntoItsSlotAndNoOther(t *testing.T) {
 			fields := slices.Concat(defined, later)
 			lines := make([]string, 0, 1+len(fields))
 			lines = append(lines, "    Target: {}")
-			for i, f := range fields {
-				lines = append(lines, fmt.Sprintf("    K%d: {%s: %s}", i, f.Name, sample(f)))
+			for i, field := range fields {
+				lines = append(lines, fmt.Sprintf("    K%d: {%s: %s}", i, field.Name, sample(field)))
 			}
 			head := "openapi: " + version + "\ninfo: {title: t, version: \"1\"}\npaths: {}\n"
 			if uri != "" && version != "3.0.3" {
 				head += "jsonSchemaDialect: '" + uri + "'\n"
 			}
-			c := servicetest.Context(t, head+"components:\n  schemas:\n"+strings.Join(lines, "\n")+"\n", service.Policy{})
-			table := statement.NewTable(statement.Source{Bindings: c.Bindings(), Rules: dialect.NewBuilder(rules).Table()})
-			for i, f := range fields {
-				row := version + " " + uri + " " + f.Name
-				st := table.At(c.Position(jsontext.Pointer(fmt.Sprintf("/components/schemas/K%d", i))))
+			serviceContext := servicetest.Context(t, head+"components:\n  schemas:\n"+strings.Join(lines, "\n")+"\n", service.Policy{})
+			table := statement.NewTable(statement.Source{Bindings: serviceContext.Bindings(), Rules: dialect.NewBuilder(rules).Table()})
+			for i, field := range fields {
+				row := version + " " + uri + " " + field.Name
+				st := table.At(serviceContext.Position(jsontext.Pointer(fmt.Sprintf("/components/schemas/K%d", i))))
 				require.Equal(t, statement.Stated, st.Truth, row)
 				require.Len(t, st.Keys, 1, row)
-				k := st.Keys[0]
-				slot, isLater := rules.Slot(f.Name)
-				assert.Equal(t, f.Name, k.Name, row)
-				assert.NotEqual(t, specrules.SlotUnknown, k.Slot, row)
-				assert.Equal(t, slot, k.Slot, row)
-				assert.Equal(t, isLater, k.DefinedOnlyInLaterMinor, row)
-				for s, holds := range slots(st) {
+				key := st.Keys[0]
+				slot, isLater := rules.Slot(field.Name)
+				assert.Equal(t, field.Name, key.Name, row)
+				assert.NotEqual(t, specrules.SlotUnknown, key.Slot, row)
+				assert.Equal(t, slot, key.Slot, row)
+				assert.Equal(t, isLater, key.DefinedOnlyInLaterMinor, row)
+				for slotValue, holds := range slots(st) {
 					switch {
-					case s != slot:
-						assert.False(t, holds, "%s fills slot %d", row, s)
-					case s != specrules.SlotReference || f.Name == "$ref":
+					case slotValue != slot:
+						assert.False(t, holds, "%s fills slot %d", row, slotValue)
+					case slotValue != specrules.SlotReference || field.Name == "$ref":
 						assert.True(t, holds, "%s fills its slot", row)
 					}
 				}

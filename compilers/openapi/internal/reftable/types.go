@@ -29,37 +29,39 @@ type DocumentPointer struct {
 // table reads them in where they share a document or one is the source's.
 // Two other documents are ordered by name (docs.compare): a DocID numbers them
 // in the order the table first needed them, which a declaration order changes.
-func comparePositions(p, q DocumentPointer) int {
-	if c := cmp.Compare(p.Doc, q.Doc); c != 0 {
+func comparePositions(documentPointer, documentPointerValue DocumentPointer) int {
+	if c := cmp.Compare(documentPointer.Doc, documentPointerValue.Doc); c != 0 {
 		return c
 	}
-	return cmp.Compare(p.Pointer, q.Pointer)
+	return cmp.Compare(documentPointer.Pointer, documentPointerValue.Pointer)
 }
 
-// PositionOrder returns the order t reads positions in: the source's first,
+// PositionOrder returns the order referenceTargetTable reads positions in: the source's first,
 // another document's by its name, then by pointer, so an order by it depends
 // on no order documents were read in.
-func PositionOrder(t *ReferenceTargetTable) func(p, q DocumentPointer) int {
-	name := func(id DocID) string { return t.docs[id].Name }
-	return func(p, q DocumentPointer) int { return compareNamed(p, q, name) }
+func PositionOrder(referenceTargetTable *ReferenceTargetTable) func(documentPointer, documentPointerValue DocumentPointer) int {
+	name := func(id DocID) string { return referenceTargetTable.docs[id].Name }
+	return func(documentPointer, documentPointerValue DocumentPointer) int {
+		return compareNamed(documentPointer, documentPointerValue, name)
+	}
 }
 
-// compareNamed orders p and q as a table reads them, documents named by name
+// compareNamed orders documentPointer and documentPointerValue as a table reads them, documents named by name
 // (PositionOrder, docs.compare).
-func compareNamed(p, q DocumentPointer, name func(DocID) string) int {
-	if c, ok := byName(p, q, name); ok {
+func compareNamed(documentPointer, documentPointerValue DocumentPointer, name func(DocID) string) int {
+	if c, ok := byName(documentPointer, documentPointerValue, name); ok {
 		return c
 	}
-	return comparePositions(p, q)
+	return comparePositions(documentPointer, documentPointerValue)
 }
 
-// byName orders p and q, positions in two documents neither of which is the
+// byName orders documentPointer and documentPointerValue, positions in two documents neither of which is the
 // source, by the names name gives those documents.
-func byName(p, q DocumentPointer, name func(DocID) string) (int, bool) {
-	if p.Doc == q.Doc || p.Doc == Source || q.Doc == Source {
+func byName(documentPointer, documentPointerValue DocumentPointer, name func(DocID) string) (int, bool) {
+	if documentPointer.Doc == documentPointerValue.Doc || documentPointer.Doc == Source || documentPointerValue.Doc == Source {
 		return 0, false
 	}
-	return cmp.Compare(name(p.Doc), name(q.Doc)), true
+	return cmp.Compare(name(documentPointer.Doc), name(documentPointerValue.Doc)), true
 }
 
 // Role is what a reference reads at the position it lands on.

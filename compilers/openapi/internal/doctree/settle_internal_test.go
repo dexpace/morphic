@@ -65,9 +65,9 @@ func TestReading_WordsANumberExactly(t *testing.T) {
 		"1e-1000": "the number 0." + strings.Repeat("0", 999) + "1",
 		"1e1001":  "the number 1e1001", "1e99999999999999999999": "the number 1e99999999999999999999",
 	} {
-		r, ok := decimalOf(false, text)
+		reading, ok := decimalOf(false, text)
 		require.True(t, ok)
-		assert.Equal(t, want, r.String(), "%q", text)
+		assert.Equal(t, want, reading.String(), "%q", text)
 	}
 	big := reading{kind: asNumber, text: "15", exp: 1001, neg: true}
 	assert.Equal(t, "the number -15e1001", big.String())
@@ -103,9 +103,9 @@ func TestRespell_EdgesOfWhatItReads(t *testing.T) {
 		every.WriteRune(r)
 	}
 	full := "a: \"x" + bs + "/y\"\nb: " + every.String() + "\n"
-	out, r, _ := respell([]byte(full))
+	out, respelling, _ := respell([]byte(full))
 	assert.Equal(t, full, string(out), "no placeholder free leaves the slash as written")
-	assert.Zero(t, r.slash)
+	assert.Zero(t, respelling.slash)
 
 	assert.Zero(t, spelled([]byte("\xee\x80")), "a character cut short")
 	assert.Zero(t, spelled([]byte(`%EE%8G%80 \uZZZZ \u12`)), "a run or an escape that is no hexadecimal")
@@ -114,9 +114,9 @@ func TestRespell_EdgesOfWhatItReads(t *testing.T) {
 		_, _, ok := yamlDirective([]byte(line), 1)
 		assert.False(t, ok, "%q", line)
 	}
-	d, _, ok := yamlDirective([]byte("%YAML\t1.2 # c"), 3)
+	directive, _, ok := yamlDirective([]byte("%YAML\t1.2 # c"), 3)
 	require.True(t, ok)
-	assert.Equal(t, Directive{Minor: 2, Line: 3}, d)
+	assert.Equal(t, Directive{Minor: 2, Line: 3}, directive)
 
 	dirs, _ := directives([]byte("a: 0\r\n... # end\r%YAML 1.2\r\n---\r\nb: 1\r\n"))
 	assert.Equal(t, []Directive{{Minor: 2, Line: 3}}, dirs, "lines end at CR LF and at CR alone")

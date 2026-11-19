@@ -19,14 +19,14 @@ import (
 // the entries its steps compose, settles it, and returns what it reports.
 func settledModel(t *testing.T, reg ir.TypeRegistry, id ir.TypeID, at string, steps ...func(idx *ModelPropertyDeclarations, at string)) []ir.Diagnostic {
 	t.Helper()
-	m := &ir.Model{ID: id, Provenance: ptrAt(jsontext.Pointer(at))}
-	reg[id] = m
-	idx := NewModelPropertyDeclarations(m)
+	model := &ir.Model{ID: id, Provenance: ptrAt(jsontext.Pointer(at))}
+	reg[id] = model
+	idx := NewModelPropertyDeclarations(model)
 	for _, step := range steps {
 		step(idx, at)
 	}
-	g, _ := stubMerger(reg)
-	return settleFlat(g, idx, reg)
+	stubbed, _ := stubMerger(reg)
+	return settleFlat(stubbed, idx, reg)
 }
 
 // partAt composes target as the model's allOf entry n.
@@ -115,17 +115,17 @@ func TestReportOnce_AConflictListsWhatItKeptAndThenWhatItDecided(t *testing.T) {
 		got := ReportOnce(tc.settle(registry()))
 
 		var counts []int
-		for _, d := range got {
-			require.Equal(t, diag.ConflictingRedecl, d.Code, name)
-			require.NotEmpty(t, d.Related, name)
-			assert.Equal(t, ir.RelatedKept, d.Related[0].Role, "%s: the kept place comes first", name)
-			assert.NotEmpty(t, d.Related[0].Provenance.Pointer, "%s: the kept place is a declaration's", name)
-			decided := d.Related[1:]
+		for _, diagnostic := range got {
+			require.Equal(t, diag.ConflictingRedecl, diagnostic.Code, name)
+			require.NotEmpty(t, diagnostic.Related, name)
+			assert.Equal(t, ir.RelatedKept, diagnostic.Related[0].Role, "%s: the kept place comes first", name)
+			assert.NotEmpty(t, diagnostic.Related[0].Provenance.Pointer, "%s: the kept place is a declaration's", name)
+			decided := diagnostic.Related[1:]
 			nodes := make([]string, len(decided))
-			for i, r := range decided {
-				assert.Equal(t, ir.RelatedDecided, r.Role, "%s: one kept place, then the members decided", name)
-				assert.Equal(t, ir.Provenance{Source: ir.NoSource, Node: r.Provenance.Node}, r.Provenance, name)
-				nodes[i] = r.Provenance.Node
+			for i, related := range decided {
+				assert.Equal(t, ir.RelatedDecided, related.Role, "%s: one kept place, then the members decided", name)
+				assert.Equal(t, ir.Provenance{Source: ir.NoSource, Node: related.Provenance.Node}, related.Provenance, name)
+				nodes[i] = related.Provenance.Node
 			}
 			assert.True(t, slices.IsSorted(nodes), "%s: the members ascend by ID: %v", name, nodes)
 			assert.Len(t, slices.Compact(slices.Clone(nodes)), len(nodes), "%s: each member once", name)

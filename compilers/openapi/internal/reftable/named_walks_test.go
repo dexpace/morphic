@@ -191,8 +191,8 @@ func broughtChains() [][]bringer {
 	}
 	for _, a := range bringers[:coreBringers] {
 		for _, b := range bringers[:coreBringers] {
-			for _, c := range bringers[:coreBringers] {
-				chains = append(chains, []bringer{a, b, c})
+			for _, bringerValue := range bringers[:coreBringers] {
+				chains = append(chains, []bringer{a, b, bringerValue})
 			}
 		}
 	}
@@ -246,9 +246,9 @@ func broughtTotals(t *testing.T, text string) (weighed, entries, spelled int) {
 	require.True(t, complete, "the total is whole")
 	table := reftable.Bind(t.Context(), doc, self)
 	require.False(t, table.Exhausted() || table.Truncated(), "the table is whole")
-	for _, e := range table.Entries() {
+	for _, referenceSite := range table.Entries() {
 		entries++
-		for token := range e.Site.Pointer.Tokens() {
+		for token := range referenceSite.Site.Pointer.Tokens() {
 			spelled += len(token) + 1
 		}
 	}

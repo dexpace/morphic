@@ -120,10 +120,10 @@ func TestPromote_TrueWithNoRootStatement(t *testing.T) {
 			for _, src := range inEitherOrder(t, rootDoc(tc.root, tc.item, tc.op, tc.more)) {
 				doc, diags := compile(t, src, openapi.Options{})
 				got := make([]finding, 0, len(diags))
-				for _, d := range diags {
-					assert.Equal(t, "openapi/unpromoted-extension", d.Code)
-					assert.Equal(t, ir.SeverityInfo, d.Severity)
-					got = append(got, finding{string(d.Provenance.Pointer), d.Message})
+				for _, diagnostic := range diags {
+					assert.Equal(t, "openapi/unpromoted-extension", diagnostic.Code)
+					assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+					got = append(got, finding{string(diagnostic.Provenance.Pointer), diagnostic.Message})
 				}
 				assert.ElementsMatch(t, tc.want, got)
 				for _, name := range []string{"listThings", "listOther"} {

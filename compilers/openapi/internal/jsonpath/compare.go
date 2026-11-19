@@ -66,9 +66,9 @@ type number struct {
 // newNumber reads text, a decimal literal, as a number, and reports whether
 // it is one.
 func newNumber(text string) (number, bool) {
-	d, err := ir.ParseDecimal(text)
+	decimal, err := ir.ParseDecimal(text)
 	if err == nil {
-		return number{d: d, class: int8(2 * d.Sign())}, true
+		return number{d: decimal, class: int8(2 * decimal.Sign())}, true
 	}
 	if past, ok := errors.AsType[*ir.ExponentRangeError](err); ok {
 		return outOfRange(past), true
@@ -92,28 +92,28 @@ func countOf(n int) scalar {
 }
 
 // compare orders two numbers.
-func (n number) compare(o number) int {
-	if c := cmp.Compare(n.class, o.class); c != 0 || n.class*n.class != 4 {
+func (n number) compare(numberValue number) int {
+	if c := cmp.Compare(n.class, numberValue.class); c != 0 || n.class*n.class != 4 {
 		return c
 	}
-	return n.d.Cmp(o.d)
+	return n.d.Cmp(numberValue.d)
 }
 
 // scalarOf returns the scalar node n as the compiler reads it, read once an
 // evaluation and charged by its bytes before it is read.
 func (r *reader) scalarOf(ctx context.Context, n *yaml.Node) (scalar, error) {
-	if s, read := r.scalars[n]; read {
-		return s, nil
+	if scalar, read := r.scalars[n]; read {
+		return scalar, nil
 	}
 	if err := r.spend(ctx, len(n.Value)/readBytes); err != nil {
 		return scalar{}, err
 	}
-	s := readScalar(n)
+	scalarValue := readScalar(n)
 	if r.scalars == nil {
 		r.scalars = map[*yaml.Node]scalar{}
 	}
-	r.scalars[n] = s
-	return s, nil
+	r.scalars[n] = scalarValue
+	return scalarValue, nil
 }
 
 // readScalar reads the scalar node n as the JSON value the compiler reads it
@@ -122,23 +122,23 @@ func (r *reader) scalarOf(ctx context.Context, n *yaml.Node) (scalar, error) {
 // scalar under a document's own tag the string the source wrote. A scalar
 // value.Classify refuses is opaque.
 func readScalar(n *yaml.Node) scalar {
-	s, err := value.Classify(n)
+	valueScalar, err := value.Classify(n)
 	if err != nil {
 		if past, ok := errors.AsType[*ir.ExponentRangeError](err); ok {
 			return scalar{kind: kindNumber, num: outOfRange(past), size: len(n.Value)}
 		}
 		return scalar{kind: kindOpaque, node: n}
 	}
-	switch s.JSONKind() {
+	switch valueScalar.JSONKind() {
 	case value.ScalarNull:
 		return scalar{kind: kindNull}
 	case value.ScalarBool:
-		return scalar{kind: kindBool, b: s.Bool}
+		return scalar{kind: kindBool, b: valueScalar.Bool}
 	case value.ScalarNumber:
-		num, _ := newNumber(string(s.Num)) // a BigVal is a decimal in range
+		num, _ := newNumber(string(valueScalar.Num)) // a BigVal is a decimal in range
 		return scalar{kind: kindNumber, num: num, size: len(n.Value)}
 	default:
-		return scalar{kind: kindString, text: s.Text, size: len(s.Text)}
+		return scalar{kind: kindString, text: valueScalar.Text, size: len(valueScalar.Text)}
 	}
 }
 
@@ -188,15 +188,15 @@ type jsonValue struct {
 	kind valueKind
 }
 
-// asScalar returns v as a scalar, and false for Nothing, an object or an
+// asScalar returns jsonValueValue as a scalar, and false for Nothing, an object or an
 // array.
-func (r *reader) asScalar(ctx context.Context, v jsonValue) (scalar, bool, error) {
+func (r *reader) asScalar(ctx context.Context, jsonValueValue jsonValue) (scalar, bool, error) {
 	switch {
-	case v.kind == valueScalar:
-		return v.lit, true, nil
-	case v.kind == valueNode && v.node.Kind == yaml.ScalarNode:
-		s, err := r.scalarOf(ctx, v.node)
-		return s, err == nil, err
+	case jsonValueValue.kind == valueScalar:
+		return jsonValueValue.lit, true, nil
+	case jsonValueValue.kind == valueNode && jsonValueValue.node.Kind == yaml.ScalarNode:
+		scalar, err := r.scalarOf(ctx, jsonValueValue.node)
+		return scalar, err == nil, err
 	default:
 		return scalar{}, false, nil
 	}
@@ -272,12 +272,12 @@ type nodePair struct{ a, b *yaml.Node }
 func (r *reader) deepEqual(ctx context.Context, a, b *yaml.Node) (bool, error) {
 	stack := []nodePair{{a, b}}
 	for len(stack) > 0 {
-		p := stack[len(stack)-1]
+		nodePair := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		if err := r.spend(ctx, 1); err != nil {
 			return false, err
 		}
-		same, more, err := r.shallowEqual(ctx, p.a, p.b)
+		same, more, err := r.shallowEqual(ctx, nodePair.a, nodePair.b)
 		if err != nil || !same {
 			return false, err
 		}
@@ -345,16 +345,16 @@ func (r *reader) sameMembers(ctx context.Context, a, b *yaml.Node) (bool, []node
 		return false, nil, nil
 	}
 	byKey := make(map[string]*yaml.Node, len(bm))
-	for _, p := range bm {
-		byKey[p.Key] = p.Val
+	for _, pair := range bm {
+		byKey[pair.Key] = pair.Val
 	}
 	pairs := make([]nodePair, 0, len(am))
-	for _, p := range am {
-		v, found := byKey[p.Key]
+	for _, pair := range am {
+		v, found := byKey[pair.Key]
 		if !found {
 			return false, nil, nil
 		}
-		pairs = append(pairs, nodePair{p.Val, v})
+		pairs = append(pairs, nodePair{pair.Val, v})
 	}
 	return true, pairs, nil
 }

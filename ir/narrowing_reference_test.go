@@ -45,26 +45,26 @@ func TestNarrowedShapes_MatchesACopyOfTheRegistry(t *testing.T) {
 }
 
 // outcome names what a narrowing gives, for counting the cases compared.
-func outcome(n ir.Narrowing) string {
+func outcome(narrowing ir.Narrowing) string {
 	switch {
-	case n.Undistributed != "":
-		return string(n.Undistributed)
-	case n.Union == "":
+	case narrowing.Undistributed != "":
+		return string(narrowing.Undistributed)
+	case narrowing.Union == "":
 		return "none"
-	case len(n.Shapes) == 0:
+	case len(narrowing.Shapes) == 0:
 		return "no variant"
 	}
-	for _, s := range n.Shapes {
-		if len(s.Over) > 1 {
+	for _, narrowedShape := range narrowing.Shapes {
+		if len(narrowedShape.Over) > 1 {
 			return "nested"
 		}
 	}
 	return "shapes"
 }
 
-// renderNarrowing renders n as narrowingReference does.
-func renderNarrowing(n ir.Narrowing) []string {
-	return append([]string{fmt.Sprintf("union %q undistributed %q", n.Union, n.Undistributed)}, shapeLines(n)...)
+// renderNarrowing renders narrowing as narrowingReference does.
+func renderNarrowing(narrowing ir.Narrowing) []string {
+	return append([]string{fmt.Sprintf("union %q undistributed %q", narrowing.Union, narrowing.Undistributed)}, shapeLines(narrowing)...)
 }
 
 // narrowRandom builds a registry of up to sixteen types: models in flatRandom's
@@ -91,22 +91,22 @@ func narrowRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 		case r < 2:
 			doc.Types[id] = irtest.ScalarOf(id, pick())
 		case r < 5:
-			u := unionOf(id)
+			union := unionOf(id)
 			for range rng.IntN(4) {
-				u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: pick()}})
+				union.Variants = append(union.Variants, ir.Variant{Type: ir.TypeRef{Target: pick()}})
 			}
 			switch rng.IntN(12) {
 			case 0:
-				u.WireTagged = true
+				union.WireTagged = true
 			case 1:
-				u.WireTagged, u.Discriminator = true, &ir.Discriminator{PropertyName: "k", Envelope: "object"}
+				union.WireTagged, union.Discriminator = true, &ir.Discriminator{PropertyName: "k", Envelope: "object"}
 			case 2:
-				u.WireTagged, u.Discriminator = true, &ir.Discriminator{TupleElementIndex: &index}
+				union.WireTagged, union.Discriminator = true, &ir.Discriminator{TupleElementIndex: &index}
 			case 3:
-				u.WireTagged, u.Discriminator = true, &ir.Discriminator{PropertyName: "k"}
+				union.WireTagged, union.Discriminator = true, &ir.Discriminator{PropertyName: "k"}
 			default:
 			}
-			doc.Types[id] = u
+			doc.Types[id] = union
 		default:
 			doc.Types[id] = randomModel(rng, id, pick)
 		}
@@ -118,25 +118,25 @@ func narrowRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 // IDs, Required on two, Secret on one and deprecated on two, a Requires on
 // one name, and entries pick names.
 func randomModel(rng *rand.Rand, id ir.TypeID, pick func() ir.TypeID) *ir.Model {
-	return irtest.ModelOf(id, func(m *ir.Model) {
+	return irtest.ModelOf(id, func(model *ir.Model) {
 		for range rng.IntN(4) {
 			digit := rng.IntN(8)
-			p := ir.Property{
+			property := ir.Property{
 				ID: ir.PropertyID(fmt.Sprintf("p%d", digit)), WireName: fmt.Sprintf("w%d", digit%3),
 				Required: digit == 1 || digit == 4, Secret: digit == 6,
 			}
 			if digit == 3 || digit == 5 {
-				p.Deprecation = &ir.Deprecation{Message: fmt.Sprintf("%s@%s", p.ID, id)}
+				property.Deprecation = &ir.Deprecation{Message: fmt.Sprintf("%s@%s", property.ID, id)}
 			}
-			m.Properties = append(m.Properties, p)
+			model.Properties = append(model.Properties, property)
 		}
 		if rng.IntN(3) > 0 {
-			m.Base = &ir.TypeRef{Target: pick()}
+			model.Base = &ir.TypeRef{Target: pick()}
 		}
-		m.Implements = irtest.RefsTo(pickSome(rng, pick)...)
-		m.Mixins = irtest.RefsTo(pickSome(rng, pick)...)
+		model.Implements = irtest.RefsTo(pickSome(rng, pick)...)
+		model.Mixins = irtest.RefsTo(pickSome(rng, pick)...)
 		if rng.IntN(4) == 0 {
-			m.Requires = []string{fmt.Sprintf("w%d", rng.IntN(4))}
+			model.Requires = []string{fmt.Sprintf("w%d", rng.IntN(4))}
 		}
 	})
 }
@@ -183,15 +183,15 @@ type narrowingRef struct {
 func (nr *narrowingRef) distribute(over []sub, union ir.TypeID, depth int) ir.Undistributed {
 	nr.t.Helper()
 	require.Less(nr.t, depth, 32, "no union repeats along a distribution")
-	u := nr.types[union].(*ir.Union)
-	if u.WireTagged && (u.Discriminator == nil || u.Discriminator.Envelope != "" || u.Discriminator.TupleElementIndex != nil) {
+	unionValue := nr.types[union].(*ir.Union)
+	if unionValue.WireTagged && (unionValue.Discriminator == nil || unionValue.Discriminator.Envelope != "" || unionValue.Discriminator.TupleElementIndex != nil) {
 		return ir.UndistributedNotValues
 	}
-	for _, v := range u.Variants {
-		if v.Type.Target == "" {
+	for _, variant := range unionValue.Variants {
+		if variant.Type.Target == "" {
 			continue
 		}
-		next := append(append([]sub{}, over...), sub{union, v.Type.Target})
+		next := append(append([]sub{}, over...), sub{union, variant.Type.Target})
 		copied, unending := nr.rewrite(next)
 		unions, placed := nr.composition(copied, next)
 		switch {
@@ -205,12 +205,12 @@ func (nr *narrowingRef) distribute(over []sub, union ir.TypeID, depth int) ir.Un
 			}
 		default:
 			variants := make([]ir.TypeID, len(next))
-			for i, s := range next {
-				variants[i] = s.variant
+			for i, sub := range next {
+				variants[i] = sub.variant
 			}
-			f := ir.FlattenedProperties(copied, nr.root)
+			flattening := ir.FlattenedProperties(copied, nr.root)
 			nr.out = append(nr.out, fmt.Sprintf("over %v: %v undeclared %v unflattened %v",
-				variants, flatLines(f), f.Undeclared, f.Unflattened))
+				variants, flatLines(flattening), flattening.Undeclared, flattening.Unflattened))
 		}
 	}
 	return ""
@@ -227,10 +227,10 @@ type sub struct{ union, variant ir.TypeID }
 func (nr *narrowingRef) rewrite(over []sub) (ir.TypeRegistry, bool) {
 	copied := maps.Clone(nr.types)
 	var unending bool
-	fix := func(r ir.TypeRef) ir.TypeRef {
+	fix := func(typeRef ir.TypeRef) ir.TypeRef {
 		seen := map[ir.TypeID]bool{}
-		for r.Target != "" {
-			end := standsFor(nr.types, r.Target)
+		for typeRef.Target != "" {
+			end := standsFor(nr.types, typeRef.Target)
 			i := indexOf(over, end)
 			if i < 0 {
 				break
@@ -240,28 +240,28 @@ func (nr *narrowingRef) rewrite(over []sub) (ir.TypeRegistry, bool) {
 				break
 			}
 			seen[end] = true
-			r.Target = over[i].variant
+			typeRef.Target = over[i].variant
 		}
-		return r
+		return typeRef
 	}
 	for id, td := range nr.types {
-		m, ok := td.(*ir.Model)
-		if !ok || m == nil {
+		model, ok := td.(*ir.Model)
+		if !ok || model == nil {
 			continue
 		}
-		c := *m
-		if m.Base != nil {
-			b := fix(*m.Base)
-			c.Base = &b
+		modelValue := *model
+		if model.Base != nil {
+			b := fix(*model.Base)
+			modelValue.Base = &b
 		}
-		c.Implements, c.Mixins = nil, nil
-		for _, r := range m.Implements {
-			c.Implements = append(c.Implements, fix(r))
+		modelValue.Implements, modelValue.Mixins = nil, nil
+		for _, typeRef := range model.Implements {
+			modelValue.Implements = append(modelValue.Implements, fix(typeRef))
 		}
-		for _, r := range m.Mixins {
-			c.Mixins = append(c.Mixins, fix(r))
+		for _, typeRef := range model.Mixins {
+			modelValue.Mixins = append(modelValue.Mixins, fix(typeRef))
 		}
-		copied[id] = &c
+		copied[id] = &modelValue
 	}
 	return copied, unending && nr.reachesRewrite(copied, over)
 }
@@ -271,8 +271,8 @@ func (nr *narrowingRef) rewrite(over []sub) (ir.TypeRegistry, bool) {
 // a union over reads a variant of, where rewrite leaves such an entry.
 func (nr *narrowingRef) reachesRewrite(copied ir.TypeRegistry, over []sub) bool {
 	models, _ := composition(copied, nr.root)
-	for _, m := range models {
-		for _, target := range entries(m) {
+	for _, model := range models {
+		for _, target := range entries(model) {
 			if target != "" && indexOf(over, standsFor(copied, target)) >= 0 {
 				return true
 			}
@@ -283,8 +283,8 @@ func (nr *narrowingRef) reachesRewrite(copied ir.TypeRegistry, over []sub) bool 
 
 // indexOf returns where over reads a variant of the union id, or -1.
 func indexOf(over []sub, id ir.TypeID) int {
-	for i, s := range over {
-		if s.union == id {
+	for i, sub := range over {
+		if sub.union == id {
 			return i
 		}
 	}
@@ -302,12 +302,12 @@ func (nr *narrowingRef) composition(types ir.TypeRegistry, over []sub) ([]ir.Typ
 	for _, id := range slices.Sorted(maps.Keys(models)) {
 		for _, target := range entries(models[id]) {
 			end := standsFor(types, target)
-			u, ok := types[end].(*ir.Union)
-			if !ok || u == nil || listed[end] || indexOf(over, end) >= 0 {
+			union, ok := types[end].(*ir.Union)
+			if !ok || union == nil || listed[end] || indexOf(over, end) >= 0 {
 				continue
 			}
 			listed[end] = true
-			if !listsRoot(types, u, nr.root) {
+			if !listsRoot(types, union, nr.root) {
 				unions = append(unions, end)
 			}
 		}
@@ -318,8 +318,8 @@ func (nr *narrowingRef) composition(types ir.TypeRegistry, over []sub) ([]ir.Typ
 // placedReachesRoot reports whether a model one of over's variants stands for
 // in the root's composition composes the root in turn.
 func (nr *narrowingRef) placedReachesRoot(types ir.TypeRegistry, models map[ir.TypeID]*ir.Model, over []sub) bool {
-	for _, s := range over {
-		end := standsFor(types, s.variant)
+	for _, sub := range over {
+		end := standsFor(types, sub.variant)
 		if _, in := models[end]; in && composedBelow(types, end)[nr.root] {
 			return true
 		}
@@ -327,10 +327,10 @@ func (nr *narrowingRef) placedReachesRoot(types ir.TypeRegistry, models map[ir.T
 	return false
 }
 
-// listsRoot reports whether u has a variant standing for root.
-func listsRoot(types ir.TypeRegistry, u *ir.Union, root ir.TypeID) bool {
-	for _, v := range u.Variants {
-		if standsFor(types, v.Type.Target) == root {
+// listsRoot reports whether union has a variant standing for root.
+func listsRoot(types ir.TypeRegistry, union *ir.Union, root ir.TypeID) bool {
+	for _, variant := range union.Variants {
+		if standsFor(types, variant.Type.Target) == root {
 			return true
 		}
 	}

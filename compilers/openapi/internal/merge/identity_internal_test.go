@@ -15,9 +15,9 @@ import (
 // declaredIn returns a declaration of string type at each pointer.
 func declaredIn(pointers ...jsontext.Pointer) []declaration {
 	decls := make([]declaration, 0, len(pointers))
-	for _, p := range pointers {
+	for _, pointer := range pointers {
 		decls = append(decls, declaration{prop: ir.Property{
-			ID: ir.PropertyID("property/test" + p), WireName: "p", Provenance: ptrAt(p), Type: ir.TypeRef{Target: "type/primitive/string"},
+			ID: ir.PropertyID("property/test" + pointer), WireName: "p", Provenance: ptrAt(pointer), Type: ir.TypeRef{Target: "type/primitive/string"},
 		}, source: written(`{}`)})
 	}
 	return decls
@@ -94,10 +94,10 @@ func TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn(t *testing.T) {
 		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, "property/test" + first, first},
 		{"a branch holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "property/test" + first, first},
 	} {
-		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}})
-		g.walk.interned = tc.nodes
+		stubbed, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}})
+		stubbed.walk.interned = tc.nodes
 
-		got := g.fold(declaredIn(tc.decls...))
+		got := stubbed.fold(declaredIn(tc.decls...))
 
 		assert.Equal(t, tc.pointer, got.Provenance.Pointer, tc.name)
 		assert.Equal(t, tc.id, got.ID, tc.name)
@@ -118,16 +118,16 @@ func TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
 		{"the folded field", "property/test" + first, mintedProp(later)},
 		{"another field", "property/test/other", "property/test/other"},
 	} {
-		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}})
-		g.walk.interned = []jsontext.Pointer{"/s/allOf/0"}
-		m := &ir.Model{Discriminator: &ir.Discriminator{Property: tc.names}}
-		idx, settle := indexOver(m, g)
-		for _, d := range declaredIn(first, later) {
-			idx.MergeProperty(d.prop, d.source, d.secretBy)
+		stubbed, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}})
+		stubbed.walk.interned = []jsontext.Pointer{"/s/allOf/0"}
+		model := &ir.Model{Discriminator: &ir.Discriminator{Property: tc.names}}
+		idx, settle := indexOver(model, stubbed)
+		for _, declaration := range declaredIn(first, later) {
+			idx.MergeProperty(declaration.prop, declaration.source, declaration.secretBy)
 		}
 
 		settle()
 
-		assert.Equal(t, tc.want, m.Discriminator.Property, tc.name)
+		assert.Equal(t, tc.want, model.Discriminator.Property, tc.name)
 	}
 }

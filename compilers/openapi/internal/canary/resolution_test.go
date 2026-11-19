@@ -90,21 +90,21 @@ func schemaCycleOverflow(t *testing.T) {
 	for name, doc := range overflows {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			r := probe(t, "resolve", doc)
-			assert.Equal(t, overflowed, r.outcome, revisit(t, r))
+			result := probe(t, "resolve", doc)
+			assert.Equal(t, overflowed, result.outcome, revisit(t, result))
 		})
 	}
 	t.Run("an outside reference met first", func(t *testing.T) {
 		t.Parallel()
-		r := probe(t, "resolve", schemas(ref("O", "A"), ref("A", "B"), ref("B", "A")))
-		require.Equal(t, returned, r.outcome, revisit(t, r))
-		assert.Contains(t, r.report, "circular reference detected", revisit(t, r))
+		result := probe(t, "resolve", schemas(ref("O", "A"), ref("A", "B"), ref("B", "A")))
+		require.Equal(t, returned, result.outcome, revisit(t, result))
+		assert.Contains(t, result.report, "circular reference detected", revisit(t, result))
 	})
 	t.Run("a pointer through its own schema", func(t *testing.T) {
 		t.Parallel()
-		r := probe(t, "resolve", schemas("A: {$ref: '#/components/schemas/A/'}"))
-		require.Equal(t, returned, r.outcome, revisit(t, r))
-		assert.Contains(t, r.report, "not found", revisit(t, r))
+		result := probe(t, "resolve", schemas("A: {$ref: '#/components/schemas/A/'}"))
+		require.Equal(t, returned, result.outcome, revisit(t, result))
+		assert.Contains(t, result.report, "not found", revisit(t, result))
 	})
 }
 
@@ -139,14 +139,14 @@ func mappingUnresolved(t *testing.T) {
 	}
 	t.Run("one value into a loop", func(t *testing.T) {
 		t.Parallel()
-		r := probe(t, "targets", mapping("a: '#/x-lib/a'"))
-		require.Equal(t, returned, r.outcome, revisit(t, r))
-		assert.Contains(t, r.report, "circular reference detected", revisit(t, r))
+		result := probe(t, "targets", mapping("a: '#/x-lib/a'"))
+		require.Equal(t, returned, result.outcome, revisit(t, result))
+		assert.Contains(t, result.report, "circular reference detected", revisit(t, result))
 	})
 	t.Run("two values into a loop", func(t *testing.T) {
 		t.Parallel()
-		r := probe(t, "targets", mapping("a: '#/x-lib/a', b: '#/x-lib/b'"))
-		assert.Equal(t, overflowed, r.outcome, revisit(t, r))
+		result := probe(t, "targets", mapping("a: '#/x-lib/a', b: '#/x-lib/b'"))
+		assert.Equal(t, overflowed, result.outcome, revisit(t, result))
 	})
 }
 
@@ -185,17 +185,17 @@ func referenceObjectCycle(t *testing.T) {
 	for name, doc := range cycles {
 		t.Run("cycle through "+name, func(t *testing.T) {
 			t.Parallel()
-			r := probe(t, "resolve", doc)
-			require.Equal(t, returned, r.outcome, revisit(t, r))
-			assert.Contains(t, r.report, "circular reference detected", revisit(t, r))
+			result := probe(t, "resolve", doc)
+			require.Equal(t, returned, result.outcome, revisit(t, result))
+			assert.Contains(t, result.report, "circular reference detected", revisit(t, result))
 		})
 	}
 	for name, doc := range reentries {
 		t.Run("reentering "+name, func(t *testing.T) {
 			t.Parallel()
-			r := probe(t, "resolve", doc)
-			require.Equal(t, returned, r.outcome, revisit(t, r))
-			assert.Contains(t, r.report, "unresolved reference", revisit(t, r))
+			result := probe(t, "resolve", doc)
+			require.Equal(t, returned, result.outcome, revisit(t, result))
+			assert.Contains(t, result.report, "unresolved reference", revisit(t, result))
 		})
 	}
 }

@@ -88,35 +88,35 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 // have built around it.
 func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
-	l, lowered, reg, loadDiags := lowerBeforeLinks(t, src)
-	w := compileddoc.New(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
-	l.diags.AppendAll(lowered.Links.Resolve(l.ctx, w, servers.Reopen(lowered.Servers)))
-	return lowered.Service, append(loadDiags, l.diags.List()...)
+	lowerer, lowered, reg, loadDiags := lowerBeforeLinks(t, src)
+	compiledDocumentView := compileddoc.New(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
+	lowerer.diags.AppendAll(lowered.Links.Resolve(lowerer.ctx, compiledDocumentView, servers.Reopen(lowered.Servers)))
+	return lowered.Service, append(loadDiags, lowerer.diags.List()...)
 }
 
 // lowerBeforeLinks runs what lowerServiceSpec does short of resolving the
 // links, which it returns pending in Lowered beside the finished registry. The
-// diagnostics it returns are load's, and l holds the rest.
+// diagnostics it returns are load's, and lowererValue holds the rest.
 func lowerBeforeLinks(t *testing.T, src string) (*lowerer, Lowered, ir.TypeRegistry, []ir.Diagnostic) {
 	t.Helper()
-	l, loadDiags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx.Ctx, l.types, componentStatements(l.ctx)))
-	declared, authDiags := auth.LowerSecuritySchemes(l.ctx)
-	l.diags.AppendAll(authDiags)
+	lowererValue, loadDiags := loweredFor(t, src)
+	lowererValue.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowererValue.ctx.Ctx, lowererValue.types, componentStatements(lowererValue.ctx)))
+	declared, authDiags := auth.LowerSecuritySchemes(lowererValue.ctx)
+	lowererValue.diags.AppendAll(authDiags)
 
-	lowered, svcDiags := LowerService(t.Context(), l.ctx, l.types, declared)
-	l.diags.AppendAll(svcDiags)
-	reg, finished := l.types.Finish(t.Context())
-	l.diags.AppendAll(finished)
-	return l, lowered, reg, loadDiags
+	lowered, svcDiags := LowerService(t.Context(), lowererValue.ctx, lowererValue.types, declared)
+	lowererValue.diags.AppendAll(svcDiags)
+	reg, finished := lowererValue.types.Finish(t.Context())
+	lowererValue.diags.AppendAll(finished)
+	return lowererValue, lowered, reg, loadDiags
 }
 
-// componentStatements yields each component schema of c's document under its
+// componentStatements yields each component schema of serviceContext's document under its
 // name, as run hands them to schema.LowerComponentSchemas.
-func componentStatements(c service.Ctx) iter.Seq2[string, *statement.Statement] {
+func componentStatements(serviceContext service.Ctx) iter.Seq2[string, *statement.Statement] {
 	return func(yield func(string, *statement.Statement) bool) {
-		for name, js := range c.Doc.Components.GetSchemas().All() {
-			if !yield(name, c.Statements().Of(js)) {
+		for name, js := range serviceContext.Doc.Components.GetSchemas().All() {
+			if !yield(name, serviceContext.Statements().Of(js)) {
 				return
 			}
 		}

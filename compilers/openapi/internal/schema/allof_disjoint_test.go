@@ -50,10 +50,10 @@ func disjointSpec(s, extra string) string {
 // value.
 func disjointReports(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning &&
-			strings.Contains(d.Message, "share no value") {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityWarning &&
+			strings.Contains(diagnostic.Message, "share no value") {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -281,21 +281,21 @@ func TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo(t *testing.T) {
 	doc, _ := parseFull(t, disjointSpec(`{allOf: [`+refObj+`, {type: string, maxLength: 3}]}`, ""))
 
 	var atBranch []ir.Diagnostic
-	for _, d := range doc.Diagnostics {
-		if d.Provenance.Pointer == "/components/schemas/S/allOf/1" {
-			atBranch = append(atBranch, d)
+	for _, diagnostic := range doc.Diagnostics {
+		if diagnostic.Provenance.Pointer == "/components/schemas/S/allOf/1" {
+			atBranch = append(atBranch, diagnostic)
 		}
 	}
 	require.Len(t, atBranch, 1, "%+v", doc.Diagnostics)
 	assert.Equal(t, ir.SeverityInfo, atBranch[0].Severity)
 	assert.Contains(t, atBranch[0].Message, "no home for type, maxLength written on this inline branch")
 
-	s, ok := typeByName(doc, "S").(*ir.Model)
+	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, []string{"openapi:maxLength", "openapi:type"}, unmodeledKeys(s.Unmodeled))
-	assert.JSONEq(t, `3`, string(s.Unmodeled["openapi:maxLength"].Value),
+	assert.Equal(t, []string{"openapi:maxLength", "openapi:type"}, unmodeledKeys(model.Unmodeled))
+	assert.JSONEq(t, `3`, string(model.Unmodeled["openapi:maxLength"].Value),
 		"the maxLength the object beside it cannot take")
-	assert.JSONEq(t, `"string"`, string(s.Unmodeled["openapi:type"].Value))
+	assert.JSONEq(t, `"string"`, string(model.Unmodeled["openapi:type"].Value))
 }
 
 // TestAllOf_DisjointConjunctsFollowTheNullableReading holds the report to the
@@ -399,8 +399,8 @@ components:
 
 	reports := disjointReports(doc.Diagnostics)
 	got := make([]string, 0, len(reports))
-	for _, d := range reports {
-		got = append(got, string(d.Provenance.Pointer))
+	for _, diagnostic := range reports {
+		got = append(got, string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{
 		"/components/schemas/Holder/properties/errors",

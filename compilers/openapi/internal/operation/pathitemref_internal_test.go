@@ -39,21 +39,21 @@ func TestFirstDeclared_KeepsEachKeysFirstDeclaration(t *testing.T) {
 // over a copy of the context with it, so building one for every mount cost
 // each that much more.
 func TestPathItemLayers_AOneLayerMountCostsItsLayerAlone(t *testing.T) {
-	l, diags := loweredFor(t, `openapi: 3.1.0
+	lowerer, diags := loweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /b:
     get: {responses: {"200": {description: OK}}}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	rp, ok := l.ctx.Doc.GetPaths().Get("/b")
+	rp, ok := lowerer.ctx.Doc.GetPaths().Get("/b")
 	require.True(t, ok)
 	const usePtr = jsontext.Pointer("/paths/~1b")
 
 	within := testing.AllocsPerRun(20, func() {
-		componentlookup.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, reftable.DocumentPointer{Pointer: usePtr})
-		_ = l.ctx.Siblings()
+		componentlookup.ObjectAt[soa.PathItem](lowerer.ctx.RefScope(), rp, reftable.DocumentPointer{Pointer: usePtr})
+		_ = lowerer.ctx.Siblings()
 	})
-	layers := testing.AllocsPerRun(20, func() { pathItemLayers(l.ctx, rp, usePtr) })
+	layers := testing.AllocsPerRun(20, func() { pathItemLayers(lowerer.ctx, rp, usePtr) })
 	assert.Equal(t, within+1, layers, "the item's resolution and the one layer")
 }

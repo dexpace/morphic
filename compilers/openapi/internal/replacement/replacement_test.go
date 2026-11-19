@@ -103,9 +103,9 @@ func replacementDoc(value string) *ir.Document {
 // as promoted.
 func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 	t.Parallel()
-	p := mapped()
+	promoter := mapped()
 	doc := replacementDoc(`"v2"`)
-	assert.Empty(t, replacement.Resolve(p, compileddoc.New(doc)))
+	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc)))
 
 	op := doc.Services[0].Groups[0].Operations[0]
 	v2 := ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")
@@ -148,13 +148,13 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 	t.Parallel()
 	for _, value := range []string{`["v2","gone"]`, `"old"`, `["getOld"]`, `"X-Old"`} {
-		p := mapped()
+		promoter := mapped()
 		doc := replacementDoc(value)
-		diags := replacement.Resolve(p, compileddoc.New(doc))
+		diags := replacement.Resolve(promoter, compileddoc.New(doc))
 		require.NotEmpty(t, diags, value)
-		for _, d := range diags {
-			assert.Equal(t, diag.DegradedConstruct, d.Code, value)
-			assert.Equal(t, ir.SeverityInfo, d.Severity, value)
+		for _, diagnostic := range diags {
+			assert.Equal(t, diag.DegradedConstruct, diagnostic.Code, value)
+			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity, value)
 		}
 		op := doc.Services[0].Groups[0].Operations[0]
 		assert.Empty(t, op.Deprecation.ReplacedBy, value)
@@ -169,11 +169,11 @@ func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 // second entity before the first.
 func severalV2(doc *ir.Document, first bool) {
 	add := func(hs []ir.Header, id ir.PropertyID, name string) []ir.Header {
-		h := ir.Header{ID: id, WireName: name}
+		header := ir.Header{ID: id, WireName: name}
 		if first {
-			return append([]ir.Header{h}, hs...)
+			return append([]ir.Header{header}, hs...)
 		}
-		return append(hs, h)
+		return append(hs, header)
 	}
 	group := &doc.Services[0].Groups[0]
 	group.Operations = append(group.Operations, ir.Operation{ID: "operation/v2-again", Name: ir.Naming{Source: "v2"}})
@@ -194,15 +194,15 @@ func severalV2(doc *ir.Document, first bool) {
 func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
 	t.Parallel()
 	for _, first := range []bool{false, true} {
-		p := mapped()
+		promoter := mapped()
 		doc := replacementDoc(`"v2"`)
 		severalV2(doc, first)
-		diags := replacement.Resolve(p, compileddoc.New(doc))
+		diags := replacement.Resolve(promoter, compileddoc.New(doc))
 
 		messages := make([]string, 0, len(diags))
-		for _, d := range diags {
-			assert.Equal(t, diag.DegradedConstruct, d.Code)
-			messages = append(messages, d.Message)
+		for _, diagnostic := range diags {
+			assert.Equal(t, diag.DegradedConstruct, diagnostic.Code)
+			messages = append(messages, diagnostic.Message)
 		}
 		const several = "replacement \"v2\" names more than one %s, so it does not fill deprecation.replacedBy"
 		for _, class := range []string{"operation", "parameter", "header", "header", "header", "security scheme"} {
@@ -212,7 +212,7 @@ func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
 
 		op := doc.Services[0].Groups[0].Operations[0]
 		at := func(hs []ir.Header, id ir.PropertyID) *ir.Deprecation {
-			i := slices.IndexFunc(hs, func(h ir.Header) bool { return h.ID == id })
+			i := slices.IndexFunc(hs, func(header ir.Header) bool { return header.ID == id })
 			require.GreaterOrEqual(t, i, 0, id)
 			return hs[i].Deprecation
 		}
@@ -236,11 +236,11 @@ func TestResolve_AnUnmappedOrUndeprecatedNodeTakesNone(t *testing.T) {
 	assert.Empty(t, replacement.Resolve(unmapped, compileddoc.New(doc)))
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy)
 
-	p := mapped()
+	promoter := mapped()
 	doc = replacementDoc(`"v2"`)
 	doc.Services[0].Groups[0].Operations[0].Deprecation = nil
 	doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")] = (*ir.Model)(nil)
-	assert.Empty(t, replacement.Resolve(p, compileddoc.New(doc)))
+	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc)))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Deprecation)
 }
 
@@ -248,7 +248,7 @@ func TestResolve_AnUnmappedOrUndeprecatedNodeTakesNone(t *testing.T) {
 // operation nested deeper than any document the compiler builds is not read.
 func TestResolve_StopsAtTheGroupDepthBound(t *testing.T) {
 	t.Parallel()
-	p := mapped()
+	promoter := mapped()
 	deep := ir.OperationGroup{Operations: []ir.Operation{
 		{ID: "operation/deep", Unmodeled: names(`"v2"`), Deprecation: deprecated()}, {ID: "operation/v2", Name: ir.Naming{Source: "v2"}},
 	}}
@@ -256,7 +256,7 @@ func TestResolve_StopsAtTheGroupDepthBound(t *testing.T) {
 		deep = ir.OperationGroup{Groups: []ir.OperationGroup{deep}}
 	}
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{deep}}}}
-	assert.Empty(t, replacement.Resolve(p, compileddoc.New(doc)))
+	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc)))
 	for range ir.MaxGroupDepth + 1 {
 		deep = deep.Groups[0]
 	}
