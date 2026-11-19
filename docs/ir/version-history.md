@@ -1168,7 +1168,11 @@ it sees. Changes made together in one bump are listed together under it.
     string, oneOf: [{type: 'null'}], anyOf: [{type: string}]}` draws the warning, where it drew
     none; and on `allOf` entries such a pair is the string keeping both as `validation_only`, where
     it was a `Model` keeping both and the body's `type`. The warning names an entry electing a union
-    of null alone by what it admits, `allOf/1: null`, and its other union apart.
+    of null alone by what it admits, `allOf/1: null`, and its other union apart. A `oneOf` and an
+    `anyOf` sharing only a null the body beside them keeps out share no value with it: `{type:
+    string, oneOf: [{type: 'null'}], anyOf: [{type: 'null'}]}` draws the warning, where it drew
+    none, and beside an `allOf` of the string it is the string keeping both, where it was a `Model`
+    keeping both and the body's `type`.
 
   - **Keywords beside an inline principal**
     ([`allof-refinement`](../compilers/openapi.md#allof-refinement),
