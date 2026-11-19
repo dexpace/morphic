@@ -31,7 +31,7 @@ func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 	ref := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference("#/x"))})
 	unknown := placeOf(c, Standalone(ref))
 	assert.False(t, unknown.known, "a schema the bindings do not know is placed nowhere")
-	assert.False(t, unknown.beneath("/allOf/0").known, "nor is a branch beneath it")
+	assert.False(t, unknown.beneath("/allOf/0").known, "nor is an entry beneath it")
 
 	u := Use{Voices: []annotation.Voice{{At: "/v"}}}
 	u.lend(StandaloneSchema(&oas3.Schema{}), referentPlace{doc: c.Place(), pointer: "/r", known: true})

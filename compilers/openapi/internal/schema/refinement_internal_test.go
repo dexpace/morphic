@@ -70,8 +70,8 @@ func componentSchema(t *testing.T, l *Lowerer, name string) *oas3.Schema {
 // TestRefinementOf_ReadsASchemaOnce pins that a schema's decision is read once
 // a run, however many of its readers ask and from wherever: its own type
 // changes after the first read, which no lowering does, so only a remembered
-// answer stays. Where it is read from only places its branches, so another
-// pointer, and a reader asking with none, read the same answer, the branches
+// answer stays. Where it is read from only places its entries, so another
+// pointer, and a reader asking with none, read the same answer, the entries
 // at the pointer asked. The note beside the allOf makes it more than a use of
 // its one $ref, which is the reference whatever its kinds.
 func TestRefinementOf_ReadsASchemaOnce(t *testing.T) {
@@ -93,7 +93,7 @@ func TestRefinementOf_ReadsASchemaOnce(t *testing.T) {
 	r, refined = refinementOf(l.Ctx, StatedIn(l, s), "/elsewhere")
 	require.True(t, refined, "another pointer reads the same answer")
 	require.NotNil(t, r.principal)
-	assert.Equal(t, jsontext.Pointer("/elsewhere/allOf/0"), r.principal.pointer, "its branches stand at the pointer asked")
+	assert.Equal(t, jsontext.Pointer("/elsewhere/allOf/0"), r.principal.pointer, "its entries stand at the pointer asked")
 	assert.Same(t, r.principal, r.ref, "the principal is the $ref read through")
 	assert.True(t, decisionOf(l.Ctx, StatedIn(l, s)).refines, "a reader with no pointer reads it too")
 }
@@ -117,7 +117,7 @@ func TestAdmissionReader_ReadsAValueSetOnce(t *testing.T) {
 }
 
 // TestVoicesAmong_ReadsASchemaOnce pins that what folds is read once a run however
-// many uses of a schema ask, which keeps a schema's uses times its branches from
+// many uses of a schema ask, which keeps a schema's uses times its entries from
 // being the cost of a wide composition: its allOf goes after the first read, which
 // no lowering does, so only a remembered answer stays.
 func TestVoicesAmong_ReadsASchemaOnce(t *testing.T) {
@@ -133,7 +133,7 @@ func TestVoicesAmong_ReadsASchemaOnce(t *testing.T) {
 	assert.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, StatedIn(l, s)), "the second ask reads what the first read")
 }
 
-// TestNullableVoices_ReadsASchemaOnce pins that the branches widening a schema
+// TestNullableVoices_ReadsASchemaOnce pins that the entries widening a schema
 // are read once a run, as its voicing is, since every use of the schema asks:
 // its allOf goes after the first read, so only a remembered answer stays.
 func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
@@ -144,7 +144,7 @@ func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
 	s := componentSchema(t, l, "T")
 	first := nullableVoices(l.Ctx, StatedIn(l, s))
 	require.Len(t, first, 1)
-	assert.Equal(t, jsontext.Pointer("/allOf/1"), first[0].pointer, "each branch at its pointer under the schema's")
+	assert.Equal(t, jsontext.Pointer("/allOf/1"), first[0].pointer, "each entry at its pointer under the schema's")
 
 	st := l.Ctx.Statements().Read(StatedIn(l, s))
 	st.AllOf, st.Entries = nil, nil
@@ -172,10 +172,10 @@ func TestValueNulls_ReadsASchemaOnce(t *testing.T) {
 	assert.Equal(t, union, valueNulls(l.Ctx, StatedIn(l, u)), "the second ask reads what the first read")
 }
 
-// TestLendingBranches_LendsEachEntryOnce pins what a use of a wide composition
-// reads: a branch repeating what s or a branch before it writes lends nothing
+// TestLendingEntries_LendsEachEntryOnce pins what a use of a wide composition
+// reads: an entry repeating what s or an entry before it writes lends nothing
 // more, so a use pays for each entry once, while one writing a new entry lends it.
-func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
+func TestLendingEntries_LendsEachEntryOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object}
     T:
@@ -187,8 +187,8 @@ func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
         - {readOnly: true}
         - {description: d}
 `))
-	got := lendingBranches(l.Ctx, StatedIn(l, componentSchema(t, l, "T")))
-	require.Len(t, got, 1, "only the branch first writing readOnly lends what T does not")
+	got := lendingEntries(l.Ctx, StatedIn(l, componentSchema(t, l, "T")))
+	require.Len(t, got, 1, "only the entry first writing readOnly lends what T does not")
 	assert.Equal(t, jsontext.Pointer("/allOf/2"), got[0].pointer)
 	b := statement.ParsedAt(got[0].schema).GetSchema()
 	require.NotNil(t, b.ReadOnly)
@@ -198,8 +198,8 @@ func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
 	split, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object}
     T: {allOf: [{$ref: '#/components/schemas/Obj'}, {title: a, description: d}, {title: b}, {description: d}]}
 `))
-	got = lendingBranches(split.Ctx, StatedIn(split, componentSchema(t, split, "T")))
-	require.Len(t, got, 1, "a branch kept for disagreeing lends nothing, nor marks what it writes as lent")
+	got = lendingEntries(split.Ctx, StatedIn(split, componentSchema(t, split, "T")))
+	require.Len(t, got, 1, "an entry kept for disagreeing lends nothing, nor marks what it writes as lent")
 	assert.Empty(t, statement.ParsedAt(got[0].schema).GetSchema().GetTitle())
 	assert.Equal(t, "d", statement.ParsedAt(got[0].schema).GetSchema().GetDescription())
 }
@@ -215,7 +215,7 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 	js, ok := l.Doc.Components.Schemas.Get("T")
 	require.True(t, ok)
 	first := lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents
-	require.Len(t, first, 4, "T, the branch that folds, the $ref and what it names")
+	require.Len(t, first, 4, "T, the entry that folds, the $ref and what it names")
 
 	st := l.Ctx.Statements().Of(js)
 	st.AllOf, st.Entries = nil, nil
@@ -239,7 +239,7 @@ func TestWrittenText_RendersASchemaOnce(t *testing.T) {
 
 // TestReadVoices_RendersEachValueOnce pins what a first writer costs: every later
 // conjunct compares with it, so rendering it for each comparison made a document's
-// branches times its longest value the cost of one composition. It is not parallel,
+// entries times its longest value the cost of one composition. It is not parallel,
 // as the count is the process's, and takes the least of three counts, since
 // anything else allocating only adds to one.
 func TestReadVoices_RendersEachValueOnce(t *testing.T) {
@@ -264,12 +264,12 @@ func TestReadVoices_RendersEachValueOnce(t *testing.T) {
 		}
 		return least
 	}
-	assert.Less(t, cost(256), 2*cost(64), "four times the branches, not four times the value")
+	assert.Less(t, cost(256), 2*cost(64), "four times the entries, not four times the value")
 }
 
 // TestRead_AVoiceCostsItsOwnEntries pins what a site's voices cost: each adds its
 // own entries, where overlaying what came before on each made the cost of a
-// composition its branches squared. It is not parallel, as the count is the
+// composition its entries squared. It is not parallel, as the count is the
 // process's, and takes the least of three counts for the same reason as
 // TestReadVoices_RendersEachValueOnce.
 func TestRead_AVoiceCostsItsOwnEntries(t *testing.T) {
@@ -415,10 +415,10 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 		w := newAdmissionReader(l.Ctx)
 		total := 0
 		w.walked = func(n int) { total += n }
-		conjuncts, _ := w.conjuncts(StatedIn(l, s), allOfBranches(l.Ctx, StatedIn(l, s), ""))
+		conjuncts, _ := w.conjuncts(StatedIn(l, s), allOfEntries(l.Ctx, StatedIn(l, s), ""))
 		principal := w.elect(conjuncts, []*conjunct{&conjuncts[1]})
-		require.NotNil(t, principal.branch)
-		require.Nil(t, statement.ParsedAt(principal.branch.schema).GetSchema().Ref, "the narrowing is elected")
+		require.NotNil(t, principal.entry)
+		require.Nil(t, statement.ParsedAt(principal.entry.schema).GetSchema().Ref, "the narrowing is elected")
 		return total
 	}
 	assert.Equal(t, 1, walked(1000, 1))
@@ -445,7 +445,7 @@ func TestElect_ComparesEachPairOnce(t *testing.T) {
 			l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
 			s := StatedIn(l, componentSchema(t, l, "T"))
 			w := newAdmissionReader(l.Ctx)
-			conjuncts, _ := w.conjuncts(s, allOfBranches(l.Ctx, s, ""))
+			conjuncts, _ := w.conjuncts(s, allOfEntries(l.Ctx, s, ""))
 			compared := 0
 			w.compared = func() { compared++ }
 			w.elect(conjuncts, nil)

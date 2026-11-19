@@ -58,7 +58,7 @@ func deadBranches(c lowering.Ctx, body, holder *statement.Schema) []bool {
 func restAdmitsObjects(c lowering.Ctx, body, holder *statement.Schema) bool {
 	at, _ := siteOf(body)
 	joint := anyInstance
-	for _, a := range conjunctAtoms(c, body, allOfBranches(c, body, at.Pointer)) {
+	for _, a := range conjunctAtoms(c, body, allOfEntries(c, body, at.Pointer)) {
 		switch {
 		case a.cut:
 			return false
@@ -172,7 +172,7 @@ func diagDeadBranches(c lowering.Ctx, body *statement.Schema, u unionAt, dead []
 	}
 	r := deadReport{listed: strings.Join(names, ", "), dead: len(found), nulls: u.nulls}
 	r.branches, r.key, _ = u.branches(c)
-	if u.branch {
+	if u.entry {
 		r.on = pathFrom(pointer, u.at)
 	}
 	if hasLiveBranch(c, u, dead) {
@@ -275,7 +275,7 @@ func (r deadReport) none(c lowering.Ctx, body, holder *statement.Schema) string 
 // (docs/compilers/openapi.md#allof-disjoint-conjuncts) is silent, as where a
 // null branch of u takes a null the rest admits, which the two then share.
 func diagDeadEntryUnion(c lowering.Ctx, s *statement.Schema, u unionAt, pointer jsontext.Pointer) []ir.Diagnostic {
-	if len(disjointNames(c, s, allOfBranches(c, s, pointer))) > 0 {
+	if len(disjointNames(c, s, allOfEntries(c, s, pointer))) > 0 {
 		return nil
 	}
 	return diagDeadBranches(c, s, u, deadBranches(c, s, u.holder), pointer, false)
@@ -342,7 +342,7 @@ func deadRoutesOf(c lowering.Ctx, u unionAt) []deadRoute {
 // writes to a dead branch of u, which n's Discriminator leaves out: verbatim,
 // keyed by its path from n's position as the discriminator's extensions are
 // (discriminatorScope), `openapi:discriminator/mapping/<tag>` beside the
-// union. Where n holds no discriminator the census keeps it whole.
+// union. Where n holds no discriminator it is kept whole, unread.
 func keepDeadRoutes(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
 	if n.Discriminator == nil {
 		return nil
@@ -430,7 +430,7 @@ func keepsDeadUnion(c lowering.Ctx, s *statement.Schema) bool {
 // at at, is kept under: `openapi:<keyword>/<index>`, the last two tokens of at,
 // its provenance saying where it is written, beside the body or on an allOf
 // entry, as an entry's own keywords are kept. A position distributes one union
-// (findBranchUnion), so no two branches it keeps share a key.
+// (findEntryUnion), so no two branches it keeps share a key.
 func unionBranchKey(at jsontext.Pointer) string {
 	index := strings.LastIndexByte(string(at), '/')
 	keyword := strings.LastIndexByte(string(at[:index]), '/')

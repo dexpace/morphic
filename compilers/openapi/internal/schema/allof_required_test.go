@@ -17,7 +17,7 @@ import (
 
 // TestAllOf_CompositionRequiredAttaches covers issue #29: allOf is an
 // intersection, so a `required` list constrains the whole composed object
-// regardless of which branch declares the named property, or whether it is
+// regardless of which entry declares the named property, or whether it is
 // paired with a properties map at all. Each case names a wire property that
 // must end up Required=true, which leaves Requires empty, since every name
 // matches an own property.
@@ -30,7 +30,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 		wire  string // property expected to end up Required=true
 	}{
 		{
-			name: "required-only branch after the branch declaring the property (issue #29 repro)",
+			name: "required-only entry after the entry declaring the property (issue #29 repro)",
 			spec: openapitest.ComponentSpec(`    Thing:
       allOf:
         - type: object
@@ -42,7 +42,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 			wire:  "id",
 		},
 		{
-			name: "required-only branch before the branch declaring the property",
+			name: "required-only entry before the entry declaring the property",
 			spec: openapitest.ComponentSpec(`    ThingB:
       allOf:
         - required: [id]
@@ -54,7 +54,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 			wire:  "id",
 		},
 		{
-			name: "required-only branch, property declared alongside allOf",
+			name: "required-only entry, property declared alongside allOf",
 			spec: openapitest.ComponentSpec(`    Foo:
       type: object
       properties:
@@ -72,7 +72,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 			wire:  "type",
 		},
 		{
-			name: "branch declares properties: {} (empty, non-nil) plus required",
+			name: "entry declares properties: {} (empty, non-nil) plus required",
 			spec: openapitest.ComponentSpec(`    ThingF:
       allOf:
         - type: object
@@ -86,7 +86,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 			wire:  "id",
 		},
 		{
-			name: "the schema's own required (sibling of allOf, no sibling properties) names a property declared inside a branch",
+			name: "the schema's own required (sibling of allOf, no sibling properties) names a property declared inside an entry",
 			spec: openapitest.ComponentSpec(`    ThingG:
       required: [id]
       allOf:
@@ -113,13 +113,13 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 	}
 }
 
-// TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires pins an
-// allOf composed of a sole $ref (its Base) and a required-only branch naming a
+// TestAllOf_RequiredOnlyEntryNamingBaseOwnedPropertyLandsInRequires pins an
+// allOf composed of a sole $ref (its Base) and a required-only entry naming a
 // property only the base declares. docs/ir/models.md#composition stores a
 // model's own properties, never a flattened view, so the name lands in
 // Model.Requires: the composed model makes the inherited property required, and
 // nothing is misattached to an unrelated property or reported as lost.
-func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires(t *testing.T) {
+func TestAllOf_RequiredOnlyEntryNamingBaseOwnedPropertyLandsInRequires(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Human:
       type: object
@@ -149,7 +149,7 @@ func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires(t *testi
 }
 
 // TestAllOf_RequiredNameNothingDeclaresLandsInRequires covers an allOf with no
-// $ref branch at all, so nothing becomes Base or a Mixin and the required name
+// $ref entry at all, so nothing becomes Base or a Mixin and the required name
 // is one no schema declares: legal JSON Schema, which requires the member
 // whatever its value. It lands in Model.Requires as the inherited one does,
 // with no property invented for it.
@@ -166,11 +166,11 @@ func TestAllOf_RequiredNameNothingDeclaresLandsInRequires(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing should be a model")
-	assert.Nil(t, m.Base, "no $ref branch at all: no Base")
-	assert.Empty(t, m.Mixins, "no $ref branch at all: no Mixins")
+	assert.Nil(t, m.Base, "no $ref entry at all: no Base")
+	assert.Empty(t, m.Mixins, "no $ref entry at all: no Mixins")
 
 	id, hasID := openapitest.PropsByWire(m.Properties)["id"]
-	require.True(t, hasID, "the branch's own id property still lowers")
+	require.True(t, hasID, "the entry's own id property still lowers")
 	assert.False(t, id.Required, "ghost's requiredness never misattaches to id")
 	_, hasGhost := openapitest.PropsByWire(m.Properties)["ghost"]
 	assert.False(t, hasGhost, "ghost is never invented as a property")
@@ -178,14 +178,14 @@ func TestAllOf_RequiredNameNothingDeclaresLandsInRequires(t *testing.T) {
 	assert.Empty(t, diags, "the requirement is carried, so nothing is reported")
 }
 
-// TestAllOf_RefBranchWithSiblingRequired31 pins the real behavior of a $ref
-// allOf branch that also carries a sibling `required` (legal in OpenAPI 3.1 /
+// TestAllOf_RefEntryWithSiblingRequired31 pins the real behavior of a $ref
+// allOf entry that also carries a sibling `required` (legal in OpenAPI 3.1 /
 // JSON Schema 2020-12, where $ref no longer has to be the schema object's only
-// keyword). compositionRequired reads a branch's required list off its own
+// keyword). compositionRequired reads an entry's required list off its own
 // local schema node (GetSchema()) — never the resolved $ref target, which
 // belongs to that target's own model — so this pins what that local schema
-// node actually exposes for a $ref-with-siblings branch in this library.
-func TestAllOf_RefBranchWithSiblingRequired31(t *testing.T) {
+// node actually exposes for a $ref-with-siblings entry in this library.
+func TestAllOf_RefEntryWithSiblingRequired31(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Human:
       type: object
@@ -206,9 +206,9 @@ func TestAllOf_RefBranchWithSiblingRequired31(t *testing.T) {
 	require.NotNil(t, m.Base, "the sole $ref still becomes Base despite the sibling required")
 
 	level, ok := openapitest.PropsByWire(m.Properties)["level"]
-	require.True(t, ok, "level is declared by the inline branch")
+	require.True(t, ok, "level is declared by the inline entry")
 	assert.True(t, level.Required,
-		"a required sibling on a $ref branch is read off the branch's own local schema and attaches to level")
+		"a required sibling on a $ref entry is read off the entry's own local schema and attaches to level")
 }
 
 // TestAllOf_RequiresIsTheSameInEitherComponentOrder pins that an allOf making
@@ -246,7 +246,7 @@ func TestAllOf_RequiresIsTheSameInEitherComponentOrder(t *testing.T) {
 }
 
 // TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce pins that a name an
-// allOf writes in more than one required list, a branch's and the composed
+// allOf writes in more than one required list, an entry's and the composed
 // schema's own, is in Model.Requires once, where it is first written. Each list
 // is free of repeats, so the validation reports nothing, and only the lowering
 // that gathers them can list a name twice.
@@ -269,12 +269,12 @@ func TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce(t *testing.T) {
 	assert.Equal(t, []string{"id", "extra", "other"}, m.Requires, "once each, in the order first written")
 }
 
-// TestAllOf_BoolBranchContributesNoRequiredNames covers an allOf branch that is
+// TestAllOf_BoolEntryContributesNoRequiredNames covers an allOf entry that is
 // a bare boolean schema (`true` here) rather than a $ref or an inline object,
-// so its schema is nil. It pins that the bool branch contributes no required
-// names and that reading it does not panic, while the sibling object branch's
+// so its schema is nil. It pins that the bool entry contributes no required
+// names and that reading it does not panic, while the sibling object entry's
 // property and required still lower normally.
-func TestAllOf_BoolBranchContributesNoRequiredNames(t *testing.T) {
+func TestAllOf_BoolEntryContributesNoRequiredNames(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Thing:
       allOf:
@@ -288,11 +288,11 @@ func TestAllOf_BoolBranchContributesNoRequiredNames(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing should be a model")
-	assert.Nil(t, m.Base, "a bare boolean branch is never a $ref, so no Base")
+	assert.Nil(t, m.Base, "a bare boolean entry is never a $ref, so no Base")
 	assert.Empty(t, m.Mixins)
 
 	id, hasID := openapitest.PropsByWire(m.Properties)["id"]
-	require.True(t, hasID, "the object branch's own property still lowers despite the sibling bool branch")
-	assert.True(t, id.Required, "the object branch's own required still attaches to its own property")
-	assert.Empty(t, m.Requires, "the boolean branch contributes no required names, so nothing goes unattached")
+	require.True(t, hasID, "the object entry's own property still lowers despite the sibling bool entry")
+	assert.True(t, id.Required, "the object entry's own required still attaches to its own property")
+	assert.Empty(t, m.Requires, "the boolean entry contributes no required names, so nothing goes unattached")
 }

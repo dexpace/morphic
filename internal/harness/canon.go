@@ -531,7 +531,7 @@ func provenancePointer(o map[string]any) string {
 }
 
 // eraseRelative writes as "-" each decimal token of a relative pointer that
-// follows an order-free keyword: openapi:allOf/1 names a branch by its index,
+// follows an order-free keyword: openapi:allOf/1 names an entry by its index,
 // and openapi:oneOf/1 a variant whose order the IR keeps.
 func eraseRelative(name string) string {
 	tokens := strings.Split(name, "/")

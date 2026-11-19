@@ -109,8 +109,8 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/Recording'}
-    # A $ref into a branch makes a model carrying that declaration alone, so the
-    # field the branches make together is another property, and no declaration's
+    # A $ref into an entry makes a model carrying that declaration alone, so the
+    # field the entries make together is another property, and no declaration's
     # own ID is free for it to take.
     RefIntoBranch:
       allOf:

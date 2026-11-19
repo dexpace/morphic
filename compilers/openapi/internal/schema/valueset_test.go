@@ -80,7 +80,7 @@ func TestValueSet_TwoRefsWrittenAlikeAreKeptOnce(t *testing.T) {
 
 // TestValueSet_AnEmptyEnumBesideACompositionIsNotElected pins the value set
 // whose own keywords leave it no value: it is no set to lower, so the allOf
-// beside it composes and the election of competing keywords keeps each $ref
+// beside it composes and the dispatch among competing keywords keeps each $ref
 // it passes over by reference text, and a use of the position reads through
 // neither $ref.
 func TestValueSet_AnEmptyEnumBesideACompositionIsNotElected(t *testing.T) {

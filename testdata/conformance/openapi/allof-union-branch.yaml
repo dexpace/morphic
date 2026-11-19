@@ -24,7 +24,7 @@ components:
   schemas:
     WithoutData: {type: object, properties: {data: {type: object}}}
     WithData: {type: object, properties: {content: {type: string}}}
-    # A union written as an allOf branch conjoins with the rest of the
+    # A union written as an allOf entry conjoins with the rest of the
     # composition, so it distributes as the same union written beside the allOf
     # does, each variant carrying the record's common fields.
     Record:
@@ -52,8 +52,8 @@ components:
             - type: object
               required: [managed_app_id]
               properties: {managed_app_id: {type: string}}
-    # Of two union branches, one only narrows the body: it stays with its
-    # branch on each variant, and the other distributes.
+    # Of two union entries, one only narrows the body: it stays with its
+    # entry on each variant, and the other distributes.
     AppRequest:
       type: object
       allOf:
@@ -64,7 +64,7 @@ components:
         - type: object
           properties: {breakout: {type: string}, priority: {type: integer}}
     # Unions that only narrow the body distribute nothing: the composition
-    # stays a model, each kept with its branch.
+    # stays a model, each kept with its entry.
     Message:
       type: object
       properties: {to: {type: string}, cc: {type: string}, text: {type: string}, html: {type: string}}
@@ -98,7 +98,7 @@ components:
             - oneOf:
                 - $ref: '#/components/schemas/WithoutData'
                 - $ref: '#/components/schemas/WithData'
-    # A union on a branch stands with the discriminator written on the branch,
+    # A union on an entry stands with the discriminator written on the entry,
     # or beside the allOf, which routes the variants it distributes into.
     Payment:
       allOf:

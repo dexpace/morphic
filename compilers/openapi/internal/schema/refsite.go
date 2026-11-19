@@ -33,12 +33,12 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, s *s
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
 // position lowered to a reference as a $ref site is declared that the reference
 // cannot hold (referenceOutcomeKeywords): a collapsed union, an expanded
-// $dynamicRef and a refinement. It is schemaBody's other half, the same census
-// recorded where an annotation.HomeCarrier position keeps everything else its
-// schema declared (GitHub #406). A $ref site writes nothing to keep
-// (refSiteRef), and a schema that lowered to a node of its own had the census
-// recorded there, so the carrier adds nothing: one home per declaration, as
-// fillPropertyAnnotations draws the line.
+// $dynamicRef and a refinement. It is schemaBody's other half, the same unread
+// keeping recorded where an annotation.HomeCarrier position keeps everything
+// else its schema declared (GitHub #406). A $ref site writes nothing to keep
+// (refSiteRef), and a schema that lowered to a node of its own had its unread
+// keywords recorded there, so the carrier adds nothing: one home per
+// declaration, as fillPropertyAnnotations draws the line.
 func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer,
 ) []ir.Diagnostic {

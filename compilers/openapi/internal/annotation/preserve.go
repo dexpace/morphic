@@ -203,7 +203,7 @@ type underlay struct {
 // add adds to dst each entry of src, one voice's, it lacks, walking src alone:
 // overlaying the site's map on each voice would cost it all those before it.
 // An entry own keeps stays its. A voice kept whole is no writer of what it
-// folds, which its branch holds: it fills a key no other voice writes, which
+// folds, which its entry holds: it fills a key no other voice writes, which
 // the first voice kept apart writing it takes. One two voices kept apart write,
 // alike, as voices agree, is no one writer's, so it takes site, and no order of
 // the voices decides where it points

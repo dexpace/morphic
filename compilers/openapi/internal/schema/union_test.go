@@ -732,7 +732,7 @@ func TestLower_ATypeListedTwiceIsNotExclusive(t *testing.T) {
 
 // TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion pins that a type array's
 // object variant holds no discriminator (GitHub #853): no type can be its
-// subtype, so the census keeps the discriminator on the union, whatever it
+// subtype, so the discriminator is kept unread on the union, whatever it
 // routes to and whether or not a union is written beside it. A subtype keeps
 // the tag the discriminator gives it, and composes the union's object variant
 // as its Base: the union admits a string, which no model composes.
@@ -826,7 +826,7 @@ func TestLower_ATypeArrayResolvesItsDiscriminatorRoutes(t *testing.T) {
 
 // assertKeptOnTheUnion requires the union at id, lowered from the type array
 // at pointer, to keep its discriminator whole, holding want, and reported once
-// by the census, and its object variant, of kind variant, to hold none.
+// as unread, and its object variant, of kind variant, to hold none.
 func assertKeptOnTheUnion(t *testing.T, doc *ir.Document, id ir.TypeID, pointer jsontext.Pointer, want string, variant ir.TypeKind) {
 	t.Helper()
 	u, ok := doc.Types[id].(*ir.Union)
@@ -845,8 +845,8 @@ func assertKeptOnTheUnion(t *testing.T, doc *ir.Document, id ir.TypeID, pointer 
 		assert.Nil(t, m.Discriminator, "the object variant holds none")
 	}
 	assert.NotContains(t, node.Common().Unmodeled, "openapi:discriminator", "nor keeps it")
-	reports := censusReports(doc.Diagnostics, pointer)
-	require.Len(t, reports, 1, "the census reports it once")
+	reports := unreadReports(doc.Diagnostics, pointer)
+	require.Len(t, reports, 1, "the keeping of unread keywords reports it once")
 	assert.Contains(t, reports[0], "discriminator")
 }
 
@@ -940,23 +940,23 @@ func TestUnionSiblings_UnpreservableIsReportedNotClaimed(t *testing.T) {
 		"nothing converted, so nothing may say it was kept")
 }
 
-// TestNullOnlyUnion_ReportsItsCensusAsABareNullSchemaDoes pins that a null-only
-// branch set, which lowers as a bare `{type: null}` schema does, names what a
-// keyword it cannot hold sits beside in the same words: the node the position
-// lowered to, not the alias holding the keyword.
-func TestNullOnlyUnion_ReportsItsCensusAsABareNullSchemaDoes(t *testing.T) {
+// TestNullOnlyUnion_ReportsWhatItKeepsUnreadAsABareNullSchemaDoes pins that a
+// null-only branch set, which lowers as a bare `{type: null}` schema does,
+// names what a keyword it cannot hold sits beside in the same words: the node
+// the position lowered to, not the alias holding the keyword.
+func TestNullOnlyUnion_ReportsWhatItKeepsUnreadAsABareNullSchemaDoes(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec(
 		"    NullOnly: {oneOf: [{type: 'null'}], format: uuid}\n    NullTyped: {type: 'null', format: uuid}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	census := func(name string) string {
+	unreadOf := func(name string) string {
 		i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool {
 			return string(d.Provenance.Pointer) == "/components/schemas/"+name && strings.Contains(d.Message, "which has no home for")
 		})
 		require.GreaterOrEqual(t, i, 0, "%s reports what it kept", name)
 		return diags[i].Message
 	}
-	assert.Equal(t, census("NullTyped"), census("NullOnly"))
+	assert.Equal(t, unreadOf("NullTyped"), unreadOf("NullOnly"))
 }
 
 // variantsNamingTheirNodes asserts that each labeled variant is named as the

@@ -108,7 +108,7 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 		{"the OAS dialect by an id it is published under", openapitest.ComponentSpecVer("3.2.0",
 			"    T: {$schema: 'https://spec.openapis.org/oas/3.2/dialect/2025-09-17', type: integer, exclusiveMinimum: 5}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"", "5"}}, nil},
-		{"an allOf reads each branch in its own", "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: " +
+		{"an allOf reads each entry in its own", "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: " +
 			draft04 + "\npaths: {}\ncomponents:\n  schemas:\n    T: {allOf: [{$id: 'https://example.com/a', " +
 			"$schema: 'https://json-schema.org/draft/2020-12/schema', type: integer, exclusiveMinimum: 2}, " + boolean + "]}\n",
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"", "5"}}, nil},
@@ -226,9 +226,9 @@ func TestDocumentDialect_AMalformedDialectIsValidationsFinding(t *testing.T) {
 // TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect pins that a schema
 // reached from another document is read in its own document's dialect,
 // whichever document's content the lowering reads: draft 7's `dependencies` in
-// other.yaml folds from an inline allOf branch the source's G names, a draft 7
+// other.yaml folds from an inline allOf entry the source's G names, a draft 7
 // source's `definitions`, as `$defs`, leaves a body other.yaml declares a file,
-// an alias of other.yaml folds a branch under a draft 4 root alone, and a
+// an alias of other.yaml folds an entry under a draft 4 root alone, and a
 // body's $ref into a draft 4 document of schemas reads its `id` as `$id`.
 func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 	t.Parallel()
@@ -247,7 +247,7 @@ func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 		f, ok := doc.Types[ir.TypeID("t/openapi@other.yaml/components/schemas/F")].(*ir.Model)
 		require.True(t, ok)
 		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, f.Unmodeled, "openapi:dependencies").Reason)
-		assert.NotContains(t, f.Unmodeled, "openapi:allOf/0", "the branch folds")
+		assert.NotContains(t, f.Unmodeled, "openapi:allOf/0", "the entry folds")
 	})
 	t.Run("from another document into a draft's", func(t *testing.T) {
 		t.Parallel()

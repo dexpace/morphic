@@ -97,7 +97,7 @@ func assertNullableKeyword30(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"/components/schemas/Holder/properties/untyped/nullable":       "writes none",
 		"/components/schemas/Holder/properties/composed/nullable":      "writes none",
 		"/components/schemas/Holder/properties/unlisted/nullable":      "enum lists no null",
-		"/components/schemas/Holder/properties/typedComposed/nullable": "allOf branch",
+		"/components/schemas/Holder/properties/typedComposed/nullable": "allOf entry",
 	}
 	got := map[jsontext.Pointer]string{}
 	for _, d := range diags {
@@ -400,7 +400,7 @@ func TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy(t *tes
 }
 
 // compositionSpec composes N, whose nullable 3.1 does not define, two ways: an
-// allOf whose branches redeclare one property, the first through nullable and
+// allOf whose entries redeclare one property, the first through nullable and
 // the second through a type array, and a union beside properties, which
 // distributes over its branches. Narrowed distributes over D, whose type array
 // admits null, beside a type that excludes it.

@@ -154,11 +154,11 @@ func TestUnion_AListOfItemsBesideTheBranchesIsNotSaid(t *testing.T) {
 	assert.True(t, tuple, "the body keeps its tuple; got %T", typeByName(doc, "U"))
 }
 
-// TestAllOf_ABranchUnderADraftsIDFoldsNothing pins that draft 4's `id` gives an
-// inline allOf branch its base as `$id` does: `n.json` names A under the
-// branch's id and nothing at the position, so its `not` and description stay
-// with the branch rather than fold into the position.
-func TestAllOf_ABranchUnderADraftsIDFoldsNothing(t *testing.T) {
+// TestAllOf_AnEntryUnderADraftsIDFoldsNothing pins that draft 4's `id` gives an
+// inline allOf entry its base as `$id` does: `n.json` names A under the
+// entry's id and nothing at the position, so its `not` and description stay
+// with the entry rather than fold into the position.
+func TestAllOf_AnEntryUnderADraftsIDFoldsNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec("    A: {"+d4+", id: 'https://ex.test/a/n.json', type: string}\n"+
 		"    S:\n      "+d4+"\n      allOf:\n"+
@@ -166,7 +166,7 @@ func TestAllOf_ABranchUnderADraftsIDFoldsNothing(t *testing.T) {
 		"        - {id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}, description: d}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	s := doc.Types[componentID("S")].Common()
-	assert.Contains(t, s.Unmodeled, "openapi:allOf/1", "the branch is kept whole")
+	assert.Contains(t, s.Unmodeled, "openapi:allOf/1", "the entry is kept whole")
 	assert.NotContains(t, s.Unmodeled, "openapi:not", "its not folds nowhere")
 	assert.Empty(t, s.Docs.Description)
 }

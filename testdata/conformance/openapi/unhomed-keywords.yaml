@@ -55,7 +55,7 @@ components:
     # keyword and what stands beside it is conjoined with it. The position
     # lowers to an alias over the target, which has no member set, no value, no
     # property set and no encoding of its own, so each of these reached no IR
-    # field: the $ref path ran no census at all until it ran the body path's.
+    # field: the $ref path kept no keyword unread at all until it kept them as the body path does.
     # Declared above their targets on purpose: an alias hoisted at a pointer
     # another declaration can also reach must not depend on which arrives first.
     RefFormat: {$ref: '#/components/schemas/RefTargetStr', format: email}
@@ -67,7 +67,7 @@ components:
     # The control: a bound and a description at the identical position always
     # reached the alias's own fields, so neither may acquire an entry now.
     RefConstrained: {$ref: '#/components/schemas/RefTargetStr', minLength: 3, description: kept}
-    # The same census at a carrier, which keeps them on itself rather than
+    # The same keeping at a carrier, which keeps them on itself rather than
     # hoisting a node: a property's $ref resolves straight to the target.
     RefCarrier:
       type: object
@@ -75,7 +75,7 @@ components:
         p: {$ref: '#/components/schemas/RefTargetStr', format: email}
     RefTargetStr: {type: string}
     RefTargetObj: {type: object, properties: {a: {type: string}}}
-    # Keywords the *elected* family's lowering never reads. A Model composed
+    # Keywords the *picked* family's lowering never reads. A Model composed
     # from allOf carries no type token, so a non-object type states something the
     # IR no longer holds. A Literal's ValueType holds the type and format its
     # value fits, so ConstWithFormat keeps nothing, but no bound reaches a field.

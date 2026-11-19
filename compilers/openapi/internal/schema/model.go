@@ -169,7 +169,7 @@ func (f modelFields) Admits(p ir.Provenance, kind merge.Instance) (admits, exact
 	return want != 0 && kinds&want == want && partial&want == 0, true
 }
 
-// variantHolders returns st, written at at, and where st is a branch of a
+// variantHolders returns st, written at at, and where st is an entry of a
 // oneOf or an anyOf, every schema an instance of that variant also meets: the
 // one writing the union, and each holding that one in turn as an entry of its
 // allOf or a branch of its union, as a distributed variant composes what each

@@ -740,7 +740,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a node of kind \"union\", which has no home for enum written on this inline branch; kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a node of kind \"union\", which has no home for enum written on this inline entry; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Shared/allOf/1"
@@ -749,7 +749,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a node of kind \"union\", which has no home for enum written on this inline branch; kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a node of kind \"union\", which has no home for enum written on this inline entry; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Many/allOf/1"
@@ -758,7 +758,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a node of kind \"enum\", which has no home for anyOf written on this inline branch; kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a node of kind \"enum\", which has no home for anyOf written on this inline entry; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Nested/allOf/0"

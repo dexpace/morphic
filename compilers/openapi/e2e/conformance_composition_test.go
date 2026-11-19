@@ -60,7 +60,7 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, m.Base)
 	assert.Equal(t, componentID("Base"), m.Base.Target)
 	_, ok = propByWire(m, "name")
-	assert.True(t, ok, "inline allOf branch contributes its properties")
+	assert.True(t, ok, "inline allOf entry contributes its properties")
 }
 
 // assertAllOfNestedInline pins the flattening of
@@ -96,7 +96,7 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	for _, p := range mixed.Properties {
 		wires = append(wires, p.WireName)
 	}
-	assert.Equal(t, []string{"c", "w"}, wires, "the wrapper's own property merges after its branches'")
+	assert.Equal(t, []string{"c", "w"}, wires, "the wrapper's own property merges after its entries'")
 
 	closed, ok := doc.Types[componentID("Closed")].(*ir.Model)
 	require.True(t, ok)
@@ -132,11 +132,11 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	d, ok := doc.Types[componentID("Derived")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, d.Base, "the $ref branch still becomes Base")
+	require.NotNil(t, d.Base, "the $ref entry still becomes Base")
 	name, ok := propByWire(d, "name")
-	require.True(t, ok, "the inline branch's own property survives")
+	require.True(t, ok, "the inline entry's own property survives")
 	assert.True(t, name.Required,
-		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
+		"a required-only allOf entry attaches across the whole composition, not just its own properties map (issue #29)")
 }
 
 // assertRequiredMembers pins where a `required` name lands when no property of
@@ -283,7 +283,7 @@ func assertInlineBranchHint(t *testing.T, doc *ir.Document) {
 // assertAllOfDisjointConjuncts pins docs/compilers/openapi.md#allof-disjoint-conjuncts:
 // an allOf whose conjuncts share no value draws one warning at the schema
 // however the contradiction is spelled, a `type` beside the allOf against a
-// $ref, two $refs, or an inline branch against a $ref. The inline branch keeps
+// $ref, two $refs, or an inline entry against a $ref. The inline entry keeps
 // its residue as an info, so one contradiction is one warning; a pair that
 // shares a null draws nothing; and no lowering changes, since the report is all
 // the case adds.
@@ -295,7 +295,7 @@ func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Dia
 	}
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, diag.DegradedConstruct, "/components/schemas/Inline/allOf/1"),
-		"the inline branch's residue is an info, since the schema carries the warning")
+		"the inline entry's residue is an info, since the schema carries the warning")
 	assert.Empty(t, diagsAt(diags, diag.DegradedConstruct, "/components/schemas/SharedNull"),
 		"a null both conjuncts admit is a value they share")
 
@@ -315,7 +315,7 @@ func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Dia
 	require.True(t, ok)
 	require.NotNil(t, inline.Base, "the sole $ref is the Base")
 	assert.Equal(t, componentID("Obj"), inline.Base.Target)
-	assert.Contains(t, inline.Unmodeled, "openapi:type", "and the inline branch's type is still kept, under its own key")
+	assert.Contains(t, inline.Unmodeled, "openapi:type", "and the inline entry's type is still kept, under its own key")
 }
 
 // assertAllOfPositionConstraints pins GitHub #407: a value constraint written
@@ -367,7 +367,7 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	decorator, ok := doc.Types[owner.Type.Target].(*ir.Model)
 	require.True(t, ok, "an object target keeps its composition")
 	assert.Equal(t, "The owner", decorator.Docs.Description)
-	assert.Empty(t, decorator.Unmodeled, "nothing is left of the branch")
+	assert.Empty(t, decorator.Unmodeled, "nothing is left of the entry")
 	assert.True(t, owner.Type.Nullable)
 	assert.NotEmpty(t, owner.Type.Inferred, "the policy reads the null")
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, owner.Visibility.Only)
@@ -407,7 +407,7 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"only Disjoint is contradicted, and its conjuncts are reported once")
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Disjoint", "/components/schemas/Port80/allOf/1/const",
 		"/components/schemas/Zone/properties/owner/allOf/1/nullable"}, warningPointers(diags),
-		"and a const, which 3.1 added, and a nullable on a branch writing no type, which 3.0 gives no effect")
+		"and a const, which 3.1 added, and a nullable on an entry writing no type, which 3.0 gives no effect")
 }
 
 // assertRefinedOperation covers the positions an operation holds.
@@ -602,7 +602,7 @@ func assertDiscriminatorInlineSubtype(t *testing.T, doc *ir.Document, _ []ir.Dia
 }
 
 // assertDiscriminatorTransitive covers a hierarchy deeper than the two levels
-// discriminator-inheritance reaches: the subtype's own allOf branch names an
+// discriminator-inheritance reaches: the subtype's own allOf entry names an
 // intermediate schema that declares no discriminator, so the tag value can only
 // come from an ancestor further up (GitHub #305). What each subtype composes is
 // pinned beside its tag, since depth is the point. The undiscriminated chain
@@ -617,7 +617,7 @@ func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagno
 	assert.Equal(t, componentID("Puppy"), pet.Discriminator.Mapping["puppy"],
 		"the base maps a wire value straight onto its grandchild")
 
-	// base is the schema each subtype's own allOf branch names, which is the only
+	// base is the schema each subtype's own allOf entry names, which is the only
 	// thing a one-hop reading of the chain could see.
 	for _, tc := range []struct{ name, base, value string }{
 		{"Dog", "Pet", "dog"},
@@ -1062,7 +1062,7 @@ func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Empty(t, maybe.Unmodeled)
 }
 
-// assertAllOfUnionBranch pins a union written as an allOf branch, distributed
+// assertAllOfUnionBranch pins a union written as an allOf entry, distributed
 // across the rest of the composition as the same union beside the allOf is,
 // and one that only narrows the body or sits on a subtype a route names, which
 // stays with its branch (docs/compilers/openapi.md#union-beside-structure).
@@ -1088,7 +1088,7 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 		}
 		assert.Contains(t,
 			openapitest.DiagMessageAt(t, diags, diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/"+name),
-			"written on an allOf branch", name)
+			"written on an allOf entry", name)
 	}
 	request, ok := doc.Types[componentID("AppRequest")].(*ir.Union)
 	require.True(t, ok)
@@ -1160,7 +1160,7 @@ func assertAllOfValueSetBesideEntry(t *testing.T, doc *ir.Document, diags []ir.D
 				reported++
 			}
 		}
-		assert.Equal(t, 1, reported, "%s: the election reports what it passed over once", name)
+		assert.Equal(t, 1, reported, "%s: the dispatch reports what it passed over once", name)
 	}
 	assertNoErrorDiags(t, diags)
 }

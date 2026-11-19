@@ -3,7 +3,7 @@
 
 // This file regression-tests GitHub #34: the allOf merge folded every other
 // redeclared property detail (required, docs, default, constraints, ...) but
-// never Visibility, so a readOnly/writeOnly declared on the allOf branch that
+// never Visibility, so a readOnly/writeOnly declared on the allOf entry that
 // redeclares a shared field was silently lost.
 package e2e_test
 
@@ -19,8 +19,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// allOfVisibilitySpec is the issue's own reproduction: two allOf branches
-// each declare "id" once, and only the second branch — the one that
+// allOfVisibilitySpec is the issue's own reproduction: two allOf entries
+// each declare "id" once, and only the second entry — the one that
 // redeclares it — marks it readOnly.
 const allOfVisibilitySpec = `openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -37,13 +37,13 @@ components:
             id: {type: integer, readOnly: true}
 `
 
-// allOfVisibilitySpecReversed is allOfVisibilitySpec with its two branches
+// allOfVisibilitySpecReversed is allOfVisibilitySpec with its two entries
 // swapped, so readOnly is now the *first* declaration and the plain
 // redeclaration comes second.
 //
-// Before the fix, the merge kept whichever branch it saw first and dropped the
+// Before the fix, the merge kept whichever entry it saw first and dropped the
 // other's Visibility entirely. That happened to produce the right answer in
-// this direction, purely because the first branch was already the readOnly
+// this direction, purely because the first entry was already the readOnly
 // one — so a single-order
 // test written only against this spec would have passed on the broken code.
 // TestAllOfVisibilityMerge_OrderIndependent compiles both directions and
@@ -65,7 +65,7 @@ components:
 `
 
 // allOfVisibilityDisjointSpec composes readOnly against writeOnly on the same
-// field: the two branches admit disjoint lifecycle sets, so their
+// field: the two entries admit disjoint lifecycle sets, so their
 // intersection is empty.
 const allOfVisibilityDisjointSpec = `openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -104,8 +104,8 @@ func thingIDVisibility(t *testing.T, name, spec string) (ir.Visibility, []ir.Dia
 }
 
 // TestAllOfVisibilityMerge_ReadOnlyOnRedeclarationSurvives is the issue's own
-// reproduction: a property left unrestricted by allOf's first branch must
-// still pick up readOnly from a later branch's redeclaration, rather than
+// reproduction: a property left unrestricted by allOf's first entry must
+// still pick up readOnly from a later entry's redeclaration, rather than
 // silently keep the first, empty Visibility.
 func TestAllOfVisibilityMerge_ReadOnlyOnRedeclarationSurvives(t *testing.T) {
 	t.Parallel()
@@ -118,7 +118,7 @@ func TestAllOfVisibilityMerge_ReadOnlyOnRedeclarationSurvives(t *testing.T) {
 }
 
 // TestAllOfVisibilityMerge_OrderIndependent compiles the issue's
-// reproduction with its two allOf branches in both orders (CLAUDE.md's
+// reproduction with its two allOf entries in both orders (CLAUDE.md's
 // two-order diff for an order-dependent merge) and requires the merged
 // property to come out identical either way. See allOfVisibilitySpecReversed
 // for why the reversed direction alone would not have caught the original
@@ -130,14 +130,14 @@ func TestAllOfVisibilityMerge_OrderIndependent(t *testing.T) {
 	reversed, reversedDiags := thingIDVisibility(t, "allof-visibility-rev", allOfVisibilitySpecReversed)
 	assertNoErrorDiags(t, reversedDiags)
 
-	assert.Equal(t, wantReadOnlyVisibility, asReported, "as-reported branch order")
+	assert.Equal(t, wantReadOnlyVisibility, asReported, "as-reported entry order")
 	if diff := cmp.Diff(asReported, reversed); diff != "" {
-		t.Errorf("merged Visibility depends on allOf branch order (-as-reported +reversed):\n%s", diff)
+		t.Errorf("merged Visibility depends on allOf entry order (-as-reported +reversed):\n%s", diff)
 	}
 }
 
 // TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict covers
-// one branch readOnly and the other writeOnly, which intersect to the empty
+// one entry readOnly and the other writeOnly, which intersect to the empty
 // set. That is recorded as None, the IR's shape for "invisible everywhere", not
 // as a conflicting-redeclaration: unlike an incompatible-type redeclaration,
 // nothing is arbitrarily discarded. The document is still warned, under a code
@@ -151,5 +151,5 @@ func TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict(t *te
 	assert.True(t, openapitest.HasDiag(diags, diag.DisjointVisibility),
 		"an allOf that leaves a field visible nowhere is reported, not merged in silence")
 	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingRedecl),
-		"disjoint readOnly/writeOnly branches intersect to an exact empty set, not an unrepresentable conflict")
+		"disjoint readOnly/writeOnly entries intersect to an exact empty set, not an unrepresentable conflict")
 }

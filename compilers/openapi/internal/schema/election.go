@@ -16,7 +16,7 @@ import (
 // and what it narrows cannot; else a $ref, since replacing it drops what its
 // target says (narrowestRef); else, of those naming a kind, the conjunct
 // within the most others. A `format` or `items` naming no kind only qualifies
-// one, so it never decides, and where nothing names a kind no branch does. No
+// one, so it never decides, and where nothing names a kind no entry does. No
 // tie goes by the order written: untie breaks one, and words neither within
 // the other elect none.
 func (w *admissionReader) elect(conjuncts []conjunct, refs []*conjunct) *conjunct {
@@ -115,11 +115,11 @@ func untie(w *admissionReader, conjuncts []conjunct, tied []*conjunct) *conjunct
 	}
 }
 
-// writtenAlike reports whether each of tied is an allOf branch written as the
+// writtenAlike reports whether each of tied is an allOf entry written as the
 // first is (sameText): one schema written several times.
 func writtenAlike(w *admissionReader, tied []*conjunct) bool {
 	return !slices.ContainsFunc(tied, func(cj *conjunct) bool {
-		return cj.branch == nil || !sameText(w.c, tied[0].branch.schema, cj.branch.schema)
+		return cj.entry == nil || !sameText(w.c, tied[0].entry.schema, cj.entry.schema)
 	})
 }
 
@@ -167,15 +167,15 @@ func writesWithin(a, b *statement.Schema) bool {
 	})
 }
 
-// leastText returns the one of tied, allOf branches admitting alike, whose
+// leastText returns the one of tied, allOf entries admitting alike, whose
 // text is the least, bytewise: the pick shows in little more than where its
-// node stands, and the text, its keys sorted, reads no order the branches are
+// node stands, and the text, its keys sorted, reads no order the entries are
 // written in. Of a schema written twice, the first copy stands for both, the
 // one place order shows, and only in that node's pointer.
 func leastText(w *admissionReader, tied []*conjunct) *conjunct {
 	best := tied[0]
 	for _, cj := range tied[1:] {
-		if bytes.Compare(writtenText(w.c, cj.branch.schema), writtenText(w.c, best.branch.schema)) < 0 {
+		if bytes.Compare(writtenText(w.c, cj.entry.schema), writtenText(w.c, best.entry.schema)) < 0 {
 			best = cj
 		}
 	}
@@ -204,12 +204,12 @@ func refBefore(w *admissionReader, a, b *conjunct) bool {
 	if order := strings.Compare(refText(a), refText(b)); order != 0 {
 		return order < 0
 	}
-	return bytes.Compare(writtenText(w.c, a.branch.schema), writtenText(w.c, b.branch.schema)) < 0
+	return bytes.Compare(writtenText(w.c, a.entry.schema), writtenText(w.c, b.entry.schema)) < 0
 }
 
 // refText is the reference the $ref conjunct cj writes, as written.
 func refText(cj *conjunct) string {
-	_, text := refSpelling(cj.branch.schema)
+	_, text := refSpelling(cj.entry.schema)
 	return text
 }
 

@@ -658,7 +658,7 @@ func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Dia
 
 // assertTitleHints covers a schema's title as the hint of the node it lowers
 // to: a union branch's, the variant's name too, beside a $ref or in its
-// allOf's branch, an owner's schema's and a property's, the positions beneath
+// allOf's entry, an owner's schema's and a property's, the positions beneath
 // composing from it. A component and a $defs entry keep their keys, and a
 // branch whose title another branch's or a component's name shares keeps its
 // position.

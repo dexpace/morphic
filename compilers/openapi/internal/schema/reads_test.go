@@ -25,7 +25,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// applicators are the keys of the census's domain whose value holds schemas,
+// applicators are the keys of readDomain whose value holds schemas,
 // which a build reading the key lowers below the key's pointer.
 var applicators = []string{"properties", "patternProperties", "additionalProperties", "items", "prefixItems", "enum"}
 
@@ -42,7 +42,7 @@ func TestUnread_KeepsWhatNoBuildRead(t *testing.T) {
 		}
 	})
 	t.Run("every key is read, handled or kept", func(t *testing.T) {
-		domain := schema.CensusDomain()
+		domain := schema.ReadDomain()
 		for _, in := range inputs {
 			for _, js := range in.statements {
 				assertEveryKeyIsReadOrKept(t, js.Schema, domain)
@@ -81,7 +81,7 @@ func assertNoKeyIsBothReadAndKept(t *testing.T, doc *ir.Document) {
 }
 
 // assertEveryKeyIsReadOrKept holds the keeping of what a build did not
-// read to every key of domain, the census's, that s writes: kept unless read,
+// read to every key of domain, readDomain, that s writes: kept unless read,
 // in the domain's order.
 func assertEveryKeyIsReadOrKept(t *testing.T, s *statement.Schema, domain []string) {
 	t.Helper()
@@ -105,7 +105,7 @@ func assertEveryKeyIsReadOrKept(t *testing.T, s *statement.Schema, domain []stri
 	assert.Equal(t, odd, nilIfEmpty(schema.UnreadKeys(s, even)), "%s: a key read is the one not kept", s.At.Pointer)
 }
 
-// keyValues writes a value for each key of the census's domain beside a target.
+// keyValues writes a value for each key of readDomain beside a target.
 var keyValues = map[string]string{
 	"additionalItems": "{type: string}", "additionalProperties": "{type: string}", "const": "x",
 	"discriminator": "{propertyName: k}", "enum": "[x, y]", "format": "date", "items": "{type: string}",
@@ -124,7 +124,7 @@ var keyTargets = []string{
 	"allOf: [{type: object, properties: {b: {type: string}}}]",
 }
 
-// TestUnread_EveryKeyShapesOrIsKept writes each key of the census's domain but
+// TestUnread_EveryKeyShapesOrIsKept writes each key of readDomain but
 // type beside each target kind and holds the compiled types to differ from the
 // target's alone: a key a build read shapes the node, and one none read is
 // kept. A build saying it read a key it did not would drop it in silence.
@@ -139,7 +139,7 @@ func TestUnread_EveryKeyShapesOrIsKept(t *testing.T) {
 	}
 	for _, target := range keyTargets {
 		alone := types(target, "")
-		for _, k := range schema.CensusDomain() {
+		for _, k := range schema.ReadDomain() {
 			if k == "type" || strings.Contains(target, k+":") {
 				continue
 			}
@@ -163,7 +163,7 @@ type lowered struct {
 	statements []*statement.Statement
 }
 
-// readInputs returns the documents the census's replacement is held to: the
+// readInputs returns the documents the builds' reads are held to: the
 // component schemas of every document under testdata, of the edges readEdges
 // writes and of every core case, lowered.
 func readInputs(t *testing.T) []lowered {
@@ -194,9 +194,9 @@ func readSources(t *testing.T) []compilers.Source {
 }
 
 // TestUnread_EdgesCompileAsTheyDid pins what the documents readEdges adds
-// compile to, which the census decides and the builds' reads must keep: the
-// empty pattern no variant holds is kept on the union, and the type an enum's
-// members all are values of says nothing the Enum does not.
+// compile to, which the keeping of unread keywords decides and the builds'
+// reads must keep: the empty pattern no variant holds is kept on the union, and
+// the type an enum's members all are values of says nothing the Enum does not.
 func TestUnread_EdgesCompileAsTheyDid(t *testing.T) {
 	t.Parallel()
 	doc, _ := schema.LowerSpec(t, string(readEdges()[0].Data))
@@ -210,10 +210,10 @@ func TestUnread_EdgesCompileAsTheyDid(t *testing.T) {
 	assert.NotContains(t, enum.Unmodeled, "openapi:type", "every member is a value of the types")
 }
 
-// readEdges returns the documents of what reaches a census site no document
-// under testdata or core case does: an empty pattern beside a type list whose
-// string variant is a Scalar of its own, and an enum whose members are all
-// values of the several types beside it.
+// readEdges returns the documents of what reaches a site keeping unread
+// keywords no document under testdata or core case does: an empty pattern
+// beside a type list whose string variant is a Scalar of its own, and an enum
+// whose members are all values of the several types beside it.
 func readEdges() []compilers.Source {
 	const spec = `openapi: 3.1.0
 info: {title: t, version: "1"}

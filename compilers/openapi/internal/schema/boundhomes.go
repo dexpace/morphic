@@ -13,10 +13,10 @@ import (
 )
 
 // boundHomes says which bounds the position an allOf is written at has a field
-// for, so that a branch writing one folds there: the value bounds that apply to
+// for, so that an entry writing one folds there: the value bounds that apply to
 // a value of the kinds value (keywordKinds), and the collection bounds; and
-// whether the node it owns carries a number as text, which holds none of a
-// branch's value bounds (keepTextBounds).
+// whether the node it owns carries a number as text, which holds none of an
+// entry's value bounds (keepTextBounds).
 type boundHomes struct {
 	value      kindSet
 	collection bool
@@ -40,11 +40,12 @@ func (h boundHomes) reads(s *statement.Schema) keySet {
 }
 
 // homesAt returns which bounds the position s is written at, lowered to target,
-// holds for its voices, as the census asks of those written beside its allOf. A
-// carrier or an alias holds the value bounds the types the position admits take
-// (boundKinds), and collection bounds where it is a use of the principal, a
-// reference (referenceReads), where those types admit an array. A node the position
-// owns holds what the lowering that builds it folds of them (ownHomes).
+// holds for its voices, as the keeping of unread keywords asks of those written
+// beside its allOf. A carrier or an alias holds the value bounds the types the
+// position admits take (boundKinds), and collection bounds where it is a use of
+// the principal, a reference (referenceReads), where those types admit an
+// array. A node the position owns holds what the lowering that builds it folds
+// of them (ownHomes).
 func homesAt(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, pointer, target) {
 		r, refined := refinementOf(c, s, pointer)
@@ -67,7 +68,7 @@ func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bou
 		}
 		return nodeHomes(c, e.schema.Schema, e.pointer, principalDispatch(*e), takes)
 	}
-	d, _ := electionOf(c, s, pointer)
+	d, _ := dispatchAt(c, s, pointer)
 	return nodeHomes(c, s, pointer, d, takes)
 }
 
@@ -109,7 +110,7 @@ func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d 
 }
 
 // nodeTypes returns the types the nodes of the position s, written at pointer,
-// are built for where it elects no family and declares no union: the types it
+// are built for where it picks no family and declares no union: the types it
 // writes, none where it writes only null, and else the ones its shape keywords
 // speak of (untypedKinds) or its allOf admits (lowerUndecided), top where it
 // admits none, which lowers to an alias of the top type.

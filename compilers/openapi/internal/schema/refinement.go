@@ -14,9 +14,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerPrincipal lowers the branch r uses where s, written at pointer, refines.
-// A $ref goes through Ref, as fillRefBranch's does, keeping the alias what is
-// written beside it always has, in a frame of its own. An inline branch lowers
+// lowerPrincipal lowers the entry r uses where s, written at pointer, refines.
+// A $ref goes through Ref, as fillRefEntry's does, keeping the alias what is
+// written beside it always has, in a frame of its own. An inline entry lowers
 // by its own keywords, its node standing at pointer for the whole conjunction,
 // finished by fin, its children and the reports on what it writes where they are
 // written (docs/compilers/openapi.md#allof-refinement). A $ref the principal beat
@@ -30,8 +30,8 @@ func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 		ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, annotation.HomeOwnNode)
 		return ref.Target, diags
 	}
-	// The node keeps the content vocabulary the branch writes where it holds
-	// none, as the branch's own node would (recordUnplacedContent).
+	// The node keeps the content vocabulary the entry writes where it holds
+	// none, as the entry's own node would (recordUnplacedContent).
 	var content, built []ir.Diagnostic
 	st := stand{of: s, at: pointer}
 	// What the principal's build kept on the node itself is held back while
@@ -52,7 +52,7 @@ func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 // resolveBeaten resolves each $ref of r but its principal: nothing else may
 // lower what a $ref the principal beat names.
 func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
-	for _, e := range r.comp.branches {
+	for _, e := range r.comp.entries {
 		if e.schema.Ref != nil && !r.principalIs(e) {
 			resolveSchemaRef(c, ts, e.schema)
 		}
@@ -61,14 +61,14 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 
 // refinedShape describes what the position the refinement of comp decides
 // lowered to, for the reports of what it keeps and of conjuncts sharing no
-// value, principal being the branch elected and standing the node the position
+// value, principal being the entry elected and standing the node the position
 // owns, nil for none. Only a $ref principal makes it a use of a conjunct, named
 // as comp's subject names them; electing none lowers by the keywords beside
 // them (undecidedShape); an inline principal is named as written alone: the
 // reference it collapses or expands to (referenceOutcomeKeywords), its node as
 // its builder names it (held), else the node standing or the
 // shared primitive.
-func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, principal *allOfBranch, standing ir.TypeDef,
+func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, principal *allOfEntry, standing ir.TypeDef,
 	held *principalKept,
 ) string {
 	switch {
@@ -102,7 +102,7 @@ func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, pr
 // shape keyword, by the types its allOf, refining electing no entry, admits
 // (undecidedTypes), as a type list naming them lowers, and to the top type
 // where it admits none of a primitive's kinds alone. fin finishes the node
-// standing at pointer after its census.
+// standing at pointer after keeping its unread keywords.
 func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {

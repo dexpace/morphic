@@ -88,7 +88,7 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assert.True(t, ok, "the half that did lower is untouched")
 
 	// The tuple's control beside the array's: a collection bound beside
-	// prefixItems is the Tuple's own, so the census keeps nothing.
+	// prefixItems is the Tuple's own, so nothing is kept unread.
 	boundTuple, ok := doc.Types[componentID("ItemsBoundOnTuple")].(*ir.Tuple)
 	require.True(t, ok)
 	assert.Empty(t, boundTuple.Unmodeled, "the bound reached Tuple.Constraints")
@@ -108,14 +108,14 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		string(unmodeledEntry(t, u.Unmodeled, "openapi:oneOf").Value))
 
 	assertRefSiteKeywords(t, doc, diags)
-	assertElectedLoweringKeywords(t, doc, diags)
+	assertPickedLoweringKeywords(t, doc, diags)
 }
 
-// assertRefSiteKeywords pins the census at a $ref site, where it did not run at
-// all (GitHub #283). $ref is an ordinary 2020-12 keyword, so the keywords beside
-// it are a conjunct of the position, lowered as they are beside an allOf of the
-// $ref: each typed on the node the position lowers to, or kept on it once, with
-// an info where something is kept.
+// assertRefSiteKeywords pins the keeping of unread keywords at a $ref site,
+// where it did not run at all (GitHub #283). $ref is an ordinary 2020-12
+// keyword, so the keywords beside it are a conjunct of the position, lowered as
+// they are beside an allOf of the $ref: each typed on the node the position
+// lowers to, or kept on it once, with an info where something is kept.
 func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	format, ok := doc.Types[componentID("RefFormat")].(*ir.Scalar)
@@ -210,11 +210,12 @@ func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 			"/components/schemas/Carrier/properties/p"), "share no value")
 }
 
-// assertElectedLoweringKeywords pins the keywords the *winning* family's
-// lowering never reads (GitHub #268). The census asks the node that was built,
-// which is why the two allOf cases differ: a composed Model asserts `object`
-// already and loses nothing, and asserts nothing about `string` at all.
-func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+// assertPickedLoweringKeywords pins the keywords the *winning* family's
+// lowering never reads (GitHub #268). The keeping of unread keywords asks the
+// node that was built, which is why the two allOf cases differ: a composed
+// Model asserts `object` already and loses nothing, and asserts nothing about
+// `string` at all.
+func assertPickedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	scalarType, ok := doc.Types[componentID("AllOfWithScalarType")].(*ir.Model)
 	require.True(t, ok)
@@ -237,13 +238,13 @@ func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Di
 		"nor a Constraints field, and it owns its pointer so no alias carries one either")
 }
 
-// assertAllOfBooleanBranch pins the lowering of a boolean allOf branch, which
+// assertAllOfBooleanBranch pins the lowering of a boolean allOf entry, which
 // declares no keywords and so has no residue to rescue (GitHub #154).
 //
 // The claim is that `false` lowers the same way wherever it appears. The rule
 // docs/compilers/openapi.md#whole-schema-fallbacks fixes a bare `false` schema
 // as a closed empty Model with an info diagnostic; before this, the same
-// construct as a branch composed an *open* empty model — the most permissive
+// construct as an entry composed an *open* empty model — the most permissive
 // shape the IR has, for a source that admits nothing.
 func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	never, ok := doc.Types[componentID("Never")].(*ir.Model)
@@ -253,11 +254,11 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	entry := unmodeledEntry(t, never.Unmodeled, "openapi:allOf/0")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `false`, string(entry.Value),
-		"the branch is kept, so `false` stays distinguishable from additionalProperties: false")
+		"the entry is kept, so `false` stays distinguishable from additionalProperties: false")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/false-schema", "/components/schemas/Never/allOf/0"))
 	_, ok = propByWire(never, "id")
-	assert.True(t, ok, "the other branch still contributes; closing is not emptying")
+	assert.True(t, ok, "the other entry still contributes; closing is not emptying")
 
 	always, ok := doc.Types[componentID("Always")].(*ir.Model)
 	require.True(t, ok)
@@ -271,7 +272,7 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, ir.AdditionalClosed, bare.Additional, "the rule the composed case is held to")
 	assert.Empty(t, bare.Properties)
 
-	// The whole-schema half keeps itself verbatim for the same reason the branch
+	// The whole-schema half keeps itself verbatim for the same reason the entry
 	// half does (GitHub #350). A closed empty Model admits {} and the source
 	// admits nothing, so the lowered type is one value wider than what was
 	// written; the entry is what makes that recoverable.
@@ -294,31 +295,31 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"a false schema and a closed empty model are no longer the same node")
 }
 
-// assertAllOfInlineResidue pins the residue of an inline allOf branch: what no
+// assertAllOfInlineResidue pins the residue of an inline allOf entry: what no
 // reader consumes survives beside the composed model rather than vanishing into
 // it (GitHub #123), and what the position reads lands as it would beside the
 // allOf (GitHub #660).
 //
-// The severity split is the point. A branch declaring a type that cannot be an
+// The severity split is the point. An entry declaring a type that cannot be an
 // object contradicts the ir.Model the composition produced, so it is a warning;
-// a branch that only narrows the model further is info.
+// an entry that only narrows the model further is info.
 func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	narrowed, ok := doc.Types[componentID("Narrowed")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, narrowed.Base, "the $ref branch still becomes Base")
+	require.NotNil(t, narrowed.Base, "the $ref entry still becomes Base")
 	_, ok = propByWire(narrowed, "name")
-	assert.True(t, ok, "the inline branch still contributes its properties")
+	assert.True(t, ok, "the inline entry still contributes its properties")
 	entry := unmodeledEntry(t, narrowed.Unmodeled, "openapi:allOf/1")
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, "the reason its unevaluatedProperties has beside the allOf")
 	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"unevaluatedProperties":false,
 		"description":"A narrowed base.","maxProperties":3}`,
-		string(entry.Value), "the whole branch is kept, not only the unmerged keyword")
+		string(entry.Value), "the whole allOf entry is kept, not only the unmerged keyword")
 	assert.Equal(t, "A narrowed base.", narrowed.Docs.Description, "and the position reads what it can")
 	require.NotNil(t, narrowed.Constraints)
 	assert.Equal(t, new(int64(3)), narrowed.Constraints.MaxProps)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/validation-only-keyword", "/components/schemas/Narrowed/allOf/1"),
-		"a branch that only narrows the model is info")
+		"an entry that only narrows the model is info")
 
 	contradicted, ok := doc.Types[componentID("Contradicted")].(*ir.Model)
 	require.True(t, ok)
@@ -326,27 +327,27 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Contradicted/allOf/1"),
-		"a branch excluding object contradicts the composed model and is a warning")
+		"an entry excluding object contradicts the composed model and is a warning")
 
 	rebased, ok := doc.Types[componentID("Rebased")].(*ir.Model)
 	require.True(t, ok)
 	entry = unmodeledEntry(t, rebased.Unmodeled, "openapi:allOf/0/allOf/0")
 	assert.JSONEq(t, `{"type":"object","not":{"$ref":"item.json"}}`, string(entry.Value),
-		"a branch read against another base folds nothing")
+		"an entry read against another base folds nothing")
 	assert.JSONEq(t, `{"$ref":"item.json"}`, string(unmodeledEntry(t, rebased.Unmodeled, "openapi:not").Value),
-		"the outer branch, read against the position's base, folds its not")
+		"the outer entry, read against the position's base, folds its not")
 	assert.NotContains(t, rebased.Unmodeled, "openapi:allOf/1", "and so is not kept")
 }
 
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
-// the document. A field one allOf branch types `uri` and another `integer` has
+// the document. A field one allOf entry types `uri` and another `integer` has
 // no IR combinator, so the merge keeps the later declaration and, under
 // docs/compilers/openapi.md#allof-redeclared-property, the loser verbatim
 // (GitHub #424). The entry holds the declaration as written, not the dropped IR
 // value, because docs/ir/unmodeled.md defines an Unmodeled value as the source
 // construct; that keeps the nullable bit a target ID would lose (GitHub #445).
 //
-// Described is the same event where the types agree but both branches fill the
+// Described is the same event where the types agree but both entries fill the
 // fold's one default slot: the first declaration is kept whole and the
 // disagreement named.
 func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
@@ -406,19 +407,19 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 }
 
 // assertAllOfRedeclaredModels pins that a field declared as several models names
-// one minted model composing each declaration, in either branch order, with
+// one minted model composing each declaration, in either entry order, with
 // nothing kept but the one value no declaration's own type can answer for. The
 // composition sits at the declaration naming the field in the composed space,
 // and the conjuncts stay the nodes the source wrote.
 func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const schemas = "/components/schemas/"
 	meeting, recording := ir.TypeID("t/openapi"+schemas+"Meeting"), ir.TypeID("t/openapi"+schemas+"Recording")
-	anon := func(model, branch string) ir.TypeID {
-		return ir.TypeID("t/anon" + schemas + model + "/allOf/" + branch + "/properties/data")
+	anon := func(model, entry string) ir.TypeID {
+		return ir.TypeID("t/anon" + schemas + model + "/allOf/" + entry + "/properties/data")
 	}
 	for _, tc := range []struct {
 		model, field string
-		naming       string // the allOf branch of the declaration naming the field
+		naming       string // the allOf entry of the declaration naming the field
 		base         ir.TypeID
 		mixins       []ir.TypeID
 		nullable     bool
@@ -485,10 +486,10 @@ func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diag
 }
 
 // assertAllOfNarrowingRedeclaration pins that a redeclaration narrowing a bare
-// primitive is lossless (GitHub #598, #446): each pair, in both branch orders,
+// primitive is lossless (GitHub #598, #446): each pair, in both entry orders,
 // merges to the narrower target with no diagnostic and nothing kept under
 // Unmodeled, and the two orders agree on the type. The Nullable pair adds the
-// nullability intersection and the broad branch's adopted minimum, and the
+// nullability intersection and the broad entry's adopted minimum, and the
 // InadmissibleDefault pair the broad default the narrow kind refuses.
 func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	pairs := []struct {
@@ -517,16 +518,16 @@ func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []i
 			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: a narrowing draws no diagnostic", model)
 			types[i] = p.Type
 		}
-		assert.Empty(t, cmp.Diff(types[0], types[1]), "%s: the merged type does not depend on branch order", pair.name)
+		assert.Empty(t, cmp.Diff(types[0], types[1]), "%s: the merged type does not depend on entry order", pair.name)
 	}
 
 	for _, model := range []string{"NullableBroadFirst", "NullableNarrowFirst"} {
 		t.Run(model, func(t *testing.T) {
 			p := narrowedProp(t, doc, model)
 			assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "%s: the narrower target wins", model)
-			assert.False(t, p.Type.Nullable, "null is admitted only where both branches admit it")
+			assert.False(t, p.Type.Nullable, "null is admitted only where both entries admit it")
 			require.NotNil(t, p.Constraints)
-			require.NotNil(t, p.Constraints.Min, "the broad branch's minimum is adopted")
+			require.NotNil(t, p.Constraints.Min, "the broad entry's minimum is adopted")
 			assert.Equal(t, ir.BigVal("0"), *p.Constraints.Min)
 			assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
 			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
@@ -580,7 +581,7 @@ func assertEnumsAndAliasesMeet(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	}
 }
 
-// assertNarrowingChainsAndScalars pins the three-branch chain with its
+// assertNarrowingChainsAndScalars pins the three-entry chain with its
 // narrowest member in each position, and the unknown-format scalar that wins
 // over its bare kind in either order. Each is lossless: no diagnostic names a
 // property of these models and nothing is kept.
@@ -599,7 +600,7 @@ func assertNarrowingChainsAndScalars(t *testing.T, doc *ir.Document, diags []ir.
 		require.True(t, ok, "%s: the unknown format stays a scalar", model)
 		require.NotNil(t, scalar.Base, "%s: the scalar extends its bare kind", model)
 		assert.Equal(t, ir.TypeID("t/prim/string"), scalar.Base.Target, "%s: over string, in either order", model)
-		assert.False(t, p.Type.Nullable, "%s: null is admitted by neither branch", model)
+		assert.False(t, p.Type.Nullable, "%s: null is admitted by neither entry", model)
 		assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
 		assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
 	}
@@ -608,16 +609,17 @@ func assertNarrowingChainsAndScalars(t *testing.T, doc *ir.Document, diags []ir.
 // assertRefusedLateDefault pins a broad default the winning integer refuses,
 // with the integer declaration first, in the middle and last. Declared after
 // the integer, the default is refused as it arrives; declared before it, it is
-// adopted from a non-first branch and refused when the integer arrives. Either
-// way the entry is keyed at the branch that wrote the default, with one info.
+// adopted from a non-first entry and refused when the integer arrives. Either
+// way the Unmodeled entry is keyed at the allOf entry that wrote the default,
+// with one info.
 func assertRefusedLateDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	for _, tc := range []struct{ model, branch string }{
+	for _, tc := range []struct{ model, entry string }{
 		{"RefusedLateDefaultFirst", "2"}, {"RefusedLateDefaultMiddle", "2"}, {"RefusedLateDefaultLast", "1"},
 	} {
 		t.Run(tc.model, func(t *testing.T) {
 			p := narrowedProp(t, doc, tc.model)
-			ptr := "/components/schemas/" + tc.model + "/allOf/" + tc.branch + "/properties/p"
+			ptr := "/components/schemas/" + tc.model + "/allOf/" + tc.entry + "/properties/p"
 			assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "the integer wins")
 			assert.Nil(t, p.Default, "the refused default does not land")
 			assertKeptRaw(t, p.Unmodeled, "openapi:conflicting-redeclaration"+ptr, `{"type":"number","default":1.5}`)
@@ -640,20 +642,20 @@ func diagsUnder(diags []ir.Diagnostic, prefix string) []ir.Diagnostic {
 	return out
 }
 
-// assertInadmissibleDefault pins that a broad branch's default the narrow kind
+// assertInadmissibleDefault pins that a broad entry's default the narrow kind
 // refuses lands nowhere on the merged field: the narrow type wins in either
-// order, and the broad branch is kept whole at its own pointer with one info.
+// order, and the broad entry is kept whole at its own pointer with one info.
 func assertInadmissibleDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	for model, broadBranch := range map[string]string{"InadmissibleDefaultBroadFirst": "0", "InadmissibleDefaultNarrowFirst": "1"} {
+	for model, broadEntry := range map[string]string{"InadmissibleDefaultBroadFirst": "0", "InadmissibleDefaultNarrowFirst": "1"} {
 		p := narrowedProp(t, doc, model)
-		ptr := "/components/schemas/" + model + "/allOf/" + broadBranch + "/properties/p"
+		ptr := "/components/schemas/" + model + "/allOf/" + broadEntry + "/properties/p"
 		assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "%s: the narrow type wins", model)
 		assert.Nil(t, p.Default, "%s: the refused default does not land", model)
 		assertKeptRaw(t, p.Unmodeled, "openapi:conflicting-redeclaration"+ptr, `{"type":"number","default":1.5}`)
-		assert.Len(t, p.Unmodeled, 1, "%s: only the broad branch is kept", model)
+		assert.Len(t, p.Unmodeled, 1, "%s: only the broad entry is kept", model)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", ptr),
-			"%s: one info at the broad branch", model)
+			"%s: one info at the broad entry", model)
 		assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", ptr), "%s: no warning", model)
 	}
 }
@@ -746,16 +748,16 @@ func narrowedProp(t *testing.T, doc *ir.Document, model string) ir.Property {
 	return p
 }
 
-// assertAllOfRefBranchSiblings covers the other branch kind: keywords written
-// beside a `$ref` in an allOf branch are a conjunct of the position, as an
+// assertAllOfRefBranchSiblings covers the other entry kind: keywords written
+// beside a `$ref` in an allOf entry are a conjunct of the position, as an
 // entry of their own would be, so they bind the composition and never the
-// shared target's node, and the branch hoists no node of its own. The bare
-// branch pins the other half: a `$ref` writing nothing beside itself composes
+// shared target's node, and the entry hoists no node of its own. The bare
+// entry pins the other half: a `$ref` writing nothing beside itself composes
 // straight to the target too.
 func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	annotated, ok := doc.Types[componentID("Annotated")].(*ir.Model)
 	require.True(t, ok)
-	require.NotNil(t, annotated.Base, "the $ref branch still composes as Base")
+	require.NotNil(t, annotated.Base, "the $ref entry still composes as Base")
 	assert.Equal(t, componentID("Base"), annotated.Base.Target, "Base names the target")
 	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Annotated/allOf/0"),
 		"the branch hoists no node")
@@ -771,7 +773,7 @@ func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, diags []ir.Dia
 	assertAllOfRefBranchUnion(t, doc, diags)
 }
 
-// assertAllOfRefBranchUnion pins the third $ref site, a branch's own $ref
+// assertAllOfRefBranchUnion pins the third $ref site, an entry's own $ref
 // beside a oneOf or a nested allOf (GitHub #406). The keywords beside the $ref
 // are conjuncts of the composition, as an inline entry's are: here they share
 // no value with Base, so the composition warns that no instance satisfies it,
@@ -801,7 +803,7 @@ func assertAllOfRefBranchUnion(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	}
 }
 
-// assertAllOfRefBranchShapes checks the two branch shapes the annotated case
+// assertAllOfRefBranchShapes checks the two entry shapes the annotated case
 // does not reach: a mixin whose entry writes a note beside its $ref, which is
 // the composition's own as any entry's is and hoists no node, and a bare $ref
 // that hoists nothing.
@@ -1333,9 +1335,9 @@ func assertLink(t *testing.T, link ir.OperationLink, target ir.OpID, params []ir
 // assertCoDeclaredKeywords pins the keywords a schema writes that compete for
 // one position (GitHub #35).
 //
-// The dispatch elects one of them and the rest were dropped outright — a whole
+// The dispatch picks one of them and the rest were dropped outright — a whole
 // relationship to a Base, or half a union, gone with no Unmodeled entry and no
-// diagnostic at all. Every case here asserts the same three things: the elected
+// diagnostic at all. Every case here asserts the same three things: the picked
 // keyword still lowers, the ones passed over are kept verbatim under
 // ReasonDegradedLowering, and the position says so.
 func assertCoDeclaredKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
@@ -1676,9 +1678,10 @@ func assertKept(t *testing.T, got ir.Unmodeled, want []keptEntry) {
 	}
 }
 
-// assertKeywordsAtEveryOutcome pins that the census runs at each outcome of a
-// schema, keeping what the outcome has no field for and reporting what it
-// lowered to, and that what the outcome consumes is neither kept nor reported.
+// assertKeywordsAtEveryOutcome pins that the keeping of unread keywords runs at
+// each outcome of a schema, keeping what the outcome has no field for and
+// reporting what it lowered to, and that what the outcome consumes is neither
+// kept nor reported.
 func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	kept := []struct {
 		name  string
@@ -1782,7 +1785,7 @@ func assertUnevaluatedAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.
 	}
 	closed, ok := typeByName(doc, "ClosedByABranch").(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, ir.AdditionalClosed, closed.Additional, "the false branch closes it outright")
+	assert.Equal(t, ir.AdditionalClosed, closed.Additional, "the false entry closes it outright")
 }
 
 // assertUnknownKeywordsAtSharedNodes pins that a keyword no field of the model

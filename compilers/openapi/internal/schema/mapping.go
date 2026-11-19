@@ -336,8 +336,8 @@ func mappingWhy(c lowering.Ctx, d *statement.Discriminator, value string) string
 }
 
 // resolveDiscriminatorRoutes resolves the mapping and defaultMapping values of
-// s's discriminator, written at pointer, where no node holds it and the census
-// keeps it verbatim: each value reaches what it names as a reference does, so
+// s's discriminator, written at pointer, where no node holds it and it is kept
+// verbatim, unread: each value reaches what it names as a reference does, so
 // the type each chain ends on is promised a node, and one naming no schema is
 // reported at its entry, as on a model.
 func resolveDiscriminatorRoutes(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {

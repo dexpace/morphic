@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-// Package merge reconciles the properties more than one allOf branch declares:
+// Package merge reconciles the properties more than one allOf entry declares:
 // folding the declarations into one, composing the models they name, or
 // reporting that they disagree.
 //

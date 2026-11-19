@@ -23,7 +23,7 @@ import (
 // need a node of their own, target itself where the position declares none.
 //
 // It is the one statement of that step, so its two callers, a $ref site
-// (refSiteRef) and an allOf branch's $ref (fillRefBranch), keep a declaration
+// (refSiteRef) and an allOf entry's $ref (fillRefEntry), keep a declaration
 // the same way; a position skipping it would drop what was written at it
 // without a word (GitHub #116, #143). The alias's build writes the
 // declaration (declarationOn), then fin.
@@ -107,7 +107,7 @@ func leftToWhole(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer
 // (declaresPositionScoped; GitHub #116), since a shared node must never carry
 // one declaration's annotations. One owning its node keeps it, checked after
 // that gate so a position declaring nothing resolves to its target. unhomed is
-// the census verdict of a position lowered to a reference
+// the verdict on what a position lowered to a reference keeps unread
 // (referenceOutcomeKeywords, or a $ref site), which declaresPositionScoped
 // cannot judge.
 func homesDeclaration(c lowering.Ctx, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) bool {
@@ -236,7 +236,7 @@ func stated(s *statement.Schema) bool {
 // `unevaluatedProperties: false` as a model's openness, so no entry keeps it:
 // the keyword is live (annotation.ClosesAfterComposition), and td is a Model
 // closed after composition, or a Union whose variants s builds itself
-// (buildsVariants), one of them such a Model. A `false` allOf branch that
+// (buildsVariants), one of them such a Model. A `false` allOf entry that
 // closed the model outright leaves it holding the keyword no longer.
 func closureTyped(c lowering.Ctx, ts *compile.Types, s *statement.Schema, td ir.TypeDef) bool {
 	if !annotation.ClosesAfterComposition(s) {
@@ -322,7 +322,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.S
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
-	// A discriminator the census kept whole holds the extensions just read out
+	// A discriminator kept whole as unread holds the extensions just read out
 	// of it, which the node keeps no second time (GitHub #849).
 	promotion.DropContained(c.Promoter(), &common.Unmodeled, "openapi:discriminator")
 	dropFoldedIntoWhole(c, &common.Unmodeled)

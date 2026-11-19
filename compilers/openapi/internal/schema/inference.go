@@ -50,10 +50,10 @@ func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	if inferred {
 		mark = markKindInferred
 	}
-	var census finished
+	var kept finished
 	id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types, mark: mark},
-		mark.then(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), 0, pointer, st, &census, fin)), st)
-	return id, append(diags, census.diags...)
+		mark.then(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), 0, pointer, st, &kept, fin)), st)
+	return id, append(diags, kept.diags...)
 }
 
 // claimedKinds returns the kinds c's kind-inference policy reads off the

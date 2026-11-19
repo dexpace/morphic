@@ -74,9 +74,9 @@ func TestLower_ASchemaPastTheMendsIsTheTopType(t *testing.T) {
 //
 // It guards the direction the default falls. Answering an unknown name from
 // another family's guard would let a familyOrder entry added without a case be
-// elected on schemas that never wrote it — and a winner lowerElected has no arm
+// picked on schemas that never wrote it — and a winner lowerDispatched has no arm
 // for is dropped in silence (GitHub #35). Declaring nothing keeps such a name out
-// of the election entirely.
+// of the dispatch entirely.
 func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 	t.Parallel()
 	withAllOf := &oas3.Schema{AllOf: []*oas3.JSONSchema[oas3.Referenceable]{

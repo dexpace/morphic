@@ -201,7 +201,7 @@ func (n *nulls) findings(c lowering.Ctx) []ir.Diagnostic {
 
 // schema reads a whole schema that writes no $ref, by conjoining what each of
 // its keyword families says (keywords), then widening it where it writes
-// `nullable: true` or an inline allOf branch speaking for it does.
+// `nullable: true` or an inline allOf entry speaking for it does.
 func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
 	if !stated(s) || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
@@ -209,10 +209,10 @@ func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
 	if s.BesideRef != nil {
 		// The keywords written beside a $ref are read over what it lands on, as
 		// the policy reads its idiom there (docs/compilers/openapi.md#nullable).
-		return n.widenByBranch(s, n.usage(s, n.lands(n.c.Statements().Read(s.BesideRef)), site), site)
+		return n.widenByEntry(s, n.usage(s, n.lands(n.c.Statements().Read(s.BesideRef)), site), site)
 	}
 	own := n.keywords(s, site)
-	return n.widenByBranch(s, n.widen(s, own, own, site), site)
+	return n.widenByEntry(s, n.widen(s, own, own, site), site)
 }
 
 // ref reads a $ref usage as JSON Schema reads it: the keywords beside the $ref
@@ -368,7 +368,7 @@ func (n *nulls) keywords(s *statement.Schema, site nullSite) nullReading {
 func (n *nulls) own(s *statement.Schema) nullReading {
 	typed, union := n.valueParts(s)
 	own := foldNullReadings(typed, union)
-	return n.widenByBranch(s, n.widen(s, own, own, nullSite{}), nullSite{})
+	return n.widenByEntry(s, n.widen(s, own, own, nullSite{}), nullSite{})
 }
 
 // valueParts is what s's type, const and enum say of null, and apart what its
@@ -470,7 +470,7 @@ func (n *nulls) why(s *statement.Schema, own nullReading) string {
 	case constNullVerdict(s) == nullForbidden:
 		return "this schema's const is not null, and OpenAPI 3.0's nullable does not override it"
 	case own.declared != nullAdmitted:
-		return "an allOf branch of this schema excludes null, and OpenAPI 3.0's nullable does not override it"
+		return "an allOf entry of this schema excludes null, and OpenAPI 3.0's nullable does not override it"
 	default:
 		return "what its $ref lands on excludes null, which the keywords beside it conjoin with"
 	}
@@ -692,8 +692,8 @@ func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
 	return s.Const() != nil || writesType(s) && len(effectiveTypes(s)) == 0
 }
 
-// allOf conjoins what the allOf branches say. A conjunction admits null when a
-// branch does and none forbids it, which is what makes `{allOf: [{$ref: T}]}`
+// allOf conjoins what the allOf entries say. A conjunction admits null when an
+// entry does and none forbids it, which is what makes `{allOf: [{$ref: T}]}`
 // answer the same as `{$ref: T}`: the composition declares no nullability of its
 // own, and the usage naming it has nowhere else to derive the bit from (GitHub
 // #279). Model.Base and Mixins still carry no Nullable bit: they name a
@@ -751,15 +751,15 @@ func pairKeepsNullOut(n *nulls, s *statement.Schema) bool {
 	return forbids
 }
 
-// widenByBranch is the lenient reading of a `nullable: true` that folds: written
-// on an inline branch that speaks for the position, it says what the keyword
+// widenByEntry is the lenient reading of a `nullable: true` that folds: written
+// on an inline entry that speaks for the position, it says what the keyword
 // beside the allOf says, and widens all of s (widen), a `type` beside the allOf
-// included, where the declared reading leaves it conjoined. A branch whose own
+// included, where the declared reading leaves it conjoined. An entry whose own
 // keywords admit null said so by themselves, so widen said nothing of it, and it
 // is noted here, where s is written. A 3.1 `type: [T, "null"]` on a conjunct
 // stays conjoined, which beside a $ref it does not
 // (docs/compilers/openapi.md#allof-refinement).
-func (n *nulls) widenByBranch(s *statement.Schema, r nullReading, site nullSite) nullReading {
+func (n *nulls) widenByEntry(s *statement.Schema, r nullReading, site nullSite) nullReading {
 	for _, e := range nullableVoices(n.c, s) {
 		r.lenient = nullAdmitted
 		if !site.ok {
@@ -780,20 +780,20 @@ type nullableVoicesOf struct {
 	schema *statement.Schema
 }
 
-// nullableVoices returns the branches of s's flattened allOf, each at its pointer
+// nullableVoices returns the entries of s's flattened allOf, each at its pointer
 // under s's, that speak for s, write `nullable: true` and write no properties
-// (foldsNullable). Every use of s asks, so it is read once a run. A branch writing
+// (foldsNullable). Every use of s asks, so it is read once a run. An entry writing
 // `false` widens nothing, though it speaks where the only `true` beside it is on a
-// $ref branch, which no fold compares.
-func nullableVoices(c lowering.Ctx, s *statement.Schema) []allOfBranch {
-	return lowering.Remembered(c, nullableVoicesOf{s}, func() []allOfBranch {
+// $ref entry, which no fold compares.
+func nullableVoices(c lowering.Ctx, s *statement.Schema) []allOfEntry {
+	return lowering.Remembered(c, nullableVoicesOf{s}, func() []allOfEntry {
 		if !allOfDecides(c, s) {
 			return nil
 		}
-		comp := allOfBranches(c, s, "")
-		var out []allOfBranch
+		comp := allOfEntries(c, s, "")
+		var out []allOfEntry
 		for i, speaks := range voicesAmong(c, s) {
-			e := comp.branches[i]
+			e := comp.entries[i]
 			if speaks && nullableTrue(e.schema.Schema) && foldsNullable(e.schema.Schema) {
 				out = append(out, e)
 			}
@@ -802,7 +802,7 @@ func nullableVoices(c lowering.Ctx, s *statement.Schema) []allOfBranch {
 	})
 }
 
-// conjunct reads one allOf branch, or what a $ref lands on. A `false` schema
+// conjunct reads one allOf entry, or what a $ref lands on. A `false` schema
 // admits no instance whatever, null included; a `true` one constrains nothing,
 // nor does a `null` written for one, which is no `false`
 // (statement.Truth.ReadsFalse).

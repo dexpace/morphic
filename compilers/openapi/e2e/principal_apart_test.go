@@ -111,7 +111,7 @@ func TestPrincipalApart_AKeywordThePrincipalAndThePositionKeepHoldsBoth(t *testi
 					if d.Code != diag.DegradedConstruct || d.Provenance.Pointer != tc.reportedAt {
 						continue
 					}
-					if strings.Contains(d.Message, "otherwise than this inline branch") {
+					if strings.Contains(d.Message, "otherwise than this inline entry") {
 						said = append(said, d.Message)
 					}
 					if _, listed, ok := strings.Cut(d.Message, "which has no home for "); ok {
@@ -165,14 +165,14 @@ func TestPrincipalApart_AReportNamesTheEntryWhereACarrierKeepsIt(t *testing.T) {
 		}
 	}
 	require.Len(t, said, 1)
-	assert.Contains(t, said[0], "under the key naming its entry, allOf/0,")
+	assert.Contains(t, said[0], "under the key naming it, allOf/0,")
 	assert.NotContains(t, said[0], "openapi:allOf/0")
 }
 
 // TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping pins a principal's
 // discriminator kept under its entry's key, apart from the position's or held
 // in the whole entry, in both declaration orders: its mapping is resolved as a
-// discriminator the census keeps is, so a value naming no schema draws its one
+// discriminator kept unread is, so a value naming no schema draws its one
 // error at the mapping entry (docs/compilers/openapi.md#allof-inline-residue).
 func TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping(t *testing.T) {
 	t.Parallel()

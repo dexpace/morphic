@@ -122,10 +122,10 @@ var typedTargets = []struct {
 
 // TestCompile_AnAllOfOverATypedTargetFoldsAsItsRef holds that refStructure over
 // a T admitting no object alone is no structure but a use of T keeping its
-// `properties`, so beside the kind in the other allOf branch it folds as the
+// `properties`, so beside the kind in the other allOf entry it folds as the
 // $ref to T does, the field the same node as D's, which writes the $ref:
 // nothing conflicts, and T's narrowing reaches the field, at 3.0 and 3.1, in
-// both orders of the components and of the branches.
+// both orders of the components and of the entries.
 func TestCompile_AnAllOfOverATypedTargetFoldsAsItsRef(t *testing.T) {
 	t.Parallel()
 	for _, tc := range typedTargets {
@@ -156,13 +156,13 @@ func TestCompile_AnAllOfOverATypedTargetFoldsAsItsRef(t *testing.T) {
 }
 
 // TestCompile_AStructureAdmittingPartOfAKindConflictsWithIt holds that a field
-// declared as a kind in one allOf branch and, in the other, as a structure
+// declared as a kind in one allOf entry and, in the other, as a structure
 // whose source admits that kind but refuses some instance of it, through a
 // bound or a format a target declaring no kind writes, or a bound beside it, is
 // reported as a conflict: the later declaration's type is the field's and the
 // earlier is kept verbatim, so every keyword either writes stays in the
 // document, at 3.0 and 3.1, in both orders of the components and of the
-// branches.
+// entries.
 func TestCompile_AStructureAdmittingPartOfAKindConflictsWithIt(t *testing.T) {
 	t.Parallel()
 	for _, tc := range partlyAdmitted {

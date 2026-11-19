@@ -119,7 +119,7 @@ func assertMultipartDefaults32(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 // assertEncodingUnionBranches pins a part only a union's branch declares to a
 // key on the variant declaring it, in each spelling: a oneOf body, an anyOf
-// behind a $ref with a union nested in a branch, a union on an allOf branch
+// behind a $ref with a union nested in a branch, a union on an allOf entry
 // the composition is distributed across, a multi-typed body, and a model
 // narrowing a union. A name two branches declare is keyed under each, as each
 // declares it. No entry is kept whole.

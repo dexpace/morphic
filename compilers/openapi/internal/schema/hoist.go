@@ -17,7 +17,7 @@ import (
 
 // finisher writes on a node, in hand, what the frames lowering its position
 // keep there beyond its build: its declaration's facts, the keywords it has no
-// field for, the families an election passed over, the branches kept beside
+// field for, the families a dispatch passed over, the branches kept beside
 // it, the kind-inference mark, a discriminator settled beside a union.
 // internNode runs it once, on the node it builds, before the registry stores
 // it, so no write looks its node up, and a visit finding the node built writes
@@ -118,11 +118,11 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin, stand{})
 		return diags
 	}
-	comp := allOfComposition{pointer: pointer, branches: []allOfBranch{{schema: js, pointer: pointer}}}
+	comp := allOfComposition{pointer: pointer, entries: []allOfEntry{{schema: js, pointer: pointer}}}
 	if js.Ref == nil {
 		comp = readAllOf(c, js.Schema, pointer)
 	}
-	if !slices.ContainsFunc(comp.branches, func(e allOfBranch) bool {
+	if !slices.ContainsFunc(comp.entries, func(e allOfEntry) bool {
 		if e.schema.Ref == nil {
 			return false
 		}
@@ -161,10 +161,11 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer
 	return internAliasHolding(c, ts, cons, kept, boundsRead(s, st.takes(c, s), nil), st.pointer(pointer), target, fin), diags
 }
 
-// internReferenceAlias is internAlias for the home of a declaration whose census
-// left it no node, which also holds the collection bounds s writes. A position
-// that reached a shared node with one written had its alias hoisted by the
-// census first, so this reads none it also keeps.
+// internReferenceAlias is internAlias for the home of a declaration whose
+// unread keywords left it no node, which also holds the collection bounds s
+// writes. A position that reached a shared node with one written had its alias
+// hoisted by the keeping of unread keywords first, so this reads none it also
+// keeps.
 func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {

@@ -118,16 +118,17 @@ func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 	assert.True(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "and the position says so")
 }
 
-// TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead covers the keywords
-// the winning lowering never reads (GitHub #268). lower() elects one keyword
-// family per position, and what the elected form has no field for must be kept:
+// TestUnhomedKeywords_PickedLoweringKeepsWhatItCannotRead covers the keywords
+// the winning lowering never reads (GitHub #268). lower() picks one keyword
+// family per position, and what the picked form has no field for must be kept:
 // a Model has no type token, a Literal no Constraints and no type or format its
-// value does not fit. Only the built node shows it, which the census asks.
+// value does not fit. Only the built node shows it, which the keeping of unread
+// keywords asks.
 //
-// The kept set is asserted whole, so a census that keeps too much fails as
+// The kept set is asserted whole, so keeping too much fails as
 // loudly as one that keeps too little; the `type: object` row matters because a
 // Model restates it and nothing may be recorded.
-func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
+func TestUnhomedKeywords_PickedLoweringKeepsWhatItCannotRead(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, body string
@@ -157,8 +158,8 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], maxItems: 2}",
 			ir.KindTuple, nil},
 		// A Scalar rather than the shared Primitive the type alone would reach:
-		// the entry needs a node this pointer owns, so the census hoists the alias
-		// that carries it.
+		// the entry needs a node this pointer owns, so keeping the unread
+		// keywords hoists the alias that carries it.
 		{"unique items on a string", "{type: string, uniqueItems: true}",
 			ir.KindScalar, []string{"openapi:uniqueItems"}},
 		// The control: a node that does carry them keeps nothing.
@@ -167,7 +168,7 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := schema.LowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			doc, diags := schema.LowerSpec(t, unreadKeywordSpec("    S: "+tc.body+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			td := typeByName(doc, "S")
@@ -186,10 +187,10 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 }
 
 // TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept is the other half of the
-// value-constraint census: a bound is kept only where the node has no field it
-// reached, never where it did. The two rows are the two node kinds that read
-// annotation.Constraints, so a census asking the kind rather than the field
-// would double-record both.
+// keeping of unread value constraints: a bound is kept only where the node has
+// no field it reached, never where it did. The two rows are the two node kinds
+// that read annotation.Constraints, so a keeping asking the kind rather than
+// the field would double-record both.
 func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, body, unhomed string }{
@@ -198,7 +199,7 @@ func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := schema.LowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			doc, diags := schema.LowerSpec(t, unreadKeywordSpec("    S: "+tc.body+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			td := typeByName(doc, "S")
@@ -210,13 +211,14 @@ func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
 }
 
 // TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead pins
-// the reason the census asks what filled a Constraints field rather than which
-// kinds have one. An ir.List has the field, but lowerArray fills it from
-// collectionConstraints — collection bounds only — so a string bound written on
-// an array reaches nothing however full the field looks.
+// the reason the keeping of unread keywords asks what filled a Constraints
+// field rather than which kinds have one. An ir.List has the field, but
+// lowerArray fills it from collectionConstraints — collection bounds only — so
+// a string bound written on an array reaches nothing however full the field
+// looks.
 func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *testing.T) {
 	t.Parallel()
-	doc, diags := schema.LowerSpec(t, keywordCensusSpec(
+	doc, diags := schema.LowerSpec(t, unreadKeywordSpec(
 		"    S: {type: array, items: {type: string}, minItems: 1, minLength: 3}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
@@ -260,8 +262,8 @@ func TestUnplacedDiscriminator_IsKeptAtEveryUnionSite(t *testing.T) {
 }
 
 // TestHomelessDiscriminator_IsKeptBesideEveryOtherNode pins that a
-// discriminator is a census keyword: wherever the position lowered to a node
-// that does not route by it, the census keeps it verbatim and says so, as it
+// discriminator is a readDomain keyword: wherever the position lowered to a node
+// that does not route by it, it is kept verbatim, unread, and said so, as it
 // keeps any keyword the node has no field for. Each was dropped in silence.
 // Beside a $ref to an object the discriminator is the composition's, so a
 // Model over the target holds it, at a component, a property and a parameter
@@ -310,10 +312,11 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 		strings.Count(marshaled, `"openapi:schema/discriminator"`), "one entry per position, none duplicated")
 }
 
-// TestHeldDiscriminator_IsNotKeptTwice pins the census's control: a union or a
-// model that routes by its discriminator holds it, so nothing is kept verbatim
-// and nothing is reported. A model needs no type to hold one: properties alone
-// make it. A discriminator alone types nothing, so it makes none
+// TestHeldDiscriminator_IsNotKeptTwice pins the control of the keeping of
+// unread keywords: a union or a model that routes by its discriminator holds
+// it, so nothing is kept verbatim and nothing is reported. A model needs no
+// type to hold one: properties alone make it. A discriminator alone types
+// nothing, so it makes none
 // (TestHomelessDiscriminator_IsKeptBesideEveryOtherNode).
 func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	t.Parallel()
@@ -338,7 +341,7 @@ func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 }
 
 // TestKeptDiscriminator_ResolvesItsValuesAtEverySite pins that a
-// discriminator the census keeps verbatim still has its values read as the
+// discriminator kept verbatim, unread, still has its values read as the
 // references they are (docs/compilers/openapi.md#discriminator), at every site
 // that keeps one: a $defs member only a value reaches is lowered, and a value
 // naming nothing is reported, once at each site, in either declaration order.

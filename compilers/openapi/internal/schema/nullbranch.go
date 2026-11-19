@@ -87,7 +87,7 @@ func inlineBranch(js *statement.Statement) bool {
 
 // liftedNull is a null branch (nullBranch) of a union, where it is written,
 // and the Unmodeled key that keeps it, `openapi:<combinator>/<index>`: its path
-// from the schema writing the union, as an allOf branch's is.
+// from the schema writing the union, as an allOf entry's is.
 type liftedNull struct {
 	schema *statement.Schema
 	at     jsontext.Pointer

@@ -40,7 +40,7 @@ func EffectiveDeprecated(chain []*statement.Schema) bool {
 //
 // Both in force is contradictory but legal: JSON Schema forbids neither. Read
 // as sets they leave nothing, which Visibility{None: true} states, as
-// merge.mergeVisibility answers for the pair spread over two allOf branches
+// merge.mergeVisibility answers for the pair spread over two allOf entries
 // (GitHub #276).
 func EffectiveVisibility(chain []*statement.Schema) (ir.Visibility, bool) {
 	readOnly := anyFlag(chain, func(n *statement.Notes) *bool { return n.ReadOnly })
@@ -163,7 +163,7 @@ const (
 type Kind int
 
 // Site is what a schema position declares: Node is the schema written there,
-// Voices the inline allOf branches read as written beside it, and Referents,
+// Voices the inline allOf entries read as written beside it, and Referents,
 // honoured only for a reference site, what a use site's annotations fall back
 // to, nearest first.
 //
@@ -175,7 +175,7 @@ type Kind int
 type Site struct {
 	Kind Kind
 	Node *statement.Schema
-	// Voices are the branches read as written at Node
+	// Voices are the entries read as written at Node
 	// (docs/compilers/openapi.md#allof-inline-residue).
 	Voices []Voice
 	// Referents is empty when Kind is Reference but the $ref's chain ends on no
@@ -187,7 +187,7 @@ type Site struct {
 	// false` as its openness, so no entry keeps it. The zero value keeps it.
 	Closure bool
 	// Leaves names the keywords Node writes that Read keeps no entry of: an
-	// inline allOf branch the position keeps whole writes them alike, and that
+	// inline allOf entry the position keeps whole writes them alike, and that
 	// entry holds the one writing (docs/compilers/openapi.md#allof-refinement).
 	Leaves []string
 }
@@ -207,22 +207,23 @@ type Dialect struct {
 	ListedTuple       bool
 }
 
-// Voice is an inline allOf branch and where it is written, so what it declares
+// Voice is an inline allOf entry and where it is written, so what it declares
 // is read, and reported, at its own pointer, in its own dialect.
 type Voice struct {
 	Node *statement.Schema
 	At   jsontext.Pointer
 	// Dependencies says the dialect Node is written in defines `dependencies`
-	// (Dialect.Dependencies), which a branch naming its own may, whatever the
+	// (Dialect.Dependencies), which an entry naming its own may, whatever the
 	// position's.
 	Dependencies bool
-	// KeptWhole says the position keeps the branch whole, an entry holding what
-	// it writes, so it writes no entry Read keeps beside it but one no other
-	// voice writes (docs/compilers/openapi.md#allof-inline-residue).
+	// KeptWhole says the position keeps the entry whole, an Unmodeled entry
+	// holding what it writes, so it writes no Unmodeled entry Read keeps beside
+	// it but one no other voice writes
+	// (docs/compilers/openapi.md#allof-inline-residue).
 	KeptWhole bool
 	// Beside says Node is the position's own schema, read beside the inline
-	// allOf branch its node is built from: what it writes stands before that
-	// branch's, as the keywords beside an allOf do before an entry's.
+	// allOf entry its node is built from: what it writes stands before that
+	// entry's, as the keywords beside an allOf do before an entry's.
 	Beside bool
 }
 
@@ -305,7 +306,7 @@ func DeclaresRedaction(s *statement.Schema) bool {
 // spoke before it wherever both write a keyword (schema.voicesAmong), so an
 // entry is kept once: the site's own, else, where several voices kept apart
 // write it, at pointer, no one writer's (underlay). A voice's unevaluated
-// keywords fold nowhere (schema.foldEntry): its branch, kept whole, is their
+// keywords fold nowhere (schema.foldEntry): its entry, kept whole, is their
 // one record.
 //
 // This is the one place the site-versus-referent choice is made, so no

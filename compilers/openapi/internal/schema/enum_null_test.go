@@ -181,17 +181,17 @@ func TestLowerNullAlone_IsToldFromTheTopType(t *testing.T) {
 	assertNullAloneAt(t, doc, "onlyNull", onlyNull.Type)
 }
 
-// TestLowerNullAlone_KeepsWhatTheEnumCannotHold pins the census beside a schema
-// of null alone: an Enum with no member has no home for a property set, an
-// element, a format or a bound, so each is kept verbatim with one info naming
-// the node, and the type, which the Enum's emptiness says, draws nothing
-// (docs/compilers/openapi.md#shape-applicator).
+// TestLowerNullAlone_KeepsWhatTheEnumCannotHold pins the keeping of unread
+// keywords beside a schema of null alone: an Enum with no member has no home
+// for a property set, an element, a format or a bound, so each is kept verbatim
+// with one info naming the node, and the type, which the Enum's emptiness says,
+// draws nothing (docs/compilers/openapi.md#shape-applicator).
 func TestLowerNullAlone_KeepsWhatTheEnumCannotHold(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, schema string
 		kept         []string
-		infos        int // one for what the census keeps, one for a union kept
+		infos        int // one for what is kept unread, one for a union kept
 	}{
 		{name: "a property set", schema: `{type: "null", properties: {a: {type: string}}}`, kept: []string{"properties"}, infos: 1},
 		{name: "an element", schema: `{type: "null", items: {type: string}}`, kept: []string{"items"}, infos: 1},

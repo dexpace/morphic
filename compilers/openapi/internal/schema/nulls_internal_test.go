@@ -76,17 +76,17 @@ func TestSchemaAdmitsNull_ReadsMaxNullConjunctsSchemas(t *testing.T) {
 	assert.False(t, schemaAdmitsNull(c, StandaloneSchema(chain(maxNullConjuncts))), "one schema deeper, the walk is silent")
 }
 
-// TestNulls_ABranchWithNoSchemaSaysNothing pins the guard on an
-// absent allOf entry. The parser never produces a nil branch, so nothing in the
+// TestNulls_AnEntryWithNoSchemaSaysNothing pins the guard on an
+// absent allOf entry. The parser never produces a nil entry, so nothing in the
 // corpus reaches it; a conjunct that is not there constrains nothing, which is
 // silence rather than a refusal — reading it as forbidding would let one
 // missing entry strip a sibling's null.
-func TestNulls_ABranchWithNoSchemaSaysNothing(t *testing.T) {
+func TestNulls_AnEntryWithNoSchemaSaysNothing(t *testing.T) {
 	t.Parallel()
 	n := &nulls{c: NewRawLowerer(&soa.OpenAPI{}).Ctx, conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
 	assert.Equal(t, alike(nullSilent), n.conjunct(nil, nullSite{}))
 	assert.Equal(t, alike(nullSilent), n.conjunct(Standalone(openapitest.EmptyEitherSchema()), nullSite{}),
-		"a branch whose either-value holds neither schema nor bool says nothing either")
+		"an entry whose either-value holds neither schema nor bool says nothing either")
 }
 
 // TestNullAloneReading_IsTheWholeSchemasReading holds the reading a null branch

@@ -107,7 +107,7 @@ func (e enumEntry) isNull() bool { return e.err == nil && e.val.Kind == ir.Value
 // it, and each is reported at itself as a warning: a null where those keywords
 // exclude null, which nothing then holds, and a value no type s declares
 // admits, a type of null included, which is kept as written beside the type
-// the census keeps verbatim.
+// kept verbatim as unread.
 func enumEntries(c lowering.Ctx, s *statement.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
 	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(c, s)
 	types := s.Types()
@@ -303,8 +303,8 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, site valueSetSite, common ir
 // lowerConst hoists the const site's schema writes as a Literal of its value
 // (hoistLiteral), but a null, which is no Literal's (nullConst), and reports,
 // at the const, a value no type that schema declares admits, as enumEntries reports an enum member. The Literal
-// holds the value as written, and the census keeps a type it does not fit
-// verbatim.
+// holds the value as written, and a type it does not fit is kept
+// verbatim as unread.
 func lowerConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
 	constant := site.set.Const()
 	val, err := value.FromNode(constant)

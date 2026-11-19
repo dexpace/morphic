@@ -102,14 +102,14 @@ func apartNames(s *statement.Schema, comp allOfComposition, conjuncts []conjunct
 
 // conjunctName is how a disjoint report names cj, a conjunct of comp, the
 // allOf s writes, as conjunctAtoms names one: the keywords beside the allOf by
-// the value set or the type they write, a branch by its path, a $ref written
+// the value set or the type they write, an entry by its path, a $ref written
 // beside other keys by its own.
 func conjunctName(s *statement.Schema, comp allOfComposition, cj conjunct) string {
 	switch {
-	case cj.branch != nil && splitRef(comp, cj.at):
-		return comp.branchPath(cj.branch.pointer) + "/$ref"
-	case cj.branch != nil:
-		return comp.branchPath(cj.branch.pointer)
+	case cj.entry != nil && splitRef(comp, cj.at):
+		return comp.entryPath(cj.entry.pointer) + "/$ref"
+	case cj.entry != nil:
+		return comp.entryPath(cj.entry.pointer)
 	case s.Const() != nil:
 		return "const"
 	case enumWritten(s):
@@ -209,13 +209,13 @@ func disjointAtoms(c lowering.Ctx, s *statement.Schema, atoms []conjunctAtom) []
 // conjunctAtoms returns the conjuncts of comp, in order: the `type` s writes
 // beside it, the value set it writes there (valueSetAtom), each union s writes
 // beside it that shares no kind with the rest (unionAside) or declares no
-// shape, else the one it passes over (passedOver), and each flattened branch:
+// shape, else the one it passes over (passedOver), and each flattened entry:
 // a wrapper by its own `type`, an entry nested past statement.MaxFlattenDepth
 // as cut, an inline entry writing two unions as the one it elects and the
 // other, and a $ref entry writing keywords that narrow what it admits as the
 // reference and the keywords beside it.
 func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []conjunctAtom {
-	out := make([]conjunctAtom, 0, 4+len(comp.branches))
+	out := make([]conjunctAtom, 0, 4+len(comp.entries))
 	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(s), words: s})
 	if set, ok := valueSetAtom(c, s); ok {
 		out = append(out, set)
@@ -227,8 +227,8 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 	} else if passed, key := passedOver(c, s, s); passed != nil {
 		out = append(out, unionAtoms(c, key, passed)...)
 	}
-	for i, e := range comp.branches {
-		name := comp.branchPath(e.pointer)
+	for i, e := range comp.entries {
+		name := comp.entryPath(e.pointer)
 		r := admissionOf(c, e.schema)
 		ref, _ := declaredOf(c, e.schema)
 		passed, key := passedOver(c, s, e.schema.Schema)
@@ -255,7 +255,7 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 // them, but for an inline principal lowering to a value set whose keywords
 // leave it no kind, which is read as the same keywords beside the allOf are:
 // its `type`, its set and each union it writes, a set holding no value its own
-// type admits saying so where it is written (valueSetAtom), as the election of
+// type admits saying so where it is written (valueSetAtom), as the dispatch of
 // competing keywords lowers it there (setElected).
 func refinedAtoms(c lowering.Ctx, s *statement.Schema, r refinement) []conjunctAtom {
 	atoms := conjunctAtoms(c, s, r.comp)
@@ -298,12 +298,12 @@ func valueSetAtom(c lowering.Ctx, s *statement.Schema) (conjunctAtom, bool) {
 	return conjunctAtom{name: name, admits: valueKinds(c, s), words: s, written: c.Statements().Read(s), cut: unread}, true
 }
 
-// splitRef reports whether the branch at i of comp is the reference an entry
-// writes beside other keys, the next branch, at its pointer, being the rest of
+// splitRef reports whether the entry at i of comp is the reference an entry
+// writes beside other keys, the next entry, at its pointer, being the rest of
 // that entry (statement.Entry).
 func splitRef(comp allOfComposition, i int) bool {
-	return i+1 < len(comp.branches) && comp.branches[i+1].pointer == comp.branches[i].pointer &&
-		comp.branches[i].pointer != comp.pointer
+	return i+1 < len(comp.entries) && comp.entries[i+1].pointer == comp.entries[i].pointer &&
+		comp.entries[i].pointer != comp.pointer
 }
 
 // toldWhereWritten reports whether st, written apart from the allOf naming it
@@ -344,7 +344,7 @@ func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 func conjunctsShareNothing(c lowering.Ctx, s *statement.Schema) bool {
 	at, _ := siteOf(s)
 	joint := anyInstance
-	for _, a := range conjunctAtoms(c, s, allOfBranches(c, s, at.Pointer)) {
+	for _, a := range conjunctAtoms(c, s, allOfEntries(c, s, at.Pointer)) {
 		joint &= a.admits
 	}
 	return joint == 0
@@ -353,7 +353,7 @@ func conjunctsShareNothing(c lowering.Ctx, s *statement.Schema) bool {
 // electedAtom is the inline entry e of s's allOf, named name, writing two
 // unions, as a conjunct beside the one it passes over: its own keywords and
 // the union it elects.
-func electedAtom(c lowering.Ctx, s *statement.Schema, e allOfBranch, name string, ref *statement.Statement) conjunctAtom {
+func electedAtom(c lowering.Ctx, s *statement.Schema, e allOfEntry, name string, ref *statement.Statement) conjunctAtom {
 	w := newAdmissionReader(c)
 	elected, _, _ := unionBranches(c, s, e.schema.Schema)
 	read := w.written(e.schema.Schema, w.nullable).and(w.union(elected))
@@ -509,7 +509,7 @@ type pairReading struct {
 // pairReadingOf reads the pair pairApart describes, once a run.
 func pairReadingOf(c lowering.Ctx, s *statement.Schema) pairReading {
 	return lowering.Remembered(c, pairApartOf{s}, func() pairReading {
-		comp := allOfBranches(c, s, "")
+		comp := allOfEntries(c, s, "")
 		if !writesUnionPair(s, comp) {
 			return pairReading{}
 		}
@@ -517,9 +517,9 @@ func pairReadingOf(c lowering.Ctx, s *statement.Schema) pairReading {
 		w.nullable = definesNullableAt(c, c.Statements().Read(s))
 		p := pairReads{joint: admitted{kinds: kindAny}}
 		p.read(&w, "", s)
-		for _, e := range comp.branches {
+		for _, e := range comp.entries {
 			if e.schema.Ref == nil && declaresUnion(e.schema.Schema) {
-				p.read(&w, comp.branchPath(e.pointer), e.schema.Schema)
+				p.read(&w, comp.entryPath(e.pointer), e.schema.Schema)
 			}
 		}
 		if w.incomplete() {

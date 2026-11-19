@@ -2123,7 +2123,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "message": "oneOf/anyOf written on an allOf entry conjoins with the rest of the composition; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Record"
@@ -2132,7 +2132,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "message": "oneOf/anyOf written on an allOf entry conjoins with the rest of the composition; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/App"
@@ -2150,7 +2150,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "message": "oneOf/anyOf written on an allOf entry conjoins with the rest of the composition; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/AppRequest"
@@ -2159,7 +2159,7 @@
     {
       "severity": "info",
       "code": "openapi/validation-only-keyword",
-      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (anyOf) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one Unmodeled entry under that keyword holds one value; the entry (anyOf) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Message/allOf/0"
@@ -2168,7 +2168,7 @@
     {
       "severity": "info",
       "code": "openapi/validation-only-keyword",
-      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (anyOf) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one Unmodeled entry under that keyword holds one value; the entry (anyOf) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Message/allOf/1"
@@ -2177,7 +2177,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch of a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
+      "message": "oneOf/anyOf written on an allOf entry of a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Dog"
@@ -2186,7 +2186,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "message": "oneOf/anyOf written on an allOf entry conjoins with the rest of the composition; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Kennel/properties/resident"
@@ -2195,7 +2195,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "message": "oneOf/anyOf written on an allOf entry conjoins with the rest of the composition; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Payment"
@@ -2204,7 +2204,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "message": "oneOf/anyOf written on an allOf entry conjoins with the rest of the composition; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Refund"
@@ -2213,7 +2213,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "message": "oneOf/anyOf written on an allOf entry conjoins with the rest of the composition; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema"
@@ -2224,7 +2224,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-union-branch.yaml",
-      "hash": "af4028c528c012bfc5e97434ef9c1e77a2cd3b0b4f0a683969611426bd7d9bc9"
+      "hash": "4ba906ba6a6ea4fb91e4b0ad0f754c4e90b0ed4e45d010623031496b1ebab60d"
     }
   ]
 }

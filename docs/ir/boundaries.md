@@ -56,10 +56,10 @@ The list is the set of *source-construct* degradations: one entry per distinctiv
 IR declines to model as written. It is not a list of every lowering that can weaken a type: the
 whole-schema fallbacks a compiler takes at its own limits are its rules, as the OpenAPI compiler's
 are ([`whole-schema-fallbacks`](../compilers/openapi.md#whole-schema-fallbacks), and for a `false`
-`allOf` branch [`allof-false-branch`](../compilers/openapi.md#allof-false-branch)).
+`allOf` entry [`allof-false-branch`](../compilers/openapi.md#allof-false-branch)).
 
 - **JSON Schema shapes** — `oneOf`/`anyOf` co-declared with structural keywords that cannot be
-  distributed, competing keywords at one position, an inline `allOf` branch declaring what no reader
+  distributed, competing keywords at one position, an inline `allOf` entry declaring what no reader
   consumes, a redeclared property the merge cannot fold whole, and a shape applicator the
   lowered node cannot carry. Each is a rule of the OpenAPI compiler:
   [`union-beside-structure`](../compilers/openapi.md#union-beside-structure),

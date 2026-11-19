@@ -18,12 +18,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestAllOfBranches_DepthCapKeepsWrapperVerbatim pins the bound on flattening: a
+// TestAllOfEntries_DepthCapKeepsWrapperVerbatim pins the bound on flattening: a
 // chain of wrappers as deep as the cap is flattened whole, and one level more
 // leaves the wrapper at the cap verbatim under a key spelling its path, with the
 // ref inside it unclassified and everything above it flattened. The diagnostic
 // blames the depth, not allOf.
-func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
+func TestAllOfEntries_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string
@@ -60,16 +60,16 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 			assert.Len(t, m.Unmodeled, 1)
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/"+path)
-			assert.Equal(t, "inline allOf branch is nested past the flattening depth of "+strconv.Itoa(statement.MaxFlattenDepth)+
-				", so its own allOf was not flattened, and the branch is kept verbatim under Unmodeled", msg)
+			assert.Equal(t, "inline allOf entry is nested past the flattening depth of "+strconv.Itoa(statement.MaxFlattenDepth)+
+				", so its own allOf was not flattened, and the entry is kept verbatim under Unmodeled", msg)
 		})
 	}
 }
 
-// TestAllOfBranches_KeysSpellEachEntrysPath pins, for the entries of a nested
+// TestAllOfEntries_KeysSpellEachEntrysPath pins, for the entries of a nested
 // composition, the key each is kept under, which spells its path from the
-// composed schema, and that a wrapper follows its own branches.
-func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
+// composed schema, and that a wrapper follows its own entries.
+func TestAllOfEntries_KeysSpellEachEntrysPath(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    M:
       allOf:
@@ -82,9 +82,9 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 `))
 	decl, ok := l.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
-	comp := allOfBranches(l.Ctx, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/M")
-	entries := comp.branches
-	require.Len(t, entries, 6, "four inline branches and two wrappers")
+	comp := allOfEntries(l.Ctx, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/M")
+	entries := comp.entries
+	require.Len(t, entries, 6, "four inline entries and two wrappers")
 	wantKeys := []string{
 		"openapi:allOf/0",
 		"openapi:allOf/1/allOf/0",
@@ -95,19 +95,19 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 	}
 	var inline int
 	for i, e := range entries {
-		assert.Equal(t, wantKeys[i], comp.branchKey(e.pointer))
+		assert.Equal(t, wantKeys[i], comp.entryKey(e.pointer))
 		if !e.wrapper {
 			inline++
 		}
 	}
 	assert.Equal(t, 4, inline)
-	assert.True(t, entries[len(entries)-1].wrapper, "a wrapper follows its own branches")
+	assert.True(t, entries[len(entries)-1].wrapper, "a wrapper follows its own entries")
 }
 
-// TestAllOfRefBranches_StopsWhenTheConsumerDoes pins that the view of a
-// flattened allOf's $ref branches yields them in order, a nested wrapper's
+// TestAllOfRefEntries_StopsWhenTheConsumerDoes pins that the view of a
+// flattened allOf's $ref entries yields them in order, a nested wrapper's
 // included, and ends when the loop reading it breaks.
-func TestAllOfRefBranches_StopsWhenTheConsumerDoes(t *testing.T) {
+func TestAllOfRefEntries_StopsWhenTheConsumerDoes(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    A: {type: object}
     B: {type: object}
@@ -120,7 +120,7 @@ func TestAllOfRefBranches_StopsWhenTheConsumerDoes(t *testing.T) {
 `))
 	s := StatedIn(l, componentSchema(t, l, "M"))
 	var all []*statement.Statement
-	for b := range allOfRefBranches(l.Ctx, s) {
+	for b := range allOfRefEntries(l.Ctx, s) {
 		all = append(all, b)
 	}
 	require.Len(t, all, 2, "the nested $ref and the one beside it")
@@ -128,18 +128,18 @@ func TestAllOfRefBranches_StopsWhenTheConsumerDoes(t *testing.T) {
 	assert.Equal(t, StatedIn(l, componentSchema(t, l, "B")), refBranchTarget(l.Ctx, all[1]))
 
 	var seen int
-	for range allOfRefBranches(l.Ctx, s) {
+	for range allOfRefEntries(l.Ctx, s) {
 		seen++
 		break
 	}
 	assert.Equal(t, 1, seen, "the view yields nothing after the loop breaks")
 }
 
-// TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites pins that a wrapper
+// TestAllOfEntries_DepthCapNamesWhatElseTheWrapperWrites pins that a wrapper
 // kept at the cap lists the keywords it writes besides allOf, so the message
 // says both why it was kept and what rides along. A wrapper whose type is not an
 // object reads as a warning, which names the depth as well.
-func TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
+func TestAllOfEntries_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string
@@ -147,8 +147,8 @@ func TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
 		severity ir.Severity
 		want     string
 	}{
-		{"a keyword nothing reads", "minItems: 1", ir.SeverityInfo, "the branch (minItems) is kept verbatim"},
-		{"non-object type", "type: string", ir.SeverityWarning, "the branch (type) is kept verbatim"},
+		{"a keyword nothing reads", "minItems: 1", ir.SeverityInfo, "the entry (minItems) is kept verbatim"},
+		{"non-object type", "type: string", ir.SeverityWarning, "the entry (type) is kept verbatim"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

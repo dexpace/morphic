@@ -45,8 +45,8 @@ func TestAllOf_NestedLowersAsFlat(t *testing.T) {
 // TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares pins that the projection
 // sees the distinctions the pairs rely on, so a pair that agrees does so for a
 // reason: a distributed union has variants, the discriminated subtype has its
-// tag, a false branch closes the model, and a required name the base declares
-// is held in Requires. The residue and the false branch are also kept, which
+// tag, a false entry closes the model, and a required name the base declares
+// is held in Requires. The residue and the false entry are also kept, which
 // only a positive Kept shows.
 func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	t.Parallel()
@@ -59,9 +59,9 @@ func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	assert.Equal(t, []string{"w"}, wires(distributed.Variants[0].Props), "each variant carries the body's own property")
 	assert.Equal(t, string(componentID("C")), distributed.Variants[0].Base, "and the ref the wrapper held as its base")
 
-	closed, _ := compileView(t, byName["a false branch"])
+	closed, _ := compileView(t, byName["a false entry"])
 	assert.Equal(t, ir.AdditionalClosed, closed.Additional)
-	assert.Positive(t, closed.Kept, "the false branch is kept beside closing the model")
+	assert.Positive(t, closed.Kept, "the false entry is kept beside closing the model")
 
 	required, _ := compileView(t, byName["a required name only the base declares"])
 	assert.Equal(t, []string{"a"}, required.Requires, "the name is required of the composition, not of a property it holds")
@@ -113,7 +113,7 @@ func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
 			mixins: []ir.TypeID{componentID("A"), componentID("B")},
 		},
 		{
-			name: "a ref with an inline branch beside it carries the nested pointer",
+			name: "a ref with an inline entry beside it carries the nested pointer",
 			m: `    M:
       allOf:
         - allOf:
@@ -169,7 +169,7 @@ func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
 
 // TestAllOf_NestedWrapperRequiredAttaches pins that a required list inside a
 // wrapper is read like one at the top: it attaches to a property a flattened
-// branch declares, and a name none declares is listed in Model.Requires.
+// entry declares, and a name none declares is listed in Model.Requires.
 func TestAllOf_NestedWrapperRequiredAttaches(t *testing.T) {
 	t.Parallel()
 	t.Run("wrapper required and nested-nested required attach", func(t *testing.T) {
@@ -286,9 +286,9 @@ func TestAllOf_NestedWrapperBaseSelection(t *testing.T) {
 	}
 }
 
-// TestAllOf_NestedFalseBranchClosesModel pins that a `false` inside a wrapper
+// TestAllOf_NestedFalseEntryClosesModel pins that a `false` inside a wrapper
 // still closes the composition, and is kept at the pointer it was written at.
-func TestAllOf_NestedFalseBranchClosesModel(t *testing.T) {
+func TestAllOf_NestedFalseEntryClosesModel(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:
@@ -363,7 +363,7 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 					require.True(t, ok, "the keyword is kept under its own key; got %+v", model.Unmodeled)
 					assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0/"+tc.residue), entry.Provenance.Pointer)
 					assert.NotContains(t, model.Unmodeled, "openapi:allOf/0")
-					assert.Contains(t, infos[0].Message, "no home for "+tc.residue+" written on this inline branch")
+					assert.Contains(t, infos[0].Message, "no home for "+tc.residue+" written on this inline entry")
 					continue
 				}
 				entry, ok := model.Unmodeled["openapi:allOf/0"]
@@ -405,7 +405,7 @@ func TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice(t *testing.T) {
 	}
 }
 
-// TestAllOf_NestedEmptyAllOfKeptVerbatim pins that a branch wrapping an empty
+// TestAllOf_NestedEmptyAllOfKeptVerbatim pins that an entry wrapping an empty
 // allOf is not flattened: it is kept verbatim and reported, never dropped. The
 // source breaks the schema's minItems, so the one error the load reports for it
 // is expected and nothing else.
@@ -437,16 +437,16 @@ func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
 		assert.Contains(t,
 			openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/allOf/0"),
-			"nothing reads the rest of it; the branch (allOf) is kept verbatim")
+			"nothing reads the rest of it; the entry (allOf) is kept verbatim")
 	}
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),
 		"declaration order must not change the types")
 }
 
-// TestAllOf_NestedInlineBranchKeyedByPointer pins that an inline branch inside
+// TestAllOf_NestedInlineEntryKeyedByPointer pins that an inline entry inside
 // a wrapper is kept under a key spelling its path, so it can collide with
-// neither a sibling nor a top-level branch of the same index.
-func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
+// neither a sibling nor a top-level entry of the same index.
+func TestAllOf_NestedInlineEntryKeyedByPointer(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:
@@ -477,17 +477,17 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
 				string(entry.Provenance.Pointer))
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, doc.Diagnostics, want[1], ir.SeverityInfo,
-					"/components/schemas/M/"+strings.TrimPrefix(key, "openapi:")), "inline allOf branch")
+					"/components/schemas/M/"+strings.TrimPrefix(key, "openapi:")), "inline allOf entry")
 		}
 	}
 }
 
-// TestAllOf_ABranchNamingNothingIsNamedForItsSchema pins the name of a $ref
-// branch inside a wrapper whose target names nothing: the schema holding the
+// TestAllOf_AnEntryNamingNothingIsNamedForItsSchema pins the name of a $ref
+// entry inside a wrapper whose target names nothing: the schema holding the
 // list, in either declaration order, as an outside $ref to that pointer lowers
 // it from the other side. Only a target that names nothing lets it through, since
-// a branch holding a $ref takes its target's name first.
-func TestAllOf_ABranchNamingNothingIsNamedForItsSchema(t *testing.T) {
+// an entry holding a $ref takes its target's name first.
+func TestAllOf_AnEntryNamingNothingIsNamedForItsSchema(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:
@@ -501,7 +501,7 @@ func TestAllOf_ABranchNamingNothingIsNamedForItsSchema(t *testing.T) {
 	unnamed := "    \"\": {type: object, properties: {e: {type: string}}}\n"
 	for _, doc := range nestedOrders(t, m, outsider+unnamed+nestedAB) {
 		narrowed, ok := doc.Types["t/anon/components/schemas/M/allOf/1/allOf/1"]
-		require.True(t, ok, "the narrowed branch is hoisted at its pointer")
+		require.True(t, ok, "the narrowed entry is hoisted at its pointer")
 		assert.Equal(t, "m", narrowed.Common().Name.Hint)
 	}
 }
@@ -564,7 +564,7 @@ var equivalencePairs = []struct {
 `, pet + `    M:
       allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/Pet'}]
 `},
-	{"inline branches with properties, required and type object", `    M:
+	{"inline entries with properties, required and type object", `    M:
       allOf:
         - allOf:
             - {$ref: '#/components/schemas/A'}
@@ -605,13 +605,13 @@ var equivalencePairs = []struct {
 `, `    M:
       allOf: [{$ref: '#/components/schemas/A'}, {required: [a]}]
 `},
-	{"a true branch", `    M:
+	{"a true entry", `    M:
       allOf:
         - allOf: [{$ref: '#/components/schemas/A'}, true]
 `, `    M:
       allOf: [{$ref: '#/components/schemas/A'}, true]
 `},
-	{"a false branch", `    M:
+	{"a false entry", `    M:
       allOf:
         - allOf: [{$ref: '#/components/schemas/A'}, false]
 `, `    M:

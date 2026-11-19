@@ -17,7 +17,7 @@ import (
 
 // TestFold_ANarrowerPrimitiveWinsInEitherOrder pins the refinement
 // rule: a redeclaration that narrows a bare primitive loses nothing, so the
-// narrower target wins whichever branch is written first, with no diagnostic
+// narrower target wins whichever entry is written first, with no diagnostic
 // and no kept declaration.
 func TestFold_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 	t.Parallel()
@@ -49,14 +49,14 @@ func TestFold_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 				assert.Empty(t, dst.Unmodeled, "nothing is dropped, so nothing is kept (order %d)", i)
 				merged[i] = dst.Type
 			}
-			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
+			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on entry order")
 		})
 	}
 }
 
 // TestFold_AUint8NarrowsInt16InEitherOrder pins a containment the
 // old chain omitted: every uint8 is an int16, so int16 declared beside uint8
-// keeps uint8 whichever branch is written first, with nothing reported or kept.
+// keeps uint8 whichever entry is written first, with nothing reported or kept.
 func TestFold_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
 	t.Parallel()
 	var merged [2]ir.TypeRef
@@ -72,13 +72,13 @@ func TestFold_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
 		assert.Empty(t, dst.Unmodeled, "nothing is dropped (order %d)", i)
 		merged[i] = dst.Type
 	}
-	assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
+	assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on entry order")
 }
 
 // TestFold_ANarrowingIntersectsNullability pins that the swap
 // keeps the conjunction the equal-target case already states: over every pair
 // of null admissions, in both orders, the merged field admits null only where
-// both branches do.
+// both entries do.
 func TestFold_ANarrowingIntersectsNullability(t *testing.T) {
 	t.Parallel()
 	for _, broadFirst := range []bool{true, false} {
@@ -102,7 +102,7 @@ func TestFold_ANarrowingIntersectsNullability(t *testing.T) {
 
 					assert.Equal(t, narrow.Target, p.Type.Target)
 					assert.Equal(t, broadNull && narrowNull, p.Type.Nullable,
-						"null is admitted only where both branches admit it")
+						"null is admitted only where both entries admit it")
 					assert.Empty(t, *recorded)
 				})
 			}

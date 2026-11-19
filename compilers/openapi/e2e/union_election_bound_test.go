@@ -13,7 +13,7 @@ import (
 )
 
 // TestElection_AUnionAndTheWordsItTiesWithAreTheUnionHoldingTheBound holds
-// that an allOf of a union and a branch refining it lowers to the union,
+// that an allOf of a union and an entry refining it lowers to the union,
 // standing at the position whichever is written first: the branch's bound is
 // held once, in Union.Constraints, at a property and at a component, no entry
 // is kept and nothing is reported (docs/compilers/openapi.md#allof-refinement).

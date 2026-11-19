@@ -29,7 +29,7 @@ components:
         either:
           maxLength: 3
           type: [integer, string]
-    # A branch's bound folds onto the variant it applies to.
+    # An entry's bound folds onto the variant it applies to.
     OnBranch:
       type: [integer, string]
       allOf:

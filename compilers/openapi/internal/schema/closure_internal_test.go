@@ -53,7 +53,7 @@ func TestCloserOf_NamesTheObjectWhoseClosureTypesTheModel(t *testing.T) {
 			require.True(t, ok)
 			s := l.Ctx.Statements().Of(decl).Schema
 			const at = jsontext.Pointer("/components/schemas/M")
-			got := closerOf(l.Ctx, s, allOfBranches(l.Ctx, s, at))
+			got := closerOf(l.Ctx, s, allOfEntries(l.Ctx, s, at))
 			switch tc.want {
 			case "own":
 				assert.True(t, got.own)

@@ -11,15 +11,15 @@ import (
 
 // mergeVisibility folds src's lifecycle visibility into dst under allOf
 // intersection semantics (docs/compilers/openapi.md#disjoint-visibility): the
-// merged property is visible only in a lifecycle both branches admit.
+// merged property is visible only in a lifecycle both entries admit.
 //
 // An empty Only (None false) means visible in every lifecycle, not none, so
 // each side is read as the set it admits before intersecting. Disjoint sets
 // (readOnly with writeOnly) intersect to none, recorded as None rather than a
 // conflict because nothing is discarded; the fold adds a warning (foldUse).
 //
-// The result is the same whichever branch arrives as dst, down to the order of
-// Only, since allOf gives branch order no meaning (intersectLifecycles).
+// The result is the same whichever entry arrives as dst, down to the order of
+// Only, since allOf gives entry order no meaning (intersectLifecycles).
 func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 	switch {
 	case dst.None || src.None:
@@ -41,7 +41,7 @@ func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 // empty-but-unrestricted Only.
 //
 // Both operands are in source order, so the result takes its order from
-// whichever sorts first by value, not from which branch was declared first, or
+// whichever sorts first by value, not from which entry was declared first, or
 // two spellings of the same lifecycles would intersect to different slices. No
 // OpenAPI document reaches a partial overlap today, since
 // annotation.EffectiveVisibility yields only identical or disjoint sets, but a

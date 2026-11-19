@@ -310,10 +310,10 @@ func TestConstraints_ABoundAListKeepsIsKeptOnce(t *testing.T) {
 	assert.Len(t, diags, 1)
 }
 
-// TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus pins a count past 64 bits
-// beside a type that takes no count of its kind: the census keeps it once, with
+// TestConstraints_ACountATypeCannotTakeIsKeptUnread pins a count past 64 bits
+// beside a type that takes no count of its kind: it is kept unread once, with
 // its own report, and the reader of the node's bounds keeps and reports nothing.
-func TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
+func TestConstraints_ACountATypeCannotTakeIsKeptUnread(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, atEverySite("3.1.0", "{type: integer, maxLength: 99999999999999999999}"))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -325,11 +325,11 @@ func TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
 	assert.Len(t, diags, 4)
 }
 
-// TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus pins a 3.0 exclusive
+// TestConstraints_AModifierATypeCannotTakeIsKeptUnread pins a 3.0 exclusive
 // modifier with no bound beside a string: no reader of numeric bounds reads it,
-// so it draws no warning that it bounds nothing; the census keeps it once, with
+// so it draws no warning that it bounds nothing; it is kept unread once, with
 // its info.
-func TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
+func TestConstraints_AModifierATypeCannotTakeIsKeptUnread(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, atEverySite("3.0.3", "{type: string, exclusiveMinimum: true}"))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -427,15 +427,15 @@ func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
 	}
 }
 
-// TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes pins a value bound on an
-// allOf branch folding at a position, where the branch declares a type the bound
-// does not apply to: no Constraints in the document holds it, whichever branch
-// the position lowers by, so the IR does not turn on the branches' order, and
-// the branch keeps it. Neither a type array's variant whose type takes the bound
+// TestConstraints_AnEntryReadsTheBoundsItsOwnTypeTakes pins a value bound on an
+// allOf entry folding at a position, where the entry declares a type the bound
+// does not apply to: no Constraints in the document holds it, whichever entry
+// the position lowers by, so the IR does not turn on the entries' order, and
+// the entry keeps it. Neither a type array's variant whose type takes the bound
 // nor a composed Model reads it.
-func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
+func TestConstraints_AnEntryReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct{ schema, keyword, branch string }{
+	for _, tc := range []struct{ schema, keyword, entry string }{
 		{"{allOf: [{type: string, minimum: 1}, {type: string, minimum: 2}]}", "minimum", "openapi:allOf/1"},
 		{"{allOf: [{type: string, minimum: 2}, {type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
 		{"{type: [string, integer], format: x-mine, allOf: [{type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
@@ -450,15 +450,15 @@ func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
 		for _, site := range sitesOf(t, doc) {
 			assert.False(t, site.holds(tc.keyword), "%s: %s", tc.schema, site.pointer)
 		}
-		assert.Contains(t, marshalForTest(t, doc), `"`+tc.branch+`"`, tc.schema)
+		assert.Contains(t, marshalForTest(t, doc), `"`+tc.entry+`"`, tc.schema)
 	}
 }
 
-// TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt pins a count past 64
-// bits on a folding allOf branch declaring a type that takes no count of its
+// TestConstraints_AnEntryCountItsTypeCannotTakeIsKeptWithIt pins a count past 64
+// bits on a folding allOf entry declaring a type that takes no count of its
 // kind: kept under its own key, once, with the report of a keyword with no
 // home, and not kept again as a count no field states.
-func TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
+func TestConstraints_AnEntryCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec("    Num: {type: number}\n"+
 		"    C: {allOf: [{$ref: '#/components/schemas/Num'}, {type: number, maxLength: 99999999999999999999}]}\n"))
@@ -466,7 +466,7 @@ func TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
 	assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(typeByName(doc, "C").Common().Unmodeled))
 	assert.Equal(t, 1, strings.Count(marshalForTest(t, doc), "99999999999999999999"))
 	require.Len(t, diags, 1, "%+v", diags)
-	assert.Contains(t, diags[0].Message, "no home for maxLength written on this inline branch")
+	assert.Contains(t, diags[0].Message, "no home for maxLength written on this inline entry")
 }
 
 // schemaKept returns what a parameter or a header keeps of what its schema
