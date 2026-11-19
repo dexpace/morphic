@@ -33,10 +33,11 @@ func lowerBoth(t *testing.T, src string) (plain, promised *ir.Document) {
 	return plain, promised
 }
 
-// TestPromiseLandings_BuildsNothingTwice pins that a document whose every $ref
-// a lowering has already resolved gains no node and loses none to promising its
-// landings: a position lowered once is the one node, not a second.
-func TestPromiseLandings_BuildsNothingTwice(t *testing.T) {
+// TestReserveNodesAtReferenceTargets_BuildsNothingTwice pins that a document
+// whose every $ref a lowering has already resolved gains no node and loses none
+// to promising its landings: a position lowered once is the one node, not a
+// second.
+func TestReserveNodesAtReferenceTargets_BuildsNothingTwice(t *testing.T) {
 	t.Parallel()
 	plain, promised := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", `    Owner: {type: object, properties: {name: {type: string}}}
     Alias: {$ref: '#/components/schemas/Owner', description: an owner}
@@ -53,11 +54,11 @@ func TestPromiseLandings_BuildsNothingTwice(t *testing.T) {
 	assert.NotEmpty(t, plain.Types)
 }
 
-// TestPromiseLandings_LowersWhatNothingElseReached pins the positions only a
-// kept keyword's $ref names, and a kept discriminator's mapping value: the
-// lowerings alone leave them out, and promising their landings adds each as the
-// one node, declared at its own pointer.
-func TestPromiseLandings_LowersWhatNothingElseReached(t *testing.T) {
+// TestReserveNodesAtReferenceTargets_LowersWhatNothingElseReached pins the
+// positions only a kept keyword's $ref names, and a kept discriminator's
+// mapping value: the lowerings alone leave them out, and promising their
+// landings adds each as the one node, declared at its own pointer.
+func TestReserveNodesAtReferenceTargets_LowersWhatNothingElseReached(t *testing.T) {
 	t.Parallel()
 	plain, promised := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", `    Kept:
       type: object

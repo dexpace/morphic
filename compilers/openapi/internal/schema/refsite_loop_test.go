@@ -12,12 +12,12 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
-// TestPromiseLandings_PromisesNoMemberOfALoop pins that a loop of $refs, which
-// lands nowhere a type can be read (reftable.ReferenceSite.Lands), is promised
-// no node at any member: one through a schema's own property, and one between
-// two keywords kept verbatim, each lowering to what it lowers to without the
-// call.
-func TestPromiseLandings_PromisesNoMemberOfALoop(t *testing.T) {
+// TestReserveNodesAtReferenceTargets_ReservesNoMemberOfALoop pins that a loop
+// of $refs, which lands nowhere a type can be read
+// (reftable.ReferenceSite.Lands), is promised no node at any member: one
+// through a schema's own property, and one between two keywords kept verbatim,
+// each lowering to what it lowers to without the call.
+func TestReserveNodesAtReferenceTargets_ReservesNoMemberOfALoop(t *testing.T) {
 	t.Parallel()
 	for name, schemas := range map[string]string{
 		"through its own member": `    A:

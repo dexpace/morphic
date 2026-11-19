@@ -504,16 +504,16 @@ func TestRead_ListsExtensionsAsTheModelHoldsThem(t *testing.T) {
 	assert.Nil(t, table.At(component(loweringContext, "Absent")).Extensions)
 }
 
-// TestSub_TruthTellsNoSchemaFromFalse pins what a value written where a schema
-// belongs states, read from its Subschema and from its statement alike. The
-// parser decodes a null, a string, a number or a list as the `false` schema
+// TestSubschema_TruthTellsNoSchemaFromFalse pins what a value written where a
+// schema belongs states, read from its Subschema and from its statement alike.
+// The parser decodes a null, a string, a number or a list as the `false` schema
 // (docs/parser-library.md#null-schema-is-false), which admits no value where
 // these state nothing, so only the node tells them apart, through an alias too;
 // and it decodes a mapping it fails beneath as a boolean
 // (docs/parser-library.md#failure-beneath-itself). Only a written `false`, and
 // such a mapping, read as the false schema, and the model holds every value
 // written, so Held tells any of them from a keyword left out.
-func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
+func TestSubschema_TruthTellsNoSchemaFromFalse(t *testing.T) {
 	t.Parallel()
 	rows := []struct {
 		name, value string

@@ -64,13 +64,13 @@ func TestPassedOverEntries_ReportsExtraMediaTypes(t *testing.T) {
 	}
 }
 
-// TestElectContentEntry_DoesNotFollowDeclarationOrder compiles a parameter and a
-// header in every order of their entries. Each order lowers one entry, keeps the
-// others whole on the Document, and reports them alike, so a reordered map changes
-// nothing, and nothing an entry wrote is lost (GitHub #606). It is the diff the
-// harness cannot run: such a document draws a validation error, where the order
-// oracle stops.
-func TestElectContentEntry_DoesNotFollowDeclarationOrder(t *testing.T) {
+// TestChooseSingleContentEntry_DoesNotFollowDeclarationOrder compiles a
+// parameter and a header in every order of their entries. Each order lowers one
+// entry, keeps the others whole on the Document, and reports them alike, so a
+// reordered map changes nothing, and nothing an entry wrote is lost (GitHub
+// #606). It is the diff the harness cannot run: such a document draws a
+// validation error, where the order oracle stops.
+func TestChooseSingleContentEntry_DoesNotFollowDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	const (
 		numberEntry = `application/json: {schema: {$ref: "#/components/schemas/Num"}}`
@@ -398,9 +398,10 @@ webhooks:
 	assert.Equal(t, contentMaps, openapitest.PointersOf(reported, diag.DegradedConstruct), "%+v", reported)
 }
 
-// TestElectContentEntry_OneEntryIsSilent is the control: the legal one-entry
-// spelling must not warn, or every content-style header and parameter would.
-func TestElectContentEntry_OneEntryIsSilent(t *testing.T) {
+// TestChooseSingleContentEntry_OneEntryIsSilent is the control: the legal
+// one-entry spelling must not warn, or every content-style header and parameter
+// would.
+func TestChooseSingleContentEntry_OneEntryIsSilent(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.PathsSpec("  /x:\n    get:\n      responses:\n"+
 		"        \"200\":\n          description: ok\n          headers:\n"+

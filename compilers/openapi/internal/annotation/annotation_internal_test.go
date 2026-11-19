@@ -101,9 +101,10 @@ discriminator: {propertyName: kind, x-d: 1}
 	assert.NotContains(t, got.Unmodeled, "openapi:discriminator/x-d")
 }
 
-// TestSite_ChainIsNearestFirst pins the order everything a site falls back to is
-// read in, and that a declaration has no referent in it.
-func TestSite_ChainIsNearestFirst(t *testing.T) {
+// TestSchemaPositionAnnotationSources_ChainIsNearestFirst pins the order
+// everything a site falls back to is read in, and that a declaration has no
+// referent in it.
+func TestSchemaPositionAnnotationSources_ChainIsNearestFirst(t *testing.T) {
 	t.Parallel()
 	node, foldedEntry, referent := standaloneSchema(&oas3.Schema{}), standaloneSchema(&oas3.Schema{}), standaloneSchema(&oas3.Schema{})
 	st := SchemaPositionAnnotationSources{Kind: Reference, Node: node, FoldedAllOfEntries: []FoldedAllOfEntry{{Node: foldedEntry}}, Referents: []*statement.Schema{referent}}

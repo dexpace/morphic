@@ -29,9 +29,9 @@ func TestChooseSingleContentEntry_SkipsANilEntry(t *testing.T) {
 	}
 }
 
-// TestElectContentEntry_NoEntryElectsNothing is the other way an election ends:
-// no map, or one that holds nothing that can lower.
-func TestElectContentEntry_NoEntryElectsNothing(t *testing.T) {
+// TestChooseSingleContentEntry_NoEntryElectsNothing is the other way an
+// election ends: no map, or one that holds nothing that can lower.
+func TestChooseSingleContentEntry_NoEntryElectsNothing(t *testing.T) {
 	t.Parallel()
 	for name, content := range map[string]*sequencedmap.Map[string, *soa.MediaType]{
 		"no map":    nil,

@@ -373,8 +373,8 @@ second holds each minor and counts what is allocated, not what is held at once.
   `service.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`,
   `e2e.TestCompile_ALongRefChainCompiles`,
   `e2e.TestCompile_AChainFarPastTheExpansionBudgetIsRefused`,
-  `service.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
-  `service.TestWeightOf_CountsASchemaAsOneNode`,
+  `service.TestReferenceExpansionSize_CostsTheBudgetNotTheDeclaration`,
+  `service.TestReferenceExpansionSize_CountsASchemaAsOneNode`,
   `service.TestDeclared_ChargesEachDeclarationOfAChain`,
   `service.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`,
   `openapi.TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy`,
@@ -2637,7 +2637,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinementUndecided_SeveralSharedKindsAreTheirUnion`,
   `schema.TestRefinementUndecided_ANullTheEntriesAllAdmitStays`,
   `schema.TestRefinementUndecided_AnElectionOrNoSharedValueIsUnchanged`,
-  `schema.TestElect_ComparesEachPairOnce`,
+  `schema.TestChooseConjunctToLowerFrom_ComparesEachPairOnce`,
   `e2e.TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst`,
   `e2e.TestElection_TwoUnionsOfOneKeywordElectNeither`,
   `e2e.TestElection_TwoAnyOfEntriesThatDeclareNoShapeAreKeptWhole`,
@@ -2966,14 +2966,14 @@ entries: the position lowers from them, and each of their keywords is kept once 
   `schema.TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth`,
   `schema.TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice`,
   `schema.TestAllOfEntryFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt`,
-  `schema.TestVoices_AnEntryDisagreeingFoldsNothingInEveryOrder`,
+  `schema.TestFoldedAllOfEntries_AnEntryDisagreeingFoldsNothingInEveryOrder`,
   `schema.TestAllOfEntryFolding_BoundsMeetInEveryOrder`,
   `schema.TestAllOfEntryFolding_ARefusedBoundPartsNoWriter`,
   `schema.TestAgreement_ReadsABoundInTheDialectOfItsSchemas`,
   `schema.TestAllOfEntryFolding_KeywordsOneEntryHoldsDisagreeAsOne`,
-  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsEntry`,
+  `schema.TestFoldedAllOfEntries_AnUnevaluatedKeywordStaysWithItsEntry`,
   `schema.TestAllOfEntryFolding_AUseBindingKeywordReachesItsCarrierOrItsNode`,
-  `schema.TestVoices_KeptAndMetEntriesHoldAtEveryOutcome`,
+  `schema.TestFoldedAllOfEntries_KeptAndMetEntriesHoldAtEveryOutcome`,
   `schema.TestAllOf_EntryResidueRidesEveryDistributedVariant`,
   `schema.TestAllOf_AnEntryReadAgainstAnotherBaseFoldsNothing`,
   `schema.TestAllOf_AnEntryWritingNoRelativeReferenceFoldsUnderAnyBase`,
@@ -5586,7 +5586,7 @@ verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing r
 
 - Tests: `e2e.TestCompile_ANullWhereASchemaBelongsIsNoSchema`,
   `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,
-  `statement.TestSub_TruthTellsNoSchemaFromFalse`,
+  `statement.TestSubschema_TruthTellsNoSchemaFromFalse`,
   `e2e.TestCompile_AValueWhereASchemaBelongsThatIsNoMappingIsNoSchema`
 
 ### `null-keywords`
@@ -5794,7 +5794,7 @@ no bound ([`string-formats`](#string-formats)).
   `e2e.TestCompile_ABoundBesideAReferenceToAModelIsHeldOnce`,
   `e2e.TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant`,
   `e2e.TestCorpus_NoCarrierRestatesABoundItsOwnNodeHolds`,
-  `schema.TestVoices_ABoundTheComposedModelCannotTakeKeepsItsEntry`,
+  `schema.TestFoldedAllOfEntries_ABoundTheComposedModelCannotTakeKeepsItsEntry`,
   `schema.TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome`,
   `schema.TestConstraints_AReferenceLandingOnAPropertyReadsItsNode`,
   `e2e.TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion`,
@@ -5907,7 +5907,7 @@ document lands on, hop by hop, as it would one a lowered keyword names.
   `annotation.TestValidationOnlyAt_AttributesAnInertEntryByItsUnevaluatedKeyword`,
   `schema.TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType`,
   `schema.TestClosureTyped_ReadsAlikeInEitherEntryOrder`,
-  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsEntry`,
+  `schema.TestFoldedAllOfEntries_AnUnevaluatedKeywordStaysWithItsEntry`,
   `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`,
   `annotation.TestWritesEmptyDependencyMap_TellsAnEmptyMapFromAnEntry`,
   `statement.TestKey_DefinedTellsAKeywordTheRowsDefine`,
@@ -6206,7 +6206,8 @@ left out ([`validation-only`](#validation-only)). A keyword kept verbatim keeps 
 they land on are lowered ([`validation-only`](#validation-only)).
 
 - Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
-  `schema.TestPromiseLandings_BuildsNothingTwice`, `schema.TestPromiseLandings_LowersWhatNothingElseReached`,
+  `schema.TestReserveNodesAtReferenceTargets_BuildsNothingTwice`,
+  `schema.TestReserveNodesAtReferenceTargets_LowersWhatNothingElseReached`,
   `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
 
 ## 8. Paths and operations
@@ -6641,7 +6642,7 @@ beside it stands, and the empty map is kept under `degraded_lowering` with an
   `operation.TestPassedOverEntries_ReportsExtraMediaTypes`,
   `operation.TestPassedOverEntries_KeepsEveryEntryAndNamesTheLowest`,
   `operation.TestPassedOverEntries_KeepsOneCopyPerDeclaration`,
-  `operation.TestElectContentEntry_DoesNotFollowDeclarationOrder`,
+  `operation.TestChooseSingleContentEntry_DoesNotFollowDeclarationOrder`,
   `operation.TestParamContent_OwnAndMediaExamplesAreBothKept`
 - Status: partly built: what a referenced parameter or header keeps is copied per reference (#1240).
 
@@ -8107,7 +8108,8 @@ saying why.
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
   `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `promotion.TestCarried_ReturnsOwnWhereNothingIsCarried`,
-  `promotion.TestCarried_TheOwnKeyBeatsTheScopedOne`, `promotion.TestLent_ASingleSidedFactHoldsWhereAnyStatesIt`,
+  `promotion.TestCarried_TheOwnKeyBeatsTheScopedOne`,
+  `promotion.TestWithOwnCarriedState_ASingleSidedFactHoldsWhereAnyStatesIt`,
   `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
 - Status: partly built: a redaction key beside a `$ref` or an `allOf` over an
   object lands on the decorator the use lowers to, whose `Sensitive` keeps it a type of its own,

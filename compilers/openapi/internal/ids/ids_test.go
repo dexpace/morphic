@@ -263,12 +263,12 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 	}
 }
 
-// TestDocument_QualifiesEachSpaceByItsLabel pins how another document's IDs
-// name it: each space qualified by its label as one segment, so a '/' or '~'
-// in a label cannot be read as a further path step, and its coordinates
-// behind that qualifier, so one pointer in two documents is two of each. The
-// empty label is the source's, which takes the bare spaces.
-func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
+// TestDocumentIDNamespace_QualifiesEachSpaceByItsLabel pins how another
+// document's IDs name it: each space qualified by its label as one segment, so
+// a '/' or '~' in a label cannot be read as a further path step, and its
+// coordinates behind that qualifier, so one pointer in two documents is two of
+// each. The empty label is the source's, which takes the bare spaces.
+func TestDocumentIDNamespace_QualifiesEachSpaceByItsLabel(t *testing.T) {
 	t.Parallel()
 	const pointer = "/components/schemas/User"
 	other := ids.In("dir/a~b.yaml")

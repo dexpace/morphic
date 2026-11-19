@@ -12,12 +12,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestDocument_NamesASchemeByItsDocument pins the IDs of a scheme a requirement
-// key reaches by position, in the space of its document, the source's bare, and
-// of one it mints for a key reaching none, in the one space the kind takes
-// (docs/ir/identity.md#unresolved-schemes), its document in the path: so one
-// key or pointer in two documents is two schemes.
-func TestDocument_NamesASchemeByItsDocument(t *testing.T) {
+// TestDocumentIDNamespace_NamesASchemeByItsDocument pins the IDs of a scheme a
+// requirement key reaches by position, in the space of its document, the
+// source's bare, and of one it mints for a key reaching none, in the one space
+// the kind takes (docs/ir/identity.md#unresolved-schemes), its document in the
+// path: so one key or pointer in two documents is two schemes.
+func TestDocumentIDNamespace_NamesASchemeByItsDocument(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, ir.AuthID("auth/openapi/x/s"), ids.In("").Auth("/x/s"))
 	assert.Equal(t, ir.AuthID("auth/openapi@a.yaml/x/s"), ids.In("a.yaml").Auth("/x/s"))

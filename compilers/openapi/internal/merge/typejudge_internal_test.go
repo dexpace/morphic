@@ -1150,12 +1150,12 @@ func TestTypeJudge_AUnionWithinATypeStopsAtTheBudget(t *testing.T) {
 	}
 }
 
-// TestInstance_NamesTheKindOfAValue pins the kind of JSON instance the other
-// side of a judgment is asked of a structure's source as
+// TestJSONInstanceKind_NamesTheKindOfAValue pins the kind of JSON instance the
+// other side of a judgment is asked of a structure's source as
 // (FieldDeclarationContext.Admits): a primitive by its JSON spelling, an
 // integer apart from a number with a fraction, and a literal or a structure by
 // its value.
-func TestInstance_NamesTheKindOfAValue(t *testing.T) {
+func TestJSONInstanceKind_NamesTheKindOfAValue(t *testing.T) {
 	t.Parallel()
 	for primitiveKind, want := range map[ir.PrimitiveKind]JSONInstanceKind{
 		ir.PrimitiveBool: InstanceBoolean, ir.PrimitiveInt32: InstanceInteger, ir.PrimitiveInteger: InstanceInteger,

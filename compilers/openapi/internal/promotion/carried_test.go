@@ -63,12 +63,12 @@ func TestCarried_TheOwnKeyBeatsTheScopedOne(t *testing.T) {
 		promotion.Carried(promoter, two, "content/m", "schema")["openapi:x-stability"], "the first scope of those given")
 }
 
-// TestLent_ASingleSidedFactHoldsWhereAnyStatesIt holds redaction and deprecation
-// to one side: a scope stating either lends it to the referent whatever the
-// carrier's own key says, a deprecation's members fill from the nearest scope
-// stating them, a scope stating nothing lends nothing, and every fact the $ref
-// target lends stays, its members filling what no scope states.
-func TestLent_ASingleSidedFactHoldsWhereAnyStatesIt(t *testing.T) {
+// TestWithOwnCarriedState_ASingleSidedFactHoldsWhereAnyStatesIt holds redaction
+// and deprecation to one side: a scope stating either lends it to the referent
+// whatever the carrier's own key says, a deprecation's members fill from the
+// nearest scope stating them, a scope stating nothing lends nothing, and every
+// fact the $ref target lends stays, its members filling what no scope states.
+func TestWithOwnCarriedState_ASingleSidedFactHoldsWhereAnyStatesIt(t *testing.T) {
 	promoter := promotion.New(promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
 		promotion.TargetRedaction:          {{Key: "x-sensitive"}},
 		promotion.TargetDeprecation:        {{Key: "x-deprecated"}},

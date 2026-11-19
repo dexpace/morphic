@@ -137,13 +137,13 @@ func severityCodes(diags []ir.Diagnostic) []string {
 	return out
 }
 
-// TestVoices_KeptAndMetEntriesHoldAtEveryOutcome pins that what keeps an entry
-// whole, or meets two, holds at each outcome besideTheAllOf names as it does
-// alone (docs/compilers/openapi.md#allof-inline-residue): an entry disagreeing
-// with a conjunct, or reading a $ref against another base, stays whole on each
-// Model the composition lowers to, with one report saying why and nothing it
-// writes folded, and two bounds meet there in either order.
-func TestVoices_KeptAndMetEntriesHoldAtEveryOutcome(t *testing.T) {
+// TestFoldedAllOfEntries_KeptAndMetEntriesHoldAtEveryOutcome pins that what
+// keeps an entry whole, or meets two, holds at each outcome besideTheAllOf
+// names as it does alone (docs/compilers/openapi.md#allof-inline-residue): an
+// entry disagreeing with a conjunct, or reading a $ref against another base,
+// stays whole on each Model the composition lowers to, with one report saying
+// why and nothing it writes folded, and two bounds meet there in either order.
+func TestFoldedAllOfEntries_KeptAndMetEntriesHoldAtEveryOutcome(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	const n = "\n    N: {$id: 'https://ex.test/a/n.json', type: string}" // what `n.json` names under https://ex.test/a/
@@ -239,10 +239,11 @@ func TestAllOfEntryFolding_AFalseFlagAgreesWithATrue(t *testing.T) {
 	}
 }
 
-// TestVoices_AnEntryDisagreeingFoldsNothingInEveryOrder pins that a keyword two
-// conjuncts write differently has no winner: the keywords beside the allOf stand,
-// and each entry writing another value stays whole, whichever comes first.
-func TestVoices_AnEntryDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
+// TestFoldedAllOfEntries_AnEntryDisagreeingFoldsNothingInEveryOrder pins that a
+// keyword two conjuncts write differently has no winner: the keywords beside
+// the allOf stand, and each entry writing another value stays whole, whichever
+// comes first.
+func TestFoldedAllOfEntries_AnEntryDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for name, tc := range map[string]struct {
@@ -352,13 +353,14 @@ func TestAllOfEntryFolding_BoundsMeetInEveryOrder(t *testing.T) {
 	}
 }
 
-// TestVoices_ABoundTheComposedModelCannotTakeKeepsItsEntry pins a value bound
-// written beside a Base declaring an object: the allOf lowers to a model, which
-// takes property counts alone, so it holds the count written beside the allOf
-// and keeps the string bound there under its keyword, and the numeric bound each
-// inline entry writes under its own, each with one info at its entry, in
-// either order of the entries (docs/compilers/openapi.md#constraints).
-func TestVoices_ABoundTheComposedModelCannotTakeKeepsItsEntry(t *testing.T) {
+// TestFoldedAllOfEntries_ABoundTheComposedModelCannotTakeKeepsItsEntry pins a
+// value bound written beside a Base declaring an object: the allOf lowers to a
+// model, which takes property counts alone, so it holds the count written
+// beside the allOf and keeps the string bound there under its keyword, and the
+// numeric bound each inline entry writes under its own, each with one info at
+// its entry, in either order of the entries
+// (docs/compilers/openapi.md#constraints).
+func TestFoldedAllOfEntries_ABoundTheComposedModelCannotTakeKeepsItsEntry(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for _, order := range [][2]string{{"{multipleOf: 4}", "{maximum: 9}"}, {"{maximum: 9}", "{multipleOf: 4}"}} {
@@ -547,12 +549,12 @@ func TestAllOfEntryFolding_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 	assert.Contains(t, irModel.Unmodeled, "openapi:if-then-else")
 }
 
-// TestVoices_AnUnevaluatedKeywordStaysWithItsEntry pins that no unevaluated
-// keyword folds: on an entry it applies to what that entry alone evaluates,
-// which beside the allOf it would not, so it stays with the entry kept whole,
-// whatever its form, whether or not the entry speaks for the position, and
-// the position keeps none of it.
-func TestVoices_AnUnevaluatedKeywordStaysWithItsEntry(t *testing.T) {
+// TestFoldedAllOfEntries_AnUnevaluatedKeywordStaysWithItsEntry pins that no
+// unevaluated keyword folds: on an entry it applies to what that entry alone
+// evaluates, which beside the allOf it would not, so it stays with the entry
+// kept whole, whatever its form, whether or not the entry speaks for the
+// position, and the position keeps none of it.
+func TestFoldedAllOfEntries_AnUnevaluatedKeywordStaysWithItsEntry(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for name, entry := range map[string]string{
@@ -627,9 +629,9 @@ func TestAllOfEntryFolding_AUseBindingKeywordReachesItsCarrierOrItsNode(t *testi
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Bare/allOf/1/readOnly"))
 }
 
-// TestVoices_APromotedExtensionReadsFromAnEntry pins a key the promotion policy
-// maps: on an entry it reads as it does beside the allOf.
-func TestVoices_APromotedExtensionReadsFromAnEntry(t *testing.T) {
+// TestFoldedAllOfEntries_APromotedExtensionReadsFromAnEntry pins a key the
+// promotion policy maps: on an entry it reads as it does beside the allOf.
+func TestFoldedAllOfEntries_APromotedExtensionReadsFromAnEntry(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {a: {type: string}}}
     Plain: {type: string}

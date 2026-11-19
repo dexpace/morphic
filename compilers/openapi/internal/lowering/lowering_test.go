@@ -196,10 +196,10 @@ x-lib:
 	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
 }
 
-// TestRemembered_IsReadOnceAcrossCopies pins that a reading is read once for every
-// copy of a context, and afresh for another context, because a reading turns on
-// what that one loaded.
-func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
+// TestReadOncePerRun_IsReadOnceAcrossCopies pins that a reading is read once
+// for every copy of a context, and afresh for another context, because a
+// reading turns on what that one loaded.
+func TestReadOncePerRun_IsReadOnceAcrossCopies(t *testing.T) {
 	t.Parallel()
 	reads := 0
 	read := func() int {
@@ -233,9 +233,9 @@ func TestStatements_IsOneTableForTheRun(t *testing.T) {
 	assert.NotSame(t, table, other.Statements(), "another run reads its own")
 }
 
-// TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer pins a key asked for two
+// TestReadOncePerRun_ReadsAKeyOnceForEachTypeOfAnswer pins a key asked for two
 // types of answer: each is read once, and neither is taken for the other.
-func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
+func TestReadOncePerRun_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 	t.Parallel()
 	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})
 	reads := 0
@@ -255,10 +255,10 @@ func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 	assert.Equal(t, 2, reads, "each type of answer is read once")
 }
 
-// TestRemembered_KeepsWhatAReadingRemembers pins a reading that asks
+// TestReadOncePerRun_KeepsWhatAReadingRemembers pins a reading that asks
 // ReadOncePerRun for another key of its own types: the answer it remembered is
 // kept beside its own.
-func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
+func TestReadOncePerRun_KeepsWhatAReadingRemembers(t *testing.T) {
 	t.Parallel()
 	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})
 	reads := 0

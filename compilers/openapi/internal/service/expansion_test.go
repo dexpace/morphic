@@ -60,7 +60,7 @@ func parameter(t *testing.T) reftable.Reading {
 	return reading(t, "/components/parameters/P")
 }
 
-func TestWeightOf_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
+func TestReferenceExpansionSize_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
 	t.Parallel()
 	pair := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 	tests := []struct {
@@ -84,12 +84,12 @@ func TestWeightOf_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
 	}
 }
 
-// TestWeightOf_CountsASchemaAsOneNode pins what a copy of a parameter is
-// charged for its schema: one node whatever the schema holds, written inline,
-// as a scalar or behind an alias, since it lowers once, to a type every copy
-// refers to. A schema key in an example's value is data the copy holds, so it
-// is weighed in full.
-func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
+// TestReferenceExpansionSize_CountsASchemaAsOneNode pins what a copy of a
+// parameter is charged for its schema: one node whatever the schema holds,
+// written inline, as a scalar or behind an alias, since it lowers once, to a
+// type every copy refers to. A schema key in an example's value is data the
+// copy holds, so it is weighed in full.
+func TestReferenceExpansionSize_CountsASchemaAsOneNode(t *testing.T) {
 	t.Parallel()
 	big := ynode.Map(ynode.Scalar("type"), ynode.Scalar("object"), ynode.Scalar("properties"), declaration())
 	withSchema := func(schema *yaml.Node) *yaml.Node {
@@ -137,10 +137,10 @@ func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
 		"beneath one another nests, which a copy keeps verbatim, it is weighed in full")
 }
 
-// TestWeightOf_CostsTheBudgetNotTheDeclaration pins the bound: weighing a
-// declaration the model builds as 2^22 nodes visits a node past what is left,
-// and says no more of it than that it weighs past it.
-func TestWeightOf_CostsTheBudgetNotTheDeclaration(t *testing.T) {
+// TestReferenceExpansionSize_CostsTheBudgetNotTheDeclaration pins the bound:
+// weighing a declaration the model builds as 2^22 nodes visits a node past what
+// is left, and says no more of it than that it weighs past it.
+func TestReferenceExpansionSize_CostsTheBudgetNotTheDeclaration(t *testing.T) {
 	t.Parallel()
 	const within = 1000
 	got := service.WeightOf(doubling(22), raw, budget.AtMost(within))

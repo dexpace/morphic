@@ -397,11 +397,12 @@ func TestAdmissionReader_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	}
 }
 
-// TestElect_WalksOnlyTheSetItNarrows pins what electing a narrowing costs: it
-// looks each of the narrowing's members up in what it narrows, and no more. A set
-// compared with itself, or a larger set searched for one a smaller lacks, walked
-// the larger set, so each position narrowing a long enum paid for every member.
-func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
+// TestChooseConjunctToLowerFrom_WalksOnlyTheSetItNarrows pins what electing a
+// narrowing costs: it looks each of the narrowing's members up in what it
+// narrows, and no more. A set compared with itself, or a larger set searched
+// for one a smaller lacks, walked the larger set, so each position narrowing a
+// long enum paid for every member.
+func TestChooseConjunctToLowerFrom_WalksOnlyTheSetItNarrows(t *testing.T) {
 	t.Parallel()
 	walked := func(members, narrowing int) int {
 		var target, narrowed strings.Builder
@@ -428,12 +429,12 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 	assert.Equal(t, 999, walked(1000, 999), "a narrowing walks its own members")
 }
 
-// TestElect_ComparesEachPairOnce pins what an election of many conjuncts
-// tying with each other costs: one comparison of each conjunct naming a kind
-// with every conjunct (mostWithin), and breaking the tie at most one more per
-// conjunct. Unions of one keyword and words admitting alike are the two ties
-// that read every tied conjunct.
-func TestElect_ComparesEachPairOnce(t *testing.T) {
+// TestChooseConjunctToLowerFrom_ComparesEachPairOnce pins what an election of
+// many conjuncts tying with each other costs: one comparison of each conjunct
+// naming a kind with every conjunct (mostWithin), and breaking the tie at most
+// one more per conjunct. Unions of one keyword and words admitting alike are
+// the two ties that read every tied conjunct.
+func TestChooseConjunctToLowerFrom_ComparesEachPairOnce(t *testing.T) {
 	t.Parallel()
 	for _, entry := range []string{
 		"{oneOf: [{type: string, maxLength: %d}, {type: integer}]}",
