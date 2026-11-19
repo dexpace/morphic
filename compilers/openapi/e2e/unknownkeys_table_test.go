@@ -537,7 +537,7 @@ func TestUnknownKeys_EveryKeptKeyIsReported(t *testing.T) {
 		diag.UnknownSchemaKeyword, diag.UnknownEncodingKey, diag.UnknownKeyBudget,
 		diag.ValidationOnlyKeyword, diag.LaterVersionConstruct, diag.InapplicableLocationKeyword,
 		diag.InvalidLocationKeyword, diag.Validation + "/validation-no-effect",
-		"openapi/unknown-key-entry-taken", "openapi/unknown-key-entry-unreachable",
+		"openapi/unknown-key-entry-already-claimed", "openapi/unknown-key-entry-unreachable",
 	}
 	var swept int
 	for _, path := range corpusSpecs(t) {

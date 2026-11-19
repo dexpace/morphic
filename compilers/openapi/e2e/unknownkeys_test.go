@@ -211,7 +211,7 @@ func TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart(t *testing.T) {
 		{"header", "/paths/~1widgets/get/responses/200/headers/X-Trace/schema/divisibleBy",
 			"/paths/~1widgets/get/responses/200/headers/X-Trace/divisibleBy"},
 	} {
-		assert.Empty(t, diagsAt(diags, "openapi/unknown-key-entry-taken", tc.object), tc.carrier)
+		assert.Empty(t, diagsAt(diags, "openapi/unknown-key-entry-already-claimed", tc.object), tc.carrier)
 		object, found := findUnmodeled(sites, "openapi:divisibleBy", `"FROM_`+strings.ToUpper(tc.carrier)+`_OBJECT"`)
 		if assert.True(t, found, "the %s's own key is kept unscoped", tc.carrier) {
 			assert.Equal(t, tc.object, string(object.entry.Provenance.Pointer))

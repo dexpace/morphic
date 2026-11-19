@@ -506,7 +506,7 @@ const (
 	// refusing a key on that operation alone. Warning rather than error because
 	// the document is otherwise lowered whole, and the entry that did survive is
 	// in it.
-	UnknownKeyEntryAlreadyClaimed = "openapi/unknown-key-entry-taken"
+	UnknownKeyEntryAlreadyClaimed = "openapi/unknown-key-entry-already-claimed"
 	// InvalidLocationKeyword reports a style, explode or allowReserved at in:
 	// querystring, at the keyword. OpenAPI 3.2 binds the whole query string from
 	// the parameter's content there and states its serialization through the

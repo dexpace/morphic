@@ -109,7 +109,7 @@ func TestParameter_SchemaAndObjectSpellOneKey(t *testing.T) {
 		doc, diags := parseFull(t, src)
 		docs[name] = doc
 		for _, f := range findings(diags) {
-			assert.NotContains(t, f, "unknown-key-entry-taken", name)
+			assert.NotContains(t, f, "unknown-key-entry-already-claimed", name)
 		}
 		assert.Len(t, findings(diags), 6, "%s: three table findings, two schema keywords, the $ref's key", name)
 

@@ -7746,7 +7746,7 @@ off or does not read its value ([`nullable`](#nullable)), is kept the same way. 
 taken in byte order after the keys another reader already kept at the same pointer are set aside,
 and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
 object.
-Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`, where
+Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-already-claimed`, where
 `openapi:<key>` is already held by a construct written elsewhere on a carrier two objects share, a
 parameter's own key and its schema's keyword, whichever lowered first surviving; and
 `openapi/unknown-key-unreachable`, where the key is merged in through a `<<` chain deeper than the
@@ -7757,7 +7757,7 @@ its entry, and the table reports each.
 
 - Cases: `path-item-anchored-key`, `unknown-keywords-at-shared-nodes`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
-  `openapi/unknown-key-budget`, `openapi/unknown-key-entry-taken`, `openapi/unknown-key-unreachable`
+  `openapi/unknown-key-budget`, `openapi/unknown-key-entry-already-claimed`, `openapi/unknown-key-unreachable`
 - Tests: `e2e.TestUnknownKeys_KeptAtEveryObject`,
   `e2e.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
   `e2e.TestUnknownKeys_UnreferencedComponents`, `e2e.TestUnknownKeys_ObjectsKeptWhole`,
