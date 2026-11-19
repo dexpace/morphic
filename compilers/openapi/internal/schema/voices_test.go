@@ -121,7 +121,7 @@ func assertNodeAlike(t *testing.T, want, got ir.TypeDef) {
 	require.NotNil(t, got)
 	at := cmpopts.IgnoreFields(ir.Provenance{}, "Pointer", "Position", "Node")
 	if diff := cmp.Diff(want, got, at); diff != "" {
-		t.Errorf("node mismatch (-beside the allOf +on a branch):\n%s", diff)
+		t.Errorf("node mismatch (-beside the allOf +on an entry):\n%s", diff)
 	}
 }
 
@@ -231,7 +231,7 @@ func TestVoices_AFalseFlagAgreesWithATrue(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			assert.Empty(t, keptEntries(m), "no branch disagrees, so each folds")
+			assert.Empty(t, keptEntries(m), "no entry disagrees, so each folds")
 			use := propertyOf(t, doc, "Holder", "s")
 			assert.True(t, use.Deprecation != nil || len(use.Visibility.Only) > 0, "the true is in force at the use")
 		})
@@ -248,7 +248,7 @@ func TestVoices_AnEntryDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 		schema string
 		kept   []string
 	}{
-		"two branches": {"{allOf: [" + ref + ", {description: a}, {description: b}]}",
+		"two entries": {"{allOf: [" + ref + ", {description: a}, {description: b}]}",
 			[]string{"openapi:allOf/1", "openapi:allOf/2"}},
 		"swapped": {"{allOf: [{description: b}, {description: a}, " + ref + "]}",
 			[]string{"openapi:allOf/0", "openapi:allOf/1"}},
@@ -333,7 +333,7 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 	doc, _ := parseFull(t, voicesDoc("{maxProperties: 3, allOf: ["+ref+", {maxProperties: 5}]}"))
 	m, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, &ir.Constraints{MaxProps: new(int64(3))}, m.Constraints, "a bound beside the allOf meets one on a branch")
+	assert.Equal(t, &ir.Constraints{MaxProps: new(int64(3))}, m.Constraints, "a bound beside the allOf meets one on an entry")
 	assert.Empty(t, m.Unmodeled)
 
 	for i, order := range []string{"{exclusiveMinimum: true}, {exclusiveMinimum: false}", "{exclusiveMinimum: false}, {exclusiveMinimum: true}"} {
@@ -418,9 +418,9 @@ func TestVoices_AgreeingConjunctsSayItOnce(t *testing.T) {
 	assert.Len(t, m.Examples, 1)
 }
 
-// TestVoices_ANullKeywordWritesNothing pins a branch writing a keyword as null,
+// TestVoices_ANullKeywordWritesNothing pins an entry writing a keyword as null,
 // which reads as the keyword left out: it disagrees with no conjunct, so what
-// another branch writes folds, in either order, as it does with the key removed.
+// another entry writes folds, in either order, as it does with the key removed.
 func TestVoices_ANullKeywordWritesNothing(t *testing.T) {
 	t.Parallel()
 	for _, entries := range []string{"{description: null}, {description: d}", "{description: d}, {description: null}"} {
@@ -473,7 +473,7 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	_, diags = parseFull(t, openapitest.ComponentSpec("    Obj: {type: object}\n"+
 		"    T: {allOf: [{$ref: '#/components/schemas/Obj'}, {nullable: true, properties: {a: {type: string}}}]}\n"))
 	got = openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/T/allOf/1")
-	assert.NotContains(t, got, disagreed, "a branch that folds keeps what it declares of a shape, disagreed on by nothing")
+	assert.NotContains(t, got, disagreed, "an entry that folds keeps what it declares of a shape, disagreed on by nothing")
 
 	deep := "{description: deep, allOf: [{type: object}]}"
 	for range statement.MaxFlattenDepth {
@@ -482,7 +482,7 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	_, diags = parseFull(t, openapitest.ComponentSpec("    T: {description: top, allOf: ["+deep+"]}\n"))
 	kept := withCode(diags, diag.DegradedConstruct)
 	require.NotEmpty(t, kept)
-	assert.Contains(t, kept[0].Message, "nested past the flattening depth", "a capped branch says so first")
+	assert.Contains(t, kept[0].Message, "nested past the flattening depth", "a capped entry says so first")
 }
 
 // TestVoices_AnExampleRenderingNothingStillAgrees pins that a keyword renders to
@@ -572,16 +572,16 @@ func TestVoices_AnUnevaluatedKeywordStaysWithItsEntry(t *testing.T) {
 				doc, diags := parseFull(t, voicesDoc(tc.schema))
 				openapitest.RequireNoErrorDiags(t, diags)
 				common := typeByName(doc, "S").Common()
-				require.Contains(t, common.Unmodeled, "openapi:"+tc.at, "the branch is kept whole")
+				require.Contains(t, common.Unmodeled, "openapi:"+tc.at, "the entry is kept whole")
 				assert.NotContains(t, common.Unmodeled, "openapi:unevaluated", "the position keeps none of it")
 				at := make([]ir.Diagnostic, 0, 1)
 				for _, code := range []string{diag.ValidationOnlyKeyword, diag.DegradedConstruct} {
 					at = append(at, diagsAtPointer(diags, code, "/components/schemas/S/"+tc.at)...)
 				}
-				require.Len(t, at, 1, "the branch's one report: nothing folds to be reported; got %v", diags)
+				require.Len(t, at, 1, "the entry's one report: nothing folds to be reported; got %v", diags)
 				assert.Contains(t, at[0].Message, "the entry (", "the report is the entry's")
 				if m, ok := typeByName(doc, "S").(*ir.Model); ok {
-					assert.Empty(t, m.Additional, "a branch's closure is not the model's")
+					assert.Empty(t, m.Additional, "an entry's closure is not the model's")
 				}
 			})
 		}

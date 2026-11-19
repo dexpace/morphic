@@ -251,7 +251,8 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 	ref := target
 	// A body kept its unread keywords where its node was built, the only thing
 	// that can say what was read. One lowering to a reference built none, so it
-	// keeps them as a position lowered to one does, and that verdict homes an alias.
+	// keeps them as a position lowered to one does, and that verdict homes an
+	// alias.
 	if !decl.ran && homesDeclaration(c, schema, target, pointer, home,
 		keepsAtOutcome(c, schema, target, pointer).holdsAny() || declaresScoped(c, declarationVoices(c, schema, target, pointer))) {
 		var homeDiags []ir.Diagnostic
@@ -286,9 +287,10 @@ func (d *declaring) finish(td ir.TypeDef, _ keySet, held *principalKept) {
 }
 
 // keptOn keeps on td, in hand, the node the position s, written at pointer,
-// lowered to target, stands at, what it keeps there: what a lowering
-// to a reference keeps unread and the entries its refinement left (keepsAtOutcome). A
-// carrier keeps them where the position owns no node (PreserveRefSiteKeywords).
+// lowered to target, stands at, what it keeps there: what a lowering to a
+// reference keeps unread and the entries its refinement left (keepsAtOutcome).
+// A carrier keeps them where the position owns no node
+// (PreserveRefSiteKeywords).
 func keptOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, td ir.TypeDef,
 	held *principalKept,
 ) []ir.Diagnostic {
@@ -371,13 +373,14 @@ func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. An allOf
-// that refines decides the position (docs/compilers/openapi.md#allof-refinement):
-// its principal, or where no entry is one, the keywords beside it as if no allOf
-// were written, an enum or a const there being one of its conjuncts rather than
-// its rival. A value set an inline principal writes stands at the position, as
-// one written beside the allOf does, and either is typed by every conjunct
-// (valueSetSite.valueType). Any other schema lowers by its dispatch (lowerDispatched).
-// fin finishes the node built at pointer, principal an inline principal's.
+// that refines decides the position
+// (docs/compilers/openapi.md#allof-refinement): its principal, or where no
+// entry is one, the keywords beside it as if no allOf were written, an enum or
+// a const there being one of its conjuncts rather than its rival. A value set
+// an inline principal writes stands at the position, as one written beside the
+// allOf does, and either is typed by every conjunct (valueSetSite.valueType).
+// Any other schema lowers by its dispatch (lowerDispatched). fin finishes the
+// node built at pointer, principal an inline principal's.
 func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	if st.of != nil {
@@ -392,7 +395,8 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 		return lowerDispatched(c, ts, depth, s, pointer, d, fin, st)
 	}
 	// The node the position owns is reported on by the visit building it, as
-	// what it keeps unread is (keepingUnread); a node it does not own, by each visit.
+	// what it keeps unread is (keepingUnread); a node it does not own, by each
+	// visit.
 	var disjoint finished
 	fin = finisher(func(td ir.TypeDef, _ keySet, held *principalKept) {
 		disjoint.ran = true

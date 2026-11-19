@@ -311,7 +311,7 @@ func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 		want ir.TypeID
 	}{
 		"beside":     {"{allOf: [{$ref: '#/components/schemas/Blob'}], description: the upload}", alias},
-		"a branch":   {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", alias},
+		"an entry":   {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", alias},
 		"bare":       {"{allOf: [{$ref: '#/components/schemas/Blob'}]}", "t/openapi/components/schemas/Blob"},
 		"a chain":    {"{$ref: '#/components/schemas/Wrapped'}", "t/openapi/components/schemas/Wrapped"},
 		"inline":     {"{allOf: [{type: string, format: binary}, {description: the upload}]}", alias},

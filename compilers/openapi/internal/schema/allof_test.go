@@ -268,8 +268,8 @@ func TestAllOf_ARefEntryNamingNothingIsReportedByTheLowering(t *testing.T) {
 			}
 			y, ok := typeByName(doc, "Y").(*ir.Model)
 			require.True(t, ok, "Y is a Model, got %T", typeByName(doc, "Y"))
-			assert.Nil(t, y.Base, "the branch naming nothing is not the base")
-			assert.Equal(t, tc.mixins, y.Mixins, "the branch naming nothing is not a mixin")
+			assert.Nil(t, y.Base, "the entry naming nothing is not the base")
+			assert.Equal(t, tc.mixins, y.Mixins, "the entry naming nothing is not a mixin")
 		})
 	}
 }
@@ -452,10 +452,10 @@ func TestAllOf_FalseEntryClosesTheComposition(t *testing.T) {
 
 	m, ok := typeByName(doc, "Never").(*ir.Model)
 	require.True(t, ok, "the composition still lowers to a model")
-	assert.Equal(t, ir.AdditionalClosed, m.Additional, "a branch matching nothing closes the composition")
-	require.Len(t, m.Unmodeled, 1, "the branch is kept verbatim")
+	assert.Equal(t, ir.AdditionalClosed, m.Additional, "an entry matching nothing closes the composition")
+	require.Len(t, m.Unmodeled, 1, "the entry is kept verbatim")
 	assert.Equal(t, ir.RawValue("false"), m.Unmodeled["openapi:allOf/0"].Value,
-		"keyed by the branch index, so sibling branches cannot overwrite one another")
+		"keyed by the entry index, so sibling entries cannot overwrite one another")
 	assert.True(t, openapitest.HasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "and it is announced")
 }
 

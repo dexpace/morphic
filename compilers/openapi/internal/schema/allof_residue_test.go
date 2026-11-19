@@ -43,19 +43,19 @@ func TestAllOf_InlineEntryResidueKeptVerbatim(t *testing.T) {
 	require.True(t, ok, "S should be a model")
 
 	a, ok := openapitest.PropsByWire(m.Properties)["a"]
-	require.True(t, ok, "the merge still contributes the branch's properties")
-	assert.True(t, a.Required, "and still ORs the branch's required list onto them")
+	require.True(t, ok, "the merge still contributes the entry's properties")
+	assert.True(t, a.Required, "and still ORs the entry's required list onto them")
 
 	entry, ok := m.Unmodeled["openapi:allOf/0"]
-	require.True(t, ok, "the branch is kept verbatim; got %+v", m.Unmodeled)
+	require.True(t, ok, "the entry is kept verbatim; got %+v", m.Unmodeled)
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, "the reason its unevaluatedProperties has beside the allOf")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/0"), entry.Provenance.Pointer,
-		"the entry locates the branch, not the composed schema")
+		"the Unmodeled entry locates the allOf entry, not the composed schema")
 	for _, kept := range []string{
 		`"unevaluatedProperties":false`, `"not":{"type":"string"}`, `"minProperties":2`,
 		`"description":"BranchDoc"`, `"x-vendor":"keepme"`,
 	} {
-		assert.Contains(t, string(entry.Value), kept, "the whole branch is preserved")
+		assert.Contains(t, string(entry.Value), kept, "the whole allOf entry is preserved")
 	}
 	assert.True(t, slices.ContainsFunc(diagsAtPointer(diags, diag.ValidationOnlyKeyword, "/components/schemas/S/allOf/0"),
 		func(d ir.Diagnostic) bool { return strings.Contains(d.Message, "the entry (unevaluatedProperties)") }),
@@ -86,11 +86,11 @@ func TestAllOf_InlineEntryNonObjectTypeWarns(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "T").(*ir.Model)
 	require.True(t, ok, "the composed node is still a model")
-	require.Len(t, m.Properties, 1, "a scalar branch declares no properties to merge")
+	require.Len(t, m.Properties, 1, "a scalar entry declares no properties to merge")
 	assert.Equal(t, "a", m.Properties[0].WireName)
 
 	entry, ok := m.Unmodeled["openapi:allOf/1"]
-	require.True(t, ok, "the whole branch is kept verbatim; got %+v", m.Unmodeled)
+	require.True(t, ok, "the whole entry is kept verbatim; got %+v", m.Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"type":"string","nullable":true,"maxLength":3}`, string(entry.Value))
 	assert.Contains(t,
@@ -133,15 +133,15 @@ func TestAllOf_EntryWrittenByReferenceStillDerivesResidue(t *testing.T) {
 			require.True(t, ok, "%s should be a model", tc.name)
 
 			entry, ok := m.Unmodeled["openapi:allOf/1"]
-			require.True(t, ok, "%s keeps the branch verbatim; got %+v", tc.name, m.Unmodeled)
+			require.True(t, ok, "%s keeps the entry verbatim; got %+v", tc.name, m.Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.Contains(t, string(entry.Value), `"maxLength":3`,
-				"the payload resolves the reference too, so the branch is recoverable")
+				"the payload resolves the reference too, so the entry is recoverable")
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, tc.sev,
 					"/components/schemas/"+tc.name+"/allOf/1"),
 				"the entry ("+tc.wantKeys+")",
-				"the keywords the branch effectively declares are named, not `<<`")
+				"the keywords the entry effectively declares are named, not `<<`")
 		})
 	}
 }
@@ -182,7 +182,7 @@ func TestAllOf_MergedEntryKeywordsAreNotResidue(t *testing.T) {
 			"%s: properties, required and a bare `type: object` are merged, not residue", name)
 	}
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
-		"a branch the merge fully consumes announces nothing; got %+v", diags)
+		"an entry the merge fully consumes announces nothing; got %+v", diags)
 }
 
 // TestAllOf_EntryResidueDerivedFromDeclaredKeys pins that the residue is derived
@@ -212,7 +212,7 @@ func TestAllOf_EntryResidueDerivedFromDeclaredKeys(t *testing.T) {
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s should be a model", name)
-		require.Len(t, m.Properties, 1, "%s still merges the branch's properties", name)
+		require.Len(t, m.Properties, 1, "%s still merges the entry's properties", name)
 		entry, ok := m.Unmodeled[tc.key]
 		require.True(t, ok, "%s keeps the keyword under its own key; got %+v", name, m.Unmodeled)
 		assert.JSONEq(t, tc.value, string(entry.Value), "%s", name)
@@ -223,7 +223,8 @@ func TestAllOf_EntryResidueDerivedFromDeclaredKeys(t *testing.T) {
 }
 
 // TestAllOf_EachInlineEntryKeyedSeparately: two entries that both leave residue
-// must not overwrite each other's Unmodeled entry, and each is reported at its own entry.
+// must not overwrite each other's Unmodeled entry, and each is reported at its
+// own entry.
 func TestAllOf_EachInlineEntryKeyedSeparately(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Multi:
@@ -240,14 +241,14 @@ func TestAllOf_EachInlineEntryKeyedSeparately(t *testing.T) {
 	m, ok := typeByName(doc, "Multi").(*ir.Model)
 	require.True(t, ok, "Multi should be a model")
 	require.Len(t, m.Properties, 2, "both branches still merge their properties")
-	require.Len(t, m.Unmodeled, 2, "one entry per branch; got %+v", m.Unmodeled)
+	require.Len(t, m.Unmodeled, 2, "one Unmodeled entry per allOf entry; got %+v", m.Unmodeled)
 	assert.Contains(t, string(m.Unmodeled["openapi:allOf/0"].Value), `"additionalProperties":false`)
 	assert.Contains(t, string(m.Unmodeled["openapi:allOf/1"].Value), `"patternProperties":`)
 
 	for i, want := range []string{"additionalProperties", "patternProperties"} {
 		at := fmt.Sprintf("/components/schemas/Multi/allOf/%d", i)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at), want,
-			"branch %d is reported at its own pointer, naming its own residue", i)
+			"entry %d is reported at its own pointer, naming its own residue", i)
 	}
 }
 
@@ -255,7 +256,7 @@ func TestAllOf_EachInlineEntryKeyedSeparately(t *testing.T) {
 // caller: buildComposedVariant re-runs the same merge once per union variant, so
 // the residue, the whole branch, has to land on every variant the composition
 // rides on, while what the branch folds reaches the Union. The diagnostic is
-// announced once even so — the branch is one source construct however many
+// announced once even so — the entry is one source construct however many
 // variants carry it.
 func TestAllOf_EntryResidueRidesEveryDistributedVariant(t *testing.T) {
 	t.Parallel()
@@ -305,10 +306,10 @@ func TestAllOf_UnpreservableEntryIsNotAnnounced(t *testing.T) {
 
 	td := typeByName(doc, "M")
 	require.NotNil(t, td)
-	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf/0", "the branch did not convert")
+	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf/0", "the entry did not convert")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct))
 	assert.Empty(t, openapitest.PreservationClaims(diags),
-		"no degradation is announced for a branch that was not kept")
+		"no degradation is announced for an entry that was not kept")
 }
 
 // TestAllOf_AnUnpreservableUncomposedRefIsNotAnnounced pins the same for an
@@ -337,7 +338,7 @@ func TestAllOf_AnUnpreservableUncomposedRefIsNotAnnounced(t *testing.T) {
 
 // TestAllOf_ANullTypeExcludesNoObject pins that an entry's `type: null` is the
 // keyword left out, so what it keeps as residue is reported as an info, not as
-// the warning a type excluding object draws. A branch writing properties keeps
+// the warning a type excluding object draws. An entry writing properties keeps
 // the allOf a composition, where an entry's type is weighed against an object.
 func TestAllOf_ANullTypeExcludesNoObject(t *testing.T) {
 	t.Parallel()
@@ -353,7 +354,7 @@ func TestAllOf_ANullTypeExcludesNoObject(t *testing.T) {
 }
 
 // rebasedEntryTargets declares the two schemas `n.json` names under the two
-// bases the rebased-branch cases write.
+// bases the rebased-entry cases write.
 const rebasedEntryTargets = `    A: {$id: 'https://ex.test/a/n.json', type: string}
     B: {$id: 'https://ex.test/b/n.json', type: integer}
 `
@@ -393,13 +394,13 @@ func TestAllOf_AnEntryReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 			um := typeByName(doc, "S").Common().Unmodeled
 
 			kept, ok := um[tc.kept]
-			require.True(t, ok, "the branch is kept whole; got %+v", um)
+			require.True(t, ok, "the entry is kept whole; got %+v", um)
 			assert.Contains(t, string(kept.Value), `"not":{"$ref":"n.json"}`)
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, tc.code, ir.SeverityInfo, "/components/schemas/S/"+tc.kept[len("openapi:"):]),
 				"reads its $refs against another base")
-			assert.Equal(t, tc.folded, string(um["openapi:not"].Value), "the outer branch folds its not, if it writes one")
-			assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing the kept branch writes folds")
+			assert.Equal(t, tc.folded, string(um["openapi:not"].Value), "the outer entry folds its not, if it writes one")
+			assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing the kept entry writes folds")
 		})
 	}
 }

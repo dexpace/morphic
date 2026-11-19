@@ -51,7 +51,7 @@ func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
 			assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
 			assert.Equal(t, jsontext.Pointer(tc.broadPtr), diags[0].Provenance.Pointer)
 			entry, ok := p.Unmodeled["openapi:conflicting-redeclaration"+tc.broadPtr]
-			require.True(t, ok, "the broad branch is kept at its own pointer; got %v", p.Unmodeled)
+			require.True(t, ok, "the broad entry is kept at its own pointer; got %v", p.Unmodeled)
 			assert.JSONEq(t, `{"type":"number","default":1.5}`, string(entry.Value))
 			assert.Len(t, p.Unmodeled, 1)
 		})
@@ -89,7 +89,7 @@ func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
 
 // TestAllOf_NonBareNarrowingIsOrderInvariant pins that a redeclaration with a
 // side that is not a bare primitive settles on its narrower side whichever
-// branch is written first, with no conflict or degradation reported and
+// entry is written first, with no conflict or degradation reported and
 // nothing kept.
 func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 	t.Parallel()
@@ -128,7 +128,7 @@ func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 			assert.Empty(t, cmp.Diff(types[0], types[1],
 				cmpopts.IgnoreFields(ir.TypeCommon{}, "ID", "Name", "Provenance"),
 				cmpopts.IgnoreFields(ir.EnumMember{}, "ID")),
-				"the winner does not depend on branch order")
+				"the winner does not depend on entry order")
 		})
 	}
 }
@@ -261,7 +261,7 @@ func TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder(t *testing.T) {
 // TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit pins that two lists of
 // one element, which are two targets, settle on a non-nullable list, so a null
 // default the nullable declaration wrote is not adopted and the declaration is
-// kept at its own pointer, whichever branch it is.
+// kept at its own pointer, whichever entry it is.
 func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
 	t.Parallel()
 	nullable := `{type: [array, "null"], items: {type: integer}, default: null}`
@@ -484,7 +484,7 @@ func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
 	const timed = "{type: string, format: time}"
 	for _, tc := range []struct {
 		name, a, b string
-		kind       ir.TypeKind // the field's type, or "" where the overlap keeps branch order
+		kind       ir.TypeKind // the field's type, or "" where the overlap keeps entry order
 		def        string      // the field's default, or "" for none
 		code       string      // the one diagnostic, or "" for none
 	}{
@@ -680,7 +680,7 @@ func TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder(t *testing.T) {
 				}
 				merged[i] = prop.Type
 			}
-			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
+			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on entry order")
 		})
 	}
 }

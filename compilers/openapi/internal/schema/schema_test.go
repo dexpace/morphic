@@ -300,7 +300,7 @@ const unpreservableValue = ".nan"
 // Base}]` beside an enum is the narrowing idiom rather than a malformed
 // document, so what vanished was the entire relationship to Base.
 //
-// Each case names the family the dispatch elects and the one it passes over, so
+// Each case names the family the dispatch picks and the one it passes over, so
 // a reordered dispatch fails here rather than quietly changing which half of a
 // schema the IR describes.
 func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
@@ -335,7 +335,7 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 
 			td := typeByName(doc, "S")
 			require.NotNil(t, td)
-			assert.Equal(t, tc.lowered, td.Kind(), "the elected family still lowers")
+			assert.Equal(t, tc.lowered, td.Kind(), "the picked family still lowers")
 			entry, ok := td.Common().Unmodeled[tc.key]
 			require.True(t, ok, "%s is kept verbatim; got %v", tc.key, td.Common().Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
@@ -348,7 +348,7 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 }
 
 // TestCoDeclaredFamily_EveryPassedOverKeywordIsKept pins a schema writing all
-// three: it keeps the value set it did not elect, named in one report, and the
+// three: it keeps the value set it did not pick, named in one report, and the
 // allOf's $ref, a conjunct of the one it did, kept as a conjunct is.
 func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 	t.Parallel()
@@ -417,14 +417,14 @@ func TestCoDeclaredFamily_TheReportNamesWhatTheNodeKeeps(t *testing.T) {
 					said = append(said, d.Message)
 				}
 			}
-			require.Len(t, said, 1, "one report says what the election passed over: %+v", diags)
+			require.Len(t, said, 1, "one report says what the dispatch passed over: %+v", diags)
 			assert.Contains(t, said[0], "it lowered as the enum, with "+tc.named+" kept verbatim under Unmodeled")
 		})
 	}
 }
 
 // TestCoDeclaredFamily_UnpreservableIsNotAnnounced pins the pairing GitHub #144
-// exists for, at this site: the enum is elected over the allOf, whose entry
+// exists for, at this site: the enum is picked over the allOf, whose entry
 // keeps its type under its own key and fails to convert its extension, the
 // failure is reported at the entry, and nothing claims the extension survived.
 func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {

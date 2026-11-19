@@ -116,7 +116,7 @@ func TestStand_ContentBesideTheAllOfIsKeptBesideThePrincipalsEncoding(t *testing
 	sc, ok := typeByName(doc, "Beside").(*ir.Scalar)
 	require.True(t, ok, "Beside is the scalar, not %T", typeByName(doc, "Beside"))
 	require.NotNil(t, sc.Encoding)
-	assert.Equal(t, "base64", sc.Encoding.Name, "the branch's Encoding stands")
+	assert.Equal(t, "base64", sc.Encoding.Name, "the entry's Encoding stands")
 	assert.Empty(t, sc.Encoding.MediaType, "and holds nothing the position writes")
 	kept, held := sc.Unmodeled["openapi:contentMediaType"]
 	require.True(t, held, "the position's keyword is kept")

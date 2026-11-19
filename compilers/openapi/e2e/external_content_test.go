@@ -964,9 +964,9 @@ components:
 	ref := "{type: object, properties: {p: {$ref: './other.yaml#/components/schemas/T/allOf/1/properties/p'}}}"
 	inline := "{type: object, properties: {p: {type: string, enum: [a, b]}}}"
 	want := ids.In("other.yaml").AnonType("/components/schemas/T/allOf/1/properties/p")
-	for _, branches := range [][2]string{{ref, inline}, {inline, ref}} {
+	for _, entries := range [][2]string{{ref, inline}, {inline, ref}} {
 		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
-			"    T:\n      allOf:\n        - " + branches[0] + "\n        - " + branches[1] + "\n"
+			"    T:\n      allOf:\n        - " + entries[0] + "\n        - " + entries[1] + "\n"
 		path := filepath.Join(dir, "root.yaml")
 		require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 
@@ -974,12 +974,12 @@ components:
 			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 
 		require.NoError(t, err)
-		assert.Empty(t, diags, "first branch %s", branches[0])
+		assert.Empty(t, diags, "first entry %s", entries[0])
 		m, ok := doc.Types["t/openapi/components/schemas/T"].(*ir.Model)
 		require.True(t, ok)
 		require.Len(t, m.Properties, 1)
-		assert.Equal(t, want, m.Properties[0].Type.Target, "the referenced enum wins: first branch %s", branches[0])
-		assert.Empty(t, m.Properties[0].Unmodeled, "first branch %s", branches[0])
+		assert.Equal(t, want, m.Properties[0].Type.Target, "the referenced enum wins: first entry %s", entries[0])
+		assert.Empty(t, m.Properties[0].Unmodeled, "first entry %s", entries[0])
 	}
 }
 

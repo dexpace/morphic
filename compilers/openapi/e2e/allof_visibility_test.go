@@ -130,7 +130,7 @@ func TestAllOfVisibilityMerge_OrderIndependent(t *testing.T) {
 	reversed, reversedDiags := thingIDVisibility(t, "allof-visibility-rev", allOfVisibilitySpecReversed)
 	assertNoErrorDiags(t, reversedDiags)
 
-	assert.Equal(t, wantReadOnlyVisibility, asReported, "as-reported branch order")
+	assert.Equal(t, wantReadOnlyVisibility, asReported, "as-reported entry order")
 	if diff := cmp.Diff(asReported, reversed); diff != "" {
 		t.Errorf("merged Visibility depends on allOf entry order (-as-reported +reversed):\n%s", diff)
 	}
@@ -151,5 +151,5 @@ func TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict(t *te
 	assert.True(t, openapitest.HasDiag(diags, diag.DisjointVisibility),
 		"an allOf that leaves a field visible nowhere is reported, not merged in silence")
 	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingRedecl),
-		"disjoint readOnly/writeOnly branches intersect to an exact empty set, not an unrepresentable conflict")
+		"disjoint readOnly/writeOnly entries intersect to an exact empty set, not an unrepresentable conflict")
 }

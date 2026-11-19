@@ -8,7 +8,7 @@ components:
       properties:
         id: {type: string}
     # JSON Schema conjoins keywords, so a schema may write several that the IR
-    # can only lower one of. Every case here lowers the one the dispatch elects
+    # can only lower one of. Every case here lowers the one the dispatch picks
     # and keeps the rest verbatim beside it (docs/ir/boundaries.md#degraded-constructs); none of them may
     # lower in silence.
     #

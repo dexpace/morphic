@@ -940,10 +940,10 @@ func TestUnionSiblings_UnpreservableIsReportedNotClaimed(t *testing.T) {
 		"nothing converted, so nothing may say it was kept")
 }
 
-// TestNullOnlyUnion_ReportsWhatItKeepsUnreadAsABareNullSchemaDoes pins that a null-only
-// branch set, which lowers as a bare `{type: null}` schema does, names what a
-// keyword it cannot hold sits beside in the same words: the node the position
-// lowered to, not the alias holding the keyword.
+// TestNullOnlyUnion_ReportsWhatItKeepsUnreadAsABareNullSchemaDoes pins that a
+// null-only branch set, which lowers as a bare `{type: null}` schema does,
+// names what a keyword it cannot hold sits beside in the same words: the node
+// the position lowered to, not the alias holding the keyword.
 func TestNullOnlyUnion_ReportsWhatItKeepsUnreadAsABareNullSchemaDoes(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec(

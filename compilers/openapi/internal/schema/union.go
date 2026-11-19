@@ -440,20 +440,20 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	node.Discriminator = disc
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
-	diags = append(diags, keepBranchDiscriminatorKeys(c, node, u)...)
+	diags = append(diags, keepEntryDiscriminatorKeys(c, node, u)...)
 	diags = append(diags, keepDeadRoutes(c, node, u)...)
 	diags = append(diags, spellImplicitRoutes(c, u, node, common.Provenance.Pointer)...)
 	deferUnionTags(c, ts, u, node, common.Provenance.Pointer)
 	return node, diags
 }
 
-// keepBranchDiscriminatorKeys keeps on n, the Union of u, what the discriminator
+// keepEntryDiscriminatorKeys keeps on n, the Union of u, what the discriminator
 // u's allOf entry writes says that reaches no field: its extensions and the
 // keys OpenAPI defines for no Discriminator Object. A schema's own are read onto
 // its position's node (annotation.Read), and an entry has no node, so they ride
 // on the node holding the discriminator, scoped by their path from it where they
 // lie beneath it (annotation.SchemaExtensions).
-func keepBranchDiscriminatorKeys(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
+func keepEntryDiscriminatorKeys(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
 	if !u.entry || u.disc == nil || u.discAt != u.at {
 		return nil
 	}

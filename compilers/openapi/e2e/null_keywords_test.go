@@ -28,7 +28,7 @@ import (
 // wherever the schema is written, and the load phase's warning for it is the
 // only report. It reads the keywords off the table, so one the table gains is
 // held too. An allOf entry is asked only where nothing else makes it residue,
-// since residue keeps the whole branch as written, the null included.
+// since residue keeps the whole entry as written, the null included.
 func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 	t.Parallel()
 	const noPaths = "paths: {}\n"

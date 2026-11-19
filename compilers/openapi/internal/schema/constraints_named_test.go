@@ -428,7 +428,7 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 			held:  &ir.Constraints{MinItems: new(int64(1))}, quiet: true,
 		},
 		{
-			name: "row 24: a branch of a string", schema: "{allOf: [" + refTo("Str") + ", {maxItems: 2}]}",
+			name: "row 24: an entry of a string", schema: "{allOf: [" + refTo("Str") + ", {maxItems: 2}]}",
 			kept: []keptAt{{key: "maxItems", entry: "allOf/1", value: "2"}},
 		},
 		{
@@ -436,7 +436,7 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 			held: &ir.Constraints{MinItems: new(int64(1))}, quiet: true,
 		},
 		{
-			name:   "row 26: a branch of an array",
+			name:   "row 26: an entry of an array",
 			schema: "{allOf: [" + refTo("Arr") + ", {items: {type: string}, minLength: 1, maxItems: 4}]}",
 			held:   &ir.Constraints{MaxItems: new(int64(4))},
 			kept:   []keptAt{{key: "minLength", entry: "allOf/1", value: "1"}},
@@ -456,7 +456,7 @@ func TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 	t.Parallel()
 	for i, order := range [][]string{{refTo("Arr"), "{minLength: 1}"}, {"{minLength: 1}", refTo("Arr")}} {
 		at := []int{1, 0}[i]
-		t.Run(fmt.Sprintf("row 27: the bound is branch %d", at), func(t *testing.T) {
+		t.Run(fmt.Sprintf("row 27: the bound is entry %d", at), func(t *testing.T) {
 			t.Parallel()
 			assertNamedRow(t, namedRow{
 				schema: "{allOf: [" + strings.Join(order, ", ") + "]}", base: componentID("Arr"),
@@ -473,7 +473,7 @@ func TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 		{"{minimum: 3}", refTo("Str"), "{minLength: 2}"},
 	} {
 		at := slices.Index(order, "{minimum: 3}")
-		t.Run(fmt.Sprintf("row 28: order %d puts the minimum at branch %d", n, at), func(t *testing.T) {
+		t.Run(fmt.Sprintf("row 28: order %d puts the minimum at entry %d", n, at), func(t *testing.T) {
 			t.Parallel()
 			assertNamedRow(t, namedRow{
 				schema: "{allOf: [" + strings.Join(order, ", ") + "]}", held: &ir.Constraints{MinLength: new(int64(2))},
@@ -483,7 +483,7 @@ func TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 	}
 	for i, order := range [][]string{{refTo("Obj"), "{minLength: 1}"}, {"{minLength: 1}", refTo("Obj")}} {
 		at := []int{1, 0}[i]
-		t.Run(fmt.Sprintf("row 29: the bound is branch %d", at), func(t *testing.T) {
+		t.Run(fmt.Sprintf("row 29: the bound is entry %d", at), func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, namedSpec("3.1.0", "{allOf: ["+strings.Join(order, ", ")+"]}", "", false))
 			openapitest.RequireNoErrorDiags(t, diags)
@@ -787,9 +787,9 @@ func TestConstraints_AReferenceLandingOnAPropertyReadsItsNode(t *testing.T) {
 
 // TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept pins a type written
 // beside a union whose branches admit none of it: the body lowers to a shared
-// primitive and keeping its unread keywords hoists an alias over it, which holds no bound, since
-// the position admits no kind, and keeps the bound with a report, as the union
-// beside it is kept.
+// primitive and keeping its unread keywords hoists an alias over it, which
+// holds no bound, since the position admits no kind, and keeps the bound with a
+// report, as the union beside it is kept.
 func TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept(t *testing.T) {
 	t.Parallel()
 	schema := "{type: string, oneOf: [" + refTo("Arr") + ", " + refTo("Obj") + "], minLength: 1}"
@@ -865,15 +865,15 @@ func TestAllOf_ABoundBesideAnEntrysOwnRefIsThePositions(t *testing.T) {
 }
 
 // TestConstraints_ATypeListReadsWhatThePositionAdmits pins a bound written
-// beside a type list an allOf narrows: the Union's variants and the keeping of unread
-// keywords beside them both read the kinds the position admits, so a bound only an
-// excluded variant would take is held by none and kept once, whether it is
-// written on an entry or beside the allOf, while the variant the position
-// admits holds its own.
+// beside a type list an allOf narrows: the Union's variants and the keeping of
+// unread keywords beside them both read the kinds the position admits, so a
+// bound only an excluded variant would take is held by none and kept once,
+// whether it is written on an entry or beside the allOf, while the variant the
+// position admits holds its own.
 func TestConstraints_ATypeListReadsWhatThePositionAdmits(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, schema, key, value, reportAt string }{
-		{name: "a bound on a branch", key: "minimum", value: "1", reportAt: "/allOf/1",
+		{name: "a bound on an entry", key: "minimum", value: "1", reportAt: "/allOf/1",
 			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}, {minimum: 1}], minLength: 2}"},
 		{name: "a bound beside the allOf", key: "minimum", value: "1",
 			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}], minimum: 1, minLength: 2}"},

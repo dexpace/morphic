@@ -103,7 +103,7 @@ func requireKeptKeywords(
 			assert.Equal(t, want[key], entries[0].reason, "%s: the reason of %s", name, key)
 		}
 		if whole {
-			assert.Equal(t, entry, entries[0].pointer, "%s: %s names the branch it keeps", name, key)
+			assert.Equal(t, entry, entries[0].pointer, "%s: %s names the allOf entry it keeps", name, key)
 			continue
 		}
 		assert.True(t, underPointer(entries[0].pointer, entry),

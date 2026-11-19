@@ -160,6 +160,11 @@ rendered name, so a renamed key at an unmoved version is caught only in review (
 | `no_ir_home` | Expressible in target languages, and no boundary the IR draws on purpose: the position simply has no field for it yet. A gap expected to close — each of these is a promotion candidate. |
 | `out_of_scope` | A boundary the IR draws on purpose ([boundaries](./boundaries.md#deliberate-exclusions)): runtime machinery or per-target SDK policy rather than API shape, or a construct its own format gives no meaning or effect. Kept so nothing is lost, but no node is coming — the intended consumer is an emitter policy layer, not a promotion pass. |
 
+A home is where the IR holds a thing, one idea at two sizes: a keyword's home is the field that
+holds it, and a declaration's is its carrier or its node
+([one structural home per declaration](./annotations.md#one-structural-home-per-declaration);
+[`allof-refinement`](../compilers/openapi.md#allof-refinement)).
+
 `no_ir_home` and `out_of_scope` are the pair worth keeping straight, because they read alike and
 mean opposite things: the first is an admission (a field the IR should probably grow), the second
 is a decision ([the list of exclusions](./boundaries.md#deliberate-exclusions), which exists

@@ -314,12 +314,13 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 	return diags
 }
 
-// CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type t.
-// A position owning its node leaves every bound to it, held or kept there, one
-// home per declaration (docs/ir/annotations.md#one-structural-home-per-declaration),
-// so its carrier holds none. One owning none holds those a reference does
-// (referenceConstraintsOf), since the keeping of unread keywords hoists an alias to keep any other.
-// PreserveRefSiteKeywords draws the same line.
+// CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type
+// t. A position owning its node leaves every bound to it, held or kept there,
+// one home per declaration
+// (docs/ir/annotations.md#one-structural-home-per-declaration), so its carrier
+// holds none. One owning none holds those a reference does
+// (referenceConstraintsOf), since the keeping of unread keywords hoists an
+// alias to keep any other. PreserveRefSiteKeywords draws the same line.
 func CarrierConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !LoweredToOwnNode(c, pointer, t) {
 		return referenceConstraintsOf(c, p, s, voices, t, pointer)
@@ -378,10 +379,11 @@ func heldCollectionBounds(s *statement.Schema) *ir.Constraints {
 }
 
 // referenceHolds reports whether referenceConstraintsOf fills the collection
-// bound keyword from s, which is the whole test of what a reference keeps unread, so a
-// bound ir.Constraints cannot state stays verbatim: a count the parser misread
-// (annotation.CountIsExact), and a false uniqueItems, which a plain bool cannot
-// tell from unset and which would stop an alias being a decorator.
+// bound keyword from s, which is the whole test of what a reference keeps
+// unread, so a bound ir.Constraints cannot state stays verbatim: a count the
+// parser misread (annotation.CountIsExact), and a false uniqueItems, which a
+// plain bool cannot tell from unset and which would stop an alias being a
+// decorator.
 func referenceHolds(s *statement.Schema, keyword string) bool {
 	array := s.ArrayKeywords()
 	switch keyword {

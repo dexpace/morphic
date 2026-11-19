@@ -161,10 +161,11 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer
 	return internAliasHolding(c, ts, cons, kept, boundsRead(s, st.takes(c, s), nil), st.pointer(pointer), target, fin), diags
 }
 
-// internReferenceAlias is internAlias for the home of a declaration whose unread
-// keywords left it no node, which also holds the collection bounds s writes. A position
-// that reached a shared node with one written had its alias hoisted by the
-// keeping of unread keywords first, so this reads none it also keeps.
+// internReferenceAlias is internAlias for the home of a declaration whose
+// unread keywords left it no node, which also holds the collection bounds s
+// writes. A position that reached a shared node with one written had its alias
+// hoisted by the keeping of unread keywords first, so this reads none it also
+// keeps.
 func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {

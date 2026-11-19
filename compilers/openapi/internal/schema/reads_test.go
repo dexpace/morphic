@@ -194,9 +194,9 @@ func readSources(t *testing.T) []compilers.Source {
 }
 
 // TestUnread_EdgesCompileAsTheyDid pins what the documents readEdges adds
-// compile to, which the keeping of unread keywords decides and the builds' reads must keep: the
-// empty pattern no variant holds is kept on the union, and the type an enum's
-// members all are values of says nothing the Enum does not.
+// compile to, which the keeping of unread keywords decides and the builds'
+// reads must keep: the empty pattern no variant holds is kept on the union, and
+// the type an enum's members all are values of says nothing the Enum does not.
 func TestUnread_EdgesCompileAsTheyDid(t *testing.T) {
 	t.Parallel()
 	doc, _ := schema.LowerSpec(t, string(readEdges()[0].Data))
@@ -210,10 +210,10 @@ func TestUnread_EdgesCompileAsTheyDid(t *testing.T) {
 	assert.NotContains(t, enum.Unmodeled, "openapi:type", "every member is a value of the types")
 }
 
-// readEdges returns the documents of what reaches a site keeping unread keywords no document
-// under testdata or core case does: an empty pattern beside a type list whose
-// string variant is a Scalar of its own, and an enum whose members are all
-// values of the several types beside it.
+// readEdges returns the documents of what reaches a site keeping unread
+// keywords no document under testdata or core case does: an empty pattern
+// beside a type list whose string variant is a Scalar of its own, and an enum
+// whose members are all values of the several types beside it.
 func readEdges() []compilers.Source {
 	const spec = `openapi: 3.1.0
 info: {title: t, version: "1"}

@@ -195,7 +195,7 @@ func TestPromotion_ARefinementLendsWhatItRefines(t *testing.T) {
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
 		{"whose false withdraws no target's key", `{$ref: '#/components/schemas/LiveSpent'}`,
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
-		{"nor does a branch's", `{allOf: [{$ref: '#/components/schemas/Spent'}, {deprecated: false}]}`,
+		{"nor does an entry's", `{allOf: [{$ref: '#/components/schemas/Spent'}, {deprecated: false}]}`,
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
 		{"a decorator lends its carrier nothing, as its node holds it",
 			`{allOf: [{$ref: '#/components/schemas/SpentObject'}], description: d}`, nil, false},

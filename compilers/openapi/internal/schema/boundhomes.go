@@ -39,11 +39,12 @@ func (h boundHomes) reads(s *statement.Schema) keySet {
 }
 
 // homesAt returns which bounds the position s is written at, lowered to target,
-// holds for its voices, as the keeping of unread keywords asks of those written beside its allOf. A
-// carrier or an alias holds the value bounds the types the position admits take
-// (boundKinds), and collection bounds where it is a use of the principal, a
-// reference (referenceReads), where those types admit an array. A node the position
-// owns holds what the lowering that builds it folds of them (ownHomes).
+// holds for its voices, as the keeping of unread keywords asks of those written
+// beside its allOf. A carrier or an alias holds the value bounds the types the
+// position admits take (boundKinds), and collection bounds where it is a use of
+// the principal, a reference (referenceReads), where those types admit an
+// array. A node the position owns holds what the lowering that builds it folds
+// of them (ownHomes).
 func homesAt(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, pointer, target) {
 		r, refined := refinementOf(c, s, pointer)

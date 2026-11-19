@@ -415,7 +415,7 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 		{"viaRef", componentID("Pw")},      // inherited from the referent, as deprecated is
 		{"viaAlias", componentID("Chain")}, // from the end of the $ref chain
 		{"beside", componentID("Plain")},   // written beside the $ref, binding the use
-		{"refined", componentID("Plain")},  // beside an allOf refining the $ref, or in a branch of it
+		{"refined", componentID("Plain")},  // beside an allOf refining the $ref, or in an entry of it
 		{"inBranch", componentID("Plain")},
 		{"wrapped", componentID("Pw")}, // an allOf over a string is a use of it, inheriting as viaRef does
 	} {

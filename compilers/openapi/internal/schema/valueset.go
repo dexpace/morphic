@@ -149,7 +149,8 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	default:
 		id = lowerNullAlone(c, ts, site)
 	}
-	// The value set is the position's node, on which its build keeps what it did not read.
+	// The value set is the position's node, on which its build keeps what it
+	// did not read.
 	return id, slices.Concat(built, missingArrayItems(c, bs, e.pointer), kept.diags, own.diags, heldBack)
 }
 

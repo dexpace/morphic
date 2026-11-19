@@ -101,7 +101,7 @@ func TestAllOfEntries_KeysSpellEachEntrysPath(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 4, inline)
-	assert.True(t, entries[len(entries)-1].wrapper, "a wrapper follows its own branches")
+	assert.True(t, entries[len(entries)-1].wrapper, "a wrapper follows its own entries")
 }
 
 // TestAllOfRefEntries_StopsWhenTheConsumerDoes pins that the view of a

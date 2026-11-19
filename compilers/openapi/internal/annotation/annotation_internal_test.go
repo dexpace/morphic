@@ -730,7 +730,7 @@ func standaloneSchema(s *oas3.Schema) *statement.Schema {
 // TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce pins one writing two
 // schemas of a site write: an entry the site keeps is the site's alone, so a
 // voice writing it draws no second report, a keyword of several folded in one
-// entry among them; and a keyword the site leaves to a branch its position
+// entry among them; and a keyword the site leaves to an allOf entry its position
 // keeps whole (Site.Leaves) is kept and reported by neither reading here.
 func TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce(t *testing.T) {
 	t.Parallel()

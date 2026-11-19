@@ -166,7 +166,7 @@ func TestAllOf_AnEntryUnderADraftsIDFoldsNothing(t *testing.T) {
 		"        - {id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}, description: d}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	s := doc.Types[componentID("S")].Common()
-	assert.Contains(t, s.Unmodeled, "openapi:allOf/1", "the branch is kept whole")
+	assert.Contains(t, s.Unmodeled, "openapi:allOf/1", "the entry is kept whole")
 	assert.NotContains(t, s.Unmodeled, "openapi:not", "its not folds nowhere")
 	assert.Empty(t, s.Docs.Description)
 }

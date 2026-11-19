@@ -371,7 +371,7 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 // TestNullableInference_AnEntryWidensTheAllOfHoldingIt pins `nullable: true` on an
 // inline entry writing no properties: under the policy it says what the keyword
 // beside the allOf says, with one report at the keyword, whichever spelling of the
-// branch admits it, and the declared reading stays conjoined.
+// entry admits it, and the declared reading stays conjoined.
 func TestNullableInference_AnEntryWidensTheAllOfHoldingIt(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p/allOf/1/nullable"
@@ -424,12 +424,12 @@ func TestNullableInference_AnEntryWidensTheAllOfHoldingIt(t *testing.T) {
 
 	besideEnum := openapitest.HolderSpec("3.0.3", "{enum: [a], allOf: [{nullable: true}]}", "")
 	doc, _ = compileNullable(t, besideEnum, false)
-	assert.True(t, holderP(t, doc).Nullable, "an enum beside the allOf is what a branch speaking for it widens")
+	assert.True(t, holderP(t, doc).Nullable, "an enum beside the allOf is what an entry speaking for it widens")
 	assert.NotEmpty(t, holderP(t, doc).Inferred)
 
 	besideType := openapitest.HolderSpec("3.0.3", "{type: string, allOf: [{description: d}, {nullable: true}]}", "")
 	doc, diags = compileNullable(t, besideType, false)
-	assert.True(t, holderP(t, doc).Nullable, "a type beside the allOf is what a branch speaking for it widens")
+	assert.True(t, holderP(t, doc).Nullable, "a type beside the allOf is what an entry speaking for it widens")
 	assert.NotEmpty(t, holderP(t, doc).Inferred)
 	assert.Len(t, withCode(diags, diag.InferredNullable), 1)
 	doc, _ = compileNullable(t, besideType, true)

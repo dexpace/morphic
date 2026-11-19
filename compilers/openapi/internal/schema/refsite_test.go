@@ -741,9 +741,10 @@ func TestComponentBody_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 }
 
 // TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched is the control the
-// keeping of unread keywords has to leave alone. A bound and a description written at the identical
-// position always did reach a field — the alias's Constraints and the property's
-// own — so neither may acquire an Unmodeled entry or a diagnostic now.
+// keeping of unread keywords has to leave alone. A bound and a description
+// written at the identical position always did reach a field — the alias's
+// Constraints and the property's own — so neither may acquire an Unmodeled
+// entry or a diagnostic now.
 func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
 	t.Parallel()
 	site := "{$ref: '#/components/schemas/BaseStr', minLength: 3, description: kept}"
