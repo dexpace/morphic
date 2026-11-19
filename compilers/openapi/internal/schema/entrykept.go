@@ -528,12 +528,7 @@ func unionApart(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i in
 			rest = rest.and(inlineConjunct(&w, e.schema.Schema))
 		}
 	}
-	if w.incomplete() || !rest.reachable() {
-		return false
-	}
-	// A oneOf and an anyOf sharing no value leave nothing for the rest to meet.
-	return writesUnionPair(s, comp) && pairApartBeside(nil, union, rest) ||
-		union.kinds&^kindNull != 0 && rest.kinds&union.kinds == 0
+	return !w.incomplete() && rest.reachable() && union.kinds&^kindNull != 0 && rest.kinds&union.kinds == 0
 }
 
 // recordKeptEntry keeps k, an inline entry of comp, on p, beside what the allOf
