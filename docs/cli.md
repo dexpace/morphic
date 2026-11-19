@@ -117,11 +117,12 @@ exactly, and a reason:
   and are counted rather than written. A rule accepting findings names their place, so it accepts
   none its code reports elsewhere. It does accept every finding of its code at that place, one
   reported later included, and a place can hold a whole scope: a pass reports a collision between
-  two of the document's types at `doc`, so a rule accepting one there accepts the next (#1825).
+  two of the document's types at `document`, so a rule accepting one there accepts the next
+  (#1825).
 - `pointer` places the rule at the findings this JSON Pointer locates in the spec, the file
   compiled, an overlay's writing into it included; `node` places it at the findings an IR pass
-  located at that IR node, such as `service/openapi/0`. A rule names at most one place, and one naming a
-  place outranks one naming only the code. A finding in a document a `$ref` reads (#1804), or
+  located at that IR node, such as `service/openapi/0`. A rule names at most one place, and one
+  naming a place outranks one naming only the code. A finding in a document a `$ref` reads (#1804), or
   located by a line alone, can be ruled by its code only.
 
 A rule names no pattern: a `*` in a code is refused, as is a rule both rating and accepting, an
@@ -143,7 +144,7 @@ morphic validate openapi.yaml --diagnostics-format json 2>&1 >/dev/null |
 ```
 
 Write each `reason` yourself before relying on it: it is what the next reader has to go on. A rule
-the recipe places at a scope, such as `doc`, accepts every later finding of its code about that
+the recipe places at a scope, such as `document`, accepts every later finding of its code about that
 scope too.
 
 ## JSON report

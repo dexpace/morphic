@@ -1253,9 +1253,11 @@ it sees. Changes made together in one bump are listed together under it.
     `AdditionalProps` and `PatternProps` are `AdditionalProperties` and `PatternProperties`,
     `ExposedProps` is `ExposedProperties`, and `MsgDirection` is `MessageDirection`.
   - **Locations**: a walk path opens with `document.`, where it opened with `doc.`, as an
-    `irverify` violation and a census line spell it. Every name an emitter renders is the name it
-    was: the names pin's hash moves only because the paths locating each name spell the new ID
-    kinds.
+    `irverify` violation and a census line spell it, and a finding about the whole document, as a
+    pass's collision between two of its types, is at the node `document`, where it was at `doc`,
+    so a triage rule naming the node `doc` matches nothing. Every name an emitter renders is the
+    name it was: the names pin's hash moves only because the paths locating each name spell the new
+    ID kinds.
   - **Correlation keys** ([derived facts](./derived-facts.md#correlation-keys)): a key spells a
     group's ID and an enum member's value tag as the IR now does, so `irfacts.CorrelationVersion`
     moves to 5, and a key stored under 4 matches none derived under 5.

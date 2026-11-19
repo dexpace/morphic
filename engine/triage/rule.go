@@ -25,7 +25,7 @@ var ErrInvalidRule = errors.New("invalid triage rule")
 // rules every finding there, one reported later included, and outranks a rule
 // of its code naming none. An acceptance names a place, so it accepts nothing
 // its code reports elsewhere. A place can hold a whole scope: a pass places a
-// collision between two of the document's types at its node, "doc" (#1825).
+// collision between two of the document's types at its node, "document" (#1825).
 type Rule struct {
 	// Code is the code a finding carries, matched exactly: no part of it is a
 	// pattern.
