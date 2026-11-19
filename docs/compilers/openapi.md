@@ -4488,11 +4488,13 @@ nothing at all. And a `{X, null}` `oneOf` written beside an `anyOf` does **not**
 nullable `X` ([type-graph](../ir/type-graph.md#type-references)), because the collapse
 asserts the position *is* nullable `X` while the co-declared `anyOf` conjoins with it, and
 collapsing would resolve the position to a shared primitive, which must never carry one
-declaration's keywords. The same preference decides between a `oneOf` and an `anyOf` written on two
-entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
+declaration's keywords. The same preference, judged against the position, decides between a `oneOf`
+and an `anyOf` written on one entry of an `allOf` or one each on two, whether it refines
+([`allof-refinement`](#allof-refinement)) or composes
 ([`union-beside-structure`](#union-beside-structure)), whichever is written first and whatever
-kinds the other entries admit, the one passed over kept with its entry; with nothing else conjoining with them, the two lower as one schema writing both
-does, wherever their entries are. Written one each on two entries of an `allOf` that refines, the
+kinds the other entries admit, the one passed over kept with its entry; with nothing else
+conjoining with them, the two lower as one schema writing both does, wherever their entries are.
+Written one each on two entries of an `allOf` that refines, the
 elected union collapses no more than it does beside the `allOf`, a body beside them or none: the
 elected `anyOf: [{type: 'null'}, {$ref: S}]` stays a `Union` of `S` behind a nullable reference,
 not a nullable reference to `S`. Where the two share no value, a null only where both admit it,
@@ -4533,6 +4535,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_AUnionPassedOverThatSaysNothingIsKeptEverywhere`,
   `e2e.TestElection_APrincipalUnionBesideAPairAndABodyCollapsesAsBesideTheAllOf`,
   `e2e.TestElection_TwoUnionEntriesElectByCompetingKeywords`,
+  `e2e.TestElection_AnEntryWritingBothElectsAgainstThePosition`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `schema.TestUnion_TwoUnionEntriesBesideABodyElectByCompetingKeywords`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`

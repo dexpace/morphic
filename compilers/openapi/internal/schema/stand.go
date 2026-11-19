@@ -28,6 +28,16 @@ type stand struct {
 	held bool
 }
 
+// position returns the schema a union s writes is elected at
+// (docs/compilers/openapi.md#competing-keywords): the position s is the
+// principal of, whose branches declare shape against all it conjoins, else s.
+func (st stand) position(s *statement.Schema) *statement.Schema {
+	if st.of == nil {
+		return s
+	}
+	return st.of
+}
+
 // pointer returns where the node of a schema written at written stands.
 func (st stand) pointer(written jsontext.Pointer) jsontext.Pointer {
 	if st.of == nil {

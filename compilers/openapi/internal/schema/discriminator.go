@@ -293,19 +293,20 @@ func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*state
 func discriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, s, holder *statement.Schema, pointer jsontext.Pointer) finisher {
 	return func(td ir.TypeDef, _ keySet, _ *principalKept) {
 		if isKind(td, ir.KindModel) {
-			ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: td.Common().ID, named: namedBranches(c, holder)})
+			ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: td.Common().ID, named: namedBranches(c, s, holder)})
 		}
 	}
 }
 
-// namedBranches returns the components s's union branches name by $ref, in
-// branch order: the types a discriminator routes to by name when no mapping
-// key routes to them. An inline branch has no name and neither has any other
-// position, so the discriminator reaches those only through its mapping, which
-// the model's Discriminator already holds.
-func namedBranches(c lowering.Ctx, s *statement.Schema) []ir.TypeID {
+// namedBranches returns the components named by $ref among the branches of
+// the union holder elects at the position s, in branch order: the types a
+// discriminator routes to by name when no mapping key routes to them. An inline
+// branch has no name and neither has any other position, so the discriminator
+// reaches those only through its mapping, which the model's Discriminator
+// already holds.
+func namedBranches(c lowering.Ctx, s, holder *statement.Schema) []ir.TypeID {
 	scope := c.RefScope()
-	branches, _, _ := unionBranches(c, s, s)
+	branches, _, _ := unionBranches(c, s, holder)
 	var named []ir.TypeID
 	for _, b := range branches {
 		if _, id, ok := componentNamed(scope, referenceOf(c, c.Statements().Sub(b))); ok {

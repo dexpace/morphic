@@ -31,22 +31,25 @@ import (
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
 	st stand,
 ) (ir.TypeRef, []ir.Diagnostic) {
+	at := st.position(s)
 	if inner, ip, ok := nullUnionCollapse(c, s, pointer); ok && !pairedPrincipal(c, st) {
 		ref, diags := Ref(c, ts, depth, inner, ip)
 		// The null branches say the null, so the reference admits it whatever
 		// the branch it names says, and declares it where theirs or that
 		// branch's own reference does (unionNullReading).
 		declared := ref.Nullable && ref.Inferred == "" || valueNulls(c, s).union.declared == nullAdmitted
-		return nullRef(c, ref.Target, declared, true), append(diags, liftedNullFindings(c, s, pointer)...)
+		return nullRef(c, ref.Target, declared, true), append(diags, liftedNullFindings(c, at, s, pointer)...)
 	}
-	if allNullUnion(c, s) {
+	if allNullUnion(c, at, s) {
 		return lowerNullOnlyUnion(c, ts, s, pointer, fin, st)
 	}
 	owner, diags := keepingUnread(c, ts, s, pointer, dispatch{said: branchesSay(c, s, s)}, fin, st,
 		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			var diags []ir.Diagnostic
 			tid := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-				def, unionDiags := buildUnion(c, ts, besideUnion(s, pointer), common,
+				u := besideUnion(s, pointer)
+				u.schema = at
+				def, unionDiags := buildUnion(c, ts, u, common,
 					func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
 						ref, refDiags := Ref(c, ts, depth, b, vptr)
 						diags = append(diags, refDiags...)
@@ -69,7 +72,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 		// A principal's conjunction is reported at the schema writing it (refinedDisjoint).
 		diags = append(diags, diagUnionsShareNothing(c, s, pointer, unionShape)...)
 	}
-	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, s, pointer))
+	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, at, s, pointer))
 }
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch
@@ -126,15 +129,15 @@ func electsOneOfPair(c lowering.Ctx, s *statement.Schema) bool {
 }
 
 // allNullUnion reports whether every branch of the oneOf/anyOf combinator
-// unionBranches elects is a null branch (nullBranch). nullUnionCollapse has no
+// unionBranches elects of s at position is a null branch (nullBranch). nullUnionCollapse has no
 // non-null branch to collapse a set like this onto, so without this check
 // lowerOneOfAnyOf's buildUnion fallback strips every branch as a null marker
 // and interns a Union with none left — the empty value space irverify's
 // ir/union-no-variants rejects (GitHub #416). The branch set still admits
 // exactly one value, the one a schema of null alone at this position admits,
 // so lowerOneOfAnyOf lowers it the same way instead.
-func allNullUnion(c lowering.Ctx, s *statement.Schema) bool {
-	variants, _, _ := unionBranches(c, s, s)
+func allNullUnion(c lowering.Ctx, position, s *statement.Schema) bool {
+	variants, _, _ := unionBranches(c, position, s)
 	return len(variants) > 0 && !slices.ContainsFunc(variants, func(v statement.Sub) bool {
 		return !nullBranch(c, c.Statements().Sub(v))
 	})
@@ -158,7 +161,7 @@ func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, 
 			return lowerNullAlone(c, ts, standingValueSet(s, pointer, st).finishedBy(fin)), 0, nil
 		})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
-	return ref, slices.Concat(diags, branches.diags, nullDiags, liftedNullFindings(c, s, pointer))
+	return ref, slices.Concat(diags, branches.diags, nullDiags, liftedNullFindings(c, st.position(s), s, pointer))
 }
 
 // preserveNullOnlyUnion keeps s's oneOf/anyOf verbatim under the Unmodeled of
@@ -319,7 +322,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	if !u.distributed {
 		diags = preserveUnusedCombinator(c, &common.Unmodeled, u, key)
 	}
-	diags = append(diags, recordNullBranches(c, &common.Unmodeled, nullBranchKeeps(c, u.holder, u.at))...)
+	diags = append(diags, recordNullBranches(c, &common.Unmodeled, nullBranchKeeps(c, u.schema, u.holder, u.at))...)
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
 		st := c.Statements().Sub(b)

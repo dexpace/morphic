@@ -95,9 +95,9 @@ type liftedNull struct {
 }
 
 // liftedNulls returns the null branches of the union unionBranches elects of
-// s, written at pointer, in source order.
-func liftedNulls(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []liftedNull {
-	branches, key, _ := unionBranches(c, s, s)
+// s at position, s written at pointer, in source order.
+func liftedNulls(c lowering.Ctx, position, s *statement.Schema, pointer jsontext.Pointer) []liftedNull {
+	branches, key, _ := unionBranches(c, position, s)
 	var out []liftedNull
 	for i, b := range branches {
 		st := c.Statements().Sub(b)
@@ -138,9 +138,9 @@ type keptNullBranch struct {
 // an extension or any other keyword, but a `null` written for one, which is
 // that keyword left out (annotation.WritesKeywordLeftOut). A branch is no
 // variant, so nothing else keeps what it says.
-func nullBranchKeeps(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []keptNullBranch {
+func nullBranchKeeps(c lowering.Ctx, position, s *statement.Schema, pointer jsontext.Pointer) []keptNullBranch {
 	var out []keptNullBranch
-	for _, b := range liftedNulls(c, s, pointer) {
+	for _, b := range liftedNulls(c, position, s, pointer) {
 		var written []string
 		for _, k := range b.schema.Keys {
 			if !saysTheNull(c, b, k.Name) && !annotation.WritesKeywordLeftOut(b.schema, k.Name) {
@@ -177,8 +177,8 @@ func recordNullBranches(c lowering.Ctx, p *ir.Unmodeled, kept []keptNullBranch) 
 // where it is a variant: a null the nullable-inference policy reads in
 // (nulls.findings), and an enum entry repeating an earlier one (enumRepeats),
 // which the document writes whichever path takes the branch.
-func liftedNullFindings(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	lifted := liftedNulls(c, s, pointer)
+func liftedNullFindings(c lowering.Ctx, position, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	lifted := liftedNulls(c, position, s, pointer)
 	diags := make([]ir.Diagnostic, 0, len(lifted))
 	for _, b := range lifted {
 		n := newNulls(c)

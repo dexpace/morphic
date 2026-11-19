@@ -65,7 +65,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		keywords, shape := referenceOutcomeKeywords(c, s, pointer)
 		k := outcomeKeeps{keywords: keywords, shape: shape}
 		if shape == collapsedShape {
-			k.nulls = nullBranchKeeps(c, s, pointer)
+			k.nulls = nullBranchKeeps(c, s, s, pointer)
 		}
 		return k
 	}
@@ -87,7 +87,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	}
 	collapsed := collapsedPrincipal(c, r)
 	if collapsed {
-		k.nulls = nullBranchKeeps(c, r.principal.schema.Schema, r.principal.pointer)
+		k.nulls = nullBranchKeeps(c, s, r.principal.schema.Schema, r.principal.pointer)
 	}
 	voices := voicingOf(c, s)
 	w := newAdmissionReader(c)

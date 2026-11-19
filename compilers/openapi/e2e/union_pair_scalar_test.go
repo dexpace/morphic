@@ -118,3 +118,57 @@ func TestElection_TwoUnionEntriesElectByCompetingKeywords(t *testing.T) {
 		}
 	}
 }
+
+// TestElection_AnEntryWritingBothElectsAgainstThePosition holds that a oneOf
+// and an anyOf beside a string or null lower alike beside the allOf, on one
+// entry, on two in either order and one allOf deeper, in either order of the
+// branches and the components, each union judged against all the position
+// conjoins, whichever entry writes it (GitHub #2011): an anyOf with an object
+// branch is elected over a oneOf restating the body, its null branch included,
+// which is kept whole as validation_only, and a oneOf of null alone over an
+// anyOf restating the body, the position null alone keeping both.
+func TestElection_AnEntryWritingBothElectsAgainstThePosition(t *testing.T) {
+	t.Parallel()
+	anyOfElected := func(t *testing.T, td ir.TypeDef) {
+		t.Helper()
+		union, ok := td.(*ir.Union)
+		require.True(t, ok, "the position is a Union")
+		assert.False(t, union.Exclusive, "the anyOf is elected")
+		assert.Len(t, union.Variants, 2)
+		assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:oneOf": ir.ReasonValidationOnly}, keptOn(union))
+	}
+	cases := []struct {
+		name, oneOf, anyOf string
+		want               func(*testing.T, ir.TypeDef)
+	}{
+		{"an anyOf declaring shape", "[{type: string}]", "[{type: object, properties: {x: {type: string}}}, {type: string}]",
+			anyOfElected},
+		{"a oneOf with a null branch saying more", "[{type: 'null', title: n}, {type: string}]",
+			"[{type: object, properties: {x: {type: string}}}, {type: string}]", anyOfElected},
+		{"a oneOf of null alone", "[{type: 'null'}]", "[{type: 'null'}, {type: string}]", func(t *testing.T, td ir.TypeDef) {
+			t.Helper()
+			_, ok := td.(*ir.Enum)
+			require.True(t, ok, "the position is null alone")
+			assert.Equal(t, map[string]ir.UnmodeledReason{
+				"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:anyOf": ir.ReasonDegradedLowering,
+			}, keptOn(td))
+		}},
+	}
+	for _, version := range []string{"3.1.0", "3.2.0"} {
+		for _, site := range scalarPairSites {
+			for _, tc := range cases {
+				for _, reversed := range []bool{false, true} {
+					t.Run(fmt.Sprintf("%s/%s/%s/%t", version, site.name, tc.name, reversed), func(t *testing.T) {
+						t.Parallel()
+						oneOf, anyOf := tc.oneOf, tc.anyOf
+						if reversed {
+							oneOf, anyOf = reversedBranches(t, oneOf), reversedBranches(t, anyOf)
+						}
+						doc, _ := compileSpellingsAlike(t, site, version, unionPairSpellings(stringOrNullBodies[version], oneOf, anyOf))
+						tc.want(t, kindNode(t, doc, entryPositionID(site.at)))
+					})
+				}
+			}
+		}
+	}
+}

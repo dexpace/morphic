@@ -35,7 +35,8 @@ func TestNullBranch_NoSchemaIsNoNullBranch(t *testing.T) {
 func TestAllNullUnion_NoBranchesFalse(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	assert.False(t, allNullUnion(l.Ctx, StandaloneSchema(&oas3.Schema{})), "no oneOf/anyOf branches admits nothing to be null-only")
+	empty := StandaloneSchema(&oas3.Schema{})
+	assert.False(t, allNullUnion(l.Ctx, empty, empty), "no oneOf/anyOf branches admits nothing to be null-only")
 }
 
 // TestBranchesSay_NoBranchesSayNothing covers the guard's own contract rather

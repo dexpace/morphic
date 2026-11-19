@@ -488,7 +488,7 @@ func entryUnionSets(comp allOfComposition) [][]statement.Sub {
 // over as degraded_lowering, as the same two beside the allOf do, a body beside
 // them or none (docs/compilers/openapi.md#union-null-only).
 func pairedWithNullOnly(c lowering.Ctx, s *statement.Schema) bool {
-	return electsOneOfPair(c, s) && allNullUnion(c, branchStatement(c, s, decisionOf(c, s).principalAt).Schema)
+	return electsOneOfPair(c, s) && allNullUnion(c, s, branchStatement(c, s, decisionOf(c, s).principalAt).Schema)
 }
 
 // keptWithElected reports whether s, written at pointer, elects the union an
