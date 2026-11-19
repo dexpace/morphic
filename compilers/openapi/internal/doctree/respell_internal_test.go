@@ -308,17 +308,17 @@ func walk(node *yaml.Node, f func(*yaml.Node)) {
 // restored parses a respelled text and restores its tree under respellingValue.
 // The error is the parser's, as text, when it refuses the text.
 func restored(text []byte, respellingValue respelling) (*yaml.Node, string) {
-	doc, msg := tree(text)
+	doc, message := tree(text)
 	if doc == nil {
-		return nil, msg
+		return nil, message
 	}
 	walk(doc, respellingValue.restore)
 	return doc, ""
 }
 
-// strs lists every string of a tree that text can hold: values, tags, anchors
+// stringValues lists every string of a tree that text can hold: values, tags, anchors
 // and the three comments.
-func strs(doc *yaml.Node) []string {
+func stringValues(doc *yaml.Node) []string {
 	var out []string
 	walk(doc, func(node *yaml.Node) {
 		out = append(out, node.Value, node.Tag, node.Anchor, node.HeadComment, node.LineComment, node.FootComment)
@@ -375,7 +375,7 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 
 		// No placeholder the text does not spell may show in the tree.
 		if first != nil {
-			for _, s := range strs(first) {
+			for _, s := range stringValues(first) {
 				for _, c := range s {
 					if c >= 0xE000 && c < 0xE040 {
 						assert.True(t, spells(written, c), "%U shows in the tree of %q and the text cannot spell it", c, text)
@@ -401,7 +401,7 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 
 		assert.Equal(t, firstErr != "", secondErr != "", "both refuse the text or neither does: %q", text)
 		if first != nil && second != nil {
-			assert.Empty(t, cmp.Diff(strs(first), strs(second)), "the trees differ under another range of placeholders: %q", text)
+			assert.Empty(t, cmp.Diff(stringValues(first), stringValues(second)), "the trees differ under another range of placeholders: %q", text)
 			assert.Empty(t, cmp.Diff(shape(first), shape(second)), "positions: %q", text)
 		}
 
@@ -452,8 +452,8 @@ func TestReadPlaceholders_TheFuzzTargetSeesTheTextOnlyThroughRead(t *testing.T) 
 	text := "a: \"p" + bs + "/q\"\nb: 'p" + nel + "q'\n"
 
 	out, respelling, _ := respell([]byte(text))
-	viaRespell, msg := restored(out, respelling)
-	require.Empty(t, msg)
+	viaRespell, message := restored(out, respelling)
+	require.Empty(t, message)
 	viaRead, err := Read(t.Context(), []byte(text), budget.Unbounded())
 	require.NoError(t, err)
 

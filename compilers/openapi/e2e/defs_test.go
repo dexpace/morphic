@@ -70,25 +70,25 @@ func TestCompile_DefsPointerRelativeToItsOwnSchema(t *testing.T) {
 
 // assertOwnDefsProperty requires that the owner's own property (by wire name)
 // resolves directly to a Model interned at that SAME schema's own "$defs/<def>"
-// position, carrying wantProp — proof the reference landed on the schema's own
+// position, carrying wantProperty — proof the reference landed on the schema's own
 // definition rather than a sibling's (GitHub #557). A model property is a
 // CarriedRef position, so a bare $ref (no siblings, as every property here is)
 // resolves directly to the target with no alias in between.
-func assertOwnDefsProperty(t *testing.T, doc *ir.Document, owner ir.TypeID, ownerPointer jsontext.Pointer, prop, def, wantProp string) {
+func assertOwnDefsProperty(t *testing.T, doc *ir.Document, owner ir.TypeID, ownerPointer jsontext.Pointer, propertyValue, def, wantProperty string) {
 	t.Helper()
 	model, ok := doc.Types[owner].(*ir.Model)
 	require.True(t, ok, "%s is a Model", owner)
-	property, ok := propByWire(model, prop)
-	require.True(t, ok, "%s declares property %q", owner, prop)
+	property, ok := propertyByWire(model, propertyValue)
+	require.True(t, ok, "%s declares property %q", owner, propertyValue)
 
 	wantID := ids.DocumentIDNamespace{}.ForPointer(ownerPointer + ids.Ptr("$defs", def))
 	require.Equal(t, wantID, property.Type.Target,
-		"%s.%s must resolve to its own $defs/%s, not a sibling's", owner, prop, def)
+		"%s.%s must resolve to its own $defs/%s, not a sibling's", owner, propertyValue, def)
 
 	target, ok := doc.Types[property.Type.Target].(*ir.Model)
 	require.True(t, ok, "the definition itself is a Model")
-	_, ok = propByWire(target, wantProp)
-	assert.True(t, ok, "%s's own definition declares %q; got %+v", owner, wantProp, target.Properties)
+	_, ok = propertyByWire(target, wantProperty)
+	assert.True(t, ok, "%s's own definition declares %q; got %+v", owner, wantProperty, target.Properties)
 }
 
 // TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema is the regression for
@@ -105,10 +105,10 @@ func TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema(t *testing.T) {
 		return ids.Ptr("paths", path, "get", "responses", "200", "content", media, "schema")
 	}
 	tests := []struct {
-		name            string
-		owner           ir.TypeID
-		at              jsontext.Pointer
-		prop, def, want string
+		name                string
+		owner               ir.TypeID
+		at                  jsontext.Pointer
+		property, def, want string
 	}{
 		{"an operation", "", response("/a", "application/json"), "p", "n", "x"},
 		{"another with the same definition name", "", response("/b/{id}", "application/json"), "q", "n", "y"},
@@ -121,7 +121,7 @@ func TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema(t *testing.T) {
 			owner = ids.DocumentIDNamespace{}.ForPointer(tc.at)
 		}
 		t.Run(tc.name, func(t *testing.T) {
-			assertOwnDefsProperty(t, doc, owner, tc.at, tc.prop, tc.def, tc.want)
+			assertOwnDefsProperty(t, doc, owner, tc.at, tc.property, tc.def, tc.want)
 		})
 	}
 }
@@ -179,14 +179,14 @@ func TestCompile_DefsReferenceMergesTargetsOwnNullabilityAndDescription(t *testi
 
 	a, ok := doc.Types[componentID("A")].(*ir.Model)
 	require.True(t, ok)
-	property, ok := propByWire(a, "p")
+	property, ok := propertyByWire(a, "p")
 	require.True(t, ok)
 	assert.False(t, property.Type.Nullable, "A's own $defs/n is a plain string, not a union with null")
 	assert.Equal(t, "from-A", descriptionOf(doc, property), "p must read A's own definition, not B's")
 
 	b, ok := doc.Types[componentID("B")].(*ir.Model)
 	require.True(t, ok)
-	irProperty, ok := propByWire(b, "q")
+	irProperty, ok := propertyByWire(b, "q")
 	require.True(t, ok)
 	assert.True(t, irProperty.Type.Nullable, "B's own $defs/n admits null")
 	assert.Equal(t, "from-B", descriptionOf(doc, irProperty), "q must read B's own definition, not A's")
@@ -312,7 +312,7 @@ func TestCompile_DefsPointerReachedThroughAnotherResolvesAgainstThatSchema(t *te
 
 			model, ok := doc.Types[wantN].(*ir.Model)
 			require.True(t, ok, "the terminal definition is a concrete Model")
-			_, ok = propByWire(model, "x")
+			_, ok = propertyByWire(model, "x")
 			assert.True(t, ok)
 		})
 	}
@@ -374,14 +374,14 @@ func TestCompile_DefsPointerWithNoSiblingDefsIsUnresolvedNotBorrowed(t *testing.
 
 			a, ok := doc.Types[componentID("A")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(a, "p")
+			property, ok := propertyByWire(a, "p")
 			require.True(t, ok)
 			assert.Equal(t, ir.TypeID("type/primitive/any"), property.Type.Target,
 				"an unresolved $ref degrades to any rather than borrowing B's sibling definition")
 
 			b, ok := doc.Types[componentID("B")].(*ir.Model)
 			require.True(t, ok)
-			irProperty, ok := propByWire(b, "q")
+			irProperty, ok := propertyByWire(b, "q")
 			require.True(t, ok)
 			wantN := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "B", "$defs", "n"))
 			assert.Equal(t, wantN, irProperty.Type.Target, "B's own reference still resolves to its own definition")
@@ -436,7 +436,7 @@ func TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			model, ok := doc.Types[ids.DocumentIDNamespace{}.ForPointer(pointer)].(*ir.Model)
 			require.True(t, ok, "c is a Model")
-			property, ok := propByWire(model, "q")
+			property, ok := propertyByWire(model, "q")
 			require.True(t, ok, "c declares q")
 			want := pointer + ids.Ptr("$defs", "K")
 			if resource {

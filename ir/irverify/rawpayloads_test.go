@@ -192,7 +192,7 @@ func rawConfigCarriers(payload ir.RawValue) map[string]struct {
 		Operations: []ir.Operation{{
 			ID:   "operation/x/S/op",
 			Name: named("op"),
-			Bindings: ir.OpBindings{Message: &ir.MessageBinding{
+			Bindings: ir.OperationBindings{Message: &ir.MessageBinding{
 				Channel:   "channel/a",
 				Direction: ir.MessageDirectionSend,
 				Bindings:  cfg,

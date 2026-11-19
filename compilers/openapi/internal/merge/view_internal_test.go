@@ -27,16 +27,16 @@ func viewRegistry() map[ir.TypeID]ir.TypeDef {
 	kept := func(key, v string) ir.Unmodeled { return ir.Unmodeled{key: {Value: ir.RawValue(v)}} }
 	reg["type/E"] = &ir.Enum{ID: "type/E", Anonymous: true, Provenance: ptrAt("/E"), ValueType: ir.PrimitiveString, Sensitive: true, Closed: true,
 		Docs: ir.Docs{Description: "e"}, Unmodeled: kept("openapi:x-e", "1"),
-		Members: []ir.EnumMember{{ID: "enum-member/E/string:a", Value: str("a")}, {ID: "enum-member/E/string:bb", Value: str("bb")}}}
-	reg["type/C"] = &ir.Literal{ID: "type/C", Value: str("abc")}
-	reg["type/OE"] = &ir.Enum{ID: "type/OE", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{ID: "enum-member/OE/string:a", Value: str("a")}}}
+		Members: []ir.EnumMember{{ID: "enum-member/E/string:a", Value: stringValue("a")}, {ID: "enum-member/E/string:bb", Value: stringValue("bb")}}}
+	reg["type/C"] = &ir.Literal{ID: "type/C", Value: stringValue("abc")}
+	reg["type/OE"] = &ir.Enum{ID: "type/OE", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{ID: "enum-member/OE/string:a", Value: stringValue("a")}}}
 	reg["type/S"] = &ir.Scalar{ID: "type/S", Base: &ir.TypeRef{Target: "type/primitive/string"}, Docs: ir.Docs{Description: "s"},
 		Constraints: &ir.Constraints{MaxLength: new(int64(5))}}
-	reg["type/L"] = &ir.List{ID: "type/L", ElementType: primRef(ir.PrimitiveInt32), Constraints: &ir.Constraints{MinItems: new(int64(1))}}
-	reg["type/M"] = &ir.MapT{ID: "type/M", Value: primRef(ir.PrimitiveInt32)}
-	reg["type/T"] = &ir.Tuple{ID: "type/T", ElementTypes: []ir.TypeRef{primRef(ir.PrimitiveInt32)}}
+	reg["type/L"] = &ir.List{ID: "type/L", ElementType: primitiveRef(ir.PrimitiveInt32), Constraints: &ir.Constraints{MinItems: new(int64(1))}}
+	reg["type/M"] = &ir.MapT{ID: "type/M", Value: primitiveRef(ir.PrimitiveInt32)}
+	reg["type/T"] = &ir.Tuple{ID: "type/T", ElementTypes: []ir.TypeRef{primitiveRef(ir.PrimitiveInt32)}}
 	reg["type/Model"] = declaring("type/Model")
-	reg["type/Ref"] = &ir.List{ID: "type/Ref", ElementType: primRef(ir.PrimitiveInt32),
+	reg["type/Ref"] = &ir.List{ID: "type/Ref", ElementType: primitiveRef(ir.PrimitiveInt32),
 		Unmodeled: kept("openapi:not", `{"$ref":"n.json"}`)}
 	alias("type/E-docs", "type/E", ir.TypeCommon{Docs: ir.Docs{Description: "near"}, Unmodeled: kept("openapi:x-near", "2")}, nil)
 	alias("type/E-same-key", "type/E", ir.TypeCommon{Unmodeled: kept("openapi:x-e", "3")}, nil)
@@ -109,7 +109,7 @@ func TestView_ReadsAnAliasAsTheNodeItStandsFor(t *testing.T) {
 	assert.True(t, ok, "bounds every member meets say nothing of an enum")
 	lit, ok := read("type/C-max").(*ir.Literal)
 	require.True(t, ok, "nor of a const its value meets")
-	assert.Equal(t, str("abc"), lit.Value)
+	assert.Equal(t, stringValue("abc"), lit.Value)
 	assert.Equal(t, "near", read("type/C-docs").Common().Docs.Description)
 
 	scalar, ok := read("type/S-min").(*ir.Scalar)

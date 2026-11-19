@@ -133,7 +133,7 @@ func TestCompile_AnEmptyConjunctIsItsOwnSchemasToReport(t *testing.T) {
 			"Obj: {type: object, properties: {k: {type: string}}}",
 			"Int: {type: integer}",
 			"B: {allOf: [" + entries + "]}",
-			"A: {allOf: [" + strRef + ", " + objRef + "]}",
+			"A: {allOf: [" + stringRef + ", " + objRef + "]}",
 		}
 		t.Run(fmt.Sprintf("entries-swapped-%t", swapped), func(t *testing.T) {
 			t.Parallel()
@@ -392,8 +392,8 @@ func TestCompile_AUnionConjunctSharingNoKindWithTheOtherIsReported(t *testing.T)
 func TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases(t *testing.T) {
 	t.Parallel()
 	schemas := []string{
-		"NullAndString: {allOf: [{$ref: '#/components/schemas/Nil'}, " + strRef + "]}",
-		"NullAliasAndString: {allOf: [{$ref: '#/components/schemas/NilAlias'}, " + strRef + "]}",
+		"NullAndString: {allOf: [{$ref: '#/components/schemas/Nil'}, " + stringRef + "]}",
+		"NullAliasAndString: {allOf: [{$ref: '#/components/schemas/NilAlias'}, " + stringRef + "]}",
 		"Str: {type: string}",
 		"Nil: {type: 'null'}",
 		"NilAlias: {allOf: [{$ref: '#/components/schemas/Nil'}]}",
@@ -611,8 +611,8 @@ func TestCompile_ANullNotOnAStructuresEntryIsTheKeywordLeftOut(t *testing.T) {
 }
 
 const (
-	strRef   = "{$ref: '#/components/schemas/Str'}"
-	objRef   = "{$ref: '#/components/schemas/Obj'}"
-	intRef   = "{$ref: '#/components/schemas/Int'}"
-	disjoint = "share no value"
+	stringRef = "{$ref: '#/components/schemas/Str'}"
+	objRef    = "{$ref: '#/components/schemas/Obj'}"
+	intRef    = "{$ref: '#/components/schemas/Int'}"
+	disjoint  = "share no value"
 )

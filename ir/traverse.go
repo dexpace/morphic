@@ -45,11 +45,11 @@ func ForEachOperation(doc *Document, fn func(Operation)) (truncated bool) {
 // forEachOperation is ForEachOperation within limit steps.
 func forEachOperation(limit int, doc *Document, fn func(Operation)) bool {
 	return groupsWithin(limit, doc, func(operationGroup OperationGroup, steps *stepLimit) {
-		for _, op := range operationGroup.Operations {
+		for _, operation := range operationGroup.Operations {
 			if !steps.take() {
 				return
 			}
-			fn(op)
+			fn(operation)
 		}
 	})
 }

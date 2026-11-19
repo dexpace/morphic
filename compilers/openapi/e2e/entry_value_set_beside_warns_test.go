@@ -29,9 +29,9 @@ func TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling(t *t
 			entryDoc, _ := compileAnnotationSpec(t, "disjoint", conjunctionSpec(version, spellings[0].schema, obj))
 			wrapDoc, wrapDiags := compileAnnotationSpec(t, "disjoint", conjunctionSpec(version, spellings[3].schema, obj))
 			for _, at := range conjunctionPositions {
-				msgs := entryMessagesAt(wrapDiags, at)
-				require.Len(t, msgs, 1, "one report at %s", at)
-				assert.Contains(t, msgs[0], "which the enum it lowered as cannot state", at)
+				messages := entryMessagesAt(wrapDiags, at)
+				require.Len(t, messages, 1, "one report at %s", at)
+				assert.Contains(t, messages[0], "which the enum it lowered as cannot state", at)
 			}
 			for _, doc := range []*ir.Document{wrapDoc, entryDoc} {
 				for i := range doc.Diagnostics {

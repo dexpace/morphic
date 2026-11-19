@@ -49,7 +49,7 @@ func TestIndexOperations_StopsAtTheGroupDepthBound(t *testing.T) {
 	svc := &ir.Service{Groups: []ir.OperationGroup{
 		nested("operation/x/top", 0), nested("operation/x/cap", ir.MaxGroupDepth), nested("operation/x/past", ir.MaxGroupDepth+1),
 	}}
-	ix := indexOperations(newRawLowerer(&soa.OpenAPI{}).ctx, compileddoc.New(&ir.Document{Services: []ir.Service{*svc}}).Ops)
+	ix := indexOperations(newRawLowerer(&soa.OpenAPI{}).ctx, compileddoc.New(&ir.Document{Services: []ir.Service{*svc}}).Operations)
 	assert.Contains(t, ix.byID, ir.OperationID("operation/x/top"))
 	assert.Contains(t, ix.byID, ir.OperationID("operation/x/cap"), "a group at the bound is read")
 	assert.NotContains(t, ix.byID, ir.OperationID("operation/x/past"), "a group past it is not")
@@ -59,9 +59,9 @@ func TestIndexOperations_StopsAtTheGroupDepthBound(t *testing.T) {
 // a member p0 of a model declaring n members besides a, from a body of
 // contents media types, each holding that model.
 func membersSpec(n, contents int) string {
-	var props, pointer, media strings.Builder
+	var properties, pointer, media strings.Builder
 	for i := range n {
-		fmt.Fprintf(&props, "        p%d: {type: string}\n", i)
+		fmt.Fprintf(&properties, "        p%d: {type: string}\n", i)
 		pointer.WriteString("/a")
 	}
 	for i := range contents {
@@ -85,7 +85,7 @@ components:
       type: object
       properties:
         a: {$ref: '#/components/schemas/M'}
-` + props.String()
+` + properties.String()
 }
 
 // paramsSpec is a document whose operation declares n query parameters and n
@@ -121,11 +121,11 @@ paths:
 // response headers, and whose body is a model of n members, and whose n links
 // each read one entry of each list: every link reads the same three lists.
 func linksSpec(n int) string {
-	var params, headers, props, links strings.Builder
+	var params, headers, properties, links strings.Builder
 	for i := range n {
 		fmt.Fprintf(&params, "        - {name: p%d, in: query, schema: {type: string}}\n", i)
 		fmt.Fprintf(&headers, "            h%d: {schema: {type: string}}\n", i)
-		fmt.Fprintf(&props, "        m%d: {type: string}\n", i)
+		fmt.Fprintf(&properties, "        m%d: {type: string}\n", i)
 		fmt.Fprintf(&links, "            L%d: {operationId: a, parameters: {p0: '$request.query.p%d', "+
 			"p1: '$response.header.h%d', p2: '$response.body#/m%d'}}\n", i, i, i, i)
 	}
@@ -148,7 +148,7 @@ paths:
     M:
       type: object
       properties:
-` + props.String()
+` + properties.String()
 }
 
 // linkSpecs are the shapes whose reads each name an entry of one list n long:

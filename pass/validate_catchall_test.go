@@ -18,13 +18,13 @@ import (
 // catch.
 func catchAllDoc(target ir.TypeID, catch map[ir.TypeID]ir.CatchAllParts) *ir.Document {
 	doc := validDoc()
-	str := ir.TypeRef{Target: "type/primitive/string"}
-	doc.Types["type/map"] = &ir.MapT{ID: "type/map", Value: str}
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
+	doc.Types["type/map"] = &ir.MapT{ID: "type/map", Value: stringType}
 	doc.Types["type/open"] = &ir.Model{ID: "type/open", AdditionalProperties: &ir.AdditionalProperties{
-		Value: &str, Patterns: []ir.PatternProperties{{Pattern: "^f_", Value: str}},
+		Value: &stringType, Patterns: []ir.PatternProperties{{Pattern: "^f_", Value: stringType}},
 	}}
 	doc.Types["type/patterns"] = &ir.Model{ID: "type/patterns", AdditionalProperties: &ir.AdditionalProperties{
-		Patterns: []ir.PatternProperties{{Pattern: "^f_", Value: str}},
+		Patterns: []ir.PatternProperties{{Pattern: "^f_", Value: stringType}},
 	}}
 	doc.Types["type/derived"] = &ir.Model{ID: "type/derived", Base: &ir.TypeRef{Target: "type/open"}}
 	doc.Services = docWithOperation(ir.Operation{Request: &ir.Payload{Contents: []ir.Content{{

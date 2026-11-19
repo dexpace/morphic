@@ -253,7 +253,7 @@ func reachDocument() *ir.Document {
 	sends := ir.Operation{
 		ID: "operation/x/b", OverloadOf: &overloaded,
 		Params: []ir.Parameter{{ID: "parameter/x/b/q", Name: ir.Naming{Source: "q"}}},
-		Bindings: ir.OpBindings{Message: &ir.MessageBinding{
+		Bindings: ir.OperationBindings{Message: &ir.MessageBinding{
 			Channel: "channel/x/c", Direction: ir.MessageDirectionSend, Messages: []ir.MessageID{"message/x/m"},
 			Reply: &ir.Reply{Channel: &replies, Messages: []ir.MessageID{"message/x/m"}},
 		}},

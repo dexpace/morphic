@@ -20,55 +20,55 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// propPathOperation returns an operation whose HTTP binding walks path through
+// propertyPathOperation returns an operation whose HTTP binding walks path through
 // the response body — one of the PropertyID carriers the reference walk sees
 // and no registry can resolve.
-func propPathOperation(path []ir.PropertyID) ir.Operation {
+func propertyPathOperation(path []ir.PropertyID) ir.Operation {
 	return ir.Operation{
 		ID: "operation/o", Name: ir.Naming{Source: "o"},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+		Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 			Method:           "GET",
-			ResponseBodyPath: &ir.PropPath{Root: &ir.TypeRef{Target: "type/m"}, Segments: path},
+			ResponseBodyPath: &ir.PropertyPath{Root: &ir.TypeRef{Target: "type/m"}, Segments: path},
 		}}},
 	}
 }
 
-// TestValidate_PropPathSegmentResolves accepts a segment naming a declared
+// TestValidate_PropertyPathSegmentResolves accepts a segment naming a declared
 // property and rejects one naming nothing, which is the whole of what was
-// checked by nothing before: PropPath.Segments is a reference the type-driven
+// checked by nothing before: PropertyPath.Segments is a reference the type-driven
 // walk classifies as unresolvable, because a property lives inside its model
 // rather than in a document-level registry.
-func TestValidate_PropPathSegmentResolves(t *testing.T) {
+func TestValidate_PropertyPathSegmentResolves(t *testing.T) {
 	t.Parallel()
-	ok := validated(t, docWithOperation(propPathOperation([]ir.PropertyID{"property/m/a"})))
+	ok := validated(t, docWithOperation(propertyPathOperation([]ir.PropertyID{"property/m/a"})))
 	assert.NotContains(t, irtest.DiagCodes(ok), "ir/dangling-property-ref",
 		"a segment naming a declared property resolves")
 
-	bad := validated(t, docWithOperation(propPathOperation([]ir.PropertyID{"property/m/ghost"})))
+	bad := validated(t, docWithOperation(propertyPathOperation([]ir.PropertyID{"property/m/ghost"})))
 	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-property-ref",
 		"a segment naming no property is reported")
 }
 
-// TestValidate_APropIDSpelledAsAnotherClassesIDDangles pins that only a
+// TestValidate_APropertyIDSpelledAsAnotherClassesIDDangles pins that only a
 // property declares a PropertyID: a segment spelling the operation's own ID, an
 // OperationID, names no property.
-func TestValidate_APropIDSpelledAsAnotherClassesIDDangles(t *testing.T) {
+func TestValidate_APropertyIDSpelledAsAnotherClassesIDDangles(t *testing.T) {
 	t.Parallel()
-	bad := validated(t, docWithOperation(propPathOperation([]ir.PropertyID{"operation/o"})))
+	bad := validated(t, docWithOperation(propertyPathOperation([]ir.PropertyID{"operation/o"})))
 	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-property-ref")
 }
 
-// TestValidate_DanglingPropIDsAreReportedByLocation holds the diagnostics to
+// TestValidate_DanglingPropertyIDsAreReportedByLocation holds the diagnostics to
 // the order of their locations, which is not the walk's: eleven segments are
 // walked [0] to [10], and "[10]" sorts between "[0]" and "[1]".
-func TestValidate_DanglingPropIDsAreReportedByLocation(t *testing.T) {
+func TestValidate_DanglingPropertyIDsAreReportedByLocation(t *testing.T) {
 	t.Parallel()
 	segments := make([]ir.PropertyID, 11)
 	for i := range segments {
 		segments[i] = ir.PropertyID(fmt.Sprintf("property/m/ghost%d", i))
 	}
 	var where []string
-	for _, diagnostic := range validated(t, docWithOperation(propPathOperation(segments))) {
+	for _, diagnostic := range validated(t, docWithOperation(propertyPathOperation(segments))) {
 		if diagnostic.Code == "ir/dangling-property-ref" {
 			where = append(where, diagnostic.Provenance.Node)
 		}
@@ -84,10 +84,10 @@ func TestValidate_DanglingPropIDsAreReportedByLocation(t *testing.T) {
 // not a list of field names — is what makes the check complete.
 func TestValidate_ParamPathSegmentResolves(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{
+	operation := ir.Operation{
 		ID: "operation/o", Name: ir.Naming{Source: "o"},
 		Params: []ir.Parameter{{Name: ir.Naming{Source: "book"}, Type: ir.TypeRef{Target: "type/m"}}},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+		Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET",
 			ParamBindings: []ir.HTTPParamBinding{{
 				Param: "book", Location: ir.HTTPLocationPath,
@@ -95,15 +95,15 @@ func TestValidate_ParamPathSegmentResolves(t *testing.T) {
 			}},
 		}}},
 	}
-	assert.Contains(t, irtest.DiagCodes(validated(t, docWithOperation(op))), "ir/dangling-property-ref")
+	assert.Contains(t, irtest.DiagCodes(validated(t, docWithOperation(operation))), "ir/dangling-property-ref")
 }
 
-// TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck pins the one exclusion. A
+// TestValidate_PropertyIDMapKeyIsLeftToTheEncodingCheck pins the one exclusion. A
 // PropertyID reached as a map key is a Content.Encoding key, and
 // checkEncodingKeys resolves it against the properties of the model the content
 // names — a tighter claim about the same defect. One defect must read as one
 // location, so the membership check stays out of that map.
-func TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck(t *testing.T) {
+func TestValidate_PropertyIDMapKeyIsLeftToTheEncodingCheck(t *testing.T) {
 	t.Parallel()
 	doc := docWithOperation(ir.Operation{
 		ID: "operation/o", Name: ir.Naming{Source: "o"},
@@ -117,11 +117,11 @@ func TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck(t *testing.T) {
 }
 
 // discriminatedDoc returns a document whose model carries a discriminator
-// tagging prop.
-func discriminatedDoc(prop ir.PropertyID) *ir.Document {
+// tagging property.
+func discriminatedDoc(property ir.PropertyID) *ir.Document {
 	doc := validDoc()
 	base := doc.Types["type/m"].(*ir.Model) // validDoc builds it
-	base.Discriminator = &ir.Discriminator{Property: prop}
+	base.Discriminator = &ir.Discriminator{Property: property}
 	return doc
 }
 

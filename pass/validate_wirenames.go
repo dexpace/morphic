@@ -65,9 +65,9 @@ func checkAmbiguousAliases(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 // reported at the later one. Either way the alias is reported, since it is the
 // name a fix renames or removes, and the message names the sibling. The names
 // are read through claims.
-func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *scratchstate.Map[string, int]) []ir.Diagnostic {
+func ambiguousAliases(id ir.TypeID, properties []ir.Property, claims *scratchstate.Map[string, int]) []ir.Diagnostic {
 	claimant := claims.Emptied()
-	for i, property := range props {
+	for i, property := range properties {
 		if name := property.EffectiveWireName(); name != "" {
 			if _, taken := claimant[name]; !taken {
 				claimant[name] = i
@@ -75,7 +75,7 @@ func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *scratchstate.Ma
 		}
 	}
 	var diags []ir.Diagnostic
-	for i, property := range props {
+	for i, property := range properties {
 		for _, alias := range property.Name.Aliases {
 			j, taken := claimant[alias]
 			switch {
@@ -86,7 +86,7 @@ func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *scratchstate.Ma
 			default:
 				diags = append(diags, diag(ir.SeverityError, "pass/ambiguous-alias",
 					fmt.Sprintf("alias %q of property %q is a name property %q also answers to",
-						alias, property.ID, props[j].ID),
+						alias, property.ID, properties[j].ID),
 					fmt.Sprintf("%s/properties/%d", id, i)))
 			}
 		}

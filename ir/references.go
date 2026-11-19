@@ -11,9 +11,9 @@ import (
 
 var _ Visitor = (*IDReferences)(nil)
 
-// propIDType is the reflect.Type of [PropertyID], the one class of ID no
+// propertyIDType is the reflect.Type of [PropertyID], the one class of ID no
 // registry resolves; see [IDReferences] for why.
-var propIDType = reflect.TypeFor[PropertyID]()
+var propertyIDType = reflect.TypeFor[PropertyID]()
 
 // ownIDField names the field of a struct that holds the identity the struct
 // declares. A string of a map-keyed class at such a field is its node's
@@ -75,7 +75,7 @@ func NewIDReferences(doc *Document) *IDReferences {
 		idReferences.keyed[reg.class] = registryKeys(doc, reg.index)
 	}
 	for class := range idClasses {
-		if _, keyed := idReferences.keyed[class]; keyed || class == propIDType {
+		if _, keyed := idReferences.keyed[class]; keyed || class == propertyIDType {
 			continue
 		}
 		idReferences.labels[class] = RefNoun(class) + " declarations"

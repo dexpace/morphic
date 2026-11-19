@@ -106,9 +106,9 @@ func baseOf(td ir.TypeDef) ir.TypeID {
 // keptAt is an entry a position keeps under Unmodeled["openapi:"+key]. A key
 // naming an allOf branch is reported at the branch, any other at the position.
 type keptAt struct {
-	key   string
-	value string // the entry's JSON, "" where the row does not say
-	msg   string // a substring of its report, "" for "no home for .*key"
+	key     string
+	value   string // the entry's JSON, "" where the row does not say
+	message string // a substring of its report, "" for "no home for .*key"
 	// entry is the path of the inline allOf entry writing key, "" for a
 	// keyword written beside the allOf.
 	entry string
@@ -145,8 +145,8 @@ type namedRow struct {
 	kept []keptAt
 	// base is the type S is declared over, "" where the row does not say.
 	base ir.TypeID
-	// msgs are substrings the report at each position holds.
-	msgs []string
+	// messages are substrings the report at each position holds.
+	messages []string
 	// keptOnS are further keys S alone keeps.
 	keptOnS []string
 	// diags is the number of diagnostics in all, 0 where the row does not say.
@@ -200,17 +200,17 @@ func assertNamedRow(t *testing.T, tc namedRow) {
 			if keptAt.value != "" {
 				assert.JSONEq(t, keptAt.value, string(entry.Value), "%s %s", site.at, keptAt.key)
 			}
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, keptAt.reportAt(site.at))
-			if keptAt.msg != "" {
-				assert.Contains(t, msg, keptAt.msg, "%s %s", site.at, keptAt.key)
+			message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, keptAt.reportAt(site.at))
+			if keptAt.message != "" {
+				assert.Contains(t, message, keptAt.message, "%s %s", site.at, keptAt.key)
 			} else {
-				assert.Regexp(t, "no home for .*"+keptAt.key, msg, "%s %s", site.at, keptAt.key)
+				assert.Regexp(t, "no home for .*"+keptAt.key, message, "%s %s", site.at, keptAt.key)
 			}
 		}
 		if len(keywordsOf(tc.kept)) > 0 {
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, site.at)
-			for _, want := range tc.msgs {
-				assert.Contains(t, msg, want, site.at)
+			message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, site.at)
+			for _, want := range tc.messages {
+				assert.Contains(t, message, want, site.at)
 			}
 		}
 		if tc.quiet {
@@ -232,11 +232,11 @@ func TestConstraints_ABoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 		},
 		{
 			name: "row 2: a $ref site, the conjunction row 1 writes", schema: "{$ref: '#/components/schemas/Arr', minLength: 1}",
-			kept: []keptAt{{key: "minLength"}}, base: componentID("Arr"), diags: 2, msgs: []string{"a use of one of its conjuncts"},
+			kept: []keptAt{{key: "minLength"}}, base: componentID("Arr"), diags: 2, messages: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "row 4: a collapsed nullable union", schema: "{anyOf: [" + refTo("Arr") + ", {enum: [null]}], minLength: 1}",
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"a nullable reference to its one non-null branch"},
+			kept: []keptAt{{key: "minLength"}}, messages: []string{"a nullable reference to its one non-null branch"},
 		},
 		{
 			name: "row 5: an expanded $dynamicRef", schema: "{$dynamicRef: '#node', minimum: 1, maxLength: 2}",
@@ -412,11 +412,11 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 	for _, tc := range []namedRow{
 		{
 			name: "row 22: a $ref to a string", schema: "{$ref: '#/components/schemas/Str', minItems: 1}",
-			kept: []keptAt{{key: "minItems", value: "1"}}, msgs: []string{"a use of one of its conjuncts"},
+			kept: []keptAt{{key: "minItems", value: "1"}}, messages: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "row 23: a refinement of a string", schema: "{allOf: [" + refTo("Str") + "], minItems: 1, uniqueItems: true}",
-			kept: []keptAt{{key: "minItems"}, {key: "uniqueItems"}}, msgs: []string{"minItems, uniqueItems"},
+			kept: []keptAt{{key: "minItems"}, {key: "uniqueItems"}}, messages: []string{"minItems, uniqueItems"},
 		},
 		{
 			name: "a $ref to an object, the model over it", schema: "{$ref: '#/components/schemas/Obj', minItems: 1}",
@@ -496,9 +496,9 @@ func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			entry, ok := model.Unmodeled["openapi:minLength"]
 			require.True(t, ok, "got %v", unmodeledKeys(model.Unmodeled))
 			assert.JSONEq(t, `1`, string(entry.Value))
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 				fmt.Sprintf("/components/schemas/S/allOf/%d", at))
-			assert.Contains(t, msg, "no home for minLength written on this inline branch")
+			assert.Contains(t, message, "no home for minLength written on this inline branch")
 		})
 	}
 }
@@ -525,9 +525,9 @@ func TestAllOf_ACompositionReadsBoundsByTheTypesItComposes(t *testing.T) {
 		t.Parallel()
 		typeDef := typeByName(doc, "S")
 		assert.Subset(t, unmodeledKeys(typeDef.Common().Unmodeled), []string{"openapi:minLength", "openapi:minimum"})
-		msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, namedS)
-		assert.Contains(t, msg, "minLength, minimum")
-		assert.Contains(t, msg, `a node of kind "model"`)
+		message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, namedS)
+		assert.Contains(t, message, "minLength, minimum")
+		assert.Contains(t, message, `a node of kind "model"`)
 	})
 	t.Run("row 32: the node a property owns reads the same, and the property none", func(t *testing.T) {
 		t.Parallel()
@@ -620,9 +620,9 @@ func TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes(t *testing.T) {
 		require.True(t, ok, "got %T", typeByName(doc, "D"))
 		assert.Contains(t, union.Unmodeled, "openapi:minLength")
 		assert.NotContains(t, union.Unmodeled, "openapi:minProperties")
-		msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/D")
-		assert.Contains(t, msg, "minLength")
-		assert.NotContains(t, msg, "minProperties")
+		message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/D")
+		assert.Contains(t, message, "minLength")
+		assert.NotContains(t, message, "minProperties")
 		assert.NotContains(t, marshalForTest(t, doc), `"openapi:minProperties"`)
 	})
 	t.Run("the union beside a schema admitting every kind holds both", func(t *testing.T) {
@@ -700,10 +700,10 @@ func TestConstraints_AnExpandedReferenceIsNamedByItsKeyword(t *testing.T) {
 		{"/components/schemas/Tree/items", "its $recursiveRef expands to", "$dynamicRef"},
 		{"/components/schemas/Dyn/items", "its $dynamicRef expands to", "$recursiveRef"},
 	} {
-		msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.at)
-		assert.Contains(t, msg, tc.has, tc.at)
-		assert.NotContains(t, msg, tc.hasNot, tc.at)
-		assert.Contains(t, msg, "minLength", tc.at)
+		message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.at)
+		assert.Contains(t, message, tc.has, tc.at)
+		assert.NotContains(t, message, tc.hasNot, tc.at)
+		assert.Contains(t, message, "minLength", tc.at)
 	}
 	for _, name := range []string{"Tree", "Dyn"} {
 		items, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/"+name+"/items")]
@@ -917,7 +917,7 @@ func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
 	for _, row := range []namedRow{
 		{
 			name: "beside a $ref", schema: "{$ref: '#/components/schemas/DL', minLength: 1}", extra: extra,
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"a use of one of its conjuncts"},
+			kept: []keptAt{{key: "minLength"}}, messages: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "beside a $ref naming a string", schema: "{$ref: '#/components/schemas/DS', minLength: 1}", extra: extra,
@@ -925,7 +925,7 @@ func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
 		},
 		{
 			name: "beside an allOf naming DL", schema: "{allOf: [" + refTo("DL") + "], minLength: 1}", extra: extra,
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"a use of one of its allOf conjuncts"},
+			kept: []keptAt{{key: "minLength"}}, messages: []string{"a use of one of its allOf conjuncts"},
 		},
 		{
 			name: "beside an allOf naming DS", schema: "{allOf: [" + refTo("DS") + "], minLength: 1}", extra: extra,

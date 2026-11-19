@@ -51,24 +51,24 @@ paths:
 `, params, body)
 }
 
-// listOp compiles src under opts and returns its listThings operation, the
+// listOperation compiles src under opts and returns its listThings operation, the
 // document and every diagnostic.
-func listOp(t *testing.T, src string, opts openapi.Options) (ir.Operation, *ir.Document, []ir.Diagnostic) {
+func listOperation(t *testing.T, src string, opts openapi.Options) (ir.Operation, *ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := compile(t, src, opts)
-	return openapitest.FindOp(t, doc, "listThings"), doc, diags
+	return openapitest.FindOperation(t, doc, "listThings"), doc, diags
 }
 
-// describe renders op's Pagination by the names it reads, a path as the wire
+// describe renders operation's Pagination by the names it reads, a path as the wire
 // names of its members joined by dots, so a case states what a walk reads in
 // the document's own words: "-" for no Pagination.
-func describe(doc *ir.Document, op ir.Operation) string {
-	pg := op.Pagination
+func describe(doc *ir.Document, operation ir.Operation) string {
+	pg := operation.Pagination
 	if pg == nil {
 		return "-"
 	}
 	params := map[ir.ParameterID]string{}
-	for _, parameter := range op.Params {
+	for _, parameter := range operation.Params {
 		params[parameter.ID] = parameter.Name.Source
 	}
 	members := map[ir.PropertyID]string{}
@@ -85,12 +85,12 @@ func describe(doc *ir.Document, op ir.Operation) string {
 		}
 		return params[*in.Param]
 	}
-	path := func(propPath *ir.PropPath) string {
-		if propPath == nil {
+	path := func(propertyPath *ir.PropertyPath) string {
+		if propertyPath == nil {
 			return "-"
 		}
-		names := make([]string, len(propPath.Segments))
-		for i, propertyID := range propPath.Segments {
+		names := make([]string, len(propertyPath.Segments))
+		for i, propertyID := range propertyPath.Segments {
 			names[i] = members[propertyID]
 		}
 		return "/" + strings.Join(names, "/")

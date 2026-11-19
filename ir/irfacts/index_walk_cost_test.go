@@ -21,8 +21,8 @@ import (
 // fill the registry, so the walk is within the steps the index walks before it
 // indexes. It is not run in parallel: AllocsPerRun measures the process.
 func TestIndex_AWalkedQuestionOverSeveralParentsAllocatesNothing(t *testing.T) {
-	model := func(id ir.TypeID, prop ir.PropertyID) *ir.Model {
-		return &ir.Model{ID: id, Properties: []ir.Property{{ID: prop}}}
+	model := func(id ir.TypeID, property ir.PropertyID) *ir.Model {
+		return &ir.Model{ID: id, Properties: []ir.Property{{ID: property}}}
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		"type/x/A": model("type/x/A", "property/x/A/a"), "type/x/B": model("type/x/B", "property/x/B/b"), "type/x/C": model("type/x/C", "property/x/C/c"),

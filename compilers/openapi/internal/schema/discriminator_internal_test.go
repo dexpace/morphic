@@ -18,12 +18,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-func TestPropIDByName_NotFound(t *testing.T) {
+func TestPropertyIDByName_NotFound(t *testing.T) {
 	t.Parallel()
 	model := &ir.Model{Properties: []ir.Property{{ID: "p1", Name: ir.Naming{Source: "a"}}}}
-	_, ok := propIDByName(model, "missing")
+	_, ok := propertyIDByName(model, "missing")
 	assert.False(t, ok)
-	id, ok := propIDByName(model, "a")
+	id, ok := propertyIDByName(model, "a")
 	assert.True(t, ok)
 	assert.Equal(t, ir.PropertyID("p1"), id)
 }
@@ -54,12 +54,12 @@ func TestDiscriminatorMapping_DefsValueNamesItsOwnInternedSibling(t *testing.T) 
 
 	catModel, ok := doc.Types[catID].(*ir.Model)
 	require.True(t, ok)
-	_, hasMeow := propIDByName(catModel, "meow")
+	_, hasMeow := propertyIDByName(catModel, "meow")
 	assert.True(t, hasMeow, "cat's own property, not dog's")
 
 	dogModel, ok := doc.Types[dogID].(*ir.Model)
 	require.True(t, ok)
-	_, hasBark := propIDByName(dogModel, "bark")
+	_, hasBark := propertyIDByName(dogModel, "bark")
 	assert.True(t, hasBark, "dog's own property, not cat's")
 
 	require.Len(t, union.Variants, 2)

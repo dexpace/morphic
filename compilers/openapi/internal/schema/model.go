@@ -294,15 +294,15 @@ func fillModelProperties(loweringContext lowering.Ctx, ts *compile.Types, depth 
 	pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, prop := range schema.ObjectKeywords().Properties {
-		js := loweringContext.Statements().Subschema(prop)
-		ppointer := pointer + ids.Ptr("properties", prop.Name)
+	for _, statementProperty := range schema.ObjectKeywords().Properties {
+		js := loweringContext.Statements().Subschema(statementProperty)
+		ppointer := pointer + ids.Ptr("properties", statementProperty.Name)
 		ref, refDiags := CarriedRef(loweringContext, ts, depth, js, ppointer)
 		diags = append(diags, refDiags...)
 		property := ir.Property{
-			ID:         loweringContext.IDs().Prop(ppointer),
-			Name:       ir.NamingFor(prop.Name),
-			WireName:   prop.Name,
+			ID:         loweringContext.IDs().Property(ppointer),
+			Name:       ir.NamingFor(statementProperty.Name),
+			WireName:   statementProperty.Name,
 			Type:       ref,
 			Provenance: loweringContext.Place().At(ppointer),
 		}
@@ -394,7 +394,7 @@ func fillCatchAll(loweringContext lowering.Ctx, ts *compile.Types, depth int, mo
 		diags = append(diags, refDiags...)
 		model.AdditionalProperties = &ir.AdditionalProperties{Value: &ref}
 	}
-	patterns, patternDiags := patternProps(loweringContext, ts, depth, schema, pointer)
+	patterns, patternDiags := patternProperties(loweringContext, ts, depth, schema, pointer)
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
 		if model.AdditionalProperties == nil {
@@ -404,7 +404,7 @@ func fillCatchAll(loweringContext lowering.Ctx, ts *compile.Types, depth int, mo
 			// composition evaluates it.
 			model.AdditionalProperties = &ir.AdditionalProperties{}
 			if !closes {
-				top := ts.PrimRef(ir.PrimitiveAny)
+				top := ts.PrimitiveRef(ir.PrimitiveAny)
 				model.AdditionalProperties.Value = &top
 			}
 		}
@@ -432,9 +432,9 @@ func forbidRest(model *ir.Model) {
 	}
 }
 
-// patternProps lowers patternProperties into pattern/value bindings in source
+// patternProperties lowers patternProperties into pattern/value bindings in source
 // order.
-func patternProps(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer) ([]ir.PatternProperties, []ir.Diagnostic) {
+func patternProperties(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer) ([]ir.PatternProperties, []ir.Diagnostic) {
 	pp := schema.ObjectKeywords().PatternProperties
 	if len(pp) == 0 {
 		return nil, nil

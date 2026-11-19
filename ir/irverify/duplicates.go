@@ -11,9 +11,9 @@ import (
 )
 
 var (
-	// propIDType is the reflect.Type of the one ID class checkDuplicateIDs holds
+	// propertyIDType is the reflect.Type of the one ID class checkDuplicateIDs holds
 	// to a weaker claim than "declared once"; see there for why.
-	propIDType = reflect.TypeFor[ir.PropertyID]()
+	propertyIDType = reflect.TypeFor[ir.PropertyID]()
 	// propertyType is the node that class identifies, which is what has to be
 	// fingerprinted to make that weaker claim.
 	propertyType = reflect.TypeFor[ir.Property]()
@@ -114,7 +114,7 @@ func duplicateIDs(decls declarations, differs map[occurrence]bool) []Violation {
 			continue
 		}
 		seen[key] = declared{first: before.first, met: before.met + 1}
-		if idDeclaration.Class == propIDType && !differs[occurrence{id: idDeclaration.ID, n: before.met}] {
+		if idDeclaration.Class == propertyIDType && !differs[occurrence{id: idDeclaration.ID, n: before.met}] {
 			continue // one property materialized at several paths, not two properties
 		}
 		again = append(again, redeclaration{at: i, first: before.first})
@@ -150,10 +150,10 @@ func redeclarationViolations(list []ir.IDDeclaration, again []redeclaration, dec
 // converting it back to an ir.Property, because a value the walk reached
 // through an unexported field cannot be converted (see ir.WalkValues);
 // checkNaming's namingChannels reads its channels the same way.
-func fingerprintOf(prop reflect.Value) fingerprint {
+func fingerprintOf(property reflect.Value) fingerprint {
 	return fingerprint{
-		source: prop.FieldByName("Name").FieldByName("Source").String(),
-		wire:   prop.FieldByName("WireName").String(),
-		target: prop.FieldByName("Type").FieldByName("Target").String(),
+		source: property.FieldByName("Name").FieldByName("Source").String(),
+		wire:   property.FieldByName("WireName").String(),
+		target: property.FieldByName("Type").FieldByName("Target").String(),
 	}
 }

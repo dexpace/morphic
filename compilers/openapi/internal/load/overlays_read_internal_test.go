@@ -109,25 +109,25 @@ func TestLoad_ANamedOverlayThatCannotBeReadIsAGoError(t *testing.T) {
 	t.Parallel()
 	const urlRefusal = "names a URL; an overlay is read from a local file"
 	tests := []struct {
-		name    string
-		path    string
-		reader  *fakeReader
-		wantIs  error
-		wantMsg string
-		unread  bool
+		name        string
+		path        string
+		reader      *fakeReader
+		wantIs      error
+		wantMessage string
+		unread      bool
 	}{
 		{name: "a missing file", path: "patch.yaml", reader: &fakeReader{err: fs.ErrNotExist},
-			wantIs: fs.ErrNotExist, wantMsg: "openapi: read overlay patch.yaml"},
+			wantIs: fs.ErrNotExist, wantMessage: "openapi: read overlay patch.yaml"},
 		{name: "a stopped read", path: "patch.yaml", reader: &fakeReader{err: context.Canceled},
-			wantIs: context.Canceled, wantMsg: "openapi: read overlay patch.yaml"},
+			wantIs: context.Canceled, wantMessage: "openapi: read overlay patch.yaml"},
 		{name: "no reader", path: "patch.yaml",
-			wantMsg: "openapi: overlay patch.yaml holds no bytes, and no reader was supplied to read it"},
+			wantMessage: "openapi: overlay patch.yaml holds no bytes, and no reader was supplied to read it"},
 		{name: "no path", reader: &fakeReader{data: []byte(describingOverlay)},
-			wantMsg: "openapi: the overlay holds no bytes and names no file to read", unread: true},
+			wantMessage: "openapi: the overlay holds no bytes and names no file to read", unread: true},
 		{name: "an http URL", path: "http://example.com/patch.yaml",
-			reader: &fakeReader{data: []byte(describingOverlay)}, wantMsg: urlRefusal, unread: true},
+			reader: &fakeReader{data: []byte(describingOverlay)}, wantMessage: urlRefusal, unread: true},
 		{name: "an https URL spelled in capitals", path: "HTTPS://example.com/patch.yaml",
-			reader: &fakeReader{data: []byte(describingOverlay)}, wantMsg: urlRefusal, unread: true},
+			reader: &fakeReader{data: []byte(describingOverlay)}, wantMessage: urlRefusal, unread: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -144,7 +144,7 @@ func TestLoad_ANamedOverlayThatCannotBeReadIsAGoError(t *testing.T) {
 			if tc.wantIs != nil {
 				require.ErrorIs(t, err, tc.wantIs)
 			}
-			assert.Contains(t, err.Error(), tc.wantMsg)
+			assert.Contains(t, err.Error(), tc.wantMessage)
 			assert.Nil(t, doc)
 			assert.Empty(t, diags)
 			if tc.unread {

@@ -91,12 +91,12 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		Pagination: &ir.Pagination{
 			Strategy:    ir.PageStrategyCursor,
 			InputCursor: &ir.InputPath{Param: new(ir.ParameterID("parameter/x/cursor"))},
-			Items:       &ir.PropPath{Segments: []ir.PropertyID{"property/items"}},
-			NextCursor:  &ir.PropPath{Segments: []ir.PropertyID{"property/nextCursor"}},
+			Items:       &ir.PropertyPath{Segments: []ir.PropertyID{"property/items"}},
+			NextCursor:  &ir.PropertyPath{Segments: []ir.PropertyID{"property/nextCursor"}},
 		},
 		LongRunning: &ir.LongRunning{
 			FinalStateVia: "operation-location",
-			ResultPath:    &ir.PropPath{Segments: []ir.PropertyID{"property/result"}},
+			ResultPath:    &ir.PropertyPath{Segments: []ir.PropertyID{"property/result"}},
 		},
 		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: "parameter/x/idempotency-key"},
 		Servers:     []ir.ServerID{"server/openapi/paths/~1users/get/servers/0"},
@@ -107,7 +107,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		ParameterVisibility:  []ir.Lifecycle{ir.LifecycleCreate},
 		ReturnTypeVisibility: []ir.Lifecycle{ir.LifecycleRead},
 		OverloadOf:           new(ir.OperationID("operation/base")),
-		Bindings:             ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "GET", URITemplate: "/users"}}},
+		Bindings:             ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "GET", URITemplate: "/users"}}},
 		Examples: []ir.Example{
 			{Name: "ex1", Input: &ir.ScenarioInput{Body: &ir.Value{Kind: ir.ValueString, String: "in"}}, Output: &ir.Value{Kind: ir.ValueString, String: "out"}},
 		},
@@ -254,7 +254,7 @@ func TestParameter_JSONContract(t *testing.T) {
 			Default:      &ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("10")},
 			Constraints:  populatedConstraints(),
 			Encoding:     &ir.Encoding{Name: "http-date"},
-			ValueFrom:    &ir.PropPath{In: "header", Segments: []ir.PropertyID{"property/x"}},
+			ValueFrom:    &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{"property/x"}},
 			Docs:         populatedDocs(),
 			Deprecation:  populatedDeprecation(),
 			Availability: populatedAvailability(),
@@ -450,14 +450,14 @@ func TestFileInfo_JSONContract(t *testing.T) {
 func TestResponse_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Response{}, `{"name":{},"conditions":{},"docs":{}}`, ir.Response{
-		Name:           ir.Naming{Source: "ok"},
-		Conditions:     ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}, {From: 202, To: 202}}},
-		Payload:        &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
-		Headers:        []ir.Header{populatedHeader()},
-		StatusCodeProp: &ir.PropPath{Segments: []ir.PropertyID{"property/status"}},
-		Links:          []ir.OperationLink{populatedOperationLink()},
-		Docs:           populatedDocs(),
-		Unmodeled:      populatedUnmodeled(),
+		Name:               ir.Naming{Source: "ok"},
+		Conditions:         ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}, {From: 202, To: 202}}},
+		Payload:            &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
+		Headers:            []ir.Header{populatedHeader()},
+		StatusCodeProperty: &ir.PropertyPath{Segments: []ir.PropertyID{"property/status"}},
+		Links:              []ir.OperationLink{populatedOperationLink()},
+		Docs:               populatedDocs(),
+		Unmodeled:          populatedUnmodeled(),
 	})
 }
 
@@ -580,26 +580,26 @@ func TestPagination_JSONContract(t *testing.T) {
 		Inferred:    true,
 		InputCursor: &ir.InputPath{Param: new(ir.ParameterID("parameter/x/cursor")), Segments: []ir.PropertyID{"property/cursor"}},
 		InputLimit:  &ir.InputPath{Param: new(ir.ParameterID("parameter/x/limit"))},
-		Items:       &ir.PropPath{Segments: []ir.PropertyID{"property/items"}},
-		NextCursor:  &ir.PropPath{Segments: []ir.PropertyID{"property/nextCursor"}},
-		HasMore:     &ir.PropPath{Segments: []ir.PropertyID{"property/hasMore"}},
-		NextLink:    &ir.PropPath{Segments: []ir.PropertyID{"property/nextLink"}},
-		PrevLink:    &ir.PropPath{Segments: []ir.PropertyID{"property/prevLink"}},
-		FirstLink:   &ir.PropPath{Segments: []ir.PropertyID{"property/firstLink"}},
-		LastLink:    &ir.PropPath{Segments: []ir.PropertyID{"property/lastLink"}},
-		TotalCount:  &ir.PropPath{Segments: []ir.PropertyID{"property/totalCount"}},
-		TotalPages:  &ir.PropPath{Segments: []ir.PropertyID{"property/totalPages"}},
+		Items:       &ir.PropertyPath{Segments: []ir.PropertyID{"property/items"}},
+		NextCursor:  &ir.PropertyPath{Segments: []ir.PropertyID{"property/nextCursor"}},
+		HasMore:     &ir.PropertyPath{Segments: []ir.PropertyID{"property/hasMore"}},
+		NextLink:    &ir.PropertyPath{Segments: []ir.PropertyID{"property/nextLink"}},
+		PrevLink:    &ir.PropertyPath{Segments: []ir.PropertyID{"property/prevLink"}},
+		FirstLink:   &ir.PropertyPath{Segments: []ir.PropertyID{"property/firstLink"}},
+		LastLink:    &ir.PropertyPath{Segments: []ir.PropertyID{"property/lastLink"}},
+		TotalCount:  &ir.PropertyPath{Segments: []ir.PropertyID{"property/totalCount"}},
+		TotalPages:  &ir.PropertyPath{Segments: []ir.PropertyID{"property/totalPages"}},
 		Stop:        []ir.PageStop{ir.PageStopNoNext, ir.PageStopShort, ir.PageStopNoMore},
 	})
 }
 
-// TestPropPath_JSONContract pins PropPath's omitempty contract (every field
+// TestPropertyPath_JSONContract pins PropertyPath's omitempty contract (every field
 // is optional; nil Root = context-determined, per the source comment) and
-// that a fully populated PropPath — rooted at an explicit type, addressed
+// that a fully populated PropertyPath — rooted at an explicit type, addressed
 // into a header — round-trips with its segments in walk order.
-func TestPropPath_JSONContract(t *testing.T) {
+func TestPropertyPath_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.PropPath{}, `{}`, ir.PropPath{
+	assertJSONContract(t, ir.PropertyPath{}, `{}`, ir.PropertyPath{
 		Root:     &ir.TypeRef{Target: "type/response"},
 		In:       "header",
 		Segments: []ir.PropertyID{"property/outer", "property/inner"},
@@ -627,6 +627,6 @@ func TestLongRunning_JSONContract(t *testing.T) {
 		FinalOperation:   new(ir.OperationID("operation/final")),
 		PollingType:      &ir.TypeRef{Target: "type/status-monitor"},
 		FinalType:        &ir.TypeRef{Target: "type/final-result"},
-		ResultPath:       &ir.PropPath{Segments: []ir.PropertyID{"property/result"}},
+		ResultPath:       &ir.PropertyPath{Segments: []ir.PropertyID{"property/result"}},
 	})
 }

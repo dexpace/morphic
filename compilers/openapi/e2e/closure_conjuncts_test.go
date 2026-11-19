@@ -34,7 +34,7 @@ func TestEntryClosure_APatternBesideTheAllOfIsTypedWhateverItsEntriesDeclare(t *
 					model := closureModelAt(t, doc, at)
 					requireClosurePatterns(t, model, string(at))
 					require.NotNil(t, model.AdditionalProperties.Value, "a key no pattern matches at %s", at)
-					assert.Equal(t, prim(ir.PrimitiveAny), model.AdditionalProperties.Value.Target, "is anything at %s", at)
+					assert.Equal(t, primitive(ir.PrimitiveAny), model.AdditionalProperties.Value.Target, "is anything at %s", at)
 					assert.True(t, slices.ContainsFunc(model.Properties, func(property ir.Property) bool { return property.WireName == "b" }), at)
 					assert.Empty(t, keptUnder(doc, at), "nothing is kept at %s", at)
 					assert.Empty(t, degradedUnder(diags, at), "nothing is reported at %s", at)
@@ -136,7 +136,7 @@ func TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry(t *testing.T) {
 	for _, at := range conjunctionPositions {
 		mapT, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.MapT)
 		require.True(t, ok, "a map of the entry's catch-all at %s", at)
-		assert.Equal(t, prim(ir.PrimitiveInteger), mapT.Value.Target, at)
+		assert.Equal(t, primitive(ir.PrimitiveInteger), mapT.Value.Target, at)
 		assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:unevaluated": ir.ReasonValidationOnly}, keptOn(mapT), at)
 	}
 

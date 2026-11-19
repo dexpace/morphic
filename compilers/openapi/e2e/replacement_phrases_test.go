@@ -22,18 +22,18 @@ import (
 func assertReplacementPhrases(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, name := range []string{"listZonesOld", "createZoneOld"} {
-		op, ok := opByName(doc, name)
+		operation, ok := operationByName(doc, name)
 		require.True(t, ok, name)
-		require.NotNil(t, op.Deprecation, name)
-		assert.Empty(t, op.Deprecation.ReplacedBy, "%s: its message names a route without saying it replaces it", name)
-		assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred, "%s: marked for its message alone", name)
+		require.NotNil(t, operation.Deprecation, name)
+		assert.Empty(t, operation.Deprecation.ReplacedBy, "%s: its message names a route without saying it replaces it", name)
+		assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred, "%s: marked for its message alone", name)
 	}
 
-	things, ok := opByName(doc, "listThings")
+	things, ok := operationByName(doc, "listThings")
 	require.True(t, ok)
 	members := map[string]ir.Property{}
 	for _, content := range things.Responses[0].Payload.Contents {
-		for _, property := range propsOfBody(t, doc, content) {
+		for _, property := range propertiesOfBody(t, doc, content) {
 			members[property.EffectiveWireName()] = property
 		}
 	}
@@ -52,18 +52,18 @@ func assertReplacementPhrases(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	off, _ := corpusWith(t, "replacement-inference",
 		openapi.Options{ReplacementInference: openapi.ReplacementInference{Disabled: true}})
 	for _, name := range []string{"listZonesV1", "listZonesOld", "listThings"} {
-		op, ok := opByName(off, name)
+		operation, ok := operationByName(off, name)
 		require.True(t, ok, name)
-		if op.Deprecation != nil {
-			assert.Empty(t, op.Deprecation.ReplacedBy, name)
-			assert.NotEmpty(t, op.Deprecation.Message, "%s keeps the message", name)
+		if operation.Deprecation != nil {
+			assert.Empty(t, operation.Deprecation.ReplacedBy, name)
+			assert.NotEmpty(t, operation.Deprecation.Message, "%s keeps the message", name)
 		}
-		assert.NotContains(t, markersOf(op.Provenance.Inferred), "replacement-inference", name)
+		assert.NotContains(t, markersOf(operation.Provenance.Inferred), "replacement-inference", name)
 	}
 }
 
-// propsOfBody returns the members of the model content's body is.
-func propsOfBody(t *testing.T, doc *ir.Document, content ir.Content) []ir.Property {
+// propertiesOfBody returns the members of the model content's body is.
+func propertiesOfBody(t *testing.T, doc *ir.Document, content ir.Content) []ir.Property {
 	t.Helper()
 	model, ok := doc.Types[content.Type.Target].(*ir.Model)
 	require.True(t, ok, "the body is a model")

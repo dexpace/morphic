@@ -10,18 +10,18 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// checkPrimKinds asserts every primitive names a kind ir declares, as do every
+// checkPrimitiveKinds asserts every primitive names a kind ir declares, as do every
 // enum's ValueType and every literal stating one.
 //
-// checkPrimIDs cannot reach this: it asks the ID to agree with the kind, and an
+// checkPrimitiveIDs cannot reach this: it asks the ID to agree with the kind, and an
 // invented kind agrees with itself (GitHub #240). An emitter switches on
 // PrimitiveKind to pick a target type, so an undeclared kind is one it can
 // neither lower nor report usefully.
 //
 // Nothing rejects it earlier: PrimitiveKind is a plain string type with no
 // UnmarshalJSONFrom, so a decoded or foreign document carries an invented kind
-// in unchallenged. checkPrimIDs also reports an empty kind at the wrong ID.
-func checkPrimKinds(doc *ir.Document) []Violation {
+// in unchallenged. checkPrimitiveIDs also reports an empty kind at the wrong ID.
+func checkPrimitiveKinds(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
 		if ir.IsNilTypeDef(td) {

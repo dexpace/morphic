@@ -126,8 +126,8 @@ func (r usageRoots) document(doc *ir.Document) {
 		return
 	}
 	callbacks := callbackOperations(doc)
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		r.operation(doc, &op, callbacks[op.ID] || isInbound(&op))
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		r.operation(doc, &operation, callbacks[operation.ID] || isInbound(&operation))
 	})
 	for i := range doc.Services {
 		for j := range doc.Services[i].CommonErrors {
@@ -146,8 +146,8 @@ func (r usageRoots) document(doc *ir.Document) {
 // callbacks: requests the API sends the client, not the other way round.
 func callbackOperations(doc *ir.Document) map[ir.OperationID]bool {
 	callbacks := map[ir.OperationID]bool{}
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		for _, b := range op.Bindings.HTTP {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		for _, b := range operation.Bindings.HTTP {
 			for _, cb := range b.Callbacks {
 				for _, id := range cb.Operations {
 					callbacks[id] = true
@@ -158,46 +158,46 @@ func callbackOperations(doc *ir.Document) map[ir.OperationID]bool {
 	return callbacks
 }
 
-// isInbound reports whether a binding of op marks it a request the API sends:
+// isInbound reports whether a binding of operation marks it a request the API sends:
 // a webhook or a callback. Its WebhookName may be empty, since an empty
 // webhooks key is legal.
-func isInbound(op *ir.Operation) bool {
-	return slices.ContainsFunc(op.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
+func isInbound(operation *ir.Operation) bool {
+	return slices.ContainsFunc(operation.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
 }
 
-// operation records what op sends and what comes back. The client writes a
+// operation records what operation sends and what comes back. The client writes a
 // request and reads a response, and the two swap when the API starts the
 // operation, as it does a webhook or a callback.
-func (r usageRoots) operation(doc *ir.Document, op *ir.Operation, inbound bool) {
+func (r usageRoots) operation(doc *ir.Document, operation *ir.Operation, inbound bool) {
 	request, response := UsageInput, UsageOutput
 	if inbound {
 		request, response = response, request
 	}
-	r.params(op.Params, request)
-	r.payload(op.Request, request)
-	r.stream(op.RequestStream, request)
-	if rpc := op.Bindings.RPC; rpc != nil {
+	r.params(operation.Params, request)
+	r.payload(operation.Request, request)
+	r.stream(operation.RequestStream, request)
+	if rpc := operation.Bindings.RPC; rpc != nil {
 		r.ref(rpc.InputType, request)
 	}
-	for i := range op.Responses {
-		r.payload(op.Responses[i].Payload, response)
-		r.headers(op.Responses[i].Headers, response)
+	for i := range operation.Responses {
+		r.payload(operation.Responses[i].Payload, response)
+		r.headers(operation.Responses[i].Headers, response)
 	}
-	if def := op.Default; def != nil {
+	if def := operation.Default; def != nil {
 		// The default comes back like any response; whether it is an error the
 		// IR does not say (docs/ir/responses.md), so it is not marked one.
 		r.payload(def.Payload, response)
 		r.headers(def.Headers, response)
 	}
-	r.stream(op.ResponseStream, response)
-	if lro := op.LongRunning; lro != nil {
+	r.stream(operation.ResponseStream, response)
+	if lro := operation.LongRunning; lro != nil {
 		r.ref(lro.PollingType, response)
 		r.ref(lro.FinalType, response)
 	}
-	for i := range op.Errors {
-		r.errorCase(&op.Errors[i], response)
+	for i := range operation.Errors {
+		r.errorCase(&operation.Errors[i], response)
 	}
-	r.messages(doc, op.Bindings.Message)
+	r.messages(doc, operation.Bindings.Message)
 }
 
 // messages records the messages a messaging binding sends or receives, and its

@@ -18,10 +18,10 @@ import (
 // Past the flattening depth a model can miss what its wrapper reads, and
 // Register refuses that collision.
 func fieldSpan(decls []declaration) (schema, field jsontext.Pointer) {
-	field = decls[0].prop.Provenance.Pointer
+	field = decls[0].property.Provenance.Pointer
 	schema = schemaOf(field)
 	for _, declaration := range decls[1:] {
-		held := declaration.prop.Provenance.Pointer
+		held := declaration.property.Provenance.Pointer
 		if schema.Contains(held) {
 			continue
 		}
@@ -47,7 +47,7 @@ func (g *Merger) identify(merged *ir.Property, schema, field jsontext.Pointer) {
 	if !g.carriedApart(merged.Provenance.Pointer, schema) {
 		return
 	}
-	merged.ID = g.IDs.ComposedProp(field)
+	merged.ID = g.IDs.ComposedProperty(field)
 	merged.Provenance.Pointer = field
 }
 

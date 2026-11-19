@@ -16,7 +16,7 @@ import (
 func declaredIn(pointers ...jsontext.Pointer) []declaration {
 	decls := make([]declaration, 0, len(pointers))
 	for _, pointer := range pointers {
-		decls = append(decls, declaration{prop: ir.Property{
+		decls = append(decls, declaration{property: ir.Property{
 			ID: ir.PropertyID("property/test" + pointer), WireName: "p", Provenance: ptrAt(pointer), Type: ir.TypeRef{Target: "type/primitive/string"},
 		}, source: written(`{}`)})
 	}
@@ -88,8 +88,8 @@ func TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn(t *testing.T) {
 		pointer jsontext.Pointer
 	}{
 		{"no other node", []jsontext.Pointer{first, later}, nil, "property/test" + first, first},
-		{"the branch holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, mintedProp(later), later},
-		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, mintedProp(later), later},
+		{"the branch holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, mintedProperty(later), later},
+		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, mintedProperty(later), later},
 		{"the schema holding every declaration", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s"}, "property/test" + first, first},
 		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, "property/test" + first, first},
 		{"a branch holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "property/test" + first, first},
@@ -104,10 +104,10 @@ func TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn(t *testing.T) {
 	}
 }
 
-// TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity pins the one
+// TestPropertyIndex_ADiscriminatorFollowsItsFieldToANewIdentity pins the one
 // reference the walk takes off a field before it folds: a model's discriminator
 // keeps naming the property, and one naming another field is left alone.
-func TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
+func TestPropertyIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
 	t.Parallel()
 	const first, later = "/s/allOf/0/properties/p", "/s/allOf/1/properties/p"
 	for _, tc := range []struct {
@@ -115,7 +115,7 @@ func TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
 		names ir.PropertyID
 		want  ir.PropertyID
 	}{
-		{"the folded field", "property/test" + first, mintedProp(later)},
+		{"the folded field", "property/test" + first, mintedProperty(later)},
 		{"another field", "property/test/other", "property/test/other"},
 	} {
 		stubbed, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}})
@@ -123,7 +123,7 @@ func TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
 		model := &ir.Model{Discriminator: &ir.Discriminator{Property: tc.names}}
 		idx, settle := indexOver(model, stubbed)
 		for _, declaration := range declaredIn(first, later) {
-			idx.MergeProperty(declaration.prop, declaration.source, declaration.secretBy)
+			idx.MergeProperty(declaration.property, declaration.source, declaration.secretBy)
 		}
 
 		settle()

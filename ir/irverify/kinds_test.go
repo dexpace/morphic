@@ -13,10 +13,10 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// primDoc interns one primitive of kind at the ID that kind derives, so the
-// document is sound in every way except the kind itself — checkPrimIDs has
+// primitiveKindDocument interns one primitive of kind at the ID that kind derives, so the
+// document is sound in every way except the kind itself — checkPrimitiveIDs has
 // nothing to say about it and only the new claim can fire.
-func primDoc(kind ir.PrimitiveKind) *ir.Document {
+func primitiveKindDocument(kind ir.PrimitiveKind) *ir.Document {
 	id := ir.PrimitiveTypeID(kind)
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: &ir.Primitive{
 		ID:            id,
@@ -25,10 +25,10 @@ func primDoc(kind ir.PrimitiveKind) *ir.Document {
 	}}}
 }
 
-// TestVerify_UndeclaredPrimKindIsAViolation is the case checkPrimIDs is blind
+// TestVerify_UndeclaredPrimitiveKindIsAViolation is the case checkPrimitiveIDs is blind
 // to: the ID is derived from the kind, so it agrees with it — consistently, and
 // wrongly. An emitter switching on PrimitiveKind has no arm for any of these.
-func TestVerify_UndeclaredPrimKindIsAViolation(t *testing.T) {
+func TestVerify_UndeclaredPrimitiveKindIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -42,7 +42,7 @@ func TestVerify_UndeclaredPrimKindIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := verifyDeclared(primDoc(tc.kind))
+			got := verifyDeclared(primitiveKindDocument(tc.kind))
 			require.Len(t, got, 1, "the ID derives from the kind, so nothing else can be wrong")
 			assert.Equal(t, "ir/unknown-prim-kind", got[0].Code)
 			assert.Equal(t, "types["+string(ir.PrimitiveTypeID(tc.kind))+"]", got[0].Path)
@@ -51,7 +51,7 @@ func TestVerify_UndeclaredPrimKindIsAViolation(t *testing.T) {
 	}
 }
 
-// TestVerify_NilTypeBesideAPrimitiveDoesNotPanic holds checkPrimKinds to the
+// TestVerify_NilTypeBesideAPrimitiveDoesNotPanic holds checkPrimitiveKinds to the
 // report-only guarantee, at the nil shape that can actually break it.
 //
 // An untyped nil fails the *ir.Primitive assertion, so a check with no guard at
@@ -70,7 +70,7 @@ func TestVerify_NilTypeBesideAPrimitiveDoesNotPanic(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := primDoc("flt")
+			doc := primitiveKindDocument("flt")
 			doc.Types["type/x/Nil"] = tc.entry
 
 			var got []irverify.Violation
@@ -81,16 +81,16 @@ func TestVerify_NilTypeBesideAPrimitiveDoesNotPanic(t *testing.T) {
 	}
 }
 
-// TestVerify_DeclaredPrimKindIsClean is the other half of the proof: a check
+// TestVerify_DeclaredPrimitiveKindIsClean is the other half of the proof: a check
 // that cannot stay silent is no better than one that cannot fire. The documents
 // differ from the ones above only in the kind, so nothing but the kind can be
 // what the check reads.
-func TestVerify_DeclaredPrimKindIsClean(t *testing.T) {
+func TestVerify_DeclaredPrimitiveKindIsClean(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveFloat64, ir.PrimitiveDatetimeOffset, ir.PrimitiveAny} {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, verifyDeclared(primDoc(kind)))
+			assert.Empty(t, verifyDeclared(primitiveKindDocument(kind)))
 		})
 	}
 }
@@ -234,7 +234,7 @@ func TestVerify_ALiteralsUndeclaredValueTypeIsAViolation(t *testing.T) {
 // carrier the check named by hand would be the one a new struct escapes.
 func TestVerify_UndeclaredStabilityIsAViolation(t *testing.T) {
 	t.Parallel()
-	const op = "document.Services[0].Groups[0].Operations[0].Stability"
+	const operationPath = "document.Services[0].Groups[0].Operations[0].Stability"
 	tests := []struct {
 		name string
 		edit func(*ir.Document)
@@ -242,7 +242,7 @@ func TestVerify_UndeclaredStabilityIsAViolation(t *testing.T) {
 	}{
 		{"an operation", func(document *ir.Document) {
 			document.Services[0].Groups[0].Operations[0].Stability = "preview"
-		}, op},
+		}, operationPath},
 		{"a group", func(document *ir.Document) {
 			document.Services[0].Groups[0].Stability = "GA"
 		}, "document.Services[0].Groups[0].Stability"},
@@ -253,7 +253,7 @@ func TestVerify_UndeclaredStabilityIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := opDoc(ir.Operation{ID: "operation/x/S/op"})
+			doc := singleOperationDocument(ir.Operation{ID: "operation/x/S/op"})
 			tc.edit(doc)
 			var got []string
 			for _, violation := range irverify.Verify(doc) {
@@ -274,7 +274,7 @@ func TestVerify_DeclaredStabilityIsClean(t *testing.T) {
 	for _, tier := range []ir.Stability{ir.StabilityUnstated, ir.StabilityAlpha, ir.StabilityBeta, ir.StabilityStable} {
 		t.Run(string(tier), func(t *testing.T) {
 			t.Parallel()
-			assert.NotContains(t, violationCodes(irverify.Verify(opDoc(ir.Operation{ID: "operation/x/S/op", Stability: tier}))),
+			assert.NotContains(t, violationCodes(irverify.Verify(singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Stability: tier}))),
 				"ir/unknown-stability")
 		})
 	}

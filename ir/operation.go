@@ -83,7 +83,7 @@ type Operation struct {
 	OverloadOf *OperationID `json:"overloadOf,omitzero"`
 	// Bindings describes how the neutral core maps onto concrete protocols
 	// (docs/ir/bindings.md).
-	Bindings OpBindings `json:"bindings"`
+	Bindings OperationBindings `json:"bindings"`
 	// Examples are operation-scenario examples.
 	Examples []Example `json:"examples,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -125,7 +125,7 @@ type Parameter struct {
 	// ValueFrom derives the parameter's value from a location in the
 	// outgoing/incoming message (AsyncAPI parameter location runtime
 	// expressions); SDKs may auto-fill it. nil = caller-supplied.
-	ValueFrom *PropPath `json:"valueFrom,omitzero"`
+	ValueFrom *PropertyPath `json:"valueFrom,omitzero"`
 	// Docs is the parameter's documentation.
 	Docs Docs `json:"docs"`
 	// Deprecation marks the parameter as deprecated.
@@ -320,10 +320,10 @@ type Response struct {
 	Headers []Header `json:"headers,omitempty"`
 	// Links are the requests the response leads to, in source order.
 	Links []OperationLink `json:"links,omitempty"`
-	// StatusCodeProp is the output member populated from the runtime HTTP status
+	// StatusCodeProperty is the output member populated from the runtime HTTP status
 	// line (Smithy @httpResponseCode, TypeSpec non-literal @statusCode); the
 	// member is suppressed from the body.
-	StatusCodeProp *PropPath `json:"statusCodeProp,omitzero"`
+	StatusCodeProperty *PropertyPath `json:"statusCodeProperty,omitzero"`
 	// Docs is the response's documentation.
 	Docs Docs `json:"docs"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -353,7 +353,7 @@ type StatusRange struct {
 // the failure classification below them is what separates the two nodes.
 //
 // The sharing is those four fields, not everything [Response] holds:
-// StatusCodeProp stays success-only, because the formats that populate an output
+// StatusCodeProperty stays success-only, because the formats that populate an output
 // member from the status line (Smithy @httpResponseCode, TypeSpec's non-literal
 // @statusCode) classify errors by @httpError instead, so an error case has no
 // runtime status to bind a member to.
@@ -583,24 +583,24 @@ type Pagination struct {
 	// InputLimit is the page-size input, a parameter or a request-body field.
 	InputLimit *InputPath `json:"inputLimit,omitzero"`
 	// Items is where result items live in the response — a path, not a name.
-	Items *PropPath `json:"items,omitzero"`
+	Items *PropertyPath `json:"items,omitzero"`
 	// NextCursor is the continuation source in the response.
-	NextCursor *PropPath `json:"nextCursor,omitzero"`
+	NextCursor *PropertyPath `json:"nextCursor,omitzero"`
 	// HasMore is the response's flag saying another page follows: true
 	// continues. nil = the source states none.
-	HasMore *PropPath `json:"hasMore,omitzero"`
+	HasMore *PropertyPath `json:"hasMore,omitzero"`
 	// NextLink is the next-page link in the response.
-	NextLink *PropPath `json:"nextLink,omitzero"`
+	NextLink *PropertyPath `json:"nextLink,omitzero"`
 	// PrevLink is the previous-page navigation link.
-	PrevLink *PropPath `json:"prevLink,omitzero"`
+	PrevLink *PropertyPath `json:"prevLink,omitzero"`
 	// FirstLink is the first-page navigation link.
-	FirstLink *PropPath `json:"firstLink,omitzero"`
+	FirstLink *PropertyPath `json:"firstLink,omitzero"`
 	// LastLink is the last-page navigation link.
-	LastLink *PropPath `json:"lastLink,omitzero"`
+	LastLink *PropertyPath `json:"lastLink,omitzero"`
 	// TotalCount is the total-count source in the response, counting items.
-	TotalCount *PropPath `json:"totalCount,omitzero"`
+	TotalCount *PropertyPath `json:"totalCount,omitzero"`
 	// TotalPages is the page-count source in the response, counting pages.
-	TotalPages *PropPath `json:"totalPages,omitzero"`
+	TotalPages *PropertyPath `json:"totalPages,omitzero"`
 	// Stop lists when iteration ends, each once, any one ending it; empty = the
 	// source states no rule, which a consumer does not guess.
 	Stop []PageStop `json:"stop,omitempty"`
@@ -641,9 +641,9 @@ func (s PageStop) Valid() bool {
 	}
 }
 
-// PropPath addresses a member within a type by identity, not by name
+// PropertyPath addresses a member within a type by identity, not by name
 // (docs/ir/interaction-patterns.md).
-type PropPath struct {
+type PropertyPath struct {
 	// Root is the type the path roots in; nil = determined by context (the
 	// enclosing response body, message payload, …).
 	Root *TypeRef `json:"root,omitzero"`
@@ -684,7 +684,7 @@ type LongRunning struct {
 	// FinalType is the final-result type.
 	FinalType *TypeRef `json:"finalType,omitzero"`
 	// ResultPath locates the final result within the polling response.
-	ResultPath *PropPath `json:"resultPath,omitzero"`
+	ResultPath *PropertyPath `json:"resultPath,omitzero"`
 }
 
 // ParamChoice is one choice among alternative sets of an operation's

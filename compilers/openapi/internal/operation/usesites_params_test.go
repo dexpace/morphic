@@ -48,7 +48,7 @@ func TestParameter_SchemaEntriesAreScoped(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, conformanceSpecsDir, "carried-keys"))
 	assert.Equal(t, []string{"openapi/unpromoted-extension info /tags/1/x-stability"}, findings(diags))
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 
 	p := namedItem(t, valueAtPath(a, "params"), "p")
 	assert.Empty(t, cmp.Diff(map[string]string{
@@ -113,7 +113,7 @@ func TestParameter_SchemaAndObjectSpellOneKey(t *testing.T) {
 		}
 		assert.Len(t, findings(diags), 6, "%s: three table findings, two schema keywords, the $ref's key", name)
 
-		a := opTree(t, doc, "a")
+		a := operationTree(t, doc, "a")
 		for param, entry := range want {
 			assert.Empty(t, cmp.Diff(entry, entries(t, valueAtPath(namedItem(t, valueAtPath(a, "params"), param), "unmodeled"))),
 				"%s: %s", name, param)
@@ -131,13 +131,13 @@ func TestParameter_SchemaAndObjectSpellOneKey(t *testing.T) {
 func TestParameter_XMLKeptOnce(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, specFrom(t, specsDir, "param_xml_kept_once"))
-	q := namedItem(t, valueAtPath(opTree(t, doc, ""), "params"), "q")
+	q := namedItem(t, valueAtPath(operationTree(t, doc, ""), "params"), "q")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:schema/xml": `no_ir_home {"name":"s","x-tag":5} /paths/~1p/get/parameters/0/schema/xml`,
 	}, entries(t, valueAtPath(q, "unmodeled"))))
 
 	doc, _ = parseFull(t, specFrom(t, specsDir, "param_branch_kept_once"))
-	q = namedItem(t, valueAtPath(opTree(t, doc, "g"), "params"), "q")
+	q = namedItem(t, valueAtPath(operationTree(t, doc, "g"), "params"), "q")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:schema/xml": `no_ir_home {"name":"s","x-tag":5} /paths/~1s~1{schema_id}/get/parameters/1/schema/xml`,
 	}, entries(t, valueAtPath(q, "unmodeled"))))
@@ -150,7 +150,7 @@ func TestParameter_XMLKeptOnce(t *testing.T) {
 func TestParameter_BranchKeptOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, specsDir, "param_branch_kept_once"))
-	id := namedItem(t, valueAtPath(opTree(t, doc, "g"), "params"), "schema_id")
+	id := namedItem(t, valueAtPath(operationTree(t, doc, "g"), "params"), "schema_id")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:schema/format":   `degraded_lowering "uuid" /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1/format`,
 		"openapi:schema/readOnly": `no_ir_home true /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1/readOnly`,
@@ -171,7 +171,7 @@ func TestParameter_RedactionIsSingleSided(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, specsDir, "param_redaction_single_sided"))
 	assert.Empty(t, diags)
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 
 	inl := namedItem(t, valueAtPath(a, "params"), "inl")
 	assert.Equal(t, true, valueAtPath(inl, "secret"))
@@ -242,7 +242,7 @@ paths:
       responses: {"204": {description: ok}}
 `)
 	assert.Empty(t, diags)
-	c := namedItem(t, valueAtPath(opTree(t, doc, "a"), "params"), "c")
+	c := namedItem(t, valueAtPath(operationTree(t, doc, "a"), "params"), "c")
 	assert.Equal(t, true, valueAtPath(c, "secret"))
 	assert.Equal(t, "extension-promotion", valueAtPath(c, "provenance", "inferred"))
 }
@@ -276,16 +276,16 @@ paths:
       x-stability: beta
       responses: {"204": {description: ok}}
 `)
-	const op = "/paths/~1a/get/"
+	const operation = "/paths/~1a/get/"
 	assert.Equal(t, []string{
-		"openapi/degraded-construct info " + op + "parameters/0/content/application~1json/schema/x-sensitive",
-		"openapi/degraded-construct info " + op + "parameters/0/content/application~1json/x-sensitive",
-		"openapi/degraded-construct info " + op + "parameters/1/schema/x-sensitive",
-		"openapi/degraded-construct info " + op + "parameters/1/x-sensitive",
-		"openapi/degraded-construct info " + op + "parameters/2/schema/x-sensitive",
-		"openapi/degraded-construct info " + op + "responses/200/headers/H/schema/x-sensitive",
-		"openapi/degraded-construct info " + op + "responses/200/headers/H/x-sensitive",
-		"openapi/degraded-construct info " + op + "x-stability",
+		"openapi/degraded-construct info " + operation + "parameters/0/content/application~1json/schema/x-sensitive",
+		"openapi/degraded-construct info " + operation + "parameters/0/content/application~1json/x-sensitive",
+		"openapi/degraded-construct info " + operation + "parameters/1/schema/x-sensitive",
+		"openapi/degraded-construct info " + operation + "parameters/1/x-sensitive",
+		"openapi/degraded-construct info " + operation + "parameters/2/schema/x-sensitive",
+		"openapi/degraded-construct info " + operation + "responses/200/headers/H/schema/x-sensitive",
+		"openapi/degraded-construct info " + operation + "responses/200/headers/H/x-sensitive",
+		"openapi/degraded-construct info " + operation + "x-stability",
 		"openapi/degraded-construct info /paths/~1a/x-stability",
 	}, findings(diags))
 }
@@ -337,7 +337,7 @@ paths:
             Lent: {x-sensitive: false, schema: {type: string, x-sensitive: true}}
             Carried: {schema: {type: string, x-sensitive: 5}}
 `)
-	headers := valueAtPath(opTree(t, doc, "a"), "responses", "0", "headers")
+	headers := valueAtPath(operationTree(t, doc, "a"), "responses", "0", "headers")
 	assert.Equal(t, true, valueAtPath(namedItem(t, headers, "Lent"), "secret"))
 	assert.Equal(t, []string{
 		"openapi/degraded-construct info /paths/~1a/get/responses/200/headers/Carried/schema/x-sensitive",

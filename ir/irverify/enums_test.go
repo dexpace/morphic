@@ -57,7 +57,7 @@ func enumCases() map[string]enumCase {
 				scenarioOperation(doc).Bindings.HTTP[0].ParamBindings[0].Location = ir.HTTPLocation(v)
 			},
 			code: "ir/unknown-http-location",
-			path: scenarioOp + ".Bindings.HTTP[0].ParamBindings[0].Location",
+			path: scenarioOperationPath + ".Bindings.HTTP[0].ParamBindings[0].Location",
 			valid: []string{
 				string(ir.HTTPLocationPath), string(ir.HTTPLocationQuery), string(ir.HTTPLocationQuerystring),
 				string(ir.HTTPLocationHeader), string(ir.HTTPLocationCookie), string(ir.HTTPLocationBody),
@@ -67,14 +67,14 @@ func enumCases() map[string]enumCase {
 		},
 		"IdempotencyKind": {
 			place: func(doc *ir.Document, v string) {
-				op := scenarioOperation(doc)
-				op.Idempotency = ir.Idempotency{Kind: ir.IdempotencyKind(v)}
+				operation := scenarioOperation(doc)
+				operation.Idempotency = ir.Idempotency{Kind: ir.IdempotencyKind(v)}
 				if ir.IdempotencyKind(v) == ir.IdempotencyToken {
-					op.Idempotency.TokenParam = "parameter/x/o/q"
+					operation.Idempotency.TokenParam = "parameter/x/o/q"
 				}
 			},
 			code: "ir/unknown-idempotency-kind",
-			path: scenarioOp + ".Idempotency.Kind",
+			path: scenarioOperationPath + ".Idempotency.Kind",
 			valid: []string{
 				string(ir.IdempotencyUnknown), string(ir.IdempotencySafe), string(ir.IdempotencyIdempotent),
 				string(ir.IdempotencyToken),
@@ -90,7 +90,7 @@ func enumCases() map[string]enumCase {
 				}
 			},
 			code:    "ir/unknown-message-direction",
-			path:    scenarioOp + ".Bindings.Message.Direction",
+			path:    scenarioOperationPath + ".Bindings.Message.Direction",
 			valid:   []string{string(ir.MessageDirectionSend), string(ir.MessageDirectionReceive)},
 			invalid: []string{"bogus", ""},
 		},
@@ -99,7 +99,7 @@ func enumCases() map[string]enumCase {
 				scenarioOperation(doc).Pagination = &ir.Pagination{Strategy: ir.PageStrategy(v)}
 			},
 			code: "ir/unknown-page-strategy",
-			path: scenarioOp + ".Pagination.Strategy",
+			path: scenarioOperationPath + ".Pagination.Strategy",
 			valid: []string{
 				string(ir.PageStrategyCursor), string(ir.PageStrategyOffset), string(ir.PageStrategyPage),
 				string(ir.PageStrategyLinkHeader), string(ir.PageStrategyNextLink), string(ir.PageStrategyToken),
@@ -233,12 +233,12 @@ func TestVerifyFindings_UndeclaredSeverityIsAViolation(t *testing.T) {
 func TestVerify_IdempotencyAndWebhookChecksKeepTheirFindings(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
-	op := scenarioOperation(doc)
-	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: "parameter/x/o/q"}
-	op.Bindings.HTTP[0].Inbound = "bogus"
+	operation := scenarioOperation(doc)
+	operation.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: "parameter/x/o/q"}
+	operation.Bindings.HTTP[0].Inbound = "bogus"
 
-	assert.Equal(t, []string{scenarioOp + ".Idempotency"}, scenarioCodes(doc, "ir/idempotency-token"))
-	assert.Equal(t, []string{scenarioOp + ".Bindings.HTTP[0].Inbound"}, scenarioCodes(doc, "ir/unknown-http-inbound"))
+	assert.Equal(t, []string{scenarioOperationPath + ".Idempotency"}, scenarioCodes(doc, "ir/idempotency-token"))
+	assert.Equal(t, []string{scenarioOperationPath + ".Bindings.HTTP[0].Inbound"}, scenarioCodes(doc, "ir/unknown-http-inbound"))
 
 	valid := scenarioBase()
 	assert.Empty(t, scenarioCodes(valid, "ir/idempotency-token"))

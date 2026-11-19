@@ -35,11 +35,11 @@ func TestParams_QueryStringLocation(t *testing.T) {
 `)
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "q")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+	operation := openapitest.FindOperation(t, doc, "q")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
 
-	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	qs := operation.Bindings.HTTP[0].ParamBindings[0]
 	assert.Equal(t, ir.HTTPLocationQuerystring, qs.Location)
 	assert.Equal(t, "application/x-www-form-urlencoded", qs.ContentType)
 	assert.Empty(t, qs.Style, "3.2 binds the query string from content and forbids style there")
@@ -74,11 +74,11 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 			openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
 				"/paths/~1q/get/parameters/0/"+keyword))
 	}
-	op := openapitest.FindOp(t, doc, "q")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+	operation := openapitest.FindOperation(t, doc, "q")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
 
-	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	qs := operation.Bindings.HTTP[0].ParamBindings[0]
 	require.Equal(t, ir.HTTPLocationQuerystring, qs.Location,
 		"the keywords below are only news at the location that forbids them")
 	assert.Equal(t, "form", qs.Style, "the declared style lowers as declared")
@@ -111,11 +111,11 @@ func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 `)
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "q")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+	operation := openapitest.FindOperation(t, doc, "q")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
 
-	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	qs := operation.Bindings.HTTP[0].ParamBindings[0]
 	require.Equal(t, ir.HTTPLocationQuerystring, qs.Location,
 		"the keywords below are only news at the location that forbids them")
 	assert.Empty(t, qs.Style, "no style is invented at this location")
@@ -153,11 +153,11 @@ func TestParams_QueryStringDeclaredStyleAloneTakesNoExplode(t *testing.T) {
 	assert.Equal(t, "parameter field style is not allowed for in=querystring; lowered as declared",
 		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
 			"/paths/~1q/get/parameters/0/style"))
-	op := openapitest.FindOp(t, doc, "q")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+	operation := openapitest.FindOperation(t, doc, "q")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
 
-	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	qs := operation.Bindings.HTTP[0].ParamBindings[0]
 	require.Equal(t, ir.HTTPLocationQuerystring, qs.Location)
 	assert.Equal(t, "form", qs.Style, "the declared style lowers as declared")
 	assert.Nil(t, qs.Explode, "the parameter writes no explode, so the binding states none")
@@ -183,11 +183,11 @@ func TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported(t *testing.T) 
 `)
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "q")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+	operation := openapitest.FindOperation(t, doc, "q")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
 
-	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	qs := operation.Bindings.HTTP[0].ParamBindings[0]
 	require.Equal(t, ir.HTTPLocationQuerystring, qs.Location,
 		"the keyword below is only news at the location that forbids it")
 	assert.True(t, qs.AllowReserved, "the declared allowReserved lowers as declared")
@@ -218,8 +218,8 @@ func TestParams_QueryStringUndeclaredKeywordsAreNotReported(t *testing.T) {
         "200": {description: ok}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "q")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+	operation := openapitest.FindOperation(t, doc, "q")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
 	assert.False(t, openapitest.HasDiag(diags, diag.InvalidLocationKeyword))
 }

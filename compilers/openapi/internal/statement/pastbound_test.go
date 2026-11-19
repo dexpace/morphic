@@ -499,8 +499,8 @@ func compileBody(t *testing.T, spec string) string {
 	t.Helper()
 	doc, _, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(spec)}, compilers.Options{})
 	require.NoError(t, err)
-	op := openapitest.FirstOp(t, doc.Services[0])
-	require.NotNil(t, op.Request)
+	operation := openapitest.FirstOperation(t, doc.Services[0])
+	require.NotNil(t, operation.Request)
 	types := ir.TypeRegistry{}
 	for id, td := range doc.Types {
 		if strings.Contains(string(id), "/requestBody/") {
@@ -510,7 +510,7 @@ func compileBody(t *testing.T, spec string) string {
 	raw, err := json.Marshal(struct {
 		Contents []ir.Content
 		Types    ir.TypeRegistry
-	}{op.Request.Contents, types}, json.Deterministic(true))
+	}{operation.Request.Contents, types}, json.Deterministic(true))
 	require.NoError(t, err)
 	return string(raw)
 }

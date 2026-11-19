@@ -35,9 +35,9 @@ const (
 // computed, or a scalar of the document as the compiler reads it.
 type scalar struct {
 	// node is an opaque scalar's own node, which alone it equals.
-	node *yaml.Node
-	text string
-	num  number
+	node   *yaml.Node
+	text   string
+	number number
 	// size is the bytes of text a comparison of the scalar reads: a string's,
 	// or the literal a number is written as.
 	size int
@@ -87,8 +87,8 @@ func outOfRange(past *ir.ExponentRangeError) number {
 
 // countOf is the number n.
 func countOf(n int) scalar {
-	num, _ := newNumber(strconv.Itoa(n)) // a run of digits is a decimal
-	return scalar{kind: kindNumber, num: num}
+	number, _ := newNumber(strconv.Itoa(n)) // a run of digits is a decimal
+	return scalar{kind: kindNumber, number: number}
 }
 
 // compare orders two numbers.
@@ -125,7 +125,7 @@ func readScalar(node *yaml.Node) scalar {
 	valueScalar, err := value.Classify(node)
 	if err != nil {
 		if past, ok := errors.AsType[*ir.ExponentRangeError](err); ok {
-			return scalar{kind: kindNumber, num: outOfRange(past), size: len(node.Value)}
+			return scalar{kind: kindNumber, number: outOfRange(past), size: len(node.Value)}
 		}
 		return scalar{kind: kindOpaque, node: node}
 	}
@@ -135,8 +135,8 @@ func readScalar(node *yaml.Node) scalar {
 	case value.ScalarBool:
 		return scalar{kind: kindBool, b: valueScalar.Bool}
 	case value.ScalarNumber:
-		num, _ := newNumber(string(valueScalar.Num)) // a BigVal is a decimal in range
-		return scalar{kind: kindNumber, num: num, size: len(node.Value)}
+		number, _ := newNumber(string(valueScalar.Number)) // a BigVal is a decimal in range
+		return scalar{kind: kindNumber, number: number, size: len(node.Value)}
 	default:
 		return scalar{kind: kindString, text: valueScalar.Text, size: len(valueScalar.Text)}
 	}
@@ -162,7 +162,7 @@ func sameScalar(a, b scalar) bool {
 	case kindBool:
 		return a.b == b.b
 	case kindNumber:
-		return a.num.compare(b.num) == 0
+		return a.number.compare(b.number) == 0
 	case kindString:
 		return a.text == b.text
 	default:
@@ -255,7 +255,7 @@ func (r *reader) less(ctx context.Context, a, b jsonValue) (bool, error) {
 	}
 	switch sa.kind {
 	case kindNumber:
-		return sa.num.compare(sb.num) < 0, nil
+		return sa.number.compare(sb.number) < 0, nil
 	case kindString:
 		// UTF-8 orders as the code points it encodes.
 		return sa.text < sb.text, nil

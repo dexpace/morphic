@@ -38,7 +38,7 @@ func TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration(t *testing.T) {
 		Provenance: ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/1/properties/id"},
 	}
 
-	dst := stubbed.fold([]declaration{{prop: loser, source: written(`{"type":"integer","nullable":true}`)}, {prop: winner, source: unread(t)}})
+	dst := stubbed.fold([]declaration{{property: loser, source: written(`{"type":"integer","nullable":true}`)}, {property: winner, source: unread(t)}})
 
 	require.Len(t, *recorded, 1, "the conflict is still diagnosed")
 	assert.Equal(t, ir.TypeID("type/str"), dst.Type.Target, "the later declaration wins the shape")
@@ -107,9 +107,9 @@ func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 	assert.Empty(t, agreeing.Unmodeled, "and nothing was discarded to keep")
 
 	bounded := stubbed.fold([]declaration{
-		{prop: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "type/str"}, Constraints: &ir.Constraints{Pattern: "^a$"},
+		{property: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "type/str"}, Constraints: &ir.Constraints{Pattern: "^a$"},
 			Provenance: ptrAt("/a")}, source: written(`{"type":"string","pattern":"^a$"}`)},
-		{prop: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "type/str"}, Constraints: &ir.Constraints{Pattern: "^b$"},
+		{property: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "type/str"}, Constraints: &ir.Constraints{Pattern: "^b$"},
 			Provenance: ptrAt("/b")}, source: unread(t)},
 	})
 

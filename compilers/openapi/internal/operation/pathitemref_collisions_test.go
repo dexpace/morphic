@@ -79,10 +79,10 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 
 	// The use site's declaration is the one lowered, and the referent's get is
 	// not lowered at this mount at all.
-	getA := opByPath(t, doc, "GET", "/a")
+	getA := operationByPath(t, doc, "GET", "/a")
 	assert.Equal(t, "useGet", getA.Name.Source)
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/get"), getA.Provenance.Pointer)
-	getB := opByPath(t, doc, "GET", "/b")
+	getB := operationByPath(t, doc, "GET", "/b")
 	assert.Equal(t, "refGet", getB.Name.Source, "the referent still lowers at its own path")
 
 	assert.Equal(t, "use summary", getA.Bindings.HTTP[0].PathDocs.Summary, "the use site's summary survives")
@@ -112,10 +112,10 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingOperationID))
 }
 
-// pathItemRefOpIDSpec has the operation written beside the $ref repeat the
+// pathItemRefOperationIDSpec has the operation written beside the $ref repeat the
 // referent's operationId, which is two declarations of one id rather than one
 // declaration mounted twice (GitHub #502).
-const pathItemRefOpIDSpec = `openapi: 3.1.0
+const pathItemRefOperationIDSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:
@@ -129,13 +129,13 @@ paths:
       responses: {"200": {description: OK}}
 `
 
-// TestPathItemRefSiblings_RepeatedOpIDIsAConflict pins which of the two
+// TestPathItemRefSiblings_RepeatedOperationIDIsAConflict pins which of the two
 // operationId findings a repeated id reaches: the sibling's operation is a
 // declaration of its own, so repeating the referent's id is the document writing
 // the id twice, not one declaration mounted twice.
-func TestPathItemRefSiblings_RepeatedOpIDIsAConflict(t *testing.T) {
+func TestPathItemRefSiblings_RepeatedOperationIDIsAConflict(t *testing.T) {
 	t.Parallel()
-	_, diags := parseFull(t, pathItemRefOpIDSpec)
+	_, diags := parseFull(t, pathItemRefOperationIDSpec)
 
 	assert.True(t, openapitest.HasDiag(diags, diag.ConflictingOperationID),
 		"two declarations writing one id is a conflict")
@@ -186,7 +186,7 @@ func TestPathItemRefSiblings_CollisionIsOrderIndependent(t *testing.T) {
 	assert.Equal(t, collisionFindings(t, forward), collisionFindings(t, reversed),
 		"a collision is a property of the document, not of the order it was written in")
 	for _, at := range []struct{ method, uri string }{{"GET", "/a"}, {"GET", "/b"}} {
-		want, got := opByPath(t, forwardDoc, at.method, at.uri), opByPath(t, reversedDoc, at.method, at.uri)
+		want, got := operationByPath(t, forwardDoc, at.method, at.uri), operationByPath(t, reversedDoc, at.method, at.uri)
 		assert.Empty(t, cmp.Diff(want, got), "what %s %s lowers to, the winners included, follows no order", at.method, at.uri)
 	}
 }
@@ -227,7 +227,7 @@ paths:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/parameters/0"))
-	getA := opByPath(t, doc, "GET", "/a")
+	getA := operationByPath(t, doc, "GET", "/a")
 	require.Len(t, getA.Params, 1, "the referent's parameter is not lowered beside the use site's")
 	assert.Equal(t, "x-dup", getA.Params[0].Name.Source)
 	assert.Equal(t, ir.TypeID("type/primitive/string"), getA.Params[0].Type.Target)

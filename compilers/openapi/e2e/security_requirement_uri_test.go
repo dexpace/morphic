@@ -78,14 +78,14 @@ func compileRequirements(t *testing.T, entry, schemes string) (*ir.Document, []i
 	return doc, diags
 }
 
-// schemeOf returns the scheme the one requirement of the operation named op
+// schemeOf returns the scheme the one requirement of the operation named operationValue
 // names, failing the test unless it names exactly one.
-func schemeOf(t *testing.T, doc *ir.Document, op string) ir.AuthID {
+func schemeOf(t *testing.T, doc *ir.Document, operationValue string) ir.AuthID {
 	t.Helper()
-	operation, ok := opByName(doc, op)
-	require.True(t, ok, "no operation %s", op)
-	require.Len(t, operation.Auth, 1, op)
-	require.Len(t, operation.Auth[0].Schemes, 1, op)
+	operation, ok := operationByName(doc, operationValue)
+	require.True(t, ok, "no operation %s", operationValue)
+	require.Len(t, operation.Auth, 1, operationValue)
+	require.Len(t, operation.Auth[0].Schemes, 1, operationValue)
 	return operation.Auth[0].Schemes[0].Scheme
 }
 

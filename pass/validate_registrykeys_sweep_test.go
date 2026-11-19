@@ -260,18 +260,18 @@ func holdsTheMismatchAlone(t *testing.T, name string, field reflect.StructField,
 // whatever a registry files under the empty key.
 func TestValidate_AnEmptyReferenceResolvesToNoNodeUnderTheEmptyKey(t *testing.T) {
 	t.Parallel()
-	str := ir.Value{Kind: ir.ValueString, String: "v"}
+	stringValue := ir.Value{Kind: ir.ValueString, String: "v"}
 	empties := func() *ir.Document {
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
 			"type/primitive/int32": &ir.Primitive{ID: "type/primitive/int32", PrimitiveKind: ir.PrimitiveInt32},
 			"type/x/U": &ir.Model{ID: "type/x/U", Name: named("u"), Base: &ir.TypeRef{}, Properties: []ir.Property{
-				{ID: "property/x/U/a", Name: named("a"), WireName: "a", Required: true, Type: ir.TypeRef{}, Default: &str},
+				{ID: "property/x/U/a", Name: named("a"), WireName: "a", Required: true, Type: ir.TypeRef{}, Default: &stringValue},
 			}},
 			"type/x/V": &ir.Union{ID: "type/x/V", Name: named("v"), Variants: []ir.Variant{{Type: ir.TypeRef{}}}},
 			"type/x/L": &ir.List{ID: "type/x/L", ElementType: ir.TypeRef{}},
 		}, Services: []ir.Service{{ID: "service/x/S", Groups: []ir.OperationGroup{{ID: "operation-group/x/G", Operations: []ir.Operation{{
 			ID: "operation/x/o", Params: []ir.Parameter{{ID: "parameter/x/o/q", Name: named("q")}},
-			Examples: []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": str}}}},
+			Examples: []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": stringValue}}}},
 		}}}}}}}
 	}
 	want := validatedOnce(t, empties())

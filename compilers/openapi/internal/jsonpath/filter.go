@@ -64,22 +64,22 @@ func (t truth) holds(ctx context.Context, evaluatorValue *evaluator, at Located)
 	return evaluatorValue.callTruth(ctx, t.call, at)
 }
 
-// compareOp is a comparison's operator.
-type compareOp uint8
+// compareOperator is a comparison's operator.
+type compareOperator uint8
 
 const (
-	opEqual compareOp = iota
-	opNotEqual
-	opLess
-	opLessEqual
-	opGreater
-	opGreaterEqual
+	operatorEqual compareOperator = iota
+	operatorNotEqual
+	operatorLess
+	operatorLessEqual
+	operatorGreater
+	operatorGreaterEqual
 )
 
 // comparison compares two comparables.
 type comparison struct {
 	left, right operand
-	op          compareOp
+	operator    compareOperator
 }
 
 func (c comparison) holds(ctx context.Context, evaluatorValue *evaluator, at Located) (bool, error) {
@@ -91,17 +91,17 @@ func (c comparison) holds(ctx context.Context, evaluatorValue *evaluator, at Loc
 	if err != nil {
 		return false, err
 	}
-	switch c.op {
-	case opEqual:
+	switch c.operator {
+	case operatorEqual:
 		return evaluatorValue.equal(ctx, a, b)
-	case opNotEqual:
+	case operatorNotEqual:
 		same, err := evaluatorValue.equal(ctx, a, b)
 		return !same && err == nil, err
-	case opLess:
+	case operatorLess:
 		return evaluatorValue.less(ctx, a, b)
-	case opGreater:
+	case operatorGreater:
 		return evaluatorValue.less(ctx, b, a)
-	case opLessEqual:
+	case operatorLessEqual:
 		return evaluatorValue.lessOrEqual(ctx, a, b)
 	default:
 		return evaluatorValue.lessOrEqual(ctx, b, a)
@@ -120,10 +120,10 @@ func (r *reader) lessOrEqual(ctx context.Context, a, b jsonValue) (bool, error) 
 type operandKind uint8
 
 const (
-	opLiteral operandKind = iota
-	opQuery
-	opCall
-	opLogical
+	operatorLiteral operandKind = iota
+	operatorQuery
+	operatorCall
+	operatorLogical
 )
 
 // operand is what a comparison compares or a function is handed: a literal, a
@@ -166,9 +166,9 @@ func (e *evaluator) nodesOf(ctx context.Context, subqueryValue subquery, at Loca
 // value.
 func (e *evaluator) valueOf(ctx context.Context, operandValue operand, at Located) (jsonValue, error) {
 	switch operandValue.kind {
-	case opLiteral:
+	case operatorLiteral:
 		return jsonValue{kind: valueScalar, lit: operandValue.lit}, nil
-	case opQuery:
+	case operatorQuery:
 		nodes, err := e.nodesOf(ctx, operandValue.query, at)
 		e.release(len(nodes))
 		if err != nil || len(nodes) == 0 {
@@ -242,14 +242,14 @@ func (p *parser) basic() (logical, error) {
 		return negation{inner: inner}, nil
 	}
 	start := p.pos
-	op, err := p.operand()
+	operator, err := p.operand()
 	if err != nil {
 		return nil, err
 	}
 	if !negated {
-		return p.compareOrTest(op, start)
+		return p.compareOrTest(operator, start)
 	}
-	test, err := testOf(op, start)
+	test, err := testOf(operator, start)
 	if err != nil {
 		return nil, err
 	}
@@ -275,17 +275,17 @@ func (p *parser) paren() (logical, error) {
 	return inner, nil
 }
 
-// compareOrTest reads a comparison whose left side is op, written at start,
-// or takes op as a test where no comparison operator follows.
-func (p *parser) compareOrTest(op operand, start int) (logical, error) {
+// compareOrTest reads a comparison whose left side is operator, written at start,
+// or takes operator as a test where no comparison operator follows.
+func (p *parser) compareOrTest(operator operand, start int) (logical, error) {
 	save := p.pos
 	p.blank()
-	cmpOp, found := p.comparisonOp()
+	cmpOperator, found := p.comparisonOperator()
 	if !found {
 		p.pos = save
-		return testOf(op, start)
+		return testOf(operator, start)
 	}
-	if err := comparableOperand(op, start); err != nil {
+	if err := comparableOperand(operator, start); err != nil {
 		return nil, err
 	}
 	p.blank()
@@ -297,17 +297,17 @@ func (p *parser) compareOrTest(op operand, start int) (logical, error) {
 	if err := comparableOperand(right, rightAt); err != nil {
 		return nil, err
 	}
-	return comparison{left: op, right: right, op: cmpOp}, nil
+	return comparison{left: operator, right: right, operator: cmpOperator}, nil
 }
 
-// comparisonOp reads a comparison operator, and reports whether one is next.
-func (s *scanner) comparisonOp() (compareOp, bool) {
+// comparisonOperator reads a comparison operator, and reports whether one is next.
+func (s *scanner) comparisonOperator() (compareOperator, bool) {
 	for _, o := range []struct {
-		text string
-		op   compareOp
-	}{{"==", opEqual}, {"!=", opNotEqual}, {"<=", opLessEqual}, {">=", opGreaterEqual}, {"<", opLess}, {">", opGreater}} {
+		text     string
+		operator compareOperator
+	}{{"==", operatorEqual}, {"!=", operatorNotEqual}, {"<=", operatorLessEqual}, {">=", operatorGreaterEqual}, {"<", operatorLess}, {">", operatorGreater}} {
 		if s.eatText(o.text) {
-			return o.op, true
+			return o.operator, true
 		}
 	}
 	return 0, false
@@ -315,26 +315,26 @@ func (s *scanner) comparisonOp() (compareOp, bool) {
 
 // comparableOperand refuses an operand a comparison may not compare: a query that
 // may select more than one node, or a function whose result is no value.
-func comparableOperand(op operand, at int) error {
+func comparableOperand(operator operand, at int) error {
 	switch {
-	case op.kind == opQuery && !op.query.singular():
+	case operator.kind == operatorQuery && !operator.query.singular():
 		return &SyntaxError{Offset: at, Reason: "a comparison compares a singular query, and this one may select several nodes"}
-	case op.kind == opCall && op.call.fn.result != typeValue:
-		return &SyntaxError{Offset: at, Reason: op.call.fn.name + "() returns no value a comparison compares"}
+	case operator.kind == operatorCall && operator.call.fn.result != typeValue:
+		return &SyntaxError{Offset: at, Reason: operator.call.fn.name + "() returns no value a comparison compares"}
 	default:
 		return nil
 	}
 }
 
-// testOf returns op as a test: a query, or a function returning LogicalType.
-func testOf(op operand, at int) (logical, error) {
+// testOf returns operator as a test: a query, or a function returning LogicalType.
+func testOf(operator operand, at int) (logical, error) {
 	switch {
-	case op.kind == opQuery:
-		return exists{query: op.query}, nil
-	case op.kind == opCall && op.call.fn.result == typeLogical:
-		return truth{call: op.call}, nil
-	case op.kind == opCall:
-		return nil, &SyntaxError{Offset: at, Reason: op.call.fn.name + "() returns a value, which a test does not take: compare it"}
+	case operator.kind == operatorQuery:
+		return exists{query: operator.query}, nil
+	case operator.kind == operatorCall && operator.call.fn.result == typeLogical:
+		return truth{call: operator.call}, nil
+	case operator.kind == operatorCall:
+		return nil, &SyntaxError{Offset: at, Reason: operator.call.fn.name + "() returns a value, which a test does not take: compare it"}
 	default:
 		return nil, &SyntaxError{Offset: at, Reason: "a literal is no test: compare it"}
 	}
@@ -345,13 +345,13 @@ func (p *parser) operand() (operand, error) {
 	switch c := p.peek(); {
 	case c == '\'' || c == '"':
 		text, err := p.stringLiteral()
-		return operand{kind: opLiteral, lit: scalar{kind: kindString, text: text}}, err
+		return operand{kind: operatorLiteral, lit: scalar{kind: kindString, text: text}}, err
 	case c == '-' || c >= '0' && c <= '9':
 		return p.numberLiteral()
 	case c == '@' || c == '$':
 		p.pos++
 		segments, err := p.segments()
-		return operand{kind: opQuery, query: subquery{segments: segments, relative: c == '@'}}, err
+		return operand{kind: operatorQuery, query: subquery{segments: segments, relative: c == '@'}}, err
 	case c >= 'a' && c <= 'z':
 		return p.word()
 	default:
@@ -371,9 +371,9 @@ func (p *parser) word() (operand, error) {
 	}
 	switch name {
 	case "true", "false":
-		return operand{kind: opLiteral, lit: scalar{kind: kindBool, b: name == "true"}}, nil
+		return operand{kind: operatorLiteral, lit: scalar{kind: kindBool, b: name == "true"}}, nil
 	case "null":
-		return operand{kind: opLiteral, lit: scalar{kind: kindNull}}, nil
+		return operand{kind: operatorLiteral, lit: scalar{kind: kindNull}}, nil
 	default:
 		return operand{}, &SyntaxError{Offset: start, Reason: fmt.Sprintf("%q is no literal, and no ( follows it to call it", name)}
 	}
@@ -403,8 +403,8 @@ func (s *scanner) numberLiteral() (operand, error) {
 		}
 	}
 	// The grammar read is a subset of the decimal one ParseDecimal reads.
-	num, _ := newNumber(s.text[start:s.pos])
-	return operand{kind: opLiteral, lit: scalar{kind: kindNumber, num: num}}, nil
+	number, _ := newNumber(s.text[start:s.pos])
+	return operand{kind: operatorLiteral, lit: scalar{kind: kindNumber, number: number}}, nil
 }
 
 // digits consumes a run of digits, and reports whether there was one.

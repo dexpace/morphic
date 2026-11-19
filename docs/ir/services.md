@@ -52,8 +52,8 @@ type ResourceInfo struct {
     Lifecycle   map[string]OperationID      // "create"|"put"|"read"|"update"|"delete"|"list" → op
                                             // (put = create-or-replace with client-provided identifier)
     NoReplace   bool                        // put may create but not replace (Smithy @noReplace)
-    InstanceOps   []OperationID             // declared non-lifecycle instance operations (require identifiers)
-    CollectionOps []OperationID             // declared collectionOperations — the split drives
+    InstanceOperations   []OperationID      // declared non-lifecycle instance operations (require identifiers)
+    CollectionOperations []OperationID      // declared collectionOperations — the split drives
                                             // sub-client shape and is a declared fact, not a heuristic
 }
 ```

@@ -86,7 +86,7 @@ func TestCheckReferentialIntegrity_DanglingChannelRef(t *testing.T) {
 			Groups: []ir.OperationGroup{{
 				Operations: []ir.Operation{{
 					ID:       "operation/x/Send",
-					Bindings: ir.OpBindings{Message: &ir.MessageBinding{Channel: "c/missing"}},
+					Bindings: ir.OperationBindings{Message: &ir.MessageBinding{Channel: "c/missing"}},
 				}},
 			}},
 		}},
@@ -107,21 +107,21 @@ func docWithOverload(target ir.OperationID) *ir.Document {
 	}}}
 }
 
-// TestCheckReferentialIntegrity_DanglingOpRef drives the class no map on
+// TestCheckReferentialIntegrity_DanglingOperationRef drives the class no map on
 // Document covers. An operation is declared inside the Service→OperationGroup
 // tree, so every OperationID reference in the IR resolved against nothing until
 // the registry was derived from those declarations instead (GitHub #50).
-func TestCheckReferentialIntegrity_DanglingOpRef(t *testing.T) {
+func TestCheckReferentialIntegrity_DanglingOperationRef(t *testing.T) {
 	got := refViolations(docWithOverload("operation/x/Missing"))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/dangling-operation-ref", got[0].Code)
 	assert.Contains(t, got[0].Message, "does not resolve in operation declarations")
 }
 
-// TestCheckReferentialIntegrity_ResolvedOpRefIsClean is the other half: an
+// TestCheckReferentialIntegrity_ResolvedOperationRefIsClean is the other half: an
 // operation's own ID resolves against its own declaration, and so does a
 // reference naming it.
-func TestCheckReferentialIntegrity_ResolvedOpRefIsClean(t *testing.T) {
+func TestCheckReferentialIntegrity_ResolvedOperationRefIsClean(t *testing.T) {
 	assert.Empty(t, refViolations(docWithOverload("operation/x/Get")))
 }
 
@@ -145,18 +145,18 @@ func TestCheckReferentialIntegrity_ResolvedServiceRefIsClean(t *testing.T) {
 	assert.Empty(t, refViolations(doc))
 }
 
-// TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared drives the
+// TestCheckReferentialIntegrity_DanglingOperationRefWithNoOperationDeclared drives the
 // class no node in the document declares. A Smithy resource names its lifecycle
 // operations, so an OperationID reference exists in a document holding no
 // ir.Operation at all — and a registry set read off the declarations rather
 // than off the IR's shape would have no entry for the class, which is not
 // "nothing declares this ID" but "this is no reference", the silence GitHub #50
 // is about.
-func TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
+func TestCheckReferentialIntegrity_DanglingOperationRefWithNoOperationDeclared(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{
 		ID: "service/x",
 		Groups: []ir.OperationGroup{{
-			Resource: &ir.ResourceInfo{InstanceOps: []ir.OperationID{"operation/x/Missing"}},
+			Resource: &ir.ResourceInfo{InstanceOperations: []ir.OperationID{"operation/x/Missing"}},
 		}},
 	}}}
 
@@ -185,16 +185,16 @@ func TestCheckReferentialIntegrity_TruncatedWalkClaimsNoDeclarations(t *testing.
 	assert.Empty(t, refViolations(shallow))
 }
 
-// TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk pins the one class left
+// TestCheckReferentialIntegrity_PropertyIDStaysOutOfTheWalk pins the one class left
 // out of the registries. A PropertyID names a position inside its model, and
 // pass.Validate resolves one against the properties a document declares; adding a
 // document-wide answer here would report one defect twice, under two codes.
-func TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk(t *testing.T) {
+func TestCheckReferentialIntegrity_PropertyIDStaysOutOfTheWalk(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{
 		ID: "service/x",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
 			ID:         "operation/x/List",
-			Pagination: &ir.Pagination{Items: &ir.PropPath{Segments: []ir.PropertyID{"property/x/ghost"}}},
+			Pagination: &ir.Pagination{Items: &ir.PropertyPath{Segments: []ir.PropertyID{"property/x/ghost"}}},
 		}}}},
 	}}}
 	assert.Empty(t, refViolations(doc))
@@ -222,9 +222,9 @@ func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {
 // the message (GitHub #400) because it is document-derived text, so it is read
 // back the way strconv.Quote wrote it rather than split on the first space —
 // an ID or a registry key it embeds may itself hold one.
-func refIDInMessage(msg string) string {
+func refIDInMessage(message string) string {
 	const prefix = "reference "
-	rest, ok := strings.CutPrefix(msg, prefix)
+	rest, ok := strings.CutPrefix(message, prefix)
 	if !ok {
 		return ""
 	}

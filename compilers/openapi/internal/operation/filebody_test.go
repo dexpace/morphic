@@ -158,10 +158,10 @@ components:
     Text: {type: string}
     Encoded: {$ref: "#/components/schemas/Opaque", contentEncoding: base64}
 `), tc.opts)
-			op := openapitest.FindOp(t, doc, "f")
+			irOperation := openapitest.FindOperation(t, doc, "f")
 			for side, content := range map[string]ir.Content{
-				"requestBody":   op.Request.Contents[0],
-				"responses/200": op.Responses[0].Payload.Contents[0],
+				"requestBody":   irOperation.Request.Contents[0],
+				"responses/200": irOperation.Responses[0].Payload.Contents[0],
 			} {
 				if !tc.file {
 					assert.Nil(t, content.File, side)
@@ -193,7 +193,7 @@ func TestBodyFile_AnUnresolvedRefDecidesNoFile(t *testing.T) {
 `))}, compilers.Options{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
-	content := openapitest.FindOp(t, doc, "f").Request.Contents[0]
+	content := openapitest.FindOperation(t, doc, "f").Request.Contents[0]
 	assert.Nil(t, content.File)
 	assert.Equal(t, ir.TypeID("type/primitive/any"), content.Type.Target)
 }
@@ -229,7 +229,7 @@ func TestBodyFile_ReadsAChainOfRefsUpToItsBound(t *testing.T) {
 components:
   schemas:
 `+components.String()), openapi.Options{})
-			content := openapitest.FindOp(t, doc, "f").Request.Contents[0]
+			content := openapitest.FindOperation(t, doc, "f").Request.Contents[0]
 			assert.Equal(t, tc.file, content.File != nil)
 		})
 	}
@@ -261,7 +261,7 @@ components:
   schemas:
     Opaque: {description: Says nothing}
 `), openapi.Options{})
-			assert.Equal(t, tc.file, openapitest.FindOp(t, doc, "f").Request.Contents[0].File != nil)
+			assert.Equal(t, tc.file, openapitest.FindOperation(t, doc, "f").Request.Contents[0].File != nil)
 		})
 	}
 }
@@ -307,7 +307,7 @@ components:
   schemas:
     Text: {type: string}
 `), openapi.Options{})
-			assert.Equal(t, tc.file, openapitest.FindOp(t, doc, "f").Request.Contents[0].File != nil)
+			assert.Equal(t, tc.file, openapitest.FindOperation(t, doc, "f").Request.Contents[0].File != nil)
 		})
 	}
 }

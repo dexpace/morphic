@@ -93,7 +93,7 @@ func lowerTypeVariant(loweringContext lowering.Ctx, ts *compile.Types, depth int
 	default:
 		shape := scalarShapeOf(schema, st, variantFormat(schema, st, list.types))
 		if shape.shared && !statesBounds(loweringContext, schema, list.foldedBranches, pointer, takes) {
-			return ts.PrimID(shape.base), shape.read, nil
+			return ts.PrimitiveID(shape.base), shape.read, nil
 		}
 		id, diags := hoistScalar(loweringContext, ts, depth, schema, shape, takes, list.foldedBranches, pointer, fin, stand{held: list.held})
 		return id, 0, diags

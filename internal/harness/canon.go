@@ -42,11 +42,11 @@ var errCycle = errors.New("canonical form meets a cycle of digests")
 // unorderedMark names the one member of the object markedArray writes.
 const unorderedMark = "\x00unordered"
 
-// markedArray writes elems as they stand, inside an object marking them as a
+// markedArray writes elements as they stand, inside an object marking them as a
 // collection whose order the comparison forgives, so the rewrite sorts them
 // once it has rewritten them. No member of the IR is so named.
-func markedArray(elems [][]byte) []byte {
-	return append(append([]byte(`{"\u0000unordered":`), array(elems)...), '}')
+func markedArray(elements [][]byte) []byte {
+	return append(append([]byte(`{"\u0000unordered":`), array(elements)...), '}')
 }
 
 // canonical is a document's canonical form: its lines, its shape's, and how it
@@ -219,8 +219,8 @@ func (r *rewriter) rewrite(v any, placeValue place, depth int) []byte {
 // (leftOut), sorted by name and then by value, since erased names can collide.
 // An id is erased alone.
 func (r *rewriter) object(o map[string]any, placeValue place, depth int) []byte {
-	if elems, ok := o[unorderedMark].([]any); ok && len(o) == 1 {
-		return r.array(elems, place{how: placeValue.how&noIdentity | sortElements}, depth)
+	if elements, ok := o[unorderedMark].([]any); ok && len(o) == 1 {
+		return r.array(elements, place{how: placeValue.how&noIdentity | sortElements}, depth)
 	}
 	o = r.untie(o)
 	own := provenancePointer(o)
@@ -317,9 +317,9 @@ func childPlace(name string, placeValue place, own string) place {
 
 // array rewrites an array's elements, sorted when its place says so or when,
 // within a verbatim value, it is a sequence the permutation reversed.
-func (r *rewriter) array(elems []any, placeValue place, depth int) []byte {
-	out := make([][]byte, len(elems))
-	for i, e := range elems {
+func (r *rewriter) array(elements []any, placeValue place, depth int) []byte {
+	out := make([][]byte, len(elements))
+	for i, e := range elements {
 		child := place{how: placeValue.how & noIdentity}
 		if placeValue.how&verbatim != 0 {
 			child = place{how: child.how | verbatim, at: placeValue.at + "/" + strconv.Itoa(i)}

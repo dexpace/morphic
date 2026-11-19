@@ -409,8 +409,8 @@ func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 		out := map[string]string{}
 		for _, top := range doc.Services[0].Groups {
 			for _, operationGroup := range append([]ir.OperationGroup{top}, top.Groups...) {
-				for _, op := range operationGroup.Operations {
-					out[op.Name.Source] = string(operationGroup.ID)
+				for _, operation := range operationGroup.Operations {
+					out[operation.Name.Source] = string(operationGroup.ID)
 				}
 			}
 		}

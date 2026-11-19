@@ -114,8 +114,8 @@ func TestObjectAt_AliasedComponentChainInternsAtFinalDeclaration(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, aliasedComponentChainSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	getA := openapitest.FindOp(t, doc, "getA")
-	getB := openapitest.FindOp(t, doc, "getB")
+	getA := openapitest.FindOperation(t, doc, "getA")
+	getB := openapitest.FindOperation(t, doc, "getB")
 
 	require.Len(t, getA.Params, 1)
 	require.Len(t, getB.Params, 1)
@@ -145,9 +145,9 @@ func TestObjectAt_AliasChainWithinBoundReachesDeclaration(t *testing.T) {
 	const hops = 8
 	doc, diags := parseFull(t, chainedAliasSpec(hops))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "getA")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("type/anonymous/components/parameters/P8/schema"), op.Params[0].Type.Target,
+	operation := openapitest.FindOperation(t, doc, "getA")
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/parameters/P8/schema"), operation.Params[0].Type.Target,
 		"the walk follows every hop to the final declaration")
 }
 
@@ -159,9 +159,9 @@ func TestObjectAt_AChainOfAnyLengthReachesItsDeclaration(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, chainedAliasSpec(200))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "getA")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("type/anonymous/components/parameters/P200/schema"), op.Params[0].Type.Target)
+	operation := openapitest.FindOperation(t, doc, "getA")
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/parameters/P200/schema"), operation.Params[0].Type.Target)
 }
 
 // chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
@@ -258,8 +258,8 @@ func assertCrossDocumentDeclarations(t *testing.T, doc *ir.Document) {
 	sibling := ids.In(label)
 	const paramPtr = "/components/parameters/Page"
 	const respPtr = "/components/responses/OK/content/application~1json/schema"
-	wantParamID := sibling.AnonType(paramPtr + "/schema")
-	wantRespID := sibling.AnonType(respPtr)
+	wantParamID := sibling.AnonymousType(paramPtr + "/schema")
+	wantRespID := sibling.AnonymousType(respPtr)
 
 	got := make([]string, 0, len(doc.Types))
 	for id := range doc.Types {
@@ -276,14 +276,14 @@ func assertCrossDocumentDeclarations(t *testing.T, doc *ir.Document) {
 		assert.Equal(t, ir.Provenance{Source: 1, Pointer: pointer}, td.Common().Provenance, "where %s is declared", id)
 	}
 
-	op := openapitest.FindOp(t, doc, "a")
-	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1a/get"}, op.Provenance, "the operation is the entry document's")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1a/get/parameters/page/query"), op.Params[0].ID, "by its mount")
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: paramPtr}, op.Params[0].Provenance, "declared in the sibling")
-	assert.Equal(t, wantParamID, op.Params[0].Type.Target)
-	require.Len(t, op.Responses, 1)
-	assert.Equal(t, wantRespID, op.Responses[0].Payload.Contents[0].Type.Target)
+	operation := openapitest.FindOperation(t, doc, "a")
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1a/get"}, operation.Provenance, "the operation is the entry document's")
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1a/get/parameters/page/query"), operation.Params[0].ID, "by its mount")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: paramPtr}, operation.Params[0].Provenance, "declared in the sibling")
+	assert.Equal(t, wantParamID, operation.Params[0].Type.Target)
+	require.Len(t, operation.Responses, 1)
+	assert.Equal(t, wantRespID, operation.Responses[0].Payload.Contents[0].Type.Target)
 }
 
 // loaded loads src as the source, its references bound.

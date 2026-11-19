@@ -23,7 +23,7 @@ type OpPlan struct {
     Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
     Effects         Effects           // what calling it may change: declared, else by what its
                                       // binding defines (policy.md)
-    Bindings        BindingView       // per-protocol param/request/response view from OpBindings
+    Bindings        BindingView       // per-protocol param/request/response view from OperationBindings
     Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6), by path:
                                               // "Page.FirstPage" (policy.md)
 }
@@ -34,15 +34,15 @@ type OpPlan struct {
 type PagePlan struct {                // item-type unwrap is a PLAN decision
     Strategy   ir.PageStrategy
     ItemType   *ir.TypeRef            // element type items resolve to, unwrapped from the envelope
-    ItemPath   *ir.PropPath           // where items live — a PATH (may be nested / in headers)
+    ItemPath   *ir.PropertyPath       // where items live — a PATH (may be nested / in headers)
     CursorIn   *ir.InputPath          // a parameter, the request body, or a member of either
-    CursorOut  *ir.PropPath
+    CursorOut  *ir.PropertyPath
     LimitIn    *ir.InputPath          // the page-size input, which a short page is measured by
     FirstPage  *ir.Value              // under page: the first page's number, never nil there
                                       // (policy.md); nil under any other strategy
-    TotalCount *ir.PropPath           // the items in all, which "total" reads
-    TotalPages *ir.PropPath           // the pages in all, which "total" reads
-    HasMore    *ir.PropPath           // the page's flag that another follows, which "no_more" reads
+    TotalCount *ir.PropertyPath       // the items in all, which "total" reads
+    TotalPages *ir.PropertyPath       // the pages in all, which "total" reads
+    HasMore    *ir.PropertyPath       // the page's flag that another follows, which "no_more" reads
     Stop       []ir.PageStop          // the IR's stop rules; empty = none stated, none guessed
     Inferred   bool                   // heuristic pagination (may be disabled by policy)
 }
@@ -53,7 +53,7 @@ type LROPlan struct {                 // maps ir.LongRunning (docs/ir/interactio
     FinalOp    *ir.OperationID        // declared final-result operation; nil = result is inline
     PollType   *ir.TypeRef            // status-monitor type
     FinalType  *ir.TypeRef            // what PollUntilDone resolves to
-    ResultPath *ir.PropPath           // where the final result lives in the terminal response
+    ResultPath *ir.PropertyPath       // where the final result lives in the terminal response
 }
 
 type Effects struct {

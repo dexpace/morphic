@@ -24,7 +24,7 @@ func TestAllocatingVisits_FindsEachVisitRenderingItsPath(t *testing.T) {
 		Operations: []ir.Operation{{ID: "operation/x/A"}, {ID: "operation/x/B"}},
 	}}}}}
 	var last string
-	renderOpIDs := ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+	renderOperationIDs := ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		if v.Type() == reflect.TypeFor[ir.OperationID]() {
 			last = at.String()
 		}
@@ -34,7 +34,7 @@ func TestAllocatingVisits_FindsEachVisitRenderingItsPath(t *testing.T) {
 	assert.Equal(t, []string{
 		"document.Services[0].Groups[0].Operations[0].ID",
 		"document.Services[0].Groups[0].Operations[1].ID",
-	}, irtest.AllocatingVisits(doc, renderOpIDs))
+	}, irtest.AllocatingVisits(doc, renderOperationIDs))
 	assert.Equal(t, "document.Services[0].Groups[0].Operations[1].ID", last)
 	assert.Empty(t, irtest.AllocatingVisits(doc, ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool {
 		return true

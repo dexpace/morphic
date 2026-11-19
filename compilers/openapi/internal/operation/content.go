@@ -185,7 +185,7 @@ func fileBodyType(ts *compile.Types, file *ir.FileInfo, declared ir.TypeRef) ir.
 	if declared.Target != ir.PrimitiveTypeID(ir.PrimitiveAny) || file.Inferred != "" {
 		return declared
 	}
-	declared.Target = ts.PrimID(ir.PrimitiveBytes)
+	declared.Target = ts.PrimitiveID(ir.PrimitiveBytes)
 	return declared
 }
 

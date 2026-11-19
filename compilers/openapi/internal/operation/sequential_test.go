@@ -19,7 +19,7 @@ import (
 func TestContent_PositionalPrefixEncodingIsPreserved(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, positionalEncodingSpec)
-	content := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+	content := openapitest.FindOperation(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
 	assert.Nil(t, content.ItemEncoding, "positional prefixes rule out an every-item encoding")
 	prefix, ok := content.Unmodeled["openapi:prefixEncoding"]
@@ -37,7 +37,7 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	t.Parallel()
 	spec := strings.ReplaceAll(positionalEncodingSpec, "              itemEncoding: {contentType: text/plain}\n", "")
 	doc, diags := parseFull(t, spec)
-	content := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+	content := openapitest.FindOperation(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
 	assert.Nil(t, content.ItemEncoding)
 	_, ok := content.Unmodeled["openapi:prefixEncoding"]
@@ -59,7 +59,7 @@ func TestContent_AMergedPositionalEncodingIsPreserved(t *testing.T) {
 		"itemEncoding: {contentType: text/plain}}\n"
 	require.Contains(t, positionalEncodingSpec, written, "sanity: the spec writes both in place")
 	doc, diags := parseFull(t, strings.Replace(positionalEncodingSpec, written, merged, 1))
-	content := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+	content := openapitest.FindOperation(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
 	assert.False(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "%+v", diags)
 	assert.JSONEq(t, `[{"contentType": "application/json"}, {"contentType": "application/xml"}]`,
@@ -146,7 +146,7 @@ func TestItemFile_ReadsTheItemAsAPartDeclarationIs(t *testing.T) {
           content:
             `+tc.media+`
 `), tc.opts)
-			assert.Equal(t, tc.want, openapitest.FindOp(t, doc, "items").Responses[0].Payload.Contents[0].ItemEncoding)
+			assert.Equal(t, tc.want, openapitest.FindOperation(t, doc, "items").Responses[0].Payload.Contents[0].ItemEncoding)
 		})
 	}
 }
@@ -168,7 +168,7 @@ func TestContent_AnItemEncodingOutsideMultipartIsKeptWhole(t *testing.T) {
       responses: {"204": {description: ok}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	content := openapitest.FindOp(t, doc, "lines").Request.Contents[0]
+	content := openapitest.FindOperation(t, doc, "lines").Request.Contents[0]
 	assert.Nil(t, content.ItemEncoding)
 	item, ok := content.Unmodeled["openapi:itemEncoding"]
 	require.True(t, ok, "itemEncoding kept verbatim; got %v", content.Unmodeled)

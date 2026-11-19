@@ -150,9 +150,9 @@ components:
 			}
 			require.Len(t, messagesAt(diags, diag.OAuth2NoFlow), 1, "one report: %+v", diags)
 			// At the declaration, not at the flows object inside it.
-			msg := openapitest.DiagMessageAt(t, diags, diag.OAuth2NoFlow, ir.SeverityWarning,
+			message := openapitest.DiagMessageAt(t, diags, diag.OAuth2NoFlow, ir.SeverityWarning,
 				"/components/securitySchemes/s")
-			assert.Contains(t, msg, "declares no flow")
+			assert.Contains(t, message, "declares no flow")
 		})
 	}
 }

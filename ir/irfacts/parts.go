@@ -56,10 +56,10 @@ func (p *typeParts) read(td ir.TypeDef) {
 // Base, Implements and Mixins.
 func (p *typeParts) model(model *ir.Model) {
 	for i := range model.Properties {
-		prop := &model.Properties[i]
-		p.held = appendDecoded(appendTarget(p.held, prop.Type.Target), prop.Encoding)
-		for j := range prop.Args {
-			p.args = appendDecoded(appendTarget(p.args, prop.Args[j].Type.Target), prop.Args[j].Encoding)
+		property := &model.Properties[i]
+		p.held = appendDecoded(appendTarget(p.held, property.Type.Target), property.Encoding)
+		for j := range property.Args {
+			p.args = appendDecoded(appendTarget(p.args, property.Args[j].Type.Target), property.Args[j].Encoding)
 		}
 	}
 	if extra := model.AdditionalProperties; extra != nil {

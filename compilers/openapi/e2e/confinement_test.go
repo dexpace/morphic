@@ -55,11 +55,11 @@ paths:
 func requireReadFrom(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	require.Empty(t, unresolvedRefs(diags), "no reference was refused")
-	op := operationAt(t, doc, "GET", "/a")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, "p", op.Params[0].Name.Source, "the parameter is the other file's")
-	require.Len(t, op.Responses, 1)
-	assert.Equal(t, "from the other file", op.Responses[0].Docs.Description, "the response is the other file's")
+	operation := operationAt(t, doc, "GET", "/a")
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, "p", operation.Params[0].Name.Source, "the parameter is the other file's")
+	require.Len(t, operation.Responses, 1)
+	assert.Equal(t, "from the other file", operation.Responses[0].Docs.Description, "the response is the other file's")
 }
 
 // requireRefused requires that both references into the other document were
@@ -73,9 +73,9 @@ func requireRefused(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, reaso
 		assert.Equal(t, ir.SeverityError, diagnostic.Severity)
 		assert.Contains(t, diagnostic.Message, reason, "at %s", diagnostic.Provenance.Pointer)
 	}
-	op := operationAt(t, doc, "GET", "/a")
-	assert.Empty(t, op.Params, "the refused parameter is absent")
-	for _, response := range op.Responses {
+	operation := operationAt(t, doc, "GET", "/a")
+	assert.Empty(t, operation.Params, "the refused parameter is absent")
+	for _, response := range operation.Responses {
 		assert.NotEqual(t, "from the other file", response.Docs.Description, "the refused document was not read")
 	}
 }

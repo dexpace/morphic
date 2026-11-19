@@ -21,10 +21,10 @@ func headerOf(id, name string) ir.Header {
 // headers are the two spellings of one header the wire reads as one.
 func headers(a, b string) []ir.Header { return []ir.Header{headerOf("h/"+a, a), headerOf("h/"+b, b)} }
 
-// inOperation is a document whose one operation, op/x, is op.
-func inOperation(op ir.Operation) *ir.Document {
-	op.ID = "operation/x"
-	return inGroup(ir.OperationGroup{ID: "g", Operations: []ir.Operation{op}})
+// inOperation is a document whose one operation, operation/x, is operation.
+func inOperation(operation ir.Operation) *ir.Document {
+	operation.ID = "operation/x"
+	return inGroup(ir.OperationGroup{ID: "g", Operations: []ir.Operation{operation}})
 }
 
 // TestNames_ReadsTheHeadersOfAResponseAndAnErrorCaseAsAScope holds each place

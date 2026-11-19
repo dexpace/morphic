@@ -281,8 +281,8 @@ func TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten(t *testing.T) {
 		_, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(src)}, compilers.Options{})
 
 		require.NoError(t, err)
-		msg := openapitest.DiagMessageAt(t, diags, diag.UndecodableSource, ir.SeverityError, "")
-		assert.Contains(t, msg, "line 3, column "+columnOf(t, src, halfEscape)+": "+want)
+		message := openapitest.DiagMessageAt(t, diags, diag.UndecodableSource, ir.SeverityError, "")
+		assert.Contains(t, message, "line 3, column "+columnOf(t, src, halfEscape)+": "+want)
 	})
 	t.Run("in an external document", func(t *testing.T) {
 		t.Parallel()
@@ -302,8 +302,8 @@ func TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten(t *testing.T) {
 			compilers.Options{FormatOptions: openapi.Options{Overlay: &openapi.Overlay{Path: "patch.json", Data: []byte(patch)}}})
 
 		require.NoError(t, err)
-		msg := openapitest.DiagMessageAt(t, diags, diag.OverlayInvalid, ir.SeverityError, "")
-		assert.Contains(t, msg, "cannot parse overlay: line 4, column "+columnOf(t, patch, halfEscape)+": "+want)
+		message := openapitest.DiagMessageAt(t, diags, diag.OverlayInvalid, ir.SeverityError, "")
+		assert.Contains(t, message, "cannot parse overlay: line 4, column "+columnOf(t, patch, halfEscape)+": "+want)
 	})
 }
 

@@ -24,8 +24,8 @@ import (
 func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var carried scratchstate.Map[ir.MessageID, bool]
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		diags = append(diags, checkBoundMessages(doc, op, &carried)...)
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		diags = append(diags, checkBoundMessages(doc, operation, &carried)...)
 	})
 	return diags
 }
@@ -39,24 +39,24 @@ func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 // A reply with no channel of its own is left alone: its address is dynamic, so
 // there is no declared message set to hold it to (docs/ir/messaging.md). Each
 // channel's messages are read through carried.
-func checkBoundMessages(doc *ir.Document, op ir.Operation, carried *scratchstate.Map[ir.MessageID, bool]) []ir.Diagnostic {
-	b := op.Bindings.Message
+func checkBoundMessages(doc *ir.Document, operation ir.Operation, carried *scratchstate.Map[ir.MessageID, bool]) []ir.Diagnostic {
+	b := operation.Bindings.Message
 	if b == nil {
 		return nil
 	}
-	diags := appendUncarriedMessageDiags(nil, doc, b.Channel, b.Messages, messagesAt{op.ID, "messages"}, carried)
+	diags := appendUncarriedMessageDiags(nil, doc, b.Channel, b.Messages, messagesAt{operation.ID, "messages"}, carried)
 	if b.Reply == nil || b.Reply.Channel == nil {
 		return diags
 	}
 	return appendUncarriedMessageDiags(diags, doc, *b.Reply.Channel, b.Reply.Messages,
-		messagesAt{op.ID, "reply/messages"}, carried)
+		messagesAt{operation.ID, "reply/messages"}, carried)
 }
 
 // messagesAt is where a binding's message list sits: the operation, and the
 // list's field below its message binding. It is spelled only for a diagnostic.
 type messagesAt struct {
-	op    ir.OperationID
-	field string
+	operation ir.OperationID
+	field     string
 }
 
 // appendUncarriedMessageDiags appends to dst a diagnostic per message in used
@@ -82,7 +82,7 @@ func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
 		if id == "" || carries[id] {
 			continue
 		}
-		site := fmt.Sprintf("%s/bindings/message/%s/%d", at.op, at.field, i)
+		site := fmt.Sprintf("%s/bindings/message/%s/%d", at.operation, at.field, i)
 		dst = append(dst, diag(ir.SeverityError, "pass/message-not-in-channel",
 			fmt.Sprintf("message %q at %s is not carried by channel %q", id, site, channel), site))
 	}

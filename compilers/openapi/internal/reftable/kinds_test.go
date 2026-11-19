@@ -16,18 +16,18 @@ import (
 
 // The kinds the rows below spell, by their initials.
 const (
-	kRaw = reftable.KindRaw
-	kOth = reftable.KindOther
-	kCom = reftable.KindComponents
-	kMap = reftable.KindSchemaMap
-	kSch = reftable.KindSchema
-	kOp  = reftable.KindOperation
-	kPar = reftable.KindParameter
-	kHdr = reftable.KindHeader
-	kBod = reftable.KindRequestBody
-	kRes = reftable.KindResponse
-	kMT  = reftable.KindMediaType
-	kEnc = reftable.KindEncoding
+	kRaw       = reftable.KindRaw
+	kOth       = reftable.KindOther
+	kCom       = reftable.KindComponents
+	kMap       = reftable.KindSchemaMap
+	kSch       = reftable.KindSchema
+	kOperation = reftable.KindOperation
+	kPar       = reftable.KindParameter
+	kHdr       = reftable.KindHeader
+	kBod       = reftable.KindRequestBody
+	kRes       = reftable.KindResponse
+	kMT        = reftable.KindMediaType
+	kEnc       = reftable.KindEncoding
 )
 
 // TestKinds_ReadsEachPositionByTheGrammar pins the kind the source's own
@@ -45,13 +45,13 @@ func TestKinds_ReadsEachPositionByTheGrammar(t *testing.T) {
 		{"/components/schemas/A/oneOf/0/items", []reftable.Kind{kOth, kCom, kMap, kSch, kOth, kSch, kSch}},
 		{"/components/schemas/A/enum/0", []reftable.Kind{kOth, kCom, kMap, kSch, kOth, kRaw}},
 		{"/paths/~1a/post/requestBody/content/application~1json/schema",
-			[]reftable.Kind{kOth, kOth, kOth, kOp, kBod, kOth, kMT, kSch}},
-		{"/paths/~1a/get/parameters/0/schema", []reftable.Kind{kOth, kOth, kOth, kOp, kOth, kPar, kSch}},
-		{"/paths/~1a/get/responses/200/headers/X/schema", []reftable.Kind{kOth, kOth, kOth, kOp, kOth, kRes, kOth, kHdr, kSch}},
+			[]reftable.Kind{kOth, kOth, kOth, kOperation, kBod, kOth, kMT, kSch}},
+		{"/paths/~1a/get/parameters/0/schema", []reftable.Kind{kOth, kOth, kOth, kOperation, kOth, kPar, kSch}},
+		{"/paths/~1a/get/responses/200/headers/X/schema", []reftable.Kind{kOth, kOth, kOth, kOperation, kOth, kRes, kOth, kHdr, kSch}},
 		{"/paths/~1a/post/requestBody/content/multipart~1form-data/encoding/f/headers/X/schema",
-			[]reftable.Kind{kOth, kOth, kOth, kOp, kBod, kOth, kMT, kOth, kEnc, kOth, kHdr, kSch}},
+			[]reftable.Kind{kOth, kOth, kOth, kOperation, kBod, kOth, kMT, kOth, kEnc, kOth, kHdr, kSch}},
 		{"/paths/~1a/post/requestBody/content/multipart~1mixed/itemEncoding/encoding/g/headers/X/schema",
-			[]reftable.Kind{kOth, kOth, kOth, kOp, kBod, kOth, kMT, kEnc, kOth, kEnc, kOth, kHdr, kSch}},
+			[]reftable.Kind{kOth, kOth, kOth, kOperation, kBod, kOth, kMT, kEnc, kOth, kEnc, kOth, kHdr, kSch}},
 		{"/info/title", []reftable.Kind{kOth, kOth, kRaw}},
 		{"/x-ext/a", []reftable.Kind{kOth, kRaw, kRaw}},
 	}

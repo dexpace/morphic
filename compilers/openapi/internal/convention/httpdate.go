@@ -40,22 +40,22 @@ func httpDate(policy HTTPDateInference, promoter promotion.Promoter, reg ir.Type
 			"rather than in RFC 3339's text, which its format names", header.EffectiveWireName(), httpDateEncoding)}
 }
 
-// httpDateParam gives each header parameter of op the text httpDate gives a
+// httpDateParam gives each header parameter of operation the text httpDate gives a
 // response header, under the HTTP-date policy, where the name its binding
 // places it under is one httpDateField names, it writes no encoding of its own,
 // and its type reads as an instant: on the parameter itself, as its type may be
 // one a $ref shares. A parameter in any other location is not read, whatever
 // its name. The rule is docs/compilers/openapi.md#http-date-inference.
 func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView,
-	op *ir.Operation,
+	operation *ir.Operation,
 ) []ir.Diagnostic {
-	if !policy.Honours() || len(op.Params) == 0 {
+	if !policy.Honours() || len(operation.Params) == 0 {
 		return nil
 	}
-	ix := compiledDocumentView.Params(op)
+	ix := compiledDocumentView.Params(operation)
 	var diags []ir.Diagnostic
-	for i := range op.Params {
-		parameter := &op.Params[i]
+	for i := range operation.Params {
+		parameter := &operation.Params[i]
 		name, bound := headerName(ix, parameter)
 		if !bound || parameter.Encoding != nil || !httpDateField(name) || !instant(promoter, compiledDocumentView.Types, parameter.Type.Target) {
 			continue
@@ -86,7 +86,7 @@ func headerName(ix compileddoc.ParamIndex, parameter *ir.Parameter) (string, boo
 // none of them names an encoding for.
 func instant(promoter promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) bool {
 	ch, ok := readChain(promoter, reg, id)
-	return ok && !ch.encoded && ch.prim == ir.PrimitiveDatetimeOffset
+	return ok && !ch.encoded && ch.primitive == ir.PrimitiveDatetimeOffset
 }
 
 // httpDateField reports whether name, compared without case as HTTP compares a

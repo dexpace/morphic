@@ -25,8 +25,8 @@ import (
 // promoter is the run's promoter.
 func PromoteChoices(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, op := range compiledDocumentView.Ops {
-		st, written, readDiags := promoter.StatementOf(promotion.TargetParamChoices, op.Unmodeled)
+	for _, operation := range compiledDocumentView.Operations {
+		st, written, readDiags := promoter.StatementOf(promotion.TargetParamChoices, operation.Unmodeled)
 		diags = append(diags, readDiags...)
 		if !written {
 			continue
@@ -38,17 +38,17 @@ func PromoteChoices(promoter promotion.Promoter, compiledDocumentView *compiledd
 				`from each variant's name to a list of parameter names`, "no choice is filled"))
 			continue
 		}
-		readerValue := reader{w: compiledDocumentView, op: op, key: st.Source.String()}
+		readerValue := reader{w: compiledDocumentView, operation: operation, key: st.Source.String()}
 		for _, name := range slices.Sorted(maps.Keys(groups)) {
 			choice, report, ok := readerValue.choice(name, groups[name], at(st.At, name))
 			if !ok {
 				diags = append(diags, report)
 				continue
 			}
-			op.ParamChoices = append(op.ParamChoices, choice)
+			operation.ParamChoices = append(operation.ParamChoices, choice)
 		}
-		if len(op.ParamChoices) > 0 {
-			op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
+		if len(operation.ParamChoices) > 0 {
+			operation.Provenance.Inferred = ir.JoinInferred(operation.Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
 		}
 	}
 	return diags
@@ -56,9 +56,9 @@ func PromoteChoices(promoter promotion.Promoter, compiledDocumentView *compiledd
 
 // reader reads the choices one operation's key states.
 type reader struct {
-	w   *compileddoc.CompiledDocumentView
-	op  *ir.Operation
-	key string
+	w         *compileddoc.CompiledDocumentView
+	operation *ir.Operation
+	key       string
 }
 
 // refusal is why a choice is not filled, and where that is written.
@@ -150,7 +150,7 @@ func (r reader) variantParams(variant string, raw jsontext.Value, where ir.Prove
 	if err := json.Unmarshal(raw, &names); err != nil || len(names) == 0 {
 		return nil, &refusal{"names no parameter in variant " + strconv.Quote(variant), where}
 	}
-	index := r.w.Params(r.op)
+	index := r.w.Params(r.operation)
 	out := make([]ir.ParameterID, 0, len(names))
 	seen := make(map[ir.ParameterID]bool, len(names))
 	for k, name := range names {
@@ -175,7 +175,7 @@ func (r reader) variantParams(variant string, raw jsontext.Value, where ir.Prove
 // some of variants name and some do not, or "" where none does: the choice
 // would be false of a request picking a variant lacking it.
 func (r reader) carriedBySome(variants []ir.ParamVariant) string {
-	for _, parameter := range r.op.Params {
+	for _, parameter := range r.operation.Params {
 		if !parameter.Required {
 			continue
 		}

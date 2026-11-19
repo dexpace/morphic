@@ -33,7 +33,7 @@ paths:
 `)
 	const entry = "/paths/~1a/get/responses/200/content/application~1json/examples/"
 	assert.Equal(t, []string{"openapi/degraded-construct info " + entry}, byCode(diags, "openapi/degraded-construct"))
-	examples := valueAtPath(opTree(t, doc, "a"), "responses", "0", "payload", "contents", "0", "examples")
+	examples := valueAtPath(operationTree(t, doc, "a"), "responses", "0", "payload", "contents", "0", "examples")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:examples/key": `degraded_lowering "" ` + entry,
 		"openapi:name":         `out_of_scope "x" ` + entry + `/name`,
@@ -63,6 +63,6 @@ paths:
               examples: {one: {value: 1}}
 `)
 	assert.Empty(t, diags)
-	got := valueAtPath(opTree(t, doc, "a"), "responses", "0", "payload", "contents", "0", "examples")
+	got := valueAtPath(operationTree(t, doc, "a"), "responses", "0", "payload", "contents", "0", "examples")
 	assert.JSONEq(t, `[{"name":"one","value":{"kind":"number","number":"1"}}]`, toJSON(t, got))
 }

@@ -183,19 +183,19 @@ func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 	for _, svc := range doc.Services {
 		forEachErrorPayload(svc.CommonErrors, string(svc.ID), "commonErrors", fn)
 	}
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		owner := string(op.ID)
-		if op.Request != nil {
-			fn(siteOf(*op.Request, owner, "request", -1, true))
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		owner := string(operation.ID)
+		if operation.Request != nil {
+			fn(siteOf(*operation.Request, owner, "request", -1, true))
 		}
-		for i, response := range op.Responses {
+		for i, response := range operation.Responses {
 			if response.Payload != nil {
 				fn(siteOf(*response.Payload, owner, "responses", i, false))
 			}
 		}
-		forEachErrorPayload(op.Errors, owner, "errors", fn)
-		if op.Default != nil && op.Default.Payload != nil {
-			fn(siteOf(*op.Default.Payload, owner, "default", -1, false))
+		forEachErrorPayload(operation.Errors, owner, "errors", fn)
+		if operation.Default != nil && operation.Default.Payload != nil {
+			fn(siteOf(*operation.Default.Payload, owner, "default", -1, false))
 		}
 	})
 	for _, id := range slices.Sorted(maps.Keys(doc.Messages)) {

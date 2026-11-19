@@ -28,30 +28,30 @@ import (
 func TestNewf_PopulatesEveryField(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		sev     ir.Severity
-		code    string
-		prov    ir.Provenance
-		format  string
-		args    []any
-		wantMsg string
+		name        string
+		sev         ir.Severity
+		code        string
+		prov        ir.Provenance
+		format      string
+		args        []any
+		wantMessage string
 	}{
 		{
 			name: "a formatted message", sev: ir.SeverityError, code: diag.UnresolvedRef,
 			prov:   ir.Provenance{Source: 0, Pointer: "/components/schemas/A"},
 			format: "unresolved $ref %q", args: []any{"#/nope"},
-			wantMsg: `unresolved $ref "#/nope"`,
+			wantMessage: `unresolved $ref "#/nope"`,
 		},
 		{
 			name: "no arguments leaves the format alone", sev: ir.SeverityInfo,
 			code: diag.FalseSchema, format: "boolean false schema matches nothing",
-			wantMsg: "boolean false schema matches nothing",
+			wantMessage: "boolean false schema matches nothing",
 		},
 		{
 			name: "several arguments in order", sev: ir.SeverityWarning,
 			code: diag.ConflictingRedecl, format: "%s disagrees with %s at %d",
-			args:    []any{"minimum", "exclusiveMinimum", 10},
-			wantMsg: "minimum disagrees with exclusiveMinimum at 10",
+			args:        []any{"minimum", "exclusiveMinimum", 10},
+			wantMessage: "minimum disagrees with exclusiveMinimum at 10",
 		},
 	}
 	for _, tc := range tests {
@@ -61,7 +61,7 @@ func TestNewf_PopulatesEveryField(t *testing.T) {
 			assert.Equal(t, tc.sev, diagnostic.Severity)
 			assert.Equal(t, tc.code, diagnostic.Code)
 			assert.Equal(t, tc.prov, diagnostic.Provenance)
-			assert.Equal(t, tc.wantMsg, diagnostic.Message)
+			assert.Equal(t, tc.wantMessage, diagnostic.Message)
 		})
 	}
 }

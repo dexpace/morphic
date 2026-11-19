@@ -150,10 +150,10 @@ func assertRawPreservedBinary(t *testing.T, model *ir.Model) {
 // and x-* on a node of its own, while a position declaring nothing still
 // resolves straight to the shared primitive.
 func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	elem := assertAnnotatedScalar(t, doc, "type/anonymous/components/schemas/Codes/items", 3)
-	require.NotNil(t, elem.XML)
-	assert.Equal(t, "Code", elem.XML.Name)
-	assert.Contains(t, elem.Unmodeled, "openapi:x-facet")
+	element := assertAnnotatedScalar(t, doc, "type/anonymous/components/schemas/Codes/items", 3)
+	require.NotNil(t, element.XML)
+	assert.Equal(t, "Code", element.XML.Name)
+	assert.Contains(t, element.Unmodeled, "openapi:x-facet")
 
 	assertAnnotatedScalar(t, doc, "type/anonymous/components/schemas/CodeIndex/additionalProperties", 64)
 	assertAnnotatedScalar(t, doc,
@@ -164,12 +164,12 @@ func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	assert.Equal(t, ir.TypeID("type/primitive/string"), bare.ElementType.Target,
 		"an element declaring nothing must not grow a node of its own")
 
-	op, ok := opByName(doc, "listCodes")
+	operation, ok := operationByName(doc, "listCodes")
 	require.True(t, ok)
-	require.Len(t, op.Params, 1)
-	assertCarriedAnnotations(t, op.Params[0].Docs, op.Params[0].Constraints, op.Params[0].Unmodeled, 4)
-	require.Len(t, op.Responses[0].Headers, 1)
-	header := op.Responses[0].Headers[0]
+	require.Len(t, operation.Params, 1)
+	assertCarriedAnnotations(t, operation.Params[0].Docs, operation.Params[0].Constraints, operation.Params[0].Unmodeled, 4)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	header := operation.Responses[0].Headers[0]
 	assertCarriedAnnotations(t, header.Docs, header.Constraints, header.Unmodeled, 64)
 }
 

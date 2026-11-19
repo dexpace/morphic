@@ -17,7 +17,7 @@ func assertNullabilityFourStates(t *testing.T, doc *ir.Document, _ []ir.Diagnost
 	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, model.Properties, 4)
-	states := openapitest.PropsByWire(model.Properties)
+	states := openapitest.PropertiesByWire(model.Properties)
 	assert.True(t, states["reqPlain"].Required)
 	assert.False(t, states["reqPlain"].Type.Nullable)
 	assert.True(t, states["reqNull"].Required)
@@ -39,7 +39,7 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	model, ok := doc.Types[componentID("Owner")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, model.Properties, 2)
-	byName := openapitest.PropsByWire(model.Properties)
+	byName := openapitest.PropertiesByWire(model.Properties)
 
 	assert.True(t, byName["p"].Type.Nullable,
 		"3.1's type-array null spelling normalizes to the same IR bit at a $ref site")
@@ -119,12 +119,12 @@ func assertEnumNullMember(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	require.NotNil(t, orNull.Base)
 	assert.Equal(t, ir.TypeRef{Target: componentID("Mixed"), Nullable: true}, *orNull.Base)
 
-	op, ok := opByName(doc, "deleteZone")
+	operation, ok := operationByName(doc, "deleteZone")
 	require.True(t, ok)
-	body, ok := doc.Types[firstContent(t, op).Type.Target].(*ir.Model)
+	body, ok := doc.Types[firstContent(t, operation).Type.Target].(*ir.Model)
 	require.True(t, ok)
 	for _, wire := range []string{"result", "gone"} {
-		property, found := propByWire(body, wire)
+		property, found := propertyByWire(body, wire)
 		require.True(t, found, wire)
 		assert.True(t, property.Type.Nullable, "%s admits null", wire)
 		assert.Equal(t, wire == "result", property.Required, "%s keeps its own presence", wire)
@@ -146,7 +146,7 @@ func assertNullAlone(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
 	for _, wire := range []string{"onlyNull", "listed", "enumNull", "constNull", "nullUnion", "nil", "withProps"} {
-		property, found := propByWire(holder, wire)
+		property, found := propertyByWire(holder, wire)
 		require.True(t, found, wire)
 		assert.True(t, property.Type.Nullable, "%s admits null", wire)
 		assert.Equal(t, wire == "onlyNull", property.Required, "%s keeps its own presence", wire)
@@ -156,18 +156,18 @@ func assertNullAlone(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		assert.True(t, enum.Closed, wire)
 		assert.Equal(t, ir.PrimitiveAny, enum.ValueType, wire)
 	}
-	nested, found := propByWire(holder, "nil")
+	nested, found := propertyByWire(holder, "nil")
 	require.True(t, found)
 	assert.Equal(t, componentID("Nil"), nested.Type.Target, "a $ref names the component's own Enum")
 
-	anything, found := propByWire(holder, "anything")
+	anything, found := propertyByWire(holder, "anything")
 	require.True(t, found)
 	assert.Equal(t, ir.TypeRef{Target: "type/primitive/any", Nullable: true}, anything.Type,
 		"every value and null is the top type, told apart from null alone")
 
-	withProps, found := propByWire(holder, "withProps")
+	withProperties, found := propertyByWire(holder, "withProps")
 	require.True(t, found)
-	assertKeptRaw(t, doc.Types[withProps.Type.Target].Common().Unmodeled, "openapi:properties", `{"a":{"type":"string"}}`)
+	assertKeptRaw(t, doc.Types[withProperties.Type.Target].Common().Unmodeled, "openapi:properties", `{"a":{"type":"string"}}`)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Holder/properties/withProps"),
 		"the property set the Enum has no home for is reported once")
@@ -180,12 +180,12 @@ func assertNullAlone(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 func assertNullBranches(t *testing.T, doc *ir.Document, holder *ir.Model, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, wire := range []string{"typed", "enumed", "constant", "described"} {
-		property, found := propByWire(holder, wire)
+		property, found := propertyByWire(holder, wire)
 		require.True(t, found, wire)
 		assert.Equal(t, ir.TypeRef{Target: componentID("X"), Nullable: true}, property.Type,
 			"%s is a nullable reference to its one other branch", wire)
 	}
-	described, found := propByWire(holder, "described")
+	described, found := propertyByWire(holder, "described")
 	require.True(t, found)
 	entry := unmodeledEntry(t, described.Unmodeled, "openapi:oneOf/1")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
@@ -193,14 +193,14 @@ func assertNullBranches(t *testing.T, doc *ir.Document, holder *ir.Model, diags 
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Holder/properties/described/oneOf/1"))
 
-	many, found := propByWire(holder, "many")
+	many, found := propertyByWire(holder, "many")
 	require.True(t, found)
 	assert.True(t, many.Type.Nullable)
 	union, isUnion := doc.Types[many.Type.Target].(*ir.Union)
 	require.True(t, isUnion)
 	require.Len(t, union.Variants, 2, "the null branch is no variant")
 
-	refNull, found := propByWire(holder, "refNull")
+	refNull, found := propertyByWire(holder, "refNull")
 	require.True(t, found)
 	assert.False(t, refNull.Type.Nullable, "the union's own reference says no null")
 	union, isUnion = doc.Types[refNull.Type.Target].(*ir.Union)
@@ -231,12 +231,12 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 
 	model, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
-	one, ok := propByWire(model, "one")
+	one, ok := propertyByWire(model, "one")
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeRef{Target: componentID("Color"), Nullable: true}, one.Type,
 		"a property $ref admits the null the members no longer carry")
 
-	many, ok := propByWire(model, "many")
+	many, ok := propertyByWire(model, "many")
 	require.True(t, ok)
 	list, ok := doc.Types[many.Type.Target].(*ir.List)
 	require.True(t, ok, "the array property hoists a List")
@@ -244,9 +244,9 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 		"and so does a list element, which holds its own reference")
 	assert.False(t, many.Type.Nullable, "the list itself was never declared nullable")
 
-	op, ok := opByName(doc, "pick")
+	operation, ok := operationByName(doc, "pick")
 	require.True(t, ok)
-	parameter, ok := openapitest.ParamBySource(op, "color")
+	parameter, ok := openapitest.ParamBySource(operation, "color")
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeRef{Target: componentID("Color"), Nullable: true}, parameter.Type,
 		"a parameter reaches the same declaration through the operation walk")
@@ -263,12 +263,12 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	require.True(t, ok)
 	require.Len(t, narrowed.Members, 2, "nothing to strip: the members never listed null")
 
-	bareRef, ok := propByWire(model, "bare")
+	bareRef, ok := propertyByWire(model, "bare")
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeRef{Target: componentID("BareColor"), Nullable: true}, bareRef.Type,
 		"the bare spelling admits null at its uses, like the type-array spelling of the same set")
 
-	narrowedRef, ok := propByWire(model, "narrowed")
+	narrowedRef, ok := propertyByWire(model, "narrowed")
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeRef{Target: componentID("NarrowedColor"), Nullable: false}, narrowedRef.Type,
 		"an enum excluding null must not admit it, whatever the type keyword names")
@@ -287,16 +287,16 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	model, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
-	props := openapitest.PropsByWire(model.Properties)
-	require.Len(t, props, 5)
+	properties := openapitest.PropertiesByWire(model.Properties)
+	require.Len(t, properties, 5)
 
-	assert.Equal(t, props["direct"].Type.Nullable, props["viaAllOf"].Type.Nullable,
+	assert.Equal(t, properties["direct"].Type.Nullable, properties["viaAllOf"].Type.Nullable,
 		"a sole conjunct's null survives the composition that names it")
-	assert.True(t, props["viaAllOf"].Type.Nullable)
-	assert.Equal(t, props["directModel"].Type.Nullable, props["viaAllOfModel"].Type.Nullable,
+	assert.True(t, properties["viaAllOf"].Type.Nullable)
+	assert.Equal(t, properties["directModel"].Type.Nullable, properties["viaAllOfModel"].Type.Nullable,
 		"a model target has no second hop to recover the null from")
-	assert.True(t, props["viaAllOfModel"].Type.Nullable)
-	assert.False(t, props["viaAllOfBoth"].Type.Nullable,
+	assert.True(t, properties["viaAllOfModel"].Type.Nullable)
+	assert.False(t, properties["viaAllOfBoth"].Type.Nullable,
 		"one conjunct forbidding null decides the conjunction")
 
 	_, isModel := doc.Types[componentID("WrapNullableScalar")].(*ir.Model)

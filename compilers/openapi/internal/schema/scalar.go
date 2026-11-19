@@ -32,7 +32,7 @@ func scalarTypeID(loweringContext lowering.Ctx, ts *compile.Types, depth int, sc
 	shape := scalarShapeOf(schema, kind, writtenFormat(schema))
 	if shape.shared {
 		// The type and the format beside it selected the shared primitive.
-		return ts.PrimID(shape.base), scalarTypeRead(schema) | shape.read, nil
+		return ts.PrimitiveID(shape.base), scalarTypeRead(schema) | shape.read, nil
 	}
 	id, diags := hoistScalar(loweringContext, ts, depth, schema, shape, typeKinds(kind), st.foldedBranches(loweringContext, schema, pointer), pointer, fin, st)
 	return id, 0, diags
@@ -74,16 +74,16 @@ func scalarShapeOf(schema *statement.Schema, st statement.JSONSchemaTypeName, fo
 		read = keyBit("format")
 	}
 	if row, encoded := typeformat.LookupEncoded(key); encoded {
-		return scalarShape{base: row.Prim, format: row.Encoding, wire: wireOf(row), read: read}
+		return scalarShape{base: row.Primitive, format: row.Encoding, wire: wireOf(row), read: read}
 	}
-	prim, known := typeformat.Lookup(key)
+	primitive, known := typeformat.Lookup(key)
 	if !known {
-		if num, carried := numberAsText(schema, st, format); carried {
-			return scalarShape{base: num, format: numberTextEncoding, wire: new(ir.PrimitiveString), read: read}
+		if number, carried := numberAsText(schema, st, format); carried {
+			return scalarShape{base: number, format: numberTextEncoding, wire: new(ir.PrimitiveString), read: read}
 		}
 		return scalarShape{base: baseForType(st), format: format, read: read}
 	}
-	return scalarShape{base: prim, shared: !takesContent(typeKinds(st)) || !declaresContentVocabulary(schema), read: read}
+	return scalarShape{base: primitive, shared: !takesContent(typeKinds(st)) || !declaresContentVocabulary(schema), read: read}
 }
 
 // wireOf returns the primitive row's value travels as, the WireType of the
@@ -161,11 +161,11 @@ func hoistScalar(loweringContext lowering.Ctx, ts *compile.Types, depth int, sch
 		}
 	}
 	id := internNode(loweringContext, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		baseRef := ts.PrimRef(shape.base)
+		baseRef := ts.PrimitiveRef(shape.base)
 		enc, encDiags := scalarEncoding(loweringContext, ts, depth, schema, shape.format, takesContent(takes), &common, pointer)
 		diags = append(diags, encDiags...)
 		if shape.wire != nil {
-			wireRef := ts.PrimRef(*shape.wire)
+			wireRef := ts.PrimitiveRef(*shape.wire)
 			enc.WireType = &wireRef
 		}
 		if *enc == (ir.Encoding{}) {
@@ -255,7 +255,7 @@ func contentOverridesFormat(schema *statement.Schema, formatName string) bool {
 
 // contentSchemaRef lowers contentSchema — the shape the encoded value has once
 // decoded — to Encoding.Schema. Its value is a schema, so it lowers like every
-// other sub-schema position (fillAdditional, patternProps): hoisted at its own
+// other sub-schema position (fillAdditional, patternProperties): hoisted at its own
 // pointer and referenced by ID, never carried beside the encoding as a raw blob
 // a consumer would have to re-parse.
 //

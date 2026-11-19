@@ -120,12 +120,12 @@ components:
 // parser and no fixture — the shape a test wants when what it needs from the
 // document is only which components it declares.
 func DocDeclaring(names ...string) *soa.OpenAPI {
-	elems := make([]*sequencedmap.Element[string, *oas3.JSONSchema[oas3.Referenceable]], 0, len(names))
+	elements := make([]*sequencedmap.Element[string, *oas3.JSONSchema[oas3.Referenceable]], 0, len(names))
 	for _, n := range names {
-		elems = append(elems, sequencedmap.NewElem(n,
+		elements = append(elements, sequencedmap.NewElem(n,
 			oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})))
 	}
-	return &soa.OpenAPI{Components: &soa.Components{Schemas: sequencedmap.New(elems...)}}
+	return &soa.OpenAPI{Components: &soa.Components{Schemas: sequencedmap.New(elements...)}}
 }
 
 // EmptyEitherSchema is a JSONSchema whose either-value has neither a Left schema
@@ -178,8 +178,8 @@ func SchemaFromYAML(ctx context.Context, tb TB, body string) *oas3.JSONSchema[oa
 	return js
 }
 
-// StrNode builds a bare string-scalar yaml.Node.
-func StrNode(val string) *yaml.Node {
+// StringNode builds a bare string-scalar yaml.Node.
+func StringNode(val string) *yaml.Node {
 	return ScalarNode("!!str", val)
 }
 

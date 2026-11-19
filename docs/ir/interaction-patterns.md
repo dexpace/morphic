@@ -12,21 +12,21 @@ type Pagination struct {
     Inferred   bool           // heuristic (OpenAPI name-matching policy) vs declared (Smithy/TypeSpec)
     InputCursor  *InputPath   // which input continues iteration: a parameter, the body, or a member
     InputLimit   *InputPath
-    Items        *PropPath    // where result items live in the response — a PATH, not a name
-    NextCursor   *PropPath    // continuation source in the response
-    HasMore      *PropPath    // the flag saying another page follows: true continues
-    NextLink     *PropPath
-    PrevLink     *PropPath    // server-driven navigation links beyond next
-    FirstLink    *PropPath    // (TypeSpec @prevLink/@firstLink/@lastLink, OpenAPI links)
-    LastLink     *PropPath
-    TotalCount   *PropPath    // counts items
-    TotalPages   *PropPath    // counts pages
-    Stop         []PageStop   // when iteration ends, any one ending it; empty = none stated
+    Items        *PropertyPath // where result items live in the response — a PATH, not a name
+    NextCursor   *PropertyPath // continuation source in the response
+    HasMore      *PropertyPath // the flag saying another page follows: true continues
+    NextLink     *PropertyPath
+    PrevLink     *PropertyPath // server-driven navigation links beyond next
+    FirstLink    *PropertyPath // (TypeSpec @prevLink/@firstLink/@lastLink, OpenAPI links)
+    LastLink     *PropertyPath
+    TotalCount   *PropertyPath // counts items
+    TotalPages   *PropertyPath // counts pages
+    Stop         []PageStop    // when iteration ends, any one ending it; empty = none stated
 }
 
 type PageStop string // "empty" | "no_next" | "short" | "total" | "no_more"
 
-type PropPath struct {
+type PropertyPath struct {
     Root     *TypeRef  // the type the path roots in; nil = determined by context
                        // (the enclosing response body, message payload, …)
     In       string    // "" = body/payload | "header" — continuation tokens and reply addresses
@@ -86,7 +86,7 @@ type LongRunning struct {
     FinalOperation   *OperationID // declared final-result op (Azure.Core @finalOperation)
     PollingType   *TypeRef
     FinalType     *TypeRef
-    ResultPath    *PropPath
+    ResultPath    *PropertyPath
 }
 ```
 

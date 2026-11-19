@@ -78,8 +78,8 @@ func positions() []position {
 	}
 }
 
-// atCasePath returns the paths holding op at the case's path, and no component.
-func atCasePath(op object) (object, object) { return object{{casePath, op}}, nil }
+// atCasePath returns the paths holding operation at the case's path, and no component.
+func atCasePath(operation object) (object, object) { return object{{casePath, operation}}, nil }
 
 // response returns the operation whose response 200 writes of.
 func response(of member) object {

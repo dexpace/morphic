@@ -52,11 +52,11 @@ var positions = []position{
 	{
 		name: "property",
 		spec: func(version string, rows []homeRow, schemas []string) string {
-			props := make([]string, 0, len(rows))
+			properties := make([]string, 0, len(rows))
 			for _, homeRow := range rows {
-				props = append(props, homeRow.name+": "+homeRow.schema)
+				properties = append(properties, homeRow.name+": "+homeRow.schema)
 			}
-			holder := "Holder: {type: object, properties: {" + strings.Join(props, ", ") + "}}"
+			holder := "Holder: {type: object, properties: {" + strings.Join(properties, ", ") + "}}"
 			// Between the shared schemas, so the reversed order puts it on the
 			// other side of each.
 			return admissionSpec(version, "", slices.Concat(schemas[:1], []string{holder}, schemas[1:])...)
@@ -294,14 +294,14 @@ func TestCompile_AMemberTheRedeclaredPropertyFoldComposesKeepsItsBounds(t *testi
 					model, ok := doc.Types["type/openapi/components/schemas/LogRule"].(*ir.Model)
 					require.True(t, ok)
 					require.Len(t, model.Properties, 1)
-					prop := model.Properties[0]
-					require.NotNil(t, prop.Constraints, "the property keeps the folded bounds")
-					require.NotNil(t, prop.Constraints.MinProperties)
-					require.NotNil(t, prop.Constraints.MaxProperties)
-					assert.EqualValues(t, 1, *prop.Constraints.MinProperties)
-					assert.EqualValues(t, 5, *prop.Constraints.MaxProperties)
+					property := model.Properties[0]
+					require.NotNil(t, property.Constraints, "the property keeps the folded bounds")
+					require.NotNil(t, property.Constraints.MinProperties)
+					require.NotNil(t, property.Constraints.MaxProperties)
+					assert.EqualValues(t, 1, *property.Constraints.MinProperties)
+					assert.EqualValues(t, 5, *property.Constraints.MaxProperties)
 
-					composed, ok := doc.Types[prop.Type.Target].(*ir.Model)
+					composed, ok := doc.Types[property.Type.Target].(*ir.Model)
 					require.True(t, ok, "the property names a model")
 					assert.True(t, strings.HasPrefix(string(composed.ID), "type/composed/"),
 						"%s is the composed node", composed.ID)

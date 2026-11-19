@@ -130,14 +130,14 @@ func nullAloneUses(t *testing.T, doc *ir.Document) []nullAloneUse {
 	require.Len(t, union.Variants, 2, "a $ref naming a schema of null alone stays a variant")
 	uses = append(uses, nullAloneUse{label: "union variant", ref: union.Variants[1].Type})
 
-	op := openapitest.FindOp(t, doc, "getP")
+	operation := openapitest.FindOperation(t, doc, "getP")
 	for name, want := range map[string]bool{"id": true, "q": false, "qr": true} {
-		param, found := openapitest.ParamBySource(op, name)
+		param, found := openapitest.ParamBySource(operation, name)
 		require.True(t, found, name)
 		carried("parameter "+name, param.Type, param.Required, want)
 	}
-	require.Len(t, op.Responses, 1)
-	for _, header := range op.Responses[0].Headers {
+	require.Len(t, operation.Responses, 1)
+	for _, header := range operation.Responses[0].Headers {
 		carried("header "+header.WireName, header.Type, header.Required, header.WireName == "X-Req")
 	}
 	require.Len(t, uses, 15, "every position is read")

@@ -632,38 +632,38 @@ func TestResidueKeywords_HandsBackACopy(t *testing.T) {
 }
 
 func inlinePositions() []inlinePosition {
-	const prim = ir.TypeID("type/primitive/string")
+	const primitive = ir.TypeID("type/primitive/string")
 	return []inlinePosition{
 		{"items", func(b string) string { return openapitest.ComponentSpec("    A: {type: array, items: " + b + "}\n") },
-			"type/anonymous/components/schemas/A/items", prim},
+			"type/anonymous/components/schemas/A/items", primitive},
 		{"nested-items", func(b string) string {
 			return openapitest.ComponentSpec("    A: {type: array, items: {type: array, items: " + b + "}}\n")
-		}, "type/anonymous/components/schemas/A/items/items", prim},
+		}, "type/anonymous/components/schemas/A/items/items", primitive},
 		{"additionalProperties", func(b string) string {
 			return openapitest.ComponentSpec("    A: {type: object, additionalProperties: " + b + "}\n")
-		}, "type/anonymous/components/schemas/A/additionalProperties", prim},
+		}, "type/anonymous/components/schemas/A/additionalProperties", primitive},
 		{"prefixItems", func(b string) string {
 			return openapitest.ComponentSpec("    A: {type: array, prefixItems: [" + b + "]}\n")
-		}, "type/anonymous/components/schemas/A/prefixItems/0", prim},
+		}, "type/anonymous/components/schemas/A/prefixItems/0", primitive},
 		{"patternProperties", func(b string) string {
 			return openapitest.ComponentSpec("    A: {type: object, patternProperties: {\"^x\": " + b + "}}\n")
-		}, "type/anonymous/components/schemas/A/patternProperties/^x", prim},
+		}, "type/anonymous/components/schemas/A/patternProperties/^x", primitive},
 		{"oneOf-branch", func(b string) string {
 			return openapitest.ComponentSpec("    A: {oneOf: [" + b + ", {type: integer}]}\n")
-		}, "type/anonymous/components/schemas/A/oneOf/0", prim},
+		}, "type/anonymous/components/schemas/A/oneOf/0", primitive},
 		{"anyOf-branch", func(b string) string {
 			return openapitest.ComponentSpec("    A: {anyOf: [" + b + ", {type: integer}]}\n")
-		}, "type/anonymous/components/schemas/A/anyOf/0", prim},
+		}, "type/anonymous/components/schemas/A/anyOf/0", primitive},
 		{"request-media-type", func(b string) string {
 			return openapitest.PathsSpec("  /x:\n    post:\n      operationId: p\n      requestBody:\n" +
 				"        content: {application/json: {schema: " + b + "}}\n" +
 				"      responses: {\"204\": {description: ok}}\n")
-		}, "type/anonymous/paths/~1x/post/requestBody/content/application~1json/schema", prim},
+		}, "type/anonymous/paths/~1x/post/requestBody/content/application~1json/schema", primitive},
 		{"response-media-type", func(b string) string {
 			return openapitest.PathsSpec("  /x:\n    get:\n      operationId: g\n      responses:\n" +
 				"        \"200\":\n          description: ok\n" +
 				"          content: {application/json: {schema: " + b + "}}\n")
-		}, "type/anonymous/paths/~1x/get/responses/200/content/application~1json/schema", prim},
+		}, "type/anonymous/paths/~1x/get/responses/200/content/application~1json/schema", primitive},
 	}
 }
 
@@ -802,8 +802,8 @@ func unevaluatedEntries(doc *ir.Document) map[jsontext.Pointer][]string {
 			}
 		}
 	}
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		for _, parameter := range op.Params {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		for _, parameter := range operation.Params {
 			add(schemaKept(parameter.Unmodeled))
 		}
 	})

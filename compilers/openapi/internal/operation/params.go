@@ -393,15 +393,15 @@ type sourcedParam struct {
 // position recomputed from the merged slice (issue #36), and a $ref'd path
 // item's are under its own declaration pointer, not the path it is mounted at
 // (issue #107).
-func mergeParameters(b *typed.Bindings, pathParams []sourcedParam, opParams []*soa.ReferencedParameter,
-	opDeclPtr jsontext.Pointer,
+func mergeParameters(b *typed.Bindings, pathParams []sourcedParam, operationParams []*soa.ReferencedParameter,
+	operationDeclPtr jsontext.Pointer,
 ) []sourcedParam {
-	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
-	merged = appendSourced(b, merged, opParams, opDeclPtr, nil, nil)
+	merged := make([]sourcedParam, 0, len(operationParams)+len(pathParams))
+	merged = appendSourced(b, merged, operationParams, operationDeclPtr, nil, nil)
 	if len(pathParams) == 0 {
 		return merged
 	}
-	shadowed := shadowedKeys(b, opParams)
+	shadowed := shadowedKeys(b, operationParams)
 	for _, sourcedParam := range pathParams {
 		if key, ok := paramKey(b, sourcedParam.ref); ok && shadowed[key] {
 			continue
@@ -428,11 +428,11 @@ func appendSourced(b *typed.Bindings, dst []sourcedParam, params []*soa.Referenc
 	return dst
 }
 
-// shadowedKeys returns the (in, name) identities declared by opParams, so a
+// shadowedKeys returns the (in, name) identities declared by operationParams, so a
 // path-item parameter sharing one is left out of the merge as a duplicate.
-func shadowedKeys(b *typed.Bindings, opParams []*soa.ReferencedParameter) map[ids.ParamSlot]bool {
-	shadowed := make(map[ids.ParamSlot]bool, len(opParams))
-	for _, p := range opParams {
+func shadowedKeys(b *typed.Bindings, operationParams []*soa.ReferencedParameter) map[ids.ParamSlot]bool {
+	shadowed := make(map[ids.ParamSlot]bool, len(operationParams))
+	for _, p := range operationParams {
 		if key, ok := paramKey(b, p); ok {
 			shadowed[key] = true
 		}

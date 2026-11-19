@@ -21,9 +21,9 @@ func spelled(id, source, wire string) ir.Property {
 	return ir.Property{ID: ir.PropertyID(id), Name: named(source), WireName: wire}
 }
 
-// extending is the model id named after itself, extending base, with props.
-func extending(id string, base string, props ...ir.Property) *ir.Model {
-	model := &ir.Model{ID: ir.TypeID(id), Name: named(id), Properties: props}
+// extending is the model id named after itself, extending base, with properties.
+func extending(id string, base string, properties ...ir.Property) *ir.Model {
+	model := &ir.Model{ID: ir.TypeID(id), Name: named(id), Properties: properties}
 	if base != "" {
 		model.Base = &ir.TypeRef{Target: ir.TypeID(base)}
 	}

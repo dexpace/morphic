@@ -17,7 +17,7 @@ import (
 // mapModel returns a model that is a map and nothing else: a catch-all, plus
 // the fields AsMap carries over.
 func mapModel() *ir.Model {
-	minProps := int64(1)
+	minProperties := int64(1)
 	return &ir.Model{
 		ID:   "type/openapi/components/schemas/Labels",
 		Docs: ir.Docs{Description: "labels"},
@@ -25,7 +25,7 @@ func mapModel() *ir.Model {
 			Key:   &ir.TypeRef{Target: "type/primitive/int64"},
 			Value: &ir.TypeRef{Target: "type/primitive/string", Nullable: true},
 		},
-		Constraints: &ir.Constraints{MinProperties: &minProps},
+		Constraints: &ir.Constraints{MinProperties: &minProperties},
 	}
 }
 

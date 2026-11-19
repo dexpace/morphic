@@ -56,10 +56,10 @@ func aliasProperty(source string, aliases ...string) ir.Property {
 	}
 }
 
-// aliasDoc returns validDoc with model t/m holding props.
-func aliasDoc(props ...ir.Property) *ir.Document {
+// aliasDoc returns validDoc with model t/m holding properties.
+func aliasDoc(properties ...ir.Property) *ir.Document {
 	doc := validDoc()
-	doc.Types["type/m"].(*ir.Model).Properties = props
+	doc.Types["type/m"].(*ir.Model).Properties = properties
 	return doc
 }
 
@@ -85,32 +85,32 @@ func TestValidate_AmbiguousAliasIsReported(t *testing.T) {
 	t.Parallel()
 	wired := ir.Property{ID: "property/m/w", WireName: "id", Type: ir.TypeRef{Target: "type/primitive/string"}}
 	for _, tc := range []struct {
-		name    string
-		props   []ir.Property
-		node    string
-		message string
+		name       string
+		properties []ir.Property
+		node       string
+		message    string
 	}{
 		{
-			name:    "sibling's name declared after the alias",
-			props:   []ir.Property{aliasProperty("b", "a"), aliasProperty("a")},
-			node:    "type/m/properties/0",
-			message: `alias "a" of property "property/m/b" is a name property "property/m/a" also answers to`,
+			name:       "sibling's name declared after the alias",
+			properties: []ir.Property{aliasProperty("b", "a"), aliasProperty("a")},
+			node:       "type/m/properties/0",
+			message:    `alias "a" of property "property/m/b" is a name property "property/m/a" also answers to`,
 		},
 		{
-			name:    "sibling's name declared before the alias",
-			props:   []ir.Property{aliasProperty("a"), aliasProperty("b", "a")},
-			node:    "type/m/properties/1",
-			message: `alias "a" of property "property/m/b" is a name property "property/m/a" also answers to`,
+			name:       "sibling's name declared before the alias",
+			properties: []ir.Property{aliasProperty("a"), aliasProperty("b", "a")},
+			node:       "type/m/properties/1",
+			message:    `alias "a" of property "property/m/b" is a name property "property/m/a" also answers to`,
 		},
 		{
-			name:    "sibling's explicit wire name",
-			props:   []ir.Property{wired, aliasProperty("b", "id")},
-			node:    "type/m/properties/1",
-			message: `alias "id" of property "property/m/b" is a name property "property/m/w" also answers to`,
+			name:       "sibling's explicit wire name",
+			properties: []ir.Property{wired, aliasProperty("b", "id")},
+			node:       "type/m/properties/1",
+			message:    `alias "id" of property "property/m/b" is a name property "property/m/w" also answers to`,
 		},
 		{
 			name: "sibling sharing the property's own wire name",
-			props: []ir.Property{aliasProperty("a"), {
+			properties: []ir.Property{aliasProperty("a"), {
 				ID:   "property/m/a2",
 				Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{"a"}},
 				Type: ir.TypeRef{Target: "type/primitive/string"},
@@ -119,15 +119,15 @@ func TestValidate_AmbiguousAliasIsReported(t *testing.T) {
 			message: `alias "a" of property "property/m/a2" is a name property "property/m/a" also answers to`,
 		},
 		{
-			name:    "sibling's alias",
-			props:   []ir.Property{aliasProperty("b", "x"), aliasProperty("c", "x")},
-			node:    "type/m/properties/1",
-			message: `alias "x" of property "property/m/c" is a name property "property/m/b" also answers to`,
+			name:       "sibling's alias",
+			properties: []ir.Property{aliasProperty("b", "x"), aliasProperty("c", "x")},
+			node:       "type/m/properties/1",
+			message:    `alias "x" of property "property/m/c" is a name property "property/m/b" also answers to`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := ambiguousAliasDiags(t, aliasDoc(tc.props...))
+			got := ambiguousAliasDiags(t, aliasDoc(tc.properties...))
 			require.Len(t, got, 1)
 			assert.Equal(t, ir.SeverityError, got[0].Severity)
 			assert.Equal(t, tc.node, got[0].Provenance.Node)

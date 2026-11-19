@@ -306,12 +306,12 @@ func TestCensus_CountsTheKindOfEveryTypeDefTheIRDeclares(t *testing.T) {
 func TestCensus_TellsAnExplicitlyEmptyAuthFromAnAbsentOne(t *testing.T) {
 	t.Parallel()
 	factCensus := irCensus(t)
-	ops := []ir.Operation{
+	operations := []ir.Operation{
 		{},
 		{Auth: []ir.AuthRequirement{}},
 		{Auth: []ir.AuthRequirement{{}}},
 	}
-	require.NoError(t, factCensus.Add(&ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: ops}}}}}))
+	require.NoError(t, factCensus.Add(&ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: operations}}}}}))
 
 	got := facts(t, factCensus.Report())
 	assert.Equal(t, "1 2", got["member Operation.auth"], "public and secured, not inherited")

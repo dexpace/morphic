@@ -52,7 +52,7 @@ func eachPosition(doc *ir.Document, live []ir.TypeID, keys *[]ir.PropertyID, vis
 			headerPositions(&positionValue, doc.Services[i].CommonErrors[j].Headers, string(doc.Services[i].ID), visit)
 		}
 	}
-	ir.ForEachOperation(doc, func(op ir.Operation) { operationPositions(&positionValue, &op, keys, visit) })
+	ir.ForEachOperation(doc, func(operation ir.Operation) { operationPositions(&positionValue, &operation, keys, visit) })
 }
 
 // propertyPosition fills positionValue from pr, a property of owner, which
@@ -76,35 +76,35 @@ func headerPositions(positionValue *position, headers []ir.Header, owner string,
 	}
 }
 
-// operationPositions visits the positions of op.
-func operationPositions(positionValue *position, op *ir.Operation, keys *[]ir.PropertyID, visit func(*position)) {
-	for i := range op.Params {
-		pm := &op.Params[i]
+// operationPositions visits the positions of operation.
+func operationPositions(positionValue *position, operation *ir.Operation, keys *[]ir.PropertyID, visit func(*position)) {
+	for i := range operation.Params {
+		pm := &operation.Params[i]
 		*positionValue = position{
 			node: string(pm.ID), from: pm.Provenance, typ: pm.Type, own: pm.Constraints,
 			def: pm.Default, examples: pm.Examples,
 		}
 		visit(positionValue)
 	}
-	owner := string(op.ID)
-	for i := range op.Responses {
-		headerPositions(positionValue, op.Responses[i].Headers, owner, visit)
+	owner := string(operation.ID)
+	for i := range operation.Responses {
+		headerPositions(positionValue, operation.Responses[i].Headers, owner, visit)
 	}
-	if op.Default != nil {
-		headerPositions(positionValue, op.Default.Headers, owner, visit)
+	if operation.Default != nil {
+		headerPositions(positionValue, operation.Default.Headers, owner, visit)
 	}
-	for i := range op.Errors {
-		headerPositions(positionValue, op.Errors[i].Headers, owner, visit)
+	for i := range operation.Errors {
+		headerPositions(positionValue, operation.Errors[i].Headers, owner, visit)
 	}
-	partPositions(positionValue, op.Request, owner, keys, visit)
-	for i := range op.Responses {
-		partPositions(positionValue, op.Responses[i].Payload, owner, keys, visit)
+	partPositions(positionValue, operation.Request, owner, keys, visit)
+	for i := range operation.Responses {
+		partPositions(positionValue, operation.Responses[i].Payload, owner, keys, visit)
 	}
-	if op.Default != nil {
-		partPositions(positionValue, op.Default.Payload, owner, keys, visit)
+	if operation.Default != nil {
+		partPositions(positionValue, operation.Default.Payload, owner, keys, visit)
 	}
-	for i := range op.Errors {
-		partPositions(positionValue, op.Errors[i].Payload, owner, keys, visit)
+	for i := range operation.Errors {
+		partPositions(positionValue, operation.Errors[i].Payload, owner, keys, visit)
 	}
 }
 

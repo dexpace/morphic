@@ -88,7 +88,7 @@ actions:
 	assert.Empty(t, scalar.Unmodeled)
 
 	model := requireModelNode(t, doc, componentID("H"))
-	property, ok := propByWire(model, "p")
+	property, ok := propertyByWire(model, "p")
 	require.True(t, ok)
 	assert.Equal(t, componentID("T"), property.Type.Target, "a carrier hoists no node")
 	assert.Equal(t, "e", property.Docs.Description)
@@ -110,14 +110,14 @@ func TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs(t *testing.
 			"Doc: {type: object, description: the target's own, properties: {a: {type: string}}}",
 			"Holder: {type: object, properties: {p: "+schema+"}}"))
 		requireErrorsAndWarnings(t, diags, nil)
-		property, ok := propByWire(requireModelNode(t, doc, componentID("Holder")), "p")
+		property, ok := propertyByWire(requireModelNode(t, doc, componentID("Holder")), "p")
 		require.True(t, ok)
 		assert.Equal(t, componentID("Doc"), property.Type.Target, schema)
 		assert.Equal(t, "the target's own", property.Docs.Description, schema)
-		op := operationAt(t, doc, "GET", "/a")
-		require.Len(t, op.Params, 1)
-		assert.Equal(t, componentID("Doc"), op.Params[0].Type.Target, schema)
-		params = append(params, op.Params[0])
+		operation := operationAt(t, doc, "GET", "/a")
+		require.Len(t, operation.Params, 1)
+		assert.Equal(t, componentID("Doc"), operation.Params[0].Type.Target, schema)
+		params = append(params, operation.Params[0])
 	}
 	assert.Equal(t, params[0].Docs, params[1].Docs, "the parameter reads the docs alike in either spelling")
 }

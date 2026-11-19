@@ -100,9 +100,9 @@ func TestInferWalks_ReadsEachStrategy(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			op, doc, diags := listOp(t, tc.src, openapi.Options{})
+			operation, doc, diags := listOperation(t, tc.src, openapi.Options{})
 			openapitest.RequireNoErrorDiags(t, diags)
-			assert.Equal(t, tc.want, describe(doc, op))
+			assert.Equal(t, tc.want, describe(doc, operation))
 			assert.Empty(t, undecided(diags))
 		})
 	}
@@ -113,10 +113,10 @@ func TestInferWalks_ReadsEachStrategy(t *testing.T) {
 // beside any it already named.
 func TestInferWalks_MarksWhatItFills(t *testing.T) {
 	t.Parallel()
-	op, _, _ := listOp(t, listing(pageParams, envelope), openapi.Options{Grouping: openapi.GroupByPathPrefix})
-	require.NotNil(t, op.Pagination)
-	assert.True(t, op.Pagination.Inferred)
-	assert.Equal(t, ir.JoinInferred("group-path-prefix", pagination.InferenceHeuristic), op.Provenance.Inferred)
+	operation, _, _ := listOperation(t, listing(pageParams, envelope), openapi.Options{Grouping: openapi.GroupByPathPrefix})
+	require.NotNil(t, operation.Pagination)
+	assert.True(t, operation.Pagination.Inferred)
+	assert.Equal(t, ir.JoinInferred("group-path-prefix", pagination.InferenceHeuristic), operation.Provenance.Inferred)
 }
 
 // TestInferWalks_LeavesWhatItCannotSettle pins each reason an operation whose query
@@ -178,8 +178,8 @@ func TestInferWalks_LeavesWhatItCannotSettle(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			op, doc, diags := listOp(t, tc.src, openapi.Options{})
-			assert.Equal(t, "-", describe(doc, op))
+			operation, doc, diags := listOperation(t, tc.src, openapi.Options{})
+			assert.Equal(t, "-", describe(doc, operation))
 			assert.Equal(t, []string{"no pagination is inferred: " + tc.want}, undecided(diags))
 			got, ok := openapitest.FirstDiag(diags, "openapi/undecided-pagination")
 			require.True(t, ok)
@@ -221,8 +221,8 @@ paths:
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			op, doc, diags := listOp(t, head+tc.responses, openapi.Options{})
-			assert.Equal(t, "-", describe(doc, op))
+			operation, doc, diags := listOperation(t, head+tc.responses, openapi.Options{})
+			assert.Equal(t, "-", describe(doc, operation))
 			assert.Equal(t, []string{"no pagination is inferred: " + tc.want}, undecided(diags))
 		})
 	}
@@ -257,8 +257,8 @@ components:
 	} {
 		t.Run("two contents holding "+name+" at different members", func(t *testing.T) {
 			t.Parallel()
-			op, doc, diags := listOp(t, src, openapi.Options{})
-			assert.Equal(t, "-", describe(doc, op))
+			operation, doc, diags := listOperation(t, src, openapi.Options{})
+			assert.Equal(t, "-", describe(doc, operation))
 			assert.Equal(t, []string{"no pagination is inferred: the success responses' bodies hold their pages at " +
 				"different members"}, undecided(diags))
 		})
@@ -269,8 +269,8 @@ components:
 		src := head + `        "200": {description: ok, content: {application/json: {schema: ` + body(`result: `+stringList) + `}}}
         default: {description: failure, content: {application/json: {schema: ` + body(`message: {type: string}`) + `}}}
 `
-		op, doc, diags := listOp(t, src, openapi.Options{})
-		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, op))
+		operation, doc, diags := listOperation(t, src, openapi.Options{})
+		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, operation))
 		assert.Empty(t, undecided(diags))
 	})
 
@@ -280,8 +280,8 @@ components:
         "200": {description: ok, content: {application/json: {schema: ` + body(`result: `+stringList) + `}}}
         "304": {description: not modified}
 `
-		op, doc, diags := listOp(t, src, openapi.Options{})
-		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, op))
+		operation, doc, diags := listOperation(t, src, openapi.Options{})
+		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, operation))
 		assert.Empty(t, undecided(diags))
 	})
 
@@ -308,16 +308,16 @@ components:
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			op, doc, diags := listOp(t, head+responses, openapi.Options{})
-			assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, op))
+			operation, doc, diags := listOperation(t, head+responses, openapi.Options{})
+			assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, operation))
 			assert.Empty(t, undecided(diags))
 		})
 	}
 	t.Run("a response that only streams, which holds no page", func(t *testing.T) {
 		t.Parallel()
-		op, doc, diags := listOp(t, head+`        "200": {description: ok, content: {`+stream+`}}
+		operation, doc, diags := listOperation(t, head+`        "200": {description: ok, content: {`+stream+`}}
 `, openapi.Options{})
-		assert.Equal(t, "-", describe(doc, op))
+		assert.Equal(t, "-", describe(doc, operation))
 		assert.Equal(t, []string{"no pagination is inferred: no success response has a body to read a page from"},
 			undecided(diags))
 	})
@@ -329,8 +329,8 @@ components:
 components:
   schemas:
     Page: ` + body(`result: `+stringList) + "\n"
-		op, doc, diags := listOp(t, src, openapi.Options{})
-		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, op))
+		operation, doc, diags := listOperation(t, src, openapi.Options{})
+		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, operation))
 		assert.Empty(t, undecided(diags))
 	})
 }
@@ -366,10 +366,10 @@ webhooks:
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			op, doc, diags := listOp(t, tc.src, tc.opts)
-			assert.Equal(t, "-", describe(doc, op))
+			operation, doc, diags := listOperation(t, tc.src, tc.opts)
+			assert.Equal(t, "-", describe(doc, operation))
 			assert.Empty(t, undecided(diags))
-			assert.Empty(t, op.Provenance.Inferred)
+			assert.Empty(t, operation.Provenance.Inferred)
 		})
 	}
 }
@@ -410,7 +410,7 @@ paths:
 		"createThing":  "-",
 		"searchThings": "-",
 	} {
-		assert.Equal(t, want, describe(doc, openapitest.FindOp(t, doc, name)), name)
+		assert.Equal(t, want, describe(doc, openapitest.FindOperation(t, doc, name)), name)
 	}
 	got := undecided(diags)
 	slices.Sort(got)
@@ -435,17 +435,17 @@ func TestInferWalks_KeepsAPaginationTheOperationHolds(t *testing.T) {
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
 			ID:     "operation/list",
 			Params: []ir.Parameter{{ID: "parameter/page", Name: ir.Naming{Source: "page", Canonical: "page"}, Type: ir.TypeRef{Target: "type/primitive/integer"}}},
-			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "GET", ParamBindings: []ir.HTTPParamBinding{
+			Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "GET", ParamBindings: []ir.HTTPParamBinding{
 				{Param: "parameter/page", Location: ir.HTTPLocationQuery}}}}},
 			Responses:  []ir.Response{{Payload: &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "type/list"}}}}}},
 			Pagination: declared,
 		}}}}}},
 	}
 	assert.Empty(t, pagination.InferWalks(pagination.Inference{}, compileddoc.New(doc), nil))
-	op := doc.Services[0].Groups[0].Operations[0]
-	assert.Same(t, declared, op.Pagination)
-	assert.Equal(t, &ir.Pagination{Strategy: ir.PageStrategyNextLink}, op.Pagination)
-	assert.Empty(t, op.Provenance.Inferred)
+	operation := doc.Services[0].Groups[0].Operations[0]
+	assert.Same(t, declared, operation.Pagination)
+	assert.Equal(t, &ir.Pagination{Strategy: ir.PageStrategyNextLink}, operation.Pagination)
+	assert.Empty(t, operation.Provenance.Inferred)
 
 	doc.Services[0].Groups[0].Operations[0].Pagination = nil
 	assert.Empty(t, pagination.InferWalks(pagination.Inference{}, compileddoc.New(doc), map[ir.OperationID]bool{"operation/list": true}))
@@ -596,16 +596,16 @@ func spoken(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) map[string]st
 		codes[name] = append(codes[name], strings.TrimPrefix(diagnostic.Code, "openapi/"))
 	}
 	out := map[string]string{}
-	for _, op := range doc.Services[0].Groups[0].Operations {
-		strategy, marker := "-", string(op.Provenance.Inferred)
-		if op.Pagination != nil {
-			strategy = string(op.Pagination.Strategy)
+	for _, operation := range doc.Services[0].Groups[0].Operations {
+		strategy, marker := "-", string(operation.Provenance.Inferred)
+		if operation.Pagination != nil {
+			strategy = string(operation.Pagination.Strategy)
 		}
 		if marker == "" {
 			marker = "-"
 		}
-		slices.Sort(codes[op.Name.Source])
-		out[op.Name.Source] = fmt.Sprintf("%s %s %v", strategy, marker, codes[op.Name.Source])
+		slices.Sort(codes[operation.Name.Source])
+		out[operation.Name.Source] = fmt.Sprintf("%s %s %v", strategy, marker, codes[operation.Name.Source])
 	}
 	return out
 }
@@ -643,10 +643,10 @@ func TestInferWalks_ReadsTheSameInEitherOrder(t *testing.T) {
 				}
 				return listing("["+spell(ps, param)+"]", "{type: object, properties: {"+spell(ms, member)+"}}")
 			}
-			op, doc, diags := listOp(t, src(false), openapi.Options{})
-			rop, rdoc, rdiags := listOp(t, src(true), openapi.Options{})
-			assert.Equal(t, describe(doc, op), describe(rdoc, rop))
-			if d := cmp.Diff(op.Pagination, rop.Pagination); d != "" {
+			operation, doc, diags := listOperation(t, src(false), openapi.Options{})
+			rop, rdoc, rdiags := listOperation(t, src(true), openapi.Options{})
+			assert.Equal(t, describe(doc, operation), describe(rdoc, rop))
+			if d := cmp.Diff(operation.Pagination, rop.Pagination); d != "" {
 				t.Errorf("the walk read turns on the declaration order (-as written +reversed):\n%s", d)
 			}
 			assert.Equal(t, undecided(diags), undecided(rdiags))
@@ -712,8 +712,8 @@ paths:
 				}
 				return b.String()
 			}
-			_, _, diags := listOp(t, src(false), openapi.Options{})
-			_, _, rdiags := listOp(t, src(true), openapi.Options{})
+			_, _, diags := listOperation(t, src(false), openapi.Options{})
+			_, _, rdiags := listOperation(t, src(true), openapi.Options{})
 			want := []string{"no pagination is inferred: " + tc.want}
 			assert.Equal(t, want, undecided(diags), "as written")
 			assert.Equal(t, want, undecided(rdiags), "reversed")
@@ -743,21 +743,21 @@ components:
 `
 	}
 	doc, _ := compile(t, mounted(`name: page, schema: {type: integer}`), openapi.Options{})
-	ops := doc.Services[0].Groups[0].Operations
-	require.Len(t, ops, 2)
-	for _, op := range ops {
+	operations := doc.Services[0].Groups[0].Operations
+	require.Len(t, operations, 2)
+	for _, operation := range operations {
 		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=/result_info/total_count "+
-			"pages=/result_info/total_pages stop=[]", describe(doc, op), op.ID)
+			"pages=/result_info/total_pages stop=[]", describe(doc, operation), operation.ID)
 	}
-	for _, op := range ops {
-		require.NotNil(t, op.Pagination)
-		require.NotNil(t, op.Pagination.TotalCount)
+	for _, operation := range operations {
+		require.NotNil(t, operation.Pagination)
+		require.NotNil(t, operation.Pagination.TotalCount)
 	}
-	items, count := ops[1].Pagination.Items.Segments[0], ops[1].Pagination.TotalCount.Segments[0]
-	ops[0].Pagination.Items.Segments[0] = "property/elsewhere"
-	ops[0].Pagination.TotalCount.Segments[0] = "property/elsewhere"
-	assert.Equal(t, items, ops[1].Pagination.Items.Segments[0], "each operation holds its own items path")
-	assert.Equal(t, count, ops[1].Pagination.TotalCount.Segments[0], "and its own total's")
+	items, count := operations[1].Pagination.Items.Segments[0], operations[1].Pagination.TotalCount.Segments[0]
+	operations[0].Pagination.Items.Segments[0] = "property/elsewhere"
+	operations[0].Pagination.TotalCount.Segments[0] = "property/elsewhere"
+	assert.Equal(t, items, operations[1].Pagination.Items.Segments[0], "each operation holds its own items path")
+	assert.Equal(t, count, operations[1].Pagination.TotalCount.Segments[0], "and its own total's")
 
 	_, diags := compile(t, mounted(`name: cursor, schema: {type: string}`), openapi.Options{})
 	assert.Equal(t, []string{`no pagination is inferred: the application/json response body holds no member ` +

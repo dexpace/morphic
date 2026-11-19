@@ -19,10 +19,10 @@ import (
 func prefixBindingViolations(target ir.TypeID, pb ir.HTTPParamBinding) []string {
 	header := ir.HTTPParamBinding{Param: "parameter/x/meta", Location: ir.HTTPLocationHeader, WireName: "X-Meta"}
 	query := ir.HTTPParamBinding{Param: "parameter/x/meta", Location: ir.HTTPLocationQuery, WireName: "meta"}
-	doc := opDoc(ir.Operation{
+	doc := singleOperationDocument(ir.Operation{
 		ID:     "operation/x/S/op",
 		Params: []ir.Parameter{{ID: "parameter/x/meta", Name: named("meta"), Type: ir.TypeRef{Target: target}}},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{
+		Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{
 			{Method: "GET", URITemplate: "/a"},
 			{Method: "GET", URITemplate: "/b", ParamBindings: []ir.HTTPParamBinding{header, query, pb}},
 		}},

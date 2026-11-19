@@ -22,10 +22,10 @@ func duplicateViolations(doc *ir.Document) []Violation {
 }
 
 // docWithOperations wraps the given operations in one service and group.
-func docWithOperations(ops ...ir.Operation) *ir.Document {
+func docWithOperations(operations ...ir.Operation) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
 		ID:     "service/x",
-		Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: ops}},
+		Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: operations}},
 	}}}
 }
 
@@ -109,13 +109,13 @@ func TestCheckDuplicateIDs_DistinctIDsAreClean(t *testing.T) {
 		docWithOperations(ir.Operation{ID: "operation/x"}, ir.Operation{ID: "operation/y"})))
 }
 
-// TestCheckDuplicateIDs_RepeatedPropIDIsClean pins the carve-out. A response
+// TestCheckDuplicateIDs_RepeatedPropertyIDIsClean pins the carve-out. A response
 // declared once in components and referenced by two operations materializes into
 // both — responses are embedded by value, not interned — so the header property
 // it declares appears at two paths under the one ID its defining occurrence
 // derives. The copies are the same property, and reporting them would fail every
 // document that reuses a component (see checkDuplicateIDs).
-func TestCheckDuplicateIDs_RepeatedPropIDIsClean(t *testing.T) {
+func TestCheckDuplicateIDs_RepeatedPropertyIDIsClean(t *testing.T) {
 	header := ir.Header{ID: "property/x/Listed/headers/X-Rate", Name: ir.Naming{Source: "X-Rate"}}
 	shared := ir.Response{Name: ir.Naming{Source: "Listed"}, Headers: []ir.Header{header}}
 	doc := docWithOperations(
@@ -126,13 +126,13 @@ func TestCheckDuplicateIDs_RepeatedPropIDIsClean(t *testing.T) {
 	assert.Empty(t, duplicateViolations(doc))
 }
 
-// modelWithProp wraps one property in a model of its own, so two of them collide
+// modelWithProperty wraps one property in a model of its own, so two of them collide
 // on the PropertyID and on nothing else.
-func modelWithProp(id ir.TypeID, prop ir.Property) *ir.Model {
-	return &ir.Model{ID: id, Properties: []ir.Property{prop}}
+func modelWithProperty(id ir.TypeID, property ir.Property) *ir.Model {
+	return &ir.Model{ID: id, Properties: []ir.Property{property}}
 }
 
-// TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID is what the
+// TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropertyID is what the
 // class-wide skip hid alongside the copies above: two properties that are not
 // copies of one declaration, minted at one ID. Every PropertyID lookup
 // downstream then resolves to whichever the reader reaches first, with nothing
@@ -141,7 +141,7 @@ func modelWithProp(id ir.TypeID, prop ir.Property) *ir.Model {
 // One subtest per fingerprint component, because a component the fingerprint
 // stopped reading would leave that pair silently indistinguishable — and this
 // check would go on passing its other cases.
-func TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID(t *testing.T) {
+func TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropertyID(t *testing.T) {
 	const dup ir.PropertyID = "property/x/dup"
 	base := ir.Property{ID: dup, Name: ir.Naming{Source: "alpha"}, WireName: "alpha",
 		Type: ir.TypeRef{Target: "type/x/A"}}
@@ -157,8 +157,8 @@ func TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID(t *testing.T) {
 	for field, differ := range differs {
 		t.Run(field, func(t *testing.T) {
 			doc := &ir.Document{Types: ir.TypeRegistry{
-				"type/x/A": modelWithProp("type/x/A", base),
-				"type/x/B": modelWithProp("type/x/B", differ(base)),
+				"type/x/A": modelWithProperty("type/x/A", base),
+				"type/x/B": modelWithProperty("type/x/B", differ(base)),
 			}}
 
 			got := duplicateViolations(doc)
@@ -188,8 +188,8 @@ func TestCheckDuplicateIDs_CopiesDifferingOutsideTheFingerprintAreClean(t *testi
 	elsewhere.Docs = ir.Docs{Summary: "copied into a second position"}
 
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"type/x/A": modelWithProp("type/x/A", base),
-		"type/x/B": modelWithProp("type/x/B", elsewhere),
+		"type/x/A": modelWithProperty("type/x/A", base),
+		"type/x/B": modelWithProperty("type/x/B", elsewhere),
 	}}
 
 	assert.Empty(t, duplicateViolations(doc))
@@ -206,9 +206,9 @@ func TestCheckDuplicateIDs_EachRepeatIsHeldToTheFirstProperty(t *testing.T) {
 	beta := alpha
 	beta.WireName = "beta"
 	for _, tc := range []struct {
-		name  string
-		props []ir.Property // one per model, met in this order
-		want  []string
+		name       string
+		properties []ir.Property // one per model, met in this order
+		want       []string
 	}{
 		{"a copy, then a difference", []ir.Property{alpha, alpha, beta}, []string{"document.Types[type/x/C].Properties[0]"}},
 		{"a difference, then its copy", []ir.Property{alpha, beta, beta},
@@ -218,9 +218,9 @@ func TestCheckDuplicateIDs_EachRepeatIsHeldToTheFirstProperty(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := &ir.Document{Types: ir.TypeRegistry{}}
-			for i, prop := range tc.props {
+			for i, property := range tc.properties {
 				id := ir.TypeID("type/x/" + string(rune('A'+i)))
-				doc.Types[id] = modelWithProp(id, prop)
+				doc.Types[id] = modelWithProperty(id, property)
 			}
 			got := duplicateViolations(doc)
 			paths := make([]string, 0, len(got))
@@ -257,17 +257,17 @@ func TestCheckDuplicateIDs_VisitingCostsNoAllocation(t *testing.T) {
 	assert.Empty(t, duplicateViolations(doc), "the header's copies are one property")
 }
 
-// TestPropIDs_AreDeclaredByPropertiesAlone pins what checkDuplicateIDs leans on
+// TestPropertyIDs_AreDeclaredByPropertiesAlone pins what checkDuplicateIDs leans on
 // when it lets a repeated PropertyID through: every node declaring one is an
 // ir.Property, the one node it fingerprints. A second node declaring a
 // PropertyID would repeat it unfingerprinted and pass for a copy, so adding one
 // reddens this, for the check to decide what tells two of them apart.
-func TestPropIDs_AreDeclaredByPropertiesAlone(t *testing.T) {
+func TestPropertyIDs_AreDeclaredByPropertiesAlone(t *testing.T) {
 	t.Parallel()
 	var declaring []string
 	for _, declaredField := range declaredFields(t) {
 		named, isNamed := types.Unalias(declaredField.field.Type()).(*types.Named)
-		if declaredField.field.Name() == "ID" && isNamed && named.Obj().Name() == propIDType.Name() {
+		if declaredField.field.Name() == "ID" && isNamed && named.Obj().Name() == propertyIDType.Name() {
 			declaring = append(declaring, declaredField.owner)
 		}
 	}
@@ -306,7 +306,7 @@ var identityClasses = map[string]string{
 	"GroupID":      "identity, no map: resolved and held as OperationID is, against the groups the document declares, nested ones included",
 	"ParameterID":  "identity, operation-scoped: ir.IDReferences resolves references against the parameters the document declares, and checkDuplicateIDs holds every parameter to one ID with no fingerprint exemption, since a path-item parameter is one parameter per operation it is copied into",
 	"EnumMemberID": "identity, enum-scoped: checkDuplicateIDs holds every member to one ID with no fingerprint exemption, checkMemberIDs holds it under its enum's path and pass.Validate rejects a repeat within one enum (checkDuplicateMemberIDs)",
-	"PropertyID":   "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
+	"PropertyID":   "identity, model-scoped: pass.Validate resolves references (checkPropertyIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
 
 	"BigVal":           "arbitrary-precision decimal, not an identity",
 	"Inferred":         "the heuristics that produced a fact, not an identity",

@@ -15,12 +15,12 @@ import (
 // when it has something to keep.
 type DeclarationConstructRenderer func() (ir.RawValue, error)
 
-// WireNameIndex maps each property's wire name to its position in props, so a
+// WireNameIndex maps each property's wire name to its position in properties, so a
 // lookup by name is one map read rather than a rescan of a wide model.
-func WireNameIndex(props []ir.Property) map[string]int {
-	idx := make(map[string]int, len(props))
-	for i := range props {
-		idx[props[i].WireName] = i
+func WireNameIndex(properties []ir.Property) map[string]int {
+	idx := make(map[string]int, len(properties))
+	for i := range properties {
+		idx[properties[i].WireName] = i
 	}
 	return idx
 }
@@ -81,7 +81,7 @@ func NewModelPropertyDeclarations(model *ir.Model) *ModelPropertyDeclarations {
 // a keyword declared it (folding.foldUse). It reports whether property is the
 // model's first redeclaration, from which the model has members to settle.
 func (idx *ModelPropertyDeclarations) MergeProperty(property ir.Property, source DeclarationConstructRenderer, secretBy ir.Inferred) (firstRedeclaration bool) {
-	declarationValue := declaration{prop: property, source: source, secretBy: secretBy, order: idx.next()}
+	declarationValue := declaration{property: property, source: source, secretBy: secretBy, order: idx.next()}
 	fieldValue, ok := idx.byWire[property.WireName]
 	if !ok {
 		idx.byWire[property.WireName] = &field{pos: len(idx.m.Properties), decls: []declaration{declarationValue}}

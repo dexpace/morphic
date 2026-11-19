@@ -316,8 +316,8 @@ func TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds(t *testing.T) {
 
 	obj, ok := doc.Types[componentID("Obj")].(*ir.Model)
 	require.True(t, ok)
-	property, okP := propByWire(obj, "p")
-	irProperty, okQ := propByWire(obj, "q")
+	property, okP := propertyByWire(obj, "p")
+	irProperty, okQ := propertyByWire(obj, "q")
 	require.True(t, okP && okQ)
 	assert.Equal(t, componentID("Pet"), property.Type.Target)
 	assert.Empty(t, cmp.Diff(irProperty.Type, property.Type))

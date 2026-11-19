@@ -53,9 +53,9 @@ func checkArgsOutsideGraphQL(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic
 func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 	seen := map[ir.TypeID]bool{}
 	var queue []ir.TypeID
-	truncated := ir.ForEachOperation(doc, func(op ir.Operation) {
-		if op.Bindings.GraphQL != nil {
-			queue = appendTypeIDs(queue, op)
+	truncated := ir.ForEachOperation(doc, func(operation ir.Operation) {
+		if operation.Bindings.GraphQL != nil {
+			queue = appendTypeIDs(queue, operation)
 		}
 	})
 	for len(queue) > 0 {

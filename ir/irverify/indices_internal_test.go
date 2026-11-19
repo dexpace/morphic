@@ -32,7 +32,7 @@ func docWithSuccessStatus(status map[int]int) *ir.Document {
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
 			ID:        "operation/x",
 			Responses: []ir.Response{{}},
-			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 				Method: "GET", SuccessStatus: status,
 			}}},
 		}}}},
@@ -54,8 +54,8 @@ func TestCheckIndices_ResponseIndexOutOfRange(t *testing.T) {
 // binding the key sits on: here only the second binding is out of range.
 func TestCheckIndices_ResponseIndexIsPlacedOnItsBinding(t *testing.T) {
 	doc := docWithSuccessStatus(map[int]int{0: 200})
-	op := &doc.Services[0].Groups[0].Operations[0]
-	op.Bindings.HTTP = append(op.Bindings.HTTP, ir.HTTPBinding{Method: "POST", SuccessStatus: map[int]int{3: 201}})
+	operation := &doc.Services[0].Groups[0].Operations[0]
+	operation.Bindings.HTTP = append(operation.Bindings.HTTP, ir.HTTPBinding{Method: "POST", SuccessStatus: map[int]int{3: 201}})
 
 	got := indexViolations(doc)
 	require.Len(t, got, 1)
@@ -97,7 +97,7 @@ var indexCarrierFields = []struct {
 }{
 	{operationType, "Responses", reflect.Slice, reflect.Invalid},
 	{operationType, "Bindings", reflect.Struct, reflect.Invalid},
-	{reflect.TypeFor[ir.OpBindings](), "HTTP", reflect.Slice, reflect.Struct},
+	{reflect.TypeFor[ir.OperationBindings](), "HTTP", reflect.Slice, reflect.Struct},
 	{reflect.TypeFor[ir.HTTPBinding](), "SuccessStatus", reflect.Map, reflect.Int},
 }
 
@@ -153,7 +153,7 @@ var integerFields = map[string]string{
 	"pathStep.kind":    "how a step reaches its value, an enumeration rather than a position",
 	"pathStep.n":       "the field, element or integer map key a step took, set by the walk as it took it, not IR data",
 	"pathStep.form":    "how a step holds the map key it took, an enumeration rather than a position",
-	"mapEntry.num":     "an integer map key the walk copied to order and spell it, not IR data",
+	"mapEntry.number":  "an integer map key the walk copied to order and spell it, not IR data",
 	"mapEntry.form":    "how an entry holds its map key, an enumeration rather than a position",
 	"valueWalk.all":    "the set of a walk's visitors, one bit each, not a position",
 	"valueWalk.limit":  "how many values a walk may show each visitor, a count",
@@ -175,7 +175,7 @@ var integerFields = map[string]string{
 		"that slice by the reader, not IR data",
 	"MemberReader.steps": "how much a member reader's walks have read, not a position",
 	"frame.next":         "the next composition entry a flattening follows, counted across Base, Implements and Mixins",
-	"frame.num":          "the order a flattening met a model in, not a position in any IR slice",
+	"frame.number":       "the order a flattening met a model in, not a position in any IR slice",
 	"frame.low":          "Tarjan's low-link of a model a flattening met, not a position in any IR slice",
 	"frame.since":        "how many models a flattening had finished, a length of its own list, not a position",
 	"narrowState.at":     "where a union sits in a narrowing walk's own list of variants to read, not a position in any IR slice",
@@ -302,7 +302,7 @@ func TestCheckIndices_VisitingCostsNoAllocation(t *testing.T) {
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
 			ID:        "operation/x",
 			Responses: []ir.Response{{}, {}, {}},
-			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{
+			Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{
 				{Method: "GET", SuccessStatus: map[int]int{0: 200, 1: 201, 2: 202}},
 				{Method: "PUT", SuccessStatus: map[int]int{2: 204}},
 			}},

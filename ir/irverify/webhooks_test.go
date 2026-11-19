@@ -45,9 +45,9 @@ func TestVerify_WebhookRouteIsInTheFieldItsFlagSelects(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "operation/x/S/op", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{tc.binding}}}
+			operation := ir.Operation{ID: "operation/x/S/op", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{tc.binding}}}
 			var got []string
-			for _, violation := range irverify.Verify(opDoc(op)) {
+			for _, violation := range irverify.Verify(singleOperationDocument(operation)) {
 				if violation.Code == "ir/webhook-route" {
 					got = append(got, violation.Path)
 				}
@@ -75,8 +75,8 @@ func TestVerify_UndeclaredInboundKindIsAViolation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "operation/x/S/op", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Inbound: tc.inbound}}}}
-			assert.Equal(t, tc.want, violationPaths(irverify.Verify(opDoc(op)), "ir/unknown-http-inbound"))
+			operation := ir.Operation{ID: "operation/x/S/op", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{Inbound: tc.inbound}}}}
+			assert.Equal(t, tc.want, violationPaths(irverify.Verify(singleOperationDocument(operation)), "ir/unknown-http-inbound"))
 		})
 	}
 }
@@ -89,19 +89,19 @@ func TestVerify_UndeclaredInboundKindIsAViolation(t *testing.T) {
 func TestVerify_ACallbacksTwoHalvesAgree(t *testing.T) {
 	t.Parallel()
 	parent := func(listed ...ir.OperationID) ir.Operation {
-		return ir.Operation{ID: "operation/x/S/parent", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+		return ir.Operation{ID: "operation/x/S/parent", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 			URITemplate: "/sub", Callbacks: []ir.Callback{{Name: "on", Expression: "{$url}", Operations: listed}},
 		}}}}
 	}
 	callback := func(id ir.OperationID, inbound ir.HTTPInbound) ir.Operation {
-		return ir.Operation{ID: id, Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Inbound: inbound, URITemplate: "{$url}"}}}}
+		return ir.Operation{ID: id, Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{Inbound: inbound, URITemplate: "{$url}"}}}}
 	}
 	const second = "document.Services[0].Groups[0].Operations[1].Bindings.HTTP"
 	const third = "document.Services[0].Groups[0].Operations[2].Bindings.HTTP"
 	const entry = "document.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].Callbacks[0].Operations[0]"
 	for _, tc := range []struct {
 		name               string
-		ops                []ir.Operation
+		operations         []ir.Operation
 		unlisted, unmarked []string
 	}{
 		{"listed and marked", []ir.Operation{parent("operation/x/S/cb"), callback("operation/x/S/cb", ir.HTTPInboundCallback)}, nil, nil},
@@ -119,8 +119,8 @@ func TestVerify_ACallbacksTwoHalvesAgree(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := opDoc(tc.ops[0])
-			doc.Services[0].Groups[0].Operations = tc.ops
+			doc := singleOperationDocument(tc.operations[0])
+			doc.Services[0].Groups[0].Operations = tc.operations
 			vs := irverify.Verify(doc)
 			assert.Equal(t, tc.unlisted, violationPaths(vs, "ir/callback-unlisted"))
 			assert.Equal(t, tc.unmarked, violationPaths(vs, "ir/callback-unmarked"))

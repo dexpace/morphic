@@ -32,10 +32,10 @@ const (
 // aliases ends.
 const maxAliasHops = 64
 
-// primShape is the shape of a primitive of kind primitiveKind. Every kind has
-// one: TestPrimShapes_EveryPrimKindHasARow holds the cases to the kinds ir
+// primitiveShape is the shape of a primitive of kind primitiveKind. Every kind has
+// one: TestPrimitiveShapes_EveryPrimitiveKindHasARow holds the cases to the kinds ir
 // declares.
-func primShape(primitiveKind ir.PrimitiveKind) shape {
+func primitiveShape(primitiveKind ir.PrimitiveKind) shape {
 	switch primitiveKind {
 	case ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveNumber, ir.PrimitiveDecimal, ir.PrimitiveDecimal128:
 		return shapeNumber
@@ -61,13 +61,13 @@ func primShape(primitiveKind ir.PrimitiveKind) shape {
 // as numbers and as written, for a message to quote; the counts point at the
 // document's own fields, so holding them allocates nothing.
 type bounds struct {
-	lo, hi             ir.Decimal
-	loText, hiText     ir.BigVal
-	loSet, hiSet       bool
-	loOpen, hiOpen     bool
-	minLen, maxLen     *int64
-	minItems, maxItems *int64
-	minProps, maxProps *int64
+	lo, hi                       ir.Decimal
+	loText, hiText               ir.BigVal
+	loSet, hiSet                 bool
+	loOpen, hiOpen               bool
+	minLen, maxLen               *int64
+	minItems, maxItems           *int64
+	minProperties, maxProperties *int64
 }
 
 // and conjoins the bounds constraints declares into b. A numeric bound that
@@ -82,7 +82,7 @@ func (b *bounds) and(constraints *ir.Constraints) {
 	b.lower(constraints.ExclusiveMax, true)
 	b.minLen, b.maxLen = greater(b.minLen, constraints.MinLength), lesser(b.maxLen, constraints.MaxLength)
 	b.minItems, b.maxItems = greater(b.minItems, constraints.MinItems), lesser(b.maxItems, constraints.MaxItems)
-	b.minProps, b.maxProps = greater(b.minProps, constraints.MinProperties), lesser(b.maxProps, constraints.MaxProperties)
+	b.minProperties, b.maxProperties = greater(b.minProperties, constraints.MinProperties), lesser(b.maxProperties, constraints.MaxProperties)
 }
 
 // raise takes bigVal as the lower end where it is greater than the one held, or
@@ -152,7 +152,7 @@ func settle(doc *ir.Document, target ir.TypeID, b *bounds) (shape, ir.TypeDef, b
 			}
 			target = t.Base.Target
 		case *ir.Primitive:
-			return primShape(t.PrimitiveKind), td, encoded
+			return primitiveShape(t.PrimitiveKind), td, encoded
 		case *ir.List:
 			b.and(t.Constraints)
 			return shapeList, td, encoded || t.Encoding != nil
@@ -189,7 +189,7 @@ func (b *bounds) empty(shapeValue shape) bool {
 	case shapeList:
 		return crossed(b.minItems, b.maxItems)
 	case shapeObject:
-		return crossed(b.minProps, b.maxProps)
+		return crossed(b.minProperties, b.maxProperties)
 	default:
 		return false
 	}
@@ -212,7 +212,7 @@ func (b *bounds) describe(shapeValue shape) string {
 	case shapeList:
 		return fmt.Sprintf("bounds admit no list: none has at least %d items and at most %d", *b.minItems, *b.maxItems)
 	case shapeObject:
-		return fmt.Sprintf("bounds admit no object: none has at least %d members and at most %d", *b.minProps, *b.maxProps)
+		return fmt.Sprintf("bounds admit no object: none has at least %d members and at most %d", *b.minProperties, *b.maxProperties)
 	default:
 		lo, hi := "at least", "at most"
 		if b.loOpen {

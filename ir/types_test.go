@@ -255,11 +255,11 @@ func TestAny_PopulatedRoundTrip(t *testing.T) {
 	assertTypeDefRoundTrip(t, want)
 }
 
-// primKindSpellings is the whole primitive vocabulary and its on-disk spelling.
+// primitiveKindSpellings is the whole primitive vocabulary and its on-disk spelling.
 // It is a package-level fixture rather than a literal inside the test below
 // because the ID tests walk the same vocabulary, and a second list of the kinds
 // would be one more thing to keep in step with ir.PrimitiveKind's constants.
-var primKindSpellings = map[ir.PrimitiveKind]string{
+var primitiveKindSpellings = map[ir.PrimitiveKind]string{
 	ir.PrimitiveBool:           "bool",
 	ir.PrimitiveString:         "string",
 	ir.PrimitiveBytes:          "bytes",
@@ -293,7 +293,7 @@ var primKindSpellings = map[ir.PrimitiveKind]string{
 // golden IR snapshot; a typo fix later would be a silent breaking change.
 func TestPrimitiveKind_Constants(t *testing.T) {
 	t.Parallel()
-	assertConstantSpellings(t, primKindSpellings, "unspecified")
+	assertConstantSpellings(t, primitiveKindSpellings, "unspecified")
 }
 
 // TestPrimitiveKind_TiesToConstBlock keeps PrimitiveKind.Valid tied to the
@@ -301,7 +301,7 @@ func TestPrimitiveKind_Constants(t *testing.T) {
 // ir.PrimitiveTypeID derives an ID from any string, so irverify has Valid and
 // nothing else to test against. The tie is made by reading the ir package's
 // declarations, as typedef_completeness_test.go does for TypeKind.
-// primKindSpellings and the declared constants must name the same set, and
+// primitiveKindSpellings and the declared constants must name the same set, and
 // every declared kind must be Valid. The converse, a case added to Valid for a
 // kind no constant declares, cannot be enforced here: a switch body is not
 // enumerable at run time.
@@ -316,7 +316,7 @@ func TestPrimitiveKind_TiesToConstBlock(t *testing.T) {
 		assert.True(t, ir.PrimitiveKind(declaredConst.Value).Valid(), "declared kind %q must be Valid", declaredConst.Value)
 	}
 
-	spelled := slices.Collect(maps.Values(primKindSpellings))
+	spelled := slices.Collect(maps.Values(primitiveKindSpellings))
 	require.ElementsMatch(t, spelled, values)
 }
 
@@ -358,8 +358,8 @@ var domainRoots = []ir.PrimitiveKind{
 	ir.PrimitiveURL, ir.PrimitiveUUID, ir.PrimitiveAny,
 }
 
-// declaredPrimKinds returns every PrimitiveKind the ir sources declare.
-func declaredPrimKinds(t *testing.T) []ir.PrimitiveKind {
+// declaredPrimitiveKinds returns every PrimitiveKind the ir sources declare.
+func declaredPrimitiveKinds(t *testing.T) []ir.PrimitiveKind {
 	t.Helper()
 	consts := declaredConstsOfType(t, "PrimitiveKind")
 	kinds := make([]ir.PrimitiveKind, 0, len(consts))
@@ -375,7 +375,7 @@ func declaredPrimKinds(t *testing.T) []ir.PrimitiveKind {
 // nothing else.
 func TestPrimitiveKind_DomainParentsAreTheContainmentEdges(t *testing.T) {
 	t.Parallel()
-	for _, primitiveKind := range declaredPrimKinds(t) {
+	for _, primitiveKind := range declaredPrimitiveKinds(t) {
 		assert.ElementsMatch(t, domainEdges[primitiveKind], primitiveKind.DomainParents(), "parents of %s", primitiveKind)
 	}
 	assert.Empty(t, ir.PrimitiveKind("flt").DomainParents())
@@ -389,7 +389,7 @@ func TestPrimitiveKind_DomainParentsAreTheContainmentEdges(t *testing.T) {
 // any is the top.
 func TestPrimitiveKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
 	t.Parallel()
-	kinds := declaredPrimKinds(t)
+	kinds := declaredPrimitiveKinds(t)
 	for _, a := range kinds {
 		assert.False(t, a.StrictlyWithin(a), "%s within itself", a)
 		assert.Equal(t, a != ir.PrimitiveAny, a.StrictlyWithin(ir.PrimitiveAny), "%s within any", a)
@@ -425,7 +425,7 @@ func TestPrimitiveKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
 // here.
 func TestPrimitiveKind_EveryDeclaredKindHasADomainParentOrIsARoot(t *testing.T) {
 	t.Parallel()
-	for _, primitiveKind := range declaredPrimKinds(t) {
+	for _, primitiveKind := range declaredPrimitiveKinds(t) {
 		isRoot := slices.Contains(domainRoots, primitiveKind)
 		assert.Equal(t, !isRoot, len(primitiveKind.DomainParents()) > 0, "%s must be a root or have a parent, not both", primitiveKind)
 	}
@@ -451,7 +451,7 @@ func TestPrimitiveKind_LongestDomainChainFitsTheCap(t *testing.T) {
 		return best
 	}
 	chain := 0
-	for _, primitiveKind := range declaredPrimKinds(t) {
+	for _, primitiveKind := range declaredPrimitiveKinds(t) {
 		chain = max(chain, longest(primitiveKind, 0))
 	}
 	assert.LessOrEqual(t, int64(chain), limit)

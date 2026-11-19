@@ -315,10 +315,10 @@ components:
 		"warning openapi/unlowered-construct /components/schemas/N/default",
 		"warning openapi/unlowered-construct /paths/~1a/get/responses/200/headers/X-O/schema/default",
 	}, findingsOf(diags, unloweredConstruct))
-	op := openapitest.FirstOp(t, doc.Services[0])
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 2)
-	for _, header := range op.Responses[0].Headers {
+	operation := openapitest.FirstOperation(t, doc.Services[0])
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 2)
+	for _, header := range operation.Responses[0].Headers {
 		assert.Nil(t, header.Default, header.WireName)
 	}
 }

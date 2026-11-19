@@ -204,11 +204,11 @@ func TestAllOf_AUnionItNamesComposesAsWritten(t *testing.T) {
 					mixins = append(mixins, ir.TypeRef{Target: componentID(m)})
 				}
 				assert.Equal(t, mixins, model.Mixins)
-				var props []string
+				var properties []string
 				for _, property := range model.Properties {
-					props = append(props, property.Name.Source)
+					properties = append(properties, property.Name.Source)
 				}
-				assert.Equal(t, []string{"id"}, props, "Stored declares its own members alone")
+				assert.Equal(t, []string{"id"}, properties, "Stored declares its own members alone")
 
 				union, ok := typeByName(doc, "Rule").(*ir.Union)
 				require.True(t, ok, "Rule lowers to a union; got %T", typeByName(doc, "Rule"))
@@ -305,9 +305,9 @@ func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
         - {type: string, nullable: true, allOf: []}
         - {type: object, nullable: true, properties: {u: {type: string}}}
 `))
-	msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
+	message := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 		ir.SeverityWarning, "/components/schemas/M/allOf/0")
-	assert.Contains(t, msg, "the branch (type, allOf) is kept verbatim")
+	assert.Contains(t, message, "the branch (type, allOf) is kept verbatim")
 }
 
 // TestAllOf_FalseBranchClosesTheCatchAllItForbids pins that a `false` allOf

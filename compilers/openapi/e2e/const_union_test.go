@@ -113,7 +113,7 @@ func TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion(t *testing.T) {
 	model, ok := typeByName(got, "H").(*ir.Model)
 	require.True(t, ok)
 	for _, wire := range []string{"u", "e"} {
-		property, ok := propByWire(model, wire)
+		property, ok := propertyByWire(model, wire)
 		require.True(t, ok)
 		assert.Nil(t, property.Constraints, wire)
 	}

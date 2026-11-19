@@ -23,8 +23,8 @@ import (
 // keeping different declarations are two.
 func TestReportOnce_SaysEachConflictOnce(t *testing.T) {
 	t.Parallel()
-	conflict := func(source int, node, msg string) ir.Diagnostic {
-		return ir.Diagnostic{Severity: ir.SeverityWarning, Code: diag.ConflictingRedecl, Message: msg,
+	conflict := func(source int, node, message string) ir.Diagnostic {
+		return ir.Diagnostic{Severity: ir.SeverityWarning, Code: diag.ConflictingRedecl, Message: message,
 			Provenance: ir.Provenance{Source: source, Pointer: "/C/properties/p", Node: node}}
 	}
 	other := ir.Diagnostic{Severity: ir.SeverityInfo, Code: diag.DegradedConstruct, Message: "o",

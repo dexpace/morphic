@@ -42,7 +42,7 @@ highlights, and the list moves to a specification of its own when the compiler l
 - versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove
   cycles → Availability timeline (on members/variants/params too)
 - pagination decorators incl. prev/first/last links and header continuation tokens → Pagination
-  PropPaths (In:"header"), and a `@continuationToken` or `@pageSize` on a body property → an
+  PropertyPaths (In:"header"), and a `@continuationToken` or `@pageSize` on a body property → an
   `InputPath` with no `Param`
 - Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning
 - multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set,
@@ -94,7 +94,7 @@ highlights, and the list moves to a specification of its own when the compiler l
   an input and `@httpQueryParams` → a query binding's Prefix of `""` ([prefix
   bindings](../ir/http-binding.md#prefix-bindings)), and `@httpPrefixHeaders` → a Header's Prefix on
   an output or an error ([prefix headers](../ir/responses.md#prefix-headers)), `@httpResponseCode`
-  → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` →
+  → Response.StatusCodeProperty, `@requestCompression` → Compression, `@httpChecksumRequired` →
   ChecksumRequired
 - `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option
 - `@jsonName` → WireName
@@ -137,8 +137,8 @@ highlights, and the list moves to a specification of its own when the compiler l
   ID; a channel's `servers` → Channel.Servers, and one naming none lists every server, which
   AsyncAPI reads it as available on ([servers](../ir/servers.md))
 - operations send/receive → Operation + MessageBinding, no-reply sends → OneWay
-- reply objects → Reply (static channel + dynamic PropPath address + message set)
-- correlation IDs → PropPath (In: header|payload)
+- reply objects → Reply (static channel + dynamic PropertyPath address + message set)
+- correlation IDs → PropertyPath (In: header|payload)
 - message headers → hoisted header model (Headers *TypeRef)
 - message examples → Example{Headers, Value} pairs
 - multi-format payload schemas → Content.SchemaFormat + verbatim schema in Unmodeled (Avro payloads

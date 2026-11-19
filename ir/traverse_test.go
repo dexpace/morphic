@@ -41,7 +41,7 @@ func TestForEachOperation_VisitsDeclarationOrder(t *testing.T) {
 		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "d"}}}}},
 	}}
 	var got []ir.OperationID
-	truncated := ir.ForEachOperation(doc, func(op ir.Operation) { got = append(got, op.ID) })
+	truncated := ir.ForEachOperation(doc, func(operation ir.Operation) { got = append(got, operation.ID) })
 	assert.False(t, truncated)
 	assert.Equal(t, []ir.OperationID{"a", "b", "c", "d"}, got)
 }
@@ -49,7 +49,7 @@ func TestForEachOperation_VisitsDeclarationOrder(t *testing.T) {
 func TestForEachOperation_AtTheCap(t *testing.T) {
 	t.Parallel()
 	var got []ir.OperationID
-	truncated := ir.ForEachOperation(groupChain(ir.MaxGroupDepth), func(op ir.Operation) { got = append(got, op.ID) })
+	truncated := ir.ForEachOperation(groupChain(ir.MaxGroupDepth), func(operation ir.Operation) { got = append(got, operation.ID) })
 	assert.False(t, truncated, "an operation at the cap is still reached")
 	assert.Equal(t, []ir.OperationID{ir.OperationID(fmt.Sprintf("op%d", ir.MaxGroupDepth))}, got)
 }
@@ -57,7 +57,7 @@ func TestForEachOperation_AtTheCap(t *testing.T) {
 func TestForEachOperation_OneBeyondTheCap(t *testing.T) {
 	t.Parallel()
 	var got []ir.OperationID
-	truncated := ir.ForEachOperation(groupChain(ir.MaxGroupDepth+1), func(op ir.Operation) { got = append(got, op.ID) })
+	truncated := ir.ForEachOperation(groupChain(ir.MaxGroupDepth+1), func(operation ir.Operation) { got = append(got, operation.ID) })
 	require.True(t, truncated, "an operation past the cap goes unvisited, and the walk says so")
 	assert.Empty(t, got)
 }
@@ -74,16 +74,16 @@ func TestForEachOperation_TruncationSkipsOnlyTheDeepGroups(t *testing.T) {
 		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "later"}}}}},
 	}}
 	var got []ir.OperationID
-	truncated := ir.ForEachOperation(doc, func(op ir.Operation) { got = append(got, op.ID) })
+	truncated := ir.ForEachOperation(doc, func(operation ir.Operation) { got = append(got, operation.ID) })
 	assert.True(t, truncated, "a clean group or service after the cut keeps the report")
 	assert.Equal(t, []ir.OperationID{"sibling", "later"}, got, "the cut skips only the groups past the cap")
 }
 
-// opIDs collects the operations ForEachOperation visits, in order, and whether
+// operationIDs collects the operations ForEachOperation visits, in order, and whether
 // it reported a cut.
-func opIDs(doc *ir.Document) ([]ir.OperationID, bool) {
+func operationIDs(doc *ir.Document) ([]ir.OperationID, bool) {
 	var got []ir.OperationID
-	truncated := ir.ForEachOperation(doc, func(op ir.Operation) { got = append(got, op.ID) })
+	truncated := ir.ForEachOperation(doc, func(operation ir.Operation) { got = append(got, operation.ID) })
 	return got, truncated
 }
 
@@ -111,7 +111,7 @@ func TestForEachOperation_ASelfContainingGroupSliceIsWalkedOnce(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, truncated := opIDs(&ir.Document{Services: []ir.Service{{Groups: tt.groups}}})
+			got, truncated := operationIDs(&ir.Document{Services: []ir.Service{{Groups: tt.groups}}})
 			assert.False(t, truncated)
 			assert.Equal(t, tt.want, got)
 		})
@@ -131,7 +131,7 @@ func TestForEachOperation_SharingWithoutACycleStillCostsTheUnfoldedSize(t *testi
 	}
 	prefix[1].Groups = prefix[:1]
 
-	got, truncated := opIDs(&ir.Document{Services: []ir.Service{
+	got, truncated := operationIDs(&ir.Document{Services: []ir.Service{
 		{Groups: shared}, {Groups: shared}, {Groups: prefix},
 	}})
 	assert.False(t, truncated)
@@ -149,7 +149,7 @@ func TestForEachOperation_AWalkCutAtTheCapLeavesWhatItEntered(t *testing.T) {
 	chain := groupChain(ir.MaxGroupDepth + 1).Services[0].Groups
 	chain[0].Operations = []ir.Operation{{ID: "top"}}
 
-	got, truncated := opIDs(&ir.Document{Services: []ir.Service{{Groups: chain}, {Groups: chain}}})
+	got, truncated := operationIDs(&ir.Document{Services: []ir.Service{{Groups: chain}, {Groups: chain}}})
 	assert.True(t, truncated)
 	assert.Equal(t, []ir.OperationID{"top", "top"}, got, "the second service walks the chain as the first did")
 }

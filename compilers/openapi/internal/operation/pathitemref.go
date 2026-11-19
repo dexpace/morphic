@@ -259,11 +259,11 @@ func itemParams(layers []layer) []sourcedParam {
 	return params
 }
 
-// layerOp is one operation a mount lowers and the index of the layer declaring
+// layerOperation is one operation a mount lowers and the index of the layer declaring
 // it.
-type layerOp struct {
-	layer int
-	op    pathOperation
+type layerOperation struct {
+	layer     int
+	operation pathOperation
 }
 
 // mountedOperations returns the operations a mount's layers declare, each from
@@ -274,12 +274,12 @@ type layerOp struct {
 // declaration taking the place of the key it repeats. So a mount lists the
 // methods written beside a $ref where the same fields written inline would put
 // them.
-func mountedOperations(layers []layer) []layerOp {
+func mountedOperations(layers []layer) []layerOperation {
 	if len(layers) == 1 {
 		declared := pathOperations(layers[0].item)
-		out := make([]layerOp, 0, len(declared))
+		out := make([]layerOperation, 0, len(declared))
 		for _, po := range declared {
-			out = append(out, layerOp{op: po})
+			out = append(out, layerOperation{operation: po})
 		}
 		return out
 	}
@@ -296,11 +296,11 @@ func mountedOperations(layers []layer) []layerOp {
 			}
 		}
 	}
-	var out []layerOp
+	var out []layerOperation
 	take := func(seg jsontext.Pointer) {
 		for i := range layers {
 			if po, ok := declared[i][seg]; ok {
-				out = append(out, layerOp{layer: i, op: po})
+				out = append(out, layerOperation{layer: i, operation: po})
 				return
 			}
 		}

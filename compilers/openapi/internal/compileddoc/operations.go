@@ -14,7 +14,7 @@ func operations(svc *ir.Service) []*ir.Operation {
 		groups []ir.OperationGroup
 		depth  int
 	}
-	var ops []*ir.Operation
+	var irOperations []*ir.Operation
 	stack := []level{{groups: svc.Groups}}
 	for len(stack) > 0 {
 		top := stack[len(stack)-1]
@@ -25,10 +25,10 @@ func operations(svc *ir.Service) []*ir.Operation {
 		for gi := range top.groups {
 			operationGroup := &top.groups[gi]
 			for oi := range operationGroup.Operations {
-				ops = append(ops, &operationGroup.Operations[oi])
+				irOperations = append(irOperations, &operationGroup.Operations[oi])
 			}
 			stack = append(stack, level{groups: operationGroup.Groups, depth: top.depth + 1})
 		}
 	}
-	return ops
+	return irOperations
 }

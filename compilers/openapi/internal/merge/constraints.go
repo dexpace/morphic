@@ -72,8 +72,8 @@ var constraintKeywords = []constraintKeyword{
 	intKeyword("maxItems", func(constraints *ir.Constraints) **int64 { return &constraints.MaxItems }, smallerCount),
 	intKeyword("minProperties", func(constraints *ir.Constraints) **int64 { return &constraints.MinProperties }, largerCount),
 	intKeyword("maxProperties", func(constraints *ir.Constraints) **int64 { return &constraints.MaxProperties }, smallerCount),
-	strKeyword("pattern", func(constraints *ir.Constraints) *string { return &constraints.Pattern }),
-	strKeyword("patternMessage", func(constraints *ir.Constraints) *string { return &constraints.PatternMessage }),
+	stringKeyword("pattern", func(constraints *ir.Constraints) *string { return &constraints.Pattern }),
+	stringKeyword("patternMessage", func(constraints *ir.Constraints) *string { return &constraints.PatternMessage }),
 }
 
 // numberKeyword is the arbitrary-precision keyword name, stored at slot, which
@@ -127,9 +127,9 @@ func slotKeyword[T any](name string, slot func(*ir.Constraints) **T, same func(x
 	}
 }
 
-// strKeyword is the string keyword name, stored at slot, "" where unset. Two
+// stringKeyword is the string keyword name, stored at slot, "" where unset. Two
 // values of it have no order and no form saying both, so it keeps the first.
-func strKeyword(name string, slot func(*ir.Constraints) *string) constraintKeyword {
+func stringKeyword(name string, slot func(*ir.Constraints) *string) constraintKeyword {
 	return constraintKeyword{
 		set:  func(constraints *ir.Constraints) bool { return *slot(constraints) != "" },
 		same: func(a, b *ir.Constraints) bool { return *slot(a) == *slot(b) },

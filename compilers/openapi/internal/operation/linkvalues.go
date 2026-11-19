@@ -125,28 +125,28 @@ func (ex exchange) response(expression runtimeexpr.Expression) (ir.LinkValue, *l
 		if !ok {
 			return ir.LinkValue{}, untyped("%s", why)
 		}
-		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Segments: segments}}, nil
+		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropertyPath{Segments: segments}}, nil
 	case runtimeexpr.PartHeader:
 		found := ex.w.Header(ex.at.key, ex.at.headers, expression.Name)
 		if len(found) != 1 {
 			return ir.LinkValue{}, untyped("reads response header %q, which the response does not declare once", expression.Name)
 		}
-		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: found}}, nil
+		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropertyPath{In: "header", Segments: found}}, nil
 	default:
 		return ir.LinkValue{}, invalid("reads the response's %s parameter %q, which no response carries", expression.Part, expression.Name)
 	}
 }
 
-// targetParam returns the parameter of op that a link's parameters key names
+// targetParam returns the parameter of operation that a link's parameters key names
 // (compileddoc.ParamIndex.Named), which must name one parameter only.
-func targetParam(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation, key string) (ir.ParameterID, *linkFailure) {
-	id, matched := compiledDocumentView.Params(op).Named(key)
+func targetParam(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation, key string) (ir.ParameterID, *linkFailure) {
+	id, matched := compiledDocumentView.Params(operation).Named(key)
 	switch matched {
 	case 1:
 		return id, nil
 	case 0:
-		return "", invalid("names parameter %q, which operation %q does not declare", key, op.ID)
+		return "", invalid("names parameter %q, which operation %q does not declare", key, operation.ID)
 	default:
-		return "", invalid("names parameter %q, which operation %q declares in %d locations", key, op.ID, matched)
+		return "", invalid("names parameter %q, which operation %q declares in %d locations", key, operation.ID, matched)
 	}
 }

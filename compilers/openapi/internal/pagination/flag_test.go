@@ -24,8 +24,8 @@ const (
 
 // changesDoc is a document of one GET, listChanges, taking the query
 // parameters params and answering 200 with a JSON object holding the members
-// props, each written in YAML flow form.
-func changesDoc(params, props string) string {
+// properties, each written in YAML flow form.
+func changesDoc(params, properties string) string {
 	return `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
@@ -40,7 +40,7 @@ paths:
             application/json:
               schema:
                 type: object
-                properties: {` + props + `}
+                properties: {` + properties + `}
 `
 }
 
@@ -65,18 +65,18 @@ func TestInferWalks_EndsACursorWalkAtItsFlag(t *testing.T) {
 			doc, diags := compile(t, written, openapi.Options{})
 			assert.Empty(t, diags)
 
-			op := openapitest.FindOp(t, doc, "listChanges")
-			r, cursor := bodyProps("changes", "get"), queryParam("changes", "cursor")
+			operation := openapitest.FindOperation(t, doc, "listChanges")
+			r, cursor := bodyProperties("changes", "get"), queryParam("changes", "cursor")
 			assert.Equal(t, &ir.Pagination{
 				Strategy:    ir.PageStrategyCursor,
 				Inferred:    true,
 				InputCursor: inputPath(cursor),
-				Items:       propPath(r + "/result"),
-				NextCursor:  propPath(r+"/result_info", r+"/result_info/properties/next_cursor"),
-				HasMore:     propPath(r+"/result_info", r+"/result_info/properties/has_more"),
+				Items:       propertyPath(r + "/result"),
+				NextCursor:  propertyPath(r+"/result_info", r+"/result_info/properties/next_cursor"),
+				HasMore:     propertyPath(r+"/result_info", r+"/result_info/properties/has_more"),
 				Stop:        []ir.PageStop{ir.PageStopNoMore},
-			}, op.Pagination)
-			assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
+			}, operation.Pagination)
+			assert.Equal(t, pagination.InferenceHeuristic, operation.Provenance.Inferred)
 		})
 	}
 }
@@ -164,10 +164,10 @@ func TestInferWalks_FlagNames(t *testing.T) {
 			findings := make([]string, 0, 2)
 			for _, src := range inEitherOrder(t, changesDoc(tc.params, tc.root)) {
 				doc, diags := compile(t, src, openapi.Options{})
-				op := openapitest.FindOp(t, doc, "listChanges")
+				operation := openapitest.FindOperation(t, doc, "listChanges")
 				got := undecidedAt(diags, "/paths/~1changes/get")
 				if tc.finding != "" {
-					assert.Nil(t, op.Pagination)
+					assert.Nil(t, operation.Pagination)
 					require.Len(t, got, 1, "one finding, wherever each member is declared")
 					assert.True(t, strings.HasPrefix(got[0], "no pagination is inferred: "), got[0])
 					assert.True(t, strings.HasSuffix(got[0], tc.finding), got[0])
@@ -175,7 +175,7 @@ func TestInferWalks_FlagNames(t *testing.T) {
 					continue
 				}
 				assert.Empty(t, diags)
-				assertFlagWalk(t, op, tc)
+				assertFlagWalk(t, operation, tc)
 			}
 			if tc.finding != "" {
 				require.Len(t, findings, 2)
@@ -185,10 +185,10 @@ func TestInferWalks_FlagNames(t *testing.T) {
 	}
 }
 
-// assertFlagWalk holds op's pagination to the cursor walk tc describes.
-func assertFlagWalk(t *testing.T, op ir.Operation, tc flagCase) {
+// assertFlagWalk holds operation's pagination to the cursor walk tc describes.
+func assertFlagWalk(t *testing.T, operation ir.Operation, tc flagCase) {
 	t.Helper()
-	r, cursor := bodyProps("changes", "get"), queryParam("changes", "cursor")
+	r, cursor := bodyProperties("changes", "get"), queryParam("changes", "cursor")
 	under := func(rel []string) []string {
 		out := make([]string, len(rel))
 		for i, id := range rel {
@@ -200,16 +200,16 @@ func assertFlagWalk(t *testing.T, op ir.Operation, tc flagCase) {
 		Strategy:    ir.PageStrategyCursor,
 		Inferred:    true,
 		InputCursor: inputPath(cursor),
-		Items:       propPath(r + "/result"),
-		NextCursor:  propPath(under(tc.next)...),
+		Items:       propertyPath(r + "/result"),
+		NextCursor:  propertyPath(under(tc.next)...),
 		Stop:        []ir.PageStop{ir.PageStopNoNext},
 	}
 	if tc.flag != nil {
-		want.HasMore = propPath(under(tc.flag)...)
+		want.HasMore = propertyPath(under(tc.flag)...)
 		want.Stop = []ir.PageStop{ir.PageStopNoMore}
 	}
-	assert.Equal(t, want, op.Pagination)
-	assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
+	assert.Equal(t, want, operation.Pagination)
+	assert.Equal(t, pagination.InferenceHeuristic, operation.Provenance.Inferred)
 }
 
 // TestInferWalks_ReadsNoFlagForAPageWalk holds a page or an offset walk, which
@@ -228,11 +228,11 @@ func TestInferWalks_ReadsNoFlagForAPageWalk(t *testing.T) {
 				doc, diags := compile(t, written, openapi.Options{})
 				assert.Empty(t, diags)
 
-				op := openapitest.FindOp(t, doc, "listChanges")
-				require.NotNil(t, op.Pagination)
-				assert.Nil(t, op.Pagination.HasMore, "an empty page ends the walk, whatever the flag says")
-				assert.Empty(t, op.Pagination.Stop)
-				assert.Contains(t, []ir.PageStrategy{ir.PageStrategyPage, ir.PageStrategyOffset}, op.Pagination.Strategy)
+				operation := openapitest.FindOperation(t, doc, "listChanges")
+				require.NotNil(t, operation.Pagination)
+				assert.Nil(t, operation.Pagination.HasMore, "an empty page ends the walk, whatever the flag says")
+				assert.Empty(t, operation.Pagination.Stop)
+				assert.Contains(t, []ir.PageStrategy{ir.PageStrategyPage, ir.PageStrategyOffset}, operation.Pagination.Strategy)
 			}
 		})
 	}
@@ -261,17 +261,17 @@ func TestPromote_FillsTheFlag(t *testing.T) {
 		doc, diags := compile(t, written, openapi.Options{Promotions: policy})
 		assert.Empty(t, diags)
 
-		op := openapitest.FindOp(t, doc, "listChanges")
-		r, cursor := bodyProps("changes", "get"), queryParam("changes", "cursor")
+		operation := openapitest.FindOperation(t, doc, "listChanges")
+		r, cursor := bodyProperties("changes", "get"), queryParam("changes", "cursor")
 		assert.Equal(t, &ir.Pagination{
 			Strategy:    ir.PageStrategyCursor,
 			Inferred:    true,
 			InputCursor: inputPath(cursor),
-			Items:       propPath(r + "/result"),
-			NextCursor:  propPath(r+"/result_info", r+"/result_info/properties/next_cursor"),
-			HasMore:     propPath(r+"/result_info", r+"/result_info/properties/has_more"),
+			Items:       propertyPath(r + "/result"),
+			NextCursor:  propertyPath(r+"/result_info", r+"/result_info/properties/next_cursor"),
+			HasMore:     propertyPath(r+"/result_info", r+"/result_info/properties/has_more"),
 			Stop:        []ir.PageStop{ir.PageStopNoMore},
-		}, op.Pagination)
-		assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+		}, operation.Pagination)
+		assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
 	}
 }

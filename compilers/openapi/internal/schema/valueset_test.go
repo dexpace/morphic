@@ -126,8 +126,8 @@ func TestValueSet_ABoundBesideAnEntrysValueSetIsKeptByItsKeyword(t *testing.T) {
 // either order.
 func TestValueSet_SetsAlikeTheElectionCannotTellApartElectNone(t *testing.T) {
 	t.Parallel()
-	const ints, nums = "{enum: [[1]], items: {type: integer}}", "{enum: [[1]], items: {type: number}}"
-	for _, entries := range []string{ints + ", " + nums, nums + ", " + ints} {
+	const ints, numbers = "{enum: [[1]], items: {type: integer}}", "{enum: [[1]], items: {type: number}}"
+	for _, entries := range []string{ints + ", " + numbers, numbers + ", " + ints} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Str: {type: string}\n"+
 			"    S: {allOf: [{$ref: '#/components/schemas/Str'}, "+entries+"]}\n"))
 		openapitest.RequireNoErrorDiags(t, diags)

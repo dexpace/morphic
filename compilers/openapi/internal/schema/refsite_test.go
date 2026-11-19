@@ -149,7 +149,7 @@ components:
 
 	assert.Empty(t, diags)
 	assert.Equal(t, filepath.Join(dir, "other.yaml"), doc.Sources[1].Path)
-	scalar, ok := doc.Types[ids.In("other.yaml").AnonType("/X")].(*ir.Scalar)
+	scalar, ok := doc.Types[ids.In("other.yaml").AnonymousType("/X")].(*ir.Scalar)
 	require.True(t, ok, "other.yaml's X is lowered")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, scalar.Provenance)
 	require.NotNil(t, scalar.Base)
@@ -646,10 +646,10 @@ func TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys(t *testing.T) 
 
 			base, ok := typeByName(doc, "Base").(*ir.Model)
 			require.True(t, ok, "Base lowers to a model")
-			baseFile, ok := openapitest.PropsByWire(base.Properties)["file"]
+			baseFile, ok := openapitest.PropertiesByWire(base.Properties)["file"]
 			require.True(t, ok, "Base declares file")
 
-			postA := openapitest.FindOp(t, doc, "postA")
+			postA := openapitest.FindOperation(t, doc, "postA")
 			require.NotNil(t, postA.Request)
 			require.Len(t, postA.Request.Contents, 1)
 			enc := postA.Request.Contents[0].Encoding
@@ -763,7 +763,7 @@ func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
 
 	holder, ok := typeByName(doc, "Holder").(*ir.Model)
 	require.True(t, ok)
-	property, ok := openapitest.PropsByWire(holder.Properties)["p"]
+	property, ok := openapitest.PropertiesByWire(holder.Properties)["p"]
 	require.True(t, ok)
 	require.NotNil(t, property.Constraints)
 	assert.Equal(t, int64(3), *property.Constraints.MinLength)
@@ -964,7 +964,7 @@ func TestRef_ToANullOrTrueValueIsHoisted(t *testing.T) {
 		alias, ok := typeByName(doc, name).(*ir.Scalar)
 		require.True(t, ok, name)
 		require.NotNil(t, alias.Base, name)
-		assert.Equal(t, ids.DocumentIDNamespace{}.AnonType(jsontext.Pointer("/components/schemas/"+at)), alias.Base.Target, name)
+		assert.Equal(t, ids.DocumentIDNamespace{}.AnonymousType(jsontext.Pointer("/components/schemas/"+at)), alias.Base.Target, name)
 		hoisted, ok := doc.Types[alias.Base.Target].(*ir.Scalar)
 		require.True(t, ok, "%s: the node hoisted at %s", name, at)
 		assert.Equal(t, &top, hoisted.Base, name)
@@ -972,5 +972,5 @@ func TestRef_ToANullOrTrueValueIsHoisted(t *testing.T) {
 	union, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok, "a branch naming the null value resolves")
 	require.Len(t, union.Variants, 2)
-	assert.Equal(t, ids.DocumentIDNamespace{}.AnonType("/components/schemas/H/properties/q"), union.Variants[0].Type.Target)
+	assert.Equal(t, ids.DocumentIDNamespace{}.AnonymousType("/components/schemas/H/properties/q"), union.Variants[0].Type.Target)
 }

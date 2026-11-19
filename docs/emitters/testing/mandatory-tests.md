@@ -1352,7 +1352,7 @@ throughout these documents.
     ends a page short before the last, sizes a page by a limit of 0, names no size in a link's
     value, or writes its last link rebuilt from the query it parsed fails it ([a page walk on the
     mock](../docs-and-mock.md#a-page-walk-on-the-mock)).
-68. **T-68 · Bindings a target covers** — a plan binding of each `OpBindings` field carries that
+68. **T-68 · Bindings a target covers** — a plan binding of each `OperationBindings` field carries that
     field's `Protocol` and its binding by reference, a message binding's `Unmodeled` reached through
     it, a GraphQL and an OTP one as the IR types it and not as `RawConfig`, an RPC binding of every
     `System` `rpc` with the system in `RPC.System`; `All` holds the RPC binding, then the HTTP

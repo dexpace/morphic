@@ -47,7 +47,7 @@ func oneBound(t *testing.T, name string) *ir.Constraints {
 func TestVerify_EachBoundIsHeldToTheKindsThatTakeIt(t *testing.T) {
 	t.Parallel()
 	leafRef := ir.TypeRef{Target: "type/x/Leaf"}
-	props := []string{"MinProperties", "MaxProperties"}
+	properties := []string{"MinProperties", "MaxProperties"}
 	items := []string{"MinItems", "MaxItems", "UniqueItems"}
 	kinds := []struct {
 		name    string
@@ -55,10 +55,10 @@ func TestVerify_EachBoundIsHeldToTheKindsThatTakeIt(t *testing.T) {
 		takes   []string
 		unasked bool
 	}{
-		{name: "model", node: func(constraints *ir.Constraints) ir.TypeDef { return &ir.Model{Constraints: constraints} }, takes: props},
+		{name: "model", node: func(constraints *ir.Constraints) ir.TypeDef { return &ir.Model{Constraints: constraints} }, takes: properties},
 		{name: "map", node: func(constraints *ir.Constraints) ir.TypeDef {
 			return &ir.MapT{Value: leafRef, Constraints: constraints}
-		}, takes: props},
+		}, takes: properties},
 		{name: "list", node: func(constraints *ir.Constraints) ir.TypeDef {
 			return &ir.List{ElementType: leafRef, Constraints: constraints}
 		}, takes: items},

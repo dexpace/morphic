@@ -15,12 +15,12 @@ import (
 )
 
 func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "getWidgets")
+	operation, ok := operationByName(doc, "getWidgets")
 	require.True(t, ok)
-	require.Len(t, op.Responses, 1, "the 2xx success response")
+	require.Len(t, operation.Responses, 1, "the 2xx success response")
 	faults := map[ir.StatusRange]string{}
 	byRange := map[ir.StatusRange]ir.ErrorCase{}
-	for _, ec := range op.Errors {
+	for _, ec := range operation.Errors {
 		require.Len(t, ec.Conditions.StatusCodes, 1)
 		rng := ec.Conditions.StatusCodes[0]
 		byRange[rng] = ec
@@ -31,9 +31,9 @@ func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		{From: 429, To: 429}: "client",
 		{From: 500, To: 599}: "server",
 	}, faults, "each range classified from its own status")
-	require.NotNil(t, op.Default, "the default is classed neither way, so it is no error case")
-	assert.Equal(t, []ir.StatusRange{{}}, op.Default.Conditions.StatusCodes, "the catch-all alone")
-	assert.Equal(t, "default", op.Default.Name.Hint)
+	require.NotNil(t, operation.Default, "the default is classed neither way, so it is no error case")
+	assert.Equal(t, []ir.StatusRange{{}}, operation.Default.Conditions.StatusCodes, "the catch-all alone")
+	assert.Equal(t, "default", operation.Default.Name.Hint)
 
 	assertErrorCaseIsAResponse(t, byRange)
 }
@@ -96,25 +96,25 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 // the 200 beside the default, which stays a Response.
 func assertDefaultResponse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	catchAll := []ir.StatusRange{{From: 0, To: 0}}
-	byOp := map[string]ir.Operation{}
+	byOperation := map[string]ir.Operation{}
 	for _, name := range []string{"purgeCache", "getItem", "ping"} {
-		op, ok := opByName(doc, name)
+		operation, ok := operationByName(doc, name)
 		require.True(t, ok, "operation %s", name)
-		require.NotNil(t, op.Default, "%s: the default is kept as Default", name)
-		assert.Empty(t, op.Errors, "%s: the catch-all is no error case", name)
-		assert.Equal(t, catchAll, op.Default.Conditions.StatusCodes, "%s: the catch-all alone", name)
-		assert.Equal(t, "default", op.Default.Name.Hint, "%s: the key as written", name)
-		byOp[name] = op
+		require.NotNil(t, operation.Default, "%s: the default is kept as Default", name)
+		assert.Empty(t, operation.Errors, "%s: the catch-all is no error case", name)
+		assert.Equal(t, catchAll, operation.Default.Conditions.StatusCodes, "%s: the catch-all alone", name)
+		assert.Equal(t, "default", operation.Default.Name.Hint, "%s: the key as written", name)
+		byOperation[name] = operation
 	}
 
-	purge := byOp["purgeCache"]
+	purge := byOperation["purgeCache"]
 	assert.Empty(t, purge.Responses, "a lone default is the operation's whole description of the outcome")
 	require.NotNil(t, purge.Default.Payload)
 	require.Len(t, purge.Default.Payload.Contents, 1)
 	assert.Equal(t, "application/json", purge.Default.Payload.Contents[0].MediaType)
 	assert.Equal(t, "the cache was purged, or it was not", purge.Default.Docs.Description)
 
-	item := byOp["getItem"]
+	item := byOperation["getItem"]
 	require.Len(t, item.Responses, 1, "the 200 stays a Response beside the default")
 	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, item.Responses[0].Conditions.StatusCodes)
 	require.NotNil(t, item.Default.Payload)
@@ -124,7 +124,7 @@ func assertDefaultResponse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, item.Responses[0].Payload)
 	assert.Equal(t, componentID("Item"), item.Responses[0].Payload.Contents[0].Type.Target)
 
-	ping := byOp["ping"]
+	ping := byOperation["ping"]
 	assert.Empty(t, ping.Responses)
 	assert.Nil(t, ping.Default.Payload, "a default declaring no content gets no payload")
 	assert.Equal(t, "pong", ping.Default.Docs.Description)
@@ -135,14 +135,14 @@ func assertDefaultResponse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // shared lowering both use, and the document draws no unknown-key warning for a
 // key its dialect defines.
 func assertResponseSummary32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "deleteItem")
+	operation, ok := operationByName(doc, "deleteItem")
 	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	assert.Equal(t, "The item was deleted", op.Responses[0].Docs.Summary)
-	assert.Equal(t, "The long form of the same fact.", op.Responses[0].Docs.Description)
+	require.Len(t, operation.Responses, 1)
+	assert.Equal(t, "The item was deleted", operation.Responses[0].Docs.Summary)
+	assert.Equal(t, "The long form of the same fact.", operation.Responses[0].Docs.Description)
 
-	require.Len(t, op.Errors, 1)
-	assert.Equal(t, "No such item", op.Errors[0].Docs.Summary,
+	require.Len(t, operation.Errors, 1)
+	assert.Equal(t, "No such item", operation.Errors[0].Docs.Summary,
 		"an error case is lowered by the same function, so it reads the field too")
 	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/paths/~1items~1{id}/delete/responses/204/summary"),
 		"a key 3.2 defines is not an undefined key")
@@ -156,10 +156,10 @@ func assertResponseSummary32(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 // date-time field keep what they declare, and so does a parameter that is
 // not a header. The policy switched off fills none of them.
 func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "putFile")
+	operation, ok := operationByName(doc, "putFile")
 	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	headers := op.Responses[0].Headers
+	require.Len(t, operation.Responses, 1)
+	headers := operation.Responses[0].Headers
 	for wire, encoded := range map[string]bool{"Last-Modified": true, "Expires": true, "Date": false, "X-Modified": false} {
 		header, ok := headerByWire(headers, wire)
 		require.True(t, ok, wire)
@@ -185,10 +185,10 @@ func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		require.NotNil(t, sc.Encoding, wire)
 		assert.Equal(t, encoding, sc.Encoding.Name, wire)
 	}
-	require.Len(t, op.Params, 2)
-	assert.Nil(t, op.Params[0].Encoding, "a path parameter is never read")
-	assert.Empty(t, op.Params[0].Provenance.Inferred)
-	since := op.Params[1]
+	require.Len(t, operation.Params, 2)
+	assert.Nil(t, operation.Params[0].Encoding, "a path parameter is never read")
+	assert.Empty(t, operation.Params[0].Provenance.Inferred)
+	since := operation.Params[1]
 	assert.Equal(t, "If-Unmodified-Since", since.Name.Source)
 	assert.Equal(t, &ir.Encoding{Name: "http-date"}, since.Encoding, "the parameter's own text")
 	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset), since.Type.Target, "its type is still the instant")
@@ -204,11 +204,11 @@ func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 
 	off, offDiags := corpusWith(t, "http-date-inference",
 		openapi.Options{HTTPDateInference: openapi.HTTPDateInference{Disabled: true}})
-	offOp, ok := opByName(off, "putFile")
+	offOperation, ok := operationByName(off, "putFile")
 	require.True(t, ok)
-	require.Len(t, offOp.Params, 2)
-	assert.Nil(t, offOp.Params[1].Encoding, "the policy off leaves the parameter as declared")
-	assert.Empty(t, offOp.Params[1].Provenance.Inferred)
-	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset), offOp.Params[1].Type.Target)
+	require.Len(t, offOperation.Params, 2)
+	assert.Nil(t, offOperation.Params[1].Encoding, "the policy off leaves the parameter as declared")
+	assert.Empty(t, offOperation.Params[1].Provenance.Inferred)
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset), offOperation.Params[1].Type.Target)
 	assert.Empty(t, offDiags)
 }

@@ -18,27 +18,27 @@ const MaxRecords = maxRecords
 // NewDirLimited returns the Dir at path holding limit bytes, in place of
 // MaxBytes.
 func NewDirLimited(path string, limit int) *Dir {
-	return &Dir{path: path, limit: limit, ops: fileOps{list: os.ReadDir, remove: os.Remove, mark: os.Chtimes}}
+	return &Dir{path: path, limit: limit, operations: fileOperations{list: os.ReadDir, remove: os.Remove, mark: os.Chtimes}}
 }
 
-// Ops are a Dir's file operations a test replaces, a nil one keeping the
+// Operations are a Dir's file operations a test replaces, a nil one keeping the
 // system's.
-type Ops struct {
+type Operations struct {
 	List   func(dir string) ([]fs.DirEntry, error)
 	Remove func(name string) error
 	Mark   func(name string, atime, mtime time.Time) error
 }
 
-// UseOps makes dir call the operations ops sets in place of the system's.
-func UseOps(dir *Dir, ops Ops) {
-	if ops.List != nil {
-		dir.ops.list = ops.List
+// UseOperations makes dir call the operations operations sets in place of the system's.
+func UseOperations(dir *Dir, operations Operations) {
+	if operations.List != nil {
+		dir.operations.list = operations.List
 	}
-	if ops.Remove != nil {
-		dir.ops.remove = ops.Remove
+	if operations.Remove != nil {
+		dir.operations.remove = operations.Remove
 	}
-	if ops.Mark != nil {
-		dir.ops.mark = ops.Mark
+	if operations.Mark != nil {
+		dir.operations.mark = operations.Mark
 	}
 }
 

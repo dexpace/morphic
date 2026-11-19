@@ -114,12 +114,12 @@ func TestAllOfRefine_AKeywordOfAnotherKindIsKeptOnWhatTheTargetDeclares(t *testi
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		for _, swapped := range []bool{false, true} {
 			itemsList, _, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Str'}", "{items: {type: string}}")
-			propsList, propsAt, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Props'}", "{type: string}")
+			propertiesList, propertiesAt, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Props'}", "{type: string}")
 			schemas := []string{
 				"Str: {type: string}",
 				"Props: {properties: {a: {type: string}}}",
 				"StrItems: {allOf: " + itemsList + "}",
-				"DeclaredString: {allOf: " + propsList + "}",
+				"DeclaredString: {allOf: " + propertiesList + "}",
 			}
 			if version == "3.1.0" {
 				// A keyword beside a $ref applies from 3.1; before, it draws a warning.
@@ -142,9 +142,9 @@ func TestAllOfRefine_AKeywordOfAnotherKindIsKeptOnWhatTheTargetDeclares(t *testi
 					assert.Equal(t, degradedKept("openapi:items"), keptOn(items), "kept under its own key, as beside the allOf")
 					assert.Equal(t, 1, degradedInfosAt(diags, "StrItems"))
 
-					declared := requireScalarOver(t, doc, "DeclaredString", prim(ir.PrimitiveString))
+					declared := requireScalarOver(t, doc, "DeclaredString", primitive(ir.PrimitiveString))
 					assert.Equal(t, degradedKept("openapi:$ref"), keptOn(declared))
-					assert.Equal(t, entryPointer("DeclaredString", propsAt), declared.Unmodeled["openapi:$ref"].Provenance.Pointer)
+					assert.Equal(t, entryPointer("DeclaredString", propertiesAt), declared.Unmodeled["openapi:$ref"].Provenance.Pointer)
 					assert.Equal(t, 1, degradedInfosAt(diags, "DeclaredString"))
 				})
 			})
@@ -184,11 +184,11 @@ func TestAllOfRefine_ABoundOverATopTargetLandsOnTheUse(t *testing.T) {
 					assert.Empty(t, keptOn(top))
 				}
 				for _, name := range []string{"StrWrap", "StrEntry"} {
-					str := requireScalarOver(t, doc, name, componentID("Str"))
-					require.NotNil(t, str.Constraints, name)
-					require.NotNil(t, str.Constraints.MaxLength, name)
-					assert.EqualValues(t, 3, *str.Constraints.MaxLength, name)
-					assert.Empty(t, keptOn(str), name)
+					stringType := requireScalarOver(t, doc, name, componentID("Str"))
+					require.NotNil(t, stringType.Constraints, name)
+					require.NotNil(t, stringType.Constraints.MaxLength, name)
+					assert.EqualValues(t, 3, *stringType.Constraints.MaxLength, name)
+					assert.Empty(t, keptOn(stringType), name)
 				}
 			})
 		})
@@ -434,8 +434,8 @@ func TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept(t *testing.T) {
 						"StrProps":    {componentID("Str"), "openapi:properties"},
 						"ArrProps":    {componentID("Arr"), "openapi:properties"},
 						"RefEntry":    {componentID("Str"), "openapi:properties"},
-						"StrEntry":    {prim(ir.PrimitiveString), "openapi:properties"},
-						"StrRequired": {prim(ir.PrimitiveString), "openapi:required"},
+						"StrEntry":    {primitive(ir.PrimitiveString), "openapi:properties"},
+						"StrRequired": {primitive(ir.PrimitiveString), "openapi:required"},
 					} {
 						node := requireScalarOver(t, doc, name, want.target)
 						assert.Equal(t, degradedKept(want.key), keptOn(node), name)
@@ -464,7 +464,7 @@ func TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel(t *testing.T) {
 	t.Parallel()
 	for _, version := range composeVersions {
 		for _, swapped := range []bool{false, true} {
-			list, propsAt, itemsAt := composeEntries(swapped, "{properties: {a: {type: string}}}", "{items: {type: string}}")
+			list, propertiesAt, itemsAt := composeEntries(swapped, "{properties: {a: {type: string}}}", "{items: {type: string}}")
 			schemas := []string{"TwoKinds: {allOf: " + list + "}"}
 			if version == "3.1.0" {
 				schemas = append(schemas, "Listed: {type: [object, array], allOf: "+list+"}")
@@ -476,7 +476,7 @@ func TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel(t *testing.T) {
 					requireErrorsAndWarnings(t, diags, nil)
 					requireModelsNameModels(t, doc)
 
-					top := requireScalarOver(t, doc, "TwoKinds", prim(ir.PrimitiveAny))
+					top := requireScalarOver(t, doc, "TwoKinds", primitive(ir.PrimitiveAny))
 					assert.Equal(t, degradedKept("openapi:properties", "openapi:items"), keptOn(top))
 					assert.Equal(t, 2, degradedInfosAt(diags, "TwoKinds"), "one info for each entry keeping a keyword")
 					assert.False(t, markedKindInference(top), "no kind was read")
@@ -490,7 +490,7 @@ func TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel(t *testing.T) {
 					assert.Equal(t, ir.KindModel, kindNode(t, doc, union.Variants[0].Type.Target).Kind())
 					assert.Equal(t, ir.KindList, kindNode(t, doc, union.Variants[1].Type.Target).Kind())
 					kept := []string{
-						string(entryPointer("Listed", propsAt)) + "/properties", string(entryPointer("Listed", itemsAt)) + "/items",
+						string(entryPointer("Listed", propertiesAt)) + "/properties", string(entryPointer("Listed", itemsAt)) + "/items",
 					}
 					slices.Sort(kept)
 					assert.Equal(t, kept, keptPointersUnder(doc, "Listed"), "each entry's keyword is kept")
@@ -565,7 +565,7 @@ func TestAllOfCompose_SeveralRefsThatAreNoObjectUseTheNarrower(t *testing.T) {
 	t.Parallel()
 	for _, version := range composeVersions {
 		for _, swapped := range []bool{false, true} {
-			fmtList, strAt, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Str'}", fmtRef)
+			fmtList, stringAt, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Str'}", fmtRef)
 			listList, _, listEAt := composeEntries(swapped, "{$ref: '#/components/schemas/Str'}", "{$ref: '#/components/schemas/E'}")
 			schemas := []string{
 				"Str: {type: string}",
@@ -583,7 +583,7 @@ func TestAllOfCompose_SeveralRefsThatAreNoObjectUseTheNarrower(t *testing.T) {
 
 					narrower := requireScalarOver(t, doc, "StrFmt", componentID("Fmt"))
 					assert.Equal(t, degradedKept("openapi:$ref"), keptOn(narrower))
-					assert.Equal(t, entryPointer("StrFmt", strAt), narrower.Unmodeled["openapi:$ref"].Provenance.Pointer)
+					assert.Equal(t, entryPointer("StrFmt", stringAt), narrower.Unmodeled["openapi:$ref"].Provenance.Pointer)
 					assert.Equal(t, 1, degradedInfosAt(diags, "StrFmt"))
 
 					declared := requireScalarOver(t, doc, "StrList", componentID("Str"))
@@ -693,7 +693,7 @@ func TestAllOfUnion_ABoundBesideAnAllOfNamingNoKindIsHeldByTheUnion(t *testing.T
 					assert.Equal(t, "2", string(*two.Constraints.MultipleOf))
 					assert.Equal(t, "9", string(*two.Constraints.Max))
 
-					requireScalarOver(t, doc, "Alone", prim(ir.PrimitiveAny))
+					requireScalarOver(t, doc, "Alone", primitive(ir.PrimitiveAny))
 				})
 			})
 		}
@@ -733,8 +733,8 @@ func TestAllOfUnion_AUnionSharingNoKindWithTheRestIsKeptNotDistributed(t *testin
 				require.NotNil(t, wrap.Base)
 				assert.Equal(t, componentID("Obj"), wrap.Base.Target)
 				assert.Equal(t, degradedKept("openapi:oneOf"), keptOn(wrap))
-				str := requireScalarOver(t, doc, "StrExcl", componentID("Str"))
-				assert.Equal(t, degradedKept("openapi:oneOf"), keptOn(str))
+				stringType := requireScalarOver(t, doc, "StrExcl", componentID("Str"))
+				assert.Equal(t, degradedKept("openapi:oneOf"), keptOn(stringType))
 				integer := requireScalarOver(t, doc, "IntExcl", componentID("Int"))
 				assert.Equal(t, degradedKept("openapi:anyOf"), keptOn(integer))
 				for _, name := range []string{"WrapDisj", "StrExcl", "IntExcl"} {
@@ -771,17 +771,17 @@ func TestAllOfCompose_AFormBodyOfAStringBesideMembersIsAString(t *testing.T) {
 			}})
 			requireModelsNameModels(t, doc)
 
-			op := openapitest.FirstOp(t, doc.Services[0])
-			require.NotNil(t, op.Request)
-			require.Len(t, op.Request.Contents, 1)
-			content := op.Request.Contents[0]
+			operation := openapitest.FirstOperation(t, doc.Services[0])
+			require.NotNil(t, operation.Request)
+			require.Len(t, operation.Request.Contents, 1)
+			content := operation.Request.Contents[0]
 			assert.Equal(t, "multipart/form-data", content.MediaType)
 			assert.Empty(t, content.Encoding, "a string has no part to encode")
 
 			body, ok := kindNode(t, doc, content.Type.Target).(*ir.Scalar)
 			require.True(t, ok, "the body is a string, not a model")
 			require.NotNil(t, body.Base)
-			assert.Equal(t, prim(ir.PrimitiveString), body.Base.Target)
+			assert.Equal(t, primitive(ir.PrimitiveString), body.Base.Target)
 		})
 	}
 }
@@ -969,14 +969,14 @@ func TestAllOfCompose_APositionUsedTwiceLowersAsOnce(t *testing.T) {
 		"{allOf: [{properties: {a: {type: string}}}, {items: {type: string}}]}",
 	}
 	targets := []string{topSchema, "Str: {type: string}", "Fmt: {type: string, format: uuid}"}
-	op := func(name, param string) string {
+	operation := func(name, param string) string {
 		return "  /" + name + ":\n    get:\n      operationId: " + name + "\n" + param +
 			"      responses: {'200': {$ref: '#/components/responses/R'}}\n"
 	}
 	spec := func(version, row string, twice bool) string {
-		paths, holder := "paths:\n"+op("a", ""), "Holder: {type: object, properties: {p: {$ref: '#/components/schemas/X'}}}"
+		paths, holder := "paths:\n"+operation("a", ""), "Holder: {type: object, properties: {p: {$ref: '#/components/schemas/X'}}}"
 		if twice {
-			paths += op("b", "      parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/X'}}]\n")
+			paths += operation("b", "      parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/X'}}]\n")
 			holder = "Holder: {type: object, properties: {p: {$ref: '#/components/schemas/X'}, q: {$ref: '#/components/schemas/X'}}}"
 		}
 		return admissionSpec(version, paths, append(slices.Clone(targets), "X: "+row, holder)...) +
@@ -1084,8 +1084,8 @@ func TestAllOfRefine_ARefLosingATieIsReportedAsATie(t *testing.T) {
 		doc, diags := compileAnnotationSpec(t, "tie", admissionSpec("3.1.0", "", schemas...))
 		requireErrorsAndWarnings(t, diags, nil)
 		requireScalarOver(t, doc, "Tie", componentID("S1"))
-		msg := diagMessageOf(t, diags, "/components/schemas/Tie/allOf/0")
-		assert.NotContains(t, msg, "lies within more")
-		assert.Contains(t, msg, "least reference text")
+		message := diagMessageOf(t, diags, "/components/schemas/Tie/allOf/0")
+		assert.NotContains(t, message, "lies within more")
+		assert.Contains(t, message, "least reference text")
 	})
 }

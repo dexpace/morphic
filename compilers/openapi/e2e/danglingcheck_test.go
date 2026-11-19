@@ -216,7 +216,7 @@ func TestDanglingRefs_f10(t *testing.T) {
 	doc, _ := compileFile(t, danglingDir, "f10-refs.yaml", "f10.yaml")
 	foo, ok := doc.Types[componentID("Foo")].(*ir.Model)
 	require.True(t, ok)
-	property, ok := propByWire(foo, "x")
+	property, ok := propertyByWire(foo, "x")
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Foo/properties/bar"), property.Type.Target)
 	_, ok = doc.Types[property.Type.Target]

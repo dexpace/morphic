@@ -75,15 +75,15 @@ func asidePathItem(item *yaml.Node, a *aside) {
 		node := nodeview.Deref(val)
 		return own && name == "$ref" && (node == nil || node.Kind != yaml.ScalarNode || isNullNode(node))
 	})
-	ops := nodeview.Child(item, "additionalOperations")
-	if ops == nil || ops.Kind != yaml.MappingNode {
+	operations := nodeview.Child(item, "additionalOperations")
+	if operations == nil || operations.Kind != yaml.MappingNode {
 		return
 	}
 	noOperation := func(key, val *yaml.Node) bool { return !nodeview.IsMergeKey(key) && nodeview.NotMapping(val) }
-	a.hide(ops, noOperation)
-	for i := 0; i+1 < len(ops.Content); i += 2 {
-		if nodeview.IsMergeKey(ops.Content[i]) {
-			for _, src := range nodeview.MergeSources(ops.Content[i+1]) {
+	a.hide(operations, noOperation)
+	for i := 0; i+1 < len(operations.Content); i += 2 {
+		if nodeview.IsMergeKey(operations.Content[i]) {
+			for _, src := range nodeview.MergeSources(operations.Content[i+1]) {
 				a.hide(nodeview.Deref(src), noOperation)
 			}
 		}

@@ -54,7 +54,7 @@ type LinkValue struct {
 	// Response is a value of the response, a header or its body, set when
 	// Kind is LinkResponse. Its Root is nil: the path roots in the response
 	// carrying the link.
-	Response *PropPath `json:"response,omitzero"`
+	Response *PropertyPath `json:"response,omitzero"`
 }
 
 // LinkValueKind says where a LinkValue comes from.

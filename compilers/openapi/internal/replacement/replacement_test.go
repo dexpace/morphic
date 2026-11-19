@@ -60,7 +60,7 @@ func replacementDoc(value string) *ir.Document {
 					{ID: "parameter/old", Name: ir.Naming{Source: "old"}, Unmodeled: names(value), Deprecation: deprecated()},
 					{ID: "parameter/v2", Name: ir.Naming{Source: "v2"}},
 				},
-				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+				Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
 					{Param: "parameter/old", Location: ir.HTTPLocationQuery}, {Param: "parameter/v2", Location: ir.HTTPLocationQuery},
 				}}}},
 				Request: &ir.Payload{Contents: []ir.Content{{
@@ -107,7 +107,7 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 	doc := replacementDoc(`"v2"`)
 	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc)))
 
-	op := doc.Services[0].Groups[0].Operations[0]
+	operation := doc.Services[0].Groups[0].Operations[0]
 	v2 := ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")
 	old := ids.DocumentIDNamespace{}.NamedType("/components/schemas/old")
 	for _, tc := range []struct {
@@ -116,20 +116,20 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 		prov ir.Provenance
 		want ir.EntityRef
 	}{
-		{"an operation", op.Deprecation, op.Provenance, ir.EntityRef{Operation: "operation/v2"}},
-		{"a parameter", op.Params[0].Deprecation, op.Params[0].Provenance, ir.EntityRef{Param: "parameter/v2"}},
-		{"a response header, in any case", op.Responses[0].Headers[0].Deprecation, op.Responses[0].Headers[0].Provenance,
+		{"an operation", operation.Deprecation, operation.Provenance, ir.EntityRef{Operation: "operation/v2"}},
+		{"a parameter", operation.Params[0].Deprecation, operation.Params[0].Provenance, ir.EntityRef{Param: "parameter/v2"}},
+		{"a response header, in any case", operation.Responses[0].Headers[0].Deprecation, operation.Responses[0].Headers[0].Provenance,
 			ir.EntityRef{Property: "property/h/v2"}},
-		{"an error case's header", op.Errors[0].Headers[0].Deprecation, op.Errors[0].Headers[0].Provenance,
+		{"an error case's header", operation.Errors[0].Headers[0].Deprecation, operation.Errors[0].Headers[0].Provenance,
 			ir.EntityRef{Property: "property/e/v2"}},
-		{"a default's header", op.Default.Headers[0].Deprecation, op.Default.Headers[0].Provenance,
+		{"a default's header", operation.Default.Headers[0].Deprecation, operation.Default.Headers[0].Provenance,
 			ir.EntityRef{Property: "property/d/v2"}},
-		{"a request part's header", op.Request.Contents[0].Encoding["property/part"].Headers[0].Deprecation,
-			op.Request.Contents[0].Encoding["property/part"].Headers[0].Provenance, ir.EntityRef{Property: "property/part/v2"}},
-		{"a stream item's header", op.Request.Contents[0].ItemEncoding.Headers[0].Deprecation,
-			op.Request.Contents[0].ItemEncoding.Headers[0].Provenance, ir.EntityRef{Property: "property/item/v2"}},
-		{"a response part's header", op.Responses[0].Payload.Contents[0].Encoding["property/part"].Headers[0].Deprecation,
-			op.Responses[0].Payload.Contents[0].Encoding["property/part"].Headers[0].Provenance,
+		{"a request part's header", operation.Request.Contents[0].Encoding["property/part"].Headers[0].Deprecation,
+			operation.Request.Contents[0].Encoding["property/part"].Headers[0].Provenance, ir.EntityRef{Property: "property/part/v2"}},
+		{"a stream item's header", operation.Request.Contents[0].ItemEncoding.Headers[0].Deprecation,
+			operation.Request.Contents[0].ItemEncoding.Headers[0].Provenance, ir.EntityRef{Property: "property/item/v2"}},
+		{"a response part's header", operation.Responses[0].Payload.Contents[0].Encoding["property/part"].Headers[0].Deprecation,
+			operation.Responses[0].Payload.Contents[0].Encoding["property/part"].Headers[0].Provenance,
 			ir.EntityRef{Property: "property/response-part/v2"}},
 		{"a schema", doc.Types[old].Common().Deprecation, doc.Types[old].Common().Provenance, ir.EntityRef{Type: v2}},
 		{"a property", doc.Types[old].(*ir.Model).Properties[0].Deprecation,
@@ -156,9 +156,9 @@ func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 			assert.Equal(t, diag.DegradedConstruct, diagnostic.Code, value)
 			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity, value)
 		}
-		op := doc.Services[0].Groups[0].Operations[0]
-		assert.Empty(t, op.Deprecation.ReplacedBy, value)
-		assert.Empty(t, op.Errors[0].Headers[0].Deprecation.ReplacedBy, value)
+		operation := doc.Services[0].Groups[0].Operations[0]
+		assert.Empty(t, operation.Deprecation.ReplacedBy, value)
+		assert.Empty(t, operation.Errors[0].Headers[0].Deprecation.ReplacedBy, value)
 	}
 }
 
@@ -177,13 +177,13 @@ func severalV2(doc *ir.Document, first bool) {
 	}
 	group := &doc.Services[0].Groups[0]
 	group.Operations = append(group.Operations, ir.Operation{ID: "operation/v2-again", Name: ir.Naming{Source: "v2"}})
-	op := &group.Operations[0]
-	op.Params = append(op.Params, ir.Parameter{ID: "parameter/v2-header", Name: ir.Naming{Source: "v2"}})
-	bindings := &op.Bindings.HTTP[0].ParamBindings
+	operation := &group.Operations[0]
+	operation.Params = append(operation.Params, ir.Parameter{ID: "parameter/v2-header", Name: ir.Naming{Source: "v2"}})
+	bindings := &operation.Bindings.HTTP[0].ParamBindings
 	*bindings = append(*bindings, ir.HTTPParamBinding{Param: "parameter/v2-header", Location: ir.HTTPLocationHeader})
-	op.Responses[0].Headers = add(op.Responses[0].Headers, "property/h/v2-lower", "v2")
-	op.Errors[0].Headers = add(op.Errors[0].Headers, "property/e/v2-upper", "V2")
-	op.Default.Headers = add(op.Default.Headers, "property/d/v2-upper", "V2")
+	operation.Responses[0].Headers = add(operation.Responses[0].Headers, "property/h/v2-lower", "v2")
+	operation.Errors[0].Headers = add(operation.Errors[0].Headers, "property/e/v2-upper", "V2")
+	operation.Default.Headers = add(operation.Default.Headers, "property/d/v2-upper", "V2")
 	doc.Auth["auth/v2-again"] = ir.AuthScheme{ID: "auth/v2-again", Name: ir.Naming{Source: "v2"}}
 }
 
@@ -210,16 +210,16 @@ func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
 		}
 		assert.Len(t, diags, 6, "first %t: the schema and the property each name one", first)
 
-		op := doc.Services[0].Groups[0].Operations[0]
+		operation := doc.Services[0].Groups[0].Operations[0]
 		at := func(hs []ir.Header, id ir.PropertyID) *ir.Deprecation {
 			i := slices.IndexFunc(hs, func(header ir.Header) bool { return header.ID == id })
 			require.GreaterOrEqual(t, i, 0, id)
 			return hs[i].Deprecation
 		}
 		for name, dep := range map[string]*ir.Deprecation{
-			"operation": op.Deprecation, "parameter": op.Params[0].Deprecation,
-			"response header": at(op.Responses[0].Headers, "property/h/old"), "error header": at(op.Errors[0].Headers, "property/e/old"),
-			"default header": at(op.Default.Headers, "property/d/old"), "security scheme": doc.Auth["auth/old"].Deprecation,
+			"operation": operation.Deprecation, "parameter": operation.Params[0].Deprecation,
+			"response header": at(operation.Responses[0].Headers, "property/h/old"), "error header": at(operation.Errors[0].Headers, "property/e/old"),
+			"default header": at(operation.Default.Headers, "property/d/old"), "security scheme": doc.Auth["auth/old"].Deprecation,
 		} {
 			assert.Empty(t, dep.ReplacedBy, "first %t: %s", first, name)
 		}

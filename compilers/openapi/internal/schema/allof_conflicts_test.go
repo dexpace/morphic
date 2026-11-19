@@ -1306,7 +1306,7 @@ func TestAllOf_RedeclarationsUnderAnotherBaseStayApart(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			property, ok := openapitest.PropsByWire(model.Properties)["x"]
+			property, ok := openapitest.PropertiesByWire(model.Properties)["x"]
 			require.True(t, ok)
 			assert.Contains(t, property.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x",
 				"the earlier declaration is kept")
@@ -1356,7 +1356,7 @@ func TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart(t *testing.T) {
 		openapitest.RequireNoErrorDiags(t, diags)
 		model, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, tc.name)
-		got, ok := openapitest.PropsByWire(model.Properties)["x"]
+		got, ok := openapitest.PropertiesByWire(model.Properties)["x"]
 		require.True(t, ok, tc.name)
 		assert.NotContains(t, got.Type.Target, "/allOf/", "%s %s: the named schema is the type", tc.name, tc.not)
 		_, kept := got.Unmodeled["openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x"]
@@ -1392,7 +1392,7 @@ func TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase(t *testi
 			openapitest.RequireNoErrorDiags(t, diags)
 			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			property, ok := openapitest.PropsByWire(model.Properties)["x"]
+			property, ok := openapitest.PropertiesByWire(model.Properties)["x"]
 			require.True(t, ok)
 			assert.NotContains(t, property.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x")
 			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),

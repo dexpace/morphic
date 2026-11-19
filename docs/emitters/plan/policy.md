@@ -41,7 +41,7 @@ type ExamplePolicy struct {
     MaxDepth   int                     // how many models deep a value fills optional members,
                                        // its own the first; required ones go as deep as needed
     MaxItems   int                     // how many entries a list or map holds, raised to its
-                                       // minItems or minProps, lowered to its maxItems or maxProps;
+                                       // minItems or minProperties, lowered to its maxItems or maxProperties;
                                        // deeper than MaxDepth or on a recurrence, its minimum
 }
 

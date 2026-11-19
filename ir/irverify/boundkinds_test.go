@@ -46,7 +46,7 @@ func TestVerify_AScalarOrUnionHoldingAnyBoundIsNotChecked(t *testing.T) {
 func TestVerify_ABoundOnANodeWhoseKindCannotTakeItIsAViolation(t *testing.T) {
 	t.Parallel()
 	count, lower := new(int64(1)), ir.BigVal("1")
-	str := ir.TypeRef{Target: "type/x/Leaf"}
+	stringType := ir.TypeRef{Target: "type/x/Leaf"}
 	for _, tc := range []struct {
 		name string
 		td   ir.TypeDef
@@ -56,16 +56,16 @@ func TestVerify_ABoundOnANodeWhoseKindCannotTakeItIsAViolation(t *testing.T) {
 		{"a model's pattern", &ir.Model{Constraints: &ir.Constraints{Pattern: "a"}}, true},
 		{"a model's item count", &ir.Model{Constraints: &ir.Constraints{MaxItems: count}}, true},
 		{"a model's property counts", &ir.Model{Constraints: &ir.Constraints{MinProperties: count, MaxProperties: count}}, false},
-		{"a list's property count", &ir.List{ElementType: str, Constraints: &ir.Constraints{MinProperties: count}}, true},
-		{"a list's string bound", &ir.List{ElementType: str, Constraints: &ir.Constraints{MaxLength: count}}, true},
-		{"a list's item bounds", &ir.List{ElementType: str, Constraints: &ir.Constraints{
+		{"a list's property count", &ir.List{ElementType: stringType, Constraints: &ir.Constraints{MinProperties: count}}, true},
+		{"a list's string bound", &ir.List{ElementType: stringType, Constraints: &ir.Constraints{MaxLength: count}}, true},
+		{"a list's item bounds", &ir.List{ElementType: stringType, Constraints: &ir.Constraints{
 			MinItems: count, MaxItems: count, UniqueItems: true,
 		}}, false},
-		{"a map's numeric bound", &ir.MapT{Value: str, Constraints: &ir.Constraints{Min: &lower}}, true},
-		{"a map's item count", &ir.MapT{Value: str, Constraints: &ir.Constraints{MinItems: count}}, true},
-		{"a map's property counts", &ir.MapT{Value: str, Constraints: &ir.Constraints{MinProperties: count, MaxProperties: count}}, false},
-		{"a tuple's pattern", &ir.Tuple{ElementTypes: []ir.TypeRef{str}, Constraints: &ir.Constraints{Pattern: "a"}}, true},
-		{"a tuple's item bounds", &ir.Tuple{ElementTypes: []ir.TypeRef{str}, Constraints: &ir.Constraints{
+		{"a map's numeric bound", &ir.MapT{Value: stringType, Constraints: &ir.Constraints{Min: &lower}}, true},
+		{"a map's item count", &ir.MapT{Value: stringType, Constraints: &ir.Constraints{MinItems: count}}, true},
+		{"a map's property counts", &ir.MapT{Value: stringType, Constraints: &ir.Constraints{MinProperties: count, MaxProperties: count}}, false},
+		{"a tuple's pattern", &ir.Tuple{ElementTypes: []ir.TypeRef{stringType}, Constraints: &ir.Constraints{Pattern: "a"}}, true},
+		{"a tuple's item bounds", &ir.Tuple{ElementTypes: []ir.TypeRef{stringType}, Constraints: &ir.Constraints{
 			MinItems: count, MaxItems: count, UniqueItems: true,
 		}}, false},
 	} {

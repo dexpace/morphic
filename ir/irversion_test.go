@@ -185,7 +185,7 @@ var generations = []generation{
 		meaning: "a bound is in Constraints only where its home's kinds take it; an allOf whose conjuncts admit values but no object lowers to its value set or the conjunct elected by what each admits, not by order; a $ref beside keywords lowers as an allOf of the two; Base and Mixins name only objects, an entry whose read is cut short aside; a union beside a body makes no variant of a dead branch; kind-inference marks a node typed off shape keywords; value-set IDs, hoisted nodes and their hints move; kept keys are openapi:<keyword>, openapi:$ref, openapi:oneOf/<i>, openapi:discriminator/mapping/<key> and openapi:nullable; a nullable string is no null; a redeclaration conflict is reported once"},
 	{version: "0.71.0", format: 1, shape: "f935c79fd8db94235ed009e75d16f3dc0b09363be827411fdd9632f6954e8140",
 		names: "a90929fd9afefb04e3a5abb411c769929d1ca7d224cc0f57a724b02d44287fd7"},
-	{version: "0.72.0", format: 1, shape: "4dbaf14c0bc3609ce2e981f72803b54398bb61be2cca48441e235cdad6994789",
+	{version: "0.72.0", format: 1, shape: "67bf6f6ddc1866e221ea539a05d8b25c7dc3b53e2e02672c0bd77966e64fc28b",
 		names: "5cb6b5124f5093bf15f2026e532b1bd8a469ca64b4dd5649af02999fbfa474fb"},
 }
 

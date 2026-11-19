@@ -269,9 +269,9 @@ actions:
 				continue
 			}
 			seen++
-			_, has := propByWire(model, "added")
+			_, has := propertyByWire(model, "added")
 			assert.False(t, has, "%s keeps the value the anchor had, with nothing the overlay added", name)
-			_, kept := propByWire(model, "old")
+			_, kept := propertyByWire(model, "old")
 			assert.True(t, kept, "%s still holds the property the source wrote", name)
 		}
 	}
@@ -465,9 +465,9 @@ func TestCompile_WithoutAnOverlayRecordsOneSource(t *testing.T) {
 	assert.Equal(t, 0, propertyProvenance(t, doc, "Pet", "name").Source)
 }
 
-// primKindsSpec declares properties of several primitive kinds, so the rule is
+// primitiveKindsSpec declares properties of several primitive kinds, so the rule is
 // held across kinds rather than for one.
-const primKindsSpec = `openapi: 3.1.0
+const primitiveKindsSpec = `openapi: 3.1.0
 info:
   title: Prims
   version: "1"
@@ -499,8 +499,8 @@ actions:
 func primitiveProvenances(doc *ir.Document) map[ir.PrimitiveKind]ir.Provenance {
 	out := make(map[ir.PrimitiveKind]ir.Provenance)
 	for _, def := range doc.Types {
-		if prim, ok := def.(*ir.Primitive); ok {
-			out[prim.PrimitiveKind] = prim.Provenance
+		if primitive, ok := def.(*ir.Primitive); ok {
+			out[primitive.PrimitiveKind] = primitive.Provenance
 		}
 	}
 	return out
@@ -532,7 +532,7 @@ func TestCompile_PrimitivesNameNoSource(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags, err := openapi.New().Compile(t.Context(),
-				[]compilers.Source{{Path: "spec.yaml", Data: []byte(primKindsSpec)}},
+				[]compilers.Source{{Path: "spec.yaml", Data: []byte(primitiveKindsSpec)}},
 				compilers.Options{FormatOptions: openapi.Options{Overlay: tc.overlay}})
 			require.NoError(t, err)
 			require.NotNil(t, doc, "compile refused: %+v", diags)

@@ -56,8 +56,8 @@ type object struct {
 
 // scalar is a member whose type is the primitive prim, a walk sending it.
 type scalar struct {
-	member *ir.Property
-	prim   ir.PrimitiveKind
+	member    *ir.Property
+	primitive ir.PrimitiveKind
 }
 
 // pageKey is a body read for a walk: its type, for a walk reading a next
@@ -66,10 +66,10 @@ type scalar struct {
 // whose page names its items at its root and its next cursor as next_<cursor>
 // alone, as the answer of a create need not.
 type pageKey struct {
-	body   ir.TypeID
-	cursor string
-	prim   ir.PrimitiveKind
-	strict bool
+	body      ir.TypeID
+	cursor    string
+	primitive ir.PrimitiveKind
+	strict    bool
 	// link reads the body as a link walk's page (reader.linkPage).
 	link bool
 }
@@ -95,7 +95,7 @@ func (p page) equal(pageValue page) bool {
 		slices.Equal(p.totalCount, pageValue.totalCount) && slices.Equal(p.totalPages, pageValue.totalPages)
 }
 
-// responsePage returns where op's success responses hold the page a walk
+// responsePage returns where operation's success responses hold the page a walk
 // sending in reads. Every content of every one must hold it at the same
 // members, since a pager reads whichever arrives; one with no body, a 204 or a
 // 304, holds none, as a pager ends at it as at an empty page
@@ -104,22 +104,22 @@ func (p page) equal(pageValue page) bool {
 // otherwise what stops it: of several bodies holding no page, the least of
 // their reasons, so the finding reads the same whatever order the responses
 // and contents take.
-func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
-	if len(op.Responses) == 0 {
+func (r *reader) responsePage(operation *ir.Operation, in inputs) (page, string) {
+	if len(operation.Responses) == 0 {
 		return page{}, "the operation declares no success response to read a page from"
 	}
 	key := pageKey{strict: in.strict}
-	var header *ir.PropPath
+	var header *ir.PropertyPath
 	var headerName string
 	if in.readsNextCursor() {
-		key.cursor, key.prim = in.cursor.canonical(), in.prim
+		key.cursor, key.primitive = in.cursor.canonical(), in.primitive
 		if !in.strict {
-			header, headerName = headerCursor(r.w, op, key.cursor)
+			header, headerName = headerCursor(r.w, operation, key.cursor)
 		}
 	}
 	var pages []page
 	var whys []string
-	for ct := range pageContents(op) {
+	for ct := range pageContents(operation) {
 		key.body = ct.Type.Target
 		pg := r.page(key)
 		switch {
@@ -147,7 +147,7 @@ func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 // carries, header being named name, where it is not nil. A next cursor the
 // body names as well leaves the walk undecided: a pager cannot tell which to
 // follow.
-func withExtras(pages []page, header *ir.PropPath, name string) (page, string) {
+func withExtras(pages []page, header *ir.PropertyPath, name string) (page, string) {
 	out := pages[0]
 	out.nextLink = agreed(pages, func(pg page) []ir.PropertyID { return pg.nextLink })
 	out.prevLink = agreed(pages, func(pg page) []ir.PropertyID { return pg.prevLink })
@@ -227,11 +227,11 @@ func nextCursor(ms *models, body *model, key pageKey) (path []ir.PropertyID, hol
 	switch {
 	case key.strict:
 		names = names[:1]
-	case key.prim == ir.PrimitiveString:
+	case key.primitive == ir.PrimitiveString:
 		names = names[:2]
 	}
 	for _, name := range names {
-		path, holder, found := find(ms, body, name, func(prim ir.PrimitiveKind) bool { return prim == key.prim })
+		path, holder, found := find(ms, body, name, func(primitive ir.PrimitiveKind) bool { return primitive == key.primitive })
 		switch found {
 		case 0:
 			continue
@@ -252,8 +252,8 @@ func noNextCursor(ms *models, body *model, key pageKey, next string) string {
 	case key.strict:
 		return fmt.Sprintf("holds no member %q of the cursor's type, which a POST read as a walk names its next "+
 			"cursor, never the cursor it was sent, as a create answers with what it was sent", next)
-	case key.prim == ir.PrimitiveString:
-		if _, _, found := find(ms, body, "next", func(prim ir.PrimitiveKind) bool { return prim == ir.PrimitiveString }); found > 0 {
+	case key.primitive == ir.PrimitiveString:
+		if _, _, found := find(ms, body, "next", func(primitive ir.PrimitiveKind) bool { return primitive == ir.PrimitiveString }); found > 0 {
 			return `holds "next", a plain string that may be its next cursor or a link`
 		}
 	}
@@ -342,14 +342,14 @@ func find(ms *models, body *model, name string, admit func(ir.PrimitiveKind) boo
 	var holder *model
 	found := 0
 	for _, scalar := range body.scalars[name] {
-		if admit(scalar.prim) {
+		if admit(scalar.primitive) {
 			path, holder, found = []ir.PropertyID{scalar.member.ID}, body, found+1
 		}
 	}
 	for _, object := range body.objects {
 		held := ms.of(object.id)
 		for _, scalar := range held.scalars[name] {
-			if admit(scalar.prim) {
+			if admit(scalar.primitive) {
 				path, holder, found = []ir.PropertyID{object.member.ID, scalar.member.ID}, held, found+1
 			}
 		}
@@ -434,8 +434,8 @@ func (ms *models) of(id ir.TypeID) *model {
 		case *ir.Model:
 			modelValue.objects = append(modelValue.objects, object{member: property, id: td.ID})
 		default:
-			if prim, ok := sendableAs(td); ok {
-				modelValue.scalars[property.Name.Canonical] = append(modelValue.scalars[property.Name.Canonical], scalar{member: property, prim: prim})
+			if primitive, ok := sendableAs(td); ok {
+				modelValue.scalars[property.Name.Canonical] = append(modelValue.scalars[property.Name.Canonical], scalar{member: property, primitive: primitive})
 			} else if isBool(td) {
 				modelValue.flags = append(modelValue.flags, property)
 			} else if isURL(td) {

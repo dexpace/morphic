@@ -78,28 +78,28 @@ type pathOperation struct {
 // because dropping the entry would lose what it declares; lowerOperation
 // reports it.
 func pathOperations(pi *soa.PathItem) []pathOperation {
-	ops := make([]pathOperation, 0, len(httpMethods))
+	operations := make([]pathOperation, 0, len(httpMethods))
 	for _, m := range httpMethods {
 		if src := m.get(pi); src != nil {
-			ops = append(ops, pathOperation{method: strings.ToUpper(m.name), seg: ids.Ptr(m.name), src: src})
+			operations = append(operations, pathOperation{method: strings.ToUpper(m.name), seg: ids.Ptr(m.name), src: src})
 		}
 	}
 	extra := pi.GetAdditionalOperations()
 	if extra == nil {
-		return ops
+		return operations
 	}
 	for method, src := range extra.All() {
 		if src == nil {
 			continue
 		}
-		ops = append(ops, pathOperation{
+		operations = append(operations, pathOperation{
 			method:     method,
 			seg:        ids.Ptr(additionalOperationsField, method),
 			src:        src,
 			additional: true,
 		})
 	}
-	return ops
+	return operations
 }
 
 // lowerPaths lowers every path operation in source order into groups, stopping
@@ -137,41 +137,41 @@ func lowerPaths(ctx context.Context, serviceContext service.Ctx, loweringState o
 func lowerPathItem(serviceContext service.Ctx, loweringState operationLoweringState, groups *serviceGroups, svc *ir.Service, path string, layers []layer,
 ) []ir.Diagnostic {
 	template, fragment, fragmented := pathRoute(path)
-	route := opContext{key: path, template: template, groups: groups}
+	route := operationContext{key: path, template: template, groups: groups}
 	ptr := ids.Ptr("paths", path)
 	mounted, diags := mountPathItem(loweringState, layers, mountSite{ptr: ptr, use: serviceContext, usePtr: ptr, residue: &svc.Unmodeled}, route)
-	for _, mountedOp := range mounted {
+	for _, mountedOperation := range mounted {
 		if fragmented {
-			diags = append(diags, keepFragment(serviceContext, &mountedOp.op, ptr, fragment)...)
+			diags = append(diags, keepFragment(serviceContext, &mountedOperation.operation, ptr, fragment)...)
 		}
-		grp := groups.place(mountedOp.levels)
-		grp.Operations = append(grp.Operations, mountedOp.op)
-		grp.Operations = append(grp.Operations, mountedOp.extra...)
-		for _, levels := range mountedOp.remounts {
+		grp := groups.place(mountedOperation.levels)
+		grp.Operations = append(grp.Operations, mountedOperation.operation)
+		grp.Operations = append(grp.Operations, mountedOperation.extra...)
+		for _, levels := range mountedOperation.remounts {
 			groups.place(levels)
 		}
 	}
 	return diags
 }
 
-// keepFragment keeps on op's HTTP binding the fragment the key at ptr carries,
+// keepFragment keeps on operation's HTTP binding the fragment the key at ptr carries,
 // which its URI template leaves out, verbatim and without its "#". It is text
 // whatever it spells, as a quoted scalar is, so "123" stays no number.
-func keepFragment(serviceContext service.Ctx, op *ir.Operation, ptr jsontext.Pointer, fragment string) []ir.Diagnostic {
+func keepFragment(serviceContext service.Ctx, operation *ir.Operation, ptr jsontext.Pointer, fragment string) []ir.Diagnostic {
 	text := &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.DoubleQuotedStyle, Value: fragment}
-	_, diags := annotation.PreserveNodeInto(&op.Bindings.HTTP[0].Unmodeled, annotation.EntryKey("", "fragment"), text,
+	_, diags := annotation.PreserveNodeInto(&operation.Bindings.HTTP[0].Unmodeled, annotation.EntryKey("", "fragment"), text,
 		ir.ReasonDegradedLowering, serviceContext.Place().At(ptr))
 	return diags
 }
 
-// mountedOp is one operation a path item mounts, the callback operations
+// mountedOperation is one operation a path item mounts, the callback operations
 // lowered under it, the groups its route files it in, nil on a route filing
 // none, and the further groups its filing names a remount under.
-type mountedOp struct {
-	op       ir.Operation
-	extra    []ir.Operation
-	levels   []groupLevel
-	remounts [][]groupLevel
+type mountedOperation struct {
+	operation ir.Operation
+	extra     []ir.Operation
+	levels    []groupLevel
+	remounts  [][]groupLevel
 }
 
 // mountSite is where a route mounts a path item: the pointer the operations it
@@ -196,52 +196,52 @@ type mountSite struct {
 // keeps what its layers declare in at.residue instead (preserveUnmounted).
 // route holds what the route sets on every operation; each brings its own
 // method, pointers and parameters.
-func mountPathItem(loweringState operationLoweringState, layers []layer, at mountSite, route opContext) ([]mountedOp, []ir.Diagnostic) {
+func mountPathItem(loweringState operationLoweringState, layers []layer, at mountSite, route operationContext) ([]mountedOperation, []ir.Diagnostic) {
 	mount := at.ptr
-	ops := mountedOperations(layers)
+	operations := mountedOperations(layers)
 	owner, diags := precedence(layers)
 	params := itemParams(layers)
 	named, serverDiags := itemServers(loweringState.servers, layers, owner)
 	diags = append(diags, serverDiags...)
-	if len(ops) == 0 {
+	if len(operations) == 0 {
 		return nil, append(diags, preserveUnmounted(layers, owner, named, at)...)
 	}
 	var kept ir.Unmodeled
 	var docs ir.Docs
 	diags = append(diags, applyLayers(layers, owner, onOperations(&kept, &docs))...)
 	keptBytes, serverBytes := keptWeight(kept)+docsWeight(docs), serversWeight(named)
-	mounted := make([]mountedOp, 0, len(ops))
-	for _, lo := range ops {
-		layer, po := layers[lo.layer], lo.op
+	mounted := make([]mountedOperation, 0, len(operations))
+	for _, lo := range operations {
+		layer, po := layers[lo.layer], lo.operation
 		// An additionalOperations entry is charged what it copies (chargeItemCopy),
 		// as the fixed methods, which bound their own copies, are not; and none
 		// lowers once the budget is crossed, whatever copy crossed it.
 		if po.additional && service.ExpansionCrossed(layer.in) {
 			break // the document is refused, so no copy past the budget lowers
 		}
-		opCtx := route
-		opCtx.method = po.method
-		opCtx.ptrs = opPointers{mount: mount + po.seg, decl: layer.decl + po.seg}
-		opCtx.params = mergeParameters(layer.in.Bindings(), params, po.src.GetParameters(), opCtx.ptrs.decl)
+		operationCtx := route
+		operationCtx.method = po.method
+		operationCtx.ptrs = operationPointers{mount: mount + po.seg, decl: layer.decl + po.seg}
+		operationCtx.params = mergeParameters(layer.in.Bindings(), params, po.src.GetParameters(), operationCtx.ptrs.decl)
 		var filed filing
 		if route.groups != nil {
-			filed = route.groups.filingFor(layer.in, po.src, opCtx.ptrs.decl, route.template)
-			opCtx.inferred = filed.inferred
+			filed = route.groups.filingFor(layer.in, po.src, operationCtx.ptrs.decl, route.template)
+			operationCtx.inferred = filed.inferred
 			diags = append(diags, filed.diags...)
 		}
-		op, extra, opDiags := lowerOperation(layer.in, loweringState, po.src, opCtx)
-		diags = append(diags, opDiags...)
-		takes := len(op.Servers) == 0
+		operation, extra, operationDiags := lowerOperation(layer.in, loweringState, po.src, operationCtx)
+		diags = append(diags, operationDiags...)
+		takes := len(operation.Servers) == 0
 		if takes {
-			op.Servers = slices.Clone(named)
+			operation.Servers = slices.Clone(named)
 		}
-		diags = append(diags, keepOn(&op, kept, docs)...)
-		diags = append(diags, promoteOperation(layer.in.Promoter(), &op)...)
-		mounted = append(mounted, mountedOp{op: op, extra: extra, levels: filed.levels, remounts: filed.remounts})
+		diags = append(diags, keepOn(&operation, kept, docs)...)
+		diags = append(diags, promoteOperation(layer.in.Promoter(), &operation)...)
+		mounted = append(mounted, mountedOperation{operation: operation, extra: extra, levels: filed.levels, remounts: filed.remounts})
 		if po.additional {
 			// mergeParameters puts the operation's own parameters first, so what
 			// follows them is what it takes of its item's.
-			chargeItemCopy(layer.in, keptBytes, chosen(takes, serverBytes), opCtx.params[len(po.src.GetParameters()):])
+			chargeItemCopy(layer.in, keptBytes, chosen(takes, serverBytes), operationCtx.params[len(po.src.GetParameters()):])
 		}
 	}
 	return mounted, diags
@@ -255,18 +255,18 @@ func chosen(taken bool, weight int) int {
 	return 0
 }
 
-// keepOn writes onto op a copy of each entry its mount's layers keep, and the
-// path's documentation, docs, into the PathDocs of each of op's HTTP bindings.
+// keepOn writes onto operation a copy of each entry its mount's layers keep, and the
+// path's documentation, docs, into the PathDocs of each of operation's HTTP bindings.
 // Both are computed once a mount, since nothing in them depends on the
-// operation; only the writing repeats (GitHub #414). An entry op already holds
+// operation; only the writing repeats (GitHub #414). An entry operation already holds
 // is never replaced (annotation.CopyEntriesInto), though none should be: every
-// kept key sits beneath pathItemScope, which none of op's own writers spells,
+// kept key sits beneath pathItemScope, which none of operation's own writers spells,
 // its census escaping a "/" in a key it keeps (GitHub #1323).
-func keepOn(op *ir.Operation, kept ir.Unmodeled, docs ir.Docs) []ir.Diagnostic {
-	for i := range op.Bindings.HTTP {
-		op.Bindings.HTTP[i].PathDocs = docs
+func keepOn(operation *ir.Operation, kept ir.Unmodeled, docs ir.Docs) []ir.Diagnostic {
+	for i := range operation.Bindings.HTTP {
+		operation.Bindings.HTTP[i].PathDocs = docs
 	}
-	return annotation.CopyEntriesInto(&op.Unmodeled, kept)
+	return annotation.CopyEntriesInto(&operation.Unmodeled, kept)
 }
 
 // applyPathItem keeps, on the carrier into, what a path item declares besides

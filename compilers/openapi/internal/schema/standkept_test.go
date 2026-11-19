@@ -302,8 +302,8 @@ func TestPrincipalKept_AWholeEntryThatCannotRenderIsKeptByKeyword(t *testing.T) 
 	for _, name := range []string{"Free", "Taken", "Shared"} {
 		at := "/components/schemas/" + name + "/allOf/0"
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, at+"/x-q"), "%s: the value is refused at its keyword", name)
-		for _, msg := range reportsAt(diags, at) {
-			assert.NotContains(t, msg, "in no form at all", "%s: the entry is in the IR", name)
+		for _, message := range reportsAt(diags, at) {
+			assert.NotContains(t, message, "in no form at all", "%s: the entry is in the IR", name)
 		}
 	}
 	assert.Len(t, reportsAt(diags, "/components/schemas/Free/allOf/0"), 2, "the bound's own report and the extension held otherwise")
@@ -639,8 +639,8 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 	diags := assertKept(t, cases)
 	for _, tc := range cases {
 		at := "/components/schemas/" + tc.name
-		for _, msg := range slices.Concat(reportsAt(diags, at+"/allOf/0"), reportsAt(diags, at+"/allOf/0/allOf/0")) {
-			assert.NotContains(t, msg, "another conjunct", "%s: no entry is kept whole for a keyword the position lowers from", tc.name)
+		for _, message := range slices.Concat(reportsAt(diags, at+"/allOf/0"), reportsAt(diags, at+"/allOf/0/allOf/0")) {
+			assert.NotContains(t, message, "another conjunct", "%s: no entry is kept whole for a keyword the position lowers from", tc.name)
 		}
 		if tc.name != "Alike" && tc.name != "Whole" && tc.name != "WholeAround" {
 			assert.Len(t, reportsAt(diags, at+"/allOf/0/allOf/0"), 1, "%s: the principal's keyword is named once, at its entry", tc.name)
@@ -666,7 +666,7 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 func TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce(t *testing.T) {
 	t.Parallel()
 	wrap := func(inner, minimum string) string { return "{allOf: [" + inner + "], minimum: " + minimum + "}" }
-	str := func(minimum string) string { return "{type: string, minimum: " + minimum + "}" }
+	stringSchema := func(minimum string) string { return "{type: string, minimum: " + minimum + "}" }
 	at := func(level int) string { return "/allOf/0" + strings.Repeat("/allOf/0", level-1) }
 	n := func(m string) string { return m + " [degraded_lowering]" }
 	obj := func(m string) string { return `{"minimum":` + m + `} [degraded_lowering]` }
@@ -674,19 +674,19 @@ func TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce(t *testing.T) {
 		keptCase
 		silent []int // levels that report nothing: their value is kept by another's writing
 	}{
-		{keptCase{name: "Two", schema: wrap(wrap(str("802"), "802"), "801"),
+		{keptCase{name: "Two", schema: wrap(wrap(stringSchema("802"), "802"), "801"),
 			kept: map[string]string{"openapi:minimum": n("801"), "openapi:allOf/0": obj("802")}, atEntry: 1, atSelf: 1}, []int{2}},
-		{keptCase{name: "Skip", schema: wrap(wrap(wrap(str("5"), "6"), "5"), "1"),
+		{keptCase{name: "Skip", schema: wrap(wrap(wrap(stringSchema("5"), "6"), "5"), "1"),
 			kept:    map[string]string{"openapi:minimum": n("1"), "openapi:allOf/0": obj("5"), "openapi:allOf/0/allOf/0": obj("6")},
 			atEntry: 1, atSelf: 1}, []int{3}},
-		{keptCase{name: "All", schema: wrap(wrap(wrap(str("5"), "5"), "5"), "1"),
+		{keptCase{name: "All", schema: wrap(wrap(wrap(stringSchema("5"), "5"), "5"), "1"),
 			kept: map[string]string{"openapi:minimum": n("1"), "openapi:allOf/0": obj("5")}, atEntry: 1, atSelf: 1}, []int{2, 3}},
-		{keptCase{name: "TwoInner", schema: wrap(wrap(str("802"), "801"), "802"),
+		{keptCase{name: "TwoInner", schema: wrap(wrap(stringSchema("802"), "801"), "802"),
 			kept: map[string]string{"openapi:minimum": n("802"), "openapi:allOf/0": obj("801")}, atEntry: 1}, nil},
-		{keptCase{name: "SkipInner", schema: wrap(wrap(wrap(str("5"), "6"), "7"), "5"),
+		{keptCase{name: "SkipInner", schema: wrap(wrap(wrap(stringSchema("5"), "6"), "7"), "5"),
 			kept:    map[string]string{"openapi:minimum": n("5"), "openapi:allOf/0": obj("7"), "openapi:allOf/0/allOf/0": obj("6")},
 			atEntry: 1}, nil},
-		{keptCase{name: "AllInner", schema: wrap(wrap(wrap(str("5"), "6"), "6"), "5"),
+		{keptCase{name: "AllInner", schema: wrap(wrap(wrap(stringSchema("5"), "6"), "6"), "5"),
 			kept: map[string]string{"openapi:minimum": n("5"), "openapi:allOf/0": obj("6")}, atEntry: 1}, []int{2}},
 		{keptCase{name: "Foo", schema: "{allOf: [{allOf: [{type: string, foo: 2}], foo: 2}], foo: 1}",
 			kept: map[string]string{"openapi:foo": "1 [out_of_scope]", "openapi:allOf/0": `{"foo":2} [out_of_scope]`}, atEntry: 1}, []int{2}},

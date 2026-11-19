@@ -27,8 +27,8 @@ func checkPrefixBindings(doc *ir.Document) walkCheck {
 			if v.Type() != operationType {
 				return operationPath[v.Type()]
 			}
-			if op, ok := reflect.TypeAssert[ir.Operation](v); ok {
-				vs = appendPrefixBindingViolations(vs, doc.Types, &op, at)
+			if operation, ok := reflect.TypeAssert[ir.Operation](v); ok {
+				vs = appendPrefixBindingViolations(vs, doc.Types, &operation, at)
 			}
 			return false
 		},
@@ -37,24 +37,24 @@ func checkPrefixBindings(doc *ir.Document) walkCheck {
 }
 
 // appendPrefixBindingViolations appends what is wrong with each binding under
-// a prefix among op's HTTP bindings, op sitting at at.
-func appendPrefixBindingViolations(vs []Violation, types ir.TypeRegistry, op *ir.Operation, at ir.WalkPath,
+// a prefix among operation's HTTP bindings, operation sitting at at.
+func appendPrefixBindingViolations(vs []Violation, types ir.TypeRegistry, operation *ir.Operation, at ir.WalkPath,
 ) []Violation {
-	for i := range op.Bindings.HTTP {
-		for j, pb := range op.Bindings.HTTP[i].ParamBindings {
+	for i := range operation.Bindings.HTTP {
+		for j, pb := range operation.Bindings.HTTP[i].ParamBindings {
 			if pb.Prefix == nil {
 				continue
 			}
 			where := at.String() + ".Bindings.HTTP[" + strconv.Itoa(i) + "].ParamBindings[" + strconv.Itoa(j) + "]"
-			vs = appendPrefixBindingViolation(vs, types, op, &pb, where)
+			vs = appendPrefixBindingViolation(vs, types, operation, &pb, where)
 		}
 	}
 	return vs
 }
 
 // appendPrefixBindingViolation appends what is wrong with pb, a binding under
-// a prefix of a parameter of op, at where.
-func appendPrefixBindingViolation(vs []Violation, types ir.TypeRegistry, op *ir.Operation, pb *ir.HTTPParamBinding,
+// a prefix of a parameter of operation, at where.
+func appendPrefixBindingViolation(vs []Violation, types ir.TypeRegistry, operation *ir.Operation, pb *ir.HTTPParamBinding,
 	where string,
 ) []Violation {
 	if pb.Location != ir.HTTPLocationHeader && pb.Location != ir.HTTPLocationQuery {
@@ -71,7 +71,7 @@ func appendPrefixBindingViolation(vs []Violation, types ir.TypeRegistry, op *ir.
 			Path:    where + ".WireName",
 		})
 	}
-	if ref, whole := wholeParamType(op, pb); whole && !reachesMap(types, ref) {
+	if ref, whole := wholeParamType(operation, pb); whole && !reachesMap(types, ref) {
 		vs = append(vs, Violation{
 			Code:    "ir/prefix-binding-not-map",
 			Message: "binding under a prefix binds a parameter of type " + strconv.Quote(string(ref.Target)) + ", which is no map",
@@ -81,16 +81,16 @@ func appendPrefixBindingViolation(vs []Violation, types ir.TypeRegistry, op *ir.
 	return vs
 }
 
-// wholeParamType returns the type of the parameter of op pb binds, where pb
+// wholeParamType returns the type of the parameter of operation pb binds, where pb
 // binds it whole. It is false for a binding of a member, and for one naming no
-// parameter of op, which pass/validate reports.
-func wholeParamType(op *ir.Operation, pb *ir.HTTPParamBinding) (ir.TypeRef, bool) {
+// parameter of operation, which pass/validate reports.
+func wholeParamType(operation *ir.Operation, pb *ir.HTTPParamBinding) (ir.TypeRef, bool) {
 	if len(pb.ParamPath) > 0 {
 		return ir.TypeRef{}, false
 	}
-	for i := range op.Params {
-		if op.Params[i].ID == pb.Param {
-			return op.Params[i].Type, true
+	for i := range operation.Params {
+		if operation.Params[i].ID == pb.Param {
+			return operation.Params[i].Type, true
 		}
 	}
 	return ir.TypeRef{}, false

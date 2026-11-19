@@ -38,10 +38,10 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 	assert.Equal(t, "user", named.Name.Canonical, "the framework supplies the neutral words")
 	assert.Empty(t, named.Name.Hint, "a named node needs no hint")
 
-	anon := commonFor(serviceContext.Ctx, "type/y", "/components/schemas/User/properties/id")
-	assert.True(t, anon.Anonymous, "an inline position declares no name")
-	assert.Empty(t, anon.Name.Source)
-	assert.Equal(t, "id", anon.Name.Hint, "only the hint survives: the property's key")
+	anonymous := commonFor(serviceContext.Ctx, "type/y", "/components/schemas/User/properties/id")
+	assert.True(t, anonymous.Anonymous, "an inline position declares no name")
+	assert.Empty(t, anonymous.Name.Source)
+	assert.Equal(t, "id", anonymous.Name.Hint, "only the hint survives: the property's key")
 }
 
 // TestCommonFor_StampsTheDeclaringPointer pins that the node records where it

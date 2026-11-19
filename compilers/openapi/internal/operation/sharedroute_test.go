@@ -60,9 +60,9 @@ func TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends(t *testing.T) 
 	}
 	got := map[ir.OperationID]binding{}
 	for _, operationGroup := range svc.Groups {
-		for _, op := range operationGroup.Operations {
-			hb := op.Bindings.HTTP[0]
-			got[op.ID] = binding{hint: op.Name.Hint, template: hb.URITemplate + hb.WebhookName, shared: hb.SharedRoute}
+		for _, operation := range operationGroup.Operations {
+			hb := operation.Bindings.HTTP[0]
+			got[operation.ID] = binding{hint: operation.Name.Hint, template: hb.URITemplate + hb.WebhookName, shared: hb.SharedRoute}
 		}
 	}
 	const p = "operation/openapi/paths/"
@@ -94,5 +94,5 @@ func TestSharedRoute_PathPrefixGroupsTheRoute(t *testing.T) {
 	assert.Equal(t, map[ir.GroupID][]ir.OperationID{
 		"operation-group/path-prefix/bearer": {"operation/openapi/paths/~1bearer#oauth2/get", "operation/openapi/paths/~1bearer~1x#apiKey/get"},
 		"operation-group/path-prefix":        {"operation/openapi/paths/~1#root/get"},
-	}, opsByGroup(t, svc.Groups))
+	}, operationsByGroup(t, svc.Groups))
 }

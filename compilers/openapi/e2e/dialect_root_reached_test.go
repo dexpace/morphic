@@ -80,13 +80,13 @@ func TestCompile_ASchemaAnotherLandingHoldsIsNotADialectRoot(t *testing.T) {
 		o = "    O: {$ref: '#/x-store/Outer'}\n"
 		p = "    P: {$ref: '#/x-store/Outer/properties/p'}\n"
 	)
-	const prop = ir.TypeID("type/anonymous/x-store/Outer/properties/p")
+	const property = ir.TypeID("type/anonymous/x-store/Outer/properties/p")
 	var first *ir.Document
 	for name, schemas := range map[string]string{"O first": o + p, "P first": p + o} {
 		doc, diags := compileText(t, "spec.yaml", rootNested+schemas, openapi.Options{})
 		require.NotNil(t, doc, name)
 		assert.Empty(t, rootErrors(diags), "%s: p is read in draft 4 from either reference: %+v", name, diags)
-		sc, ok := doc.Types[prop].(*ir.Scalar)
+		sc, ok := doc.Types[property].(*ir.Scalar)
 		require.True(t, ok, name)
 		require.NotNil(t, sc.Constraints, name)
 		require.NotNil(t, sc.Constraints.ExclusiveMin, "%s: an exclusive bound", name)

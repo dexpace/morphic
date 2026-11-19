@@ -28,11 +28,11 @@ type entryStack struct {
 // mapEntry is one map entry paired with its key as a path spells it, which also
 // orders the walk: label for a labelled key, num for an integer one.
 type mapEntry struct {
-	key   reflect.Value
-	value reflect.Value
-	label string
-	num   uint64
-	form  keyForm
+	key    reflect.Value
+	value  reflect.Value
+	label  string
+	number uint64
+	form   keyForm
 }
 
 // keyForm is how an entry or a path step holds a map key: as its label, or as
@@ -47,12 +47,12 @@ const (
 )
 
 // appendKey renders a key held in form onto b, as fmt's %v spells it.
-func appendKey(b []byte, form keyForm, num uint64, label string) []byte {
+func appendKey(b []byte, form keyForm, number uint64, label string) []byte {
 	switch form {
 	case signedKey:
-		return strconv.AppendInt(b, int64(num), 10)
+		return strconv.AppendInt(b, int64(number), 10)
 	case unsignedKey:
-		return strconv.AppendUint(b, num, 10)
+		return strconv.AppendUint(b, number, 10)
 	case labelledKey:
 	}
 	return append(b, label...)
@@ -60,7 +60,7 @@ func appendKey(b []byte, form keyForm, num uint64, label string) []byte {
 
 // appendLabel renders e's key onto b, as a path spells it.
 func (e mapEntry) appendLabel(b []byte) []byte {
-	return appendKey(b, e.form, e.num, e.label)
+	return appendKey(b, e.form, e.number, e.label)
 }
 
 // compareEntries orders two entries of one map by their keys' spellings, byte
@@ -115,9 +115,9 @@ func entryOf(k, val reflect.Value, form keyForm) mapEntry {
 	mapEntryValue := mapEntry{key: k, value: val, form: form}
 	switch form {
 	case signedKey:
-		mapEntryValue.num = uint64(k.Int())
+		mapEntryValue.number = uint64(k.Int())
 	case unsignedKey:
-		mapEntryValue.num = k.Uint()
+		mapEntryValue.number = k.Uint()
 	case labelledKey:
 		mapEntryValue.label = keyLabel(k)
 	}

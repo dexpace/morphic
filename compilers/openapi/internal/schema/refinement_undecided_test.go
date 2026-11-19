@@ -39,7 +39,7 @@ components:
 // parameter parameter lowered to, C as what its alias is a use of.
 func undecidedTargets(t *testing.T, doc *ir.Document) []ir.TypeRef {
 	t.Helper()
-	parameter, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+	parameter, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, doc.Services[0]), "q")
 	require.True(t, ok)
 	typeDef := typeByName(doc, "C")
 	if sc, isScalar := typeDef.(*ir.Scalar); isScalar && sc.Base != nil {
@@ -56,8 +56,8 @@ func undecidedTargets(t *testing.T, doc *ir.Document) []ir.TypeRef {
 func TestRefinementUndecided_ThePositionIsTheKindsItsEntriesAdmit(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
-		a, b string
-		prim ir.PrimitiveKind
+		a, b      string
+		primitive ir.PrimitiveKind
 	}{
 		"two formats":                   {"{type: string, format: email}", "{type: string, format: uuid}", ir.PrimitiveString},
 		"two overlapping enums":         {"{enum: [a, b]}", "{enum: [b, c]}", ir.PrimitiveString},
@@ -75,7 +75,7 @@ func TestRefinementUndecided_ThePositionIsTheKindsItsEntriesAdmit(t *testing.T) 
 				doc, diags := parseFull(t, undecidedSpec(order[0], order[1]))
 				openapitest.RequireNoErrorDiags(t, diags)
 				for _, ref := range undecidedTargets(t, doc) {
-					assert.Equal(t, ir.PrimitiveTypeID(tc.prim), ref.Target, "%v", order)
+					assert.Equal(t, ir.PrimitiveTypeID(tc.primitive), ref.Target, "%v", order)
 				}
 				kept := typeByName(doc, "C").Common().Unmodeled
 				assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1"}, unmodeledKeys(kept), "%v", order)

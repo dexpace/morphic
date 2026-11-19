@@ -206,32 +206,32 @@ components:
 func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 	t.Parallel()
 	tb := table(t, ownersSpec, nil)
-	const op = "/paths/~1a/post"
+	const operation = "/paths/~1a/post"
 	const json = "/content/application~1json/schema"
 	tests := []struct {
 		name, pointer, want string
 	}{
-		{"a request body, by its operation", op + "/requestBody" + json, "postA_request"},
-		{"beneath it, off that name", op + "/requestBody" + json + "/properties/x/items", compile.SubHint("x", "item")},
-		{"a pattern's schema beneath it, off that name", op + "/requestBody" + json + "/patternProperties/a",
+		{"a request body, by its operation", operation + "/requestBody" + json, "postA_request"},
+		{"beneath it, off that name", operation + "/requestBody" + json + "/properties/x/items", compile.SubHint("x", "item")},
+		{"a pattern's schema beneath it, off that name", operation + "/requestBody" + json + "/patternProperties/a",
 			compile.SubHint("postA_request", "pattern")},
-		{"an enum literal of it, off that name", op + "/requestBody" + json + "/enum/1",
+		{"an enum literal of it, off that name", operation + "/requestBody" + json + "/enum/1",
 			compile.SubHint("postA_request", "1")},
-		{"a variant of it multi-typed, by that name", op + "/requestBody" + json + "/type/1", "postA_request"},
-		{"an itemSchema, as its media type's item", op + "/requestBody/content/application~1jsonl/itemSchema",
+		{"a variant of it multi-typed, by that name", operation + "/requestBody" + json + "/type/1", "postA_request"},
+		{"an itemSchema, as its media type's item", operation + "/requestBody/content/application~1jsonl/itemSchema",
 			compile.SubHint("postA_request", "item")},
 		{"a request body no operationId names", "/paths/~1a/put/requestBody" + json, "request"},
 		{"a component request body, by its key", "/components/requestBodies/Body" + json, "Body"},
-		{"a response", op + "/responses/200" + json, "response"},
-		{"a tuple slot beneath it, off that name", op + "/responses/200" + json + "/prefixItems/1",
+		{"a response", operation + "/responses/200" + json, "response"},
+		{"a tuple slot beneath it, off that name", operation + "/responses/200" + json + "/prefixItems/1",
 			compile.SubHint("response", "1")},
 		{"a component response, by its key", "/components/responses/Err" + json, "Err"},
-		{"a parameter, by its name", op + "/parameters/0/schema", "limit"},
-		{"a parameter's content", op + "/parameters/1" + json, "filter"},
+		{"a parameter, by its name", operation + "/parameters/0/schema", "limit"},
+		{"a parameter's content", operation + "/parameters/1" + json, "filter"},
 		{"a path item's parameter", "/paths/~1a/parameters/0/schema", "shared"},
 		{"a component parameter, by its name", "/components/parameters/P/schema", "page"},
-		{"a header, by its key", op + "/responses/200/headers/X-Rate/schema", "X-Rate"},
-		{"a header's content", op + "/responses/200/headers/X-Body" + json, "X-Body"},
+		{"a header, by its key", operation + "/responses/200/headers/X-Rate/schema", "X-Rate"},
+		{"a header's content", operation + "/responses/200/headers/X-Body" + json, "X-Body"},
 		{"a component header, by its key", "/components/headers/Trace/schema", "Trace"},
 		{"a component media type, by its key", "/components/mediaTypes/Events/schema", "Events"},
 		{"a component media type's itemSchema, as its item", "/components/mediaTypes/Events/itemSchema",
@@ -239,12 +239,12 @@ func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 		{`a component media type keyed ""`, "/components/mediaTypes//schema", ""},
 		{`its items, off that name`, "/components/mediaTypes//schema/items", compile.SubHint("", "item")},
 		{`its itemSchema, as its item`, "/components/mediaTypes//itemSchema", compile.SubHint("", "item")},
-		{"a callback's request body", op + "/callbacks/onEvent/{$request.body#~1url}/post/requestBody" + json,
+		{"a callback's request body", operation + "/callbacks/onEvent/{$request.body#~1url}/post/requestBody" + json,
 			"notify_request"},
 		{"a webhook's request body", "/webhooks/hook/post/requestBody" + json, "onHook_request"},
 		{"a component path item's request body", "/components/pathItems/Item/get/requestBody" + json,
 			"getItem_request"},
-		{"a position the grammar reads as no schema, from its pointer", op + "/responses/200/description", "description"},
+		{"a position the grammar reads as no schema, from its pointer", operation + "/responses/200/description", "description"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -614,15 +614,15 @@ func TestAt_NamesASchemaByItsTitle(t *testing.T) {
 // titleRows are positions of titlesSpec, each with the name it takes where a
 // title names a schema.
 var titleRows = func() []struct{ name, pointer, want string } {
-	const op, json = "/paths/~1a/post", "/content/application~1json/schema"
+	const operation, json = "/paths/~1a/post", "/content/application~1json/schema"
 	const keyed = "/components/schemas/Keyed"
 	return []struct{ name, pointer, want string }{
-		{"a parameter's schema", op + "/parameters/0/schema", "page_size"},
-		{"a request body's schema", op + "/requestBody" + json, "new_thing"},
-		{"beneath it, a key still names a property", op + "/requestBody" + json + "/properties/x", "x"},
-		{"a header's schema", op + "/responses/200/headers/X-Rate/schema", "rate_window"},
-		{"a response's schema", op + "/responses/200" + json, "thing_page"},
-		{"beneath it, off the title", op + "/responses/200" + json + "/items", "thing_page_item"},
+		{"a parameter's schema", operation + "/parameters/0/schema", "page_size"},
+		{"a request body's schema", operation + "/requestBody" + json, "new_thing"},
+		{"beneath it, a key still names a property", operation + "/requestBody" + json + "/properties/x", "x"},
+		{"a header's schema", operation + "/responses/200/headers/X-Rate/schema", "rate_window"},
+		{"a response's schema", operation + "/responses/200" + json, "thing_page"},
+		{"beneath it, off the title", operation + "/responses/200" + json + "/items", "thing_page_item"},
 		{"a component schema keeps its key", keyed, "Keyed"},
 		{"a property's schema", keyed + "/properties/address", "postal_address"},
 		{"beneath it, a key still names a property", keyed + "/properties/address/properties/lines", "lines"},

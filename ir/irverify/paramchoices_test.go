@@ -13,7 +13,7 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-const choiceOp = "document.Services[0].Groups[0].Operations[0]"
+const choiceOperationPath = "document.Services[0].Groups[0].Operations[0]"
 
 // choiceParams are the parameter IDs choiceOperation declares.
 var choiceParams = []ir.ParameterID{"parameter/x/S/op/a/query", "parameter/x/S/op/b/query", "parameter/x/S/op/c/query"}
@@ -41,11 +41,11 @@ func choiceOf(name string, variants ...[]ir.ParameterID) ir.ParamChoice {
 	return ir.ParamChoice{Name: named(name), Variants: vs}
 }
 
-// choiceFindings returns what Verify reports about op as code at path, for the
+// choiceFindings returns what Verify reports about operation as code at path, for the
 // codes a choice among parameters can draw.
-func choiceFindings(op ir.Operation) []string {
+func choiceFindings(operation ir.Operation) []string {
 	var out []string
-	for _, violation := range irverify.Verify(opDoc(op)) {
+	for _, violation := range irverify.Verify(singleOperationDocument(operation)) {
 		switch violation.Code {
 		case "ir/param-choice-single", "ir/param-variant-empty", "ir/set-entry-duplicate", "ir/empty-parameter-ref":
 			out = append(out, violation.Code+" "+violation.Path)
@@ -82,36 +82,36 @@ func TestVerify_ParamChoicesAreHeldToTheirMeaning(t *testing.T) {
 		}, nil},
 		{"one variant", []ir.ParamChoice{
 			choiceOf("x", []ir.ParameterID{a}),
-		}, []string{"ir/param-choice-single " + choiceOp + ".ParamChoices[0]"}},
+		}, []string{"ir/param-choice-single " + choiceOperationPath + ".ParamChoices[0]"}},
 		{"the second choice has one variant", []ir.ParamChoice{
 			choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{b}),
 			choiceOf("y", []ir.ParameterID{parameterID}),
-		}, []string{"ir/param-choice-single " + choiceOp + ".ParamChoices[1]"}},
+		}, []string{"ir/param-choice-single " + choiceOperationPath + ".ParamChoices[1]"}},
 		{"no variant", []ir.ParamChoice{
 			{Name: named("x")},
-		}, []string{"ir/param-choice-single " + choiceOp + ".ParamChoices[0]"}},
+		}, []string{"ir/param-choice-single " + choiceOperationPath + ".ParamChoices[0]"}},
 		{"a variant with no parameter", []ir.ParamChoice{
 			choiceOf("x", []ir.ParameterID{a}, nil),
-		}, []string{"ir/param-variant-empty " + choiceOp + ".ParamChoices[0].Variants[1]"}},
+		}, []string{"ir/param-variant-empty " + choiceOperationPath + ".ParamChoices[0].Variants[1]"}},
 		{"a parameter listed twice in a variant", []ir.ParamChoice{
 			choiceOf("x", []ir.ParameterID{a, a}, []ir.ParameterID{b}),
-		}, []string{"ir/set-entry-duplicate " + choiceOp + ".ParamChoices[0].Variants[0].Params[1]"}},
+		}, []string{"ir/set-entry-duplicate " + choiceOperationPath + ".ParamChoices[0].Variants[0].Params[1]"}},
 		{"an empty parameter ID", []ir.ParamChoice{
 			choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{""}),
-		}, []string{"ir/empty-parameter-ref " + choiceOp + ".ParamChoices[0].Variants[1].Params[0]"}},
+		}, []string{"ir/empty-parameter-ref " + choiceOperationPath + ".ParamChoices[0].Variants[1].Params[0]"}},
 		{"an empty parameter ID listed twice", []ir.ParamChoice{
 			choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{"", ""}),
 		}, []string{
-			"ir/empty-parameter-ref " + choiceOp + ".ParamChoices[0].Variants[1].Params[0]",
-			"ir/empty-parameter-ref " + choiceOp + ".ParamChoices[0].Variants[1].Params[1]",
+			"ir/empty-parameter-ref " + choiceOperationPath + ".ParamChoices[0].Variants[1].Params[0]",
+			"ir/empty-parameter-ref " + choiceOperationPath + ".ParamChoices[0].Variants[1].Params[1]",
 		}},
 		{"a choice with no name", []ir.ParamChoice{
 			{Variants: choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{b}).Variants},
-		}, []string{"ir/naming-absent " + choiceOp + ".ParamChoices[0].Name"}},
+		}, []string{"ir/naming-absent " + choiceOperationPath + ".ParamChoices[0].Name"}},
 		{"a variant with no name", []ir.ParamChoice{{Name: named("x"), Variants: []ir.ParamVariant{
 			{Name: named("one"), Params: []ir.ParameterID{a}},
 			{Params: []ir.ParameterID{b}},
-		}}}, []string{"ir/naming-absent " + choiceOp + ".ParamChoices[0].Variants[1].Name"}},
+		}}}, []string{"ir/naming-absent " + choiceOperationPath + ".ParamChoices[0].Variants[1].Name"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -120,10 +120,10 @@ func TestVerify_ParamChoicesAreHeldToTheirMeaning(t *testing.T) {
 	}
 }
 
-// allFindings returns every violation Verify reports about op as code and
+// allFindings returns every violation Verify reports about operation as code and
 // path.
-func allFindings(op ir.Operation) []string {
-	vs := irverify.Verify(opDoc(op))
+func allFindings(operation ir.Operation) []string {
+	vs := irverify.Verify(singleOperationDocument(operation))
 	out := make([]string, 0, len(vs))
 	for _, violation := range vs {
 		out = append(out, violation.Code+" "+violation.Path)

@@ -28,9 +28,9 @@ const (
 // of: the operation carrying it, the list it sits in, and where in the list.
 // The default response is the one of ListDefault, at Index 0.
 type ResponseKey struct {
-	Op    ir.OperationID
-	List  ResponseList
-	Index int
+	Operation ir.OperationID
+	List      ResponseList
+	Index     int
 }
 
 // CompiledDocumentView is a finished document as the steps after the lowerings
@@ -44,10 +44,10 @@ type ResponseKey struct {
 type CompiledDocumentView struct {
 	// Types is the document's registry, which is whole.
 	Types ir.TypeRegistry
-	// Ops is every operation of every service, those of nested groups included
+	// Operations is every operation of every service, those of nested groups included
 	// to ir.MaxGroupDepth, as pointers into the document, a service's before
 	// the next's.
-	Ops []*ir.Operation
+	Operations []*ir.Operation
 	// Auth is the document's security schemes, the map the document holds.
 	Auth map[ir.AuthID]ir.AuthScheme
 
@@ -81,7 +81,7 @@ func New(doc *ir.Document) *CompiledDocumentView {
 		flatten: ir.FlattenedProperties,
 	}
 	for i := range doc.Services {
-		compiledDocumentView.Ops = append(compiledDocumentView.Ops, operations(&doc.Services[i])...)
+		compiledDocumentView.Operations = append(compiledDocumentView.Operations, operations(&doc.Services[i])...)
 	}
 	return compiledDocumentView
 }
@@ -150,27 +150,27 @@ func (w *CompiledDocumentView) Members(id ir.TypeID) []*ir.Property {
 	if !ok {
 		return nil
 	}
-	if props, read := w.members[model.ID]; read {
-		return props
+	if properties, read := w.members[model.ID]; read {
+		return properties
 	}
-	var props []*ir.Property
+	var irProperties []*ir.Property
 	if flat := w.flatten(w.Types, model.ID); len(flat.Properties) > 0 {
-		props = make([]*ir.Property, len(flat.Properties))
+		irProperties = make([]*ir.Property, len(flat.Properties))
 		for i := range flat.Properties {
-			props[i] = flat.Properties[i].Property
+			irProperties[i] = flat.Properties[i].Property
 		}
 	}
-	w.members[model.ID] = props
-	return props
+	w.members[model.ID] = irProperties
+	return irProperties
 }
 
-// Params returns op's parameters by where its HTTP bindings place them,
+// Params returns operation's parameters by where its HTTP bindings place them,
 // indexed at the first ask and kept.
-func (w *CompiledDocumentView) Params(op *ir.Operation) ParamIndex {
-	ix, indexed := w.params[op.ID]
+func (w *CompiledDocumentView) Params(operation *ir.Operation) ParamIndex {
+	ix, indexed := w.params[operation.ID]
 	if !indexed {
-		ix = indexParams(op)
-		w.params[op.ID] = ix
+		ix = indexParams(operation)
+		w.params[operation.ID] = ix
 	}
 	return ix
 }

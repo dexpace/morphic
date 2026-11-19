@@ -179,21 +179,21 @@ func (w *walker) spell(t types.Type, depth int) (string, error) {
 	case *types.Basic:
 		return basic(t)
 	case *types.Pointer:
-		elem, err := w.spell(t.Elem(), depth+1)
-		return "*" + elem, err
+		element, err := w.spell(t.Elem(), depth+1)
+		return "*" + element, err
 	case *types.Slice:
-		elem, err := w.spell(t.Elem(), depth+1)
-		return "[]" + elem, err
+		element, err := w.spell(t.Elem(), depth+1)
+		return "[]" + element, err
 	case *types.Array:
-		elem, err := w.spell(t.Elem(), depth+1)
-		return fmt.Sprintf("[%d]%s", t.Len(), elem), err
+		element, err := w.spell(t.Elem(), depth+1)
+		return fmt.Sprintf("[%d]%s", t.Len(), element), err
 	case *types.Map:
 		key, err := w.spell(t.Key(), depth+1)
 		if err != nil {
 			return "", err
 		}
-		elem, err := w.spell(t.Elem(), depth+1)
-		return "map[" + key + "]" + elem, err
+		element, err := w.spell(t.Elem(), depth+1)
+		return "map[" + key + "]" + element, err
 	default:
 		return "", fmt.Errorf("%s has no shape a description spells", t)
 	}

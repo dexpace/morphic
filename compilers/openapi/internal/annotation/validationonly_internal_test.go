@@ -235,7 +235,7 @@ func TestClosesAfterComposition_OnlyWhereNoAdditionalPropertiesStandsBeside(t *t
 func TestValidationOnlyAt_AnInertUnevaluatedKeywordNamesWhatLeavesItInert(t *testing.T) {
 	t.Parallel()
 	const (
-		props = "unevaluatedProperties beside additionalProperties applies to no property, " +
+		properties = "unevaluatedProperties beside additionalProperties applies to no property, " +
 			"since additionalProperties evaluates each one it would"
 		items = "unevaluatedItems beside items applies to no element, since items evaluates each one it would"
 		plain = `validation-only keyword "unevaluated" kept verbatim under Unmodeled`
@@ -244,11 +244,11 @@ func TestValidationOnlyAt_AnInertUnevaluatedKeywordNamesWhatLeavesItInert(t *tes
 		"unevaluatedProperties: false\n": plain,
 		"properties: {a: {}}\npatternProperties: {'^x': {}}\nunevaluatedProperties: false\n":     plain,
 		"prefixItems: [{}]\ncontains: {}\nunevaluatedItems: false\n":                             plain,
-		"additionalProperties: true\nunevaluatedProperties: false\n":                             props + "; both kept verbatim under Unmodeled",
+		"additionalProperties: true\nunevaluatedProperties: false\n":                             properties + "; both kept verbatim under Unmodeled",
 		"items: true\nunevaluatedItems: false\n":                                                 items + "; both kept verbatim under Unmodeled",
-		"additionalProperties: true\nunevaluatedProperties: false\nunevaluatedItems: false\n":    props + "; " + plain,
+		"additionalProperties: true\nunevaluatedProperties: false\nunevaluatedItems: false\n":    properties + "; " + plain,
 		"unevaluatedProperties: false\nitems: true\nunevaluatedItems: false\n":                   items + "; " + plain,
-		"additionalProperties: {}\nunevaluatedProperties: {}\nitems: {}\nunevaluatedItems: {}\n": props + "; " + items + "; " + plain,
+		"additionalProperties: {}\nunevaluatedProperties: {}\nitems: {}\nunevaluatedItems: {}\n": properties + "; " + items + "; " + plain,
 	} {
 		got, diags := validationOnlyAt(standaloneSchema(schemaFromYAML(t, body)), "/S", sourced(0), Dialect{}, true, false)
 		require.Contains(t, got, "openapi:unevaluated", "%s", body)

@@ -147,9 +147,9 @@ func TestUnknownKeys_SchemaAndObjectAreGradedApart(t *testing.T) {
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/unknown-schema-keyword", "/components/schemas/S/additionalItems"))
 
-	op, ok := opByName(doc, "listWidgets")
+	operation, ok := operationByName(doc, "listWidgets")
 	require.True(t, ok)
-	key := unmodeledEntry(t, op.Unmodeled, "openapi:operationid")
+	key := unmodeledEntry(t, operation.Unmodeled, "openapi:operationid")
 	assert.Equal(t, ir.ReasonOutOfScope, key.Reason,
 		"OpenAPI defines no such key, so no IR node is coming for it either")
 	assert.Equal(t, jsontext.Pointer("/paths/~1widgets/get/operationid"), key.Provenance.Pointer)
@@ -408,10 +408,10 @@ paths:
     bogusPathItem: 1
     get: {operationId: getX, responses: {"200": {description: ok}}}
 `)
-	op, ok := opByName(doc, "getX")
+	operation, ok := operationByName(doc, "getX")
 	require.True(t, ok)
 
-	entry := unmodeledEntry(t, op.Unmodeled, "openapi:pathItem/bogusPathItem")
+	entry := unmodeledEntry(t, operation.Unmodeled, "openapi:pathItem/bogusPathItem")
 	assert.JSONEq(t, `1`, string(entry.Value), "the key keeps the value the source wrote")
 	assert.Equal(t, ir.ReasonOutOfScope, entry.Reason,
 		"OpenAPI defines no such key on a path item, so no IR node is coming for it")
@@ -475,7 +475,7 @@ components:
 	// for each mount the walk reaches. Both items here have to reach it, the
 	// $ref'd one included, or the rows above hold over a walk that never looked.
 	for _, name := range []string{"getP", "getY"} {
-		_, ok := opByName(doc, name)
+		_, ok := operationByName(doc, name)
 		assert.True(t, ok, "%s lowers, so the census ran on the path item declaring it", name)
 	}
 }

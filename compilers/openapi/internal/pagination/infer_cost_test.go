@@ -60,11 +60,11 @@ func inferBytes(t *testing.T, src string, operations int) float64 {
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size fills its paginations alike")
 		filled := 0
-		for _, op := range compileddoc.New(doc).Ops {
-			if op.Pagination != nil {
+		for _, operation := range compileddoc.New(doc).Operations {
+			if operation.Pagination != nil {
 				filled++
 			}
-			op.Pagination = nil
+			operation.Pagination = nil
 		}
 		require.Equal(t, operations, filled)
 		fewest = min(fewest, float64(after.TotalAlloc-before.TotalAlloc))

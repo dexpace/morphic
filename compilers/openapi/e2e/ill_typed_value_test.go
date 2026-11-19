@@ -194,10 +194,10 @@ func TestCompile_ABooleanWrittenWithAValueOf30IsReadAsLeftOut(t *testing.T) {
 	for _, diagnostic := range diags {
 		assert.Equal(t, ir.SeverityError, diagnostic.Severity, "%+v", diagnostic)
 	}
-	ops := allOperations(doc)
-	require.Len(t, ops, 1)
-	require.Len(t, ops[0].Params, 2)
-	for _, parameter := range ops[0].Params {
+	operations := allOperations(doc)
+	require.Len(t, operations, 1)
+	require.Len(t, operations[0].Params, 2)
+	for _, parameter := range operations[0].Params {
 		assert.False(t, parameter.Required, "%s is not required: the field is left out", parameter.Name.Source)
 		assert.False(t, parameter.Type.Nullable, "%s is not nullable", parameter.Name.Source)
 		assert.Nil(t, parameter.Deprecation, "%s carries no deprecation", parameter.Name.Source)
@@ -250,9 +250,9 @@ func TestCompile_AScalarOrSequenceTaggedOutsideTheRulesetIsReadAsLeftOut(t *test
 		"/info/title", "/info/version", "/info/summary", "/security", "/paths/~1b/get/operationId",
 		"/paths/~1b/get/tags", "/paths/~1b/get/parameters/0/$ref",
 	} {
-		msg, ok := got[pointer]
+		message, ok := got[pointer]
 		assert.True(t, ok, "no error at %s: %+v", pointer, diags)
-		assert.Contains(t, msg, "outside YAML 1.2's JSON schema ruleset, to which OpenAPI 3.1 limits tags (Format)", pointer)
+		assert.Contains(t, message, "outside YAML 1.2's JSON schema ruleset, to which OpenAPI 3.1 limits tags (Format)", pointer)
 	}
 	assert.Contains(t, got["/info/title"], `it is tagged "!local"`)
 	assert.Contains(t, got["/info/summary"], `it is tagged "!!binary"`)
@@ -331,10 +331,10 @@ func TestCompile_AValueAMergeBringsToAPlaceAcceptingItStaysAsWritten(t *testing.
 
 	require.NotNil(t, doc)
 	assert.Len(t, byCode(diags, typeMismatch), 1, "the schema refuses required: true: %+v", diags)
-	ops := allOperations(doc)
-	require.Len(t, ops, 1)
-	require.Len(t, ops[0].Params, 1)
-	assert.True(t, ops[0].Params[0].Required, "the parameter accepts what the merge brings it")
+	operations := allOperations(doc)
+	require.Len(t, operations, 1)
+	require.Len(t, operations[0].Params, 1)
+	assert.True(t, operations[0].Params[0].Required, "the parameter accepts what the merge brings it")
 }
 
 // TestCompile_ACycleFixtureWritingASharedNodeAsSchemaAndPropertiesKeepsItsCycle
@@ -369,13 +369,13 @@ func TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs(t *testing.T) {
 	require.NotNil(t, inlineDoc)
 	require.NotNil(t, aliasedDoc)
 	for name, doc := range map[string]*ir.Document{"inline": inlineDoc, "aliased": aliasedDoc} {
-		ops := allOperations(doc)
-		require.Len(t, ops, 1, name)
-		require.Len(t, ops[0].Params, 1, name)
-		assert.False(t, ops[0].Params[0].Required, "%s: q is not required", name)
-		require.NotEmpty(t, ops[0].Bindings.HTTP, name)
-		require.Len(t, ops[0].Bindings.HTTP[0].ParamBindings, 1, name)
-		assert.Nil(t, ops[0].Bindings.HTTP[0].ParamBindings[0].Explode, "%s: its binding states no explode", name)
+		operations := allOperations(doc)
+		require.Len(t, operations, 1, name)
+		require.Len(t, operations[0].Params, 1, name)
+		assert.False(t, operations[0].Params[0].Required, "%s: q is not required", name)
+		require.NotEmpty(t, operations[0].Bindings.HTTP, name)
+		require.Len(t, operations[0].Bindings.HTTP[0].ParamBindings, 1, name)
+		assert.Nil(t, operations[0].Bindings.HTTP[0].ParamBindings[0].Explode, "%s: its binding states no explode", name)
 	}
 	assert.Equal(t, []string{"/paths/~1a/get/parameters/0/explode", "/paths/~1a/get/parameters/0/required"}, pointersOf(inlineDiags))
 	assert.Equal(t, pointersOf(inlineDiags), pointersOf(aliasedDiags),
@@ -410,10 +410,10 @@ func TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt(t *testing.T
 
 			require.NotNil(t, doc)
 			assert.Equal(t, []string{row.at}, pointersOf(diags), "%+v", diags)
-			ops := allOperations(doc)
-			require.Len(t, ops, 1)
-			require.Len(t, ops[0].Params, 1)
-			assert.False(t, ops[0].Params[0].Required, "required is read as left out")
+			operations := allOperations(doc)
+			require.Len(t, operations, 1)
+			require.Len(t, operations[0].Params, 1)
+			assert.False(t, operations[0].Params[0].Required, "required is read as left out")
 			assert.True(t, containsJSON(t, doc, `"string":"yes"`), "the value renders what the source wrote")
 		})
 	}

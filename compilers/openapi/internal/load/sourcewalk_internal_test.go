@@ -190,8 +190,8 @@ func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
 	assert.Less(t, put, index("/paths/~1a/put/callbacks/cb/{$request.body#~1url}/delete"))
 	count := 0
 	for item := range walkSource(t.Context(), doc, sibs, MediaTypes{}) {
-		_ = item.Match(soa.Matcher{Operation: func(op *soa.Operation) error {
-			if op == sibs.list[0].Item.Put() {
+		_ = item.Match(soa.Matcher{Operation: func(operation *soa.Operation) error {
+			if operation == sibs.list[0].Item.Put() {
 				count++
 			}
 			return nil

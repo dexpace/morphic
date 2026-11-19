@@ -19,8 +19,8 @@ func (c *correlator) seedTypes() {
 		if ir.IsNilTypeDef(td) {
 			continue
 		}
-		if prim, ok := td.(*ir.Primitive); ok {
-			c.offerType(segment("prim", string(prim.PrimitiveKind)), id, td)
+		if primitive, ok := td.(*ir.Primitive); ok {
+			c.offerType(segment("prim", string(primitive.PrimitiveKind)), id, td)
 			continue
 		}
 		common := td.Common()

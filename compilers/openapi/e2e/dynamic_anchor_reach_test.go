@@ -28,8 +28,8 @@ const (
 	dynListPoint  = "/List/items/$dynamicRef"
 )
 
-// dynStrList declares the same name in the source and reaches the List.
-const dynStrList = "    StrList:\n      $id: https://example.com/strlist\n      $ref: 'list'\n" +
+// dynStringList declares the same name in the source and reaches the List.
+const dynStringList = "    StrList:\n      $id: https://example.com/strlist\n      $ref: 'list'\n" +
 	"      $defs:\n        items:\n          $dynamicAnchor: items\n          type: string\n"
 
 // dynKeptIn returns the infos at pointer of the source table's entry source,
@@ -51,8 +51,8 @@ func dynKeptIn(diags []ir.Diagnostic, source int) []ir.Diagnostic {
 func TestCompile_ADynamicRefAnotherDocumentsResourceReachesIsKept(t *testing.T) {
 	t.Parallel()
 	plain := "    Plain: {$ref: 'other.yaml#/List'}\n"
-	for name, schemas := range map[string]string{"StrList first": dynStrList + plain,
-		"Plain first": plain + dynStrList} {
+	for name, schemas := range map[string]string{"StrList first": dynStringList + plain,
+		"Plain first": plain + dynStringList} {
 		dir := t.TempDir()
 		layout(t, dir, map[string]string{"main.yaml": dynHead + schemas, "other.yaml": dynListOther})
 		doc, diags := compileDir(t, dir, openapi.Options{})
@@ -81,8 +81,8 @@ func TestCompile_ADynamicRefAnotherDocumentsResourceReachesIsKept(t *testing.T) 
 // nothing, so the reference expands to the anchor beside it.
 func TestCompile_ADynamicRefNoOtherDocumentDeclaresTheNameExpands(t *testing.T) {
 	t.Parallel()
-	notReaching := strings.Replace(dynStrList, "      $ref: 'list'\n", "", 1)
-	require.NotEqual(t, dynStrList, notReaching)
+	notReaching := strings.Replace(dynStringList, "      $ref: 'list'\n", "", 1)
+	require.NotEqual(t, dynStringList, notReaching)
 	plain := "    Plain: {$ref: 'other.yaml#/List'}\n"
 	for name, schemas := range map[string]string{"declaration removed": plain,
 		"declaration reaches nothing": notReaching + plain} {

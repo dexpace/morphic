@@ -79,15 +79,15 @@ func contentStream(serviceContext service.Ctx, mediaType string, item *ir.TypeRe
 // answer per direction no matter how many places a payload was assembled from,
 // and it is the only writer of the three streaming fields. What each direction
 // streams is settled later (streamElement); that it streams needs no other node.
-func applyStreaming(serviceContext service.Ctx, ts *compile.Types, op *ir.Operation, declPtr jsontext.Pointer) ir.Inferred {
-	request := streamCandidates(ts, op.Request)
-	response := responseCandidates(ts, op.Responses)
+func applyStreaming(serviceContext service.Ctx, ts *compile.Types, operation *ir.Operation, declPtr jsontext.Pointer) ir.Inferred {
+	request := streamCandidates(ts, operation.Request)
+	response := responseCandidates(ts, operation.Responses)
 	if len(request) == 0 && len(response) == 0 {
 		return ""
 	}
-	op.RequestStream = electStream(serviceContext, ts, request, declPtr+ids.Ptr("requestBody"), "request")
-	op.ResponseStream = electStream(serviceContext, ts, response, declPtr+ids.Ptr("responses"), "response")
-	op.Streaming = streamingMode(op.RequestStream != nil, op.ResponseStream != nil)
+	operation.RequestStream = electStream(serviceContext, ts, request, declPtr+ids.Ptr("requestBody"), "request")
+	operation.ResponseStream = electStream(serviceContext, ts, response, declPtr+ids.Ptr("responses"), "response")
+	operation.Streaming = streamingMode(operation.RequestStream != nil, operation.ResponseStream != nil)
 	var markers []ir.Inferred
 	for _, candidate := range slices.Concat(request, response) {
 		markers = append(markers, candidate.inferred)
@@ -178,7 +178,7 @@ func streamCandidates(ts *compile.Types, payload *ir.Payload) []streamCandidate 
 // bytes, whatever its docs or bounds say of the whole.
 func frameType(ts *compile.Types, content ir.Content) ir.TypeRef {
 	if content.File != nil {
-		return ts.PrimRef(ir.PrimitiveBytes)
+		return ts.PrimitiveRef(ir.PrimitiveBytes)
 	}
 	return content.Type
 }

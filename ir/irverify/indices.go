@@ -43,9 +43,9 @@ func checkIndices(*ir.Document) walkCheck {
 // entryReaderValue reads each SuccessStatus map. Keys need no sorting first:
 // every violation carries its own key in Path, and Verify orders the whole
 // result by (Code, Path) before returning it.
-func appendResponseIndexViolations(vs []Violation, entryReaderValue *entryReader, op reflect.Value, at ir.WalkPath) []Violation {
-	declared := op.FieldByName("Responses").Len()
-	bindings := op.FieldByName("Bindings").FieldByName("HTTP")
+func appendResponseIndexViolations(vs []Violation, entryReaderValue *entryReader, operation reflect.Value, at ir.WalkPath) []Violation {
+	declared := operation.FieldByName("Responses").Len()
+	bindings := operation.FieldByName("Bindings").FieldByName("HTTP")
 	for i := range bindings.Len() {
 		status := bindings.Index(i).FieldByName("SuccessStatus")
 		held := entryReaderValue.heldFor(status)
@@ -60,13 +60,13 @@ func appendResponseIndexViolations(vs []Violation, entryReaderValue *entryReader
 }
 
 // responseIndexViolation reports the SuccessStatus key index, on the binding-th
-// HTTP binding of the operation at op, as addressing none of its declared
+// HTTP binding of the operation at operation, as addressing none of its declared
 // responses.
-func responseIndexViolation(index, declared int, op ir.WalkPath, binding int) Violation {
+func responseIndexViolation(index, declared int, operation ir.WalkPath, binding int) Violation {
 	return Violation{
 		Code: "ir/response-index-out-of-range",
 		Message: "response index " + strconv.Itoa(index) + " addresses none of the " +
 			strconv.Itoa(declared) + " declared responses",
-		Path: op.String() + ".Bindings.HTTP[" + strconv.Itoa(binding) + "].SuccessStatus[" + strconv.Itoa(index) + "]",
+		Path: operation.String() + ".Bindings.HTTP[" + strconv.Itoa(binding) + "].SuccessStatus[" + strconv.Itoa(index) + "]",
 	}
 }

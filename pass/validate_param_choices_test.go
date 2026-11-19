@@ -47,10 +47,10 @@ func TestValidate_ParamChoiceNamesItsOwnOperation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			get := paramBindingOp("operation/x/get",
+			get := paramBindingOperation("operation/x/get",
 				ir.Parameter{ID: a, Name: ir.Naming{Source: "a"}}, ir.Parameter{ID: b, Name: ir.Naming{Source: "b"}})
 			get.ParamChoices = []ir.ParamChoice{tc.choice}
-			post := paramBindingOp("operation/x/post", ir.Parameter{ID: other, Name: ir.Naming{Source: "id"}})
+			post := paramBindingOperation("operation/x/post", ir.Parameter{ID: other, Name: ir.Naming{Source: "id"}})
 
 			diags := validated(t, docWithOperations(get, post))
 			assert.Equal(t, tc.want, mismatchesAt(diags))
@@ -67,7 +67,7 @@ func TestValidate_ParamChoiceNamesItsOwnOperation(t *testing.T) {
 func TestValidate_ParamChoiceNamingNoParameterIsDangling(t *testing.T) {
 	t.Parallel()
 	const a = ir.ParameterID("parameter/x/get/a/query")
-	get := paramBindingOp("operation/x/get", ir.Parameter{ID: a, Name: ir.Naming{Source: "a"}})
+	get := paramBindingOperation("operation/x/get", ir.Parameter{ID: a, Name: ir.Naming{Source: "a"}})
 	get.ParamChoices = []ir.ParamChoice{choiceBetween(a, "parameter/x/get/ghost/query")}
 
 	diags := validated(t, docWithOperation(get))

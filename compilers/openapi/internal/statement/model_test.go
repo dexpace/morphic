@@ -540,14 +540,14 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 		{"an alias to an anchored list", "*l", statement.Unwritten},
 		{"a tagged boolean", "!!bool false", statement.Nothing},
 	}
-	var props strings.Builder
+	var properties strings.Builder
 	for i, row := range rows {
-		fmt.Fprintf(&props, "        p%d: %s\n", i, row.value)
+		fmt.Fprintf(&properties, "        p%d: %s\n", i, row.value)
 	}
 	depth := typed.MaxMends + 2
 	chain := strings.Repeat("{type: array, items: ", depth) + "[{}]" + strings.Repeat("}", depth)
 	table, loweringContext := tableOver(t, openapitest.ComponentSpecVer("3.1.0",
-		"    A:\n      properties:\n"+props.String()+"    Chain: "+chain+"\n"), rulesAt(t, "3.1.0", ""))
+		"    A:\n      properties:\n"+properties.String()+"    Chain: "+chain+"\n"), rulesAt(t, "3.1.0", ""))
 
 	a := table.At(component(loweringContext, "A"))
 	require.Len(t, a.Object.Properties, len(rows))
@@ -644,12 +644,12 @@ func TestRead_AnExclusiveBoundHoldsTheArmTheModelRead(t *testing.T) {
 // finds none.
 func TestSchema_PropertyIsTheSubPropertiesLists(t *testing.T) {
 	t.Parallel()
-	var props strings.Builder
+	var properties strings.Builder
 	for i := range 40 {
-		fmt.Fprintf(&props, ", p%d: {title: t%d}", i, i)
+		fmt.Fprintf(&properties, ", p%d: {title: t%d}", i, i)
 	}
 	table, loweringContext := tableOver(t, document("3.1.0",
-		"W: {properties: {<<: {p7: {title: merged}}"+props.String()+"}}",
+		"W: {properties: {<<: {p7: {title: merged}}"+properties.String()+"}}",
 		"B: true",
 	), rulesAt(t, "3.1.0", ""))
 	schemaStatement := table.At(component(loweringContext, "W"))

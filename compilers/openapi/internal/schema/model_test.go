@@ -60,7 +60,7 @@ func TestModel_FourOptionalityStates(t *testing.T) {
 	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, model.Properties, 4)
-	byName := openapitest.PropsByWire(model.Properties)
+	byName := openapitest.PropertiesByWire(model.Properties)
 	assert.True(t, byName["reqPlain"].Required)
 	assert.False(t, byName["reqPlain"].Type.Nullable)
 	assert.True(t, byName["reqNull"].Required)
@@ -174,23 +174,23 @@ func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
 	t.Parallel()
 	const base = "    B: {type: object, properties: {b: {type: string}}}\n"
 	anyRef := &ir.AdditionalProperties{Value: &ir.TypeRef{Target: "type/primitive/any"}}
-	strRef := ir.TypeRef{Target: "type/primitive/string"}
+	stringRef := ir.TypeRef{Target: "type/primitive/string"}
 	for _, tc := range []struct {
 		name, schema string
 		catchAll     *ir.AdditionalProperties
 	}{
 		{"properties", `{type: object, properties: {a: {type: string}}, additionalProperties: true}`, anyRef},
 		{"patterns", `{type: object, patternProperties: {"^x-": {type: string}}, additionalProperties: {type: string}}`,
-			&ir.AdditionalProperties{Value: &strRef, Patterns: []ir.PatternProperties{{Pattern: "^x-", Value: strRef}}}},
+			&ir.AdditionalProperties{Value: &stringRef, Patterns: []ir.PatternProperties{{Pattern: "^x-", Value: stringRef}}}},
 		{"patterns beside no catch-all", `{type: object, patternProperties: {"^x-": {type: string}}}`,
-			&ir.AdditionalProperties{Value: anyRef.Value, Patterns: []ir.PatternProperties{{Pattern: "^x-", Value: strRef}}}},
+			&ir.AdditionalProperties{Value: anyRef.Value, Patterns: []ir.PatternProperties{{Pattern: "^x-", Value: stringRef}}}},
 		// A closed object admits no key the patterns miss, so nothing types one (#987).
 		{"patterns beside a closure", `{type: object, patternProperties: {"^x-": {type: string}}, additionalProperties: false}`,
-			&ir.AdditionalProperties{Patterns: []ir.PatternProperties{{Pattern: "^x-", Value: strRef}}}},
+			&ir.AdditionalProperties{Patterns: []ir.PatternProperties{{Pattern: "^x-", Value: stringRef}}}},
 		{"discriminator", `{type: object, additionalProperties: {type: string}, discriminator: {propertyName: kind}}`,
-			&ir.AdditionalProperties{Value: &strRef}},
+			&ir.AdditionalProperties{Value: &stringRef}},
 		{"base", `{allOf: [{$ref: '#/components/schemas/B'}], additionalProperties: {type: string}}`,
-			&ir.AdditionalProperties{Value: &strRef}},
+			&ir.AdditionalProperties{Value: &stringRef}},
 		{"unwritten", `{type: object}`, nil},
 		{"closed", `{type: object, additionalProperties: false}`, nil},
 	} {
@@ -248,26 +248,26 @@ func TestModel_PatternPropertiesOrder(t *testing.T) {
 // beside patterns alone, nothing types a key no pattern matches.
 func TestModel_UnevaluatedPropertiesClosedAfterComposition(t *testing.T) {
 	t.Parallel()
-	str, top := ir.TypeRef{Target: "type/primitive/string"}, ir.TypeRef{Target: "type/primitive/any"}
-	patterns := []ir.PatternProperties{{Pattern: "^x-", Value: str}}
-	const props, pattern = "properties: {a: {type: string}}", `patternProperties: {"^x-": {type: string}}`
+	stringType, top := ir.TypeRef{Target: "type/primitive/string"}, ir.TypeRef{Target: "type/primitive/any"}
+	patterns := []ir.PatternProperties{{Pattern: "^x-", Value: stringType}}
+	const properties, pattern = "properties: {a: {type: string}}", `patternProperties: {"^x-": {type: string}}`
 	for _, tc := range []struct {
 		name, schema string
 		mode         ir.AdditionalMode
 		catchAll     *ir.AdditionalProperties
 		kept         string
 	}{
-		{"live", "{type: object, " + props + ", unevaluatedProperties: false}",
+		{"live", "{type: object, " + properties + ", unevaluatedProperties: false}",
 			ir.AdditionalClosedAfterComposition, nil, ""},
-		{"live, untyped", "{" + props + ", unevaluatedProperties: false}",
+		{"live, untyped", "{" + properties + ", unevaluatedProperties: false}",
 			ir.AdditionalClosedAfterComposition, nil, ""},
-		{"a null additionalProperties is none", "{type: object, " + props + ", additionalProperties: null, unevaluatedProperties: false}",
+		{"a null additionalProperties is none", "{type: object, " + properties + ", additionalProperties: null, unevaluatedProperties: false}",
 			ir.AdditionalClosedAfterComposition, nil, ""},
-		{"beside true", "{type: object, " + props + ", additionalProperties: true, unevaluatedProperties: false}",
+		{"beside true", "{type: object, " + properties + ", additionalProperties: true, unevaluatedProperties: false}",
 			"", &ir.AdditionalProperties{Value: &top}, `{"additionalProperties":true,"unevaluatedProperties":false}`},
-		{"beside the empty schema", "{type: object, " + props + ", additionalProperties: {}, unevaluatedProperties: false}",
+		{"beside the empty schema", "{type: object, " + properties + ", additionalProperties: {}, unevaluatedProperties: false}",
 			"", &ir.AdditionalProperties{Value: &top}, `{"additionalProperties":{},"unevaluatedProperties":false}`},
-		{"beside false", "{type: object, " + props + ", additionalProperties: false, unevaluatedProperties: false}",
+		{"beside false", "{type: object, " + properties + ", additionalProperties: false, unevaluatedProperties: false}",
 			ir.AdditionalClosed, nil, `{"additionalProperties":false,"unevaluatedProperties":false}`},
 		{"patterns beside a live closure", "{type: object, " + pattern + ", unevaluatedProperties: false}",
 			ir.AdditionalClosedAfterComposition, &ir.AdditionalProperties{Patterns: patterns}, ""},
@@ -275,7 +275,7 @@ func TestModel_UnevaluatedPropertiesClosedAfterComposition(t *testing.T) {
 			ir.AdditionalClosed, &ir.AdditionalProperties{Patterns: patterns},
 			`{"additionalProperties":false,"unevaluatedProperties":false}`},
 		{"patterns beside a catch-all", "{type: object, " + pattern + ", additionalProperties: {type: string}, unevaluatedProperties: false}",
-			"", &ir.AdditionalProperties{Value: &str, Patterns: patterns},
+			"", &ir.AdditionalProperties{Value: &stringType, Patterns: patterns},
 			`{"additionalProperties":{"type":"string"},"unevaluatedProperties":false}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

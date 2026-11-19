@@ -141,10 +141,10 @@ type boundResidue struct {
 // The literal is the boolean the keyword was written as, which is the whole of
 // what it said; there is no numeric bound here to write back, because the
 // absence of one is the reason it is being kept at all.
-func (b *boundResidue) keepUnmodifiable(inclProp, exclProp string) ir.Diagnostic {
-	PreserveInto(&b.kept, "openapi:"+exclProp, ir.RawValue("true"),
-		ir.ReasonDegradedLowering, b.doc.At(b.pointer+ids.Ptr(exclProp)))
-	return unmodifiableExclusiveDiag(inclProp, exclProp)
+func (b *boundResidue) keepUnmodifiable(inclProperty, exclProperty string) ir.Diagnostic {
+	PreserveInto(&b.kept, "openapi:"+exclProperty, ir.RawValue("true"),
+		ir.ReasonDegradedLowering, b.doc.At(b.pointer+ids.Ptr(exclProperty)))
+	return unmodifiableExclusiveDiag(inclProperty, exclProperty)
 }
 
 // numericBounds fills Min, Max, and MultipleOf from the raw minimum/maximum/
@@ -152,15 +152,15 @@ func (b *boundResidue) keepUnmodifiable(inclProp, exclProp string) ir.Diagnostic
 // spells.
 func numericBounds(constraints *ir.Constraints, schema *statement.Schema) {
 	bounds := []struct {
-		prop string
-		dst  **ir.BigVal
+		property string
+		dst      **ir.BigVal
 	}{
 		{"minimum", &constraints.Min},
 		{"maximum", &constraints.Max},
 		{"multipleOf", &constraints.MultipleOf},
 	}
 	for _, b := range bounds {
-		node := keyNode(schema, b.prop)
+		node := keyNode(schema, b.property)
 		if node == nil {
 			continue
 		}
@@ -180,8 +180,8 @@ func numericBounds(constraints *ir.Constraints, schema *statement.Schema) {
 // the rule table's check reports it (Constraints).
 func applyExclusive(constraints *ir.Constraints, schema *statement.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
 	form := exclusiveForm(schema, side)
-	_, prop := boundProps(side)
-	node := keyNode(schema, prop)
+	_, property := boundProperties(side)
+	node := keyNode(schema, property)
 	if form == statement.NoExclusive || node == nil {
 		return nil
 	}
@@ -225,9 +225,9 @@ func applyExclusiveFlag(constraints *ir.Constraints, schema *statement.Schema, s
 	if !flag {
 		return nil
 	}
-	inclProp, exclProp := boundProps(side)
-	if keyNode(schema, inclProp) == nil {
-		return []ir.Diagnostic{residue.keepUnmodifiable(inclProp, exclProp)}
+	inclProperty, exclProperty := boundProperties(side)
+	if keyNode(schema, inclProperty) == nil {
+		return []ir.Diagnostic{residue.keepUnmodifiable(inclProperty, exclProperty)}
 	}
 	incl := inclusiveBound(constraints, side)
 	if *incl == nil {
@@ -238,8 +238,8 @@ func applyExclusiveFlag(constraints *ir.Constraints, schema *statement.Schema, s
 	return nil
 }
 
-// boundProps names the inclusive and exclusive keyword that bound one side.
-func boundProps(side boundSide) (inclProp, exclProp string) {
+// boundProperties names the inclusive and exclusive keyword that bound one side.
+func boundProperties(side boundSide) (inclProperty, exclProperty string) {
 	if side == minBound {
 		return "minimum", "exclusiveMinimum"
 	}
@@ -263,10 +263,10 @@ func inclusiveBound(constraints *ir.Constraints, side boundSide) **ir.BigVal {
 // unchecked, and an invalid schema is still a schema whose text a consumer may
 // need, so this is a warning over a kept construct rather than an error over a
 // dropped one.
-func unmodifiableExclusiveDiag(inclProp, exclProp string) ir.Diagnostic {
+func unmodifiableExclusiveDiag(inclProperty, exclProperty string) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, ir.Provenance{},
 		"%s is true with no %s beside it to make exclusive, so it bounds nothing; "+
-			"kept verbatim under Unmodeled", exclProp, inclProp)
+			"kept verbatim under Unmodeled", exclProperty, inclProperty)
 }
 
 // setExclusiveBound writes the exclusive bound of one side. It never touches

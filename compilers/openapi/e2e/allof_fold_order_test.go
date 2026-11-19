@@ -31,14 +31,14 @@ func TestAllOfFold_ModelsReportInTheOrderTheirIDsSort(t *testing.T) {
 	)
 	reported := map[string][]jsontext.Pointer{}
 	for name, tc := range map[string]struct {
-		props string
-		want  []jsontext.Pointer
+		properties string
+		want       []jsontext.Pointer
 	}{
-		"the field first":      {props: "{" + field + ", " + nested + "}", want: []jsontext.Pointer{r, p}},
-		"the held model first": {props: "{" + nested + ", " + field + "}", want: []jsontext.Pointer{r, p}},
+		"the field first":      {properties: "{" + field + ", " + nested + "}", want: []jsontext.Pointer{r, p}},
+		"the held model first": {properties: "{" + nested + ", " + field + "}", want: []jsontext.Pointer{r, p}},
 	} {
 		_, diags := parseFull(t, openapitest.ComponentSpec(
-			"    X:\n      allOf:\n        - properties: {p: {type: string}}\n        - properties: "+tc.props+"\n"))
+			"    X:\n      allOf:\n        - properties: {p: {type: string}}\n        - properties: "+tc.properties+"\n"))
 		var got []jsontext.Pointer
 		for _, diagnostic := range diags {
 			if diagnostic.Code == diag.ConflictingRedecl {
@@ -119,7 +119,7 @@ func foldedField(t *testing.T, first, second string) (string, []string) {
 	assertNoErrorDiags(t, diags)
 	model, ok := doc.Types[componentID("Sub")].(*ir.Model)
 	require.True(t, ok, "the allOf composes a model")
-	property, ok := propByWire(model, "b")
+	property, ok := propertyByWire(model, "b")
 	require.True(t, ok, "the field folds into one property")
 	var codes []string
 	for _, diagnostic := range diags {
@@ -133,9 +133,9 @@ func foldedField(t *testing.T, first, second string) (string, []string) {
 	case *ir.Scalar:
 		require.NotNil(t, td.Base)
 		require.NotNil(t, td.Encoding)
-		desc := fmt.Sprintf("%s %s", primAt(t, doc, *td.Base), td.Encoding.Name)
+		desc := fmt.Sprintf("%s %s", primitiveAt(t, doc, *td.Base), td.Encoding.Name)
 		if td.Encoding.WireType != nil {
-			desc += " " + string(primAt(t, doc, *td.Encoding.WireType))
+			desc += " " + string(primitiveAt(t, doc, *td.Encoding.WireType))
 		}
 		return desc, codes
 	default:
@@ -143,10 +143,10 @@ func foldedField(t *testing.T, first, second string) (string, []string) {
 	}
 }
 
-// primAt returns the primitive ref names, which it must.
-func primAt(t *testing.T, doc *ir.Document, ref ir.TypeRef) ir.PrimitiveKind {
+// primitiveAt returns the primitive ref names, which it must.
+func primitiveAt(t *testing.T, doc *ir.Document, ref ir.TypeRef) ir.PrimitiveKind {
 	t.Helper()
-	prim, ok := doc.Types[ref.Target].(*ir.Primitive)
+	primitive, ok := doc.Types[ref.Target].(*ir.Primitive)
 	require.True(t, ok, "%s is a primitive", ref.Target)
-	return prim.PrimitiveKind
+	return primitive.PrimitiveKind
 }

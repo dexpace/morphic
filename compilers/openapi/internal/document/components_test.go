@@ -118,7 +118,7 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.NotContains(t, doc.Unmodeled, "openapi:components/links/Next")
-	resp := openapitest.FindOp(t, doc, "a").Responses[0]
+	resp := openapitest.FindOperation(t, doc, "a").Responses[0]
 	require.Len(t, resp.Links, 1, "the entry lowers where the $ref is followed")
 	assert.Equal(t, "next", resp.Links[0].Name.Source)
 }
@@ -261,7 +261,7 @@ components:
 		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	require.Len(t, openapitest.FindOp(t, doc, "a").Params, 1, "the reference resolves and the parameter lowers")
+	require.Len(t, openapitest.FindOperation(t, doc, "a").Params, 1, "the reference resolves and the parameter lowers")
 	assert.NotContains(t, doc.Unmodeled, "openapi:components/parameters/P")
 }
 

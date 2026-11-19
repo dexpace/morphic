@@ -19,15 +19,15 @@ import (
 // bound once, which the cases below plant a value irverify refuses on.
 func verifyOnlyBase() *ir.Document {
 	name := func(s string) ir.Naming { return ir.Naming{Source: s, Canonical: s} }
-	prim := &ir.Primitive{ID: "type/primitive/string", Name: name("string"), PrimitiveKind: ir.PrimitiveString}
-	prim.Provenance = ir.Provenance{Source: ir.NoSource}
+	primitive := &ir.Primitive{ID: "type/primitive/string", Name: name("string"), PrimitiveKind: ir.PrimitiveString}
+	primitive.Provenance = ir.Provenance{Source: ir.NoSource}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
 		IDSpaces: map[string][]string{
 			"type": {"x"}, "operation": {"x"}, "service": {"x"}, "operation-group": {"x"}, "property": {"x"}, "parameter": {"x"}, "enum-member": {"x"},
 		},
 		Types: ir.TypeRegistry{
-			prim.ID: prim,
+			primitive.ID: primitive,
 			"type/x/M": &ir.Model{ID: "type/x/M", Name: name("m"), Properties: []ir.Property{
 				{ID: "property/x/M/a", Name: name("a"), Type: ir.TypeRef{Target: "type/primitive/string"}},
 			}},
@@ -40,7 +40,7 @@ func verifyOnlyBase() *ir.Document {
 			Operations: []ir.Operation{{
 				ID: "operation/x/o", Name: name("o"),
 				Params: []ir.Parameter{{ID: "parameter/x/o/q", Name: name("q"), Type: ir.TypeRef{Target: "type/primitive/string"}}},
-				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 					Method: "GET", URITemplate: "/o",
 					ParamBindings: []ir.HTTPParamBinding{{Param: "parameter/x/o/q", Location: ir.HTTPLocationQuery}},
 				}}},
@@ -69,7 +69,7 @@ func validateCodes(t *testing.T, doc *ir.Document) []string {
 func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 	t.Parallel()
 	model := func(document *ir.Document) *ir.Model { return document.Types["type/x/M"].(*ir.Model) }
-	op := func(document *ir.Document) *ir.Operation { return &document.Services[0].Groups[0].Operations[0] }
+	operation := func(document *ir.Document) *ir.Operation { return &document.Services[0].Groups[0].Operations[0] }
 	channel := ir.Naming{Source: "c", Canonical: "c"}
 	for _, tc := range []struct {
 		name string
@@ -79,16 +79,16 @@ func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 		{"additional mode", "ir/unknown-additional-mode", func(document *ir.Document) { model(document).Additional = "bogus" }},
 		{"presence", "ir/unknown-presence-kind", func(document *ir.Document) { model(document).Properties[0].Presence = "bogus" }},
 		{"http location", "ir/unknown-http-location", func(document *ir.Document) {
-			op(document).Bindings.HTTP[0].ParamBindings[0].Location = ""
+			operation(document).Bindings.HTTP[0].ParamBindings[0].Location = ""
 		}},
-		{"idempotency kind", "ir/unknown-idempotency-kind", func(document *ir.Document) { op(document).Idempotency.Kind = "bogus" }},
+		{"idempotency kind", "ir/unknown-idempotency-kind", func(document *ir.Document) { operation(document).Idempotency.Kind = "bogus" }},
 		{"page strategy", "ir/unknown-page-strategy", func(document *ir.Document) {
-			op(document).Pagination = &ir.Pagination{Strategy: "bogus"}
+			operation(document).Pagination = &ir.Pagination{Strategy: "bogus"}
 		}},
 		{"message direction", "ir/unknown-message-direction", func(document *ir.Document) {
 			document.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: channel}}
 			document.IDSpaces[ir.IDKindChannel] = []string{"x"}
-			op(document).Bindings.Message = &ir.MessageBinding{Channel: "channel/x/c", Direction: "bogus"}
+			operation(document).Bindings.Message = &ir.MessageBinding{Channel: "channel/x/c", Direction: "bogus"}
 		}},
 		{"severity", "ir/unknown-severity", func(document *ir.Document) {
 			document.Diagnostics = []ir.Diagnostic{{

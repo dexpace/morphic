@@ -52,8 +52,8 @@ func (idx *ModelPropertyDeclarations) Settle(merger Merger, tables map[ir.TypeID
 	diags := make([]ir.Diagnostic, 0, len(idx.byWire))
 	for _, fieldValue := range slices.SortedFunc(maps.Values(idx.byWire), func(a, b *field) int { return cmp.Compare(a.pos, b.pos) }) {
 		decls := slices.Clone(fieldValue.decls)
-		decls[0].prop = idx.m.Properties[fieldValue.pos]
-		wire := decls[0].prop.WireName
+		decls[0].property = idx.m.Properties[fieldValue.pos]
+		wire := decls[0].property.WireName
 		decls = inOrder(decls, brought[wire])
 		delete(brought, wire)
 		diags = append(diags, idx.settle(merger, fieldValue.pos, decls)...)
@@ -105,7 +105,7 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 		return deciding(diags, merged.ID)
 	}
 	own := slices.DeleteFunc(slices.Clone(decls), isBrought)
-	field := composedMember(merger.IDs, idx.m, decls[0].prop.WireName)
+	field := composedMember(merger.IDs, idx.m, decls[0].property.WireName)
 	kept := len(own) > 0 && idx.heldAlone(merger, own[0])
 	if kept {
 		_, field = fieldSpan(own[:min(len(own), maxFoldDeclarations)])
@@ -117,9 +117,9 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 	merged, diags := merger.foldAt(decls, field, assembled)
 	inferred := merged.Provenance.Inferred
 	if kept {
-		merged.ID, merged.Provenance = own[0].prop.ID, own[0].prop.Provenance
+		merged.ID, merged.Provenance = own[0].property.ID, own[0].property.Provenance
 	} else {
-		merged.ID, merged.Provenance = merger.IDs.ComposedProp(field), merger.Doc.At(field, assembled...)
+		merged.ID, merged.Provenance = merger.IDs.ComposedProperty(field), merger.Doc.At(field, assembled...)
 	}
 	merged.Provenance.Inferred = inferred
 	if i := slices.Index(idx.m.Requires, merged.WireName); i >= 0 {
@@ -145,7 +145,7 @@ const maxTypeSites = 2 * maxFoldDeclarations
 func (g *Merger) typeSites(merged ir.Property, decls []declaration) []ir.Provenance {
 	var naming [][]ir.Provenance
 	for _, declaration := range decls {
-		if declaration.prop.Type.Target == merged.Type.Target {
+		if declaration.property.Type.Target == merged.Type.Target {
 			naming = append(naming, declaration.sites())
 		}
 	}
@@ -275,7 +275,7 @@ func isBrought(declarationValue declaration) bool { return declarationValue.via 
 // a distributed variant shares with its siblings is not, and no schema between
 // the two stands as a node of its own (Merger.carriedApart).
 func (idx *ModelPropertyDeclarations) heldAlone(merger Merger, declarationValue declaration) bool {
-	model, at := idx.m.Provenance.Pointer, declarationValue.prop.Provenance.Pointer
+	model, at := idx.m.Provenance.Pointer, declarationValue.property.Provenance.Pointer
 	return model.Contains(at) && !merger.carriedApart(at, model)
 }
 
@@ -526,9 +526,9 @@ func TakenOutside(member ir.FlatProperty, from ir.TypeID) (ir.PropertyDecl, bool
 // its marker is read as covering that too (declaration.secretBy), as
 // foldAnnotations reads one covering a deprecation.
 func broughtDeclaration(from Declared, via *composedEntry) declaration {
-	declarationValue := declaration{prop: *from.Property, order: via.order, via: via, typeAt: from.TypeAt, owner: from.Owner}
-	if declarationValue.prop.Secret {
-		declarationValue.secretBy = declarationValue.prop.Provenance.Inferred
+	declarationValue := declaration{property: *from.Property, order: via.order, via: via, typeAt: from.TypeAt, owner: from.Owner}
+	if declarationValue.property.Secret {
+		declarationValue.secretBy = declarationValue.property.Provenance.Inferred
 	}
 	return declarationValue
 }

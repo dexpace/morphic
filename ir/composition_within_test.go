@@ -30,7 +30,7 @@ func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropertyID) {
 	declared := types[:n:n]
 	types = append(types, "ghost", "nilm", "")
 	pick := func() ir.TypeID { return types[rng.IntN(len(types))] }
-	props := []ir.PropertyID{"property/ghost"}
+	properties := []ir.PropertyID{"property/ghost"}
 	doc := irtest.DocOf()
 	for _, id := range declared {
 		if rng.IntN(4) == 0 {
@@ -40,8 +40,8 @@ func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropertyID) {
 		doc.Types[id] = irtest.ModelOf(id, func(model *ir.Model) {
 			for range rng.IntN(3) {
 				propertyID := ir.PropertyID(fmt.Sprintf("p%d", rng.IntN(8)))
-				model.Properties = append(model.Properties, prop(propertyID))
-				props = append(props, propertyID)
+				model.Properties = append(model.Properties, property(propertyID))
+				properties = append(properties, propertyID)
 			}
 			if rng.IntN(2) == 0 {
 				model.Base = &ir.TypeRef{Target: pick()}
@@ -51,7 +51,7 @@ func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropertyID) {
 		})
 	}
 	doc.Types["nilm"] = (*ir.Model)(nil)
-	return doc, types, props
+	return doc, types, properties
 }
 
 // pickSome returns up to two IDs from pick.
@@ -89,14 +89,14 @@ func requireWithinAgrees(t *testing.T, walk within, want bool, what string) {
 func TestWithin_AnswersAsTheUnlimitedWalk(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(300) {
-		doc, types, props := withinRandom(rand.New(rand.NewPCG(seed, seed+11)))
+		doc, types, properties := withinRandom(rand.New(rand.NewPCG(seed, seed+11)))
 		for _, a := range types {
 			for _, b := range types {
 				requireWithinAgrees(t, func(limit int) (bool, int, bool) { return ir.IsSubtypeWithin(doc, a, b, limit) },
 					ir.IsSubtype(doc, a, b), fmt.Sprintf("seed %d: IsSubtypeWithin(%q, %q)", seed, a, b))
 			}
 			exposed := ir.ExposedProperties(doc, a)
-			for _, propertyID := range props {
+			for _, propertyID := range properties {
 				requireWithinAgrees(t, func(limit int) (bool, int, bool) { return ir.ExposesWithin(doc, a, propertyID, limit) },
 					exposed[propertyID], fmt.Sprintf("seed %d: ExposesWithin(%q, %q)", seed, a, propertyID))
 			}
@@ -137,24 +137,24 @@ func TestExposesWithin_CountsEachSourceAndProperty(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		irtest.ModelOf("m", func(model *ir.Model) {
-			model.Properties = []ir.Property{prop("m.a"), prop("m.b"), prop("m.c")}
+			model.Properties = []ir.Property{property("m.a"), property("m.b"), property("m.c")}
 			model.Mixins = irtest.RefsTo("viaAlias", "ghost")
 		}),
 		irtest.ScalarOf("viaAlias", "n"),
-		irtest.ModelOf("n", func(model *ir.Model) { model.Properties = []ir.Property{prop("n.p"), prop("n.q")} }),
+		irtest.ModelOf("n", func(model *ir.Model) { model.Properties = []ir.Property{property("n.p"), property("n.q")} }),
 	)
 	for _, tc := range []struct {
-		prop    ir.PropertyID
-		exposed bool
-		steps   int
+		property ir.PropertyID
+		exposed  bool
+		steps    int
 	}{
 		{"m.a", true, 2},            // model, its first property
 		{"n.p", true, 8},            // model and its three properties, ghost, viaAlias, n, n.p
 		{"property/none", false, 9}, // every type and property: model, three, ghost, viaAlias, n, two
 		{"n.q", true, 9},            // the last property read
 	} {
-		exposed, spent, ok := ir.ExposesWithin(doc, "m", tc.prop, math.MaxInt)
-		assert.Equal(t, []any{tc.exposed, tc.steps, true}, []any{exposed, spent, ok}, "m exposes %s", tc.prop)
+		exposed, spent, ok := ir.ExposesWithin(doc, "m", tc.property, math.MaxInt)
+		assert.Equal(t, []any{tc.exposed, tc.steps, true}, []any{exposed, spent, ok}, "m exposes %s", tc.property)
 	}
 	exposed, spent, ok := ir.ExposesWithin(nil, "m", "m.a", 5)
 	assert.Equal(t, []any{false, 0, true}, []any{exposed, spent, ok}, "no document exposes nothing, in no steps")

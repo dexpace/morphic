@@ -84,8 +84,8 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := parseFull(t, tc.spec)
-			msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, tc.pointer)
-			assert.Contains(t, msg, `unresolved $ref "#/components/schemas/Ghost"`,
+			message := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, tc.pointer)
+			assert.Contains(t, message, `unresolved $ref "#/components/schemas/Ghost"`,
 				"the load phase's own report, with the resolver's reason")
 		})
 	}
@@ -465,7 +465,7 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 		"/components/schemas/Abs: the $ref names it by an absolute path, which a read follows only when external references are allowed",
 		"/components/schemas/URI: it is named by a file URI, which a read follows only when external references are allowed",
 	}, reasons)
-	assert.Contains(t, types, ids.In("inner/real.yaml").AnonType("/X"), "the relative $ref is followed")
+	assert.Contains(t, types, ids.In("inner/real.yaml").AnonymousType("/X"), "the relative $ref is followed")
 	for _, run := range []struct{ cwd, path string }{
 		{link, "root.yaml"}, {dir, filepath.Join(dir, "root.yaml")}, {link, filepath.Join(link, "root.yaml")},
 	} {
@@ -564,7 +564,7 @@ func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 				"%s from %s, external references allowed: %v", run.spec, run.cwd, allow)
 			require.Len(t, doc.Sources, 2, "%s from %s, external references allowed: %v", run.spec, run.cwd, allow)
 			assert.Equal(t, "foo:b.yaml", filepath.Base(doc.Sources[1].Path), "the file the dot segment names")
-			assert.Contains(t, doc.Types, ids.In("foo:b.yaml").AnonType("/B"), "the dot-segment $ref is followed")
+			assert.Contains(t, doc.Types, ids.In("foo:b.yaml").AnonymousType("/B"), "the dot-segment $ref is followed")
 		}
 	}
 }
@@ -590,7 +590,7 @@ func TestCompile_ARefAnIDAnswersIsNeverRefusedUnread(t *testing.T) {
 
 		pet, ok := doc.Types[component("Pet")].(*ir.Model)
 		require.True(t, ok, "Pet is a Model")
-		kind, ok := propByWire(pet, "kind")
+		kind, ok := propertyByWire(pet, "kind")
 		require.True(t, ok, "Pet declares kind")
 		assert.Equal(t, component("Kind"), kind.Type.Target, "external references allowed: %v", allow)
 		assert.Equal(t, `unresolved $ref "urn:example:none": the document it names could not be read: `+
@@ -631,10 +631,10 @@ func TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt(t *testing.T) {
 
 		pet, ok := doc.Types[ids.DocumentIDNamespace{}.ForPointer("/components/schemas/Pet")].(*ir.Model)
 		require.True(t, ok, "Pet is a Model")
-		tag, ok := propByWire(pet, "tag")
+		tag, ok := propertyByWire(pet, "tag")
 		require.True(t, ok, "Pet declares tag")
-		assert.Equal(t, ids.In("schemas/tag.json").AnonType("/T"), tag.Type.Target, "external references allowed: %v", allow)
-		for _, beside := range []ir.TypeID{ids.In("tag.json").AnonType("/T"), ids.In("b.yaml").AnonType("/B")} {
+		assert.Equal(t, ids.In("schemas/tag.json").AnonymousType("/T"), tag.Type.Target, "external references allowed: %v", allow)
+		for _, beside := range []ir.TypeID{ids.In("tag.json").AnonymousType("/T"), ids.In("b.yaml").AnonymousType("/B")} {
 			assert.NotContains(t, doc.Types, beside, "the file beside the source is never read")
 		}
 		unresolved := openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/S/properties/b")
@@ -693,10 +693,10 @@ func TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling(t *testing.T) {
 			slices.Sort(got)
 			assert.Equal(t, []string{"abs.yaml#/Y: " + refused, "root.yaml#/paths/~1x/get/parameters/0: " + refused}, got,
 				"%v as %s", order, path)
-			scalar, ok := doc.Types[ids.In("rel.yaml").AnonType("/W")].(*ir.Scalar)
+			scalar, ok := doc.Types[ids.In("rel.yaml").AnonymousType("/W")].(*ir.Scalar)
 			require.True(t, ok, "%v as %s", order, path)
 			require.NotNil(t, scalar.Base)
-			assert.Equal(t, ids.In("b.yaml").AnonType("/B"), scalar.Base.Target, "the relative $ref is followed")
+			assert.Equal(t, ids.In("b.yaml").AnonymousType("/B"), scalar.Base.Target, "the relative $ref is followed")
 			types = append(types, doc.Types)
 		}
 		assert.Empty(t, cmp.Diff(types[0], types[1]), "%v: the IDs do not depend on how the spec was named", order)
@@ -740,12 +740,12 @@ func TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Empty(t, diags)
-	pet := ids.In(srv.URL + "/schemas/pet.yaml").AnonType("/Pet")
+	pet := ids.In(srv.URL + "/schemas/pet.yaml").AnonymousType("/Pet")
 	assert.Contains(t, doc.Types, pet, "the schema the absolute path names, read from the host")
-	ops := doc.Services[0].Groups[0].Operations
-	require.Len(t, ops, 1)
-	names := make([]string, 0, len(ops[0].Params))
-	for _, parameter := range ops[0].Params {
+	operations := doc.Services[0].Groups[0].Operations
+	require.Len(t, operations, 1)
+	names := make([]string, 0, len(operations[0].Params))
+	for _, parameter := range operations[0].Params {
 		names = append(names, parameter.Name.Source)
 	}
 	assert.Equal(t, []string{"p", "n"}, names, "each parameter the network-path reference and the absolute path name")
@@ -962,10 +962,10 @@ func TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled(t *testi
 			require.NotNil(t, doc)
 
 			assert.Empty(t, rec.locations(), "the source is not fetched again")
-			op, ok := opByName(doc, "a")
+			operation, ok := operationByName(doc, "a")
 			require.True(t, ok)
-			require.Len(t, op.Params, 1)
-			assert.Equal(t, "own", op.Params[0].Name.Source, "the source's own parameter")
+			require.Len(t, operation.Params, 1)
+			assert.Equal(t, "own", operation.Params[0].Name.Source, "the source's own parameter")
 		})
 	}
 }
@@ -1100,8 +1100,8 @@ func TestCompile_AFileNamedLikeAURLIsReadAsAFile(t *testing.T) {
 			require.NotNil(t, doc)
 
 			assert.Empty(t, diags, "located at %q, external references allowed: %v", location, allow)
-			assert.Contains(t, doc.Types, ids.In("file:x.yaml").AnonType("/F"))
-			assert.Contains(t, doc.Types, ids.In("http:h.yaml").AnonType("/H"))
+			assert.Contains(t, doc.Types, ids.In("file:x.yaml").AnonymousType("/F"))
+			assert.Contains(t, doc.Types, ids.In("http:h.yaml").AnonymousType("/H"))
 			require.Len(t, doc.Services[0].Groups[0].Operations, 1)
 			assert.Len(t, doc.Services[0].Groups[0].Operations[0].Params, 2, "each parameter is read")
 		}

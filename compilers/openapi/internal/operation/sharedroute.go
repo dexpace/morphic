@@ -34,10 +34,10 @@ func (g *serviceGroups) markSharedRoutes() {
 // client sends that an operation the groups hold carries, and its route.
 func (g *serviceGroups) eachRoutedBinding(visit func(*ir.HTTPBinding, route)) {
 	for _, id := range g.order {
-		ops := g.byID[id].Operations
-		for i := range ops {
-			for j := range ops[i].Bindings.HTTP {
-				if hb := &ops[i].Bindings.HTTP[j]; hb.Inbound == "" {
+		operations := g.byID[id].Operations
+		for i := range operations {
+			for j := range operations[i].Bindings.HTTP {
+				if hb := &operations[i].Bindings.HTTP[j]; hb.Inbound == "" {
 					visit(hb, route{method: hb.Method, shape: routeShape(hb.URITemplate)})
 				}
 			}

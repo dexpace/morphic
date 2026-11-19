@@ -34,7 +34,7 @@ func redactUse(policy SecretInference, promoter promotion.Promoter, reg ir.TypeR
 		return
 	}
 	ch, ok := readChain(promoter, reg, typeRef.Target)
-	if !ok || ch.sensitive || ch.spoken || ch.prim != ir.PrimitiveString && ch.prim != ir.PrimitiveBytes {
+	if !ok || ch.sensitive || ch.spoken || ch.primitive != ir.PrimitiveString && ch.primitive != ir.PrimitiveBytes {
 		return
 	}
 	*secret = true

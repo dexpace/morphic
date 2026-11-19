@@ -58,7 +58,7 @@ func carriedProperty(t *testing.T, doc *ir.Document) ir.Property {
 	t.Helper()
 	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok, "component S must lower to a model")
-	property, ok := propByWire(model, "f")
+	property, ok := propertyByWire(model, "f")
 	require.True(t, ok, "the model must carry property f")
 	return property
 }
@@ -66,9 +66,9 @@ func carriedProperty(t *testing.T, doc *ir.Document) ir.Property {
 // carriedParameter returns the single parameter carrierParamSpec declares.
 func carriedParameter(t *testing.T, doc *ir.Document) ir.Parameter {
 	t.Helper()
-	op, ok := opByName(doc, "op")
+	operation, ok := operationByName(doc, "op")
 	require.True(t, ok, "the operation must lower")
-	parameter, ok := openapitest.ParamBySource(op, "q")
+	parameter, ok := openapitest.ParamBySource(operation, "q")
 	require.True(t, ok, "the operation must carry parameter q")
 	return parameter
 }
@@ -347,13 +347,13 @@ func TestAnnotationRetention_CarriersDifferWhereTheirFieldsDo(t *testing.T) {
 	t.Parallel()
 	const body = `{type: string, xml: {name: AtCarrier}, readOnly: true}`
 
-	propDoc, diags := compileAnnotationSpec(t, "carrier-property", carrierPropertySpec(body))
+	propertyDoc, diags := compileAnnotationSpec(t, "carrier-property", carrierPropertySpec(body))
 	assertNoErrorDiags(t, diags)
-	prop := carriedProperty(t, propDoc)
-	require.NotNil(t, prop.XML, "ir.Property has an XML field")
-	assert.NotEmpty(t, prop.Visibility.Only, "and a Visibility field")
-	assert.NotContains(t, prop.Unmodeled, "openapi:xml", "so neither is kept verbatim there")
-	assert.NotContains(t, prop.Unmodeled, "openapi:readOnly")
+	property := carriedProperty(t, propertyDoc)
+	require.NotNil(t, property.XML, "ir.Property has an XML field")
+	assert.NotEmpty(t, property.Visibility.Only, "and a Visibility field")
+	assert.NotContains(t, property.Unmodeled, "openapi:xml", "so neither is kept verbatim there")
+	assert.NotContains(t, property.Unmodeled, "openapi:readOnly")
 
 	paramDoc, diags := compileAnnotationSpec(t, "carrier-parameter", carrierParamSpec(body))
 	assertNoErrorDiags(t, diags)

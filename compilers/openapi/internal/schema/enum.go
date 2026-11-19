@@ -59,7 +59,7 @@ func lowerEnum(loweringContext lowering.Ctx, ts *compile.Types, site valueSetSit
 		diags = append(diags, enumRepeats(loweringContext, entries, written)...)
 		kept, keptDiags := enumEntries(loweringContext, schema, entries, written)
 		diags = append(diags, keptDiags...)
-		members, memberPrim, ok := enumMembers(kept, common.ID)
+		members, memberPrimitive, ok := enumMembers(kept, common.ID)
 		if !ok {
 			def, enumDiags := enumAsUnion(loweringContext, ts, site, common, kept)
 			diags = append(diags, enumDiags...)
@@ -67,7 +67,7 @@ func lowerEnum(loweringContext lowering.Ctx, ts *compile.Types, site valueSetSit
 		}
 		return &ir.Enum{
 			TypeCommon: common,
-			ValueType:  site.enumType(loweringContext, func(primitiveKind ir.PrimitiveKind) bool { return enumMembersAre(members, primitiveKind) }, memberPrim),
+			ValueType:  site.enumType(loweringContext, func(primitiveKind ir.PrimitiveKind) bool { return enumMembersAre(members, primitiveKind) }, memberPrimitive),
 			Members:    members,
 			Closed:     true,
 		}
@@ -215,9 +215,9 @@ func emptyEnum(loweringContext lowering.Ctx, site valueSetSite, common ir.TypeCo
 func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimitiveKind, bool) {
 	members := make([]ir.EnumMember, 0, len(entries))
 	occurrences := make(map[string]int, len(entries))
-	prim := ir.PrimitiveAny
+	primitive := ir.PrimitiveAny
 	for i, enumEntry := range entries {
-		memberPrim, text, admissible := enumMemberOf(entries, i)
+		memberPrimitive, text, admissible := enumMemberOf(entries, i)
 		if !admissible {
 			return nil, "", false
 		}
@@ -227,14 +227,14 @@ func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.Primi
 		if !keyed || !placed {
 			return nil, "", false
 		}
-		prim = memberPrim
+		primitive = memberPrimitive
 		members = append(members, ir.EnumMember{
 			ID:    id,
 			Name:  ir.NamingFor(text),
 			Value: enumEntry.val,
 		})
 	}
-	return members, prim, true
+	return members, primitive, true
 }
 
 // enumMemberOf classifies the entry at index i of entries as an Enum member, as
@@ -248,27 +248,27 @@ func enumMemberOf(entries []enumEntry, i int) (ir.PrimitiveKind, string, bool) {
 	return enumMemberForm(enumEntryValue.val)
 }
 
-// enumMemberPrim is the PrimitiveKind enumMembers gives entries, and false
+// enumMemberPrimitive is the PrimitiveKind enumMembers gives entries, and false
 // where it refuses one (enumMemberOf), read with no member built: a value
 // enumMemberForm admits always has a key, and a type's ID always places one. A
 // position asking only its ValueType names no member (enumSetType).
-func enumMemberPrim(entries []enumEntry) (ir.PrimitiveKind, bool) {
-	prim := ir.PrimitiveAny
+func enumMemberPrimitive(entries []enumEntry) (ir.PrimitiveKind, bool) {
+	primitive := ir.PrimitiveAny
 	for i := range entries {
-		memberPrim, _, admissible := enumMemberOf(entries, i)
+		memberPrimitive, _, admissible := enumMemberOf(entries, i)
 		if !admissible {
 			return "", false
 		}
-		prim = memberPrim
+		primitive = memberPrimitive
 	}
-	return prim, true
+	return primitive, true
 }
 
-// entriesAre reports whether every entry's value is a value of prim, as
+// entriesAre reports whether every entry's value is a value of primitive, as
 // enumMembersAre asks of the members they lower to.
-func entriesAre(entries []enumEntry, prim ir.PrimitiveKind) bool {
+func entriesAre(entries []enumEntry, primitive ir.PrimitiveKind) bool {
 	for _, enumEntry := range entries {
-		if !merge.Admits(prim, enumEntry.val) {
+		if !merge.Admits(primitive, enumEntry.val) {
 			return false
 		}
 	}
@@ -384,35 +384,35 @@ func hoistLiteral(loweringContext lowering.Ctx, ts *compile.Types, site valueSet
 
 // literalValueType picks a Literal's ValueType as enumValueType picks an
 // Enum's, for its one value: the primitive the declared type and format
-// select, else the declared type's, where the value is one of it (declaredPrim);
+// select, else the declared type's, where the value is one of it (declaredPrimitive);
 // else the primitive the value's own kind declares, and none for a list or an
 // object, which no primitive types. A refinement's value set is then typed
 // by every conjunct (valueSetSite.valueType).
 func literalValueType(schema *statement.Schema, val ir.Value) ir.PrimitiveKind {
-	if prim, ok := declaredPrim(schema, func(primitiveKind ir.PrimitiveKind) bool { return merge.Admits(primitiveKind, val) }); ok {
-		return prim
+	if primitive, ok := declaredPrimitive(schema, func(primitiveKind ir.PrimitiveKind) bool { return merge.Admits(primitiveKind, val) }); ok {
+		return primitive
 	}
 
-	prim, _, scalar := enumMemberForm(val)
+	irPrimitive, _, scalar := enumMemberForm(val)
 	if !scalar {
 		return ""
 	}
 
-	return prim
+	return irPrimitive
 }
 
 // enumValueType picks an Enum's ValueType as literalValueType picks a
 // Literal's: the primitive the schema's declared type and format select, as a
 // scalar's are read, else the declared type's, where every member is a value of
-// it (declaredPrim); else the primitive its members classified to. A type or a
+// it (declaredPrimitive); else the primitive its members classified to. A type or a
 // format the members do not fit is one no target could back the enum with, so
-// it stays verbatim. It does not re-derive memberPrim from a ValueKind:
+// it stays verbatim. It does not re-derive memberPrimitive from a ValueKind:
 // enumMemberForm decided it once, for the same members.
-func enumValueType(schema *statement.Schema, admits func(ir.PrimitiveKind) bool, memberPrim ir.PrimitiveKind) ir.PrimitiveKind {
-	if prim, ok := declaredPrim(schema, admits); ok {
-		return prim
+func enumValueType(schema *statement.Schema, admits func(ir.PrimitiveKind) bool, memberPrimitive ir.PrimitiveKind) ir.PrimitiveKind {
+	if primitive, ok := declaredPrimitive(schema, admits); ok {
+		return primitive
 	}
-	return memberPrim
+	return memberPrimitive
 }
 
 // valueSetReads returns what the build of td, the node the value set set writes
@@ -483,11 +483,11 @@ func literalTyped(lit *ir.Literal, schema *statement.Schema) bool {
 	if lit.Value.Kind == ir.ValueList {
 		return types[0] == statement.KindArray
 	}
-	if prim, paired := formatPrimitive(schema); paired && prim == lit.ValueType {
+	if primitive, paired := formatPrimitive(schema); paired && primitive == lit.ValueType {
 		return true
 	}
-	prim, known := typeformat.Lookup(string(types[0]))
-	return known && narrowsOrIs(lit.ValueType, prim)
+	irPrimitive, known := typeformat.Lookup(string(types[0]))
+	return known && narrowsOrIs(lit.ValueType, irPrimitive)
 }
 
 // membersTyped reports whether every member of an Enum is a value of the type
@@ -498,10 +498,10 @@ func membersTyped(members []ir.EnumMember, schema *statement.Schema) bool {
 	return !slices.ContainsFunc(members, func(enumMember ir.EnumMember) bool { return !typesAdmit(types, enumMember.Value) })
 }
 
-// enumMembersAre reports whether every member's value is a value of prim.
-func enumMembersAre(members []ir.EnumMember, prim ir.PrimitiveKind) bool {
+// enumMembersAre reports whether every member's value is a value of primitive.
+func enumMembersAre(members []ir.EnumMember, primitive ir.PrimitiveKind) bool {
 	for _, enumMember := range members {
-		if !merge.Admits(prim, enumMember.Value) {
+		if !merge.Admits(primitive, enumMember.Value) {
 			return false
 		}
 	}
@@ -626,10 +626,10 @@ func valueKey(irValue ir.Value, depth int) (key string, ok bool) {
 
 // listKey returns the key of a list at depth: "l", then each element's key in
 // order.
-func listKey(elems []ir.Value, depth int) (string, bool) {
+func listKey(elements []ir.Value, depth int) (string, bool) {
 	var b strings.Builder
 	b.WriteString("l")
-	for _, irValue := range elems {
+	for _, irValue := range elements {
 		k, ok := valueKey(irValue, depth+1)
 		if !ok {
 			return "", false

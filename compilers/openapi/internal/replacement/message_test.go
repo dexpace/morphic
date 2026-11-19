@@ -28,14 +28,14 @@ func says(message string) *ir.Deprecation { return &ir.Deprecation{Message: mess
 
 // route is an operation id bound by method to path, deprecated by dep.
 func route(id ir.OperationID, method, path string, dep *ir.Deprecation) ir.Operation {
-	return ir.Operation{ID: id, Deprecation: dep, Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{
+	return ir.Operation{ID: id, Deprecation: dep, Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{
 		{Method: method, URITemplate: path},
 	}}}
 }
 
-// routes is a document of one service holding ops.
-func routes(ops ...ir.Operation) *ir.Document {
-	return &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: ops}}}}}
+// routes is a document of one service holding operations.
+func routes(operations ...ir.Operation) *ir.Document {
+	return &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: operations}}}}}
 }
 
 // TestMessage_AnOperationsNamesItsReplacementByRoute pins how an operation's
@@ -83,16 +83,16 @@ func TestMessage_AnOperationsNamesItsReplacementByRoute(t *testing.T) {
 			v1.Provenance = ir.Provenance{Pointer: "/paths/~1v1~1zones/get", Inferred: "extension-promotion"}
 			doc := routes(v1, route("operation/v2", http.MethodGet, "/v2/zones", nil),
 				route("operation/v2-post", http.MethodPost, "/v2/zones", nil),
-				ir.Operation{ID: "operation/hook", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "FETCH", WebhookName: "/v2/zones"}}}})
+				ir.Operation{ID: "operation/hook", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "FETCH", WebhookName: "/v2/zones"}}}})
 			assert.Equal(t, undecided(tc.why, ir.Provenance{Pointer: "/paths/~1v1~1zones/get"}),
 				replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)))
-			op := doc.Services[0].Groups[0].Operations[0]
-			assert.Equal(t, tc.want, op.Deprecation.ReplacedBy)
+			operation := doc.Services[0].Groups[0].Operations[0]
+			assert.Equal(t, tc.want, operation.Deprecation.ReplacedBy)
 			want := ir.Inferred("extension-promotion")
 			if tc.want != nil {
 				want = "extension-promotion,replacement-inference"
 			}
-			assert.Equal(t, want, op.Provenance.Inferred, "marked where filled")
+			assert.Equal(t, want, operation.Provenance.Inferred, "marked where filled")
 		})
 	}
 }
@@ -154,17 +154,17 @@ func TestMessage_AMembersAndAParametersNameSiblingsInCode(t *testing.T) {
 				{ID: "property/old", WireName: "old", Deprecation: says(tc.message), Provenance: atMember},
 				{ID: "property/new", WireName: "new"}, {ID: "property/other", WireName: "other"},
 			}}
-			op := ir.Operation{ID: "operation/a",
+			operation := ir.Operation{ID: "operation/a",
 				Params: []ir.Parameter{
 					{ID: "parameter/old", Name: ir.Naming{Source: "old"}, Deprecation: says(tc.message), Provenance: atParam},
 					{ID: "parameter/new", Name: ir.Naming{Source: "new"}}, {ID: "parameter/other", Name: ir.Naming{Source: "other"}},
 				},
-				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+				Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
 					{Param: "parameter/old", Location: ir.HTTPLocationQuery}, {Param: "parameter/new", Location: ir.HTTPLocationQuery},
 					{Param: "parameter/other", Location: ir.HTTPLocationQuery},
 				}}}},
 			}
-			doc := routes(op)
+			doc := routes(operation)
 			doc.Types = ir.TypeRegistry{"type/m": model}
 			var want []ir.Diagnostic
 			if tc.why != "" {
@@ -204,18 +204,18 @@ func TestMessage_ANameTwoParametersCarryIsReported(t *testing.T) {
 	} {
 		t.Run(tc.message, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "operation/a",
+			operation := ir.Operation{ID: "operation/a",
 				Params: []ir.Parameter{
 					{ID: "parameter/legacy", Name: ir.Naming{Source: "legacy"}, Deprecation: says(tc.message)},
 					{ID: "parameter/path", Name: ir.Naming{Source: "id"}}, {ID: "parameter/query", Name: ir.Naming{Source: "id"}},
 				},
-				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+				Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
 					{Param: "parameter/legacy", Location: ir.HTTPLocationQuery, WireName: "legacy"},
 					{Param: "parameter/path", Location: ir.HTTPLocationPath, WireName: "id"},
 					{Param: "parameter/query", Location: ir.HTTPLocationQuery, WireName: "id"},
 				}}}},
 			}
-			doc := routes(op)
+			doc := routes(operation)
 			doc.Types = ir.TypeRegistry{"type/nil": (*ir.Model)(nil), "type/s": &ir.Scalar{ID: "type/s"}}
 			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)))
 			assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)

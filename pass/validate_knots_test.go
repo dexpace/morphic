@@ -24,13 +24,13 @@ func ref(id string) ir.TypeRef { return ir.TypeRef{Target: ir.TypeID(id)} }
 func maybe(id string) ir.TypeRef { return ir.TypeRef{Target: ir.TypeID(id), Nullable: true} }
 
 // composed is the model id with the base and the properties given.
-func composed(id string, base *ir.TypeRef, props ...ir.Property) *ir.Model {
-	return &ir.Model{ID: ir.TypeID(id), Base: base, Properties: props, Provenance: provAt(id)}
+func composed(id string, base *ir.TypeRef, properties ...ir.Property) *ir.Model {
+	return &ir.Model{ID: ir.TypeID(id), Base: base, Properties: properties, Provenance: provAt(id)}
 }
 
 // needs is the property of the ID id of the type typ, required.
 func needs(id string, typ ir.TypeRef) ir.Property {
-	return prop(id, typ, func(property *ir.Property) { property.Required = true })
+	return property(id, typ, func(property *ir.Property) { property.Required = true })
 }
 
 // noFiniteValueDoc is valueDoc holding defs.
@@ -94,11 +94,11 @@ func TestValidate_ACycleThroughAMixinNamesTheMixin(t *testing.T) {
 func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *testing.T) {
 	t.Parallel()
 	const none = ", which has none either"
-	list := func(id, elem string, minItems *int64) *ir.List {
-		return &ir.List{ID: ir.TypeID(id), ElementType: ref(elem), Constraints: &ir.Constraints{MinItems: minItems}, Provenance: provAt(id)}
+	list := func(id, element string, minItems *int64) *ir.List {
+		return &ir.List{ID: ir.TypeID(id), ElementType: ref(element), Constraints: &ir.Constraints{MinItems: minItems}, Provenance: provAt(id)}
 	}
-	tuple := func(id string, minItems *int64, rest *ir.TypeRef, elems ...ir.TypeRef) *ir.Tuple {
-		tp := &ir.Tuple{ID: ir.TypeID(id), ElementTypes: elems, Rest: rest, Provenance: provAt(id)}
+	tuple := func(id string, minItems *int64, rest *ir.TypeRef, elements ...ir.TypeRef) *ir.Tuple {
+		tp := &ir.Tuple{ID: ir.TypeID(id), ElementTypes: elements, Rest: rest, Provenance: provAt(id)}
 		if minItems != nil {
 			tp.Constraints = &ir.Constraints{MinItems: minItems}
 		}
@@ -119,8 +119,8 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *te
 			{"type/y", "no finite value: each needs its required property 0, type/x" + none},
 		}},
 		{"the same properties, not required", noFiniteValueDoc(
-			composed("type/n", nil, prop("property/n/0", ref("type/n"), nil)),
-			composed("type/x", nil, prop("property/x/0", ref("type/y"), nil)), composed("type/y", nil, needs("property/y/0", ref("type/x"))),
+			composed("type/n", nil, property("property/n/0", ref("type/n"), nil)),
+			composed("type/x", nil, property("property/x/0", ref("type/y"), nil)), composed("type/y", nil, needs("property/y/0", ref("type/x"))),
 		), nil},
 		{"the same properties, one admitting null", noFiniteValueDoc(
 			composed("type/x", nil, needs("property/x/0", ref("type/y"))), composed("type/y", nil, needs("property/y/0", maybe("type/x"))),
@@ -138,7 +138,7 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *te
 			list("type/k", "type/t", new(int64(0))), composed("type/t", nil, needs("property/t/0", ref("type/k"))),
 		), nil},
 		{"a map that must hold a value of its own type", noFiniteValueDoc(
-			&ir.MapT{ID: "type/mp", Key: new(strT), Value: ref("type/mp"), Constraints: &ir.Constraints{MinProperties: new(int64(1))}, Provenance: provAt("type/mp")},
+			&ir.MapT{ID: "type/mp", Key: new(stringT), Value: ref("type/mp"), Constraints: &ir.Constraints{MinProperties: new(int64(1))}, Provenance: provAt("type/mp")},
 		), []finding{{"type/mp", "no finite value: each needs its value, type/mp" + none}}},
 		{"a tuple that must hold itself", noFiniteValueDoc(
 			tuple("type/p", new(int64(2)), nil, ref("type/primitive/string"), ref("type/p")),
@@ -159,7 +159,7 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *te
 			&ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: ref("type/u")}}, Provenance: provAt("type/u")},
 		), []finding{{"type/u", "no finite value: each needs its variant 0, type/u" + none}}},
 		{"a union with a second variant that is a string", noFiniteValueDoc(
-			&ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: ref("type/u")}, {Type: strT}}, Provenance: provAt("type/u")},
+			&ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: ref("type/u")}, {Type: stringT}}, Provenance: provAt("type/u")},
 		), nil},
 		{"a union whose variant admits null", noFiniteValueDoc(
 			&ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: maybe("type/u")}}, Provenance: provAt("type/u")},
@@ -183,7 +183,7 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *te
 			&ir.Scalar{ID: "type/s", Base: new(maybe("type/s")), Provenance: provAt("type/s")},
 		), nil},
 		{"a type holding itself in a property that is not required", noFiniteValueDoc(
-			composed("type/node", nil, prop("property/node/next", ref("type/node"), nil)),
+			composed("type/node", nil, property("property/node/next", ref("type/node"), nil)),
 		), nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

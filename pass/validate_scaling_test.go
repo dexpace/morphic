@@ -119,15 +119,15 @@ func exposureShapes() map[string]func(n int) *ir.Document {
 		},
 		"multipart parts naming the top's property of the bottom": func(n int) *ir.Document {
 			types, bottom := chainedProperties(n, nil)
-			ops := make([]ir.Operation, n)
-			for i := range ops {
-				ops[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("op%05d", i)), Request: &ir.Payload{Contents: []ir.Content{{
+			operations := make([]ir.Operation, n)
+			for i := range operations {
+				operations[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("op%05d", i)), Request: &ir.Payload{Contents: []ir.Content{{
 					MediaType: "multipart/form-data", Type: ir.TypeRef{Target: bottom},
 					Encoding: map[ir.PropertyID]ir.PartEncoding{"property/kind": {}},
 				}}}}
 			}
 			doc := &ir.Document{IRVersion: ir.IRVersion, Name: "t", Version: "1", Types: types}
-			doc.Services = []ir.Service{{Groups: []ir.OperationGroup{{Operations: ops}}}}
+			doc.Services = []ir.Service{{Groups: []ir.OperationGroup{{Operations: operations}}}}
 			return doc
 		},
 	}

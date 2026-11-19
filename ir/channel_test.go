@@ -65,7 +65,7 @@ func TestMessage_JSONContract(t *testing.T) {
 			Name:    populatedNaming(),
 			Payload: ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
 			Headers: &headers,
-			CorrelationID: &ir.PropPath{
+			CorrelationID: &ir.PropertyPath{
 				In:       "header",
 				Segments: []ir.PropertyID{"property/correlationId"},
 			},
@@ -89,7 +89,7 @@ func TestMessage_JSONContract(t *testing.T) {
 // Bindings must marshal with keys in sorted order on every run.
 func TestMessage_BindingsDeterministic(t *testing.T) {
 	t.Parallel()
-	msg := ir.Message{Bindings: outOfOrderProtocolBindings()}
-	got := assertDeterministicMarshal(t, msg)
+	message := ir.Message{Bindings: outOfOrderProtocolBindings()}
+	got := assertDeterministicMarshal(t, message)
 	assert.Contains(t, got, sortedProtocolBindingsJSON)
 }

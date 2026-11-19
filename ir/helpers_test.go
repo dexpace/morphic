@@ -513,7 +513,7 @@ func populatedOperationLink() ir.OperationLink {
 		Params: []ir.LinkParam{
 			{Param: "parameter/next/id", Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: new(populatedValue())}},
 			{Param: "parameter/next/etag", Value: ir.LinkValue{
-				Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: []ir.PropertyID{"property/etag"}},
+				Kind: ir.LinkResponse, Response: &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{"property/etag"}},
 			}},
 			{Param: "parameter/next/from", Value: ir.LinkValue{Kind: ir.LinkURL}},
 		},

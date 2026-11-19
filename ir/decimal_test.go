@@ -44,7 +44,7 @@ func TestParseDecimal_ReadsSignDigitsAndExponent(t *testing.T) {
 		digits   string
 		exponent int64
 		isInt    bool
-		str      string
+		text     string
 	}{
 		{[]string{"0", "-0.0", "0e9", "0e999999999999999999999999"}, 0, "", 0, true, "0"},
 		{[]string{"1500", "1500.0", "15e2", "1.5e3", "+1500", "001500", ".15e4"}, 1, "15", 3, true, "1.5e3"},
@@ -69,7 +69,7 @@ func TestParseDecimal_ReadsSignDigitsAndExponent(t *testing.T) {
 				assert.Equal(t, tc.digits, decimal.Digits())
 				assert.Equal(t, tc.exponent, decimal.Exponent())
 				assert.Equal(t, tc.isInt, decimal.IsInt())
-				assert.Equal(t, tc.str, decimal.String())
+				assert.Equal(t, tc.text, decimal.String())
 			})
 		}
 	}

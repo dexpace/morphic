@@ -100,10 +100,10 @@ func nullableEntries(t *testing.T, doc *ir.Document, i int) map[string]ir.Unmode
 	if unmodeledEntry, ok := doc.Types[componentID(fmt.Sprintf("C%d", i))].Common().Unmodeled["openapi:nullable"]; ok {
 		out["C"] = unmodeledEntry
 	}
-	for letter, prop := range map[string]string{"P": "p", "R": "r"} {
+	for letter, propertyValue := range map[string]string{"P": "p", "R": "r"} {
 		model, ok := doc.Types[componentID(fmt.Sprintf("%s%d", letter, i))].(*ir.Model)
 		require.True(t, ok, "%s%d lowers to a model", letter, i)
-		property := openapitest.PropsByWire(model.Properties)[prop]
+		property := openapitest.PropertiesByWire(model.Properties)[propertyValue]
 		if unmodeledEntry, ok := property.Unmodeled["openapi:nullable"]; ok {
 			out[letter] = unmodeledEntry
 		}

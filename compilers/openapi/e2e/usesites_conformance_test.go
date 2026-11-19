@@ -31,7 +31,7 @@ func assertCatchAllEncoding(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 			`"type/openapi/components/schemas/Notes":{"value":{"contentTypes":["text/plain"],` +
 			`"repeatsPerArrayItem":false,"hasFilename":false,"allowReserved":false}}}`,
 	} {
-		got, err := json.Marshal(valueAtPath(opTree(t, doc, source), "request", "contents", "0", "catchAllEncoding"),
+		got, err := json.Marshal(valueAtPath(operationTree(t, doc, source), "request", "contents", "0", "catchAllEncoding"),
 			json.Deterministic(true))
 		require.NoError(t, err)
 		assert.JSONEq(t, want, string(got), source)

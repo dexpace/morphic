@@ -101,7 +101,7 @@ func TestPathItem_WithNoOperationKeepsItsDocs(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	const callback = "/paths/~1q/post/callbacks/onEvent/{$request.body#~1url}"
-	binding := openapitest.FindOp(t, doc, "postQ").Bindings.HTTP[0].Unmodeled
+	binding := openapitest.FindOperation(t, doc, "postQ").Bindings.HTTP[0].Unmodeled
 	assertKept(t, doc.Services[0].Unmodeled, []keptEntry{
 		{"openapi:pathItem/paths/~1p/summary", `"path summary"`, "/paths/~1p/summary"},
 		{"openapi:pathItem/paths/~1p/description", `"path description"`, "/paths/~1p/description"},
@@ -142,11 +142,11 @@ func TestPathItem_WithNoOperationKeepsItsParameters(t *testing.T) {
 		{"openapi:pathItem/webhooks/hooked/parameters/signature/header",
 			`{"name": "signature", "in": "header", "schema": {"type": "string"}}`, "/webhooks/hooked/parameters/0"},
 	})
-	assertKept(t, openapitest.FindOp(t, doc, "postQ").Bindings.HTTP[0].Unmodeled, []keptEntry{
+	assertKept(t, openapitest.FindOperation(t, doc, "postQ").Bindings.HTTP[0].Unmodeled, []keptEntry{
 		{"openapi:pathItem" + callback + "/parameters/event/query",
 			`{"name": "event", "in": "query", "schema": {"type": "string"}}`, callback + "/parameters/0"},
 	})
-	assert.Empty(t, openapitest.FindOp(t, doc, "postQ").Params,
+	assert.Empty(t, openapitest.FindOperation(t, doc, "postQ").Params,
 		"the callback item's parameter is not taken for the operation declaring the callback")
 }
 

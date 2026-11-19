@@ -62,30 +62,30 @@ func assertStreamTerminator(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 		promoted  = ir.Inferred("extension-promotion")
 		streaming = ir.Inferred("streaming-inference")
 	)
-	contentsOf := func(op ir.Operation) []ir.Content {
-		require.Len(t, op.Responses, 1)
-		require.NotNil(t, op.Responses[0].Payload)
-		require.Len(t, op.Responses[0].Payload.Contents, 2)
-		return op.Responses[0].Payload.Contents
+	contentsOf := func(operation ir.Operation) []ir.Content {
+		require.Len(t, operation.Responses, 1)
+		require.NotNil(t, operation.Responses[0].Payload)
+		require.Len(t, operation.Responses[0].Payload.Contents, 2)
+		return operation.Responses[0].Payload.Contents
 	}
 
-	op, ok := opByName(doc, "chat")
+	irOperation, ok := operationByName(doc, "chat")
 	require.True(t, ok)
-	require.NotNil(t, op.ResponseStream)
-	require.NotNil(t, op.ResponseStream.Terminator)
-	assert.Equal(t, "[DONE]", *op.ResponseStream.Terminator)
-	assert.Nil(t, op.ResponseStream.Condition, "no default source names a condition")
-	contents := contentsOf(op)
+	require.NotNil(t, irOperation.ResponseStream)
+	require.NotNil(t, irOperation.ResponseStream.Terminator)
+	assert.Equal(t, "[DONE]", *irOperation.ResponseStream.Terminator)
+	assert.Nil(t, irOperation.ResponseStream.Condition, "no default source names a condition")
+	contents := contentsOf(irOperation)
 	assert.Empty(t, contents[0].Inferred, "the content that does not stream read no key")
 	assert.Equal(t, promoted, contents[1].Inferred, "the content whose key was read records it")
 	require.NotNil(t, contents[1].Stream)
 	assert.Equal(t, streaming, contents[1].Stream.Inferred, "how it is known to stream is unchanged")
-	assert.Equal(t, streaming, op.Provenance.Inferred, "the operation records no promotion for a key it did not read")
+	assert.Equal(t, streaming, irOperation.Provenance.Inferred, "the operation records no promotion for a key it did not read")
 	assert.Contains(t, contents[1].Unmodeled, key, "the key is kept")
 	assert.Empty(t, diags)
 
 	mapped, mappedDiags := corpusWith(t, "stream-terminator", openapi.Options{Promotions: streamPromotions()})
-	mop, ok := opByName(mapped, "chat")
+	mop, ok := operationByName(mapped, "chat")
 	require.True(t, ok)
 	require.NotNil(t, mop.ResponseStream)
 	require.NotNil(t, mop.ResponseStream.Terminator)
@@ -102,7 +102,7 @@ func assertStreamTerminator(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Empty(t, mappedDiags)
 
 	off, offDiags := corpusWith(t, "stream-terminator", openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}})
-	oop, ok := opByName(off, "chat")
+	oop, ok := operationByName(off, "chat")
 	require.True(t, ok)
 	require.NotNil(t, oop.ResponseStream)
 	assert.Nil(t, oop.ResponseStream.Terminator, "promotion off fills nothing")

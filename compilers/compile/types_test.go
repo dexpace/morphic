@@ -118,17 +118,17 @@ func TestTypes_RegisterTakesNoCoordinate(t *testing.T) {
 	assert.False(t, coordinated, "a minted node claims no coordinate")
 }
 
-// TestTypes_PrimRefInternsOnceAndNamesNoSource pins that primitives are interned
+// TestTypes_PrimitiveRefInternsOnceAndNamesNoSource pins that primitives are interned
 // by kind rather than by position, and that one shared by every position of its
 // kind claims no source (GitHub #528).
-func TestTypes_PrimRefInternsOnceAndNamesNoSource(t *testing.T) {
+func TestTypes_PrimitiveRefInternsOnceAndNamesNoSource(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 
-	first := types.PrimRef(ir.PrimitiveString)
+	first := types.PrimitiveRef(ir.PrimitiveString)
 	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveString), first.Target,
 		"the framework interns at the shared ID rather than deriving one of its own")
-	assert.Equal(t, first.Target, types.PrimID(ir.PrimitiveString), "a second reach is the same ID")
+	assert.Equal(t, first.Target, types.PrimitiveID(ir.PrimitiveString), "a second reach is the same ID")
 	assert.Equal(t, 1, types.Len(), "and interns nothing further")
 
 	td, ok := types.Node(first.Target)

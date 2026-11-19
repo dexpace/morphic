@@ -103,12 +103,12 @@ func TestGolden_EncodingNestedReferences(t *testing.T) {
 		require.True(t, ok, ref.name)
 		assert.Equal(t, compile.SubHint(ref.key, "item"), items.Common().Name.Hint, ref.name)
 	}
-	op := operationAt(t, doc, "POST", "/parts")
-	back, ok := headerByWire(op.Responses[0].Headers, "X-Back")
+	operation := operationAt(t, doc, "POST", "/parts")
+	back, ok := headerByWire(operation.Responses[0].Headers, "X-Back")
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID(header), back.Type.Target)
 	for _, nested := range []string{"doc/encoding", "parts/prefixEncoding", "parts/itemEncoding"} {
-		entry := unmodeledEntry(t, requestContent(t, op).Unmodeled, "openapi:encoding/"+nested)
+		entry := unmodeledEntry(t, requestContent(t, operation).Unmodeled, "openapi:encoding/"+nested)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, nested)
 	}
 	assert.Contains(t, doc.Types, ir.TypeID("type/anonymous/x-defs/Kept"), "a schema a nested header references")
@@ -149,10 +149,10 @@ func TestGolden_SplitSpec(t *testing.T) {
 	}
 	assert.Equal(t, ir.ServerID(item+"/servers/0"), byURL["https://pets.example.com"])
 	assert.Equal(t, ir.ServerID(item+"/get/servers/0"), byURL["https://show.pets.example.com"])
-	ops := allOperations(doc)
-	for _, op := range ops {
-		if op.Name.Source == "showPet" {
-			assert.Equal(t, []ir.ServerID{item + "/get/servers/0"}, op.Servers, "showPet is sent to its own")
+	operations := allOperations(doc)
+	for _, operation := range operations {
+		if operation.Name.Source == "showPet" {
+			assert.Equal(t, []ir.ServerID{item + "/get/servers/0"}, operation.Servers, "showPet is sent to its own")
 		}
 	}
 	// Last: under -update the compare refuses a test whose assertions failed,

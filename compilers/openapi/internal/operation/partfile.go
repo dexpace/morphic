@@ -107,23 +107,23 @@ func isArraySchema(s *oas3.Schema) bool {
 // one admitting no element does: what its elements past its prefix are is
 // left unsaid, not said to be anything.
 func readElements(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) fileReading {
-	elems, rest, tuple := schema.ListedTuple(serviceContext.Ctx, serviceContext.Statements().Of(js))
+	elements, rest, tuple := schema.ListedTuple(serviceContext.Ctx, serviceContext.Statements().Of(js))
 	if !tuple {
 		rest = serviceContext.Statements().Of(s.GetItems())
 		for _, e := range s.GetPrefixItems() {
-			elems = append(elems, serviceContext.Statements().Of(e))
+			elements = append(elements, serviceContext.Statements().Of(e))
 		}
 	}
 	if rest.Truth == statement.Unwritten {
 		return readsOther
 	}
 	if !rest.Truth.ReadsFalse() {
-		elems = append(elems, rest)
+		elements = append(elements, rest)
 	}
-	if len(elems) == 0 {
+	if len(elements) == 0 {
 		return readsOther
 	}
-	return leastOf(serviceContext, elems, func(serviceContextValue service.Ctx, schemaStatement *statement.Statement) fileReading {
+	return leastOf(serviceContext, elements, func(serviceContextValue service.Ctx, schemaStatement *statement.Statement) fileReading {
 		return readFile(serviceContextValue, statement.ParsedAt(schemaStatement))
 	})
 }
@@ -153,8 +153,8 @@ func rawTuple(node func(ir.TypeID) (ir.TypeDef, bool), tuple *ir.Tuple) bool {
 	if len(tuple.ElementTypes) == 0 && tuple.Rest == nil {
 		return false
 	}
-	for _, elem := range tuple.ElementTypes {
-		if !rawBytes(node, elem) {
+	for _, element := range tuple.ElementTypes {
+		if !rawBytes(node, element) {
 			return false
 		}
 	}

@@ -78,13 +78,13 @@ components:
 // different places.
 func positionRefs(t *testing.T, doc *ir.Document) (carriers, nodes map[string]ir.TypeRef) {
 	t.Helper()
-	op := openapitest.FindOp(t, doc, "op")
-	param, ok := openapitest.ParamBySource(op, "id")
+	operation := openapitest.FindOperation(t, doc, "op")
+	param, ok := openapitest.ParamBySource(operation, "id")
 	require.True(t, ok, "the operation declares id")
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 1)
-	require.NotNil(t, op.Request)
-	require.NotNil(t, op.Responses[0].Payload)
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	require.NotNil(t, operation.Request)
+	require.NotNil(t, operation.Responses[0].Payload)
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok, "Items lowers to a list")
 	union, ok := typeByName(doc, "Variants").(*ir.Union)
@@ -96,11 +96,11 @@ func positionRefs(t *testing.T, doc *ir.Document) (carriers, nodes map[string]ir
 	carriers = map[string]ir.TypeRef{
 		"property":  propertyOf(t, doc, "Holder", "f").Type,
 		"parameter": param.Type,
-		"header":    op.Responses[0].Headers[0].Type,
+		"header":    operation.Responses[0].Headers[0].Type,
 	}
 	nodes = map[string]ir.TypeRef{
-		"request":  op.Request.Contents[0].Type,
-		"response": op.Responses[0].Payload.Contents[0].Type,
+		"request":  operation.Request.Contents[0].Type,
+		"response": operation.Responses[0].Payload.Contents[0].Type,
 		"map":      *bag.AdditionalProperties.Value,
 		"items":    items.ElementType,
 		"variant":  union.Variants[0].Type,
@@ -186,9 +186,9 @@ func TestRefinement_PrimitiveBranchesLowerToTheirMeet(t *testing.T) {
 			alias, ok := typeByName(doc, "Prim").(*ir.Scalar)
 			require.True(t, ok, "Prim is a named scalar, not %T", typeByName(doc, "Prim"))
 			require.NotNil(t, alias.Base)
-			prim, ok := doc.Types[alias.Base.Target].(*ir.Primitive)
+			primitive, ok := doc.Types[alias.Base.Target].(*ir.Primitive)
 			require.True(t, ok)
-			assert.Equal(t, ir.PrimitiveInt32, prim.PrimitiveKind)
+			assert.Equal(t, ir.PrimitiveInt32, primitive.PrimitiveKind)
 		})
 	}
 }
@@ -571,12 +571,12 @@ func TestRefinement_KeywordsLandAtEveryPosition(t *testing.T) {
 			require.NotNil(t, property.Constraints)
 			require.NotNil(t, property.Constraints.MinLength)
 			assert.Equal(t, int64(2), *property.Constraints.MinLength)
-			op := openapitest.FindOp(t, doc, "op")
-			param, ok := openapitest.ParamBySource(op, "id")
+			operation := openapitest.FindOperation(t, doc, "op")
+			param, ok := openapitest.ParamBySource(operation, "id")
 			require.True(t, ok)
 			assert.Equal(t, "mine", param.Docs.Description)
 			require.NotNil(t, param.Constraints)
-			assert.Equal(t, "mine", op.Responses[0].Headers[0].Docs.Description)
+			assert.Equal(t, "mine", operation.Responses[0].Headers[0].Docs.Description)
 			named, ok := typeByName(doc, "Named").(*ir.Scalar)
 			require.True(t, ok)
 			assert.Equal(t, "mine", named.Docs.Description)
@@ -601,12 +601,12 @@ func TestRefinement_ACollectionBoundLandsAtEveryPosition(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, positionsDoc(refinementTargets, written))
 			noDegradation(t, diags)
-			op := openapitest.FindOp(t, doc, "op")
-			param, ok := openapitest.ParamBySource(op, "id")
+			operation := openapitest.FindOperation(t, doc, "op")
+			param, ok := openapitest.ParamBySource(operation, "id")
 			require.True(t, ok)
 			assert.Equal(t, want, propertyOf(t, doc, "Holder", "f").Constraints, "property")
 			assert.Equal(t, want, param.Constraints, "parameter")
-			assert.Equal(t, want, op.Responses[0].Headers[0].Constraints, "header")
+			assert.Equal(t, want, operation.Responses[0].Headers[0].Constraints, "header")
 			_, nodes := positionRefs(t, doc)
 			for position, ref := range nodes {
 				alias := aliasAt(t, doc, ref)
@@ -679,12 +679,12 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 					assert.Equal(t, reason, entry.Reason, where)
 				}
 			}
-			op := openapitest.FindOp(t, doc, "op")
-			param, ok := openapitest.ParamBySource(op, "id")
+			operation := openapitest.FindOperation(t, doc, "op")
+			param, ok := openapitest.ParamBySource(operation, "id")
 			require.True(t, ok)
 			held("a property", propertyOf(t, doc, "Holder", "f").Unmodeled)
 			held("a parameter", schemaKept(param.Unmodeled))
-			held("a header", schemaKept(op.Responses[0].Headers[0].Unmodeled))
+			held("a header", schemaKept(operation.Responses[0].Headers[0].Unmodeled))
 			_, nodes := positionRefs(t, doc)
 			for position, ref := range nodes {
 				held(position, aliasAt(t, doc, ref).Unmodeled)
@@ -717,8 +717,8 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 // of the entries; two alike tie to the least reference text.
 func TestRefinement_SeveralRefsUseTheNarrowest(t *testing.T) {
 	t.Parallel()
-	const str, mode = "{$ref: '#/components/schemas/Str'}", "{$ref: '#/components/schemas/Mode'}"
-	for _, entries := range [][2]string{{str, mode}, {mode, str}} {
+	const stringReference, mode = "{$ref: '#/components/schemas/Str'}", "{$ref: '#/components/schemas/Mode'}"
+	for _, entries := range [][2]string{{stringReference, mode}, {mode, stringReference}} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+
 			"    Two: {allOf: ["+entries[0]+", "+entries[1]+"]}\n"+
 			"    Same: {allOf: [{$ref: '#/components/schemas/Mail'}, {$ref: '#/components/schemas/MailToo'}]}\n"))
@@ -1218,27 +1218,27 @@ func TestRefinement_AHoistingFormatNarrowsItsKind(t *testing.T) {
 		"uuid over string": {"{type: string}", "{type: string, format: uuid}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
 				t.Helper()
-				prim, ok := doc.Types[id].(*ir.Primitive)
+				primitive, ok := doc.Types[id].(*ir.Primitive)
 				require.True(t, ok, "%T", doc.Types[id])
-				assert.Equal(t, ir.PrimitiveUUID, prim.PrimitiveKind)
+				assert.Equal(t, ir.PrimitiveUUID, primitive.PrimitiveKind)
 			}},
 		"items over none": {"{type: array}", "{type: array, items: {type: string}}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
 				t.Helper()
 				list, ok := doc.Types[id].(*ir.List)
 				require.True(t, ok, "%T", doc.Types[id])
-				prim, ok := doc.Types[list.ElementType.Target].(*ir.Primitive)
+				primitive, ok := doc.Types[list.ElementType.Target].(*ir.Primitive)
 				require.True(t, ok)
-				assert.Equal(t, ir.PrimitiveString, prim.PrimitiveKind)
+				assert.Equal(t, ir.PrimitiveString, primitive.PrimitiveKind)
 			}},
 		"narrower items": {"{type: array, items: {type: string}}", "{type: array, items: {type: string, format: uuid}}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
 				t.Helper()
 				list, ok := doc.Types[id].(*ir.List)
 				require.True(t, ok, "%T", doc.Types[id])
-				prim, ok := doc.Types[list.ElementType.Target].(*ir.Primitive)
+				primitive, ok := doc.Types[list.ElementType.Target].(*ir.Primitive)
 				require.True(t, ok)
-				assert.Equal(t, ir.PrimitiveUUID, prim.PrimitiveKind)
+				assert.Equal(t, ir.PrimitiveUUID, primitive.PrimitiveKind)
 			}},
 		"a subset of an enum": {"{enum: [a, b]}", "{enum: [a]}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
@@ -1250,9 +1250,9 @@ func TestRefinement_AHoistingFormatNarrowsItsKind(t *testing.T) {
 		"a redaction names no shape": {"{type: string, format: password}", "{type: string, format: uuid}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
 				t.Helper()
-				prim, ok := doc.Types[id].(*ir.Primitive)
+				primitive, ok := doc.Types[id].(*ir.Primitive)
 				require.True(t, ok, "%T", doc.Types[id])
-				assert.Equal(t, ir.PrimitiveUUID, prim.PrimitiveKind)
+				assert.Equal(t, ir.PrimitiveUUID, primitive.PrimitiveKind)
 			}},
 		"a type array's member": {"{type: [string, integer]}", "{type: string, format: email}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
@@ -1316,8 +1316,8 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		a, b string
-		// prim is what the position is.
-		prim ir.PrimitiveKind
+		// primitive is what the position is.
+		primitive ir.PrimitiveKind
 		// keys are what it keeps, both branches whole where nil.
 		keys []string
 	}{
@@ -1339,7 +1339,7 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 					"      properties:\n        f: {allOf: ["+branches+"]}\n"))
 				openapitest.RequireNoErrorDiags(t, diags)
 				property := propertyOf(t, doc, "Holder", "f")
-				assert.Equal(t, ir.PrimitiveTypeID(tc.prim), property.Type.Target, branches)
+				assert.Equal(t, ir.PrimitiveTypeID(tc.primitive), property.Type.Target, branches)
 				keys := tc.keys
 				if keys == nil {
 					keys = []string{"openapi:allOf/0", "openapi:allOf/1"}
@@ -1492,7 +1492,7 @@ func TestRefinement_BooleanItemsReadAsWhatTheyAdmit(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		list, other string
-		elem        ir.TypeKind
+		element     ir.TypeKind
 	}{
 		"true":            {"{type: array, items: {type: string}}", "{type: array, items: true}", ir.KindPrimitive},
 		"false":           {"{type: array, items: {type: string}}", "{type: array, items: false}", ir.KindModel},
@@ -1504,7 +1504,7 @@ func TestRefinement_BooleanItemsReadAsWhatTheyAdmit(t *testing.T) {
 				doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    T: {allOf: ["+branches+"]}\n"))
 				list, ok := doc.Types[componentID("T")].(*ir.List)
 				require.True(t, ok, "%s: %#v", branches, doc.Types[componentID("T")])
-				assert.Equal(t, tc.elem, doc.Types[list.ElementType.Target].Kind(), branches)
+				assert.Equal(t, tc.element, doc.Types[list.ElementType.Target].Kind(), branches)
 				assert.NotEqual(t, ir.TypeID("type/primitive/any"), list.ElementType.Target, branches)
 				assert.Empty(t, list.Unmodeled, branches)
 			}
@@ -1659,9 +1659,9 @@ func TestRefinement_ABranchHoldsWhatItsNodeDoes(t *testing.T) {
 
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
-	elem, ok := doc.Types[items.ElementType.Target].(*ir.Enum)
+	element, ok := doc.Types[items.ElementType.Target].(*ir.Enum)
 	require.True(t, ok, "got %T", doc.Types[items.ElementType.Target])
-	assert.Contains(t, elem.Unmodeled, "openapi:default", "and with no carrier its node keeps it")
+	assert.Contains(t, element.Unmodeled, "openapi:default", "and with no carrier its node keeps it")
 }
 
 // TestRefinement_ARefBranchKeepsItsSiblings pins a $ref branch writing keywords
@@ -1723,9 +1723,9 @@ func TestRefinement_FlattensAsItsFlatSpelling(t *testing.T) {
 	assert.Equal(t, "mine", nested.Docs.Description)
 
 	typed := propertyOf(t, doc, "Holder", "typed")
-	prim, ok := doc.Types[typed.Type.Target].(*ir.Primitive)
+	primitive, ok := doc.Types[typed.Type.Target].(*ir.Primitive)
 	require.True(t, ok, "got %T", doc.Types[typed.Type.Target])
-	assert.Equal(t, ir.PrimitiveString, prim.PrimitiveKind)
+	assert.Equal(t, ir.PrimitiveString, primitive.PrimitiveKind)
 	require.NotNil(t, typed.Constraints)
 	assert.Equal(t, "mine", typed.Docs.Description)
 }
@@ -2091,9 +2091,9 @@ func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 	assert.Equal(t, []string{"openapi:minProperties"}, unmodeledKeys(beside.Unmodeled))
 	assert.Equal(t, "d", beside.Docs.Description)
 	for _, union := range []*ir.Union{branch, beside} {
-		str, isScalar := doc.Types[union.Variants[0].Type.Target].(*ir.Scalar)
+		stringType, isScalar := doc.Types[union.Variants[0].Type.Target].(*ir.Scalar)
 		require.True(t, isScalar, "got %T", doc.Types[union.Variants[0].Type.Target])
-		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, str.Constraints)
+		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, stringType.Constraints)
 		assert.Equal(t, ir.TypeID("type/primitive/integer"), union.Variants[1].Type.Target)
 	}
 }
@@ -2107,18 +2107,18 @@ func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 // (TestCollectionBound_OnABranchLandsAsItsFlatSpelling).
 func TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant(t *testing.T) {
 	t.Parallel()
-	str := &ir.Constraints{MaxLength: new(int64(2))}
-	num := &ir.Constraints{Min: new(ir.BigVal("1"))}
+	stringConstraints := &ir.Constraints{MaxLength: new(int64(2))}
+	number := &ir.Constraints{Min: new(ir.BigVal("1"))}
 	for _, tc := range []struct {
 		name, allOf string
 		held        [2]*ir.Constraints
 		kept        []string
 	}{
-		{"one branch", "[{maxLength: 2}]", [2]*ir.Constraints{str, nil}, nil},
-		{"after another", "[{description: d}, {maxLength: 2}]", [2]*ir.Constraints{str, nil}, nil},
-		{"two groups", "[{maxLength: 2}, {minimum: 1}]", [2]*ir.Constraints{str, num}, nil},
-		{"two groups reversed", "[{minimum: 1}, {maxLength: 2}]", [2]*ir.Constraints{str, num}, nil},
-		{"no listed type takes it", "[{maxLength: 2}, {minProperties: 1}]", [2]*ir.Constraints{str, nil},
+		{"one branch", "[{maxLength: 2}]", [2]*ir.Constraints{stringConstraints, nil}, nil},
+		{"after another", "[{description: d}, {maxLength: 2}]", [2]*ir.Constraints{stringConstraints, nil}, nil},
+		{"two groups", "[{maxLength: 2}, {minimum: 1}]", [2]*ir.Constraints{stringConstraints, number}, nil},
+		{"two groups reversed", "[{minimum: 1}, {maxLength: 2}]", [2]*ir.Constraints{stringConstraints, number}, nil},
+		{"no listed type takes it", "[{maxLength: 2}, {minProperties: 1}]", [2]*ir.Constraints{stringConstraints, nil},
 			[]string{"openapi:minProperties"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2156,10 +2156,10 @@ func TestRefinement_ABranchBoundBesideATypeListIsReadAtTheBranch(t *testing.T) {
 	union, ok := typeByName(doc, "OnBranch").(*ir.Union)
 	require.True(t, ok, "got %T", typeByName(doc, "OnBranch"))
 	assert.Empty(t, union.Unmodeled, "the branch folded")
-	str, ok := doc.Types[union.Variants[0].Type.Target].(*ir.Scalar)
+	stringType, ok := doc.Types[union.Variants[0].Type.Target].(*ir.Scalar)
 	require.True(t, ok, "got %T", doc.Types[union.Variants[0].Type.Target])
-	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, str.Constraints)
-	kept, ok := str.Unmodeled["openapi:maxLength"]
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, stringType.Constraints)
+	kept, ok := stringType.Unmodeled["openapi:maxLength"]
 	require.True(t, ok)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/OnBranch/allOf/0/maxLength"), kept.Provenance.Pointer)
 	require.Len(t, diags, 1, "%+v", diags)

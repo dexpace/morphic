@@ -149,7 +149,7 @@ func (e *Editor) UpdateOperation(id OperationID, change func(*Operation)) {
 func operationKind() nodeKind[*Operation] {
 	return nodeKind[*Operation]{
 		method: "UpdateOperation",
-		id:     func(op *Operation) string { return string(op.ID) },
+		id:     func(operation *Operation) string { return string(operation.ID) },
 	}
 }
 

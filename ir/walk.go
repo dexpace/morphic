@@ -553,8 +553,8 @@ func (w *valueWalk) entries(v reflect.Value, depth int, active visitorSet) {
 	for i := entryFrame.base; i < entryFrame.end; i++ {
 		// Indexed afresh: a nested map can move the stack while stacking its own.
 		mapEntry := w.ranging.entries[i]
-		w.step(pathStep{kind: stepMapKey, form: mapEntry.form, n: mapEntry.num, label: mapEntry.label}, mapEntry.key, depth+1, active)
-		w.step(pathStep{kind: stepMapValue, form: mapEntry.form, n: mapEntry.num, label: mapEntry.label}, mapEntry.value, depth+1, active)
+		w.step(pathStep{kind: stepMapKey, form: mapEntry.form, n: mapEntry.number, label: mapEntry.label}, mapEntry.key, depth+1, active)
+		w.step(pathStep{kind: stepMapValue, form: mapEntry.form, n: mapEntry.number, label: mapEntry.label}, mapEntry.value, depth+1, active)
 	}
 	w.ranging.pop(entryFrame)
 }

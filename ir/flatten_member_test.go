@@ -201,12 +201,12 @@ func TestMemberReader_CostsTheCompositionNotTheWidth(t *testing.T) {
 	t.Parallel()
 	cost := make([]int, 0, 3)
 	for _, width := range []int{100, 200, 400} {
-		props := []ir.Property{wired("wide.a", "a")}
+		properties := []ir.Property{wired("wide.a", "a")}
 		for i := range width {
-			props = append(props, wired(ir.PropertyID(fmt.Sprintf("wide.p%d", i)), fmt.Sprintf("p%d", i)))
+			properties = append(properties, wired(ir.PropertyID(fmt.Sprintf("wide.p%d", i)), fmt.Sprintf("p%d", i)))
 		}
 		types := irtest.DocOf(
-			owning("wide", nil, props...),
+			owning("wide", nil, properties...),
 			owning("bj", mixing("wide")),
 			owning("bi", mixing("wide")),
 		).Types

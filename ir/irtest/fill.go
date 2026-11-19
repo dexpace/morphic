@@ -107,8 +107,8 @@ func (f *filler) fillMap(v reflect.Value) {
 		f.keys++
 		key.SetString(fmt.Sprintf("key%d", f.keys))
 	}
-	elem := reflect.New(v.Type().Elem()).Elem()
-	f.fill(elem)
+	element := reflect.New(v.Type().Elem()).Elem()
+	f.fill(element)
 	v.Set(reflect.MakeMap(v.Type()))
-	v.SetMapIndex(key, elem)
+	v.SetMapIndex(key, element)
 }

@@ -208,7 +208,7 @@ func TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileMinors(t, tc.root, tc.ext, openapi.NullableInference{Disabled: true})
 			openapitest.RequireNoErrorDiags(t, diags)
-			typeRef := holderProps(t, doc)["p"].Type
+			typeRef := holderProperties(t, doc)["p"].Type
 			assert.Equal(t, tc.nullable, typeRef.Nullable)
 			assert.Empty(t, typeRef.Inferred)
 			assert.Equal(t, tc.unknown, extFindings(diags, diag.UnknownSchemaKeyword))
@@ -243,7 +243,7 @@ components:
 		openapitest.RequireNoErrorDiags(t, diags)
 		model, ok := doc.Types[componentID("M")].(*ir.Model)
 		require.True(t, ok)
-		property, ok := propByWire(model, "p")
+		property, ok := propertyByWire(model, "p")
 		require.True(t, ok)
 		return property.Default
 	}
@@ -323,7 +323,7 @@ paths:
           schema: {type: object, properties: {blob: {}}}
 `, openapi.NullableInference{})
 			openapitest.RequireNoErrorDiags(t, diags)
-			upload, ok := opByName(doc, "upload")
+			upload, ok := operationByName(doc, "upload")
 			require.True(t, ok)
 			var files []bool
 			for _, pe := range requestContent(t, upload).Encoding {

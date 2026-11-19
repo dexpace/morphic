@@ -39,11 +39,11 @@ func nestedSource(firstA bool, param string) string {
 
 // nestedParam is a parameter of an object schema of forty properties.
 func nestedParam() string {
-	props := make([]string, 40)
-	for i := range props {
-		props[i] = fmt.Sprintf("p%d: {type: string}", i)
+	properties := make([]string, 40)
+	for i := range properties {
+		properties[i] = fmt.Sprintf("p%d: {type: string}", i)
 	}
-	return "{name: p, in: query, schema: {type: object, properties: {" + strings.Join(props, ", ") + "}}}"
+	return "{name: p, in: query, schema: {type: object, properties: {" + strings.Join(properties, ", ") + "}}}"
 }
 
 // nestedLimits is the node budget the container and its content cost together
@@ -174,8 +174,8 @@ func TestCompile_AFaultingTargetCostsOnlyItsReference(t *testing.T) {
 	assert.Positive(t, errs, "the broken reference is reported: %+v", diags)
 	assert.Empty(t, byCode(diags, diag.UnresolvedRef), "no reference is reported lost to a fault: %+v", diags)
 	byID := map[string]ir.Operation{}
-	for _, op := range allOperations(doc) {
-		byID[string(op.ID)] = op
+	for _, operation := range allOperations(doc) {
+		byID[string(operation.ID)] = operation
 	}
 	a, b := byID["operation/openapi/paths/~1a/get"], byID["operation/openapi/paths/~1b/get"]
 	assert.Empty(t, a.Params, "the faulting parameter lowers to none")

@@ -32,10 +32,10 @@ paths:
           content:
 ` + jsonBody + framed("text/event-stream", sentinel("[DONE]"))
 
-	op, _, diags := compile(t, src, both())
-	require.NotNil(t, terminator(op))
-	assert.Equal(t, "[DONE]", *terminator(op))
-	assert.NotNil(t, op.ResponseStream.Condition)
+	operation, _, diags := compile(t, src, both())
+	require.NotNil(t, terminator(operation))
+	assert.Equal(t, "[DONE]", *terminator(operation))
+	assert.NotNil(t, operation.ResponseStream.Condition)
 	assert.Empty(t, findings(t, diags))
 }
 
@@ -44,9 +44,9 @@ paths:
 // and is reported at the key.
 func TestPromote_AConditionNeedsAStream(t *testing.T) {
 	t.Parallel()
-	op, _, diags := compile(t, chat(when("$request.stream"), jsonBody), both())
-	assert.Nil(t, op.ResponseStream)
+	operation, _, diags := compile(t, chat(when("$request.stream"), jsonBody), both())
+	assert.Nil(t, operation.ResponseStream)
 	assert.Equal(t, []string{"/paths/~1chat/post/" + whenKey}, findings(t, diags))
-	assert.NotContains(t, markers(op.Provenance.Inferred), "extension-promotion")
-	assert.Contains(t, op.Unmodeled, "openapi:"+whenKey, "the key stays as written")
+	assert.NotContains(t, markers(operation.Provenance.Inferred), "extension-promotion")
+	assert.Contains(t, operation.Unmodeled, "openapi:"+whenKey, "the key stays as written")
 }

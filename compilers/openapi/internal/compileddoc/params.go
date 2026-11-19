@@ -49,17 +49,17 @@ func keyOf(location ir.HTTPLocation, name string) paramKey {
 	return paramKey{location: location, name: name}
 }
 
-// indexParams indexes op's HTTP bindings. A binding naming no wire name places
+// indexParams indexes operation's HTTP bindings. A binding naming no wire name places
 // its parameter under the parameter's own name, and a parameter bound twice at
 // one place is indexed there once. CompiledDocumentView.Params is its one
 // caller, so an operation's parameters are indexed once a run.
-func indexParams(op *ir.Operation) ParamIndex {
-	names := make(map[ir.ParameterID]string, len(op.Params))
-	for i := range op.Params {
-		names[op.Params[i].ID] = op.Params[i].Name.Source
+func indexParams(operation *ir.Operation) ParamIndex {
+	names := make(map[ir.ParameterID]string, len(operation.Params))
+	for i := range operation.Params {
+		names[operation.Params[i].ID] = operation.Params[i].Name.Source
 	}
 	ix := ParamIndex{at: map[paramKey][]ir.ParameterID{}, placed: map[ir.ParameterID][]Placement{}}
-	for _, b := range op.Bindings.HTTP {
+	for _, b := range operation.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {
 			if pb.Location == ir.HTTPLocationHost {
 				continue

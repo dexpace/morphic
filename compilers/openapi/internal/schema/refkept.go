@@ -325,7 +325,7 @@ func said(admissionReaderValue *admissionReader, refinementValue refinement, typ
 	if admissionReaderValue.holds(refinementValue.held, schema, key) || unionHeld(admissionReaderValue, refinementValue, schema, key) || key == "type" && nullIdiom(admissionReaderValue.c, schema) {
 		return true
 	}
-	return typed.ok && key == "format" && (annotation.DeclaresRedaction(schema) || valueTypeHoldsFormat(typed.prim, schema))
+	return typed.ok && key == "format" && (annotation.DeclaresRedaction(schema) || valueTypeHoldsFormat(typed.primitive, schema))
 }
 
 // unionHeld reports whether every value refinementValue holds satisfies

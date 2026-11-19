@@ -13,15 +13,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestOpBindings_JSONContract pins OpBindings' omitempty contract — every
+// TestOperationBindings_JSONContract pins OperationBindings' omitempty contract — every
 // protocol binding is a pointer or slice that is nil when the operation does
 // not speak that protocol, so the zero value (no bindings at all) marshals to
-// an empty object — and that an OpBindings carrying every protocol binding
+// an empty object — and that an OperationBindings carrying every protocol binding
 // simultaneously — legal per the source comment ("a Smithy service exposed
 // over both HTTP and RPC") — round-trips.
-func TestOpBindings_JSONContract(t *testing.T) {
+func TestOperationBindings_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.OpBindings{}, `{}`, ir.OpBindings{
+	assertJSONContract(t, ir.OperationBindings{}, `{}`, ir.OperationBindings{
 		HTTP: []ir.HTTPBinding{
 			{Method: "GET", URITemplate: "/users"},
 			{Method: "POST", URITemplate: "/users", SharedRoute: true},
@@ -55,7 +55,7 @@ func TestHTTPBinding_JSONContract(t *testing.T) {
 				{Param: "filter", Location: ir.HTTPLocationQuery, WireName: "filter", Style: "form"},
 			},
 			RequestContentTypes:      []string{"application/json", "application/merge-patch+json"},
-			ResponseBodyPath:         &ir.PropPath{Segments: []ir.PropertyID{"property/result"}},
+			ResponseBodyPath:         &ir.PropertyPath{Segments: []ir.PropertyID{"property/result"}},
 			SuccessStatus:            map[int]int{0: 200, 1: 202},
 			Compression:              &ir.RequestCompression{Encodings: []string{"gzip", "br"}},
 			ChecksumRequired:         true,
@@ -207,7 +207,7 @@ func TestMessageBinding_JSONContract(t *testing.T) {
 		Messages:  []ir.MessageID{"m/OrderPlaced", "m/OrderCancelled"},
 		Reply: &ir.Reply{
 			Channel:  new(ir.ChannelID("c/reply")),
-			Address:  &ir.PropPath{In: "header", Segments: []ir.PropertyID{"property/replyTo"}},
+			Address:  &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{"property/replyTo"}},
 			Messages: []ir.MessageID{"m/OrderConfirmed"},
 			Docs:     populatedDocs(),
 		},
@@ -247,7 +247,7 @@ func TestReply_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Reply{}, `{"docs":{}}`, ir.Reply{
 		Channel:  new(ir.ChannelID("c/reply")),
-		Address:  &ir.PropPath{In: "header", Segments: []ir.PropertyID{"property/replyTo"}},
+		Address:  &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{"property/replyTo"}},
 		Messages: []ir.MessageID{"m/Reply1", "m/Reply2"},
 		Docs:     populatedDocs(),
 	})

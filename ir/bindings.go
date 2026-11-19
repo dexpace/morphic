@@ -3,11 +3,11 @@
 
 package ir
 
-// OpBindings holds the concrete-protocol mappings of an Operation's neutral core
+// OperationBindings holds the concrete-protocol mappings of an Operation's neutral core
 // (docs/ir/bindings.md). An operation has at least one binding; more than one
 // is legal (a Smithy service exposed over both HTTP and RPC; gRPC with HTTP
 // transcoding).
-type OpBindings struct {
+type OperationBindings struct {
 	// HTTP holds the HTTP mappings (OpenAPI/Swagger ops, TypeSpec @route, Smithy
 	// http traits). A slice: one operation may carry several HTTP mappings — gRPC
 	// transcoding additional_bindings — with the primary first.
@@ -69,7 +69,7 @@ func (l HTTPLocation) Valid() bool {
 type HTTPBinding struct {
 	// ResponseBodyPath sets the HTTP response body to this sub-field of the
 	// response type (gRPC transcoding response_body); nil = the whole payload.
-	ResponseBodyPath *PropPath `json:"responseBodyPath,omitzero"`
+	ResponseBodyPath *PropertyPath `json:"responseBodyPath,omitzero"`
 	// SuccessStatus maps response index to primary status (denormalized
 	// convenience; conditions are the truth).
 	SuccessStatus map[int]int `json:"successStatus,omitempty"`
@@ -300,7 +300,7 @@ type Reply struct {
 	// Address is the dynamic reply address: where in the request message the
 	// reply destination lives, e.g. In:"header", Segments:[replyTo] (AsyncAPI
 	// Operation Reply Address runtime expressions).
-	Address *PropPath `json:"address,omitzero"`
+	Address *PropertyPath `json:"address,omitzero"`
 	// Messages is the reply payload message set; when Channel is set it must be a
 	// subset of that channel's own Messages, which pass.Validate checks. No entry
 	// is empty.

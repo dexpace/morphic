@@ -52,7 +52,7 @@ func usedAt(t *testing.T, doc *ir.Document, at jsontext.Pointer) ir.TypeID {
 	case conjunctionPositions[1]:
 		holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
 		require.True(t, ok)
-		property, ok := propByWire(holder, "p")
+		property, ok := propertyByWire(holder, "p")
 		require.True(t, ok)
 		id = property.Type.Target
 	case conjunctionPositions[2]:
@@ -60,9 +60,9 @@ func usedAt(t *testing.T, doc *ir.Document, at jsontext.Pointer) ir.TypeID {
 		require.True(t, ok)
 		id = list.ElementType.Target
 	default:
-		op := operationAt(t, doc, "GET", "/x")
-		require.Len(t, op.Params, 1)
-		id = op.Params[0].Type.Target
+		operation := operationAt(t, doc, "GET", "/x")
+		require.Len(t, operation.Params, 1)
+		id = operation.Params[0].Type.Target
 	}
 	for range 4 {
 		alias, ok := doc.Types[id].(*ir.Scalar)
@@ -161,7 +161,7 @@ func TestKindInference_ADeclaredKindDecidesBesideAnEntryTheKeywordsClaim(t *test
 						assert.Empty(t, markedNodes(doc), tc.name)
 						for _, at := range conjunctionPositions {
 							entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", tc.entry))
-							assert.Equal(t, prim(ir.PrimitiveString), usedAt(t, doc, at), "%s at %s", tc.name, at)
+							assert.Equal(t, primitive(ir.PrimitiveString), usedAt(t, doc, at), "%s at %s", tc.name, at)
 							assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry + "/items": ir.ReasonDegradedLowering},
 								keptUnder(doc, at), "%s at %s", tc.name, at)
 							assert.Equal(t, []jsontext.Pointer{entry}, degradedUnder(diags, at), "%s at %s", tc.name, at)
@@ -249,7 +249,7 @@ func assertOutvotedRef(t *testing.T, spec, target string, refAt int) {
 		}
 		for _, at := range conjunctionPositions {
 			entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", refAt))
-			assert.Equal(t, prim(ir.PrimitiveString), usedAt(t, doc, at), "off=%t at %s", off, at)
+			assert.Equal(t, primitive(ir.PrimitiveString), usedAt(t, doc, at), "off=%t at %s", off, at)
 			assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry: ir.ReasonDegradedLowering},
 				keptUnder(doc, at), "off=%t at %s", off, at)
 			assert.Equal(t, []jsontext.Pointer{entry}, degradedUnder(diags, at), "off=%t at %s", off, at)
@@ -404,7 +404,7 @@ func TestKindInference_AnEntryReadAloneIsItsOwnPosition(t *testing.T) {
 					require.True(t, ok)
 					require.NotNil(t, out.Base)
 					assert.Equal(t, entryID, out.Base.Target, "off=%t", off)
-					assert.Equal(t, prim(ir.PrimitiveString), usedAt(t, doc, conjunctionPositions[0]), "off=%t", off)
+					assert.Equal(t, primitive(ir.PrimitiveString), usedAt(t, doc, conjunctionPositions[0]), "off=%t", off)
 					assert.Equal(t, !off, entry.Kind() == ir.KindList, "off=%t: %s", off, entry.Kind())
 					assert.Equal(t, !off, markedKindInference(entry), "off=%t", off)
 				}

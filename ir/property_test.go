@@ -83,7 +83,7 @@ func TestHeader_JSONContract(t *testing.T) {
 // serialized bytes (invariant #7).
 func TestProperty_WireNameByFormatDeterministic(t *testing.T) {
 	t.Parallel()
-	prop := ir.Property{
+	property := ir.Property{
 		ID: "property/x",
 		WireNameByFormat: map[string]string{
 			"z-format": "Z",
@@ -93,7 +93,7 @@ func TestProperty_WireNameByFormatDeterministic(t *testing.T) {
 			"b-format": "B",
 		},
 	}
-	got := assertDeterministicMarshal(t, prop)
+	got := assertDeterministicMarshal(t, property)
 	wantSubstr := `"wireNameByFormat":{"a-format":"A","b-format":"B","m-format":"M","q-format":"Q","z-format":"Z"}`
 	assert.Contains(t, got, wantSubstr, "map keys must serialize in sorted order")
 }
@@ -123,12 +123,12 @@ func TestProperty_RequiredNullableFourStates(t *testing.T) {
 	// assertion against still-empty results).
 	encodings := make(map[string]bool, len(tests))
 	for _, tt := range tests {
-		prop := ir.Property{
+		property := ir.Property{
 			ID:       "property/x",
 			Required: tt.required,
 			Type:     ir.TypeRef{Target: "type/x", Nullable: tt.nullable},
 		}
-		raw, err := json.Marshal(prop)
+		raw, err := json.Marshal(property)
 		require.NoError(t, err)
 		encodings[string(raw)] = true
 	}
@@ -137,13 +137,13 @@ func TestProperty_RequiredNullableFourStates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			prop := ir.Property{
+			property := ir.Property{
 				ID:       "property/x",
 				Required: tt.required,
 				Type:     ir.TypeRef{Target: "type/x", Nullable: tt.nullable},
 			}
 
-			raw, err := json.Marshal(prop)
+			raw, err := json.Marshal(property)
 			require.NoError(t, err)
 			got := string(raw)
 			assert.Contains(t, got, `"required":`, "invariant #8: required must appear literally")
@@ -151,7 +151,7 @@ func TestProperty_RequiredNullableFourStates(t *testing.T) {
 
 			var back ir.Property
 			require.NoError(t, json.Unmarshal(raw, &back))
-			assert.Equal(t, prop, back)
+			assert.Equal(t, property, back)
 		})
 	}
 }

@@ -186,7 +186,7 @@ func TestIDReferences_UnresolvedSettlesEachRegistry(t *testing.T) {
 			"c/x": {ID: "c/x", Messages: []ir.MessageID{"m/missing"}},
 		}}, []string{"document.Channels[c/x].Messages[0]=m/missing"}},
 		{"a channel reference dangling", &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{
-			Operations: []ir.Operation{{ID: "operation/x", Bindings: ir.OpBindings{
+			Operations: []ir.Operation{{ID: "operation/x", Bindings: ir.OperationBindings{
 				Message: &ir.MessageBinding{Channel: "c/missing"},
 			}}},
 		}}}}}, []string{"document.Services[0].Groups[0].Operations[0].Bindings.Message.Channel=c/missing"}},
@@ -203,8 +203,8 @@ func TestIDReferences_UnresolvedSettlesEachRegistry(t *testing.T) {
 			{ID: "service/x", Extends: []ir.ServiceID{"service/missing"}},
 		}}, []string{"document.Services[0].Extends[0]=service/missing"}},
 		{"a reference to a class nothing declares", &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{
-			Resource: &ir.ResourceInfo{InstanceOps: []ir.OperationID{"operation/x/Missing"}},
-		}}}}}, []string{"document.Services[0].Groups[0].Resource.InstanceOps[0]=operation/x/Missing"}},
+			Resource: &ir.ResourceInfo{InstanceOperations: []ir.OperationID{"operation/x/Missing"}},
+		}}}}}, []string{"document.Services[0].Groups[0].Resource.InstanceOperations[0]=operation/x/Missing"}},
 		{"a map key dangling", &ir.Document{
 			Types:    ir.TypeRegistry{"type/x/M": &ir.Any{ID: "type/x/M"}},
 			Services: []ir.Service{{Renames: map[ir.TypeID]ir.Naming{"type/x/ghost": {Source: "Ghost"}}}},
@@ -257,26 +257,26 @@ func TestIDReferences_TruncatedWalkClaimsNoDeclaredClass(t *testing.T) {
 	assert.Empty(t, refs.Unresolved(false), "within the cap the same shape resolves")
 }
 
-// TestIDReferences_PropIDIsDeclaredButNeverKept pins the one class no registry
+// TestIDReferences_PropertyIDIsDeclaredButNeverKept pins the one class no registry
 // resolves. A PropertyID names a position inside its model, so a document-wide
 // answer would report one defect twice where a tighter check knows the model;
 // the declarations are still answered, for the check that holds a PropertyID to
 // a declared property.
-func TestIDReferences_PropIDIsDeclaredButNeverKept(t *testing.T) {
+func TestIDReferences_PropertyIDIsDeclaredButNeverKept(t *testing.T) {
 	t.Parallel()
 	doc := docWithRef("type/x/Holder")
 	doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
 		ID:         "operation/x/List",
-		Pagination: &ir.Pagination{Items: &ir.PropPath{Segments: []ir.PropertyID{"property/x/ghost"}}},
+		Pagination: &ir.Pagination{Items: &ir.PropertyPath{Segments: []ir.PropertyID{"property/x/ghost"}}},
 	}}}}}}
 	refs, _ := walkedRefs(doc)
 
-	propID := reflect.TypeFor[ir.PropertyID]()
+	propertyID := reflect.TypeFor[ir.PropertyID]()
 	for _, ref := range refs.Kept() {
-		assert.NotEqual(t, propID, ref.Class, "no PropertyID is kept: %s", ref.Path)
+		assert.NotEqual(t, propertyID, ref.Class, "no PropertyID is kept: %s", ref.Path)
 	}
-	assert.True(t, refs.Declares(propID, "property/x/Holder/f"))
-	assert.False(t, refs.Declares(propID, "property/x/ghost"))
+	assert.True(t, refs.Declares(propertyID, "property/x/Holder/f"))
+	assert.False(t, refs.Declares(propertyID, "property/x/ghost"))
 }
 
 // TestIDReferences_DeclaresOnlyWhatNoMapKeys holds Declares to the identities a
@@ -320,9 +320,9 @@ func TestNewIDReferences_EachIsItsOwn(t *testing.T) {
 	walked, _ := walkedRefs(doc)
 	unwalked := ir.NewIDReferences(doc)
 
-	opID := reflect.TypeFor[ir.OperationID]()
-	assert.True(t, walked.Declares(opID, "operation/x"))
-	assert.False(t, unwalked.Declares(opID, "operation/x"), "a walk another IDReferences took declares nothing here")
+	operationID := reflect.TypeFor[ir.OperationID]()
+	assert.True(t, walked.Declares(operationID, "operation/x"))
+	assert.False(t, unwalked.Declares(operationID, "operation/x"), "a walk another IDReferences took declares nothing here")
 	assert.Empty(t, unwalked.Kept())
 }
 

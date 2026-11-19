@@ -182,13 +182,13 @@ func (editEveryPart) Run(_ context.Context, doc *ir.Document) (*ir.Document, []i
 	editor := ir.NewEditor(doc)
 	edited := func(docs *ir.Docs) { docs.Summary = "edited" }
 	removed := false
-	ir.ForEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
 		if !removed {
-			editor.RemoveOperation(op.ID)
+			editor.RemoveOperation(operation.ID)
 			removed = true
 			return
 		}
-		editor.UpdateOperation(op.ID, func(op *ir.Operation) { edited(&op.Docs) })
+		editor.UpdateOperation(operation.ID, func(irOperation *ir.Operation) { edited(&irOperation.Docs) })
 	})
 	for _, svc := range doc.Services {
 		editor.UpdateService(svc.ID, func(service *ir.Service) { edited(&service.Docs) })
@@ -252,9 +252,9 @@ func TestEngine_RunTransformsEveryPartThroughTheEditor(t *testing.T) {
 	require.False(t, res.Failed, "%v", res.Diagnostics)
 	assert.Empty(t, res.Diagnostics)
 	doc := res.Document
-	var ops []string
-	ir.ForEachOperation(doc, func(op ir.Operation) { ops = append(ops, op.Docs.Summary) })
-	assert.Equal(t, []string{"edited", "edited"}, ops, "the first operation was not removed or the rest not edited")
+	var operations []string
+	ir.ForEachOperation(doc, func(operation ir.Operation) { operations = append(operations, operation.Docs.Summary) })
+	assert.Equal(t, []string{"edited", "edited"}, operations, "the first operation was not removed or the rest not edited")
 	require.Len(t, doc.Services, 1)
 	assert.Equal(t, "edited", doc.Services[0].Docs.Summary)
 	require.Len(t, doc.Services[0].Groups, 2)

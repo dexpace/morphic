@@ -293,7 +293,7 @@ func (w *admissionReader) written(schema *statement.Schema, nullable bool) admit
 	}
 	if form, ok := formOf(schema); ok {
 		out.forms = []scalarForm{form}
-		if form.listed && form.prim.StrictlyWithin(ir.PrimitiveInteger) {
+		if form.listed && form.primitive.StrictlyWithin(ir.PrimitiveInteger) {
 			out.kinds &= kindInteger | kindNull
 		}
 	}
@@ -332,8 +332,8 @@ func formOf(schema *statement.Schema) (scalarForm, bool) {
 	if format == "" || annotation.DeclaresRedaction(schema) {
 		return scalarForm{}, false
 	}
-	prim, listed := formatPrimitive(schema)
-	return scalarForm{spelled: format, prim: prim, listed: listed}, true
+	primitive, listed := formatPrimitive(schema)
+	return scalarForm{spelled: format, primitive: primitive, listed: listed}, true
 }
 
 // valueSetOf keys the members one keyword of one schema writes.

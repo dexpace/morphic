@@ -38,21 +38,21 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Responses, 1)
-	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, op.Responses[0].Conditions.StatusCodes)
-	require.Len(t, op.Errors, 2)
-	assert.Equal(t, []ir.StatusRange{{From: 404, To: 404}}, op.Errors[0].Conditions.StatusCodes)
-	assert.Equal(t, "client", op.Errors[0].Fault)
-	require.NotNil(t, op.Errors[0].Payload)
-	require.Len(t, op.Errors[0].Payload.Contents, 1)
-	assert.NotEmpty(t, op.Errors[0].Payload.Contents[0].Type.Target, "404 error model lowered and referenced")
-	assert.Equal(t, []ir.StatusRange{{From: 500, To: 599}}, op.Errors[1].Conditions.StatusCodes)
-	assert.Equal(t, "server", op.Errors[1].Fault)
-	require.NotNil(t, op.Default, "the default is the operation's catch-all")
-	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Default.Conditions.StatusCodes)
-	assert.Equal(t, "default", op.Default.Name.Hint)
-	assert.Equal(t, "anything else", op.Default.Docs.Description)
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Responses, 1)
+	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, operation.Responses[0].Conditions.StatusCodes)
+	require.Len(t, operation.Errors, 2)
+	assert.Equal(t, []ir.StatusRange{{From: 404, To: 404}}, operation.Errors[0].Conditions.StatusCodes)
+	assert.Equal(t, "client", operation.Errors[0].Fault)
+	require.NotNil(t, operation.Errors[0].Payload)
+	require.Len(t, operation.Errors[0].Payload.Contents, 1)
+	assert.NotEmpty(t, operation.Errors[0].Payload.Contents[0].Type.Target, "404 error model lowered and referenced")
+	assert.Equal(t, []ir.StatusRange{{From: 500, To: 599}}, operation.Errors[1].Conditions.StatusCodes)
+	assert.Equal(t, "server", operation.Errors[1].Fault)
+	require.NotNil(t, operation.Default, "the default is the operation's catch-all")
+	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, operation.Default.Conditions.StatusCodes)
+	assert.Equal(t, "default", operation.Default.Name.Hint)
+	assert.Equal(t, "anything else", operation.Default.Docs.Description)
 }
 
 // TestResponses_ALoneDefaultIsNeitherClass pins the operation #608 is about:
@@ -73,19 +73,19 @@ func TestResponses_ALoneDefaultIsNeitherClass(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
+	operation := openapitest.FirstOperation(t, svc)
 
-	assert.Empty(t, op.Responses)
-	assert.Empty(t, op.Errors)
-	require.NotNil(t, op.Default)
-	assert.Equal(t, []ir.StatusRange{{}}, op.Default.Conditions.StatusCodes)
-	require.NotNil(t, op.Default.Payload)
-	require.Len(t, op.Default.Payload.Contents, 1)
+	assert.Empty(t, operation.Responses)
+	assert.Empty(t, operation.Errors)
+	require.NotNil(t, operation.Default)
+	assert.Equal(t, []ir.StatusRange{{}}, operation.Default.Conditions.StatusCodes)
+	require.NotNil(t, operation.Default.Payload)
+	require.Len(t, operation.Default.Payload.Contents, 1)
 	assert.Equal(t, ir.TypeID("type/anonymous/paths/~1w/get/responses/default/content/application~1json/schema"),
-		op.Default.Payload.Contents[0].Type.Target)
-	require.Len(t, op.Default.Headers, 1)
-	assert.Equal(t, "X-Rate", op.Default.Headers[0].WireName)
-	assert.Equal(t, "result", op.Default.Docs.Description)
+		operation.Default.Payload.Contents[0].Type.Target)
+	require.Len(t, operation.Default.Headers, 1)
+	assert.Equal(t, "X-Rate", operation.Default.Headers[0].WireName)
+	assert.Equal(t, "result", operation.Default.Docs.Description)
 }
 
 // TestResponses_NamedByStatusKey pins the only naming OpenAPI gives a response.
@@ -112,23 +112,23 @@ func TestResponses_NamedByStatusKey(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
+	operation := openapitest.FirstOperation(t, svc)
 
-	require.Len(t, op.Responses, 3)
-	hints := make([]string, 0, len(op.Responses))
-	for _, response := range op.Responses {
+	require.Len(t, operation.Responses, 3)
+	hints := make([]string, 0, len(operation.Responses))
+	for _, response := range operation.Responses {
 		assert.Empty(t, response.Name.Source, "OpenAPI declares no response name, so Source stays empty")
 		hints = append(hints, response.Name.Hint)
 	}
 	assert.Equal(t, []string{"200", "2_xx", "empty"}, hints,
 		"the key as declared, neutralized; a key with no word in it takes the mint")
 
-	require.Len(t, op.Errors, 1)
-	assert.Empty(t, op.Errors[0].Name.Source, "OpenAPI declares no error name either, so Source stays empty")
-	assert.Equal(t, "404", op.Errors[0].Name.Hint)
-	require.NotNil(t, op.Default)
-	assert.Empty(t, op.Default.Name.Source)
-	assert.Equal(t, "default", op.Default.Name.Hint, "the default records the key its range cannot state")
+	require.Len(t, operation.Errors, 1)
+	assert.Empty(t, operation.Errors[0].Name.Source, "OpenAPI declares no error name either, so Source stays empty")
+	assert.Equal(t, "404", operation.Errors[0].Name.Hint)
+	require.NotNil(t, operation.Default)
+	assert.Empty(t, operation.Default.Name.Source)
+	assert.Equal(t, "default", operation.Default.Name.Hint, "the default records the key its range cannot state")
 }
 
 // TestResponses_InvalidStatusKeyIsReported is the whole of GitHub #262 at the
@@ -149,14 +149,14 @@ func TestResponses_InvalidStatusKeyIsReported(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
+	operation := openapitest.FirstOperation(t, svc)
 
-	msg := openapitest.DiagMessageAt(t, diags, diag.InvalidStatusKey, ir.SeverityWarning,
+	message := openapitest.DiagMessageAt(t, diags, diag.InvalidStatusKey, ir.SeverityWarning,
 		"/paths/~1w/get/responses/wat")
-	assert.Contains(t, msg, `"wat"`, "the message names the key that could not be read")
+	assert.Contains(t, message, `"wat"`, "the message names the key that could not be read")
 
-	require.Len(t, op.Responses, 2)
-	byHint := openapitest.IndexBy(op.Responses, func(response ir.Response) string { return response.Name.Hint })
+	require.Len(t, operation.Responses, 2)
+	byHint := openapitest.IndexBy(operation.Responses, func(response ir.Response) string { return response.Name.Hint })
 	ok200, found := byHint["200"]
 	require.True(t, found)
 	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, ok200.Conditions.StatusCodes)
@@ -168,9 +168,9 @@ func TestResponses_InvalidStatusKeyIsReported(t *testing.T) {
 	require.NotNil(t, unreadable.Payload, "the body is real and is not dropped over a bad key")
 	assert.NotEmpty(t, unreadable.Payload.Contents)
 
-	assert.Empty(t, op.Errors)
-	require.NotNil(t, op.Default, "the declared default is still the only catch-all")
-	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Default.Conditions.StatusCodes)
+	assert.Empty(t, operation.Errors)
+	require.NotNil(t, operation.Default, "the declared default is still the only catch-all")
+	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, operation.Default.Conditions.StatusCodes)
 }
 
 // TestResponses_ValidStatusKeysAreNotReported is the overreach guard: a check
@@ -216,9 +216,9 @@ func TestResponses_ErrorHeadersAreStructural(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Errors, 1)
-	ec := op.Errors[0]
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Errors, 1)
+	ec := operation.Errors[0]
 
 	require.Len(t, ec.Headers, 2, "both headers lowered structurally")
 	wire := make([]string, 0, len(ec.Headers))
@@ -249,10 +249,10 @@ func TestResponses_HeadersLowered(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 1)
-	header := op.Responses[0].Headers[0]
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	header := operation.Responses[0].Headers[0]
 	assert.Equal(t, "X-Rate-Limit", header.WireName)
 	assert.True(t, header.Required)
 	assert.Equal(t, ir.TypeID("type/primitive/integer"), header.Type.Target)
@@ -278,10 +278,10 @@ func TestResponses_LinksLowerOntoTheResponse(t *testing.T) {
 `)
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	resp := openapitest.FindOp(t, doc, "l").Responses[0]
+	resp := openapitest.FindOperation(t, doc, "l").Responses[0]
 	require.Len(t, resp.Links, 1)
 	assert.Equal(t, "GetUserByUserId", resp.Links[0].Name.Source)
-	assert.Equal(t, openapitest.FindOp(t, doc, "getUser").ID, resp.Links[0].Operation)
+	assert.Equal(t, openapitest.FindOperation(t, doc, "getUser").ID, resp.Links[0].Operation)
 	assert.Empty(t, resp.Unmodeled, "nothing of the links map is kept verbatim beside them")
 }
 
@@ -315,8 +315,8 @@ func TestResponses_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, componentResponseRefSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	getA := openapitest.FindOp(t, doc, "getA")
-	getB := openapitest.FindOp(t, doc, "getB")
+	getA := openapitest.FindOperation(t, doc, "getA")
+	getB := openapitest.FindOperation(t, doc, "getB")
 	require.Len(t, getA.Responses, 1)
 	require.Len(t, getB.Responses, 1)
 
@@ -369,13 +369,13 @@ func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, refdErrorResponseSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	getA := openapitest.FindOp(t, doc, "getA")
-	getB := openapitest.FindOp(t, doc, "getB")
+	getA := openapitest.FindOperation(t, doc, "getA")
+	getB := openapitest.FindOperation(t, doc, "getB")
 	require.Len(t, getA.Errors, 1)
 	require.Len(t, getB.Errors, 1)
 
-	byFault := func(op ir.Operation) map[string]ir.ErrorCase {
-		return openapitest.IndexBy(op.Errors, func(ec ir.ErrorCase) string { return ec.Fault })
+	byFault := func(operation ir.Operation) map[string]ir.ErrorCase {
+		return openapitest.IndexBy(operation.Errors, func(ec ir.ErrorCase) string { return ec.Fault })
 	}
 	aErrs, bErrs := byFault(getA), byFault(getB)
 
@@ -388,11 +388,11 @@ func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 	assert.Equal(t, wantNotFound, errType(aErrs["client"]))
 	assert.Equal(t, wantNotFound, errType(bErrs["client"]), "the shared 4XX error model interns once")
 
-	defType := func(op ir.Operation) ir.TypeID {
-		require.NotNil(t, op.Default)
-		require.NotNil(t, op.Default.Payload)
-		require.Len(t, op.Default.Payload.Contents, 1)
-		return op.Default.Payload.Contents[0].Type.Target
+	defType := func(operation ir.Operation) ir.TypeID {
+		require.NotNil(t, operation.Default)
+		require.NotNil(t, operation.Default.Payload)
+		require.Len(t, operation.Default.Payload.Contents, 1)
+		return operation.Default.Payload.Contents[0].Type.Target
 	}
 	wantFallback := ir.TypeID("type/anonymous/components/responses/Fallback/content/application~1json/schema")
 	assert.Equal(t, wantFallback, defType(getA))
@@ -434,7 +434,7 @@ func TestErrorCase_EveryMediaTypeIsAContent(t *testing.T) {
         "409": {description: conflict}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	errs := openapitest.IndexBy(openapitest.FindOp(t, doc, "getX").Errors,
+	errs := openapitest.IndexBy(openapitest.FindOperation(t, doc, "getX").Errors,
 		func(ec ir.ErrorCase) int { return ec.Conditions.StatusCodes[0].From })
 
 	multi := errs[400]
@@ -482,9 +482,9 @@ func TestResponses_TwoKeysForOneRangeAreReported(t *testing.T) {
         "4xx": {description: lower}
 `)
 	_, svc, diags := compileService(t, spec)
-	op := openapitest.FirstOp(t, svc)
+	operation := openapitest.FirstOperation(t, svc)
 
-	require.Len(t, op.Errors, 2, "both are kept: neither key is wrong on its own")
+	require.Len(t, operation.Errors, 2, "both are kept: neither key is wrong on its own")
 	assert.True(t, openapitest.HasDiag(diags, diag.DuplicateStatusKey),
 		"two keys resolving to one range is reported; got %v", diags)
 }
@@ -594,12 +594,12 @@ components:
 `
 	_, _, diags := compileService(t, spec)
 
-	for _, op := range []string{"~1a", "~1b"} {
-		responses := "/paths/" + op + "/get/responses"
-		msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateStatusKey, ir.SeverityWarning, responses)
-		assert.Contains(t, msg, `"4XX", "4xx"`, "the message names every key that collided")
-		msg = openapitest.DiagMessageAt(t, diags, diag.InvalidStatusKey, ir.SeverityWarning, responses+"/wat")
-		assert.Contains(t, msg, `"wat"`, "the message names the key that could not be read")
+	for _, operation := range []string{"~1a", "~1b"} {
+		responses := "/paths/" + operation + "/get/responses"
+		message := openapitest.DiagMessageAt(t, diags, diag.DuplicateStatusKey, ir.SeverityWarning, responses)
+		assert.Contains(t, message, `"4XX", "4xx"`, "the message names every key that collided")
+		message = openapitest.DiagMessageAt(t, diags, diag.InvalidStatusKey, ir.SeverityWarning, responses+"/wat")
+		assert.Contains(t, message, `"wat"`, "the message names the key that could not be read")
 	}
 	for _, diagnostic := range diags {
 		assert.NotEqual(t, jsontext.Pointer("/components/responses/NF"), diagnostic.Provenance.Pointer,
@@ -642,16 +642,16 @@ components:
 	doc, _, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	a := openapitest.FindOp(t, doc, "a")
+	a := openapitest.FindOperation(t, doc, "a")
 	require.Len(t, a.Responses, 1)
 	assert.Equal(t, "as a returns it", a.Responses[0].Docs.Description)
 
-	b := openapitest.FindOp(t, doc, "b")
+	b := openapitest.FindOperation(t, doc, "b")
 	require.Len(t, b.Errors, 1)
 	assert.Equal(t, "as b fails", b.Errors[0].Docs.Description,
 		"an error case is lowered by the same shared function, so it folds too")
 
-	operation := openapitest.FindOp(t, doc, "c")
+	operation := openapitest.FindOperation(t, doc, "c")
 	require.Len(t, operation.Responses, 1)
 	assert.Equal(t, "declared", operation.Responses[0].Docs.Description,
 		"a mount with no siblings keeps the declaration's description")
@@ -676,7 +676,7 @@ func TestResponses_SummaryIsReadAtEveryVersion(t *testing.T) {
 			t.Parallel()
 			doc, _, diags := compileService(t, "openapi: "+version+"\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
 			openapitest.RequireNoErrorDiags(t, diags)
-			resp := openapitest.FindOp(t, doc, "a").Responses[0]
+			resp := openapitest.FindOperation(t, doc, "a").Responses[0]
 			assert.Equal(t, "The item was deleted", resp.Docs.Summary)
 			assert.Equal(t, "Long form.", resp.Docs.Description)
 			assert.NotContains(t, resp.Unmodeled, "openapi:summary",
@@ -708,7 +708,7 @@ func TestResponses_SummaryNoReaderTakesIsStillReported(t *testing.T) {
           description: ok
         "202": `+openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{summary: Deep, description: ok}")+`
 `))
-	responses := openapitest.FindOp(t, doc, "a").Responses
+	responses := openapitest.FindOperation(t, doc, "a").Responses
 	require.Len(t, responses, 3)
 	assert.Empty(t, responses[0].Docs.Summary)
 	assert.NotContains(t, responses[0].Unmodeled, "openapi:summary", "a summary that is not a string is read as left out")
@@ -740,5 +740,5 @@ components:
         application/json: {schema: {type: string}}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, "As a sees it", openapitest.FindOp(t, doc, "a").Responses[0].Docs.Summary)
+	assert.Equal(t, "As a sees it", openapitest.FindOperation(t, doc, "a").Responses[0].Docs.Summary)
 }

@@ -279,8 +279,8 @@ func TestTypeEdges_ASelfContainingValueIsFollowedOnce(t *testing.T) {
 	t.Parallel()
 	leaf := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "type/leaf"}}
 
-	ctor := &ir.ConstructorValue{Scalar: "type/scalar"}
-	ctor.Args = []ir.Value{leaf, {Kind: ir.ValueConstructor, Constructor: ctor}}
+	constructor := &ir.ConstructorValue{Scalar: "type/scalar"}
+	constructor.Args = []ir.Value{leaf, {Kind: ir.ValueConstructor, Constructor: constructor}}
 
 	list := []ir.Value{leaf, {}}
 	list[1] = ir.Value{Kind: ir.ValueList, List: list}
@@ -293,7 +293,7 @@ func TestTypeEdges_ASelfContainingValueIsFollowedOnce(t *testing.T) {
 		v    ir.Value
 		want []ir.TypeID
 	}{
-		{"a constructor", ir.Value{Kind: ir.ValueConstructor, Constructor: ctor}, []ir.TypeID{"type/scalar", "type/leaf"}},
+		{"a constructor", ir.Value{Kind: ir.ValueConstructor, Constructor: constructor}, []ir.TypeID{"type/scalar", "type/leaf"}},
 		{"a list", ir.Value{Kind: ir.ValueList, List: list}, []ir.TypeID{"type/leaf"}},
 		{"an object", ir.Value{Kind: ir.ValueObject, Object: object}, []ir.TypeID{"type/leaf"}},
 	} {
@@ -314,7 +314,7 @@ func TestTypeEdges_SharingWithoutACycleIsFollowedFromEachPlace(t *testing.T) {
 		return ir.Value{Kind: ir.ValueList, List: []ir.Value{value, value}}
 	}
 
-	ctor := ir.Value{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{Scalar: "type/scalar"}}
+	constructor := ir.Value{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{Scalar: "type/scalar"}}
 	list := ir.Value{Kind: ir.ValueList, List: []ir.Value{leaf}}
 	object := ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: leaf}}}
 
@@ -323,7 +323,7 @@ func TestTypeEdges_SharingWithoutACycleIsFollowedFromEachPlace(t *testing.T) {
 	members := []ir.Field{{Name: "a", Value: leaf}, {Name: "b"}}
 	members[1].Value = ir.Value{Kind: ir.ValueObject, Object: members[:1]}
 
-	assert.Equal(t, []ir.TypeID{"type/scalar", "type/scalar"}, edgeLiteral(twice(ctor)))
+	assert.Equal(t, []ir.TypeID{"type/scalar", "type/scalar"}, edgeLiteral(twice(constructor)))
 	assert.Equal(t, []ir.TypeID{"type/leaf", "type/leaf"}, edgeLiteral(twice(list)))
 	assert.Equal(t, []ir.TypeID{"type/leaf", "type/leaf"}, edgeLiteral(twice(object)))
 	assert.Equal(t, []ir.TypeID{"type/leaf", "type/leaf"}, edgeLiteral(ir.Value{Kind: ir.ValueList, List: prefix}))

@@ -28,9 +28,9 @@ func TestVerify_ParamChoiceNamesAreDistinct(t *testing.T) {
 		{"two choices of one name", []ir.ParamChoice{
 			choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{b}), choiceOf("y", []ir.ParameterID{parameterID}, []ir.ParameterID{a}),
 			choiceOf("x", []ir.ParameterID{b}, []ir.ParameterID{parameterID}),
-		}, []string{"ir/param-choice-name-duplicate " + choiceOp + ".ParamChoices[2].Name"}},
+		}, []string{"ir/param-choice-name-duplicate " + choiceOperationPath + ".ParamChoices[2].Name"}},
 		{"two variants of one name", []ir.ParamChoice{{Name: named("x"), Variants: twice}},
-			[]string{"ir/param-choice-name-duplicate " + choiceOp + ".ParamChoices[0].Variants[1].Name"}},
+			[]string{"ir/param-choice-name-duplicate " + choiceOperationPath + ".ParamChoices[0].Variants[1].Name"}},
 		{"a variant named as another choice", []ir.ParamChoice{
 			choiceOf("alpha", []ir.ParameterID{a}, []ir.ParameterID{b}),
 		}, nil},
@@ -38,7 +38,7 @@ func TestVerify_ParamChoiceNamesAreDistinct(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var got []string
-			for _, violation := range irverify.Verify(opDoc(choiceOperation(tc.choices...))) {
+			for _, violation := range irverify.Verify(singleOperationDocument(choiceOperation(tc.choices...))) {
 				if violation.Code == "ir/param-choice-name-duplicate" {
 					got = append(got, violation.Code+" "+violation.Path)
 				}

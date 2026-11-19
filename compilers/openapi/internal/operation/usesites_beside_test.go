@@ -18,7 +18,7 @@ import (
 func TestContentDocs_ChainAndDeclarationKeepApart(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, specsDir, "content_ref_summary_keys"))
-	q := namedItem(t, valueAtPath(opTree(t, doc, "a"), "params"), "q")
+	q := namedItem(t, valueAtPath(operationTree(t, doc, "a"), "params"), "q")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:content/application~1json/reference/0/summary": `no_ir_home "The use." ` +
 			`/paths/~1a/get/parameters/0/content/application~1json/summary`,
@@ -37,7 +37,7 @@ func TestContentDocs_ChainAndDeclarationKeepApart(t *testing.T) {
 func TestContentDocs_AKeyIsReadWhole(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, specFrom(t, specsDir, "content_key_read_whole"))
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 
 	const mt = `openapi:content/application~1json; profile="a~1b c"/`
 	q := namedItem(t, valueAtPath(a, "params"), "q")
@@ -68,7 +68,7 @@ func TestContentDocs_AKeyIsReadWhole(t *testing.T) {
 func TestCallbacks_AUseKeepsItsDocs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, conformanceSpecsDir, "ref-beside-keys"))
-	binding := valueAtPath(opTree(t, doc, "a"), "bindings", "http", "0", "unmodeled")
+	binding := valueAtPath(operationTree(t, doc, "a"), "bindings", "http", "0", "unmodeled")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:callbacks/cb/reference/0/description": `no_ir_home "cbd" /paths/~1a/post/callbacks/cb/description`,
 		"openapi:callbacks/cb/reference/0/summary":     `no_ir_home "cbs" /paths/~1a/post/callbacks/cb/summary`,

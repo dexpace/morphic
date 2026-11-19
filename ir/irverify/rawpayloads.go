@@ -140,11 +140,11 @@ func appendRawValue(vs []Violation, payloadReaderValue *payloadReader, value ref
 	if payloadReaderValue.valid(raw) {
 		return vs
 	}
-	msg := what + " value is not a JSON value, so the document cannot be marshaled"
+	message := what + " value is not a JSON value, so the document cannot be marshaled"
 	if raw == nil {
-		msg = what + " value is nil, which encodes as null and decodes back as the bytes null rather than nil"
+		message = what + " value is nil, which encodes as null and decodes back as the bytes null rather than nil"
 	}
-	return append(vs, Violation{Code: "ir/invalid-raw-value", Message: msg})
+	return append(vs, Violation{Code: "ir/invalid-raw-value", Message: message})
 }
 
 // payloadReader reads raw payloads through one decoder and one reader it resets

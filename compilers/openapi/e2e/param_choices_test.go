@@ -100,20 +100,20 @@ func TestParamChoices_ChangesNothingElse(t *testing.T) {
 	off, _ := compileChoices(t, choicesFixture(),
 		openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}})
 
-	onOp, offOp := listResources(t, on), listResources(t, off)
-	assert.Equal(t, declaredChoiceParams(), opParamIDs(onOp))
-	assert.Equal(t, declaredChoiceParams(), opParamIDs(offOp))
-	assert.Equal(t, offOp.Bindings, onOp.Bindings, "no binding is rewritten")
-	assert.Equal(t, offOp.Params, onOp.Params, "no parameter is rewritten")
-	assert.NotEmpty(t, onOp.ParamChoices)
-	assert.Empty(t, offOp.ParamChoices)
-	assert.Equal(t, ir.Inferred("extension-promotion"), onOp.Provenance.Inferred)
-	assert.Empty(t, offOp.Provenance.Inferred)
+	onOperation, offOperation := listResources(t, on), listResources(t, off)
+	assert.Equal(t, declaredChoiceParams(), operationParamIDs(onOperation))
+	assert.Equal(t, declaredChoiceParams(), operationParamIDs(offOperation))
+	assert.Equal(t, offOperation.Bindings, onOperation.Bindings, "no binding is rewritten")
+	assert.Equal(t, offOperation.Params, onOperation.Params, "no parameter is rewritten")
+	assert.NotEmpty(t, onOperation.ParamChoices)
+	assert.Empty(t, offOperation.ParamChoices)
+	assert.Equal(t, ir.Inferred("extension-promotion"), onOperation.Provenance.Inferred)
+	assert.Empty(t, offOperation.Provenance.Inferred)
 
 	// What is left once those two members are set aside is the same document.
-	opOn := &on.Services[0].Groups[0].Operations[0]
-	opOn.ParamChoices = nil
-	opOn.Provenance.Inferred = ""
+	operationOn := &on.Services[0].Groups[0].Operations[0]
+	operationOn.ParamChoices = nil
+	operationOn.Provenance.Inferred = ""
 	assert.Empty(t, cmp.Diff(irtest.Encoded(t, off), irtest.Encoded(t, on)), "the promotion writes nothing else")
 }
 
@@ -143,13 +143,13 @@ func TestParamChoices_SourceOrderDecidesNothing(t *testing.T) {
 `
 	doc, diags := compileChoices(t, choicesSpec(choicesKey, "", reversedParams, cursorFirst+parentSecond), openapi.Options{})
 	assert.Empty(t, diags)
-	op := listResources(t, doc)
-	assert.Equal(t, paramChoicesFilled(), op.ParamChoices)
+	operation := listResources(t, doc)
+	assert.Equal(t, paramChoicesFilled(), operation.ParamChoices)
 
 	want := declaredChoiceParams()
 	slices.Reverse(want)
-	assert.Equal(t, want, opParamIDs(op), "the parameters keep the order they are declared in")
-	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+	assert.Equal(t, want, operationParamIDs(operation), "the parameters keep the order they are declared in")
+	assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
 }
 
 // choiceHole is one way the fixture's parent choice is written badly: the
@@ -229,10 +229,10 @@ func TestParamChoices_LeavesAChoiceItCannotRead(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileChoices(t, choicesSpec(choicesKey, "", tc.params, tc.parent+cursorChoiceText), openapi.Options{})
 
-			op := listResources(t, doc)
-			assert.Equal(t, paramChoicesFilled()[:1], op.ParamChoices, "the cursor choice alone is filled")
-			assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
-			assert.Contains(t, op.Unmodeled, "openapi:"+choicesKey, "the key is kept whole")
+			operation := listResources(t, doc)
+			assert.Equal(t, paramChoicesFilled()[:1], operation.ParamChoices, "the cursor choice alone is filled")
+			assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
+			assert.Contains(t, operation.Unmodeled, "openapi:"+choicesKey, "the key is kept whole")
 
 			found := unpromoted(diags)
 			require.Len(t, found, 1, "one finding for the one choice: %v", diags)
@@ -262,11 +262,11 @@ func TestParamChoices_ReadsNothingOfAKeyThatIsNoObject(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileChoices(t, choicesSpec(choicesKey, "", choiceParamsText, tc.groups), openapi.Options{})
-			op := listResources(t, doc)
-			assert.Empty(t, op.ParamChoices)
-			assert.Empty(t, op.Provenance.Inferred, "nothing is filled, so nothing is marked")
-			assert.Equal(t, declaredChoiceParams(), opParamIDs(op))
-			assert.Contains(t, op.Unmodeled, "openapi:"+choicesKey)
+			operation := listResources(t, doc)
+			assert.Empty(t, operation.ParamChoices)
+			assert.Empty(t, operation.Provenance.Inferred, "nothing is filled, so nothing is marked")
+			assert.Equal(t, declaredChoiceParams(), operationParamIDs(operation))
+			assert.Contains(t, operation.Unmodeled, "openapi:"+choicesKey)
 
 			found := unpromoted(diags)
 			require.Len(t, found, tc.want, "%v", diags)
@@ -321,14 +321,14 @@ func TestParamChoices_FollowsThePolicy(t *testing.T) {
 			doc, diags := compileChoices(t, spec, tc.opts)
 			assert.Empty(t, diags)
 
-			op := listResources(t, doc)
-			assert.Equal(t, tc.want, op.ParamChoices)
-			assert.Contains(t, op.Unmodeled, "openapi:"+tc.key, "the key stays verbatim whatever is filled")
+			operation := listResources(t, doc)
+			assert.Equal(t, tc.want, operation.ParamChoices)
+			assert.Contains(t, operation.Unmodeled, "openapi:"+tc.key, "the key stays verbatim whatever is filled")
 			if tc.want == nil {
-				assert.Empty(t, op.Provenance.Inferred)
+				assert.Empty(t, operation.Provenance.Inferred)
 				return
 			}
-			assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+			assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
 		})
 	}
 }
@@ -345,8 +345,8 @@ func TestParamChoices_ResolvesAPathItemsParameter(t *testing.T) {
 
 	doc, diags := compileChoices(t, spec, openapi.Options{})
 	assert.Empty(t, diags)
-	op := listResources(t, doc)
-	assert.Equal(t, paramChoicesFilled(), op.ParamChoices)
-	assert.Contains(t, opParamIDs(op), choiceParamID("parent_id"), "the path item's parameter is the operation's")
-	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+	operation := listResources(t, doc)
+	assert.Equal(t, paramChoicesFilled(), operation.ParamChoices)
+	assert.Contains(t, operationParamIDs(operation), choiceParamID("parent_id"), "the path item's parameter is the operation's")
+	assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
 }

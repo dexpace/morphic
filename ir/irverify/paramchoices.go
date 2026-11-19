@@ -31,9 +31,9 @@ func checkParamChoices(*ir.Document) walkCheck {
 			if v.Type() != operationType {
 				return operationPath[v.Type()]
 			}
-			if op, ok := reflect.TypeAssert[ir.Operation](v); ok && len(op.ParamChoices) > 0 {
-				names := make([]ir.Naming, len(op.ParamChoices))
-				for i, choice := range op.ParamChoices {
+			if operation, ok := reflect.TypeAssert[ir.Operation](v); ok && len(operation.ParamChoices) > 0 {
+				names := make([]ir.Naming, len(operation.ParamChoices))
+				for i, choice := range operation.ParamChoices {
 					where := at.String() + ".ParamChoices[" + strconv.Itoa(i) + "]"
 					vs = appendChoiceViolations(vs, choice, where, &seen)
 					vs = appendNameViolations(vs, variantNames(choice), where+".Variants", &named)

@@ -18,7 +18,7 @@ type HTTPBinding struct {
     ParamBindings []HTTPParamBinding
     RequestContentTypes  []string  // the request body's media types, as written and in source
                                    // order, which states no preference among them
-    ResponseBodyPath *PropPath     // HTTP response body = this sub-field of the response type
+    ResponseBodyPath *PropertyPath // HTTP response body = this sub-field of the response type
                                    // (gRPC transcoding response_body); nil = the whole payload
     SuccessStatus map[int]int      // response index → primary status (denormalized convenience; conditions are the truth)
     Compression *RequestCompression // client MUST compress the request body (Smithy @requestCompression)

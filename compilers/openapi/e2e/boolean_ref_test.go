@@ -25,7 +25,7 @@ import (
 func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 	t.Parallel()
 	const items = "'#/components/schemas/L/items'"
-	const prop = "'#/components/schemas/L/properties/p'"
+	const property = "'#/components/schemas/L/properties/p'"
 	for _, tc := range []struct {
 		name, user, owner string
 		// base is what O aliases, or empty where O is no alias.
@@ -34,9 +34,9 @@ func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 		{"items false", "{$ref: " + items + "}", "{type: array, items: false}", "type/anonymous/components/schemas/L/items"},
 		{"a closed tuple's items", "{$ref: " + items + "}", "{type: array, prefixItems: [{type: string}], items: false}",
 			"type/anonymous/components/schemas/L/items"},
-		{"a true property", "{$ref: " + prop + "}", "{type: object, properties: {p: true}}",
+		{"a true property", "{$ref: " + property + "}", "{type: object, properties: {p: true}}",
 			"type/anonymous/components/schemas/L/properties/p"},
-		{"a property the parser reads as false", "{$ref: " + prop + "}", "{type: object, properties: {p: just text}}",
+		{"a property the parser reads as false", "{$ref: " + property + "}", "{type: object, properties: {p: just text}}",
 			"type/anonymous/components/schemas/L/properties/p"},
 		{"a union branch and a mapping value", "{type: object, properties: {k: {type: string}}, " +
 			"discriminator: {propertyName: k, mapping: {f: " + items + "}}, oneOf: [{$ref: " + items + "}]}",

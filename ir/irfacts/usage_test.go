@@ -16,9 +16,9 @@ import (
 )
 
 // useDoc builds a document with one operation and the given types.
-func useDoc(op ir.Operation, defs ...ir.TypeDef) *ir.Document {
+func useDoc(operation ir.Operation, defs ...ir.TypeDef) *ir.Document {
 	doc := irtest.DocOf(defs...)
-	doc.Services = []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
+	doc.Services = []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}}}}
 	return doc
 }
 
@@ -34,13 +34,13 @@ func useBody(mediaType string, id ir.TypeID) *ir.Payload {
 	return &ir.Payload{Contents: []ir.Content{{MediaType: mediaType, Type: useRef(id)}}}
 }
 
-func useProp(id ir.TypeID) ir.Property { return ir.Property{Type: useRef(id)} }
+func useProperty(id ir.TypeID) ir.Property { return ir.Property{Type: useRef(id)} }
 
 // useHolder is a model with one property of each of ids.
 func useHolder(id ir.TypeID, ids ...ir.TypeID) *ir.Model {
 	return irtest.ModelOf(id, func(model *ir.Model) {
 		for _, typeID := range ids {
-			model.Properties = append(model.Properties, useProp(typeID))
+			model.Properties = append(model.Properties, useProperty(typeID))
 		}
 	})
 }
@@ -87,7 +87,7 @@ func usageDocWith(mutate func(*ir.Document), defs ...ir.TypeDef) *ir.Document {
 // usageMessageDoc builds a document with message "msg", whose payload names
 // "t", and one operation bound to it by b.
 func usageMessageDoc(b *ir.MessageBinding) *ir.Document {
-	doc := useDoc(ir.Operation{Bindings: ir.OpBindings{Message: b}}, useType("t"))
+	doc := useDoc(ir.Operation{Bindings: ir.OperationBindings{Message: b}}, useType("t"))
 	doc.Messages = map[ir.MessageID]ir.Message{"msg": {ID: "msg", Payload: *useBody("application/json", "t")}}
 	return doc
 }
@@ -105,10 +105,10 @@ func usageRootCases() map[string]usageRoot {
 			useDoc(ir.Operation{RequestStream: &ir.StreamDetail{Initial: &ir.TypeRef{Target: "t"}}}, useType("t")), useIn, nil,
 		},
 		"rpc input type": {
-			useDoc(ir.Operation{Bindings: ir.OpBindings{RPC: &ir.RPCBinding{InputType: &ir.TypeRef{Target: "t"}}}}, useType("t")), useIn, nil,
+			useDoc(ir.Operation{Bindings: ir.OperationBindings{RPC: &ir.RPCBinding{InputType: &ir.TypeRef{Target: "t"}}}}, useType("t")), useIn, nil,
 		},
 		"response header": {
-			useDoc(ir.Operation{Responses: []ir.Response{{Headers: []ir.Header{{Property: useProp("t")}}}}}, useType("t")), useOut, nil,
+			useDoc(ir.Operation{Responses: []ir.Response{{Headers: []ir.Header{{Property: useProperty("t")}}}}}, useType("t")), useOut, nil,
 		},
 		"response header encoding schema": {
 			useDoc(ir.Operation{Responses: []ir.Response{{Headers: []ir.Header{
@@ -128,11 +128,11 @@ func usageRootCases() map[string]usageRoot {
 			useDoc(ir.Operation{LongRunning: &ir.LongRunning{FinalType: &ir.TypeRef{Target: "t"}}}, useType("t")), useOut, nil,
 		},
 		"error header": {
-			useDoc(ir.Operation{Errors: []ir.ErrorCase{{Headers: []ir.Header{{Property: useProp("t")}}}}}, useType("t")), useOut | useErr, nil,
+			useDoc(ir.Operation{Errors: []ir.ErrorCase{{Headers: []ir.Header{{Property: useProperty("t")}}}}}, useType("t")), useOut | useErr, nil,
 		},
 		"common error header": {
 			usageDocWith(func(doc *ir.Document) {
-				doc.Services = []ir.Service{{CommonErrors: []ir.ErrorCase{{Headers: []ir.Header{{Property: useProp("t")}}}}}}
+				doc.Services = []ir.Service{{CommonErrors: []ir.ErrorCase{{Headers: []ir.Header{{Property: useProperty("t")}}}}}}
 			}, useType("t")), useOut | useErr, nil,
 		},
 		"channel parameter": {
@@ -160,13 +160,13 @@ func usageRootCases() map[string]usageRoot {
 // usagePayloadCases name "t" at each place a payload names a type, under each
 // root a payload has.
 func usagePayloadCases() map[string]usageRoot {
-	encoded := map[ir.PropertyID]ir.PartEncoding{"p": {Headers: []ir.Header{{Property: useProp("t")}}}}
+	encoded := map[ir.PropertyID]ir.PartEncoding{"p": {Headers: []ir.Header{{Property: useProperty("t")}}}}
 	contents := map[string]ir.Content{
 		"content type":  {Type: useRef("t")},
 		"content item":  {Type: useRef("u"), Item: &ir.TypeRef{Target: "t"}},
 		"file contents": {Type: useRef("u"), File: &ir.FileInfo{Contents: &ir.TypeRef{Target: "t"}}},
 		"part header":   {Type: useRef("u"), Encoding: encoded},
-		"item header":   {Type: useRef("u"), ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{Property: useProp("t")}}}},
+		"item header":   {Type: useRef("u"), ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{Property: useProperty("t")}}}},
 	}
 	roots := map[string]struct {
 		place func(*ir.Payload) *ir.Document
@@ -367,7 +367,7 @@ func TestIndex_UsageReachesSubtypesOfAPolymorphicBaseOnlyWhereItIsAValue(t *test
 		irtest.ModelOf("shape", func(model *ir.Model) { model.Abstract = true }),
 		irtest.ModelOf("circle", func(model *ir.Model) {
 			model.Implements = irtest.RefsTo("shape")
-			model.Properties = []ir.Property{useProp("radius")}
+			model.Properties = []ir.Property{useProperty("radius")}
 		}),
 		useType("radius"),
 	}
@@ -420,7 +420,7 @@ func TestIndex_UsageIgnoresAReferenceToNoType(t *testing.T) {
 
 func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{
+	operation := ir.Operation{
 		ID:        "op",
 		Params:    []ir.Parameter{{Type: useRef("param")}},
 		Request:   useBody("application/json", "request"),
@@ -446,7 +446,7 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			hook := op
+			hook := operation
 			hook.Bindings.HTTP = tc.bindings
 			assert.Equal(t, tc.want, usageOf(useDoc(hook, defs()...)))
 		})
@@ -454,11 +454,11 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 
 	t.Run("a callback, however deep its parent", func(t *testing.T) {
 		t.Parallel()
-		parent := ir.Operation{ID: "parent", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+		parent := ir.Operation{ID: "parent", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 			Method: "POST", URITemplate: "/subscribe",
 			Callbacks: []ir.Callback{{Expression: "{$request.body#/url}", Operations: []ir.OperationID{"op"}}},
 		}}}}
-		callback := op
+		callback := operation
 		callback.Bindings.HTTP = []ir.HTTPBinding{{Method: "POST", URITemplate: "{$request.body#/url}"}}
 		doc := irtest.DocOf(defs()...)
 		doc.Services = []ir.Service{{Groups: []ir.OperationGroup{
@@ -470,7 +470,7 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 
 	t.Run("a webhook's callback is no less inbound", func(t *testing.T) {
 		t.Parallel()
-		callback := op
+		callback := operation
 		callback.Bindings.HTTP = []ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, Callbacks: []ir.Callback{{Operations: []ir.OperationID{"op"}}}}}
 		assert.Equal(t, inbound, usageOf(useDoc(callback, defs()...)))
 	})
@@ -479,8 +479,8 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 func TestIndex_UsageMarksMultipartOnTheBodyTypeAndWhatItAliases(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
-		op   ir.Operation
-		want map[ir.TypeID]irfacts.UsageFlags
+		operation ir.Operation
+		want      map[ir.TypeID]irfacts.UsageFlags
 	}{
 		"request": {
 			ir.Operation{Request: useBody("multipart/form-data", "form")},
@@ -505,7 +505,7 @@ func TestIndex_UsageMarksMultipartOnTheBodyTypeAndWhatItAliases(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc := useDoc(tc.op, useHolder("form", "part"), useType("part"), irtest.ScalarOf("outer", "inner"), irtest.ScalarOf("inner", "form"))
+			doc := useDoc(tc.operation, useHolder("form", "part"), useType("part"), irtest.ScalarOf("outer", "inner"), irtest.ScalarOf("inner", "form"))
 			assert.Equal(t, tc.want, usageOf(doc))
 		})
 	}
@@ -590,7 +590,7 @@ func TestIndex_UsageIgnoresPositionsThatNameNoType(t *testing.T) {
 		ResponseStream: &ir.StreamDetail{Events: &ir.TypeRef{}},
 		Responses:      []ir.Response{{Payload: &ir.Payload{}}, {Headers: []ir.Header{{Encoding: &ir.Encoding{}}}}},
 		LongRunning:    &ir.LongRunning{},
-		Bindings:       ir.OpBindings{RPC: &ir.RPCBinding{}, Message: &ir.MessageBinding{Reply: &ir.Reply{}}},
+		Bindings:       ir.OperationBindings{RPC: &ir.RPCBinding{}, Message: &ir.MessageBinding{Reply: &ir.Reply{}}},
 	}, useType("t"))
 	doc.Auth = map[ir.AuthID]ir.AuthScheme{"key": {}}
 	assert.Empty(t, usageOf(doc))
@@ -603,12 +603,12 @@ func TestIndex_UsageIgnoresPositionsThatNameNoType(t *testing.T) {
 // same types are input.
 func TestUsage_ADefaultTravelsAsOutputAndNoError(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{
+	operation := ir.Operation{
 		ID: "op",
 		Default: &ir.Response{
 			Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 0, To: 0}}},
 			Payload:    useBody("application/json", "t"),
-			Headers:    []ir.Header{{Property: useProp("h")}},
+			Headers:    []ir.Header{{Property: useProperty("h")}},
 		},
 	}
 	defs := func() []ir.TypeDef { return []ir.TypeDef{irtest.ModelOf("t", nil), useType("h")} }
@@ -622,7 +622,7 @@ func TestUsage_ADefaultTravelsAsOutputAndNoError(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			bound := op
+			bound := operation
 			bound.Bindings.HTTP = tc.bindings
 			doc := useDoc(bound, defs()...)
 			facts := irfacts.New(doc)

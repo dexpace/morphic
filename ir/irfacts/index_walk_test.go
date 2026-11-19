@@ -17,7 +17,7 @@ import (
 // walkChain is a chain of n+1 models, each declaring one property, beside
 // extra models nothing relates to it.
 func walkChain(n, extra int) *ir.Document {
-	defs := factsChain(n, func(i int, model *ir.Model) { model.Properties = []ir.Property{{ID: factsPropID(i)}} })
+	defs := factsChain(n, func(i int, model *ir.Model) { model.Properties = []ir.Property{{ID: factsPropertyID(i)}} })
 	for k := range extra {
 		defs = append(defs, irtest.ModelOf(factsBaseID(k), nil))
 	}
@@ -29,8 +29,8 @@ func TestIndex_AFewCheapQuestionsAreWalked(t *testing.T) {
 	facts := irfacts.New(walkChain(3, 1000))
 	assert.True(t, facts.IsSubtype(factsChainID(3), factsChainID(0)))
 	assert.False(t, facts.IsSubtype(factsChainID(0), factsChainID(3)))
-	assert.True(t, facts.Exposes(factsChainID(3), factsPropID(0)))
-	assert.False(t, facts.Exposes(factsChainID(0), factsPropID(3)))
+	assert.True(t, facts.Exposes(factsChainID(3), factsPropertyID(0)))
+	assert.False(t, facts.Exposes(factsChainID(0), factsPropertyID(3)))
 
 	hierarchy, exposure := facts.Indexed()
 	assert.False(t, hierarchy || exposure, "questions this cheap cost less than indexing a registry of a thousand types")
@@ -45,7 +45,7 @@ func TestIndex_WalksPastTheRegistrysSizeGiveWayToTheIndex(t *testing.T) {
 	facts := irfacts.New(walkChain(n, 0))
 	for i := 1; i <= n; i++ {
 		require.True(t, facts.IsSubtype(factsChainID(i), factsChainID(0)), "%s below the top", factsChainID(i))
-		require.True(t, facts.Exposes(factsChainID(i), factsPropID(0)), "%s exposes the top's property", factsChainID(i))
+		require.True(t, facts.Exposes(factsChainID(i), factsPropertyID(0)), "%s exposes the top's property", factsChainID(i))
 	}
 	hierarchy, exposure := facts.Indexed()
 	assert.True(t, hierarchy && exposure, "walking the chain from every model costs more than indexing it")
@@ -67,7 +67,7 @@ func TestIndex_AnIndexBuiltForAnyReasonEndsTheWalking(t *testing.T) {
 
 	// No fact but Exposes builds the exposure index yet; the index's own answer
 	// does, as a fact that needs it would.
-	_, _ = facts.ExposesIndexAnswer(factsChainID(3), factsPropID(0))
+	_, _ = facts.ExposesIndexAnswer(factsChainID(3), factsPropertyID(0))
 	_, exposed = facts.WalkStepsLeft()
 	assert.Zero(t, exposed, "exposure questions read the index once it is built")
 }

@@ -326,15 +326,15 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, "order %d", i)
 				require.Len(t, model.Properties, 1, "order %d", i)
-				prop := model.Properties[0]
-				assert.Equal(t, tc.win, prop.Type.Target, "order %d", i)
+				property := model.Properties[0]
+				assert.Equal(t, tc.win, property.Type.Target, "order %d", i)
 				if tc.same {
 					assert.Empty(t, diags, "order %d", i)
-					assert.Empty(t, prop.Unmodeled, "order %d", i)
+					assert.Empty(t, property.Unmodeled, "order %d", i)
 				} else {
 					require.Len(t, diags, 1, "order %d", i)
 					assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
-					assert.Len(t, prop.Unmodeled, 1, "the earlier $ref is kept (order %d)", i)
+					assert.Len(t, property.Unmodeled, 1, "the earlier $ref is kept (order %d)", i)
 				}
 				for _, name := range []string{"P", "Q"} {
 					td, ok := doc.Types[componentID(name)]
@@ -374,16 +374,16 @@ func TestAllOf_ARefToAnInlineNodeIsDeclaredApart(t *testing.T) {
 		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok, "order %d", i)
 		require.Len(t, model.Properties, 1, "order %d", i)
-		prop := model.Properties[0]
-		assert.Equal(t, tc.win, prop.Type.Target, "order %d", i)
+		property := model.Properties[0]
+		assert.Equal(t, tc.win, property.Type.Target, "order %d", i)
 		if tc.same {
 			assert.Empty(t, diags, "order %d", i)
-			assert.Empty(t, prop.Unmodeled, "order %d", i)
+			assert.Empty(t, property.Unmodeled, "order %d", i)
 			continue
 		}
 		require.Len(t, diags, 1, "order %d", i)
 		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
-		assert.Len(t, prop.Unmodeled, 1, "the earlier $ref is kept (order %d)", i)
+		assert.Len(t, property.Unmodeled, 1, "the earlier $ref is kept (order %d)", i)
 	}
 }
 
@@ -506,24 +506,24 @@ func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
 				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, "%v", order)
 				require.Len(t, model.Properties, 1, "%v", order)
-				prop := model.Properties[0]
+				property := model.Properties[0]
 
 				if tc.kind != "" {
-					assert.Equal(t, tc.kind, doc.Types[prop.Type.Target].Kind(), "%v", order)
+					assert.Equal(t, tc.kind, doc.Types[property.Type.Target].Kind(), "%v", order)
 				}
 				if tc.def == "" {
-					assert.Nil(t, prop.Default, "%v", order)
-				} else if assert.NotNil(t, prop.Default, "%v", order) {
-					assert.Equal(t, tc.def, prop.Default.String, "%v", order)
+					assert.Nil(t, property.Default, "%v", order)
+				} else if assert.NotNil(t, property.Default, "%v", order) {
+					assert.Equal(t, tc.def, property.Default.String, "%v", order)
 				}
 				if tc.code == "" {
 					assert.Empty(t, diags, "%v", order)
-					assert.Empty(t, prop.Unmodeled, "%v", order)
+					assert.Empty(t, property.Unmodeled, "%v", order)
 					continue
 				}
 				require.Len(t, diags, 1, "%v: %v", order, reported(diags))
 				assert.Equal(t, tc.code, diags[0].Code, "%v", order)
-				assert.Len(t, prop.Unmodeled, 1, "the declaration not taken is kept (%v)", order)
+				assert.Len(t, property.Unmodeled, 1, "the declaration not taken is kept (%v)", order)
 			}
 		})
 	}
@@ -566,17 +566,17 @@ func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) 
 				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, "order %d", i)
 				require.Len(t, model.Properties, 1, "order %d", i)
-				prop := model.Properties[0]
+				property := model.Properties[0]
 
-				assert.Equal(t, tc.kind, doc.Types[prop.Type.Target].Kind(), "order %d", i)
+				assert.Equal(t, tc.kind, doc.Types[property.Type.Target].Kind(), "order %d", i)
 				if tc.code == "" {
 					assert.Empty(t, diags, "order %d", i)
-					assert.Empty(t, prop.Unmodeled, "order %d", i)
+					assert.Empty(t, property.Unmodeled, "order %d", i)
 					continue
 				}
 				require.Len(t, diags, 1, "order %d", i)
 				assert.Equal(t, tc.code, diags[0].Code, "order %d", i)
-				assert.Len(t, prop.Unmodeled, 1, "the losing declaration is kept (order %d)", i)
+				assert.Len(t, property.Unmodeled, 1, "the losing declaration is kept (order %d)", i)
 			}
 		})
 	}
@@ -624,7 +624,7 @@ func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
 // once left unrelated, which the merge reported as a pair it does not compare.
 func TestAllOf_ContainerMembersAreJudgedAsFieldsAre(t *testing.T) {
 	t.Parallel()
-	str, num := "{type: array, items: {type: string, enum: [a]}%s}", "{type: array, items: {type: integer, enum: [1]}}"
+	stringSchema, number := "{type: array, items: {type: string, enum: [a]}%s}", "{type: array, items: {type: integer, enum: [1]}}"
 	for _, tc := range []struct {
 		name, min string
 		code      string
@@ -633,7 +633,7 @@ func TestAllOf_ContainerMembersAreJudgedAsFieldsAre(t *testing.T) {
 		{"one list never empty", ", minItems: 1", diag.ConflictingRedecl, ir.SeverityWarning},
 		{"both lists admitting the empty one", "", diag.DegradedConstruct, ir.SeverityInfo},
 	} {
-		for _, order := range [][2]string{{fmt.Sprintf(str, tc.min), num}, {num, fmt.Sprintf(str, tc.min)}} {
+		for _, order := range [][2]string{{fmt.Sprintf(stringSchema, tc.min), number}, {number, fmt.Sprintf(stringSchema, tc.min)}} {
 			_, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
 			require.Len(t, diags, 1, "%s, order %v: %+v", tc.name, order, diags)
 			assert.Equal(t, tc.code, diags[0].Code, "%s, order %v", tc.name, order)
@@ -674,12 +674,12 @@ func TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder(t *testing.T) {
 				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok)
 				require.Len(t, model.Properties, 1)
-				prop := model.Properties[0]
-				assert.Equal(t, tc.want, prop.Type.Target, "the narrower target wins (order %d)", i)
-				for key := range prop.Unmodeled {
+				property := model.Properties[0]
+				assert.Equal(t, tc.want, property.Type.Target, "the narrower target wins (order %d)", i)
+				for key := range property.Unmodeled {
 					assert.NotContains(t, key, "openapi:conflicting-redeclaration", "nothing is kept (order %d)", i)
 				}
-				merged[i] = prop.Type
+				merged[i] = property.Type
 			}
 			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
 		})

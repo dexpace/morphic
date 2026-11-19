@@ -55,8 +55,8 @@ func declaredKinds(t *testing.T) []ir.PrimitiveKind {
 }
 
 func spelled(primitiveKind ir.PrimitiveKind) bool {
-	for _, prim := range typeformat.FormatTable {
-		if prim == primitiveKind {
+	for _, primitive := range typeformat.FormatTable {
+		if primitive == primitiveKind {
 			return true
 		}
 	}
@@ -72,17 +72,17 @@ func spelled(primitiveKind ir.PrimitiveKind) bool {
 // node as byte and an unknown format do, or be read elsewhere, as password is.
 func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
 	t.Parallel()
-	for key, prim := range typeformat.FormatTable {
+	for key, primitive := range typeformat.FormatTable {
 		typ, _, paired := strings.Cut(key, "/")
 		if !paired {
 			continue // the bare type's own row, which no format selects
 		}
 		bare, ok := typeformat.FormatTable[typ]
 		require.True(t, ok, "row %q names a type with no row of its own", key)
-		assert.NotEqual(t, bare, prim,
+		assert.NotEqual(t, bare, primitive,
 			"row %q maps to the same kind (%s) as the bare type %q, so the pairing "+
 				"reaches no field once the position resolves to the shared primitive; "+
-				"a format whose kind does not differ must not be a row", key, prim, typ)
+				"a format whose kind does not differ must not be a row", key, primitive, typ)
 	}
 }
 
@@ -126,9 +126,9 @@ func loweredStringFormat(t *testing.T, format string) ir.PrimitiveKind {
 	model, ok := doc.Types["type/openapi/components/schemas/H"].(*ir.Model)
 	require.True(t, ok, "H lowers to a model")
 	require.Len(t, model.Properties, 1)
-	prim, ok := doc.Types[model.Properties[0].Type.Target].(*ir.Primitive)
+	primitive, ok := doc.Types[model.Properties[0].Type.Target].(*ir.Primitive)
 	require.True(t, ok, "%s resolves to a shared primitive", format)
-	return prim.PrimitiveKind
+	return primitive.PrimitiveKind
 }
 
 // TestFormatTable_EveryRowNarrowsItsBareType holds the relation to what the
@@ -138,17 +138,17 @@ func loweredStringFormat(t *testing.T, format string) ir.PrimitiveKind {
 // numeric row to the value domain alone.
 func TestFormatTable_EveryRowNarrowsItsBareType(t *testing.T) {
 	t.Parallel()
-	for key, prim := range typeformat.FormatTable {
+	for key, primitive := range typeformat.FormatTable {
 		typ, _, paired := strings.Cut(key, "/")
 		if !paired {
 			continue
 		}
 		bare, ok := typeformat.FormatTable[typ]
 		require.True(t, ok, "row %q names a type with no row of its own", key)
-		assert.True(t, typeformat.Narrows(prim, bare),
-			"row %q lowers to %s, which does not narrow the bare %q kind %s", key, prim, typ, bare)
+		assert.True(t, typeformat.Narrows(primitive, bare),
+			"row %q lowers to %s, which does not narrow the bare %q kind %s", key, primitive, typ, bare)
 		if typ != "string" {
-			assert.True(t, prim.StrictlyWithin(bare),
+			assert.True(t, primitive.StrictlyWithin(bare),
 				"numeric row %q must narrow its bare kind by value domain alone", key)
 		}
 	}
@@ -306,9 +306,9 @@ func TestRelate_ClassifiesEveryVerdict(t *testing.T) {
 // row and an unknown one reports it.
 func TestLookup_ReadsTheTable(t *testing.T) {
 	t.Parallel()
-	prim, ok := typeformat.Lookup("integer/int32")
+	primitive, ok := typeformat.Lookup("integer/int32")
 	assert.True(t, ok)
-	assert.Equal(t, ir.PrimitiveInt32, prim)
+	assert.Equal(t, ir.PrimitiveInt32, primitive)
 
 	_, ok = typeformat.Lookup("string/password")
 	assert.False(t, ok)
@@ -321,7 +321,7 @@ func TestLookupEncoded_ReadsTheTable(t *testing.T) {
 	t.Parallel()
 	row, ok := typeformat.LookupEncoded("integer/unixtime")
 	assert.True(t, ok)
-	assert.Equal(t, typeformat.Encoded{Prim: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveInteger}, row)
+	assert.Equal(t, typeformat.Encoded{Primitive: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveInteger}, row)
 
 	for _, key := range []string{"string/date-time", "boolean/unixtime", "string"} {
 		_, ok = typeformat.LookupEncoded(key)
@@ -348,9 +348,9 @@ func TestEncodedTable_IsApartFromTheFormatTable(t *testing.T) {
 		bare, typed := typeformat.FormatTable[typ]
 		require.True(t, typed, "%s names a type the format table has", key)
 
-		assert.True(t, row.Prim.Valid(), "%s: %q is a primitive ir declares", key, row.Prim)
+		assert.True(t, row.Primitive.Valid(), "%s: %q is a primitive ir declares", key, row.Primitive)
 		if row.Wire == "" {
-			assert.True(t, typeformat.Narrows(row.Prim, bare), "%s travels in its primitive's own spelling, so it narrows %s", key, bare)
+			assert.True(t, typeformat.Narrows(row.Primitive, bare), "%s travels in its primitive's own spelling, so it narrows %s", key, bare)
 		} else {
 			assert.Equal(t, bare, row.Wire, "%s travels as the type it is written on", key)
 		}

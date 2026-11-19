@@ -77,11 +77,11 @@ func kindOfValue(value ir.Value) kindSet {
 // kindOfNumber returns the kind of a decimal literal. One with an exponent may
 // be integral or not, and telling them apart costs what the exponent says, so it
 // answers for both.
-func kindOfNumber(num string) kindSet {
-	if strings.ContainsAny(num, "eE") {
+func kindOfNumber(number string) kindSet {
+	if strings.ContainsAny(number, "eE") {
 		return kindNumber
 	}
-	if _, fraction, _ := strings.Cut(num, "."); strings.Trim(fraction, "0") != "" {
+	if _, fraction, _ := strings.Cut(number, "."); strings.Trim(fraction, "0") != "" {
 		return kindFraction
 	}
 	return kindInteger

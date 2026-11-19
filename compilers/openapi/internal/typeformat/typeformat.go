@@ -58,15 +58,15 @@ var formatTable = map[string]ir.PrimitiveKind{
 // Lookup returns the primitive a "type" or "type/format" key selects, and
 // whether the table has a row for it.
 func Lookup(key string) (ir.PrimitiveKind, bool) {
-	prim, ok := formatTable[key]
-	return prim, ok
+	primitive, ok := formatTable[key]
+	return primitive, ok
 }
 
 // Encoded is a (type, format) pairing whose value is of a primitive other than
 // the JSON type it is written on, in a text other than that primitive's own.
 type Encoded struct {
-	// Prim is the primitive the value is.
-	Prim ir.PrimitiveKind
+	// Primitive is the primitive the value is.
+	Primitive ir.PrimitiveKind
 	// Encoding names the text, as docs/ir/constraints.md#encodings does.
 	Encoding string
 	// Wire is the primitive the value travels as, or "" where Prim's own
@@ -84,12 +84,12 @@ type Encoded struct {
 // document came from. Its Wire is the JSON type it is written on, which tells
 // whole seconds from a fraction or a decimal text.
 var encodedTable = map[string]Encoded{
-	"string/byte":      {Prim: ir.PrimitiveBytes, Encoding: "base64", Wire: ir.PrimitiveString},
-	"string/base64url": {Prim: ir.PrimitiveBytes, Encoding: "base64url", Wire: ir.PrimitiveString},
-	"string/http-date": {Prim: ir.PrimitiveDatetimeOffset, Encoding: "http-date"},
-	"integer/unixtime": {Prim: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveInteger},
-	"number/unixtime":  {Prim: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveNumber},
-	"string/unixtime":  {Prim: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveString},
+	"string/byte":      {Primitive: ir.PrimitiveBytes, Encoding: "base64", Wire: ir.PrimitiveString},
+	"string/base64url": {Primitive: ir.PrimitiveBytes, Encoding: "base64url", Wire: ir.PrimitiveString},
+	"string/http-date": {Primitive: ir.PrimitiveDatetimeOffset, Encoding: "http-date"},
+	"integer/unixtime": {Primitive: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveInteger},
+	"number/unixtime":  {Primitive: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveNumber},
+	"string/unixtime":  {Primitive: ir.PrimitiveDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimitiveString},
 }
 
 // LookupEncoded returns the pairing a "type/format" key selects, and whether
@@ -148,8 +148,8 @@ func narrows(narrow, broad ir.PrimitiveKind) bool {
 // primitiveKind. The edge set is read off the table rather than restated beside
 // it.
 func refinesString(primitiveKind ir.PrimitiveKind) bool {
-	for key, prim := range formatTable {
-		if prim == primitiveKind && strings.HasPrefix(key, "string/") {
+	for key, primitive := range formatTable {
+		if primitive == primitiveKind && strings.HasPrefix(key, "string/") {
 			return true
 		}
 	}

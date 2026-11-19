@@ -57,15 +57,15 @@ var boundedShapes = []boundedShape{
 // boundedSpec writes each bounded shape as a component, a property, a query
 // parameter and a response header, the components in the order given.
 func boundedSpec(version string, components []string) string {
-	var params, headers, props strings.Builder
+	var params, headers, properties strings.Builder
 	for _, sh := range boundedShapes {
 		fmt.Fprintf(&params, "        - {name: q%s, in: query, schema: %s}\n", sh.key, sh.schema)
 		fmt.Fprintf(&headers, "            H%s: {schema: %s}\n", sh.key, sh.schema)
-		fmt.Fprintf(&props, "        p%s: %s\n", sh.key, sh.schema)
+		fmt.Fprintf(&properties, "        p%s: %s\n", sh.key, sh.schema)
 	}
 	paths := "paths:\n  /x:\n    get:\n      operationId: get\n      parameters:\n" + params.String() +
 		"      responses:\n        '200':\n          description: ok\n          headers:\n" + headers.String()
-	holder := "Holder:\n      type: object\n      properties:\n" + strings.TrimSuffix(props.String(), "\n")
+	holder := "Holder:\n      type: object\n      properties:\n" + strings.TrimSuffix(properties.String(), "\n")
 	return admissionSpec(version, paths, slices.Concat(components, []string{holder})...)
 }
 
@@ -141,13 +141,13 @@ func TestKindInference_ABoundLandsOnTheInferredNodeOfItsKind(t *testing.T) {
 							assertBoundedNode(t, doc, id, want)
 							assert.Equal(t, 1, countOf(infos, jsontext.Pointer(pointer)), "one info at %s", pointer)
 						}
-						assert.Empty(t, encodedBounds(t, holderProps(t, doc)["p"+sh.key]), "the property holds none")
+						assert.Empty(t, encodedBounds(t, holderProperties(t, doc)["p"+sh.key]), "the property holds none")
 					}
-					op := doc.Services[0].Groups[0].Operations[0]
-					for _, parameter := range op.Params {
+					operation := doc.Services[0].Groups[0].Operations[0]
+					for _, parameter := range operation.Params {
 						assert.Empty(t, encodedBounds(t, parameter), "parameter %s holds none", parameter.Name.Source)
 					}
-					for _, response := range op.Responses {
+					for _, response := range operation.Responses {
 						for _, header := range response.Headers {
 							assert.Empty(t, encodedBounds(t, header), "header %s holds none", header.Name.Source)
 						}

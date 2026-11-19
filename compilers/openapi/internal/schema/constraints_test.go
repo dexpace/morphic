@@ -176,7 +176,7 @@ func TestConstraints_ExclusiveBoolean30(t *testing.T) {
 	// bound lowers cleanly with the flag set and no error diagnostic.
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	constraints := propConstraints(t, doc, "S", "n")
+	constraints := propertyConstraints(t, doc, "S", "n")
 	// The modifier is a spelling of the exclusive bound, so the literal it
 	// modified lands in the exclusive field and the inclusive one is left empty
 	// — the same constraints the 2020-12 spelling of "x > 5, x < 10" produces.
@@ -200,7 +200,7 @@ func TestConstraints_ExclusiveNumeric31(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	constraints := propConstraints(t, doc, "S", "n")
+	constraints := propertyConstraints(t, doc, "S", "n")
 	assert.Nil(t, constraints.Min)
 	assert.Nil(t, constraints.Max)
 	require.NotNil(t, constraints.ExclusiveMin)
@@ -276,7 +276,7 @@ func TestConstraints_LosslessNumericLiterals(t *testing.T) {
 			// A valid number, however spelled, is accepted with no error: the
 			// library's float64/JSON complaint is not surfaced.
 			openapitest.RequireNoErrorDiags(t, diags)
-			constraints := propConstraints(t, doc, "S", "n")
+			constraints := propertyConstraints(t, doc, "S", "n")
 			require.NotNil(t, constraints.Min)
 			assert.Equal(t, tc.want, *constraints.Min)
 		})
@@ -384,8 +384,8 @@ func TestConstraints_NonNumericMinimumErrors(t *testing.T) {
 	assert.True(t, reported, "a non-numeric minimum yields an error diagnostic")
 }
 
-// propConstraints returns the constraints of a named model's property.
-func propConstraints(t *testing.T, doc *ir.Document, model, wire string) *ir.Constraints {
+// propertyConstraints returns the constraints of a named model's property.
+func propertyConstraints(t *testing.T, doc *ir.Document, model, wire string) *ir.Constraints {
 	t.Helper()
 	irModel, ok := typeByName(doc, model).(*ir.Model)
 	require.True(t, ok)
@@ -745,9 +745,9 @@ func TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds(t *testin
 	doc, _ := settledSpec(t, tagsSchema, list("minItems: 1"), list("maxItems: 3"))
 	irList, ok := doc.Types["type/composed/components/schemas/T/allOf/1/properties/v"].(*ir.List)
 	require.True(t, ok, "two lists whose elements meet stand on a list built of both")
-	elem, ok := doc.Types[irList.ElementType.Target].(*ir.Scalar)
+	element, ok := doc.Types[irList.ElementType.Target].(*ir.Scalar)
 	require.True(t, ok, "whose element is built of both elements")
-	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(3))}, elem.Constraints)
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(3))}, element.Constraints)
 }
 
 // TestCollectionBound_ADefaultIsJudgedAgainstTheAliasHoldingIt pins the merge's

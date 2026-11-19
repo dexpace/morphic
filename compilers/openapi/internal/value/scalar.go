@@ -45,11 +45,11 @@ const (
 // Scalar is one YAML scalar classified: its kind, its text as written, and
 // the value its kind reads that text as.
 type Scalar struct {
-	Text  string
-	Num   ir.BigVal
-	Bytes []byte
-	Kind  ScalarKind
-	Bool  bool
+	Text   string
+	Number ir.BigVal
+	Bytes  []byte
+	Kind   ScalarKind
+	Bool   bool
 }
 
 // Classify reads the scalar node node by its resolved tag, never by the schema
@@ -74,11 +74,11 @@ func Classify(node *yaml.Node) (Scalar, error) {
 		scalar.Kind = ScalarBool
 		return scalar, decodes(node, &scalar.Bool, "bool")
 	case "!!int", "!!float":
-		num, err := NumericLiteral(node)
+		number, err := NumericLiteral(node)
 		if err != nil {
 			return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", node.Value, err)
 		}
-		scalar.Kind, scalar.Num = ScalarNumber, num
+		scalar.Kind, scalar.Number = ScalarNumber, number
 		return scalar, nil
 	case "!!str", "!!merge":
 		return text(node, scalar)
@@ -122,10 +122,10 @@ func text(node *yaml.Node, scalar Scalar) (Scalar, error) {
 	if node.Style != 0 || node.ShortTag() != "!!str" {
 		return scalar, nil
 	}
-	num, err := ir.NewBigVal(node.Value)
+	number, err := ir.NewBigVal(node.Value)
 	switch {
 	case err == nil:
-		scalar.Kind, scalar.Num = ScalarNumber, num
+		scalar.Kind, scalar.Number = ScalarNumber, number
 		return scalar, nil
 	case errors.Is(err, ir.ErrExponentRange):
 		return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", node.Value, err)

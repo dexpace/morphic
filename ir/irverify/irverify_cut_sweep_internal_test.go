@@ -117,10 +117,10 @@ func shownAll(root any) int {
 // the listing. Every cut point is tried, beside the whole walk's agreement.
 func TestVerify_ACutWalkClaimsNoCallbackUnlisted(t *testing.T) {
 	t.Parallel()
-	marked := ir.Operation{ID: "operation/x/S/cb", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+	marked := ir.Operation{ID: "operation/x/S/cb", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 		Inbound: ir.HTTPInboundCallback, URITemplate: "{$url}",
 	}}}}
-	listing := ir.Operation{ID: "operation/x/S/parent", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+	listing := ir.Operation{ID: "operation/x/S/parent", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 		URITemplate: "/sub", Callbacks: []ir.Callback{{Name: "on", Expression: "{$url}", Operations: []ir.OperationID{marked.ID}}},
 	}}}}
 	doc := &ir.Document{IRVersion: ir.IRVersion, Services: []ir.Service{{ID: "service/x/S", Groups: []ir.OperationGroup{{

@@ -183,11 +183,11 @@ var boundedPrincipals = []boundedPrincipal{
 			require.True(t, ok, "a union")
 			assert.Nil(t, union.Constraints, "the union holds no bound its variants hold")
 			require.Len(t, union.Variants, 2)
-			str, ok := kindNode(t, doc, union.Variants[0].Type.Target).(*ir.Scalar)
+			stringType, ok := kindNode(t, doc, union.Variants[0].Type.Target).(*ir.Scalar)
 			require.True(t, ok, "the string variant is a scalar of its own")
-			require.NotNil(t, str.Constraints)
-			require.NotNil(t, str.Constraints.MinLength)
-			assert.EqualValues(t, 2, *str.Constraints.MinLength)
+			require.NotNil(t, stringType.Constraints)
+			require.NotNil(t, stringType.Constraints.MinLength)
+			assert.EqualValues(t, 2, *stringType.Constraints.MinLength)
 		}},
 }
 
@@ -214,9 +214,9 @@ func TestInlinePrincipal_TheNodeHoldsTheBoundsOfTheConjunction(t *testing.T) {
 				b.check(t, doc, node)
 				assert.Empty(t, keptOn(node), "%s, %s: nothing kept", b.name, id)
 			}
-			prop := requireModelOf(t, doc, "Prop").Properties[0]
-			assert.Nil(t, prop.Constraints, "%s: the property holds no bound", b.name)
-			assert.Empty(t, prop.Unmodeled, "%s: nor keeps one", b.name)
+			property := requireModelOf(t, doc, "Prop").Properties[0]
+			assert.Nil(t, property.Constraints, "%s: the property holds no bound", b.name)
+			assert.Empty(t, property.Unmodeled, "%s: nor keeps one", b.name)
 			list, ok := kindNode(t, doc, componentID("Items")).(*ir.List)
 			require.True(t, ok)
 			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Items/items"), list.ElementType.Target, "%s: the element is the node", b.name)

@@ -80,7 +80,7 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	model := typeByName(doc, "S").(*ir.Model)
-	byWire := openapitest.PropsByWire(model.Properties)
+	byWire := openapitest.PropertiesByWire(model.Properties)
 	assert.Equal(t, ir.TypeID("type/primitive/any"), byWire["anything"].Type.Target)
 	// `false` schema lowered to a closed empty model.
 	nothing := doc.Types[byWire["nothing"].Type.Target]
@@ -888,12 +888,12 @@ func TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate(t 
 
 	user, ok := typeByName(doc, "User").(*ir.Model)
 	require.True(t, ok, "User must own a Model node")
-	props := openapitest.PropsByWire(user.Properties)
-	require.Len(t, props, 2)
+	properties := openapitest.PropertiesByWire(user.Properties)
+	require.Len(t, properties, 2)
 
 	const want = ir.TypeID("type/anonymous/components/schemas/Foo-Bar/properties/inner")
-	assert.Equal(t, want, props["a"].Type.Target)
-	assert.Equal(t, want, props["b"].Type.Target,
+	assert.Equal(t, want, properties["a"].Type.Target)
+	assert.Equal(t, want, properties["b"].Type.Target,
 		"the encoded spelling addresses the position the declaration spells, not one of its own")
 	assert.Contains(t, doc.Types, want, "and that ID is backed by a node")
 	for id := range doc.Types {

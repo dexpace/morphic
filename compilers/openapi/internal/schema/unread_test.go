@@ -289,9 +289,9 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 
 	holder, ok := typeByName(doc, "Holder").(*ir.Model)
 	require.True(t, ok)
-	op := doc.Services[0].Groups[0].Operations[0]
-	require.Len(t, op.Params, 1)
-	for _, id := range []ir.TypeID{componentID("RefD"), holder.Properties[0].Type.Target, op.Params[0].Type.Target} {
+	operation := doc.Services[0].Groups[0].Operations[0]
+	require.Len(t, operation.Params, 1)
+	for _, id := range []ir.TypeID{componentID("RefD"), holder.Properties[0].Type.Target, operation.Params[0].Type.Target} {
 		model, isModel := doc.Types[id].(*ir.Model)
 		require.True(t, isModel, "%s is the model over the object", id)
 		require.NotNil(t, model.Discriminator, id)

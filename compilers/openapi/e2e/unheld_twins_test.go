@@ -97,7 +97,7 @@ type twinDoc struct {
 	schemas, headers, responses, top string
 	// header is the header beneath the field; schema its schema's keywords
 	// beside its type and properties, and props its properties beside p.
-	header, schema, props string
+	header, schema, properties string
 	// encoding replaces the Encoding Object holding the field where set, and
 	// other is other.yaml.
 	encoding, other string
@@ -105,7 +105,7 @@ type twinDoc struct {
 
 // source writes the source d makes at twinPlaceValue.
 func (d twinDoc) source(twinPlaceValue twinPlace) string {
-	schema := "{type: object, properties: {p: {type: string}" + d.props + "}" + d.schema + "}"
+	schema := "{type: object, properties: {p: {type: string}" + d.properties + "}" + d.schema + "}"
 	header := d.header
 	if header == "" {
 		header = "{schema: " + schema + "}"
@@ -179,23 +179,23 @@ var twinRows = []twinRow{
 		twinOnly: none,
 	},
 	{name: "a $ref out", doc: func(twinPlaceValue twinPlace) twinDoc {
-		return twinDoc{schemas: in(twinPlaceValue), props: ", o: {$ref: '#/components/schemas/T'}"}
+		return twinDoc{schemas: in(twinPlaceValue), properties: ", o: {$ref: '#/components/schemas/T'}"}
 	}},
 	{name: "a $ref out into raw YAML", doc: func(twinPlaceValue twinPlace) twinDoc {
-		return twinDoc{schemas: in(twinPlaceValue), props: ", o: {$ref: '#/x-raw'}"}
+		return twinDoc{schemas: in(twinPlaceValue), properties: ", o: {$ref: '#/x-raw'}"}
 	}},
 	{name: "a $dynamicRef in", doc: func(twinPlaceValue twinPlace) twinDoc {
 		return twinDoc{schemas: "    In: {$dynamicRef: '#" + encodingAt + twinPlaceValue.header() + "/schema'}\n"}
 	}},
 	{name: "a $dynamicRef out", doc: func(twinPlaceValue twinPlace) twinDoc {
-		return twinDoc{schemas: in(twinPlaceValue), props: ", y: {$dynamicRef: '#/components/schemas/T'}"}
+		return twinDoc{schemas: in(twinPlaceValue), properties: ", y: {$dynamicRef: '#/components/schemas/T'}"}
 	}},
 	{name: "a $defs pointer", doc: func(twinPlaceValue twinPlace) twinDoc {
-		return twinDoc{schemas: in(twinPlaceValue), props: ", d: {$ref: '#/$defs/n'}", schema: ", $defs: {n: {type: integer}}"}
+		return twinDoc{schemas: in(twinPlaceValue), properties: ", d: {$ref: '#/$defs/n'}", schema: ", $defs: {n: {type: integer}}"}
 	}},
 	{
 		name: "a $defs pointer beneath an $id", doc: func(twinPlaceValue twinPlace) twinDoc {
-			return twinDoc{schemas: in(twinPlaceValue), props: ", d: {$ref: '#/$defs/n'}",
+			return twinDoc{schemas: in(twinPlaceValue), properties: ", d: {$ref: '#/$defs/n'}",
 				schema: ", $id: 'https://x.test/h', $defs: {n: {type: integer}}"}
 		},
 		// "Identifiers are read only where a schema is placed" (references):

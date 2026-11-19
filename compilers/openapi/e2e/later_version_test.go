@@ -36,13 +36,13 @@ func assertLaterVersionConstructs(t *testing.T, doc *ir.Document, diags []ir.Dia
 	require.NotEmpty(t, doc.TagDefs)
 	assert.Equal(t, "catalog", doc.TagDefs[0].Parent)
 
-	search, ok := opByName(doc, "searchBooks")
+	search, ok := operationByName(doc, "searchBooks")
 	require.True(t, ok)
 	assert.Equal(t, "QUERY", search.Bindings.HTTP[0].Method)
-	purge, ok := opByName(doc, "purgeBooks")
+	purge, ok := operationByName(doc, "purgeBooks")
 	require.True(t, ok)
 	assert.Equal(t, "PURGE", purge.Bindings.HTTP[0].Method)
-	list, ok := opByName(doc, "listBooks")
+	list, ok := operationByName(doc, "listBooks")
 	require.True(t, ok)
 	assert.Equal(t, ir.HTTPLocationQuerystring, list.Bindings.HTTP[0].ParamBindings[0].Location)
 	assert.Equal(t, "The books.", list.Responses[0].Docs.Summary)
@@ -139,10 +139,10 @@ func TestXML_NodeTypeIsReadAtEveryVersion(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			model, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")].(*ir.Model)
 			require.True(t, ok)
-			prop, ok := openapitest.PropsByWire(model.Properties)["n"]
+			property, ok := openapitest.PropertiesByWire(model.Properties)["n"]
 			require.True(t, ok)
-			require.NotNil(t, prop.XML)
-			assert.Equal(t, "text", prop.XML.NodeType)
+			require.NotNil(t, property.XML)
+			assert.Equal(t, "text", property.XML.NodeType)
 			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
 			assert.Equal(t, version != "3.2.0", openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct,
 				"/components/schemas/S/properties/n/xml/nodeType"))

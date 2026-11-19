@@ -31,8 +31,8 @@ func TestMappingPairs_ReadsWhatTheModelReads(t *testing.T) {
 		"  m2: &m2 {<<: *m0, w: {title: m2w}}\n" +
 		"  dup: &dup {d: {title: first}, d: {title: second}}\n"
 	cases := []struct {
-		name, props string
-		want        []string
+		name, properties string
+		want             []string
 	}{
 		{"merged pairs come first", "{a: {title: a}, <<: *m0}", []string{"k=m0k", "z=m0z", "a=a"}},
 		{"an own key overrides a merged one", "{<<: *m0, k: {title: own}}", []string{"z=m0z", "k=own"}},
@@ -48,7 +48,7 @@ func TestMappingPairs_ReadsWhatTheModelReads(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			src := propertiesSource(anchors, tc.props)
+			src := propertiesSource(anchors, tc.properties)
 			assert.Equal(t, tc.want, modelPairs(t, src), "the model's reading")
 			assertViewReadsTheModel(t, src)
 		})
@@ -66,8 +66,8 @@ func FuzzMappingPairs_ReadsWhatTheModelReads(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, seed uint64) {
-		propsGenValue := &propsGen{rng: rand.New(rand.NewPCG(seed, 799))}
-		assertViewReadsTheModel(t, propertiesSource(propsGenValue.anchors(), propsGenValue.mapping(true)))
+		propertiesGenValue := &propertiesGen{rng: rand.New(rand.NewPCG(seed, 799))}
+		assertViewReadsTheModel(t, propertiesSource(propertiesGenValue.anchors(), propertiesGenValue.mapping(true)))
 	})
 }
 
@@ -77,25 +77,25 @@ func FuzzMappingPairs_ReadsWhatTheModelReads(f *testing.F) {
 func assertViewReadsTheModel(t *testing.T, src string) {
 	t.Helper()
 	want := modelPairs(t, src)
-	props := propertiesNode(t, src)
-	pairs := nodeview.New().MappingPairs(props)
+	properties := propertiesNode(t, src)
+	pairs := nodeview.New().MappingPairs(properties)
 	got := make([]string, 0, len(pairs))
 	for _, pair := range pairs {
 		got = append(got, pair.Key+"="+titleOf(pair.Val))
-		assert.Same(t, pair.Val, nodeview.Child(props, pair.Key), "Child(%q) answers as the pairs do\n%s", pair.Key, src)
+		assert.Same(t, pair.Val, nodeview.Child(properties, pair.Key), "Child(%q) answers as the pairs do\n%s", pair.Key, src)
 	}
 	require.Equal(t, want, got, "the view reads the model's pairs\n%s", src)
-	assert.Nil(t, nodeview.Child(props, "absent"), "a key nothing writes holds nothing\n%s", src)
+	assert.Nil(t, nodeview.Child(properties, "absent"), "a key nothing writes holds nothing\n%s", src)
 }
 
-// propertiesSource is a document whose schema S writes props as its
+// propertiesSource is a document whose schema S writes properties as its
 // properties, after anchors under x-anchors and the scalar anchors &ka..&ke
 // an alias key names.
-func propertiesSource(anchors, props string) string {
+func propertiesSource(anchors, properties string) string {
 	return "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
 		"x-keys: [&ka a, &kb b, &kc c, &kd d, &ke e]\n" +
 		"x-anchors:\n  none: {}\n" + anchors +
-		"components:\n  schemas:\n    S:\n      properties: " + props + "\n"
+		"components:\n  schemas:\n    S:\n      properties: " + properties + "\n"
 }
 
 // modelPairs returns S's properties as the parser's model holds them, each as
@@ -110,11 +110,11 @@ func modelPairs(t *testing.T, src string) []string {
 	require.True(t, ok, src)
 	// Empty, not nil, where the model holds none, as the view's reading is.
 	out := make([]string, 0, s.GetSchema().GetProperties().Len())
-	for key, prop := range s.GetSchema().GetProperties().All() {
+	for key, property := range s.GetSchema().GetProperties().All() {
 		if key == "" {
 			continue
 		}
-		out = append(out, key+"="+prop.GetSchema().GetTitle())
+		out = append(out, key+"="+property.GetSchema().GetTitle())
 	}
 	return out
 }
@@ -135,24 +135,24 @@ func titleOf(schema *yaml.Node) string {
 	return ""
 }
 
-// propsGen writes random properties mappings and the anchors they merge. Every
+// propertiesGen writes random properties mappings and the anchors they merge. Every
 // title is unique, so a pair the view reads from the wrong copy or source
 // shows in what it presents.
-type propsGen struct {
+type propertiesGen struct {
 	rng    *rand.Rand
 	titles int
 	named  []string
 }
 
 // title returns a property schema with a title no other one has.
-func (g *propsGen) title() string {
+func (g *propertiesGen) title() string {
 	g.titles++
 	return fmt.Sprintf("{title: t%d}", g.titles)
 }
 
 // anchors writes up to five anchored mappings, each of which may merge those
 // before it, and returns them as x-anchors entries.
-func (g *propsGen) anchors() string {
+func (g *propertiesGen) anchors() string {
 	var b strings.Builder
 	for i := range g.rng.IntN(5) + 1 {
 		name := fmt.Sprintf("m%d", i)
@@ -165,7 +165,7 @@ func (g *propsGen) anchors() string {
 // mapping writes one flow mapping of up to six pairs. Only the properties
 // themselves write a key that is no scalar: an anchored source writing one
 // would merge a pair the view keys alike, adding nothing a case lacks.
-func (g *propsGen) mapping(top bool) string {
+func (g *propertiesGen) mapping(top bool) string {
 	pairs := make([]string, 0, 6)
 	for range g.rng.IntN(6) + 1 {
 		pairs = append(pairs, g.pair(top))
@@ -175,7 +175,7 @@ func (g *propsGen) mapping(top bool) string {
 
 // pair writes one pair: an own key, plain or aliased, from a small alphabet so
 // keys repeat, or a `<<` merge.
-func (g *propsGen) pair(top bool) string {
+func (g *propertiesGen) pair(top bool) string {
 	keys := []string{"a", "b", "c", "d", "e"}
 	switch roll := g.rng.IntN(10); {
 	case roll < 4:
@@ -191,7 +191,7 @@ func (g *propsGen) pair(top bool) string {
 
 // mergeValue writes what a `<<` names: an anchor written before, a list of
 // them, a mapping written in place, or a scalar, which merges nothing.
-func (g *propsGen) mergeValue() string {
+func (g *propertiesGen) mergeValue() string {
 	switch roll := g.rng.IntN(8); {
 	case roll < 3 && len(g.named) > 0:
 		return "*" + g.named[g.rng.IntN(len(g.named))]

@@ -796,8 +796,8 @@ func TestResolve_ValidatesOnceUnderAnUpperCasedScheme(t *testing.T) {
 	lower := run("http")
 	upper := run("HTTP")
 
-	respelled := cmp.Transformer("respelled", func(msg string) string {
-		return strings.ReplaceAll(msg, "HTTP://", "http://")
+	respelled := cmp.Transformer("respelled", func(message string) string {
+		return strings.ReplaceAll(message, "HTTP://", "http://")
 	})
 	if d := cmp.Diff(lower, upper, respelled); d != "" {
 		t.Errorf("the diagnostics must be identical under either scheme (-lower +upper):\n%s", d)

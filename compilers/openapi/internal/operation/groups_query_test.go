@@ -61,7 +61,7 @@ func TestGroups_PathPrefixStopsAtTheQuery(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			assert.Equal(t, tc.order, groupIDs(svc.Groups))
-			assert.Empty(t, cmp.Diff(want, opsByGroup(t, svc.Groups)), "group ID to operations (-want +got)")
+			assert.Empty(t, cmp.Diff(want, operationsByGroup(t, svc.Groups)), "group ID to operations (-want +got)")
 			assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.InvalidPathKey, ir.SeverityWarning),
 				"one warning per key carrying a query, and none from the grouping")
 			for _, operationGroup := range svc.Groups {

@@ -14,11 +14,11 @@ import (
 // parameters, and of the headers its responses and its bodies' encodings
 // declare.
 func (r *resolver) service() []ir.Diagnostic {
-	ops := r.w.Ops
+	operations := r.w.Operations
 	byName := map[string][]ir.OperationID{}
-	for _, op := range ops {
-		if name := op.Name.Source; name != "" {
-			byName[name] = append(byName[name], op.ID)
+	for _, operation := range operations {
+		if name := operation.Name.Source; name != "" {
+			byName[name] = append(byName[name], operation.ID)
 		}
 	}
 	operation := func(name string) (ir.EntityRef, int) {
@@ -29,19 +29,19 @@ func (r *resolver) service() []ir.Diagnostic {
 		return ir.EntityRef{Operation: found[0]}, 1
 	}
 	var diags []ir.Diagnostic
-	for _, op := range ops {
-		diags = append(diags, r.fill(op.Unmodeled, op.Deprecation, &op.Provenance, ir.EntityRef{Operation: op.ID},
+	for _, irOperation := range operations {
+		diags = append(diags, r.fill(irOperation.Unmodeled, irOperation.Deprecation, &irOperation.Provenance, ir.EntityRef{Operation: irOperation.ID},
 			"operation", operation)...)
-		diags = append(diags, r.params(op)...)
-		diags = append(diags, r.payload(op.Request)...)
-		for i := range op.Responses {
-			diags = append(diags, r.response(op.Responses[i].Headers, op.Responses[i].Payload)...)
+		diags = append(diags, r.params(irOperation)...)
+		diags = append(diags, r.payload(irOperation.Request)...)
+		for i := range irOperation.Responses {
+			diags = append(diags, r.response(irOperation.Responses[i].Headers, irOperation.Responses[i].Payload)...)
 		}
-		for i := range op.Errors {
-			diags = append(diags, r.response(op.Errors[i].Headers, op.Errors[i].Payload)...)
+		for i := range irOperation.Errors {
+			diags = append(diags, r.response(irOperation.Errors[i].Headers, irOperation.Errors[i].Payload)...)
 		}
-		if op.Default != nil {
-			diags = append(diags, r.response(op.Default.Headers, op.Default.Payload)...)
+		if irOperation.Default != nil {
+			diags = append(diags, r.response(irOperation.Default.Headers, irOperation.Default.Payload)...)
 		}
 	}
 	return diags
@@ -74,22 +74,22 @@ func (r *resolver) payload(payload *ir.Payload) []ir.Diagnostic {
 	return diags
 }
 
-// params fills each parameter's replacements, among op's parameters.
-func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
-	param := r.paramFinder(op)
-	diags := make([]ir.Diagnostic, 0, len(op.Params))
-	for i := range op.Params {
-		parameter := &op.Params[i]
+// params fills each parameter's replacements, among operation's parameters.
+func (r *resolver) params(operation *ir.Operation) []ir.Diagnostic {
+	param := r.paramFinder(operation)
+	diags := make([]ir.Diagnostic, 0, len(operation.Params))
+	for i := range operation.Params {
+		parameter := &operation.Params[i]
 		diags = append(diags, r.fill(parameter.Unmodeled, parameter.Deprecation, &parameter.Provenance, ir.EntityRef{Param: parameter.ID}, "parameter", param)...)
 	}
 	return diags
 }
 
-// paramFinder returns what finds a parameter of op by name, as a link's key
+// paramFinder returns what finds a parameter of operation by name, as a link's key
 // names one (compileddoc.ParamIndex.Named).
-func (r *resolver) paramFinder(op *ir.Operation) func(string) (ir.EntityRef, int) {
+func (r *resolver) paramFinder(operation *ir.Operation) func(string) (ir.EntityRef, int) {
 	return func(name string) (ir.EntityRef, int) {
-		id, matched := r.w.Params(op).Named(name)
+		id, matched := r.w.Params(operation).Named(name)
 		return ir.EntityRef{Param: id}, matched
 	}
 }

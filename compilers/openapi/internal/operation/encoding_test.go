@@ -28,10 +28,10 @@ func TestEncoding_AllowReservedAndExtensionsReachTheIR(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.1.0", encodingSpec))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	content := op.Request.Contents[0]
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 1)
+	content := operation.Request.Contents[0]
 	kept := content.Unmodeled
 
 	require.Len(t, content.Encoding, 1)
@@ -66,11 +66,11 @@ func TestEncoding_AbsentAllowReservedRecordsNothing(t *testing.T) {
       responses: {"200": {description: ok}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	assert.Empty(t, op.Request.Contents[0].Unmodeled, "nothing was declared, so nothing is kept")
-	for _, pe := range op.Request.Contents[0].Encoding {
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 1)
+	assert.Empty(t, operation.Request.Contents[0].Unmodeled, "nothing was declared, so nothing is kept")
+	for _, pe := range operation.Request.Contents[0].Encoding {
 		assert.False(t, pe.AllowReserved)
 	}
 	assert.Empty(t, diags)
@@ -100,10 +100,10 @@ func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
       responses: {"200": {description: ok}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	content := op.Request.Contents[0]
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 1)
+	content := operation.Request.Contents[0]
 	require.Len(t, content.Encoding, 1,
 		"the part declaring only x-* lowers to an empty PartEncoding and is left out; got %v", content.Encoding)
 	for id, pe := range content.Encoding {
@@ -143,7 +143,7 @@ func TestEncoding_PartNameWithSlashKeepsItsOwnKey(t *testing.T) {
       responses: {"200": {description: ok}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	kept := openapitest.FirstOp(t, svc).Request.Contents[0].Unmodeled
+	kept := openapitest.FirstOperation(t, svc).Request.Contents[0].Unmodeled
 
 	plain, ok := kept["openapi:encoding/q/x-a/x-b"]
 	require.True(t, ok, `the part named "q" keeps its own x-a/x-b; got %v`, kept)
@@ -172,11 +172,11 @@ func TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey(t *testing.T) {
               itemEncoding: {contentType: application/json, allowReserved: true, x-vendor: vvv}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotEmpty(t, op.Responses)
-	require.NotNil(t, op.Responses[0].Payload)
-	require.Len(t, op.Responses[0].Payload.Contents, 1)
-	content := op.Responses[0].Payload.Contents[0]
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotEmpty(t, operation.Responses)
+	require.NotNil(t, operation.Responses[0].Payload)
+	require.Len(t, operation.Responses[0].Payload.Contents, 1)
+	content := operation.Responses[0].Payload.Contents[0]
 
 	require.NotNil(t, content.ItemEncoding)
 	assert.False(t, content.ItemEncoding.AllowReserved, "allowReserved has no effect under multipart/mixed")
@@ -225,7 +225,7 @@ func TestEncoding_ArrangingFieldsLowerWhereTheyTakeEffect(t *testing.T) {
 				"{type: object, properties: {v: {type: object, properties: {a: {type: string}}}}}", "{v: "+tc.entry+"}", ""))
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := formContent(t, svc, false)
-			assert.Equal(t, map[ir.PropertyID]ir.PartEncoding{partProp(requestMedia(tc.mt), "v"): tc.want}, content.Encoding)
+			assert.Equal(t, map[ir.PropertyID]ir.PartEncoding{partProperty(requestMedia(tc.mt), "v"): tc.want}, content.Encoding)
 			assert.Equal(t, tc.kept, keptEncodingNames(content.Unmodeled))
 			var warned []string
 			for _, diagnostic := range diags {
@@ -250,7 +250,7 @@ func TestEncoding_MultipartHeadersLower(t *testing.T) {
 		"{type: object, properties: {v: {type: string}}}", "{v: {headers: {X-A: {schema: {type: string}}}}}", ""))
 	openapitest.RequireNoErrorDiags(t, diags)
 	content := formContent(t, svc, false)
-	pe := content.Encoding[partProp(requestMedia("multipart/mixed"), "v")]
+	pe := content.Encoding[partProperty(requestMedia("multipart/mixed"), "v")]
 	require.Len(t, pe.Headers, 1)
 	assert.Equal(t, "X-A", pe.Headers[0].WireName)
 	assert.Empty(t, content.Unmodeled)
@@ -287,7 +287,7 @@ func TestEncoding_NestedEncodingsAreKeptAtEveryVersion(t *testing.T) {
 			t.Parallel()
 			_, svc, diags := compileService(t, "openapi: "+version+"\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
 			openapitest.RequireNoErrorDiags(t, diags)
-			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 			kept, ok := content.Unmodeled["openapi:encoding/note/prefixEncoding"]
 			require.True(t, ok, "the nested prefixEncoding is kept under the part's own scope; got %v",
 				slices.Sorted(maps.Keys(content.Unmodeled)))

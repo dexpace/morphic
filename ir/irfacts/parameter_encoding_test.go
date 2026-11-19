@@ -54,16 +54,16 @@ func TestIndex_PartsReadAFieldArgumentsEncoding(t *testing.T) {
 // header's is, and the type it is written as is not.
 func TestCorrelation_KeysWhatAParametersEncodingDecodesTo(t *testing.T) {
 	t.Parallel()
-	op := namedOp("operation/test/a", "getA", "/a")
-	op.Params = []ir.Parameter{{
+	operation := namedOperation("operation/test/a", "getA", "/a")
+	operation.Params = []ir.Parameter{{
 		ID: "parameter/test/q", Name: ir.Naming{Source: "q"}, Type: useRef("type/anonymous/u"),
 		Encoding: &ir.Encoding{WireType: &ir.TypeRef{Target: "type/anonymous/x"}, Schema: &ir.TypeRef{Target: "type/anonymous/t"}},
 	}}
-	op.Bindings.HTTP[0].ParamBindings = []ir.HTTPParamBinding{
+	operation.Bindings.HTTP[0].ParamBindings = []ir.HTTPParamBinding{
 		{Param: "parameter/test/q", Location: ir.HTTPLocationQuery, WireName: "q"},
 	}
 
-	assertKeys(t, opsDoc([]ir.Operation{op}, anonAny("type/anonymous/u"), anonAny("type/anonymous/t"), anonAny("type/anonymous/x")),
+	assertKeys(t, operationsDoc([]ir.Operation{operation}, anonymousAny("type/anonymous/u"), anonymousAny("type/anonymous/t"), anonymousAny("type/anonymous/x")),
 		map[string]string{
 			"type/anonymous/u": "route:GET ~1a/param:query q/schema",
 			"type/anonymous/t": "route:GET ~1a/param:query q/decoded",
@@ -84,7 +84,7 @@ func TestCorrelation_KeysWhatAFieldArgumentsEncodingDecodesTo(t *testing.T) {
 		ID: "property/test/f", Name: ir.Naming{Source: "f"}, Type: useRef("type/anonymous/f"), Args: []ir.Parameter{arg},
 	}}}
 
-	assertKeys(t, irtest.DocOf(holder, anonAny("type/anonymous/f"), anonAny("type/anonymous/u"), anonAny("type/anonymous/t"), anonAny("type/anonymous/x")),
+	assertKeys(t, irtest.DocOf(holder, anonymousAny("type/anonymous/f"), anonymousAny("type/anonymous/u"), anonymousAny("type/anonymous/t"), anonymousAny("type/anonymous/x")),
 		map[string]string{
 			"type/anonymous/u": "type:Holder/prop:f/arg:q/schema",
 			"type/anonymous/t": "type:Holder/prop:f/arg:q/decoded",

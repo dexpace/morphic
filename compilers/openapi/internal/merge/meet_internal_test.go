@@ -27,7 +27,7 @@ func meetRegistry() map[ir.TypeID]ir.TypeDef {
 	members := func(n int, values ...string) []ir.EnumMember {
 		out := make([]ir.EnumMember, len(values))
 		for i, v := range values {
-			out[i] = ir.EnumMember{ID: ir.EnumMemberID("enum-member/anonymous" + string(declaredAt(n)) + "/s:" + v), Value: str(v)}
+			out[i] = ir.EnumMember{ID: ir.EnumMemberID("enum-member/anonymous" + string(declaredAt(n)) + "/s:" + v), Value: stringValue(v)}
 		}
 		return out
 	}
@@ -47,18 +47,18 @@ func meetRegistry() map[ir.TypeID]ir.TypeDef {
 	enum("type/ba", 1, "b", "a")
 	enum("type/abc-described", 0, "a", "b", "c")
 	reg["type/abc-described"].Common().Docs.Description = "d"
-	list := func(id ir.TypeID, n int, elem ir.TypeRef, typeCommon ir.TypeCommon) {
+	list := func(id ir.TypeID, n int, element ir.TypeRef, typeCommon ir.TypeCommon) {
 		typeCommon.ID, typeCommon.Anonymous, typeCommon.Provenance = id, true, at(n)
-		reg[id] = &ir.List{TypeCommon: typeCommon, ElementType: elem}
+		reg[id] = &ir.List{TypeCommon: typeCommon, ElementType: element}
 	}
 	described := func(d string) ir.TypeCommon { return ir.TypeCommon{Docs: ir.Docs{Description: d}} }
-	list("type/ints-described", 0, primRef(ir.PrimitiveInteger), described("d"))
-	list("type/i32s", 1, primRef(ir.PrimitiveInt32), ir.TypeCommon{})
-	list("type/anys-described", 0, primRef(ir.PrimitiveAny), described("d"))
-	list("type/strs", 1, primRef(ir.PrimitiveString), ir.TypeCommon{})
-	list("type/bools", 2, primRef(ir.PrimitiveBool), ir.TypeCommon{})
-	list("type/i32s-one", 1, primRef(ir.PrimitiveInt32), described("one"))
-	list("type/i32s-other", 2, primRef(ir.PrimitiveInt32), described("other"))
+	list("type/ints-described", 0, primitiveRef(ir.PrimitiveInteger), described("d"))
+	list("type/i32s", 1, primitiveRef(ir.PrimitiveInt32), ir.TypeCommon{})
+	list("type/anys-described", 0, primitiveRef(ir.PrimitiveAny), described("d"))
+	list("type/strs", 1, primitiveRef(ir.PrimitiveString), ir.TypeCommon{})
+	list("type/bools", 2, primitiveRef(ir.PrimitiveBool), ir.TypeCommon{})
+	list("type/i32s-one", 1, primitiveRef(ir.PrimitiveInt32), described("one"))
+	list("type/i32s-other", 2, primitiveRef(ir.PrimitiveInt32), described("other"))
 	reg["type/A"] = &ir.Model{ID: "type/A", Provenance: ptrAt("/components/schemas/A"),
 		Properties: []ir.Property{{WireName: "a"}}}
 	reg["type/B"] = &ir.Model{ID: "type/B", Provenance: ptrAt("/components/schemas/B"),
@@ -75,7 +75,7 @@ func meetRegistry() map[ir.TypeID]ir.TypeDef {
 		Provenance: at(0), Docs: ir.Docs{Description: "d"}, Base: &ir.TypeRef{Target: "type/primitive/string"},
 		Encoding: &ir.Encoding{Name: "time"}}
 	reg["type/noon"] = &ir.Literal{ID: "type/noon", Anonymous: true, Provenance: at(1),
-		Value: str("12:00:00Z"), ValueType: ir.PrimitiveString}
+		Value: stringValue("12:00:00Z"), ValueType: ir.PrimitiveString}
 	return reg
 }
 
@@ -106,7 +106,7 @@ func TestFold_EnumsAreJudgedByTheValuesTheyShare(t *testing.T) {
 	enum, ok := reg[got.Type.Target].(*ir.Enum)
 	require.True(t, ok)
 	require.Len(t, enum.Members, 1)
-	assert.Equal(t, str("b"), enum.Members[0].Value)
+	assert.Equal(t, stringValue("b"), enum.Members[0].Value)
 	assert.Empty(t, recorded)
 	assert.Len(t, reg["type/ab"].(*ir.Enum).Members, 2, "the declared enum is as it was written")
 
@@ -126,7 +126,7 @@ func TestFold_ANarrowerListAdoptsTheBroadersDetail(t *testing.T) {
 		require.Equal(t, composedAt(declaredAt(1)), got.Type.Target, "%v", order)
 		list, ok := reg[got.Type.Target].(*ir.List)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, primRef(ir.PrimitiveInt32), list.ElementType, "%v", order)
+		assert.Equal(t, primitiveRef(ir.PrimitiveInt32), list.ElementType, "%v", order)
 		assert.Equal(t, "d", list.Docs.Description, "%v", order)
 		assert.Empty(t, recorded, "%v", order)
 		assert.Empty(t, got.Unmodeled, "%v", order)
@@ -142,22 +142,22 @@ func TestFold_ANarrowerListAdoptsTheBroadersEncoding(t *testing.T) {
 	for _, order := range [][]ir.TypeID{{"type/ints-encoded", "type/i32s"}, {"type/i32s", "type/ints-encoded"}} {
 		reg := meetRegistry()
 		reg["type/ints-encoded"] = &ir.List{ID: "type/ints-encoded", Anonymous: true,
-			Provenance: ptrAt(declaredAt(0)), ElementType: primRef(ir.PrimitiveInteger), Encoding: &ir.Encoding{Name: "csv"}}
+			Provenance: ptrAt(declaredAt(0)), ElementType: primitiveRef(ir.PrimitiveInteger), Encoding: &ir.Encoding{Name: "csv"}}
 		stubbed, recorded := stubMerger(reg)
 
 		got := stubbed.fold(declsOf(order...))
 
 		list, ok := reg[got.Type.Target].(*ir.List)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, primRef(ir.PrimitiveInt32), list.ElementType, "%v", order)
+		assert.Equal(t, primitiveRef(ir.PrimitiveInt32), list.ElementType, "%v", order)
 		assert.Equal(t, &ir.Encoding{Name: "csv"}, list.Encoding, "%v", order)
 		assert.Empty(t, *recorded, "%v", order)
 	}
 
 	reg := meetRegistry()
-	encoded := func(id ir.TypeID, n int, elem ir.PrimitiveKind, enc *ir.Encoding, constraints *ir.Constraints) {
+	encoded := func(id ir.TypeID, n int, element ir.PrimitiveKind, enc *ir.Encoding, constraints *ir.Constraints) {
 		reg[id] = &ir.List{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n)),
-			ElementType: primRef(elem), Encoding: enc, Constraints: constraints}
+			ElementType: primitiveRef(element), Encoding: enc, Constraints: constraints}
 	}
 	encoded("type/ints-min", 0, ir.PrimitiveInteger, nil, &ir.Constraints{MinItems: new(int64(1))})
 	encoded("type/i32s-csv", 1, ir.PrimitiveInt32, &ir.Encoding{Name: "csv"}, nil)
@@ -212,7 +212,7 @@ func TestFold_AConstMeetsATimeScalarHoldingDetail(t *testing.T) {
 		got, reg, recorded := foldOf(order...)
 		lit, ok := reg[got.Type.Target].(*ir.Literal)
 		require.True(t, ok, "%v", order)
-		assert.Equal(t, str("12:00:00Z"), lit.Value, "%v", order)
+		assert.Equal(t, stringValue("12:00:00Z"), lit.Value, "%v", order)
 		assert.Equal(t, "d", lit.Docs.Description, "%v", order)
 		assert.Empty(t, recorded, "%v", order)
 	}
@@ -243,7 +243,7 @@ func TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept(t *testing.T) {
 	t.Parallel()
 	reg := meetRegistry()
 	reg["type/ints-min"] = &ir.List{ID: "type/ints-min", Anonymous: true, Provenance: ptrAt(declaredAt(0)),
-		ElementType: primRef(ir.PrimitiveInteger), Constraints: &ir.Constraints{MinItems: new(int64(1))}}
+		ElementType: primitiveRef(ir.PrimitiveInteger), Constraints: &ir.Constraints{MinItems: new(int64(1))}}
 	stubbed, recorded := stubMerger(reg)
 
 	got := stubbed.fold(declsOf("type/ints-min", "type/i32s-one", "type/i32s-other"))
@@ -251,7 +251,7 @@ func TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept(t *testing.T) {
 	list, ok := reg[got.Type.Target].(*ir.List)
 	require.True(t, ok)
 	assert.Equal(t, "other", list.Docs.Description)
-	assert.Equal(t, primRef(ir.PrimitiveInt32), list.ElementType)
+	assert.Equal(t, primitiveRef(ir.PrimitiveInt32), list.ElementType)
 	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, list.Constraints)
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, declaredAt(1), (*recorded)[0].Provenance.Pointer)
@@ -284,7 +284,7 @@ func TestFold_EnumsListingSharedValuesApartKeepTheWinner(t *testing.T) {
 		enum, ok := reg[got.Type.Target].(*ir.Enum)
 		require.True(t, ok, "%v", order)
 		require.Len(t, enum.Members, 2, "%v", order)
-		assert.Equal(t, []ir.Value{str("b"), str("c")}, []ir.Value{enum.Members[0].Value, enum.Members[1].Value}, "%v", order)
+		assert.Equal(t, []ir.Value{stringValue("b"), stringValue("c")}, []ir.Value{enum.Members[0].Value, enum.Members[1].Value}, "%v", order)
 		assert.Empty(t, recorded, "%v", order)
 	}
 }
@@ -308,20 +308,20 @@ func TestFold_EnumsSharingNoValueTogetherKeepTheWinner(t *testing.T) {
 func TestFold_AFailedMeetingReportsOnlyItsDrops(t *testing.T) {
 	t.Parallel()
 	reg := meetRegistry()
-	list := func(id ir.TypeID, n int, elem ir.TypeRef, constraints *ir.Constraints) {
+	list := func(id ir.TypeID, n int, element ir.TypeRef, constraints *ir.Constraints) {
 		reg[id] = &ir.List{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n) + "/prefixItems/0"),
-			ElementType: elem, Constraints: constraints}
+			ElementType: element, Constraints: constraints}
 	}
-	list("type/l0", 0, primRef(ir.PrimitiveAny), &ir.Constraints{Pattern: "^a$"})
-	list("type/l1", 1, primRef(ir.PrimitiveString), &ir.Constraints{Pattern: "^b$"})
-	list("type/l2", 2, primRef(ir.PrimitiveAny), &ir.Constraints{MaxItems: new(int64(3))})
+	list("type/l0", 0, primitiveRef(ir.PrimitiveAny), &ir.Constraints{Pattern: "^a$"})
+	list("type/l1", 1, primitiveRef(ir.PrimitiveString), &ir.Constraints{Pattern: "^b$"})
+	list("type/l2", 2, primitiveRef(ir.PrimitiveAny), &ir.Constraints{MaxItems: new(int64(3))})
 	tuple := func(id ir.TypeID, n int, first ir.TypeID, second ir.TypeRef) {
 		reg[id] = &ir.Tuple{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n)),
 			ElementTypes: []ir.TypeRef{ref(first), second}}
 	}
-	tuple("type/t0", 0, "type/l0", primRef(ir.PrimitiveAny))
-	tuple("type/t1", 1, "type/l1", primRef(ir.PrimitiveString))
-	tuple("type/t2", 2, "type/l2", primRef(ir.PrimitiveBool))
+	tuple("type/t0", 0, "type/l0", primitiveRef(ir.PrimitiveAny))
+	tuple("type/t1", 1, "type/l1", primitiveRef(ir.PrimitiveString))
+	tuple("type/t2", 2, "type/l2", primitiveRef(ir.PrimitiveBool))
 	stubbed, recorded := stubMerger(reg)
 
 	got := stubbed.fold(declsOf("type/t0", "type/t1", "type/t2"))
@@ -350,7 +350,7 @@ func TestFold_AnEnumWithinAnotherAdoptsItsDetail(t *testing.T) {
 		enum, ok := reg[got.Type.Target].(*ir.Enum)
 		require.True(t, ok, "%v", order)
 		require.Len(t, enum.Members, 1, "%v", order)
-		assert.Equal(t, str("a"), enum.Members[0].Value, "%v", order)
+		assert.Equal(t, stringValue("a"), enum.Members[0].Value, "%v", order)
 		assert.Equal(t, "d", enum.Docs.Description, "%v", order)
 		assert.Empty(t, *recorded, "%v", order)
 	}
@@ -368,7 +368,7 @@ func TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps(t *testing.T) {
 	for _, order := range [][]ir.TypeID{{"type/ints-kept", "type/i32s"}, {"type/i32s", "type/ints-kept"}} {
 		reg := meetRegistry()
 		reg["type/ints-kept"] = &ir.List{ID: "type/ints-kept", Anonymous: true,
-			Provenance: ptrAt(declaredAt(0)), Unmodeled: kept("1"), ElementType: primRef(ir.PrimitiveInteger)}
+			Provenance: ptrAt(declaredAt(0)), Unmodeled: kept("1"), ElementType: primitiveRef(ir.PrimitiveInteger)}
 		stubbed, recorded := stubMerger(reg)
 
 		got := stubbed.fold(declsOf(order...))
@@ -381,11 +381,11 @@ func TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps(t *testing.T) {
 
 	reg := meetRegistry()
 	reg["type/ints-min"] = &ir.List{ID: "type/ints-min", Anonymous: true, Provenance: ptrAt(declaredAt(0)),
-		ElementType: primRef(ir.PrimitiveInteger), Constraints: &ir.Constraints{MinItems: new(int64(1))}}
+		ElementType: primitiveRef(ir.PrimitiveInteger), Constraints: &ir.Constraints{MinItems: new(int64(1))}}
 	for n, v := range []string{"1", "2"} {
 		id := ir.TypeID("type/i32s-kept-" + v)
 		reg[id] = &ir.List{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n + 1)),
-			Unmodeled: kept(v), ElementType: primRef(ir.PrimitiveInt32)}
+			Unmodeled: kept(v), ElementType: primitiveRef(ir.PrimitiveInt32)}
 	}
 	stubbedValue, recorded := stubMerger(reg)
 
@@ -453,7 +453,7 @@ func TestBuilder_RefusesWhatNoNodeHolds(t *testing.T) {
 	}
 
 	typeJudge := judge(stubbed)
-	assert.Equal(t, relOverlap, typeJudge.literalBesideDetail(&ir.Literal{Value: str("a")}, reg["type/ab"]))
+	assert.Equal(t, relOverlap, typeJudge.literalBesideDetail(&ir.Literal{Value: stringValue("a")}, reg["type/ab"]))
 }
 
 // TestFold_AValueIsJudgedByTheNodeTheFieldHolds pins a value written beside a
@@ -464,23 +464,23 @@ func TestBuilder_RefusesWhatNoNodeHolds(t *testing.T) {
 // meets, each reported and kept.
 func TestFold_AValueIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
 	t.Parallel()
-	big := ir.Value{Kind: ir.ValueList, List: []ir.Value{num("5000000000")}}
+	big := ir.Value{Kind: ir.ValueList, List: []ir.Value{number("5000000000")}}
 	for _, tc := range []struct {
 		name          string
 		valued, other ir.TypeID
 		dflt          ir.Value
 	}{
 		{"a list", "type/ints-described", "type/i32s", big},
-		{"an enum", "type/ab", "type/bc", str("a")},
+		{"an enum", "type/ab", "type/bc", stringValue("a")},
 	} {
 		for i := range 2 {
 			reg := meetRegistry()
 			stubbed, recorded := stubMerger(reg)
 			decls := declsOf(tc.valued, tc.other)
-			decls[0].prop.Default = &tc.dflt
+			decls[0].property.Default = &tc.dflt
 			if i == 1 {
 				decls = declsOf(tc.other, tc.valued)
-				decls[1].prop.Default = &tc.dflt
+				decls[1].property.Default = &tc.dflt
 			}
 
 			got := stubbed.fold(decls)
@@ -517,13 +517,13 @@ func TestFold_AnAliasMeetsAsTheNodeItStandsFor(t *testing.T) {
 		{"an alias of an enum", "type/ab-alias", "type/bc", func(t *testing.T, td ir.TypeDef, label string) {
 			enum, ok := td.(*ir.Enum)
 			require.True(t, ok, label)
-			assert.Equal(t, []ir.Value{str("b")}, valuesOf(enum), label)
+			assert.Equal(t, []ir.Value{stringValue("b")}, valuesOf(enum), label)
 			assert.Equal(t, "alias", enum.Docs.Description, label)
 		}},
 		{"an alias of a list", "type/ints-alias", "type/i32s", func(t *testing.T, td ir.TypeDef, label string) {
 			list, ok := td.(*ir.List)
 			require.True(t, ok, label)
-			assert.Equal(t, primRef(ir.PrimitiveInt32), list.ElementType, label)
+			assert.Equal(t, primitiveRef(ir.PrimitiveInt32), list.ElementType, label)
 			assert.Equal(t, "d", list.Docs.Description, "%s: the docs the alias reads from its node", label)
 			assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, list.Constraints, label)
 		}},

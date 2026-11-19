@@ -99,12 +99,12 @@ func TestFaultFor(t *testing.T) {
 func TestLowerResponses_NoResponses(t *testing.T) {
 	t.Parallel()
 	lowerer := newRawLowerer(&soa.OpenAPI{})
-	op := &ir.Operation{}
+	operation := &ir.Operation{}
 	loweringState := lowerer.serviceWalk()
-	diags := lowerResponses(lowerer.ctx, loweringState, op, &soa.Operation{}, "/op")
-	assert.Nil(t, op.Responses)
-	assert.Nil(t, op.Errors)
-	assert.Nil(t, op.Default)
+	diags := lowerResponses(lowerer.ctx, loweringState, operation, &soa.Operation{}, "/op")
+	assert.Nil(t, operation.Responses)
+	assert.Nil(t, operation.Errors)
+	assert.Nil(t, operation.Default)
 	assert.Empty(t, diags)
 	assert.Empty(t, loweringState.links.pending, "no response drafts a link")
 }

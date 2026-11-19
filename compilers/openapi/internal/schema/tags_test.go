@@ -157,8 +157,8 @@ func TestDiscriminatorInference_NamesAFewDisagreements(t *testing.T) {
 // as a constraint may rule a string out of one.
 func TestDiscriminatorInference_InfersAnUndeclaredDiscriminator(t *testing.T) {
 	t.Parallel()
-	variant := func(name, props string, required ...string) string {
-		return fmt.Sprintf("    %s: {type: object, required: [%s], properties: {%s}}\n", name, strings.Join(required, ", "), props)
+	variant := func(name, properties string, required ...string) string {
+		return fmt.Sprintf("    %s: {type: object, required: [%s], properties: {%s}}\n", name, strings.Join(required, ", "), properties)
 	}
 	union := "    U:\n      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]\n"
 	cases := []struct {

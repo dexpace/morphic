@@ -74,7 +74,7 @@ func TestRedact_ReadsTheNamesTail(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc := memberOf(ir.Property{ID: "property/a", Name: ir.NamingFor(name), Type: prim(ir.PrimitiveString)}, nil)
+			doc := memberOf(ir.Property{ID: "property/a", Name: ir.NamingFor(name), Type: primitive(ir.PrimitiveString)}, nil)
 			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(doc)))
 			property := propertyOf(t, doc)
 			assert.Equal(t, secret, property.Secret)
@@ -140,14 +140,14 @@ func TestRedact_LeavesWhatTheDocumentSays(t *testing.T) {
 		secret bool
 		marker ir.Inferred
 	}{
-		{"already redacted", ir.Property{Secret: true, Type: prim(ir.PrimitiveString),
+		{"already redacted", ir.Property{Secret: true, Type: primitive(ir.PrimitiveString),
 			Provenance: ir.Provenance{Inferred: "extension-promotion"}}, nil, true, "extension-promotion"},
 		{"a sensitive type", ir.Property{Type: ir.TypeRef{Target: "type/s"}}, scalar(ir.TypeCommon{Sensitive: true}), false, ""},
-		{"a key saying false at the use", ir.Property{Type: prim(ir.PrimitiveString), Unmodeled: sensitiveKey(`false`)}, nil,
+		{"a key saying false at the use", ir.Property{Type: primitive(ir.PrimitiveString), Unmodeled: sensitiveKey(`false`)}, nil,
 			false, ""},
 		{"a key saying false along the type", ir.Property{Type: ir.TypeRef{Target: "type/s"}},
 			scalar(ir.TypeCommon{Unmodeled: sensitiveKey(`false`)}), false, ""},
-		{"a key under another target", ir.Property{Type: prim(ir.PrimitiveString), Unmodeled: ir.Unmodeled{
+		{"a key under another target", ir.Property{Type: primitive(ir.PrimitiveString), Unmodeled: ir.Unmodeled{
 			"openapi:x-stability": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`"beta"`)},
 		}}, nil, true, convention.SecretInferenceHeuristic},
 	} {
@@ -170,7 +170,7 @@ func TestRedact_LeavesWhatTheDocumentSays(t *testing.T) {
 func TestRedact_ReachesEveryUse(t *testing.T) {
 	t.Parallel()
 	pw := func(id ir.PropertyID) ir.Header {
-		return ir.Header{ID: id, Name: ir.NamingFor("X-Api-Key"), WireName: "X-Api-Key", Type: prim(ir.PrimitiveString)}
+		return ir.Header{ID: id, Name: ir.NamingFor("X-Api-Key"), WireName: "X-Api-Key", Type: primitive(ir.PrimitiveString)}
 	}
 	parts := func(at ir.PropertyID) *ir.Payload {
 		return &ir.Payload{Contents: []ir.Content{{
@@ -179,17 +179,17 @@ func TestRedact_ReachesEveryUse(t *testing.T) {
 		}}}
 	}
 	build := func() *ir.Document {
-		op := ir.Operation{
+		operation := ir.Operation{
 			ID:        "operation/a",
-			Params:    []ir.Parameter{{ID: "parameter/a", Name: ir.NamingFor("password"), Type: prim(ir.PrimitiveString)}},
+			Params:    []ir.Parameter{{ID: "parameter/a", Name: ir.NamingFor("password"), Type: primitive(ir.PrimitiveString)}},
 			Request:   parts("property/request"),
 			Responses: []ir.Response{{Headers: []ir.Header{pw("property/response")}, Payload: parts("property/response-body")}},
 			Errors:    []ir.ErrorCase{{Headers: []ir.Header{pw("property/error")}, Payload: parts("property/error-body")}},
 			Default:   &ir.Response{Headers: []ir.Header{pw("property/default")}, Payload: parts("property/default-body")},
 		}
-		doc := oneOperation(op, registry(nil))
+		doc := oneOperation(operation, registry(nil))
 		doc.Types["type/model"] = &ir.Model{ID: "type/model", Properties: []ir.Property{
-			{ID: "property/member", Name: ir.NamingFor("client_secret"), Type: prim(ir.PrimitiveString)},
+			{ID: "property/member", Name: ir.NamingFor("client_secret"), Type: primitive(ir.PrimitiveString)},
 		}}
 		return doc
 	}
@@ -229,17 +229,17 @@ func redacted(doc *ir.Document) []string {
 			}
 		}
 	}
-	op := operationOf(doc)
-	for _, parameter := range op.Params {
+	operation := operationOf(doc)
+	for _, parameter := range operation.Params {
 		mark(string(parameter.ID), parameter.Secret, parameter.Provenance)
 	}
-	payload(op.Request)
-	headers(op.Responses[0].Headers)
-	payload(op.Responses[0].Payload)
-	headers(op.Errors[0].Headers)
-	payload(op.Errors[0].Payload)
-	headers(op.Default.Headers)
-	payload(op.Default.Payload)
+	payload(operation.Request)
+	headers(operation.Responses[0].Headers)
+	payload(operation.Responses[0].Payload)
+	headers(operation.Errors[0].Headers)
+	payload(operation.Errors[0].Payload)
+	headers(operation.Default.Headers)
+	payload(operation.Default.Payload)
 	if model, ok := doc.Types["type/model"].(*ir.Model); ok {
 		for _, property := range model.Properties {
 			mark(string(property.ID), property.Secret, property.Provenance)

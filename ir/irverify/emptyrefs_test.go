@@ -28,13 +28,13 @@ func emptyRefViolations(doc *ir.Document) []irverify.Violation {
 	return out
 }
 
-// opDoc wraps op in one service and group, the shape every operation-scoped
+// singleOperationDocument wraps operation in one service and group, the shape every operation-scoped
 // case below needs.
-func opDoc(op ir.Operation) *ir.Document {
+func singleOperationDocument(operation ir.Operation) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
 		ID:     "service/x/S",
 		Name:   named("s"),
-		Groups: []ir.OperationGroup{{ID: "operation-group/x/S/g", Operations: []ir.Operation{op}}},
+		Groups: []ir.OperationGroup{{ID: "operation-group/x/S/g", Operations: []ir.Operation{operation}}},
 	}}}
 }
 
@@ -63,20 +63,20 @@ func TestVerify_EmptyRequiredReferenceIsAViolation(t *testing.T) {
 		},
 		{
 			name: "MessageBinding.Channel",
-			doc: opDoc(ir.Operation{
+			doc: singleOperationDocument(ir.Operation{
 				ID:       "operation/x/S/op",
 				Name:     named("op"),
-				Bindings: ir.OpBindings{Message: &ir.MessageBinding{Channel: ""}},
+				Bindings: ir.OperationBindings{Message: &ir.MessageBinding{Channel: ""}},
 			}),
 			code: "ir/empty-channel-ref",
 			path: "document.Services[0].Groups[0].Operations[0].Bindings.Message.Channel",
 		},
 		{
 			name: "OTPBinding.Process",
-			doc: opDoc(ir.Operation{
+			doc: singleOperationDocument(ir.Operation{
 				ID:       "operation/x/S/op",
 				Name:     named("op"),
-				Bindings: ir.OpBindings{OTP: &ir.OTPBinding{Process: ""}},
+				Bindings: ir.OperationBindings{OTP: &ir.OTPBinding{Process: ""}},
 			}),
 			code: "ir/empty-channel-ref",
 			path: "document.Services[0].Groups[0].Operations[0].Bindings.OTP.Process",
@@ -113,7 +113,7 @@ func TestVerify_EmptyRequiredReferenceIsAViolation(t *testing.T) {
 		},
 		{
 			name: "Operation.OverloadOf, a non-nil pointer naming nothing",
-			doc: opDoc(ir.Operation{
+			doc: singleOperationDocument(ir.Operation{
 				ID:         "operation/x/S/op",
 				Name:       named("op"),
 				OverloadOf: &overload,
@@ -123,10 +123,10 @@ func TestVerify_EmptyRequiredReferenceIsAViolation(t *testing.T) {
 		},
 		{
 			name: "Callback.Operations, one empty entry beside a non-empty sibling",
-			doc: opDoc(ir.Operation{
+			doc: singleOperationDocument(ir.Operation{
 				ID:   "operation/x/S/op",
 				Name: named("op"),
-				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 					Method: "GET",
 					Callbacks: []ir.Callback{{
 						Expression: "$request.body#/url",
@@ -239,12 +239,12 @@ func TestVerify_AllowedEmptyReferencesAreClean(t *testing.T) {
 		},
 		{
 			name: "nil pointers: OverloadOf, LongRunning's two operations, Reply.Channel",
-			doc: opDoc(ir.Operation{
+			doc: singleOperationDocument(ir.Operation{
 				ID:          "operation/x/S/op",
 				Name:        named("op"),
 				OverloadOf:  nil,
 				LongRunning: &ir.LongRunning{},
-				Bindings: ir.OpBindings{Message: &ir.MessageBinding{
+				Bindings: ir.OperationBindings{Message: &ir.MessageBinding{
 					Channel: "channel/a",
 					Reply:   &ir.Reply{},
 				}},
@@ -314,7 +314,7 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 		},
 		{
 			name:  "Operation.ID, held by checkDeclaredIDs",
-			doc:   opDoc(ir.Operation{Name: named("op")}),
+			doc:   singleOperationDocument(ir.Operation{Name: named("op")}),
 			owner: "ir/empty-operation-id",
 		},
 		{
@@ -365,33 +365,33 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 func TestVerify_ParamIDClassIsReached(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name string
-		op   ir.Operation
-		want []string
+		name      string
+		operation ir.Operation
+		want      []string
 	}{
 		{
 			name: "an empty binding reference",
-			op: ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			operation: ir.Operation{Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 				ParamBindings: []ir.HTTPParamBinding{{Param: ""}},
 			}}}},
 			want: []string{"document.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].ParamBindings[0].Param"},
 		},
 		{
-			name: "an empty pagination input",
-			op:   ir.Operation{Pagination: &ir.Pagination{InputCursor: &ir.InputPath{Param: new(ir.ParameterID(""))}}},
-			want: []string{"document.Services[0].Groups[0].Operations[0].Pagination.InputCursor.Param"},
+			name:      "an empty pagination input",
+			operation: ir.Operation{Pagination: &ir.Pagination{InputCursor: &ir.InputPath{Param: new(ir.ParameterID(""))}}},
+			want:      []string{"document.Services[0].Groups[0].Operations[0].Pagination.InputCursor.Param"},
 		},
 		{
-			name: "an empty token with no token kind",
-			op:   ir.Operation{Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe}},
-			want: []string{},
+			name:      "an empty token with no token kind",
+			operation: ir.Operation{Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe}},
+			want:      []string{},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tc.op.ID = "operation/x/S/op"
+			tc.operation.ID = "operation/x/S/op"
 			paths := make([]string, 0, 1)
-			for _, violation := range emptyRefViolations(opDoc(tc.op)) {
+			for _, violation := range emptyRefViolations(singleOperationDocument(tc.operation)) {
 				assert.Equal(t, "ir/empty-parameter-ref", violation.Code)
 				paths = append(paths, violation.Path)
 			}
@@ -430,7 +430,7 @@ func TestVerify_EmptyChannelOfAMessageBindingIsReportedOnce(t *testing.T) {
 
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/empty-channel-ref", got[0].Code)
-	assert.Equal(t, scenarioOp+".Bindings.Message.Channel", got[0].Path)
+	assert.Equal(t, scenarioOperationPath+".Bindings.Message.Channel", got[0].Path)
 
 	valid := scenarioBase()
 	valid.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: named("c")}}

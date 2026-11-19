@@ -39,12 +39,12 @@ func TestFold_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 			var merged [2]ir.TypeRef
 			for i, order := range [][2]ir.PrimitiveKind{{tc.broad, tc.narrow}, {tc.narrow, tc.broad}} {
 				stubbed, recorded := stubMerger(narrowingRegistry())
-				dst := ir.Property{WireName: "x", Type: primRef(order[0])}
-				src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
+				dst := ir.Property{WireName: "x", Type: primitiveRef(order[0])}
+				src := ir.Property{WireName: "x", Type: primitiveRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
 				dst = foldTwo(stubbed, dst, src, unread(t))
 
-				assert.Equal(t, primRef(tc.narrow).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
+				assert.Equal(t, primitiveRef(tc.narrow).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
 				assert.Empty(t, *recorded, "a refinement is not a conflict (order %d)", i)
 				assert.Empty(t, dst.Unmodeled, "nothing is dropped, so nothing is kept (order %d)", i)
 				merged[i] = dst.Type
@@ -62,12 +62,12 @@ func TestFold_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
 	var merged [2]ir.TypeRef
 	for i, order := range [][2]ir.PrimitiveKind{{ir.PrimitiveInt16, ir.PrimitiveUint8}, {ir.PrimitiveUint8, ir.PrimitiveInt16}} {
 		stubbed, recorded := stubMerger(narrowingRegistry())
-		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
-		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
+		dst := ir.Property{WireName: "x", Type: primitiveRef(order[0])}
+		src := ir.Property{WireName: "x", Type: primitiveRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
 		dst = foldTwo(stubbed, dst, src, unread(t))
 
-		assert.Equal(t, primRef(ir.PrimitiveUint8).Target, dst.Type.Target, "uint8 wins (order %d)", i)
+		assert.Equal(t, primitiveRef(ir.PrimitiveUint8).Target, dst.Type.Target, "uint8 wins (order %d)", i)
 		assert.Empty(t, *recorded, "a containment is not a conflict (order %d)", i)
 		assert.Empty(t, dst.Unmodeled, "nothing is dropped (order %d)", i)
 		merged[i] = dst.Type
@@ -88,9 +88,9 @@ func TestFold_ANarrowingIntersectsNullability(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					t.Parallel()
 					stubbed, recorded := stubMerger(narrowingRegistry())
-					broad := primRef(ir.PrimitiveNumber)
+					broad := primitiveRef(ir.PrimitiveNumber)
 					broad.Nullable = broadNull
-					narrow := primRef(ir.PrimitiveInteger)
+					narrow := primitiveRef(ir.PrimitiveInteger)
 					narrow.Nullable = narrowNull
 					dst, src := broad, narrow
 					if !broadFirst {
@@ -120,14 +120,14 @@ func TestFold_ADroppedTargetKeepsTheWinnersNullAdmission(t *testing.T) {
 		t.Run(fmt.Sprintf("firstNullable=%v", firstNull), func(t *testing.T) {
 			t.Parallel()
 			stubbed, recorded := stubMerger(narrowingRegistry())
-			dst := ir.Property{WireName: "x", Type: primRef(ir.PrimitiveString)}
+			dst := ir.Property{WireName: "x", Type: primitiveRef(ir.PrimitiveString)}
 			dst.Type.Nullable = firstNull
-			src := ir.Property{WireName: "x", Type: primRef(ir.PrimitiveInteger), Provenance: ptrAt("/allOf/1/properties/x")}
+			src := ir.Property{WireName: "x", Type: primitiveRef(ir.PrimitiveInteger), Provenance: ptrAt("/allOf/1/properties/x")}
 			src.Type.Nullable = !firstNull
 
 			dst = foldTwo(stubbed, dst, src, written(`{"type":"integer"}`))
 
-			assert.Equal(t, primRef(ir.PrimitiveInteger).Target, dst.Type.Target, "the later declaration keeps the shape")
+			assert.Equal(t, primitiveRef(ir.PrimitiveInteger).Target, dst.Type.Target, "the later declaration keeps the shape")
 			assert.Equal(t, !firstNull, dst.Type.Nullable, "a dropped type takes its null admission with it")
 			require.Len(t, *recorded, 1)
 			assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
@@ -146,12 +146,12 @@ func TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
 			stubbed, recorded := stubMerger(narrowingRegistry())
 			broad := ir.Property{
 				WireName:    "x",
-				Type:        primRef(ir.PrimitiveNumber),
+				Type:        primitiveRef(ir.PrimitiveNumber),
 				Default:     &ir.Value{Kind: ir.ValueNumber, Number: "1"},
 				Constraints: &ir.Constraints{Min: new(ir.BigVal("0"))},
 				Provenance:  ptrAt("/allOf/0/properties/x"),
 			}
-			narrow := ir.Property{WireName: "x", Type: primRef(ir.PrimitiveInteger), Provenance: ptrAt("/allOf/1/properties/x")}
+			narrow := ir.Property{WireName: "x", Type: primitiveRef(ir.PrimitiveInteger), Provenance: ptrAt("/allOf/1/properties/x")}
 			dst, src := broad, narrow
 			if !broadFirst {
 				dst, src = narrow, broad
@@ -159,7 +159,7 @@ func TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
 
 			dst = foldTwo(stubbed, dst, src, unread(t))
 
-			assert.Equal(t, primRef(ir.PrimitiveInteger).Target, dst.Type.Target)
+			assert.Equal(t, primitiveRef(ir.PrimitiveInteger).Target, dst.Type.Target)
 			require.NotNil(t, dst.Constraints)
 			assert.Equal(t, new(ir.BigVal("0")), dst.Constraints.Min, "the broader declaration's bound lands on the merged field")
 			require.NotNil(t, dst.Default)
@@ -176,12 +176,12 @@ func TestFold_ANarrowingIsNoDrop(t *testing.T) {
 	t.Parallel()
 	for i, order := range [][2]ir.PrimitiveKind{{ir.PrimitiveInteger, ir.PrimitiveNumber}, {ir.PrimitiveNumber, ir.PrimitiveInteger}} {
 		stubbed, recorded := stubMerger(narrowingRegistry())
-		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
-		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
+		dst := ir.Property{WireName: "x", Type: primitiveRef(order[0])}
+		src := ir.Property{WireName: "x", Type: primitiveRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
 		got := foldTwo(stubbed, dst, src, unread(t))
 
-		assert.Equal(t, primRef(ir.PrimitiveInteger), got.Type, "the narrower target wins (order %d)", i)
+		assert.Equal(t, primitiveRef(ir.PrimitiveInteger), got.Type, "the narrower target wins (order %d)", i)
 		assert.Empty(t, *recorded, "a narrowing draws no diagnostic (order %d)", i)
 		assert.Empty(t, got.Unmodeled, "and keeps nothing (order %d)", i)
 	}
@@ -194,7 +194,7 @@ func TestFold_ANarrowingIsNoDrop(t *testing.T) {
 func TestFold_ANarrowingCarriesTheNullMarkers(t *testing.T) {
 	t.Parallel()
 	nullRef := func(primitiveKind ir.PrimitiveKind, nullable bool, inferred ir.Inferred) ir.TypeRef {
-		typeRef := primRef(primitiveKind)
+		typeRef := primitiveRef(primitiveKind)
 		typeRef.Nullable, typeRef.Inferred = nullable, inferred
 		return typeRef
 	}
@@ -234,8 +234,8 @@ func TestFold_AScalarOverANarrowerKindWins(t *testing.T) {
 	t.Parallel()
 	reg := judgeRegistry()
 	for i, order := range [][2]ir.TypeRef{
-		{ref("type/scalar-int"), primRef(ir.PrimitiveNumber)},
-		{primRef(ir.PrimitiveNumber), ref("type/scalar-int")},
+		{ref("type/scalar-int"), primitiveRef(ir.PrimitiveNumber)},
+		{primitiveRef(ir.PrimitiveNumber), ref("type/scalar-int")},
 	} {
 		stubbed, recorded := stubMerger(reg)
 		dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
@@ -257,10 +257,10 @@ func TestFold_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.T) {
 	t.Parallel()
 	nullable := func(typeRef ir.TypeRef) ir.TypeRef { typeRef.Nullable = true; return typeRef }
 	for i, order := range [][2]ir.TypeRef{
-		{primRef(ir.PrimitiveAny), nullable(primRef(ir.PrimitiveInteger))},
-		{nullable(primRef(ir.PrimitiveInteger)), primRef(ir.PrimitiveAny)},
-		{ref("type/scalar-any-doc"), nullable(primRef(ir.PrimitiveInteger))},
-		{nullable(primRef(ir.PrimitiveInteger)), ref("type/scalar-any-doc")},
+		{primitiveRef(ir.PrimitiveAny), nullable(primitiveRef(ir.PrimitiveInteger))},
+		{nullable(primitiveRef(ir.PrimitiveInteger)), primitiveRef(ir.PrimitiveAny)},
+		{ref("type/scalar-any-doc"), nullable(primitiveRef(ir.PrimitiveInteger))},
+		{nullable(primitiveRef(ir.PrimitiveInteger)), ref("type/scalar-any-doc")},
 	} {
 		stubbed, recorded := stubMerger(judgeRegistry())
 		dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
@@ -268,7 +268,7 @@ func TestFold_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.T) {
 
 		dst = foldTwo(stubbed, dst, src, unread(t))
 
-		assert.Equal(t, nullable(primRef(ir.PrimitiveInteger)), dst.Type, "nullable integer (order %d)", i)
+		assert.Equal(t, nullable(primitiveRef(ir.PrimitiveInteger)), dst.Type, "nullable integer (order %d)", i)
 		assert.Empty(t, *recorded, "order %d", i)
 	}
 }

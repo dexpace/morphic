@@ -68,12 +68,12 @@ func (e *VerifyError) Error() string {
 	if e.Findings {
 		broken = "its findings break"
 	}
-	msg := fmt.Sprintf("engine: verify %s: %s %d invariants: %s",
+	message := fmt.Sprintf("engine: verify %s: %s %d invariants: %s",
 		e.Stage, broken, len(e.Violations), strings.Join(parts, "; "))
 	if e.cause != nil {
-		return msg + ": " + e.cause.Error()
+		return message + ": " + e.cause.Error()
 	}
-	return msg
+	return message
 }
 
 // Unwrap returns the contract error the breach wraps, or nil.

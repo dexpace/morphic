@@ -45,13 +45,13 @@ func reportedHere(id ir.ParameterID, refs *ir.IDReferences) bool {
 func checkParamBindings(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var read bindingMaps
-	ir.ForEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
 		names := read.names.Emptied()
-		for _, parameter := range op.Params {
+		for _, parameter := range operation.Params {
 			names[parameter.ID] = parameter.Name.Source
 		}
-		for i := range op.Bindings.HTTP {
-			diags = append(diags, checkHTTPParamBinding(op, i, names, refs, &read)...)
+		for i := range operation.Bindings.HTTP {
+			diags = append(diags, checkHTTPParamBinding(operation, i, names, refs, &read)...)
 		}
 	})
 	return diags
@@ -73,23 +73,23 @@ type paramLocation struct {
 	location ir.HTTPLocation
 }
 
-// checkHTTPParamBinding validates HTTP binding idx of op, whose parameters'
+// checkHTTPParamBinding validates HTTP binding idx of operation, whose parameters'
 // names names holds by ID: a parameter this operation does not declare is an
 // error unless another family reports it (reportedHere), a param bound
 // twice in one non-host location is an error, and an unbound parameter is a
 // pass/param-unbound warning (body-carried operations bind nothing). The binding's location is
 // spelled only for a diagnostic.
-func checkHTTPParamBinding(op ir.Operation, idx int, names map[ir.ParameterID]string, refs *ir.IDReferences,
+func checkHTTPParamBinding(operation ir.Operation, idx int, names map[ir.ParameterID]string, refs *ir.IDReferences,
 	read *bindingMaps,
 ) []ir.Diagnostic {
-	b := op.Bindings.HTTP[idx]
+	b := operation.Bindings.HTTP[idx]
 	var diags []ir.Diagnostic
 	bound, perLocation := read.bound.Emptied(), read.perLocation.Emptied()
 	for _, pb := range b.ParamBindings {
 		name, own := names[pb.Param]
 		if !own {
 			if reportedHere(pb.Param, refs) {
-				where := bindingWhere(op.ID, idx)
+				where := bindingWhere(operation.ID, idx)
 				diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
 					fmt.Sprintf("binding on %s names parameter %q, which this operation does not declare", where, pb.Param), where))
 			}
@@ -101,28 +101,28 @@ func checkHTTPParamBinding(op ir.Operation, idx int, names map[ir.ParameterID]st
 		}
 		key := paramLocation{param: pb.Param, location: pb.Location}
 		if perLocation[key]++; perLocation[key] == 2 {
-			where := bindingWhere(op.ID, idx)
+			where := bindingWhere(operation.ID, idx)
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
 				fmt.Sprintf("parameter %q is bound more than once in location %q on %s", name, pb.Location, where),
 				where))
 		}
 	}
-	return append(diags, unboundParamWarnings(op, idx, bound)...)
+	return append(diags, unboundParamWarnings(operation, idx, bound)...)
 }
 
-// bindingWhere spells where HTTP binding idx of operation op sits, for a
+// bindingWhere spells where HTTP binding idx of operation operation sits, for a
 // diagnostic to be placed there.
-func bindingWhere(op ir.OperationID, idx int) string {
-	return fmt.Sprintf("%s/bindings/http/%d", op, idx)
+func bindingWhere(operation ir.OperationID, idx int) string {
+	return fmt.Sprintf("%s/bindings/http/%d", operation, idx)
 }
 
 // unboundParamWarnings reports each logical parameter that HTTP binding idx of
-// op placed nowhere on the wire.
-func unboundParamWarnings(op ir.Operation, idx int, bound map[ir.ParameterID]int) []ir.Diagnostic {
+// operation placed nowhere on the wire.
+func unboundParamWarnings(operation ir.Operation, idx int, bound map[ir.ParameterID]int) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, parameter := range op.Params {
+	for _, parameter := range operation.Params {
 		if bound[parameter.ID] == 0 {
-			where := bindingWhere(op.ID, idx)
+			where := bindingWhere(operation.ID, idx)
 			diags = append(diags, diag(ir.SeverityWarning, "pass/param-unbound",
 				fmt.Sprintf("parameter %q on %s is not bound to any HTTP location", parameter.Name.Source, where),
 				where))
@@ -140,15 +140,15 @@ type paramRef struct {
 	example int
 }
 
-// where spells where r sits in operation op, for a report.
-func (r paramRef) where(op ir.OperationID) string {
+// where spells where r sits in operation operation, for a report.
+func (r paramRef) where(operation ir.OperationID) string {
 	if r.field == "" {
-		return string(op) + "/examples/" + strconv.Itoa(r.example) + "/input"
+		return string(operation) + "/examples/" + strconv.Itoa(r.example) + "/input"
 	}
-	return string(op) + "/" + r.field
+	return string(operation) + "/" + r.field
 }
 
-// appendParamRefs appends to dst the parameter references op carries besides
+// appendParamRefs appends to dst the parameter references operation carries besides
 // its bindings: the pagination inputs, the inputs that select a stream, the
 // idempotency token, the parameters its choices name, the request values its
 // links read and the keys of each scenario's input, each input's in sorted
@@ -156,21 +156,21 @@ func (r paramRef) where(op ir.OperationID) string {
 // neither is one into the request body, nor an empty token, which is how an
 // operation that is not token-keyed spells having none. An input with an empty
 // ID is one.
-func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
-	if pg := op.Pagination; pg != nil {
+func appendParamRefs(dst []paramRef, operation ir.Operation) []paramRef {
+	if pg := operation.Pagination; pg != nil {
 		dst = appendInputRef(dst, pg.InputCursor, "pagination/inputCursor")
 		dst = appendInputRef(dst, pg.InputLimit, "pagination/inputLimit")
 	}
-	if streamDetail := op.RequestStream; streamDetail != nil && streamDetail.Condition != nil {
+	if streamDetail := operation.RequestStream; streamDetail != nil && streamDetail.Condition != nil {
 		dst = appendInputRef(dst, &streamDetail.Condition.Input, "requestStream/condition")
 	}
-	if streamDetail := op.ResponseStream; streamDetail != nil && streamDetail.Condition != nil {
+	if streamDetail := operation.ResponseStream; streamDetail != nil && streamDetail.Condition != nil {
 		dst = appendInputRef(dst, &streamDetail.Condition.Input, "responseStream/condition")
 	}
-	if token := op.Idempotency.TokenParam; token != "" {
+	if token := operation.Idempotency.TokenParam; token != "" {
 		dst = append(dst, paramRef{id: token, field: "idempotency/tokenParam"})
 	}
-	for i, choice := range op.ParamChoices {
+	for i, choice := range operation.ParamChoices {
 		for j, variant := range choice.Variants {
 			field := "paramChoices/" + strconv.Itoa(i) + "/variants/" + strconv.Itoa(j)
 			for _, id := range variant.Params {
@@ -178,9 +178,9 @@ func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 			}
 		}
 	}
-	dst = appendLinkInputRefs(dst, &op)
-	for i := range op.Examples {
-		in := op.Examples[i].Input
+	dst = appendLinkInputRefs(dst, &operation)
+	for i := range operation.Examples {
+		in := operation.Examples[i].Input
 		if in == nil {
 			continue
 		}
@@ -214,17 +214,17 @@ func checkParamReferences(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnost
 	var diags []ir.Diagnostic
 	var declared scratchstate.Map[ir.ParameterID, bool]
 	var carried []paramRef
-	ir.ForEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
 		own := declared.Emptied()
-		for _, parameter := range op.Params {
+		for _, parameter := range operation.Params {
 			own[parameter.ID] = true
 		}
-		carried = appendParamRefs(carried[:0], op)
+		carried = appendParamRefs(carried[:0], operation)
 		for _, ref := range carried {
 			if own[ref.id] || !reportedHere(ref.id, refs) {
 				continue
 			}
-			where := ref.where(op.ID)
+			where := ref.where(operation.ID)
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
 				fmt.Sprintf("%s names parameter %q, which this operation does not declare", where, ref.id),
 				where))

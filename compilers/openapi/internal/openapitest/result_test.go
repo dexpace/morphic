@@ -56,61 +56,61 @@ func diagAt(code string, sev ir.Severity, pointer jsontext.Pointer) ir.Diagnosti
 	}
 }
 
-// opNamed builds a service holding one group with the named operations.
-func opNamed(names ...string) ir.Service {
-	ops := make([]ir.Operation, 0, len(names))
+// operationNamed builds a service holding one group with the named operations.
+func operationNamed(names ...string) ir.Service {
+	operations := make([]ir.Operation, 0, len(names))
 	for _, n := range names {
-		ops = append(ops, ir.Operation{Name: ir.Naming{Source: n}})
+		operations = append(operations, ir.Operation{Name: ir.Naming{Source: n}})
 	}
-	return ir.Service{Groups: []ir.OperationGroup{{Operations: ops}}}
+	return ir.Service{Groups: []ir.OperationGroup{{Operations: operations}}}
 }
 
-// TestFindOp_FindsTheOperationBySourceName covers both outcomes: the match, and
+// TestFindOperation_FindsTheOperationBySourceName covers both outcomes: the match, and
 // the miss that must fail the test rather than return a zero operation quietly.
-func TestFindOp_FindsTheOperationBySourceName(t *testing.T) {
+func TestFindOperation_FindsTheOperationBySourceName(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Services: []ir.Service{opNamed("getA", "getB")}}
-	assert.Equal(t, "getB", openapitest.FindOp(t, doc, "getB").Name.Source)
+	doc := &ir.Document{Services: []ir.Service{operationNamed("getA", "getB")}}
+	assert.Equal(t, "getB", openapitest.FindOperation(t, doc, "getB").Name.Source)
 
 	recorderValue := &recorder{}
-	assert.Equal(t, ir.Operation{}, openapitest.FindOp(recorderValue, doc, "absent"))
+	assert.Equal(t, ir.Operation{}, openapitest.FindOperation(recorderValue, doc, "absent"))
 	require.Len(t, recorderValue.fatalf, 1)
 	assert.Contains(t, recorderValue.fatalf[0], `operation "absent" not found`)
 }
 
-// TestFirstOp_ReturnsTheFirstOperationOfTheFirstGroup pins the shorthand the
+// TestFirstOperation_ReturnsTheFirstOperationOfTheFirstGroup pins the shorthand the
 // single-operation fixtures use.
-func TestFirstOp_ReturnsTheFirstOperationOfTheFirstGroup(t *testing.T) {
+func TestFirstOperation_ReturnsTheFirstOperationOfTheFirstGroup(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "getA", openapitest.FirstOp(t, opNamed("getA", "getB")).Name.Source)
+	assert.Equal(t, "getA", openapitest.FirstOperation(t, operationNamed("getA", "getB")).Name.Source)
 }
 
 // TestParamBySource_FindsTheParameterBySourceName covers the match and the
 // miss, which reports absence rather than a zero parameter that looks found.
 func TestParamBySource_FindsTheParameterBySourceName(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{Params: []ir.Parameter{
+	operation := ir.Operation{Params: []ir.Parameter{
 		{ID: "property/a", Name: ir.Naming{Source: "a"}},
 		{ID: "property/b", Name: ir.Naming{Source: "b"}},
 	}}
-	parameter, ok := openapitest.ParamBySource(op, "b")
+	parameter, ok := openapitest.ParamBySource(operation, "b")
 	require.True(t, ok)
 	assert.Equal(t, ir.ParameterID("property/b"), parameter.ID)
 
-	_, ok = openapitest.ParamBySource(op, "c")
+	_, ok = openapitest.ParamBySource(operation, "c")
 	assert.False(t, ok)
 }
 
-// TestIndexBy_KeysEveryItem covers the generic lookup and PropsByWire, the one
+// TestIndexBy_KeysEveryItem covers the generic lookup and PropertiesByWire, the one
 // keying it is used for often enough to have a name.
 func TestIndexBy_KeysEveryItem(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[int]string{1: "a", 2: "bb"},
 		openapitest.IndexBy([]string{"a", "bb"}, func(s string) int { return len(s) }))
 
-	props := []ir.Property{{WireName: "x"}, {WireName: "y"}}
-	byWire := openapitest.PropsByWire(props)
-	assert.Equal(t, props[1], byWire["y"])
+	properties := []ir.Property{{WireName: "x"}, {WireName: "y"}}
+	byWire := openapitest.PropertiesByWire(properties)
+	assert.Equal(t, properties[1], byWire["y"])
 	assert.Len(t, byWire, 2)
 }
 

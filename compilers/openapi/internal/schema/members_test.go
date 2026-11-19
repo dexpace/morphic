@@ -602,7 +602,7 @@ func TestMembers_AModelTheMergeComposesNamesItsMembersApart(t *testing.T) {
 		} {
 			model, ok := doc.Types[ir.TypeID("type/"+space+"/"+tc.at)].(*ir.Model)
 			require.True(t, ok, "%s: the %s model", name, space)
-			property, ok := openapitest.PropsByWire(model.Properties)["y"]
+			property, ok := openapitest.PropertiesByWire(model.Properties)["y"]
 			require.True(t, ok, "%s: the %s model settles y", name, space)
 			assert.Equal(t, id, property.ID, "%s: the %s model", name, space)
 		}

@@ -41,15 +41,15 @@ func Infer(policy Inference, promoter promotion.Promoter, compiledDocumentView *
 // an operation by its route, and of each of its parameters, naming a parameter
 // beside it in code.
 func (r *resolver) inferService() []ir.Diagnostic {
-	ops := r.w.Ops
-	routes := indexRoutes(ops)
+	operations := r.w.Operations
+	routes := indexRoutes(operations)
 	var diags []ir.Diagnostic
-	for _, op := range ops {
-		diags = append(diags, r.message(deprecated{op.Unmodeled, op.Deprecation, &op.Provenance,
-			ir.EntityRef{Operation: op.ID}}, scope{"operation", routes.named, routes.find})...)
-		param := r.paramFinder(op)
-		for i := range op.Params {
-			parameter := &op.Params[i]
+	for _, operation := range operations {
+		diags = append(diags, r.message(deprecated{operation.Unmodeled, operation.Deprecation, &operation.Provenance,
+			ir.EntityRef{Operation: operation.ID}}, scope{"operation", routes.named, routes.find})...)
+		param := r.paramFinder(operation)
+		for i := range operation.Params {
+			parameter := &operation.Params[i]
 			diags = append(diags, r.message(deprecated{parameter.Unmodeled, parameter.Deprecation, &parameter.Provenance,
 				ir.EntityRef{Param: parameter.ID}}, scope{"parameter", codeSpans, param})...)
 		}
@@ -218,18 +218,18 @@ type routeIndex struct {
 	methods map[string]bool
 }
 
-// indexRoutes indexes ops by route. A binding with no path template, a
+// indexRoutes indexes operations by route. A binding with no path template, a
 // webhook's, is no route a message names.
-func indexRoutes(ops []*ir.Operation) routeIndex {
+func indexRoutes(operations []*ir.Operation) routeIndex {
 	ix := routeIndex{byRoute: map[string][]ir.OperationID{}, methods: map[string]bool{}}
-	for _, op := range ops {
-		for _, b := range op.Bindings.HTTP {
+	for _, operation := range operations {
+		for _, b := range operation.Bindings.HTTP {
 			if !strings.HasPrefix(b.URITemplate, "/") {
 				continue
 			}
 			key := b.Method + " " + b.URITemplate
-			if !slices.Contains(ix.byRoute[key], op.ID) {
-				ix.byRoute[key] = append(ix.byRoute[key], op.ID)
+			if !slices.Contains(ix.byRoute[key], operation.ID) {
+				ix.byRoute[key] = append(ix.byRoute[key], operation.ID)
 			}
 			ix.methods[b.Method] = true
 		}

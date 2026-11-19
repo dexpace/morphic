@@ -195,7 +195,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(model, "f")
+			property, ok := propertyByWire(model, "f")
 			require.True(t, ok)
 
 			// The example belongs to the position it is written at.
@@ -285,7 +285,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(model, "f")
+			property, ok := propertyByWire(model, "f")
 			require.True(t, ok)
 			require.NotNil(t, property.Constraints, "a bound beside a $ref binds the reference site")
 			require.NotNil(t, property.Constraints.Min)
@@ -366,7 +366,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(model, "f")
+			property, ok := propertyByWire(model, "f")
 			require.True(t, ok)
 			assert.Equal(t, "at-reference", property.Docs.Description,
 				"a description beside a $ref binds the reference site")
@@ -447,7 +447,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(model, "f")
+			property, ok := propertyByWire(model, "f")
 			require.True(t, ok)
 			assert.NotNil(t, property.Deprecation, "deprecated beside a $ref binds the reference site")
 
@@ -537,7 +537,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(model, "f")
+			property, ok := propertyByWire(model, "f")
 			require.True(t, ok)
 			require.NotNil(t, property.Default, "a default beside a $ref binds the reference site")
 			assert.Equal(t, "7", property.Default.Number.String())
@@ -628,7 +628,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(model, "f")
+			property, ok := propertyByWire(model, "f")
 			require.True(t, ok)
 			assert.Equal(t,
 				[]ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery},
@@ -716,7 +716,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(model, "f")
+			property, ok := propertyByWire(model, "f")
 			require.True(t, ok)
 			raw, ok := property.Unmodeled["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor beside a $ref binds the reference site")
@@ -801,7 +801,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(model, "f")
+			property, ok := propertyByWire(model, "f")
 			require.True(t, ok)
 			require.NotNil(t, property.XML, "an xml hint beside a $ref binds the reference site")
 			assert.Equal(t, "Renamed", property.XML.Name)
@@ -909,7 +909,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(model, "f")
+			property, ok := propertyByWire(model, "f")
 			require.True(t, ok)
 			raw, ok := property.Unmodeled["openapi:if-then-else"]
 			require.True(t, ok, "if/then beside a $ref binds the reference site")
@@ -977,7 +977,7 @@ func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "validation-only-ref-sites", validationOnlyRefSitesSpec)
 	assertNoErrorDiags(t, diags)
-	op, ok := opByName(doc, "g")
+	operation, ok := operationByName(doc, "g")
 	require.True(t, ok)
 
 	for _, tc := range []struct {
@@ -985,9 +985,9 @@ func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
 		minLength int
 		preserved ir.Unmodeled
 	}{
-		{"parameter", 1, underSchema(paramUnmodeled(t, op))},
-		{"request body", 2, refSiteAlias(t, doc, requestContent(t, op)).Common().Unmodeled},
-		{"response content", 3, refSiteAlias(t, doc, firstContent(t, op)).Common().Unmodeled},
+		{"parameter", 1, underSchema(paramUnmodeled(t, operation))},
+		{"request body", 2, refSiteAlias(t, doc, requestContent(t, operation)).Common().Unmodeled},
+		{"response content", 3, refSiteAlias(t, doc, firstContent(t, operation)).Common().Unmodeled},
 	} {
 		raw, found := tc.preserved["openapi:if-then-else"]
 		require.True(t, found, "%s: if/then beside its $ref must be kept", tc.name)
@@ -1004,10 +1004,10 @@ func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
 }
 
 // paramUnmodeled returns the operation's single parameter's preserved entries.
-func paramUnmodeled(t *testing.T, op ir.Operation) ir.Unmodeled {
+func paramUnmodeled(t *testing.T, operation ir.Operation) ir.Unmodeled {
 	t.Helper()
-	require.Len(t, op.Params, 1)
-	return op.Params[0].Unmodeled
+	require.Len(t, operation.Params, 1)
+	return operation.Params[0].Unmodeled
 }
 
 // refSiteAlias returns the node a body position hoisted to hold what was

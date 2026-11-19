@@ -78,14 +78,14 @@ func TestOperation_ParamChoicesEncodeUnderTheirOwnKeys(t *testing.T) {
 // none reads as it did before the field existed.
 func TestOperation_ParamChoicesAreOmittedWhenNoneAreStated(t *testing.T) {
 	t.Parallel()
-	op := paramChoicesOperation()
-	op.ParamChoices = nil
-	raw, err := json.Marshal(op)
+	operation := paramChoicesOperation()
+	operation.ParamChoices = nil
+	raw, err := json.Marshal(operation)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "paramChoices")
 
-	op.ParamChoices = []ir.ParamChoice{}
-	raw, err = json.Marshal(op)
+	operation.ParamChoices = []ir.ParamChoice{}
+	raw, err = json.Marshal(operation)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "paramChoices", "an empty list states no more than a nil one")
 }

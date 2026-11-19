@@ -58,7 +58,7 @@ func paramChoicesFilled() []ir.ParamChoice {
 // listResources returns the document's one operation.
 func listResources(t *testing.T, doc *ir.Document) ir.Operation {
 	t.Helper()
-	return linkOp(t, doc, "listResources")
+	return linkOperation(t, doc, "listResources")
 }
 
 // declaredChoiceParams is the five parameters of listResources in the order
@@ -70,10 +70,10 @@ func declaredChoiceParams() []ir.ParameterID {
 	}
 }
 
-// opParamIDs lists the IDs of op's parameters in order.
-func opParamIDs(op ir.Operation) []ir.ParameterID {
-	ids := make([]ir.ParameterID, 0, len(op.Params))
-	for _, parameter := range op.Params {
+// operationParamIDs lists the IDs of operation's parameters in order.
+func operationParamIDs(operation ir.Operation) []ir.ParameterID {
+	ids := make([]ir.ParameterID, 0, len(operation.Params))
+	for _, parameter := range operation.Params {
 		ids = append(ids, parameter.ID)
 	}
 	return ids
@@ -86,14 +86,14 @@ func opParamIDs(op ir.Operation) []ir.ParameterID {
 func assertParamChoices(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	assert.Empty(t, diags, "a choice the convention writes well draws no finding")
-	op := listResources(t, doc)
+	operation := listResources(t, doc)
 
-	assert.Equal(t, paramChoicesFilled(), op.ParamChoices)
-	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
-	assert.Equal(t, declaredChoiceParams(), opParamIDs(op),
+	assert.Equal(t, paramChoicesFilled(), operation.ParamChoices)
+	assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
+	assert.Equal(t, declaredChoiceParams(), operationParamIDs(operation),
 		"the parameters stay the operation's, in the order they are declared")
 
-	entry, kept := op.Unmodeled["openapi:"+choicesKey]
+	entry, kept := operation.Unmodeled["openapi:"+choicesKey]
 	require.True(t, kept, "the key is kept whatever is filled from it")
 	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
 	assert.Equal(t, choicesPointer, string(entry.Provenance.Pointer))

@@ -223,13 +223,13 @@ func BenchmarkValidate_GraphQLReachability(b *testing.B) {
 // operations' roots are spread across the registry so they reach most of it.
 func buildGraphQLDoc(b *testing.B) *ir.Document {
 	b.Helper()
-	str := ir.TypeID("type/primitive/string")
+	stringType := ir.TypeID("type/primitive/string")
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion, Name: "gql", Version: "1",
-		Types: ir.TypeRegistry{str: &ir.Primitive{ID: str, PrimitiveKind: "string"}},
+		Types: ir.TypeRegistry{stringType: &ir.Primitive{ID: stringType, PrimitiveKind: "string"}},
 	}
 	ids := make([]ir.TypeID, 1, 1+gqlTypes)
-	ids[0] = str
+	ids[0] = stringType
 	var models []ir.TypeID
 	rng := rand.New(rand.NewPCG(1, 2)) // fixed seed: the same document every run
 	pick := func() ir.TypeRef {
@@ -240,7 +240,7 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 		common := ir.TypeCommon{ID: id}
 		switch i % 10 {
 		case 0, 1:
-			base := ir.TypeRef{Target: str}
+			base := ir.TypeRef{Target: stringType}
 			if i >= 2 {
 				base = ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("type/g%d", i-2))}
 			}
@@ -291,14 +291,14 @@ func graphQLModel(common ir.TypeCommon, pick func() ir.TypeRef, models []ir.Type
 // parameters name types spread over the registry, preferring the late ones that
 // transitively reach the most.
 func addGraphQLOperations(doc *ir.Document, ids []ir.TypeID) {
-	ops := make([]ir.Operation, 0, gqlOperations)
+	operations := make([]ir.Operation, 0, gqlOperations)
 	for o := range gqlOperations {
 		root := ids[len(ids)-1-(o*gqlRootStride)%len(ids)]
-		ops = append(ops, ir.Operation{
+		operations = append(operations, ir.Operation{
 			ID:       ir.OperationID(fmt.Sprintf("operation/q%d", o)),
 			Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: root}}},
-			Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{fmt.Sprintf("q%d", o)}}},
+			Bindings: ir.OperationBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{fmt.Sprintf("q%d", o)}}},
 		})
 	}
-	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: ops}}}}
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: operations}}}}
 }

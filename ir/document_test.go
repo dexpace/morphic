@@ -49,7 +49,7 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 							Type:      ir.TypeRef{Target: userID},
 						}}},
 					}},
-					Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+					Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 						Method:      "GET",
 						URITemplate: "/users",
 					}}},

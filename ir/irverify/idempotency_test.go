@@ -33,9 +33,9 @@ func TestVerify_IdempotencyTokenIsPairedWithItsKind(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "operation/x/S/op", Params: []ir.Parameter{{ID: token}}, Idempotency: tc.idem}
+			operation := ir.Operation{ID: "operation/x/S/op", Params: []ir.Parameter{{ID: token}}, Idempotency: tc.idem}
 			var got []string
-			for _, violation := range irverify.Verify(opDoc(op)) {
+			for _, violation := range irverify.Verify(singleOperationDocument(operation)) {
 				if violation.Code == "ir/idempotency-token" {
 					got = append(got, violation.Path)
 				}

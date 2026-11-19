@@ -40,8 +40,8 @@ var (
 type reachFuzzSchema struct {
 	ref, typ, anchor, id              string
 	hasRef, hasType, hasAnchor, hasID bool
-	defs, props                       map[string]*reachFuzzSchema
-	defOrder, propOrder               []string
+	defs, properties                  map[string]*reachFuzzSchema
+	defOrder, propertyOrder           []string
 	// yamlAnchor names a YAML anchor the rendered mapping carries; merge names
 	// the anchor of an earlier mapping it merges in with a `<<` key.
 	yamlAnchor, merge string
@@ -69,8 +69,8 @@ func genFuzzSchema(rng *rand.Rand, depth int) *reachFuzzSchema {
 		reachFuzzSchemaValue.defs = genFuzzChildren(rng, depth, reachFuzzSchemaValue.defOrder)
 	}
 	if depth > 0 && rng.Float64() < 0.35 {
-		reachFuzzSchemaValue.propOrder = fuzzSample(rng, []string{"p", "q"})
-		reachFuzzSchemaValue.props = genFuzzChildren(rng, depth, reachFuzzSchemaValue.propOrder)
+		reachFuzzSchemaValue.propertyOrder = fuzzSample(rng, []string{"p", "q"})
+		reachFuzzSchemaValue.properties = genFuzzChildren(rng, depth, reachFuzzSchemaValue.propertyOrder)
 	}
 	return reachFuzzSchemaValue
 }
@@ -126,7 +126,7 @@ func (s *reachFuzzSchema) writeJSON(sb *bytes.Buffer) {
 		field("$id", s.id)
 	}
 	s.writeChildren(sb, &first, "$defs", s.defOrder, s.defs)
-	s.writeChildren(sb, &first, "properties", s.propOrder, s.props)
+	s.writeChildren(sb, &first, "properties", s.propertyOrder, s.properties)
 	sb.WriteByte('}')
 }
 

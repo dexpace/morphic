@@ -280,7 +280,7 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const id = ir.TypeID("type/anonymous/paths/~1x/get/responses/200/content/application~1json/schema/items")
-	op := `paths:
+	operation := `paths:
   /x:
     get:
       operationId: getX
@@ -293,9 +293,9 @@ func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	const outsider = "components:\n  schemas:\n" +
 		"    Outsider: {$ref: '#/paths/~1x/get/responses/200/content/application~1json/schema/items'}\n"
 
-	ownerFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+op+outsider)
+	ownerFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+operation+outsider)
 	openapitest.RequireNoErrorDiags(t, diags)
-	refFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+outsider+op)
+	refFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+outsider+operation)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	// The reference is a component, which lowers before the path declaring the
@@ -308,7 +308,7 @@ func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 
 	// And the same name with nothing pointing at the position at all, which is
 	// the claim: an unrelated $ref elsewhere in the document costs it nothing.
-	unreferenced, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+op)
+	unreferenced, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+operation)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Equal(t, "response_item", unreferenced.Types[id].Common().Name.Hint,
 		"which is what the two above are being held to")

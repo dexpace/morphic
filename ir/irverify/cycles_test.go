@@ -21,19 +21,19 @@ import (
 // document.Types[t/x/M].Examples[i].Value.
 func examplesDoc(values ...ir.Value) *ir.Document {
 	scalar := &ir.Scalar{ID: "type/x/S", Name: named("s"), Base: &ir.TypeRef{Target: "type/primitive/string"}}
-	prim := &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
+	primitive := &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
 	model := &ir.Model{ID: "type/x/M", Name: named("m")}
 	for i := range values {
 		model.Examples = append(model.Examples, ir.Example{Value: &values[i]})
 	}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
-		Types:     ir.TypeRegistry{scalar.ID: scalar, model.ID: model, prim.ID: prim},
+		Types:     ir.TypeRegistry{scalar.ID: scalar, model.ID: model, primitive.ID: primitive},
 	}
 }
 
-// ctorValue returns a constructor value over constructorValue.
-func ctorValue(constructorValue *ir.ConstructorValue) ir.Value {
+// constructorValueOf returns a constructor value over constructorValue.
+func constructorValueOf(constructorValue *ir.ConstructorValue) ir.Value {
 	return ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}
 }
 
@@ -75,8 +75,8 @@ var cyclicDocs = []struct {
 		name: "a constructor that is both of its arguments",
 		doc: func() *ir.Document {
 			constructorValue := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
-			constructorValue.Args = []ir.Value{ctorValue(constructorValue), ctorValue(constructorValue)}
-			return examplesDoc(ctorValue(constructorValue))
+			constructorValue.Args = []ir.Value{constructorValueOf(constructorValue), constructorValueOf(constructorValue)}
+			return examplesDoc(constructorValueOf(constructorValue))
 		},
 		want: []string{
 			"document.Types[type/x/M].Examples[0].Value.Constructor.Args[0].Constructor",
@@ -88,9 +88,9 @@ var cyclicDocs = []struct {
 		doc: func() *ir.Document {
 			a := &ir.ConstructorValue{Scalar: "type/x/S", Name: "a"}
 			b := &ir.ConstructorValue{Scalar: "type/x/S", Name: "b"}
-			a.Args = []ir.Value{ctorValue(b)}
-			b.Args = []ir.Value{ctorValue(a)}
-			return examplesDoc(ctorValue(a))
+			a.Args = []ir.Value{constructorValueOf(b)}
+			b.Args = []ir.Value{constructorValueOf(a)}
+			return examplesDoc(constructorValueOf(a))
 		},
 		want: []string{"document.Types[type/x/M].Examples[0].Value.Constructor.Args[0].Constructor.Args[0].Constructor"},
 	},
@@ -159,8 +159,8 @@ var cyclicDocs = []struct {
 // is a value holding the same constructor, as the first example of a model.
 func selfArgumentDoc() *ir.Document {
 	constructorValue := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
-	constructorValue.Args = []ir.Value{ctorValue(constructorValue)}
-	return examplesDoc(ctorValue(constructorValue))
+	constructorValue.Args = []ir.Value{constructorValueOf(constructorValue)}
+	return examplesDoc(constructorValueOf(constructorValue))
 }
 
 // groupsDoc returns a document whose one service holds operationGroups as its
@@ -211,15 +211,15 @@ var sharedDocs = []struct {
 		name: "a constructor two examples share",
 		doc: func() *ir.Document {
 			constructorValue := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
-			return examplesDoc(ctorValue(constructorValue), ctorValue(constructorValue))
+			return examplesDoc(constructorValueOf(constructorValue), constructorValueOf(constructorValue))
 		},
 	},
 	{
 		name: "a constructor that is two arguments of another",
 		doc: func() *ir.Document {
 			leaf := &ir.ConstructorValue{Scalar: "type/x/S", Name: "leaf"}
-			root := &ir.ConstructorValue{Scalar: "type/x/S", Name: "root", Args: []ir.Value{ctorValue(leaf), ctorValue(leaf)}}
-			return examplesDoc(ctorValue(root))
+			root := &ir.ConstructorValue{Scalar: "type/x/S", Name: "root", Args: []ir.Value{constructorValueOf(leaf), constructorValueOf(leaf)}}
+			return examplesDoc(constructorValueOf(root))
 		},
 	},
 	{

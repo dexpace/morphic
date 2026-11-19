@@ -155,9 +155,9 @@ func TestDecodeTypeDef(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, td)
 		assert.Equal(t, KindPrimitive, td.Kind())
-		prim, ok := td.(*Primitive)
+		primitive, ok := td.(*Primitive)
 		require.True(t, ok)
-		assert.Equal(t, PrimitiveString, prim.PrimitiveKind)
+		assert.Equal(t, PrimitiveString, primitive.PrimitiveKind)
 	})
 
 	t.Run("refuses an entry with no kind member", func(t *testing.T) {

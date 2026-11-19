@@ -483,12 +483,12 @@ func diagUnmergedBranch(loweringContext lowering.Ctx, keptEntryValue keptEntry, 
 	allOfBranch, residue := keptEntryValue.entry, keptEntryValue.residue
 	if branchExcludesObject(allOfBranch.schema.Schema) && !disjoint {
 		branchNames := namesOf(allOfBranch)
-		msg := branchNames.lead + " declares a type that is not an object, which the composed model asserts it is; " + branchNames.kept + " (" +
+		message := branchNames.lead + " declares a type that is not an object, which the composed model asserts it is; " + branchNames.kept + " (" +
 			strings.Join(keptKeywords(residue, allOfBranch), ", ") + ") is kept verbatim under Unmodeled"
 		if allOfBranch.capped {
-			msg += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) + ", was not flattened"
+			message += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) + ", was not flattened"
 		}
-		return loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, allOfBranch.pointer, "%s", msg)
+		return loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, allOfBranch.pointer, "%s", message)
 	}
 	if why := wholeWhy(keptEntryValue); why != "" && !allOfBranch.capped {
 		return loweringContext.DiagAt(ir.SeverityInfo, wholeCode(keptEntryValue), allOfBranch.pointer, "%s", why)

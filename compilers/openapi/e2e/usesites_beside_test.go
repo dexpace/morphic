@@ -35,7 +35,7 @@ func assertRefBesideKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 		"openapi/unknown-object-key warning /paths/~1b/get/parameters/0/x-alias",
 	}, findings(diags), "the table reports each key; the two unfolded docs of the callback are unhomed")
 
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 	p := namedItem(t, valueAtPath(a, "params"), "p")
 	assert.Empty(t, cmp.Diff(map[string]any{
 		"openapi:reference/0/x-note":   "kept?",
@@ -53,7 +53,7 @@ func assertRefBesideKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:reference/1/x-alias": float64(1)}, keptValues(valueAtPath(qa, "unmodeled"))))
 	assert.Equal(t, "/components/parameters/Alias/x-alias", keptPointers(valueAtPath(qa, "unmodeled"))["openapi:reference/1/x-alias"])
 	assert.Equal(t, "s", valueAtPath(qa, "docs", "summary"))
-	qb := namedItem(t, valueAtPath(opTree(t, doc, "b"), "params"), "q")
+	qb := namedItem(t, valueAtPath(operationTree(t, doc, "b"), "params"), "q")
 	assert.Empty(t, cmp.Diff(map[string]any{
 		"openapi:reference/0/x-alias": float64(0),
 		"openapi:reference/1/x-alias": float64(1),
@@ -112,7 +112,7 @@ components:
 `,
 	})
 	doc, _ := compileVerifiedOnDisk(t, dir, "root.yaml")
-	q := namedItem(t, valueAtPath(opTree(t, doc, "a"), "params"), "q")
+	q := namedItem(t, valueAtPath(operationTree(t, doc, "a"), "params"), "q")
 	un := valueAtPath(q, "unmodeled")
 	assert.Empty(t, cmp.Diff([]string{"openapi:reference/0/x-use", "openapi:reference/1/x-alias"}, sortedKeys(keptValues(un))))
 	use := valueAtPath(un, "openapi:reference/0/x-use", "provenance")

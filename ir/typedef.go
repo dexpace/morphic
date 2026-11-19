@@ -148,9 +148,9 @@ var newTypeDefByKind = map[TypeKind]func() TypeDef{
 // NewTypeDef returns a new zero-valued concrete TypeDef for kind typeKind, or
 // false when typeKind is not a registered kind.
 func NewTypeDef(typeKind TypeKind) (TypeDef, bool) {
-	ctor, ok := newTypeDefByKind[typeKind]
+	constructor, ok := newTypeDefByKind[typeKind]
 	if !ok {
 		return nil, false
 	}
-	return ctor(), true
+	return constructor(), true
 }

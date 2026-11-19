@@ -34,27 +34,27 @@ func TestInferWalks_ReadsLinks(t *testing.T) {
 		return `{type: object, properties: {result: ` + stringList + `, result_info: {type: object, properties: {` +
 			`next: ` + next + `, previous: ` + uriString + `}}}}`
 	}
-	r := bodyProps("things", "get")
+	r := bodyProperties("things", "get")
 	for name, tc := range map[string]struct {
 		body string
-		next *ir.PropPath
+		next *ir.PropertyPath
 	}{
-		"both typed as URLs":  {page(uriString), propPath(r+"/result_info", r+"/result_info/properties/next")},
+		"both typed as URLs":  {page(uriString), propertyPath(r+"/result_info", r+"/result_info/properties/next")},
 		"a plain string next": {page(`{type: string}`), nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			for _, src := range inEitherOrder(t, listing(pageOnlyParam, tc.body)) {
-				op, _, diags := listOp(t, src, openapi.Options{})
+				operation, _, diags := listOperation(t, src, openapi.Options{})
 				assert.Empty(t, diags)
 				assert.Equal(t, &ir.Pagination{
 					Strategy:    ir.PageStrategyPage,
 					Inferred:    true,
 					InputCursor: inputPath(queryParam("things", "page")),
-					Items:       propPath(r + "/result"),
+					Items:       propertyPath(r + "/result"),
 					NextLink:    tc.next,
-					PrevLink:    propPath(r+"/result_info", r+"/result_info/properties/previous"),
-				}, op.Pagination)
+					PrevLink:    propertyPath(r+"/result_info", r+"/result_info/properties/previous"),
+				}, operation.Pagination)
 			}
 		})
 	}
@@ -98,23 +98,23 @@ func TestInferWalks_ALinkHeldApartIsLeftUnset(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		xml  bool
-		next *ir.PropPath
+		next *ir.PropertyPath
 	}{
 		"two contents": {true, nil},
-		"one content":  {false, propPath("property/openapi/components/schemas/JSONPage/properties/next")},
+		"one content":  {false, propertyPath("property/openapi/components/schemas/JSONPage/properties/next")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			for _, src := range inEitherOrder(t, heldApart(tc.xml)) {
-				op, _, diags := listOp(t, src, openapi.Options{})
+				operation, _, diags := listOperation(t, src, openapi.Options{})
 				assert.Empty(t, diags)
 				assert.Equal(t, &ir.Pagination{
 					Strategy:    ir.PageStrategyPage,
 					Inferred:    true,
 					InputCursor: inputPath(queryParam("things", "page")),
-					Items:       propPath("property/openapi/components/schemas/Base/properties/result"),
+					Items:       propertyPath("property/openapi/components/schemas/Base/properties/result"),
 					NextLink:    tc.next,
-				}, op.Pagination)
+				}, operation.Pagination)
 			}
 		})
 	}
@@ -125,27 +125,27 @@ func TestInferWalks_ALinkHeldApartIsLeftUnset(t *testing.T) {
 // to being undecided: a plain string may be the cursor or a link.
 func TestInferWalks_NextNames(t *testing.T) {
 	t.Parallel()
-	r := bodyProps("things", "get")
+	r := bodyProperties("things", "get")
 	number := listing(`[{name: cursor, in: query, schema: {type: integer}}]`,
 		`{type: object, properties: {`+itemsList+`, next: {type: integer}}}`)
 	for _, src := range inEitherOrder(t, number) {
-		op, _, diags := listOp(t, src, openapi.Options{})
+		operation, _, diags := listOperation(t, src, openapi.Options{})
 		assert.Empty(t, diags)
 		assert.Equal(t, &ir.Pagination{
 			Strategy:    ir.PageStrategyCursor,
 			Inferred:    true,
 			InputCursor: inputPath(queryParam("things", "cursor")),
-			Items:       propPath(r + "/items"),
-			NextCursor:  propPath(r + "/next"),
+			Items:       propertyPath(r + "/items"),
+			NextCursor:  propertyPath(r + "/next"),
 			Stop:        []ir.PageStop{ir.PageStopNoNext},
-		}, op.Pagination)
+		}, operation.Pagination)
 	}
 
-	str := listing(`[{name: cursor, in: query, schema: {type: string}}]`,
+	stringCursorSpec := listing(`[{name: cursor, in: query, schema: {type: string}}]`,
 		`{type: object, properties: {`+itemsList+`, next: {type: string}}}`)
-	for _, src := range inEitherOrder(t, str) {
-		op, _, diags := listOp(t, src, openapi.Options{})
-		assert.Nil(t, op.Pagination)
+	for _, src := range inEitherOrder(t, stringCursorSpec) {
+		operation, _, diags := listOperation(t, src, openapi.Options{})
+		assert.Nil(t, operation.Pagination)
 		got := undecided(diags)
 		require.Len(t, got, 1)
 		assert.True(t, strings.HasSuffix(got[0], `holds "next", a plain string that may be its next cursor or a link`), got[0])
@@ -179,18 +179,18 @@ func TestInferWalks_ReadsAHeaderCursor(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			src := headerDoc(name+`: {schema: {type: string}}`, stringList, "")
-			op, _, diags := listOp(t, src, openapi.Options{})
+			operation, _, diags := listOperation(t, src, openapi.Options{})
 			assert.Empty(t, diags)
 			assert.Equal(t, &ir.Pagination{
 				Strategy:    ir.PageStrategyCursor,
 				Inferred:    true,
 				InputCursor: inputPath(queryParam("things", "cursor")),
-				Items:       propPath(),
-				NextCursor: &ir.PropPath{In: "header", Segments: []ir.PropertyID{
+				Items:       propertyPath(),
+				NextCursor: &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{
 					ir.PropertyID("property/openapi/paths/~1things/get/responses/200/headers/" + name)}},
 				Stop: []ir.PageStop{ir.PageStopNoNext},
-			}, op.Pagination)
-			assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
+			}, operation.Pagination)
+			assert.Equal(t, pagination.InferenceHeuristic, operation.Provenance.Inferred)
 		})
 	}
 
@@ -199,8 +199,8 @@ func TestInferWalks_ReadsAHeaderCursor(t *testing.T) {
 		src := headerDoc(`X-Next-Cursor: {schema: {type: string}}`,
 			`{type: object, properties: {result: `+stringList+`, next_cursor: {type: string}}}`, "")
 		for _, written := range inEitherOrder(t, src) {
-			op, _, diags := listOp(t, written, openapi.Options{})
-			assert.Nil(t, op.Pagination)
+			operation, _, diags := listOperation(t, written, openapi.Options{})
+			assert.Nil(t, operation.Pagination)
 			got := undecided(diags)
 			require.Len(t, got, 1)
 			assert.True(t, strings.HasSuffix(got[0], `names its next cursor in the body and in response header "X-Next-Cursor"`), got[0])
@@ -209,16 +209,16 @@ func TestInferWalks_ReadsAHeaderCursor(t *testing.T) {
 
 	t.Run("a header no cursor is named for", func(t *testing.T) {
 		t.Parallel()
-		op, _, diags := listOp(t, headerDoc(`X-Request-Id: {schema: {type: string}}`, stringList, ""), openapi.Options{})
-		assert.Nil(t, op.Pagination)
+		operation, _, diags := listOperation(t, headerDoc(`X-Request-Id: {schema: {type: string}}`, stringList, ""), openapi.Options{})
+		assert.Nil(t, operation.Pagination)
 		assert.Len(t, undecided(diags), 1, "as before: a list holds no next cursor")
 	})
 
 	t.Run("a header one success response declares and another does not", func(t *testing.T) {
 		t.Parallel()
 		others := `"203": {description: ok, content: {application/json: {schema: ` + stringList + `}}}`
-		op, _, _ := listOp(t, headerDoc(`X-Next-Cursor: {schema: {type: string}}`, stringList, others), openapi.Options{})
-		assert.Nil(t, op.Pagination, "a pager reading whichever response arrives has no cursor from the other")
+		operation, _, _ := listOperation(t, headerDoc(`X-Next-Cursor: {schema: {type: string}}`, stringList, others), openapi.Options{})
+		assert.Nil(t, operation.Pagination, "a pager reading whichever response arrives has no cursor from the other")
 	})
 }
 
@@ -247,8 +247,8 @@ func TestInferWalks_LinkWalks(t *testing.T) {
 	t.Parallel()
 	const link = `Link: {schema: {type: string}}`
 	pageB := `{type: object, properties: {` + itemsList + `, next: ` + uriString + `}}`
-	r := bodyProps("things", "get")
-	paged := func(strategy ir.PageStrategy, items *ir.PropPath, next, prev *ir.PropPath) *ir.Pagination {
+	r := bodyProperties("things", "get")
+	paged := func(strategy ir.PageStrategy, items *ir.PropertyPath, next, prev *ir.PropertyPath) *ir.Pagination {
 		return &ir.Pagination{Strategy: strategy, Inferred: true, Items: items, NextLink: next, PrevLink: prev,
 			Stop: []ir.PageStop{ir.PageStopNoNext}}
 	}
@@ -259,12 +259,12 @@ func TestInferWalks_LinkWalks(t *testing.T) {
 	}{
 		{"a root of values, a count and a link", linkWalkDoc("get", "things", "", "",
 			`{type: object, properties: {value: `+stringList+`, count: {type: integer}, nextLink: {type: string}}}`),
-			paged(ir.PageStrategyNextLink, propPath(r+"/value"), propPath(r+"/nextLink"), nil), false},
+			paged(ir.PageStrategyNextLink, propertyPath(r+"/value"), propertyPath(r+"/nextLink"), nil), false},
 		{"a root of items and a next link typed as a URL", linkWalkDoc("get", "things", "", "", pageB),
-			paged(ir.PageStrategyNextLink, propPath(r+"/items"), propPath(r+"/next"), nil), false},
+			paged(ir.PageStrategyNextLink, propertyPath(r+"/items"), propertyPath(r+"/next"), nil), false},
 		{"a next and a previous link by their long names", linkWalkDoc("get", "things", "", "",
 			`{type: object, properties: {`+itemsList+`, next_link: {type: string}, previous_link: {type: string}}}`),
-			paged(ir.PageStrategyNextLink, propPath(r+"/items"), propPath(r+"/next_link"), propPath(r+"/previous_link")), false},
+			paged(ir.PageStrategyNextLink, propertyPath(r+"/items"), propertyPath(r+"/next_link"), propertyPath(r+"/previous_link")), false},
 		{"a chapter linking to its neighbours", linkWalkDoc("get", "books/{book}/chapters/{n}",
 			`{name: book, in: path, required: true, schema: {type: string}}, `+
 				`{name: n, in: path, required: true, schema: {type: integer}}`, "",
@@ -281,22 +281,22 @@ func TestInferWalks_LinkWalks(t *testing.T) {
 			nil, false},
 		{"a page of a POST", linkWalkDoc("post", "things", "", "", pageB), nil, false},
 		{"a Link header beside a list", linkWalkDoc("get", "things", "", link, stringList),
-			paged(ir.PageStrategyLinkHeader, propPath(), nil, nil), false},
+			paged(ir.PageStrategyLinkHeader, propertyPath(), nil, nil), false},
 		{"a Link header beside a body that is no page", linkWalkDoc("get", "orgs/{org}/cache/usage",
 			`{name: org, in: path, required: true, schema: {type: string}}`, link,
 			`{type: object, properties: {total_count: {type: integer}, size_in_bytes: {type: integer}}}`), nil, false},
 		{"a page with a next link and a Link header", linkWalkDoc("get", "things", "", link, pageB), nil, true},
 		{"a Link header beside a page number", linkWalkDoc("get", "things", pageParam, link,
 			stringList), &ir.Pagination{Strategy: ir.PageStrategyPage, Inferred: true,
-			InputCursor: inputPath(queryParam("things", "page")), Items: propPath()}, false},
+			InputCursor: inputPath(queryParam("things", "page")), Items: propertyPath()}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, src := range inEitherOrder(t, tc.src) {
-				op, _, diags := listOp(t, src, openapi.Options{})
-				assert.Equal(t, tc.want, op.Pagination)
+				operation, _, diags := listOperation(t, src, openapi.Options{})
+				assert.Equal(t, tc.want, operation.Pagination)
 				if tc.want != nil {
-					assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
+					assert.Equal(t, pagination.InferenceHeuristic, operation.Provenance.Inferred)
 				}
 				if tc.finding {
 					assert.Len(t, diags, 1)

@@ -124,12 +124,12 @@ func TestKindInference_AKindTheSchemaNamesKeepsItsStrayKeywordsUnmarked(t *testi
 					"/components/schemas/ObjItems", "/components/schemas/StrProps",
 				}, degradedInfoPointers(diags))
 
-				str, ok := kindNode(t, doc, componentID("StrProps")).(*ir.Scalar)
+				stringType, ok := kindNode(t, doc, componentID("StrProps")).(*ir.Scalar)
 				require.True(t, ok, "a declared string is a scalar")
-				require.NotNil(t, str.Base)
-				assert.Equal(t, prim(ir.PrimitiveString), str.Base.Target)
-				assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:properties": ir.ReasonDegradedLowering}, keptOn(str))
-				assert.Empty(t, str.Provenance.Inferred)
+				require.NotNil(t, stringType.Base)
+				assert.Equal(t, primitive(ir.PrimitiveString), stringType.Base.Target)
+				assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:properties": ir.ReasonDegradedLowering}, keptOn(stringType))
+				assert.Empty(t, stringType.Provenance.Inferred)
 
 				obj := kindNode(t, doc, componentID("ObjItems"))
 				assert.Equal(t, ir.KindModel, obj.Kind())
@@ -176,7 +176,7 @@ func TestKindInference_ANullOrEmptyShapeKeywordClaimsNoKind(t *testing.T) {
 					scalar, ok := kindNode(t, doc, componentID(name)).(*ir.Scalar)
 					require.True(t, ok, "%s claims no kind, so it is the top type", name)
 					require.NotNil(t, scalar.Base, name)
-					assert.Equal(t, prim(ir.PrimitiveAny), scalar.Base.Target, name)
+					assert.Equal(t, primitive(ir.PrimitiveAny), scalar.Base.Target, name)
 					assert.Equal(t, kept, keptOn(scalar), name)
 					assert.Empty(t, scalar.Provenance.Inferred, name)
 				}

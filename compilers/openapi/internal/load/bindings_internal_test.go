@@ -77,9 +77,9 @@ x-params:
 `), Options{})
 	require.NoError(t, err)
 	for _, path := range []string{"/a", "/b"} {
-		op := doc.Doc.Paths.GetOrZero(path).GetObject().Get()
-		require.NotNil(t, op, path)
-		p := refscope.Object[soa.Parameter](doc.Bindings, op.GetParameters()[0])
+		operation := doc.Doc.Paths.GetOrZero(path).GetObject().Get()
+		require.NotNil(t, operation, path)
+		p := refscope.Object[soa.Parameter](doc.Bindings, operation.GetParameters()[0])
 		require.NotNil(t, p, path)
 		assert.Equal(t, "r", p.GetName(), "%s ends at the last copy", path)
 		site, ok := doc.Bindings.Site(p.GetSchema())

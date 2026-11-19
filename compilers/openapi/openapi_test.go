@@ -90,13 +90,13 @@ func TestCompile_EndToEnd(t *testing.T) {
 	// pointer ID, at least one anonymous type was hoisted, and the oneOf
 	// survived as a Union node rather than being collapsed.
 	var pet ir.TypeDef
-	var sawAnon, sawUnion bool
+	var sawAnonymous, sawUnion bool
 	for _, td := range doc.Types {
 		if td.Common().Name.Source == "Pet" {
 			pet = td
 		}
 		if td.Common().Anonymous {
-			sawAnon = true
+			sawAnonymous = true
 		}
 		if td.Kind() == ir.KindUnion {
 			sawUnion = true
@@ -104,7 +104,7 @@ func TestCompile_EndToEnd(t *testing.T) {
 	}
 	require.NotNil(t, pet, "named schema Pet present in the type registry")
 	assert.Equal(t, ir.KindModel, pet.Kind())
-	assert.True(t, sawAnon, "the inline meta object was hoisted as an anonymous type")
+	assert.True(t, sawAnonymous, "the inline meta object was hoisted as an anonymous type")
 	assert.True(t, sawUnion, "the oneOf survived as a Union node")
 }
 

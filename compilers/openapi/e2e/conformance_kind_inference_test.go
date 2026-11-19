@@ -37,15 +37,15 @@ func assertAllOfEntryInfersArray(t *testing.T, doc *ir.Document, diags []ir.Diag
 
 	tagged, ok := doc.Types[componentID("Tagged")].(*ir.Model)
 	require.True(t, ok)
-	props := openapitest.PropsByWire(tagged.Properties)
-	assert.Equal(t, ir.KindList, kindNode(t, doc, props["flat"].Type.Target).Kind())
-	assert.Equal(t, ir.KindList, kindNode(t, doc, props["entry"].Type.Target).Kind())
-	require.NotNil(t, props["bounded"].Constraints)
-	assert.Equal(t, new(int64(3)), props["bounded"].Constraints.MaxItems, "the carrier holds the use's bound")
+	properties := openapitest.PropertiesByWire(tagged.Properties)
+	assert.Equal(t, ir.KindList, kindNode(t, doc, properties["flat"].Type.Target).Kind())
+	assert.Equal(t, ir.KindList, kindNode(t, doc, properties["entry"].Type.Target).Kind())
+	require.NotNil(t, properties["bounded"].Constraints)
+	assert.Equal(t, new(int64(3)), properties["bounded"].Constraints.MaxItems, "the carrier holds the use's bound")
 
-	op := operationAt(t, doc, "GET", "/tags")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.KindList, kindNode(t, doc, op.Params[0].Type.Target).Kind())
+	operation := operationAt(t, doc, "GET", "/tags")
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, ir.KindList, kindNode(t, doc, operation.Params[0].Type.Target).Kind())
 }
 
 // assertRefUseBoundKeywords holds ref-use-bound-keywords: each carried use
@@ -56,20 +56,20 @@ func assertRefUseBoundKeywords(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	filter := componentID("Filter")
 	meeting, ok := doc.Types[componentID("Meeting")].(*ir.Model)
 	require.True(t, ok)
-	props := openapitest.PropsByWire(meeting.Properties)
+	properties := openapitest.PropertiesByWire(meeting.Properties)
 	for _, name := range []string{"owner", "draft", "parent", "audit"} {
-		assert.Equal(t, filter, props[name].Type.Target, "%s names the reference", name)
+		assert.Equal(t, filter, properties[name].Type.Target, "%s names the reference", name)
 		assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Meeting/properties/"+name), name)
 	}
-	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, props["owner"].Visibility.Only)
-	assert.Equal(t, props["owner"].Visibility, props["audit"].Visibility, "both spellings hold it alike")
-	require.NotNil(t, props["draft"].Default)
-	assert.True(t, props["parent"].Type.Nullable)
+	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, properties["owner"].Visibility.Only)
+	assert.Equal(t, properties["owner"].Visibility, properties["audit"].Visibility, "both spellings hold it alike")
+	require.NotNil(t, properties["draft"].Default)
+	assert.True(t, properties["parent"].Type.Nullable)
 
-	op := operationAt(t, doc, "GET", "/meetings")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, filter, op.Params[0].Type.Target)
-	require.NotNil(t, op.Params[0].Default)
+	operation := operationAt(t, doc, "GET", "/meetings")
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, filter, operation.Params[0].Type.Target)
+	require.NotNil(t, operation.Params[0].Default)
 
 	component, ok := doc.Types[componentID("ReadOnlyFilter")].(*ir.Model)
 	require.True(t, ok, "a component owns the Model over the object")

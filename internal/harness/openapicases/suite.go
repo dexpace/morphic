@@ -170,14 +170,14 @@ func compatible(expr string, release int) (bool, error) {
 	}
 	applies, decided := true, false
 	for term := range strings.SplitSeq(expr, ",") {
-		op, n, err := compatibilityTerm(strings.TrimSpace(term))
+		operation, n, err := compatibilityTerm(strings.TrimSpace(term))
 		if err != nil {
 			return false, fmt.Errorf("compatibility %q: %w", expr, err)
 		}
 		if decided {
 			continue
 		}
-		switch op {
+		switch operation {
 		case "<=":
 			applies = release <= n
 		case "=":
@@ -193,16 +193,16 @@ func compatible(expr string, release int) (bool, error) {
 // compatibilityTerm splits one term of a compatibility expression into its
 // operator, "<=", "=" or none, and its release.
 func compatibilityTerm(term string) (string, int, error) {
-	op := ""
+	operation := ""
 	for _, o := range []string{"<=", "="} {
 		if rest, ok := strings.CutPrefix(term, o); ok {
-			op, term = o, rest
+			operation, term = o, rest
 			break
 		}
 	}
 	n, err := strconv.Atoi(term)
 	if err != nil || n < 0 {
-		return "", 0, fmt.Errorf("a term naming no release: %q", op+term)
+		return "", 0, fmt.Errorf("a term naming no release: %q", operation+term)
 	}
-	return op, n, nil
+	return operation, n, nil
 }

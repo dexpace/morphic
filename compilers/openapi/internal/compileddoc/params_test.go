@@ -12,17 +12,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// paramsOp is an operation declaring id in its path and its query, a header
+// paramsOperation is an operation declaring id in its path and its query, a header
 // X-Up bound twice, a parameter named q.x with a dot in it, a parameter b bound
 // in its query and its headers, and a host label.
-func paramsOp() *ir.Operation {
+func paramsOperation() *ir.Operation {
 	return &ir.Operation{
 		Params: []ir.Parameter{
 			{ID: "path-id", Name: ir.Naming{Source: "id"}}, {ID: "query-id", Name: ir.Naming{Source: "id"}},
 			{ID: "up", Name: ir.Naming{Source: "X-Up"}}, {ID: "dotted", Name: ir.Naming{Source: "q.x"}},
 			{ID: "region", Name: ir.Naming{Source: "region"}}, {ID: "both", Name: ir.Naming{Source: "b"}},
 		},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+		Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
 			{Param: "path-id", Location: ir.HTTPLocationPath},
 			{Param: "query-id", Location: ir.HTTPLocationQuery, WireName: "id"},
 			{Param: "up", Location: ir.HTTPLocationHeader},
@@ -60,8 +60,8 @@ func TestParamIndex_NamedReadsALocationQualifiedName(t *testing.T) {
 		{"region", "", 0},
 		{"nope", "", 0},
 	} {
-		compiledDocumentView, op := wholeOf(*paramsOp())
-		id, matched := compiledDocumentView.Params(op).Named(tc.key)
+		compiledDocumentView, operation := wholeOf(*paramsOperation())
+		id, matched := compiledDocumentView.Params(operation).Named(tc.key)
 		assert.Equal(t, tc.want, id, tc.key)
 		assert.Equal(t, tc.matched, matched, tc.key)
 	}
@@ -73,11 +73,11 @@ func TestParamIndex_NamedReadsALocationQualifiedName(t *testing.T) {
 // binds the host, so only a direct call reaches the case.
 func TestParamIndex_LeavesTheHostOut(t *testing.T) {
 	t.Parallel()
-	op := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+	operation := &ir.Operation{Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
 		{Param: "parameter/x/host", Location: ir.HTTPLocationHost, WireName: "id"},
 		{Param: "parameter/x/id", Location: ir.HTTPLocationQuery, WireName: "id"},
 	}}}}}
-	compiledDocumentView, held := wholeOf(*op)
+	compiledDocumentView, held := wholeOf(*operation)
 	ix := compiledDocumentView.Params(held)
 	assert.Equal(t, []ir.ParameterID{"parameter/x/id"}, ix.Bound("", "id"))
 	assert.Empty(t, ix.Bound(ir.HTTPLocationHost, "id"))
@@ -89,8 +89,8 @@ func TestParamIndex_LeavesTheHostOut(t *testing.T) {
 // a host binding and an unbound parameter place nothing.
 func TestParamIndex_PlacementsReadsWhereEachParameterIsBound(t *testing.T) {
 	t.Parallel()
-	compiledDocumentView, op := wholeOf(*paramsOp())
-	ix := compiledDocumentView.Params(op)
+	compiledDocumentView, operation := wholeOf(*paramsOperation())
+	ix := compiledDocumentView.Params(operation)
 	for _, tc := range []struct {
 		id   ir.ParameterID
 		want []compileddoc.Placement

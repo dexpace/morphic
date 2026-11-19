@@ -17,11 +17,11 @@ import (
 )
 
 func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "search")
+	operation, ok := operationByName(doc, "search")
 	require.True(t, ok)
-	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP, 1)
 	byParam := map[string]ir.HTTPParamBinding{}
-	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+	for _, pb := range operation.Bindings.HTTP[0].ParamBindings {
 		byParam[pb.WireName] = pb
 	}
 	httpParamBinding := byParam["q"]
@@ -39,13 +39,13 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InapplicableLocationKeyword, ir.SeverityWarning),
 		"a 3.1 query declaration of allowReserved stays silent")
 
-	assertAllowEmptyValueLowers(t, op)
+	assertAllowEmptyValueLowers(t, operation)
 
 	// The path item's shared parameter merges into both of its operations and
 	// interns its schema once, at the path item's own pointer (issue #36).
-	clearSearch, ok := opByName(doc, "clearSearch")
+	clearSearch, ok := operationByName(doc, "clearSearch")
 	require.True(t, ok, "the path item's second operation is registered")
-	searchReqID, ok := openapitest.ParamBySource(op, "requestId")
+	searchReqID, ok := openapitest.ParamBySource(operation, "requestId")
 	require.True(t, ok, "search inherits the path-item-level parameter")
 	clearReqID, ok := openapitest.ParamBySource(clearSearch, "requestId")
 	require.True(t, ok, "clearSearch inherits the same path-item-level parameter")
@@ -60,13 +60,13 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // type land on the binding above; allowEmptyValue used to be read nowhere at
 // all, so a document declaring it produced IR indistinguishable from one that
 // did not (GitHub #39), and then only verbatim on the logical Parameter.
-func assertAllowEmptyValueLowers(t *testing.T, op ir.Operation) {
+func assertAllowEmptyValueLowers(t *testing.T, operation ir.Operation) {
 	t.Helper()
-	bare, ok := openapitest.ParamBySource(op, "bare")
+	bare, ok := openapitest.ParamBySource(operation, "bare")
 	require.True(t, ok, "the allowEmptyValue parameter still lowers")
 	assert.NotContains(t, bare.Unmodeled, "openapi:allowEmptyValue", "and keeps nothing verbatim")
-	require.Len(t, op.Bindings.HTTP, 1)
-	for _, b := range op.Bindings.HTTP[0].ParamBindings {
+	require.Len(t, operation.Bindings.HTTP, 1)
+	for _, b := range operation.Bindings.HTTP[0].ParamBindings {
 		assert.Equal(t, b.Param == bare.ID, b.AllowEmptyValue,
 			"%s: only the parameter declaring it allows an empty value", b.WireName)
 	}
@@ -224,12 +224,12 @@ func TestParamStyleTable_MatchesTheSpecification(t *testing.T) {
 // Comparing the (style, explode) every binding states closes that by
 // construction — a location that loses its arm changes rows here.
 func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "styleMatrix")
+	operation, ok := operationByName(doc, "styleMatrix")
 	require.True(t, ok)
-	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP, 1)
 
-	got := make(map[paramSlot]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
-	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+	got := make(map[paramSlot]paramWire, len(operation.Bindings.HTTP[0].ParamBindings))
+	for _, pb := range operation.Bindings.HTTP[0].ParamBindings {
 		slot := paramSlot{Name: pb.WireName, Location: pb.Location}
 		require.NotContains(t, got, slot, "two parameter bindings share the slot %+v", slot)
 		got[slot] = paramWire{Style: pb.Style, Explode: pb.Explode}
@@ -254,13 +254,13 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // form/true default cannot return.
 func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	op, ok := opByName(doc, "querystringOnly")
+	operation, ok := operationByName(doc, "querystringOnly")
 	require.True(t, ok, "the querystring parameter's own operation is registered")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1,
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1,
 		"the querystring location shares its operation with no other parameter")
 
-	binding := op.Bindings.HTTP[0].ParamBindings[0]
+	binding := operation.Bindings.HTTP[0].ParamBindings[0]
 	require.Equal(t, ir.HTTPLocationQuerystring, binding.Location)
 	require.Equal(t, "querystringWhole", binding.WireName, "the querystring parameter binds")
 	assert.Equal(t, "application/x-www-form-urlencoded", binding.ContentType,
@@ -281,7 +281,7 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 // pins the one diag.InvalidLocationKeyword this fixture raises; see that code's
 // GoDoc for why it is a warning.
 func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	report, ok := opByName(doc, "runReport")
+	report, ok := operationByName(doc, "runReport")
 	require.True(t, ok)
 	require.Len(t, report.Bindings.HTTP, 1)
 	require.Len(t, report.Bindings.HTTP[0].ParamBindings, 1)
@@ -292,7 +292,7 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Empty(t, qs.Style, "style is not a legal keyword at in: querystring")
 	assert.Nil(t, qs.Explode, "and no explode, which it does not write")
 
-	summary, ok := opByName(doc, "summarize")
+	summary, ok := operationByName(doc, "summarize")
 	require.True(t, ok)
 	require.Len(t, summary.Bindings.HTTP, 1)
 	require.Len(t, summary.Bindings.HTTP[0].ParamBindings, 1)
@@ -301,7 +301,7 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Equal(t, "form", httpParamBinding.Style, "a query parameter still takes its own location's default")
 	assert.Nil(t, httpParamBinding.Explode, "but no explode, which it does not write")
 
-	raw, ok := opByName(doc, "rawReport")
+	raw, ok := operationByName(doc, "rawReport")
 	require.True(t, ok)
 	require.Len(t, raw.Bindings.HTTP, 1)
 	require.Len(t, raw.Bindings.HTTP[0].ParamBindings, 1)
@@ -324,11 +324,11 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 // this compiler's report is a warning. Both values still lower as declared:
 // dropping content the document states is an emitter's call, not a compiler's.
 func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	explodeOp, ok := opByName(doc, "explodeOnly")
+	explodeOperation, ok := operationByName(doc, "explodeOnly")
 	require.True(t, ok)
-	require.Len(t, explodeOp.Bindings.HTTP, 1)
-	require.Len(t, explodeOp.Bindings.HTTP[0].ParamBindings, 1)
-	explodeBinding := explodeOp.Bindings.HTTP[0].ParamBindings[0]
+	require.Len(t, explodeOperation.Bindings.HTTP, 1)
+	require.Len(t, explodeOperation.Bindings.HTTP[0].ParamBindings, 1)
+	explodeBinding := explodeOperation.Bindings.HTTP[0].ParamBindings[0]
 	assert.Equal(t, ir.HTTPLocationQuerystring, explodeBinding.Location)
 	require.NotNil(t, explodeBinding.Explode, "the declared explode is not dropped")
 	assert.False(t, *explodeBinding.Explode)
@@ -337,11 +337,11 @@ func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []
 		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
 			"/paths/~1a/get/parameters/0/explode"))
 
-	reservedOp, ok := opByName(doc, "reservedOnly")
+	reservedOperation, ok := operationByName(doc, "reservedOnly")
 	require.True(t, ok)
-	require.Len(t, reservedOp.Bindings.HTTP, 1)
-	require.Len(t, reservedOp.Bindings.HTTP[0].ParamBindings, 1)
-	reservedBinding := reservedOp.Bindings.HTTP[0].ParamBindings[0]
+	require.Len(t, reservedOperation.Bindings.HTTP, 1)
+	require.Len(t, reservedOperation.Bindings.HTTP[0].ParamBindings, 1)
+	reservedBinding := reservedOperation.Bindings.HTTP[0].ParamBindings[0]
 	assert.Equal(t, ir.HTTPLocationQuerystring, reservedBinding.Location)
 	assert.True(t, reservedBinding.AllowReserved, "the declared allowReserved is not dropped")
 	assert.Equal(t,
@@ -356,11 +356,11 @@ func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []
 // own pointer, a declared false among them, while a query declaration stays
 // silent. Every declared value still lowers as declared.
 func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "report")
+	operation, ok := operationByName(doc, "report")
 	require.True(t, ok)
-	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP, 1)
 	byParam := map[string]ir.HTTPParamBinding{}
-	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+	for _, pb := range operation.Bindings.HTTP[0].ParamBindings {
 		byParam[pb.WireName] = pb
 	}
 	require.Len(t, byParam, 4, "every declared parameter binds exactly once")
@@ -397,9 +397,9 @@ func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []i
 // whole truth while the document enforces 64
 // (docs/ir/annotations.md#what-a-reference-carries-down, GitHub #428).
 func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "listItems")
+	operation, ok := operationByName(doc, "listItems")
 	require.True(t, ok)
-	cursor, ok := openapitest.ParamBySource(op, "cursor")
+	cursor, ok := openapitest.ParamBySource(operation, "cursor")
 	require.True(t, ok)
 	assert.Equal(t, ir.Docs{Summary: "Cursor", Description: "Opaque pagination cursor."}, cursor.Docs)
 	assert.NotNil(t, cursor.Deprecation)
@@ -407,7 +407,7 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	assert.Equal(t, "0", cursor.Default.String)
 	assert.Nil(t, cursor.Constraints, "the referent's bound stays on the referent")
 
-	override, ok := openapitest.ParamBySource(op, "override")
+	override, ok := openapitest.ParamBySource(operation, "override")
 	require.True(t, ok)
 	assert.Equal(t, "Cursor for this endpoint only.", override.Docs.Description,
 		"a description beside the $ref wins over the referent's")
@@ -422,17 +422,17 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 
 	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
-	prop, ok := propByWire(holder, "cursor")
+	property, ok := propertyByWire(holder, "cursor")
 	require.True(t, ok)
-	assert.Equal(t, cursor.Docs, prop.Docs, "the property inherits exactly what the parameter does")
-	assert.NotNil(t, prop.Deprecation)
-	require.NotNil(t, prop.Default)
-	assert.Equal(t, *cursor.Default, *prop.Default)
-	assert.Nil(t, prop.Constraints, "neither carrier inherits the referent's constraints")
+	assert.Equal(t, cursor.Docs, property.Docs, "the property inherits exactly what the parameter does")
+	assert.NotNil(t, property.Deprecation)
+	require.NotNil(t, property.Default)
+	assert.Equal(t, *cursor.Default, *property.Default)
+	assert.Nil(t, property.Constraints, "neither carrier inherits the referent's constraints")
 
-	overrideProp, ok := propByWire(holder, "override")
+	overrideProperty, ok := propertyByWire(holder, "override")
 	require.True(t, ok)
-	assert.Equal(t, override.Constraints, overrideProp.Constraints,
+	assert.Equal(t, override.Constraints, overrideProperty.Constraints,
 		"and a property keeps its own bound exactly as the parameter does")
 
 	decl, ok := doc.Types[componentID("Cursor")].(*ir.Scalar)
@@ -453,10 +453,10 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 // each other, rather than against a written-out expectation, is what makes the
 // assertion about the spellings agreeing rather than about one of them.
 func assertHeaderContentSchema(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "getReport")
+	operation, ok := operationByName(doc, "getReport")
 	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	headers := op.Responses[0].Headers
+	require.Len(t, operation.Responses, 1)
+	headers := operation.Responses[0].Headers
 	require.Len(t, headers, 4)
 
 	bySchema, ok := headerByWire(headers, "X-Report-Schema")
@@ -515,10 +515,10 @@ func assertHeaderStyleAndExplodeLower(t *testing.T, headers []ir.Header) {
 // home for is kept verbatim under the content entry's own scope. The schema
 // spelling beside them elects no media type and records none of it.
 func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "search")
+	operation, ok := operationByName(doc, "search")
 	require.True(t, ok)
 
-	filter, ok := openapitest.ParamBySource(op, "filter")
+	filter, ok := openapitest.ParamBySource(operation, "filter")
 	require.True(t, ok)
 	require.Len(t, filter.Examples, 1, "the media type's examples reach the parameter")
 	assert.Equal(t, "one", filter.Examples[0].Name)
@@ -529,14 +529,14 @@ func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, ir.ReasonNoIRHome, filter.Unmodeled[scope+"itemSchema"].Reason,
 		"a parser-modelled field with no ir.Parameter home is kept rather than dropped")
 
-	plain, ok := openapitest.ParamBySource(op, "plain")
+	plain, ok := openapitest.ParamBySource(operation, "plain")
 	require.True(t, ok)
 	assert.Empty(t, plain.Examples, "the schema spelling elects no media type to take examples from")
 	assert.Empty(t, plain.Unmodeled, "nor any content-scoped entry")
 
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 1)
-	header := op.Responses[0].Headers[0]
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	header := operation.Responses[0].Headers[0]
 	require.Len(t, header.Examples, 2, "the header's own example and its media type's are both kept")
 	assert.Empty(t, header.Examples[0].Name, "its own singular example comes first")
 	assert.Equal(t, "hit", header.Examples[1].Name)
@@ -552,7 +552,7 @@ func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // headers map naming one header, a response's and an encoding's, both lower,
 // the key later in byte order drawing a warning.
 func assertHeaderNameCase(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	list, ok := opByName(doc, "listTraces")
+	list, ok := operationByName(doc, "listTraces")
 	require.True(t, ok)
 	require.Len(t, list.Params, 1, "the path item's X-Trace is the operation's x-trace")
 	assert.Equal(t, "x-trace", list.Params[0].Name.Source)
@@ -565,7 +565,7 @@ func assertHeaderNameCase(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	}
 	assert.Equal(t, []string{"x-rate", "X-Rate"}, keys, "both keys lower, in source order")
 
-	upload, ok := opByName(doc, "uploadTrace")
+	upload, ok := operationByName(doc, "uploadTrace")
 	require.True(t, ok)
 	content := requestContent(t, upload)
 	require.Len(t, content.Encoding, 1)
@@ -594,10 +594,10 @@ func assertHeaderNameCase(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 // What lies beneath a header keyed "" composes from the minted name, beneath
 // an Encoding Object another nests too.
 func assertHeaderNameSyntax(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "getTrace")
+	operation, ok := operationByName(doc, "getTrace")
 	require.True(t, ok)
-	ids := make([]ir.ParameterID, 0, len(op.Params))
-	for _, parameter := range op.Params {
+	ids := make([]ir.ParameterID, 0, len(operation.Params))
+	for _, parameter := range operation.Params {
 		ids = append(ids, parameter.ID)
 	}
 	assert.Equal(t, []ir.ParameterID{
@@ -607,8 +607,8 @@ func assertHeaderNameSyntax(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Equal(t, []ir.Severity{ir.SeverityError},
 		diagsAt(diags, diag.DuplicateParameter, "/paths/~1traces/get/parameters/1"))
 
-	require.Len(t, op.Responses, 1)
-	header, ok := headerByWire(op.Responses[0].Headers, "not a token")
+	require.Len(t, operation.Responses, 1)
+	header, ok := headerByWire(operation.Responses[0].Headers, "not a token")
 	require.True(t, ok, "a key that is no token lowers as declared")
 	assert.Equal(t, "not_a_token", header.Name.Canonical)
 	format := diag.Validation + "/validation-invalid-format"

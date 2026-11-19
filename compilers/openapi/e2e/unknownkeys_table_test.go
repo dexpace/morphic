@@ -143,9 +143,9 @@ func TestUnknownKeys_UnreferencedComponents(t *testing.T) {
 	slices.Sort(all)
 	assert.Equal(t, want, all, "nothing else is reported about this document")
 
-	msg := messageAt(t, diags, diag.UnknownObjectKey, "/components/responses/R/bogus")
-	assert.Equal(t, `key "bogus" is not defined by the Response Object it is written on and is not an x- extension`, msg)
-	assert.NotContains(t, msg, "kept verbatim", "where the key is kept is the lowering's to say, not the table's")
+	message := messageAt(t, diags, diag.UnknownObjectKey, "/components/responses/R/bogus")
+	assert.Equal(t, `key "bogus" is not defined by the Response Object it is written on and is not an x- extension`, message)
+	assert.NotContains(t, message, "kept verbatim", "where the key is kept is the lowering's to say, not the table's")
 
 	// What the IR keeps of each key is unchanged: a component nothing uses is
 	// kept whole, and the scheme's key on the scheme.
@@ -456,9 +456,9 @@ func TestUnknownKeys_MergedKeyIsPlacedWhereItIsWritten(t *testing.T) {
 	assert.True(t, strings.HasSuffix(found[0].Message, "read at /paths/~1merged/mergedBogus"),
 		"the message names where the path item reads it: %s", found[0].Message)
 
-	op, ok := opByName(doc, "m")
+	operation, ok := operationByName(doc, "m")
 	require.True(t, ok)
-	entry := unmodeledEntry(t, op.Unmodeled, "openapi:pathItem/mergedBogus")
+	entry := unmodeledEntry(t, operation.Unmodeled, "openapi:pathItem/mergedBogus")
 	assert.JSONEq(t, `1`, string(entry.Value))
 	assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
 }

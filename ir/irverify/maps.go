@@ -35,7 +35,7 @@ func checkMaps(doc *ir.Document) []Violation {
 // key. A nil Key is how both state string keys (docs/ir/containers.md), and
 // naming the primitive spells that one key type a second way, which every
 // consumer comparing keys would have to know. A nullable string key is another
-// type and stays. checkPrimIDs holds the primitive to its one ID, so the ID
+// type and stays. checkPrimitiveIDs holds the primitive to its one ID, so the ID
 // decides.
 func checkMapKeys(doc *ir.Document) []Violation {
 	var vs []Violation

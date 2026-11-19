@@ -51,7 +51,7 @@ func TestSpacesUsed_ReadsEveryKindSortedWithoutRepeats(t *testing.T) {
 // out altogether, and a document with no IDs gets nil.
 func TestSpacesUsed_LeavesOutWhatNeedsNoDeclaration(t *testing.T) {
 	t.Parallel()
-	prim := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString}
+	primitive := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString}
 	tests := []struct {
 		name string
 		doc  *ir.Document
@@ -59,8 +59,8 @@ func TestSpacesUsed_LeavesOutWhatNeedsNoDeclaration(t *testing.T) {
 	}{
 		{"a nil document", nil, nil},
 		{"a document with no IDs", &ir.Document{}, nil},
-		{"only the primitive namespace", &ir.Document{Types: ir.TypeRegistry{prim.ID: prim}}, nil},
-		{"the primitive namespace beside another", &ir.Document{Types: ir.TypeRegistry{prim.ID: prim, "type/a/x": model("type/a/x")}},
+		{"only the primitive namespace", &ir.Document{Types: ir.TypeRegistry{primitive.ID: primitive}}, nil},
+		{"the primitive namespace beside another", &ir.Document{Types: ir.TypeRegistry{primitive.ID: primitive, "type/a/x": model("type/a/x")}},
 			map[string][]string{ir.IDKindType: {"a"}}},
 		{"the primitive namespace of another kind", &ir.Document{Services: []ir.Service{{ID: "service/primitive/x"}}},
 			map[string][]string{ir.IDKindService: {ir.IDSpacePrimitive}}},

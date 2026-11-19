@@ -73,7 +73,7 @@ func messageCases() []messageCase {
 		}, "ir/type-ref-inferred-not-nullable", fmt.Sprintf(
 			"type reference is marked inferred by %q but admits no null", illFormed)},
 		{"inferred on a part carrying no filename", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{{
+			return singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{{
 				ItemEncoding: &ir.PartEncoding{Inferred: illFormed},
 			}}}})
 		}, "ir/part-encoding-inferred-not-filename", fmt.Sprintf(
@@ -93,57 +93,57 @@ func messageCases() []messageCase {
 			return typesDoc(model)
 		}, "ir/bigval-not-canonical", `numeric value "01" is not the JSON form "1" ir.NewBigVal produces for it`},
 		{"duplicate id", func() *ir.Document {
-			op := ir.Operation{ID: ir.OperationID("operation/x/S/" + illFormed), Name: named("op")}
-			doc := opDoc(op)
-			doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations, op)
+			operation := ir.Operation{ID: ir.OperationID("operation/x/S/" + illFormed), Name: named("op")}
+			doc := singleOperationDocument(operation)
+			doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations, operation)
 			return doc
 		}, "ir/duplicate-operation-id", fmt.Sprintf("id %q is declared here and at %q",
 			"operation/x/S/"+illFormed, "document.Services[0].Groups[0].Operations[0]")},
 		{"idempotency", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"),
+			return singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"),
 				Idempotency: ir.Idempotency{Kind: ir.IdempotencyKind(illFormed), TokenParam: ir.ParameterID(illFormed)}})
 		}, "ir/idempotency-token", fmt.Sprintf(
 			"idempotency kind %q with token parameter %q: a token is named exactly when the kind is %q",
 			illFormed, illFormed, ir.IdempotencyToken)},
 		{"webhook template", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+			return singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OperationBindings{
 				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, URITemplate: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"webhook binding carries URI template %q; a webhook names its event in WebhookName and has no template",
 			illFormed)},
 		{"webhook name", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+			return singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OperationBindings{
 				HTTP: []ir.HTTPBinding{{WebhookName: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"binding that is not a webhook carries webhook name %q; only a webhook binding names an event", illFormed)},
 		{"prefix header of no map", func() *ir.Document {
-			doc := opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
+			doc := singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
 				ID: "property/x/h", Name: named("h"), Type: ir.TypeRef{Target: illFormed}, Prefix: new(""),
 			}}}}})
 			doc.Types = ir.TypeRegistry{illFormed: namedModel(illFormed)}
 			return doc
 		}, "ir/prefix-header-not-map", fmt.Sprintf("header under a prefix has type %q, which is no map", illFormed)},
 		{"prefix header wire name", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
+			return singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
 				ID: "property/x/h", Name: named("h"), WireName: illFormed, Type: ir.TypeRef{Target: "type/x/M"}, Prefix: new(""),
 			}}}}})
 		}, "ir/prefix-header-wire-name", fmt.Sprintf("header under a prefix also names the field %q", illFormed)},
 		{"prefix binding location", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			return singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 				ParamBindings: []ir.HTTPParamBinding{{Location: ir.HTTPLocation(illFormed), Prefix: new("")}},
 			}}}})
 		}, "ir/prefix-binding-location", fmt.Sprintf(
 			"binding under a prefix binds location %q, which is neither header nor query", illFormed)},
 		{"prefix binding wire name", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			return singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 				ParamBindings: []ir.HTTPParamBinding{{Location: ir.HTTPLocationQuery, WireName: illFormed, Prefix: new("")}},
 			}}}})
 		}, "ir/prefix-binding-wire-name", fmt.Sprintf("binding under a prefix also names the field %q", illFormed)},
 		{"prefix binding of no map", func() *ir.Document {
-			doc := opDoc(ir.Operation{
+			doc := singleOperationDocument(ir.Operation{
 				ID: "operation/x/S/op", Name: named("op"),
 				Params: []ir.Parameter{{ID: "parameter/x/p", Name: named("p"), Type: ir.TypeRef{Target: illFormed}}},
-				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{{
+				Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{{
 					Param: "parameter/x/p", Location: ir.HTTPLocationHeader, Prefix: new(""),
 				}}}}},
 			})
@@ -152,17 +152,17 @@ func messageCases() []messageCase {
 		}, "ir/prefix-binding-not-map", fmt.Sprintf(
 			"binding under a prefix binds a parameter of type %q, which is no map", illFormed)},
 		{"inbound kind", func() *ir.Document {
-			return opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+			return singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OperationBindings{
 				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInbound(illFormed)}}}})
 		}, "ir/unknown-http-inbound", fmt.Sprintf("binding carries undeclared inbound kind %q", illFormed)},
 		{"callback unlisted", func() *ir.Document {
-			return opDoc(ir.Operation{ID: ir.OperationID("operation/x/S/" + illFormed), Name: named("op"), Bindings: ir.OpBindings{
+			return singleOperationDocument(ir.Operation{ID: ir.OperationID("operation/x/S/" + illFormed), Name: named("op"), Bindings: ir.OperationBindings{
 				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInboundCallback}}}})
 		}, "ir/callback-unlisted", fmt.Sprintf(
 			"operation %q is marked a callback, but no binding lists it among its Callbacks", "operation/x/S/"+illFormed)},
 		{"callback unmarked", func() *ir.Document {
 			cb := ir.OperationID("operation/x/S/" + illFormed)
-			doc := opDoc(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+			doc := singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Name: named("op"), Bindings: ir.OperationBindings{
 				HTTP: []ir.HTTPBinding{{Callbacks: []ir.Callback{{Operations: []ir.OperationID{cb}}}}}}})
 			doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations,
 				ir.Operation{ID: cb, Name: named("cb")})
@@ -292,9 +292,9 @@ func messageCases() []messageCase {
 		}, "ir/value-missing-payload", `value of kind "number" leaves Number empty, which is no value of that kind`},
 		{"cyclic structure", func() *ir.Document {
 			constructorValue := &ir.ConstructorValue{Scalar: "type/x/S", Name: "from"}
-			constructorValue.Args = []ir.Value{ctorValue(constructorValue)}
+			constructorValue.Args = []ir.Value{constructorValueOf(constructorValue)}
 			model := namedModel(ir.TypeID("type/x/" + illFormed))
-			model.Examples = []ir.Example{{Value: new(ctorValue(constructorValue))}}
+			model.Examples = []ir.Example{{Value: new(constructorValueOf(constructorValue))}}
 			return typesDoc(model,
 				&ir.Scalar{ID: "type/x/S", Name: named("s"), Base: &ir.TypeRef{Target: "type/primitive/string"}},
 				&ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString})

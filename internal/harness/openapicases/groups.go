@@ -182,14 +182,14 @@ func withDialect(schema jsontext.Value) ([]byte, error) {
 // carryProperties writes each use as the property "t<i>" of the case's
 // component.
 func carryProperties(uses []object) (object, object, []string) {
-	props := make(object, len(uses))
+	properties := make(object, len(uses))
 	nodes := make([]string, len(uses))
 	for i, object := range uses {
 		name := "t" + strconv.Itoa(i)
-		props[i] = member{name, object}
+		properties[i] = member{name, object}
 		nodes[i] = "property/openapi/components/schemas/" + caseSchema + "/properties/" + name
 	}
-	return nil, object{{caseSchema, object{{"type", "object"}, {"properties", props}}}}, nodes
+	return nil, object{{caseSchema, object{{"type", "object"}, {"properties", properties}}}}, nodes
 }
 
 // carryParameters writes each use as the schema of the query parameter

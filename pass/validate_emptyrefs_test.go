@@ -18,16 +18,16 @@ import (
 // channel, which Validate used to leave to irverify.
 func TestValidate_ReportsAnEmptyRequiredReference(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{ID: "operation/x/o"}
-	op.Bindings.Message = &ir.MessageBinding{Channel: "", Direction: ir.MessageDirectionSend}
+	operation := ir.Operation{ID: "operation/x/o"}
+	operation.Bindings.Message = &ir.MessageBinding{Channel: "", Direction: ir.MessageDirectionSend}
 
-	diags := validated(t, docWithOperation(op))
+	diags := validated(t, docWithOperation(operation))
 
 	require.Equal(t, 1, countCode(t, diags, "ir/empty-channel-ref"))
 	for _, diagnostic := range diags {
 		if diagnostic.Code == "ir/empty-channel-ref" {
 			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
-			assert.Equal(t, scenarioOpPath+".Bindings.Message.Channel", diagnostic.Provenance.Node)
+			assert.Equal(t, scenarioOperationPath+".Bindings.Message.Channel", diagnostic.Provenance.Node)
 		}
 	}
 
@@ -44,18 +44,18 @@ func TestValidate_ReportsAnEmptyRequiredReference(t *testing.T) {
 // also draws a second code from a check that reads the same position.
 func TestValidate_OneCodePerEmptyReference(t *testing.T) {
 	t.Parallel()
-	op := paramBindingOp("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
-	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
+	operation := paramBindingOperation("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
+	operation.Bindings.HTTP[0].ParamBindings = append(operation.Bindings.HTTP[0].ParamBindings,
 		ir.HTTPParamBinding{Location: ir.HTTPLocationQuery})
-	op.OverloadOf = new(ir.OperationID)
-	doc := docWithOperation(op)
+	operation.OverloadOf = new(ir.OperationID)
+	doc := docWithOperation(operation)
 	doc.Services[0].Servers = []ir.ServerID{""}
 
 	diags := validated(t, doc)
 
-	assert.Equal(t, []string{scenarioOpPath + ".Bindings.HTTP[0].ParamBindings[1].Param"},
+	assert.Equal(t, []string{scenarioOperationPath + ".Bindings.HTTP[0].ParamBindings[1].Param"},
 		nodesOfCode(diags, "ir/empty-parameter-ref"))
-	assert.Equal(t, []string{scenarioOpPath + ".OverloadOf"}, nodesOfCode(diags, "ir/empty-operation-ref"))
+	assert.Equal(t, []string{scenarioOperationPath + ".OverloadOf"}, nodesOfCode(diags, "ir/empty-operation-ref"))
 	assert.Equal(t, []string{"document.Services[0].Servers[0]"}, nodesOfCode(diags, "ir/empty-server-ref"))
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"))
 	assert.Zero(t, countCode(t, diags, "ir/dangling-parameter-ref"))
@@ -92,8 +92,8 @@ func TestValidate_EmptyMappingValueIsAnEmptyReference(t *testing.T) {
 // idempotency token parameter, and a tag property PropertyName locates.
 func TestValidate_DocumentedEmptyPositionsStayLegal(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{ID: "operation/x/o", Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: ""}}
-	doc := docWithOperation(op)
+	operation := ir.Operation{ID: "operation/x/o", Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: ""}}
+	doc := docWithOperation(operation)
 	doc.Types["type/u"] = &ir.Union{
 		ID:       "type/u",
 		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/m"}}},
@@ -115,7 +115,7 @@ func TestValidate_DocumentedEmptyPositionsStayLegal(t *testing.T) {
 // code alone, where each check reading them also reported it under its own.
 func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 	t.Parallel()
-	const op = "document.Services[0].Groups[0].Operations[0]"
+	const operationPath = "document.Services[0].Groups[0].Operations[0]"
 	for _, tc := range []struct {
 		name  string
 		doc   func() *ir.Document
@@ -135,7 +135,7 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 				return doc
 			},
 			code:  "ir/empty-message-ref",
-			nodes: []string{op + ".Bindings.Message.Messages[1]"},
+			nodes: []string{operationPath + ".Bindings.Message.Messages[1]"},
 		},
 		{
 			name: "an encoding key",
@@ -146,7 +146,7 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 				}}}})
 			},
 			code:  "ir/empty-property-ref",
-			nodes: []string{op + ".Request.Contents[0].Encoding[].key"},
+			nodes: []string{operationPath + ".Request.Contents[0].Encoding[].key"},
 		},
 		{
 			name: "a link's parameter, given twice",
@@ -159,7 +159,7 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 				})
 			},
 			code:  "ir/empty-parameter-ref",
-			nodes: []string{op + ".Responses[0].Links[0].Params[0].Param", op + ".Responses[0].Links[0].Params[1].Param"},
+			nodes: []string{operationPath + ".Responses[0].Links[0].Params[0].Param", operationPath + ".Responses[0].Links[0].Params[1].Param"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -185,18 +185,18 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 func TestValidate_AnEmptiedBindingLeavesItsParameterUnbound(t *testing.T) {
 	t.Parallel()
 	unbound := func(diags []ir.Diagnostic) []ir.Diagnostic { return withCode(diags, "pass/param-unbound") }
-	op := paramBindingOp("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
-	op.Bindings.HTTP[0].ParamBindings[0].Param = ""
-	diags := validated(t, docWithOperation(op))
+	operation := paramBindingOperation("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
+	operation.Bindings.HTTP[0].ParamBindings[0].Param = ""
+	diags := validated(t, docWithOperation(operation))
 
-	assert.Equal(t, []string{scenarioOpPath + ".Bindings.HTTP[0].ParamBindings[0].Param"},
+	assert.Equal(t, []string{scenarioOperationPath + ".Bindings.HTTP[0].ParamBindings[0].Param"},
 		nodesOfCode(diags, "ir/empty-parameter-ref"))
 	got := unbound(diags)
 	require.Len(t, got, 1)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
 	assert.Empty(t, withCode(diags, "pass/param-binding-mismatch"), "an unplaced parameter is no binding mismatch")
 
-	left := paramBindingOp("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
+	left := paramBindingOperation("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
 	left.Bindings.HTTP[0].ParamBindings = nil
 	assert.Equal(t, unbound(validated(t, docWithOperation(left))), got,
 		"the warning is the one a binding left out draws")

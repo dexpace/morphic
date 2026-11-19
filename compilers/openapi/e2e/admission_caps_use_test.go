@@ -70,11 +70,11 @@ func capUseSpec(version, kind string, n int) (paths string, schemas []string) {
 			}
 		}
 	})
-	var p, props strings.Builder
+	var p, properties strings.Builder
 	p.WriteString("paths:\n  /p:\n    get:\n      parameters:\n")
 	for _, name := range names {
 		fmt.Fprintf(&p, "        - {name: q_%s, in: query, schema: %s}\n", name, uses[name])
-		fmt.Fprintf(&props, "p_%s: %s, ", name, uses[name])
+		fmt.Fprintf(&properties, "p_%s: %s, ", name, uses[name])
 		schemas = append(schemas, "U_"+name+": "+uses[name])
 	}
 	p.WriteString("      responses: {'204': {description: none}}\n")
@@ -82,7 +82,7 @@ func capUseSpec(version, kind string, n int) (paths string, schemas []string) {
 		fmt.Fprintf(&p, "  /r/%s:\n    get:\n      responses: {'200': {description: ok, content: {application/json: {schema: %s}}}}\n",
 			name, uses[name])
 	}
-	schemas = append(schemas, "H: {type: object, properties: {"+strings.TrimSuffix(props.String(), ", ")+"}}",
+	schemas = append(schemas, "H: {type: object, properties: {"+strings.TrimSuffix(properties.String(), ", ")+"}}",
 		"C: {$ref: '#/components/schemas/T'}")
 	return p.String(), append(schemas, capTarget(kind, n)...)
 }

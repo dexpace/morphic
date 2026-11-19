@@ -116,24 +116,24 @@ func TestIsSubtype_CyclicCompositionTerminates(t *testing.T) {
 	assert.False(t, ir.IsSubtype(doc, "a", "elsewhere"))
 }
 
-func prop(id ir.PropertyID) ir.Property { return ir.Property{ID: id} }
+func property(id ir.PropertyID) ir.Property { return ir.Property{ID: id} }
 
 func TestExposedProperties_IncludesMixins(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		irtest.ModelOf("m", func(model *ir.Model) {
-			model.Properties = []ir.Property{prop("m.own")}
+			model.Properties = []ir.Property{property("m.own")}
 			model.Base = &ir.TypeRef{Target: "base"}
 			model.Implements = irtest.RefsTo("iface")
 			model.Mixins = irtest.RefsTo("mix", "viaAlias")
 		}),
-		irtest.ModelOf("base", func(model *ir.Model) { model.Properties = []ir.Property{prop("base.p")} }),
-		irtest.ModelOf("iface", func(model *ir.Model) { model.Properties = []ir.Property{prop("iface.p")} }),
-		irtest.ModelOf("mix", func(model *ir.Model) { model.Properties = []ir.Property{prop("mix.p")} }),
+		irtest.ModelOf("base", func(model *ir.Model) { model.Properties = []ir.Property{property("base.p")} }),
+		irtest.ModelOf("iface", func(model *ir.Model) { model.Properties = []ir.Property{property("iface.p")} }),
+		irtest.ModelOf("mix", func(model *ir.Model) { model.Properties = []ir.Property{property("mix.p")} }),
 		irtest.ScalarOf("viaAlias", "aliased"),
-		irtest.ModelOf("aliased", func(model *ir.Model) { model.Properties = []ir.Property{prop("aliased.p")} }),
+		irtest.ModelOf("aliased", func(model *ir.Model) { model.Properties = []ir.Property{property("aliased.p")} }),
 		irtest.ScalarOf("opaque", ""),
-		irtest.ModelOf("unrelated", func(model *ir.Model) { model.Properties = []ir.Property{prop("unrelated.p")} }),
+		irtest.ModelOf("unrelated", func(model *ir.Model) { model.Properties = []ir.Property{property("unrelated.p")} }),
 	)
 	want := map[ir.PropertyID]bool{
 		"m.own": true, "base.p": true, "iface.p": true, "mix.p": true, "aliased.p": true,
@@ -148,11 +148,11 @@ func TestExposedProperties_CyclicMixinsTerminate(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		irtest.ModelOf("a", func(model *ir.Model) {
-			model.Properties = []ir.Property{prop("a.p")}
+			model.Properties = []ir.Property{property("a.p")}
 			model.Mixins = irtest.RefsTo("b")
 		}),
 		irtest.ModelOf("b", func(model *ir.Model) {
-			model.Properties = []ir.Property{prop("b.p")}
+			model.Properties = []ir.Property{property("b.p")}
 			model.Mixins = irtest.RefsTo("a")
 		}),
 	)

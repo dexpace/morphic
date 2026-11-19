@@ -24,50 +24,50 @@ import (
 // set, is written as an entry of an allOf beside the $ref in one spelling and
 // beside the use in the other, since an allOf cannot be written twice.
 type conjFamily struct {
-	name    string
-	str     string
-	obj     string
-	arr     string
-	entries map[string]string
-	only31  bool
+	name         string
+	stringSchema string
+	obj          string
+	arr          string
+	entries      map[string]string
+	only31       bool
 }
 
 // conjFamilies are the keyword families a use may write beside its $ref.
 var conjFamilies = []conjFamily{
-	{name: "bound", str: "minLength: 1", obj: "minProperties: 1", arr: "maxItems: 3"},
-	{name: "type", str: "type: string", obj: "type: object", arr: "type: array"},
-	{name: "enum", str: "enum: [a, b]"},
-	{name: "const", str: "const: a", only31: true},
-	{name: "nullable", str: "nullable: true", obj: "nullable: true"},
-	{name: "docs", str: "description: d, title: Ti", obj: "description: d, title: Ti", arr: "description: d, title: Ti"},
-	{name: "deprecated", str: "deprecated: true", obj: "deprecated: true", arr: "deprecated: true"},
-	{name: "example", str: "example: x", obj: "example: {a: x}", arr: "example: [x]"},
-	{name: "default", str: "default: x", obj: "default: {a: x}", arr: "default: [x]"},
-	{name: "readOnly", str: "readOnly: true", obj: "readOnly: true", arr: "readOnly: true"},
-	{name: "writeOnly", str: "writeOnly: true", obj: "writeOnly: true", arr: "writeOnly: true"},
-	{name: "properties", str: "properties: {b: {type: string}}", obj: "properties: {b: {type: string}}"},
-	{name: "required", str: "required: [a]", obj: "required: [a]"},
-	{name: "additionalProperties", str: "additionalProperties: {type: string}", obj: "additionalProperties: {type: string}"},
-	{name: "items", str: "items: {type: string}", arr: "items: {type: string}"},
+	{name: "bound", stringSchema: "minLength: 1", obj: "minProperties: 1", arr: "maxItems: 3"},
+	{name: "type", stringSchema: "type: string", obj: "type: object", arr: "type: array"},
+	{name: "enum", stringSchema: "enum: [a, b]"},
+	{name: "const", stringSchema: "const: a", only31: true},
+	{name: "nullable", stringSchema: "nullable: true", obj: "nullable: true"},
+	{name: "docs", stringSchema: "description: d, title: Ti", obj: "description: d, title: Ti", arr: "description: d, title: Ti"},
+	{name: "deprecated", stringSchema: "deprecated: true", obj: "deprecated: true", arr: "deprecated: true"},
+	{name: "example", stringSchema: "example: x", obj: "example: {a: x}", arr: "example: [x]"},
+	{name: "default", stringSchema: "default: x", obj: "default: {a: x}", arr: "default: [x]"},
+	{name: "readOnly", stringSchema: "readOnly: true", obj: "readOnly: true", arr: "readOnly: true"},
+	{name: "writeOnly", stringSchema: "writeOnly: true", obj: "writeOnly: true", arr: "writeOnly: true"},
+	{name: "properties", stringSchema: "properties: {b: {type: string}}", obj: "properties: {b: {type: string}}"},
+	{name: "required", stringSchema: "required: [a]", obj: "required: [a]"},
+	{name: "additionalProperties", stringSchema: "additionalProperties: {type: string}", obj: "additionalProperties: {type: string}"},
+	{name: "items", stringSchema: "items: {type: string}", arr: "items: {type: string}"},
 	{
-		name: "oneOf", str: "oneOf: [{type: string}, {type: boolean}]",
+		name: "oneOf", stringSchema: "oneOf: [{type: string}, {type: boolean}]",
 		obj: "oneOf: [{type: object, properties: {b: {type: string}}}, {type: object, properties: {c: {type: string}}}]",
 		arr: "oneOf: [{type: array, maxItems: 2}, {type: boolean}]",
 	},
 	{
-		name: "anyOf", str: "anyOf: [{type: string, maxLength: 5}, {type: boolean}]",
+		name: "anyOf", stringSchema: "anyOf: [{type: string, maxLength: 5}, {type: boolean}]",
 		obj: "anyOf: [{required: [a]}, {required: [b]}]", arr: "anyOf: [{type: array, maxItems: 2}, {type: boolean}]",
 	},
-	{name: "not", str: "not: {enum: [n]}", obj: "not: {enum: [n]}", arr: "not: {enum: [n]}"},
-	{name: "format", str: "format: password", obj: "format: password", arr: "format: password"},
-	{name: "xml", str: "xml: {name: x}", obj: "xml: {name: x}", arr: "xml: {name: x}"},
-	{name: "externalDocs", str: "externalDocs: {url: 'https://example.com'}", obj: "externalDocs: {url: 'https://example.com'}"},
+	{name: "not", stringSchema: "not: {enum: [n]}", obj: "not: {enum: [n]}", arr: "not: {enum: [n]}"},
+	{name: "format", stringSchema: "format: password", obj: "format: password", arr: "format: password"},
+	{name: "xml", stringSchema: "xml: {name: x}", obj: "xml: {name: x}", arr: "xml: {name: x}"},
+	{name: "externalDocs", stringSchema: "externalDocs: {url: 'https://example.com'}", obj: "externalDocs: {url: 'https://example.com'}"},
 	{
-		name: "promotedExtension", str: `deprecated: true, x-deprecated-since: "2"`,
+		name: "promotedExtension", stringSchema: `deprecated: true, x-deprecated-since: "2"`,
 		obj: `deprecated: true, x-deprecated-since: "2"`, arr: `deprecated: true, x-deprecated-since: "2"`,
 	},
-	{name: "extension", str: "x-a: 1", obj: "x-a: 1", arr: "x-a: 1"},
-	{name: "unknownKey", str: "unknownKeyword: 1", obj: "unknownKeyword: 1", arr: "unknownKeyword: 1"},
+	{name: "extension", stringSchema: "x-a: 1", obj: "x-a: 1", arr: "x-a: 1"},
+	{name: "unknownKey", stringSchema: "unknownKeyword: 1", obj: "unknownKeyword: 1", arr: "unknownKeyword: 1"},
 	{name: "allOfBeside", entries: map[string]string{"Str": "{maxLength: 5}", "Obj": "{properties: {b: {type: string}}}", "Arr": "{maxItems: 3}"}},
 }
 
@@ -76,7 +76,7 @@ var conjFamilies = []conjFamily{
 func (f conjFamily) keywordsOf(target string) string {
 	switch target {
 	case "Str":
-		return f.str
+		return f.stringSchema
 	case "Obj":
 		return f.obj
 	default:
@@ -418,7 +418,7 @@ func TestRefConjunction_AStructuralKeywordBesideARefIsComposedOverItsTarget(t *t
 			require.Len(t, extended.Properties, 1)
 			assert.Equal(t, "age", extended.Properties[0].Name.Source)
 
-			property, ok := propByWire(requireModelOf(t, beside, "Holder"), "u")
+			property, ok := propertyByWire(requireModelOf(t, beside, "Holder"), "u")
 			require.True(t, ok)
 			held := kindNode(t, beside, property.Type.Target)
 			model, ok := held.(*ir.Model)
@@ -448,20 +448,20 @@ func TestRefConjunction_AValueSetBesideARefNarrowsItsTargetInEverySpelling(t *te
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
 			build := func(spellValue spell) []string {
-				props := make([]string, 0, len(uses))
+				properties := make([]string, 0, len(uses))
 				for _, u := range uses {
-					props = append(props, u.name+": "+spellValue(u.target, u.keywords))
+					properties = append(properties, u.name+": "+spellValue(u.target, u.keywords))
 				}
-				return append(slices.Clone(levels), "Holder: {type: object, properties: {"+strings.Join(props, ", ")+"}}")
+				return append(slices.Clone(levels), "Holder: {type: object, properties: {"+strings.Join(properties, ", ")+"}}")
 			}
 			beside, wrapped, diags := compileSpelled(t, version, build)
 			requireSpellingsEqual(t, beside, wrapped, "a value set beside a $ref")
 
 			for _, u := range uses {
-				node := kindNode(t, beside, holderPropType(t, beside, u.name))
+				node := kindNode(t, beside, holderWirePropertyType(t, beside, u.name))
 				pointer := "/components/schemas/Holder/properties/" + u.name
 				if u.kind == "" {
-					assert.Equal(t, componentID(u.target), holderPropType(t, beside, u.name), u.name)
+					assert.Equal(t, componentID(u.target), holderWirePropertyType(t, beside, u.name), u.name)
 					assert.Empty(t, keptOn(node), u.name)
 					assert.Zero(t, degradedInfosUnder(diags, pointer), u.name)
 					continue
@@ -497,13 +497,13 @@ func TestRefConjunction_ARedactionBesideARefInItemsIsAModelOverItsTarget(t *test
 			})
 			requireSpellingsEqual(t, beside, wrapped, "a redaction beside a $ref")
 			for _, property := range []string{"p", "d"} {
-				list, ok := kindNode(t, beside, holderPropType(t, beside, property)).(*ir.List)
+				list, ok := kindNode(t, beside, holderWirePropertyType(t, beside, property)).(*ir.List)
 				require.True(t, ok, property)
-				elem, ok := kindNode(t, beside, list.ElementType.Target).(*ir.Model)
+				element, ok := kindNode(t, beside, list.ElementType.Target).(*ir.Model)
 				require.True(t, ok, "the element of %s is a model over the object", property)
-				require.NotNil(t, elem.Base)
-				assert.Equal(t, componentID("Obj"), elem.Base.Target)
-				assert.Equal(t, property == "p", elem.Sensitive, "what %s redacts", property)
+				require.NotNil(t, element.Base)
+				assert.Equal(t, componentID("Obj"), element.Base.Target)
+				assert.Equal(t, property == "p", element.Sensitive, "what %s redacts", property)
 			}
 		})
 	}
@@ -571,8 +571,8 @@ func TestRefConjunction_AUnionBesideARefLowersAsBesideAnAllOfOfIt(t *testing.T) 
 			requireOnlyFindings(t, filterCodes(diags, "openapi/validation-only-keyword", "openapi/composition-lowering"),
 				"a union beside a $ref", "openapi/later-version-construct")
 
-			str := requireScalarOver(t, beside, "UnionStr", componentID("Str"))
-			assert.Empty(t, keptOn(str), "a union the principal says is consumed")
+			stringType := requireScalarOver(t, beside, "UnionStr", componentID("Str"))
+			assert.Empty(t, keptOn(stringType), "a union the principal says is consumed")
 			assert.Zero(t, degradedInfosAt(diags, "UnionStr"))
 
 			req := kindNode(t, beside, componentID("UnionReq"))

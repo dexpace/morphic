@@ -17,16 +17,16 @@ import (
 // requiresDoc is a document whose one model, t/x/M, declares the property "a"
 // and requires the names in requires.
 func requiresDoc(requires []string) *ir.Document {
-	str := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
+	stringType := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
 	model := &ir.Model{
 		ID:   "type/x/M",
 		Name: named("m"),
 		Properties: []ir.Property{{
-			ID: "property/x/M/a", Name: named("a"), WireName: "a", Type: ir.TypeRef{Target: str.ID},
+			ID: "property/x/M/a", Name: named("a"), WireName: "a", Type: ir.TypeRef{Target: stringType.ID},
 		}},
 		Requires: requires,
 	}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{str.ID: str, model.ID: model}}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{stringType.ID: stringType, model.ID: model}}
 }
 
 // requiresViolations returns the violations in vs carrying code, in Verify's order.
@@ -159,15 +159,15 @@ func TestVerify_RequiresReadsTheEffectiveWireName(t *testing.T) {
 // it read of that model must not linger into the other.
 func TestVerify_RequiresIsHeldModelByModel(t *testing.T) {
 	t.Parallel()
-	str := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
+	stringType := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
 	model := func(id ir.TypeID, own string, requires ...string) *ir.Model {
 		return &ir.Model{ID: id, Name: named(own), Requires: requires, Properties: []ir.Property{{
 			ID: ir.PropertyID("property/" + strings.TrimPrefix(string(id), "type/") + "/" + own), Name: named(own), WireName: own,
-			Type: ir.TypeRef{Target: str.ID},
+			Type: ir.TypeRef{Target: stringType.ID},
 		}}}
 	}
 	a, b := model("type/x/A", "a", "b", "shared"), model("type/x/B", "b", "a", "shared")
-	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{str.ID: str, a.ID: a, b.ID: b}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{stringType.ID: stringType, a.ID: a, b.ID: b}}
 
 	assert.Empty(t, verifyDeclared(doc))
 }

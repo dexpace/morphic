@@ -17,15 +17,15 @@ import (
 // keyed is an operation bound by method, declaring a parameter for each of
 // bindings, its location and wire name, under an ID of its own.
 func keyed(method string, bindings ...ir.HTTPParamBinding) ir.Operation {
-	op := ir.Operation{ID: "operation/a", Provenance: ir.Provenance{Inferred: "extension-promotion"}}
+	operation := ir.Operation{ID: "operation/a", Provenance: ir.Provenance{Inferred: "extension-promotion"}}
 	hb := ir.HTTPBinding{Method: method, URITemplate: "/a"}
 	for i, b := range bindings {
 		b.Param = ir.ParameterID("parameter/" + string(rune('a'+i)))
-		op.Params = append(op.Params, ir.Parameter{ID: b.Param, Name: ir.NamingFor(b.WireName)})
+		operation.Params = append(operation.Params, ir.Parameter{ID: b.Param, Name: ir.NamingFor(b.WireName)})
 		hb.ParamBindings = append(hb.ParamBindings, b)
 	}
-	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
-	return op
+	operation.Bindings = ir.OperationBindings{HTTP: []ir.HTTPBinding{hb}}
+	return operation
 }
 
 // header is a binding of a header parameter under name.
@@ -50,9 +50,9 @@ func TestIdempotency_TheKeyHeaderIsTheToken(t *testing.T) {
 	callback := keyed(http.MethodPost, header("Idempotency-Key"))
 	callback.Bindings.HTTP[0].URITemplate = "{$request.body#/url}"
 	for _, tc := range []struct {
-		name  string
-		op    ir.Operation
-		token ir.ParameterID
+		name      string
+		operation ir.Operation
+		token     ir.ParameterID
 	}{
 		{"a POST", keyed(http.MethodPost, header("Idempotency-Key")), "parameter/a"},
 		{"a PATCH", keyed(http.MethodPatch, header("Idempotency-Key")), "parameter/a"},
@@ -75,16 +75,16 @@ func TestIdempotency_TheKeyHeaderIsTheToken(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := oneOperation(tc.op, registry(nil))
+			doc := oneOperation(tc.operation, registry(nil))
 			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(doc)))
-			op := operationOf(doc)
+			operation := operationOf(doc)
 			if tc.token == "" {
-				assert.Equal(t, tc.op.Idempotency, op.Idempotency, "the idempotency stays as it was")
-				assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+				assert.Equal(t, tc.operation.Idempotency, operation.Idempotency, "the idempotency stays as it was")
+				assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
 				return
 			}
-			assert.Equal(t, ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: tc.token}, op.Idempotency)
-			assert.Equal(t, ir.Inferred("extension-promotion,idempotency-inference"), op.Provenance.Inferred)
+			assert.Equal(t, ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: tc.token}, operation.Idempotency)
+			assert.Equal(t, ir.Inferred("extension-promotion,idempotency-inference"), operation.Provenance.Inferred)
 		})
 	}
 }
@@ -100,9 +100,9 @@ func TestIdempotency_ReportsWhatItCannotSettle(t *testing.T) {
 	declared := keyed("LINK", header("Idempotency-Key"))
 	declared.Idempotency = ir.Idempotency{Kind: ir.IdempotencyIdempotent}
 	for _, tc := range []struct {
-		name string
-		op   ir.Operation
-		why  string
+		name      string
+		operation ir.Operation
+		why       string
 	}{
 		{"a method only additionalOperations declares", keyed("LINK", header("Idempotency-Key")), "LINK" + unknown},
 		{"a lower-case method", keyed("post", header("Idempotency-Key")), "post" + unknown},
@@ -117,10 +117,10 @@ func TestIdempotency_ReportsWhatItCannotSettle(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tc.op.Provenance.Pointer = "/paths/~1a/link"
-			doc := oneOperation(tc.op, registry(nil))
+			tc.operation.Provenance.Pointer = "/paths/~1a/link"
+			doc := oneOperation(tc.operation, registry(nil))
 			diags := convention.Apply(convention.Policy{}, defaults(), compileddoc.New(doc))
-			assert.Equal(t, tc.op.Idempotency, operationOf(doc).Idempotency, "the idempotency stays as it was")
+			assert.Equal(t, tc.operation.Idempotency, operationOf(doc).Idempotency, "the idempotency stays as it was")
 			assert.Equal(t, ir.Inferred("extension-promotion"), operationOf(doc).Provenance.Inferred, "nothing is marked")
 			if tc.why == "" {
 				assert.Empty(t, diags)
@@ -139,10 +139,10 @@ func TestIdempotency_ReportsWhatItCannotSettle(t *testing.T) {
 func TestIdempotency_DisabledReadsNoToken(t *testing.T) {
 	t.Parallel()
 	off := convention.Policy{Idempotency: convention.IdempotencyInference{Disabled: true}}
-	for _, op := range []ir.Operation{keyed(http.MethodPost, header("Idempotency-Key")),
+	for _, operation := range []ir.Operation{keyed(http.MethodPost, header("Idempotency-Key")),
 		keyed("LINK", header("Idempotency-Key"))} {
-		doc := oneOperation(op, registry(nil))
-		assert.Empty(t, convention.Apply(off, defaults(), compileddoc.New(doc)), op.Bindings.HTTP[0].Method)
+		doc := oneOperation(operation, registry(nil))
+		assert.Empty(t, convention.Apply(off, defaults(), compileddoc.New(doc)), operation.Bindings.HTTP[0].Method)
 		assert.Equal(t, ir.Idempotency{}, operationOf(doc).Idempotency)
 		assert.Equal(t, ir.Inferred("extension-promotion"), operationOf(doc).Provenance.Inferred)
 	}

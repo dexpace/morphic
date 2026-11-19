@@ -29,11 +29,11 @@ type twoFinding struct {
 // operationsOf is validDoc holding an operation of each ID, in that order,
 // built by mk: the way a family that reads operations draws two findings.
 func operationsOf(mk func(id ir.OperationID) ir.Operation, ids ...ir.OperationID) *ir.Document {
-	ops := make([]ir.Operation, 0, len(ids))
+	operations := make([]ir.Operation, 0, len(ids))
 	for _, id := range ids {
-		ops = append(ops, mk(id))
+		operations = append(operations, mk(id))
 	}
-	return docWithOperations(ops...)
+	return docWithOperations(operations...)
 }
 
 // typesOf is validDoc holding the type typeOf makes of each of ids.
@@ -76,12 +76,12 @@ var twoFindings = []twoFinding{
 			}, "type/z", "type/b")
 		}},
 	{family: "checkEmptyRefs", code: "ir/empty-channel-ref",
-		want: []string{scenarioOpPath + ".Bindings.Message.Channel", "document.Services[0].Groups[0].Operations[1].Bindings.Message.Channel"},
+		want: []string{scenarioOperationPath + ".Bindings.Message.Channel", "document.Services[0].Groups[0].Operations[1].Bindings.Message.Channel"},
 		doc: func() *ir.Document {
 			return operationsOf(func(id ir.OperationID) ir.Operation {
-				op := ir.Operation{ID: id}
-				op.Bindings.Message = &ir.MessageBinding{Direction: ir.MessageDirectionSend}
-				return op
+				operation := ir.Operation{ID: id}
+				operation.Bindings.Message = &ir.MessageBinding{Direction: ir.MessageDirectionSend}
+				return operation
 			}, "operation/z", "operation/b")
 		}},
 	{family: "checkGroupWalkTruncated", code: "ir/walk-truncated", want: []string{"document"},
@@ -91,7 +91,7 @@ var twoFindings = []twoFinding{
 		}},
 	{family: "checkResponseIndices", code: "ir/response-index-out-of-range",
 		want: []string{"op/bindings/http/0/successStatus/1", "op/bindings/http/0/successStatus/3"},
-		doc:  func() *ir.Document { return opWithSuccessStatus(map[int]int{3: 203, 1: 201}) }},
+		doc:  func() *ir.Document { return operationWithSuccessStatus(map[int]int{3: 203, 1: 201}) }},
 	{family: "checkEncodingKeys", code: "ir/encoding-key-unknown-property",
 		want: []string{"op/request/contents/0/encoding/property/m/b", "op/request/contents/0/encoding/property/m/z"},
 		doc: func() *ir.Document {
@@ -119,16 +119,16 @@ var twoFindings = []twoFinding{
 				return ir.Operation{ID: id, Responses: []ir.Response{{Payload: &payload}}}
 			}, "operation/z", "operation/b")
 		}},
-	{family: "checkPropIDRefs", code: "ir/dangling-property-ref",
+	{family: "checkPropertyIDRefs", code: "ir/dangling-property-ref",
 		want: []string{
 			"document.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].ResponseBodyPath.Segments[0]",
 			"document.Services[0].Groups[0].Operations[1].Bindings.HTTP[0].ResponseBodyPath.Segments[0]",
 		},
 		doc: func() *ir.Document {
 			return operationsOf(func(id ir.OperationID) ir.Operation {
-				op := propPathOperation([]ir.PropertyID{"property/m/ghost"})
-				op.ID = id
-				return op
+				operation := propertyPathOperation([]ir.PropertyID{"property/m/ghost"})
+				operation.ID = id
+				return operation
 			}, "operation/z", "operation/b")
 		}},
 	registryRow("checkDiscriminators"),
@@ -140,9 +140,9 @@ var twoFindings = []twoFinding{
 		want: []string{"operation/z/bindings/http/0", "operation/b/bindings/http/0"},
 		doc: func() *ir.Document {
 			return operationsOf(func(id ir.OperationID) ir.Operation {
-				op := paramBindingOp(id, ir.Parameter{ID: ir.ParameterID("parameter/" + id), Name: ir.Naming{Source: "q"}})
-				op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings, op.Bindings.HTTP[0].ParamBindings[0])
-				return op
+				operation := paramBindingOperation(id, ir.Parameter{ID: ir.ParameterID("parameter/" + id), Name: ir.Naming{Source: "q"}})
+				operation.Bindings.HTTP[0].ParamBindings = append(operation.Bindings.HTTP[0].ParamBindings, operation.Bindings.HTTP[0].ParamBindings[0])
+				return operation
 			}, "operation/z", "operation/b")
 		}},
 	{family: "checkIdempotency", code: "pass/idempotency-token-mismatch",
@@ -158,9 +158,9 @@ var twoFindings = []twoFinding{
 			doc := messageBindingDoc("channel/a", []ir.MessageID{"message/a"}, nil)
 			doc.Services[0].Groups[0].Operations = nil
 			for _, id := range []ir.OperationID{"operation/z", "operation/b"} {
-				op := ir.Operation{ID: id}
-				op.Bindings.Message = &ir.MessageBinding{Channel: "channel/a", Messages: []ir.MessageID{"message/b"}}
-				doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations, op)
+				operation := ir.Operation{ID: id}
+				operation.Bindings.Message = &ir.MessageBinding{Channel: "channel/a", Messages: []ir.MessageID{"message/b"}}
+				doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations, operation)
 			}
 			return doc
 		}},
@@ -184,13 +184,13 @@ var twoFindings = []twoFinding{
 	{family: "checkBounds", code: boundsCode, want: []string{"type/b", "type/z"},
 		doc: func() *ir.Document {
 			return typesOf(func(id ir.TypeID) ir.TypeDef {
-				return &ir.List{ID: id, ElementType: strT, Constraints: &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(1))}}
+				return &ir.List{ID: id, ElementType: stringT, Constraints: &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(1))}}
 			}, "type/z", "type/b")
 		}},
 	{family: "checkValues", code: exampleCode, want: []string{"type/b", "type/z"},
 		doc: func() *ir.Document {
 			return typesOf(func(id ir.TypeID) ir.TypeDef {
-				return &ir.List{ID: id, ElementType: strT, Examples: []ir.Example{{Value: text("not a list")}}}
+				return &ir.List{ID: id, ElementType: stringT, Examples: []ir.Example{{Value: text("not a list")}}}
 			}, "type/z", "type/b")
 		}},
 	{family: "checkCompositionCyclesAndInfiniteTypes", code: cycleCode, want: []string{"type/b", "type/z"},

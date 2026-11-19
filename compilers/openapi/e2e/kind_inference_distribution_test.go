@@ -133,7 +133,7 @@ func TestKindInference_ACatchAllBesideAUnionOfObjectsDistributes(t *testing.T) {
 					for base, model := range variants {
 						require.NotNil(t, model.AdditionalProperties, "%s holds the catch-all", base)
 						require.NotNil(t, model.AdditionalProperties.Value, base)
-						assert.Equal(t, prim(ir.PrimitiveString), model.AdditionalProperties.Value.Target, base)
+						assert.Equal(t, primitive(ir.PrimitiveString), model.AdditionalProperties.Value.Target, base)
 					}
 					assert.Empty(t, keptUnder(doc, "/components/schemas/Open"))
 				})

@@ -93,27 +93,27 @@ type useSite struct {
 // useSitesOf reads the carriers useSiteSpec declares.
 func useSitesOf(t *testing.T, doc *ir.Document) map[string]useSite {
 	t.Helper()
-	op, ok := opByName(doc, "x")
+	operation, ok := operationByName(doc, "x")
 	require.True(t, ok)
-	param, ok := openapitest.ParamBySource(op, "use")
+	param, ok := openapitest.ParamBySource(operation, "use")
 	require.True(t, ok)
-	paramContent, ok := openapitest.ParamBySource(op, "useContent")
+	paramContent, ok := openapitest.ParamBySource(operation, "useContent")
 	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	header, ok := headerByWire(op.Responses[0].Headers, "X-Use")
+	require.Len(t, operation.Responses, 1)
+	header, ok := headerByWire(operation.Responses[0].Headers, "X-Use")
 	require.True(t, ok)
-	headerContent, ok := headerByWire(op.Responses[0].Headers, "X-Use-Content")
+	headerContent, ok := headerByWire(operation.Responses[0].Headers, "X-Use-Content")
 	require.True(t, ok)
-	model, ok := doc.Types[openapitest.BodyTarget(t, op.Responses[0].Payload)].(*ir.Model)
+	model, ok := doc.Types[openapitest.BodyTarget(t, operation.Responses[0].Payload)].(*ir.Model)
 	require.True(t, ok)
-	prop, ok := propByWire(model, "use")
+	property, ok := propertyByWire(model, "use")
 	require.True(t, ok)
 	return map[string]useSite{
 		"parameter":         {param.Deprecation, param.Secret, param.Provenance.Inferred},
 		"content parameter": {paramContent.Deprecation, paramContent.Secret, paramContent.Provenance.Inferred},
 		"header":            {header.Deprecation, header.Secret, header.Provenance.Inferred},
 		"content header":    {headerContent.Deprecation, headerContent.Secret, headerContent.Provenance.Inferred},
-		"property":          {prop.Deprecation, prop.Secret, prop.Provenance.Inferred},
+		"property":          {property.Deprecation, property.Secret, property.Provenance.Inferred},
 	}
 }
 
@@ -284,16 +284,16 @@ paths:
             X-Declines: {deprecated: false, schema: {$ref: '#/components/schemas/Spent'}}
 ` + useSiteComponents
 	doc := compileClean(t, spec, openapi.Options{})
-	op, ok := opByName(doc, "x")
+	operation, ok := operationByName(doc, "x")
 	require.True(t, ok)
-	deprecates, ok := openapitest.ParamBySource(op, "deprecates")
+	deprecates, ok := openapitest.ParamBySource(operation, "deprecates")
 	require.True(t, ok)
-	declines, ok := openapitest.ParamBySource(op, "declines")
+	declines, ok := openapitest.ParamBySource(operation, "declines")
 	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	headerDeprecates, ok := headerByWire(op.Responses[0].Headers, "X-Deprecates")
+	require.Len(t, operation.Responses, 1)
+	headerDeprecates, ok := headerByWire(operation.Responses[0].Headers, "X-Deprecates")
 	require.True(t, ok)
-	headerDeclines, ok := headerByWire(op.Responses[0].Headers, "X-Declines")
+	headerDeclines, ok := headerByWire(operation.Responses[0].Headers, "X-Declines")
 	require.True(t, ok)
 
 	assert.Equal(t, &ir.Deprecation{RemovalDate: "2033-01-01"}, deprecates.Deprecation)
@@ -347,9 +347,9 @@ func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 					if !object {
 						continue
 					}
-					op, ok := opByName(doc, "x")
+					operation, ok := operationByName(doc, "x")
 					require.True(t, ok)
-					param, ok := openapitest.ParamBySource(op, "use")
+					param, ok := openapitest.ParamBySource(operation, "use")
 					require.True(t, ok)
 					decorator := doc.Types[param.Type.Target].Common()
 					assert.Equal(t, foldedDeprecation(t, wrapped), foldedDeprecation(t, doc), spelling)
@@ -365,9 +365,9 @@ func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 // names, its decorator over an object.
 func decoratorOf(t *testing.T, doc *ir.Document) string {
 	t.Helper()
-	op, ok := opByName(doc, "x")
+	operation, ok := operationByName(doc, "x")
 	require.True(t, ok)
-	param, ok := openapitest.ParamBySource(op, "use")
+	param, ok := openapitest.ParamBySource(operation, "use")
 	require.True(t, ok)
 	decorator := doc.Types[param.Type.Target].Common()
 	return string(decorator.Provenance.Inferred) + " " + strings.Join(slices.Sorted(maps.Keys(decorator.Unmodeled)), ",")
@@ -378,9 +378,9 @@ func decoratorOf(t *testing.T, doc *ir.Document) string {
 // and then from the type it wraps, the carrier deprecated where either is.
 func foldedDeprecation(t *testing.T, doc *ir.Document) *ir.Deprecation {
 	t.Helper()
-	op, ok := opByName(doc, "x")
+	operation, ok := operationByName(doc, "x")
 	require.True(t, ok)
-	param, ok := openapitest.ParamBySource(op, "use")
+	param, ok := openapitest.ParamBySource(operation, "use")
 	require.True(t, ok)
 	decorator, ok := doc.Types[param.Type.Target].(*ir.Model)
 	require.True(t, ok, "an allOf over one $ref is a decorator")
@@ -448,7 +448,7 @@ components:
 		require.Len(t, diags, 1, "the disagreement, whichever way the keys are written")
 		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/x-fern-availability"), diags[0].Provenance.Pointer)
 	}
-	a, ok := opByName(backward, "a")
+	a, ok := operationByName(backward, "a")
 	require.True(t, ok)
 	assert.Equal(t, ir.StabilityBeta, a.Stability)
 }
@@ -459,9 +459,9 @@ components:
 func assertPromotionsAgree(t *testing.T, a, b *ir.Document) {
 	t.Helper()
 	for _, name := range []string{"a", "b"} {
-		operation, ok := opByName(a, name)
+		operation, ok := operationByName(a, name)
 		require.True(t, ok)
-		irOperation, ok := opByName(b, name)
+		irOperation, ok := operationByName(b, name)
 		require.True(t, ok)
 		assert.Equal(t, operation.Stability, irOperation.Stability, name)
 		assert.Equal(t, operation.Deprecation, irOperation.Deprecation, name)
@@ -482,9 +482,9 @@ func assertPromotionsAgree(t *testing.T, a, b *ir.Document) {
 	irModel, ok := b.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
 	for _, wire := range []string{"s", "t"} {
-		property, ok := propByWire(model, wire)
+		property, ok := propertyByWire(model, wire)
 		require.True(t, ok)
-		irProperty, ok := propByWire(irModel, wire)
+		irProperty, ok := propertyByWire(irModel, wire)
 		require.True(t, ok)
 		assert.Equal(t, property.Deprecation, irProperty.Deprecation, wire)
 		assert.Equal(t, property.Secret, irProperty.Secret, wire)
@@ -527,12 +527,12 @@ paths:
           headers:
             X-H: {content: `+content+`}
 `+useSiteComponents)
-			op, ok := opByName(doc, "x")
+			operation, ok := operationByName(doc, "x")
 			require.True(t, ok)
-			param, ok := openapitest.ParamBySource(op, "p")
+			param, ok := openapitest.ParamBySource(operation, "p")
 			require.True(t, ok)
-			require.Len(t, op.Responses, 1)
-			header, ok := headerByWire(op.Responses[0].Headers, "X-H")
+			require.Len(t, operation.Responses, 1)
+			header, ok := headerByWire(operation.Responses[0].Headers, "X-H")
 			require.True(t, ok)
 			assert.Equal(t, tc.secret, param.Secret, "parameter")
 			assert.Equal(t, tc.secret, header.Secret, "header")
@@ -576,11 +576,11 @@ components:
     Tok: {type: string}
 `, true)
 			openapitest.RequireNoErrorDiags(t, diags)
-			op, ok := opByName(doc, "x")
+			operation, ok := operationByName(doc, "x")
 			require.True(t, ok)
-			mine, ok := openapitest.ParamBySource(op, "local")
+			mine, ok := openapitest.ParamBySource(operation, "local")
 			require.True(t, ok)
-			theirs, ok := openapitest.ParamBySource(op, "foreign")
+			theirs, ok := openapitest.ParamBySource(operation, "foreign")
 			require.True(t, ok)
 
 			assert.False(t, mine.Secret, "the source's Tok asks for nothing")

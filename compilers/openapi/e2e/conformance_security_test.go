@@ -198,7 +198,7 @@ func assertSecurityUnresolved(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		{},
 	}, doc.Services[0].Auth, cmpopts.EquateEmpty()), "every option stays, in order")
 
-	byOp := map[string][]ir.AuthRequirement{
+	byOperation := map[string][]ir.AuthRequirement{
 		"bothOp":        {{Schemes: []ir.SchemeUse{{Scheme: undeclared, Scopes: []string{"read", "write"}}, {Scheme: declared}}}},
 		"soleOp":        {{Schemes: []ir.SchemeUse{{Scheme: upload}}}},
 		"soleAgainOp":   {{Schemes: []ir.SchemeUse{{Scheme: upload}}}},
@@ -208,15 +208,15 @@ func assertSecurityUnresolved(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"brokenRefOp":   {{Schemes: []ir.SchemeUse{{Scheme: brokenRef}}}},
 		"noScopesOp":    {{Schemes: []ir.SchemeUse{{Scheme: declared}, {Scheme: undeclared}}}},
 	}
-	for name, want := range byOp {
-		op, ok := opByName(doc, name)
+	for name, want := range byOperation {
+		operation, ok := operationByName(doc, name)
 		require.True(t, ok, name)
-		assert.Empty(t, cmp.Diff(want, op.Auth, cmpopts.EquateEmpty()), name)
+		assert.Empty(t, cmp.Diff(want, operation.Auth, cmpopts.EquateEmpty()), name)
 	}
-	inherits, ok := opByName(doc, "inheritsOp")
+	inherits, ok := operationByName(doc, "inheritsOp")
 	require.True(t, ok)
 	assert.Nil(t, inherits.Auth, "an operation writing no security still inherits")
-	public, ok := opByName(doc, "publicOp")
+	public, ok := operationByName(doc, "publicOp")
 	require.True(t, ok)
 	assert.Empty(t, public.Auth)
 	assert.NotNil(t, public.Auth, "and security: [] is still explicitly public")
@@ -254,9 +254,9 @@ func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Len(t, auth[0].Schemes, 1)
 	assert.Len(t, auth[1].Schemes, 2, "the ANDed option requires two schemes together")
 	assert.Empty(t, auth[2].Schemes, "the empty option means no auth is acceptable")
-	op, ok := opByName(doc, "publicOp")
+	operation, ok := operationByName(doc, "publicOp")
 	require.True(t, ok)
-	assert.Empty(t, op.Auth, "security: [] makes the operation explicitly public")
+	assert.Empty(t, operation.Auth, "security: [] makes the operation explicitly public")
 }
 
 // statesKey is the one scheme the security-state cases declare.
@@ -305,9 +305,9 @@ func assertSecurityRootOptional(t *testing.T, doc *ir.Document, _ []ir.Diagnosti
 }
 
 // assertSecurityStates holds the document's list to root and each operation's,
-// by name, to ops, on the compiled document and on the one its JSON reads back
+// by name, to operations, on the compiled document and on the one its JSON reads back
 // to, so neither the lowering nor the encoding folds two states into one.
-func assertSecurityStates(t *testing.T, doc *ir.Document, root []ir.AuthRequirement, ops map[string][]ir.AuthRequirement) {
+func assertSecurityStates(t *testing.T, doc *ir.Document, root []ir.AuthRequirement, operations map[string][]ir.AuthRequirement) {
 	t.Helper()
 	encoded, err := json.Marshal(doc)
 	require.NoError(t, err)
@@ -316,10 +316,10 @@ func assertSecurityStates(t *testing.T, doc *ir.Document, root []ir.AuthRequirem
 	for name, document := range map[string]*ir.Document{"compiled": doc, "read back": &back} {
 		require.Len(t, document.Services, 1, name)
 		assertAuthState(t, name+", the document", root, document.Services[0].Auth)
-		for op, want := range ops {
-			got, ok := opByName(document, op)
-			require.True(t, ok, "%s: %s", name, op)
-			assertAuthState(t, name+", "+op, want, got.Auth)
+		for operation, want := range operations {
+			got, ok := operationByName(document, operation)
+			require.True(t, ok, "%s: %s", name, operation)
+			assertAuthState(t, name+", "+operation, want, got.Auth)
 		}
 	}
 }

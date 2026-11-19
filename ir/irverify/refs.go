@@ -18,7 +18,7 @@ import (
 // as ir.OperationID, resolves against the identities the walk reads (GitHub #50),
 // unless the walk truncated.
 //
-// ir.PropertyID is checkPropIDRefs's, in pass. An empty ID is no reference;
+// ir.PropertyID is checkPropertyIDRefs's, in pass. An empty ID is no reference;
 // whether a position may hold one is checkTypeRefs's question for ir.TypeRef
 // and checkEmptyRefs's for the bare ID positions (GitHub #473).
 func checkReferentialIntegrity(doc *ir.Document) walkCheck {

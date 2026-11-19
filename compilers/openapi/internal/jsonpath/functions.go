@@ -103,7 +103,7 @@ func (p *parser) call(name string, start int) (operand, error) {
 	if note, found := callValue.compileLiteral(); found {
 		p.notes = append(p.notes, note)
 	}
-	return operand{kind: opCall, call: callValue}, nil
+	return operand{kind: operatorCall, call: callValue}, nil
 }
 
 // argument reads the argument at index i of a call of fn: a literal, a query,
@@ -120,13 +120,13 @@ func (p *parser) argument(fn function, i int) (operand, error) {
 		if err != nil {
 			return operand{}, err
 		}
-		arg = operand{kind: opLogical, logic: expr}
+		arg = operand{kind: operatorLogical, logic: expr}
 	} else {
-		op, err := p.operand()
+		operator, err := p.operand()
 		if err != nil {
 			return operand{}, err
 		}
-		if arg, err = p.argumentFrom(op, start); err != nil {
+		if arg, err = p.argumentFrom(operator, start); err != nil {
 			return operand{}, err
 		}
 	}
@@ -136,22 +136,22 @@ func (p *parser) argument(fn function, i int) (operand, error) {
 	return arg, nil
 }
 
-// argumentFrom returns op as an argument, or the logical expression it starts
+// argumentFrom returns operator as an argument, or the logical expression it starts
 // where an operator follows it.
-func (p *parser) argumentFrom(op operand, start int) (operand, error) {
+func (p *parser) argumentFrom(operator operand, start int) (operand, error) {
 	save := p.pos
 	p.blank()
 	if c := p.peek(); c == 0 || !strings.ContainsRune("=!<>&|", rune(c)) {
 		p.pos = save
-		return op, nil
+		return operator, nil
 	}
 	p.pos = save
-	first, err := p.compareOrTest(op, start)
+	first, err := p.compareOrTest(operator, start)
 	if err != nil {
 		return operand{}, err
 	}
 	expr, err := p.continueLogical(first)
-	return operand{kind: opLogical, logic: expr}, err
+	return operand{kind: operatorLogical, logic: expr}, err
 }
 
 // fits reports whether arg is of type want: a ValueType parameter takes a
@@ -159,10 +159,10 @@ func (p *parser) argumentFrom(op operand, start int) (operand, error) {
 // a query or a call returning nodes.
 func fits(arg operand, want paramType) bool {
 	if want == typeValue {
-		return arg.kind == opLiteral || arg.kind == opQuery && arg.query.singular() ||
-			arg.kind == opCall && arg.call.fn.result == typeValue
+		return arg.kind == operatorLiteral || arg.kind == operatorQuery && arg.query.singular() ||
+			arg.kind == operatorCall && arg.call.fn.result == typeValue
 	}
-	return arg.kind == opQuery || arg.kind == opCall && arg.call.fn.result == typeNodes
+	return arg.kind == operatorQuery || arg.kind == operatorCall && arg.call.fn.result == typeNodes
 }
 
 // compileLiteral compiles the pattern of a match or search written as a
@@ -172,7 +172,7 @@ func fits(arg operand, want paramType) bool {
 // an anchor where RFC 9485's grammar reads a character. A literal that is no
 // string is no pattern.
 func (c *call) compileLiteral() (PatternNote, bool) {
-	if c.fn.result != typeLogical || c.args[1].kind != opLiteral {
+	if c.fn.result != typeLogical || c.args[1].kind != operatorLiteral {
 		return PatternNote{}, false
 	}
 	c.literal = true

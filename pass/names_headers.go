@@ -23,17 +23,17 @@ func (r *nameReader) headers(doc *ir.Document) {
 			r.headerScope("service", string(svc.ID), errorCase.Headers, func() string { return "common error " + nameLabel(errorCase.Name) })
 		}
 	}
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		id := string(op.ID)
-		for i := range op.Responses {
-			resp := &op.Responses[i]
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		id := string(operation.ID)
+		for i := range operation.Responses {
+			resp := &operation.Responses[i]
 			r.headerScope("operation", id, resp.Headers, func() string { return "response " + nameLabel(resp.Name) })
 		}
-		if op.Default != nil {
-			r.headerScope("operation", id, op.Default.Headers, func() string { return "the default response" })
+		if operation.Default != nil {
+			r.headerScope("operation", id, operation.Default.Headers, func() string { return "the default response" })
 		}
-		for i := range op.Errors {
-			errorCase := &op.Errors[i]
+		for i := range operation.Errors {
+			errorCase := &operation.Errors[i]
 			r.headerScope("operation", id, errorCase.Headers, func() string { return "error " + nameLabel(errorCase.Name) })
 		}
 	})

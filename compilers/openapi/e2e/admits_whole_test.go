@@ -30,9 +30,9 @@ func fieldClosure(t *testing.T, doc *ir.Document, id, wire string) string {
 	require.True(t, ok)
 	model, ok := types[id].(map[string]any)
 	require.True(t, ok, "%s is a node", id)
-	props, _ := model["properties"].([]any)
+	properties, _ := model["properties"].([]any)
 	var queue []any
-	for _, p := range props {
+	for _, p := range properties {
 		if m, ok := p.(map[string]any); ok && m["wireName"] == wire {
 			queue = append(queue, m)
 		}

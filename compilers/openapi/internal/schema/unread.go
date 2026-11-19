@@ -190,8 +190,8 @@ func positionShape(td ir.TypeDef, schema *statement.Schema) string {
 		if !membersTyped(enum.Members, schema) {
 			return "an enum whose members are not all values of its declared type"
 		}
-		if prim, paired := formatPrimitive(schema); paired && !enumMembersAre(enum.Members, prim) {
-			return fmt.Sprintf("an enum whose members are not all values of %s", prim)
+		if primitive, paired := formatPrimitive(schema); paired && !enumMembersAre(enum.Members, primitive) {
+			return fmt.Sprintf("an enum whose members are not all values of %s", primitive)
 		}
 	}
 	shape := nodeShape(td.Kind())

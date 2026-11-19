@@ -64,10 +64,10 @@ func refTypeRef(loweringContext lowering.Ctx, ts *compile.Types, js *statement.S
 		return refNullRef(loweringContext, id, js, siteAt(pointer))
 	}
 	if onLoop(js) {
-		return ts.PrimRef(ir.PrimitiveAny), nil
+		return ts.PrimitiveRef(ir.PrimitiveAny), nil
 	}
 	keyword, ref := refSpelling(js)
-	return ts.PrimRef(ir.PrimitiveAny), []ir.Diagnostic{loweringContext.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
+	return ts.PrimitiveRef(ir.PrimitiveAny), []ir.Diagnostic{loweringContext.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
 		"unresolved %s %q%s", keyword, ref, unresolvedWhy(loweringContext, js))}
 }
 

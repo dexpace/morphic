@@ -18,12 +18,12 @@ import (
 // reached, and nothing for a type naming no map or model.
 func TestCatchAllHolders_ReadsTheFlatteningsModels(t *testing.T) {
 	t.Parallel()
-	str := ir.TypeRef{Target: "type/primitive/string"}
-	open := &ir.AdditionalProperties{Value: &str}
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
+	open := &ir.AdditionalProperties{Value: &stringType}
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 	types := ir.TypeRegistry{
 		"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: "string"},
-		"type/map":              &ir.MapT{ID: "type/map", Value: str},
+		"type/map":              &ir.MapT{ID: "type/map", Value: stringType},
 		"type/alias":            &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/map"}},
 		"type/loop1":            &ir.Scalar{ID: "type/loop1", Base: &ir.TypeRef{Target: "type/loop2"}},
 		"type/loop2":            &ir.Scalar{ID: "type/loop2", Base: &ir.TypeRef{Target: "type/loop1"}},

@@ -25,7 +25,7 @@ var usageNotRoots = map[reflect.Type]string{
 	reflect.TypeFor[ir.Value]():        "a value names the type it was written against",
 	reflect.TypeFor[ir.Example]():      "an example illustrates a value; it carries none",
 	reflect.TypeFor[ir.Availability](): "a type changed from is one an older version used",
-	reflect.TypeFor[ir.PropPath]():     "a path locates a member inside a value another position carries",
+	reflect.TypeFor[ir.PropertyPath](): "a path locates a member inside a value another position carries",
 	reflect.TypeFor[ir.ResourceInfo](): "a resource's identifiers and properties restate what its operations carry",
 	reflect.TypeFor[ir.DocRef]():       "prose naming a type puts no value of it on the wire",
 	reflect.TypeFor[ir.EntityRef]():    "a deprecation naming its replacement puts no value of it on the wire",
@@ -46,21 +46,21 @@ var usageNotRootFields = map[string]string{
 func usageRootPositions() map[string]irfacts.UsageFlags {
 	in, out, failure := irfacts.UsageInput, irfacts.UsageOutput, irfacts.UsageOutput|irfacts.UsageError
 	positions := map[string]irfacts.UsageFlags{
-		"Operation.Params/Parameter.Type":                        in,
-		"Operation.RequestStream/StreamDetail.Events":            in,
-		"Operation.RequestStream/StreamDetail.Initial":           in,
-		"Operation.Bindings/OpBindings.RPC/RPCBinding.InputType": in,
-		"Operation.Responses/Response.Headers/Property.Type":     out,
-		"Operation.Default/Response.Headers/Property.Type":       out,
-		"Operation.ResponseStream/StreamDetail.Events":           out,
-		"Operation.ResponseStream/StreamDetail.Initial":          out,
-		"Operation.LongRunning/LongRunning.PollingType":          out,
-		"Operation.LongRunning/LongRunning.FinalType":            out,
-		"Operation.Errors/ErrorCase.Headers/Property.Type":       failure,
-		"Service.CommonErrors/ErrorCase.Headers/Property.Type":   failure,
-		"Document.Messages/Message.Headers":                      in,
-		"Document.Channels/Channel.Params/Parameter.Type":        in,
-		"Document.Auth/AuthScheme.Credentials":                   in,
+		"Operation.Params/Parameter.Type":                               in,
+		"Operation.RequestStream/StreamDetail.Events":                   in,
+		"Operation.RequestStream/StreamDetail.Initial":                  in,
+		"Operation.Bindings/OperationBindings.RPC/RPCBinding.InputType": in,
+		"Operation.Responses/Response.Headers/Property.Type":            out,
+		"Operation.Default/Response.Headers/Property.Type":              out,
+		"Operation.ResponseStream/StreamDetail.Events":                  out,
+		"Operation.ResponseStream/StreamDetail.Initial":                 out,
+		"Operation.LongRunning/LongRunning.PollingType":                 out,
+		"Operation.LongRunning/LongRunning.FinalType":                   out,
+		"Operation.Errors/ErrorCase.Headers/Property.Type":              failure,
+		"Service.CommonErrors/ErrorCase.Headers/Property.Type":          failure,
+		"Document.Messages/Message.Headers":                             in,
+		"Document.Channels/Channel.Params/Parameter.Type":               in,
+		"Document.Auth/AuthScheme.Credentials":                          in,
 	}
 	for parameters, flags := range map[string]irfacts.UsageFlags{
 		"Operation.Params":                 in,
@@ -221,12 +221,12 @@ func usageFilledDocument(t *testing.T) *ir.Document {
 	for id := range doc.Messages {
 		message = id
 	}
-	usageEachOperation(doc.Services, func(op *ir.Operation) {
-		for i := range op.Bindings.HTTP {
-			op.Bindings.HTTP[i].Callbacks = nil
+	usageEachOperation(doc.Services, func(operation *ir.Operation) {
+		for i := range operation.Bindings.HTTP {
+			operation.Bindings.HTTP[i].Callbacks = nil
 		}
-		op.Bindings.Message.Direction = ir.MessageDirectionSend
-		op.Bindings.Message.Messages = []ir.MessageID{message}
+		operation.Bindings.Message.Direction = ir.MessageDirectionSend
+		operation.Bindings.Message.Messages = []ir.MessageID{message}
 	})
 	return doc
 }

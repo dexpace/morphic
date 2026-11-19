@@ -26,10 +26,10 @@ var keptKeywordVersions = []string{"3.0.3", "3.1.0"}
 // The principals a case writes its keyword beside: a use of the string, the
 // number, the object and the array of keptKeywordCommon.
 const (
-	keptStr = "{$ref: '#/components/schemas/Str'}"
-	keptNum = "{$ref: '#/components/schemas/Num'}"
-	keptObj = "{$ref: '#/components/schemas/Obj'}"
-	keptArr = "{$ref: '#/components/schemas/Arr'}"
+	keptString = "{$ref: '#/components/schemas/Str'}"
+	keptNumber = "{$ref: '#/components/schemas/Num'}"
+	keptObj    = "{$ref: '#/components/schemas/Obj'}"
+	keptArr    = "{$ref: '#/components/schemas/Arr'}"
 )
 
 // keptOnly31 are the versions of a case for a keyword 3.0 does not define.
@@ -320,7 +320,7 @@ func runKeptNullableCases(t *testing.T, check func(t *testing.T, doc *ir.Documen
 				t.Parallel()
 				schemas := append(slices.Clone(keptKeywordCommon),
 					"Own: {type: string, nullable: "+value+"}",
-					"Entry: {allOf: ["+keptStr+", {nullable: "+value+"}]}")
+					"Entry: {allOf: ["+keptString+", {nullable: "+value+"}]}")
 				opts := compilers.Options{FormatOptions: openapi.Options{
 					NullableInference: openapi.NullableInference{Disabled: off},
 				}}

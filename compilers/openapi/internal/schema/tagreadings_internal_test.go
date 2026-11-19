@@ -60,8 +60,8 @@ func valueOf(tagReadingsValue *tagReadings, reg ir.TypeRegistry, typeRef ir.Type
 // nullable.
 func TestTagReadings_ValueReadsAClosedSetOfStrings(t *testing.T) {
 	t.Parallel()
-	str := func(s string) ir.EnumMember { return ir.EnumMember{Value: ir.Value{Kind: ir.ValueString, String: s}} }
-	num := ir.EnumMember{Value: ir.Value{Kind: ir.ValueNumber, Number: "1"}}
+	stringValue := func(s string) ir.EnumMember { return ir.EnumMember{Value: ir.Value{Kind: ir.ValueString, String: s}} }
+	number := ir.EnumMember{Value: ir.Value{Kind: ir.ValueNumber, Number: "1"}}
 	nullable := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id, Nullable: true} }
 	base := ir.TypeRegistry{"type/a": lit("type/a", "a"), "type/b": lit("type/b", "b"), "type/c": lit("type/c", "c"),
 		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString}}
@@ -71,15 +71,15 @@ func TestTagReadings_ValueReadsAClosedSetOfStrings(t *testing.T) {
 		null bool
 	}{
 		"literal":         {lit("type/x", "a"), []string{"a"}, false},
-		"enum of one":     {&ir.Enum{Members: []ir.EnumMember{str("a")}, Closed: true}, []string{"a"}, false},
-		"enum":            {&ir.Enum{Members: []ir.EnumMember{str("b"), str("a"), str("b")}, Closed: true}, []string{"a", "b"}, false},
+		"enum of one":     {&ir.Enum{Members: []ir.EnumMember{stringValue("a")}, Closed: true}, []string{"a"}, false},
+		"enum":            {&ir.Enum{Members: []ir.EnumMember{stringValue("b"), stringValue("a"), stringValue("b")}, Closed: true}, []string{"a", "b"}, false},
 		"nil literal":     {(*ir.Literal)(nil), nil, false},
 		"nil enum":        {(*ir.Enum)(nil), nil, false},
 		"nil union":       {(*ir.Union)(nil), nil, false},
-		"open enum":       {&ir.Enum{Members: []ir.EnumMember{str("a")}}, nil, false},
-		"flags":           {&ir.Enum{Members: []ir.EnumMember{str("a")}, Closed: true, Flags: true}, nil, false},
-		"a number member": {&ir.Enum{Members: []ir.EnumMember{str("a"), num}, Closed: true}, nil, false},
-		"number":          {&ir.Literal{Value: num.Value}, nil, false},
+		"open enum":       {&ir.Enum{Members: []ir.EnumMember{stringValue("a")}}, nil, false},
+		"flags":           {&ir.Enum{Members: []ir.EnumMember{stringValue("a")}, Closed: true, Flags: true}, nil, false},
+		"a number member": {&ir.Enum{Members: []ir.EnumMember{stringValue("a"), number}, Closed: true}, nil, false},
+		"number":          {&ir.Literal{Value: number.Value}, nil, false},
 		"model":           {&ir.Model{}, nil, false},
 		"through alias":   {&ir.Scalar{Base: &ir.TypeRef{Target: "type/a"}}, []string{"a"}, false},
 		"a nullable alias": {&ir.Scalar{Base: &ir.TypeRef{Target: "type/a", Nullable: true}},
@@ -270,20 +270,20 @@ func TestTagReadings_MemberMeetsEveryDeclaration(t *testing.T) {
 	member := func(taken ir.PropertyDecl, overridden ...ir.PropertyDecl) ir.FlatProperty {
 		return ir.FlatProperty{PropertyDecl: taken, Overridden: overridden}
 	}
-	const str = "type/primitive/string"
+	const stringTypeID = "type/primitive/string"
 	for name, tc := range map[string]struct {
 		p    ir.FlatProperty
 		want []string // nil for no pin
 	}{
 		"taken":                         {member(ref("type/a")), []string{"a"}},
-		"overridden":                    {member(ref(str), ref("type/a")), []string{"a"}},
-		"agreeing":                      {member(ref("type/a"), ref(str), refOrNull("type/a")), []string{"a"}},
+		"overridden":                    {member(ref(stringTypeID), ref("type/a")), []string{"a"}},
+		"agreeing":                      {member(ref("type/a"), ref(stringTypeID), refOrNull("type/a")), []string{"a"}},
 		"a set met":                     {member(ref("type/ab"), ref("type/b")), []string{"b"}},
-		"a set and a string":            {member(ref("type/ab"), ref(str)), []string{"a", "b"}},
+		"a set and a string":            {member(ref("type/ab"), ref(stringTypeID)), []string{"a", "b"}},
 		"disagreeing":                   {member(ref("type/a"), ref("type/b")), nil},
 		"disagreeing, each admits null": {member(refOrNull("type/a"), refOrNull("type/b")), nil},
-		"a null another excludes":       {member(refOrNull("type/a"), ref(str)), []string{"a"}},
-		"a null every one admits":       {member(refOrNull("type/a"), refOrNull(str)), nil},
+		"a null another excludes":       {member(refOrNull("type/a"), ref(stringTypeID)), []string{"a"}},
+		"a null every one admits":       {member(refOrNull("type/a"), refOrNull(stringTypeID)), nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

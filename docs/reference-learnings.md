@@ -131,7 +131,7 @@ operation; `extractModelName` walks the TypeRef collapsing nullable→inner, arr
 model variant (a lossy ergonomic shortcut correctly made *in the plan layer*, not the IR). TypeSpec/
 TCGC keep paging as *metadata* (property **paths** from response root, not top-level names) so next-
 links/items can live inside envelopes. **Recommendation:** Morphic's `Pagination` (path-based
-`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropPath`s, multiple strategies) is richer than
+`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropertyPath`s, multiple strategies) is richer than
 all references — keep it; do the primary-model TypeRef walk in **plan** (like oagen §A2), never
 pre-flatten in IR. Add oagen's two plan predicates Morphic's §2.3 list omits:
 **`pathParamsInOptions`** (positional-vs-options-bag:
@@ -413,7 +413,7 @@ interacting flags. **Recommendation:** implement the *recipes* (they're genuinel
   metadata companions; known data-paths {data,items,results,records,entries,values,nodes,edges}. This
   is **inference that must be structural-not-destructive**: oagen unwraps unconditionally at parse time
   (mutates IR shape, no opt-out, no marker). Morphic keeps the wrapper model and records
-  `Pagination.Items` as a `PropPath`; unwrap only in a refiner/opt-in policy.
+  `Pagination.Items` as a `PropertyPath`; unwrap only in a refiner/opt-in policy.
 - **Type inference from sibling keywords** when `type` absent (ogen `inferTypes`) — implement, but
   **stamp `Provenance.Inferred`** (ogen doesn't — a cheap place Morphic is strictly better).
 Treat `Unmodeled` as **preserved data**; route any *behavioral* use through explicit `Inferred`-marked

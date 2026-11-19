@@ -162,7 +162,7 @@ func TestKeptFailedRef_EveryKeyBesideAFailedRefIsKeptAndTheFailureReportedOnce(t
 				requireKeptFailedRef(t, doc, diags, version, "YRev", "/allOf/1", target)
 				requireKeptFailedRef(t, doc, diags, version, "YAlone", "/allOf/0", target)
 				for _, name := range []string{"Y", "YRev"} {
-					_, ok := propByWire(requireModelOf(t, doc, name), "b")
+					_, ok := propertyByWire(requireModelOf(t, doc, name), "b")
 					assert.True(t, ok, "%s: the member the other conjunct declares is typed", name)
 				}
 			})

@@ -665,7 +665,7 @@ func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 	t.Parallel()
 	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
 
-	out, diags := AppendExample(nil, proto, openapitest.StrNode("hello"), sourced(0), "/p", "examples", "n")
+	out, diags := AppendExample(nil, proto, openapitest.StringNode("hello"), sourced(0), "/p", "examples", "n")
 
 	assert.Empty(t, diags, "a convertible node is announced by nothing")
 	require.Len(t, out, 1)

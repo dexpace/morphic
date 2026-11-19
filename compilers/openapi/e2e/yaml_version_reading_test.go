@@ -176,11 +176,11 @@ func TestCompile_TheYAML11FixtureIsReadAsYAML12(t *testing.T) {
 	doc, diags := compileText(t, "yaml11_scalars.yaml", string(readReproducer(t, "yaml11_scalars")), openapi.Options{})
 
 	require.NotNil(t, doc)
-	const props = "/components/schemas/S/properties/"
+	const properties = "/components/schemas/S/properties/"
 	want := map[string]bool{"/info/description": true, "/info/summary": true, "/info/termsOfService": true}
 	for _, p := range []string{"octal", "tagged", "coreOctal", "signedHex", "binary", "separated", "sexagesimal",
 		"exponent", "sexagesimalFloat", "separatedFloat"} {
-		want[props+p+"/default"] = true
+		want[properties+p+"/default"] = true
 	}
 	for i := range 16 {
 		want["/x-flags/"+strconv.Itoa(i)] = true
@@ -203,9 +203,9 @@ func TestCompile_TheYAML11FixtureIsReadAsYAML12(t *testing.T) {
 		"binary":    {"kind": "string", "string": "0b1010"},
 		"separated": {"kind": "string", "string": "1_000"},
 	} {
-		prop := findByID(tree, "property/openapi"+props+name)
-		require.NotNil(t, prop, name)
-		assert.Equal(t, value, prop["default"], name)
+		property := findByID(tree, "property/openapi"+properties+name)
+		require.NotNil(t, property, name)
+		assert.Equal(t, value, property["default"], name)
 	}
 	assert.Equal(t, "nel"+srNEL+"here", doc.Docs.Description, "the break is a character of the scalar")
 }

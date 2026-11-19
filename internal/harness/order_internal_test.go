@@ -484,10 +484,10 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 	})
 }
 
-// withOperation is a document of one service holding op in one group.
-func withOperation(op ir.Operation) *ir.Document {
+// withOperation is a document of one service holding operation in one group.
+func withOperation(operation ir.Operation) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{ID: "service/x/S", Groups: []ir.OperationGroup{{
-		ID: "operation-group/x/G", Operations: []ir.Operation{op},
+		ID: "operation-group/x/G", Operations: []ir.Operation{operation},
 	}}}}}
 }
 
@@ -640,20 +640,20 @@ func reorderedCollections(reversed bool, differ string) *ir.Document {
 			responses[i] = full
 		}
 	}
-	op := func(id string) ir.Operation {
+	operation := func(id string) ir.Operation {
 		return ir.Operation{ID: ir.OperationID(id), Responses: responses, Errors: errs,
 			Auth: []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: ir.AuthID(su0)}, {Scheme: ir.AuthID(su1)}}}},
-			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 				RequestContentTypes: []string{rc0, rc1},
 				Callbacks:           []ir.Callback{{Name: cb0}, {Name: cb1}},
 			}}},
 			Unmodeled: ir.Unmodeled{"x": {Value: ir.RawValue("{" + j0 + "," + j1 + "}")}},
 		}
 	}
-	ops := []ir.Operation{op("operation/x/a"), op(second("operations", "operation/x/b"))}
-	groups := []ir.OperationGroup{{ID: "operation-group/x/a", Operations: ops}, {ID: ir.GroupID(second("groups", "operation-group/x/b"))}}
+	operations := []ir.Operation{operation("operation/x/a"), operation(second("operations", "operation/x/b"))}
+	groups := []ir.OperationGroup{{ID: "operation-group/x/a", Operations: operations}, {ID: ir.GroupID(second("groups", "operation-group/x/b"))}}
 	if reversed {
-		slices.Reverse(ops)
+		slices.Reverse(operations)
 		slices.Reverse(groups)
 	}
 	return &ir.Document{
@@ -701,11 +701,11 @@ func TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding(t *testing.T) {
 func TestDiffOrderInvariants_ASequencesOrderIsCompared(t *testing.T) {
 	t.Parallel()
 	params := func(ids ...ir.ParameterID) *ir.Document {
-		op := ir.Operation{ID: "operation/x/get"}
+		operation := ir.Operation{ID: "operation/x/get"}
 		for _, id := range ids {
-			op.Params = append(op.Params, ir.Parameter{ID: id})
+			operation.Params = append(operation.Params, ir.Parameter{ID: id})
 		}
-		return withOperation(op)
+		return withOperation(operation)
 	}
 	detail, ok := diffOrderInvariants(params("parameter/x/a", "parameter/x/b"), nil, params("parameter/x/b", "parameter/x/a"), nil)
 	assert.False(t, ok)

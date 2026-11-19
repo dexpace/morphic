@@ -337,7 +337,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	au, bu := j.unaliased(at), j.unaliased(bt)
 	aSites, bSites := j.sites.written[0], j.sites.written[1]
 	switch {
-	case aok && ak.prim == ir.PrimitiveAny, bok && bk.prim == ir.PrimitiveAny:
+	case aok && ak.primitive == ir.PrimitiveAny, bok && bk.primitive == ir.PrimitiveAny:
 		return relUnrelated
 	case aok && bok:
 		if relateKinds(ak, bk) == relDisjoint || enumMisses(au, bk, b.Nullable) || enumMisses(bu, ak, a.Nullable) {
@@ -345,9 +345,9 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 		}
 		return relOverlap
 	case aok && isStructural(bu):
-		return j.againstOtherInstance(bt, bSites, depth, primInstance(ak.prim)).flipped()
+		return j.againstOtherInstance(bt, bSites, depth, primitiveInstance(ak.primitive)).flipped()
 	case bok && isStructural(au):
-		return j.againstOtherInstance(at, aSites, depth, primInstance(bk.prim))
+		return j.againstOtherInstance(at, aSites, depth, primitiveInstance(bk.primitive))
 	case aok:
 		return j.againstKind(j.view(bt, ""), a, j.view(at, ""), ak).flipped()
 	case bok:
@@ -402,10 +402,10 @@ func sourceAdmits(walk FieldDeclarationContext, at ir.Provenance, kind JSONInsta
 	return admits && exact
 }
 
-// primInstance returns the kind of JSON instance a value of primitiveKind is: a
+// primitiveInstance returns the kind of JSON instance a value of primitiveKind is: a
 // boolean, an integer, a number, or a string, which every other primitive is
 // written as.
-func primInstance(primitiveKind ir.PrimitiveKind) JSONInstanceKind {
+func primitiveInstance(primitiveKind ir.PrimitiveKind) JSONInstanceKind {
 	switch {
 	case primitiveKind == ir.PrimitiveBool:
 		return InstanceBoolean
@@ -596,7 +596,7 @@ func instanceKind(td ir.TypeDef) ir.TypeKind {
 // something only a node can hold gets an alias over the top type.
 func (r registry) isAnyType(ref ir.TypeRef) bool {
 	if valueKind, ok := r.kindOf(ref); ok {
-		return valueKind.prim == ir.PrimitiveAny
+		return valueKind.primitive == ir.PrimitiveAny
 	}
 	td, ok := r.resolve(ref.Target)
 	return ok && td.Kind() == ir.KindAny
@@ -813,7 +813,7 @@ func isDegraded(td ir.TypeDef) bool {
 func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRef, bareKind ir.PrimitiveKind) relation {
 	end := j.unaliased(td)
 	if lit, ok := end.(*ir.Literal); ok {
-		return literalAgainst(lit.Value, valueKind{prim: bareKind}, bare.Nullable)
+		return literalAgainst(lit.Value, valueKind{primitive: bareKind}, bare.Nullable)
 	}
 	if _, ok := td.(*ir.Scalar); !ok {
 		if _, ok = td.(*ir.Enum); !ok {
@@ -824,7 +824,7 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRe
 	if !ok {
 		return relUnrelated
 	}
-	bareK := valueKind{prim: bareKind}
+	bareK := valueKind{primitive: bareKind}
 	rel := relateKinds(valueKindValue, bareK)
 	if rel == relSame {
 		return firstTypeIsNarrower
@@ -1059,8 +1059,8 @@ const maxTypeResolveDepth = 64
 // string format of its own, as the table's string formats are kinds
 // (relateKinds).
 type valueKind struct {
-	prim   ir.PrimitiveKind
-	format string
+	primitive ir.PrimitiveKind
+	format    string
 	// unjudged marks a string format whose values an Encoding writes in a text
 	// of its own, as http-date writes a datetime_offset, so prim's grammar,
 	// which reads prim's own text, judges none of them (rewritesText).
@@ -1075,7 +1075,7 @@ func (k valueKind) admits(value ir.Value) bool {
 	case k.unjudged:
 		return false
 	case k.format == "":
-		return Admits(k.prim, value)
+		return Admits(k.primitive, value)
 	default:
 		inFormat, _ := admitsFormat(k.format, value)
 		return inFormat
@@ -1084,7 +1084,7 @@ func (k valueKind) admits(value ir.Value) bool {
 
 // judged reports whether k has a judge that can refuse a value: bytes has
 // none, and neither has a kind an encoding leaves unjudged.
-func (k valueKind) judged() bool { return k.prim != ir.PrimitiveBytes && !k.unjudged }
+func (k valueKind) judged() bool { return k.primitive != ir.PrimitiveBytes && !k.unjudged }
 
 // heldFormat returns the format enc names where the compiler holds its grammar
 // (admitsFormat) and enc says nothing else. An Encoding that also gives a wire
@@ -1109,7 +1109,7 @@ func relateKinds(a, b valueKind) relation {
 	case b.format != "":
 		return formatAgainst(b.format, a).flipped()
 	default:
-		return fromTypeformat(typeformat.Relate(a.prim, b.prim))
+		return fromTypeformat(typeformat.Relate(a.primitive, b.primitive))
 	}
 }
 
@@ -1123,9 +1123,9 @@ func formatAgainst(f string, valueKindValue valueKind) relation {
 	switch {
 	case valueKindValue.format == f:
 		return relSame
-	case valueKindValue.format == "" && (valueKindValue.prim == ir.PrimitiveString || valueKindValue.prim == ir.PrimitiveAny):
+	case valueKindValue.format == "" && (valueKindValue.primitive == ir.PrimitiveString || valueKindValue.primitive == ir.PrimitiveAny):
 		return firstTypeIsNarrower
-	case valueKindValue.format == "" && valueKindValue.prim == ir.PrimitiveBytes:
+	case valueKindValue.format == "" && valueKindValue.primitive == ir.PrimitiveBytes:
 		return relOverlap
 	default:
 		return relDisjoint
@@ -1154,7 +1154,7 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 		case *ir.Primitive:
 			return kindUnder(first, t.PrimitiveKind), true
 		case *ir.Enum:
-			return valueKind{prim: t.ValueType}, true
+			return valueKind{primitive: t.ValueType}, true
 		case *ir.Scalar:
 			if t.Base == nil {
 				return valueKind{}, false
@@ -1181,9 +1181,9 @@ func (r registry) travelsAs(scalar *ir.Scalar) ir.TypeID {
 	}
 	base, baseOK := r.resolve(scalar.Base.Target)
 	wire, wireOK := r.resolve(scalar.Encoding.WireType.Target)
-	bp, baseIsPrim := base.(*ir.Primitive)
-	wp, wireIsPrim := wire.(*ir.Primitive)
-	if !baseOK || !wireOK || !baseIsPrim || !wireIsPrim || spelledIn(bp.PrimitiveKind, wp.PrimitiveKind) {
+	bp, baseIsPrimitive := base.(*ir.Primitive)
+	wp, wireIsPrimitive := wire.(*ir.Primitive)
+	if !baseOK || !wireOK || !baseIsPrimitive || !wireIsPrimitive || spelledIn(bp.PrimitiveKind, wp.PrimitiveKind) {
 		return scalar.Base.Target
 	}
 	return scalar.Encoding.WireType.Target
@@ -1203,9 +1203,9 @@ func spelledIn(primitiveKind, wire ir.PrimitiveKind) bool {
 // (rewritesText).
 func kindUnder(enc *ir.Encoding, primitiveKind ir.PrimitiveKind) valueKind {
 	if format, held := heldFormat(enc); held && primitiveKind == ir.PrimitiveString {
-		return valueKind{prim: primitiveKind, format: format}
+		return valueKind{primitive: primitiveKind, format: format}
 	}
-	return valueKind{prim: primitiveKind, unjudged: rewritesText(enc, primitiveKind)}
+	return valueKind{primitive: primitiveKind, unjudged: rewritesText(enc, primitiveKind)}
 }
 
 // rewritesText reports whether enc names a text for primitiveKind, a string
@@ -1274,20 +1274,20 @@ func encodingAdmits(enc *ir.Encoding, value ir.Value) bool {
 	return held && inFormat
 }
 
-// admitsAll reports whether every element of vs is a value of elem.
-func (r registry) admitsAll(elem ir.TypeRef, vs []ir.Value, depth int) bool {
+// admitsAll reports whether every element of vs is a value of element.
+func (r registry) admitsAll(element ir.TypeRef, vs []ir.Value, depth int) bool {
 	for _, value := range vs {
-		if !r.admitsAt(elem, value, depth+1) {
+		if !r.admitsAt(element, value, depth+1) {
 			return false
 		}
 	}
 	return true
 }
 
-// admitsFields reports whether every member of fs is a value of elem.
-func (r registry) admitsFields(elem ir.TypeRef, fs []ir.Field, depth int) bool {
+// admitsFields reports whether every member of fs is a value of element.
+func (r registry) admitsFields(element ir.TypeRef, fs []ir.Field, depth int) bool {
 	for _, field := range fs {
-		if !r.admitsAt(elem, field.Value, depth+1) {
+		if !r.admitsAt(element, field.Value, depth+1) {
 			return false
 		}
 	}

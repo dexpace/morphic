@@ -15,7 +15,7 @@ import (
 // reports it unspellable instead.
 func TestCanonicalValue_DeclinesANumberOutsideTheGrammar(t *testing.T) {
 	t.Parallel()
-	got, ok := canonicalValue(num("1p4"), 0)
+	got, ok := canonicalValue(number("1p4"), 0)
 
 	assert.False(t, ok)
 	assert.Empty(t, got)
@@ -30,7 +30,7 @@ func TestCanonicalValue_SpellsANumberByItsValue(t *testing.T) {
 		{"15e2", "1.5e3"},
 		{"-0.0", "0"},
 	} {
-		got, ok := canonicalValue(num(tc.in), 0)
+		got, ok := canonicalValue(number(tc.in), 0)
 
 		assert.True(t, ok, tc.in)
 		assert.Equal(t, tc.want, got, tc.in)

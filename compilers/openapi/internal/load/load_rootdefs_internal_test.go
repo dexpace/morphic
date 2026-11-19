@@ -39,18 +39,18 @@ func TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt(t *testing.T) {
 	}
 	a, ok := got.Doc.Components.Schemas.Get("A")
 	require.True(t, ok)
-	for _, c := range []struct{ prop, lands, ends string }{
+	for _, c := range []struct{ property, lands, ends string }{
 		{"p", "/$defs/n", "/$defs/n"},
 		{"q", "/$defs/hop", "/components/schemas/Z"},
 	} {
-		prop, ok := a.GetSchema().GetProperties().Get(c.prop)
-		require.True(t, ok, c.prop)
-		entry, ok := got.Bindings.Entry(prop)
-		require.True(t, ok, "%s is bound", c.prop)
-		assert.Equal(t, reftable.Resolved, entry.Hop.Status, c.prop)
-		assert.Equal(t, reftable.DocumentPointer{Pointer: jsontext.Pointer(c.lands)}, entry.Hop.Target, "%s lands on the root's definition", c.prop)
-		assert.Equal(t, reftable.Resolved, entry.Chain.Status, c.prop)
-		assert.Equal(t, reftable.DocumentPointer{Pointer: jsontext.Pointer(c.ends)}, entry.Chain.End, "%s's chain goes on from there", c.prop)
+		property, ok := a.GetSchema().GetProperties().Get(c.property)
+		require.True(t, ok, c.property)
+		entry, ok := got.Bindings.Entry(property)
+		require.True(t, ok, "%s is bound", c.property)
+		assert.Equal(t, reftable.Resolved, entry.Hop.Status, c.property)
+		assert.Equal(t, reftable.DocumentPointer{Pointer: jsontext.Pointer(c.lands)}, entry.Hop.Target, "%s lands on the root's definition", c.property)
+		assert.Equal(t, reftable.Resolved, entry.Chain.Status, c.property)
+		assert.Equal(t, reftable.DocumentPointer{Pointer: jsontext.Pointer(c.ends)}, entry.Chain.End, "%s's chain goes on from there", c.property)
 	}
 	q, _ := a.GetSchema().GetProperties().Get("q")
 	require.NotNil(t, got.Bindings.End(q))

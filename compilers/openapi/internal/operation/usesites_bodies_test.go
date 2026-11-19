@@ -30,7 +30,7 @@ func byCode(diags []ir.Diagnostic, code string) []string {
 // named source.
 func requestContent(t *testing.T, doc *ir.Document, source string) any {
 	t.Helper()
-	c := valueAtPath(opTree(t, doc, source), "request", "contents", "0")
+	c := valueAtPath(operationTree(t, doc, source), "request", "contents", "0")
 	require.NotNil(t, c, "operation %q lowers a request body", source)
 	return c
 }
@@ -85,7 +85,7 @@ func TestPartless_FormBodyWithNoObject(t *testing.T) {
 	assert.Equal(t, []string{
 		"openapi/partless-form-body warning /paths/~1mp/post/requestBody/content/multipart~1form-data/schema",
 	}, byCode(diags, "openapi/partless-form-body"))
-	assert.NotNil(t, valueAtPath(opTree(t, doc, "mp"), "request"), "the body still lowers as declared")
+	assert.NotNil(t, valueAtPath(operationTree(t, doc, "mp"), "request"), "the body still lowers as declared")
 
 	_, diags = parseFull(t, specFrom(t, conformanceSpecsDir, "catch-all-encoding"))
 	assert.Empty(t, byCode(diags, "openapi/partless-form-body"), "a map and a model with a catch-all are objects")
@@ -104,7 +104,7 @@ func TestRequestBody_OnAMethodWithoutSemantics(t *testing.T) {
 	}, byCode(diags, "openapi/body-without-semantics"))
 	assert.Empty(t, byCode(diags, "openapi/body-forbidden-by-method"))
 	for _, name := range []string{"g", "d", "h", "o", "u"} {
-		assert.NotNil(t, valueAtPath(opTree(t, doc, name), "request"), "operation %s keeps its body", name)
+		assert.NotNil(t, valueAtPath(operationTree(t, doc, name), "request"), "operation %s keeps its body", name)
 	}
 
 	_, diags = parseFull(t, specFrom(t, specsDir, "media_key_and_form_bodies"))
@@ -133,7 +133,7 @@ func TestRequestBody_OnAMethodThatForbidsOne(t *testing.T) {
 	assert.Equal(t, []string{"TRACE request declares a body, which HTTP forbids (RFC 9110 §9.3.8); lowered as declared"},
 		section(diags))
 	assert.Empty(t, byCode(diags, "openapi/body-without-semantics"))
-	assert.NotNil(t, valueAtPath(opTree(t, doc, "a"), "request"))
+	assert.NotNil(t, valueAtPath(operationTree(t, doc, "a"), "request"))
 
 	doc, diags = parseFull(t, specFrom(t, specsDir, "body_on_additional_operations"))
 	assert.Equal(t, []string{"openapi/body-forbidden-by-method warning /paths/~1a/additionalOperations/CONNECT/requestBody"},
@@ -141,7 +141,7 @@ func TestRequestBody_OnAMethodThatForbidsOne(t *testing.T) {
 	assert.Equal(t, []string{"CONNECT request declares a body, which HTTP forbids (RFC 9110 §9.3.6); lowered as declared"},
 		section(diags))
 	assert.Empty(t, byCode(diags, "openapi/body-without-semantics"))
-	assert.NotNil(t, valueAtPath(opTree(t, doc, "c"), "request"))
+	assert.NotNil(t, valueAtPath(operationTree(t, doc, "c"), "request"))
 }
 
 // TestExamples_EmptyKeyIsKept holds an examples entry keyed by the empty string
@@ -177,7 +177,7 @@ func TestParameter_ContentStatesNoDefaultStyle(t *testing.T) {
 		"openapi/inapplicable-location-keyword warning /paths/~1a/get/parameters/0/style",
 	}, findings(diags))
 
-	a := valueAtPath(opTree(t, doc, "a"), "bindings", "http", "0", "paramBindings")
+	a := valueAtPath(operationTree(t, doc, "a"), "bindings", "http", "0", "paramBindings")
 	q := namedItem(t, a, "q")
 	assert.Equal(t, "form", valueAtPath(q, "style"))
 	assert.Equal(t, false, valueAtPath(q, "explode"))

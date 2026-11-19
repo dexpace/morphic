@@ -388,9 +388,9 @@ func TestCompile_AnAliasStillStandsForAReleasedAnchorInAnExternalDocument(t *tes
 	doc := compileBeside(t, ext)
 
 	for _, name := range []string{"getX", "putX"} {
-		op, ok := operationNamed(doc, name)
+		operation, ok := operationNamed(doc, name)
 		require.True(t, ok, "%s is lowered", name)
-		lowered, err := json.Marshal(op)
+		lowered, err := json.Marshal(operation)
 		require.NoError(t, err)
 		assert.Contains(t, string(lowered), "SHARED_NOT_FOUND", "%s carries the anchored 404", name)
 	}
@@ -420,9 +420,9 @@ func TestCompile_AnAliasStillStandsForAReleasedAnchor(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, name := range []string{"getA", "getB"} {
-		op, ok := operationNamed(doc, name)
+		operation, ok := operationNamed(doc, name)
 		require.True(t, ok, "%s is lowered", name)
-		lowered, err := json.Marshal(op)
+		lowered, err := json.Marshal(operation)
 		require.NoError(t, err)
 		assert.Contains(t, string(lowered), "SHARED_NOT_FOUND", "%s carries the anchored 404", name)
 	}
@@ -444,9 +444,9 @@ func withoutSourceHash(doc *ir.Document) *ir.Document {
 // operationNamed finds the first operation whose source operationId is name, in
 // any group of any service.
 func operationNamed(doc *ir.Document, name string) (ir.Operation, bool) {
-	ops := operationsNamed(doc, name)
-	if len(ops) == 0 {
+	operations := operationsNamed(doc, name)
+	if len(operations) == 0 {
 		return ir.Operation{}, false
 	}
-	return ops[0], true
+	return operations[0], true
 }

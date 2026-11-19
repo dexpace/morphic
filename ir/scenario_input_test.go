@@ -18,15 +18,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// scenarioStr is the string value a scenario's parameters and body hold.
-var scenarioStr = ir.Value{Kind: ir.ValueString, String: "v"}
+// scenarioString is the string value a scenario's parameters and body hold.
+var scenarioString = ir.Value{Kind: ir.ValueString, String: "v"}
 
 // TestExample_ScenarioInput_Encoding pins how an example writes its input: a
 // populated one under "input" with its parameters keyed by ID and its body
 // beside them, an empty one as an empty object, and a nil one not at all.
 func TestExample_ScenarioInput_Encoding(t *testing.T) {
 	t.Parallel()
-	body := scenarioStr
+	body := scenarioString
 	for _, tc := range []struct {
 		name string
 		ex   ir.Example
@@ -35,7 +35,7 @@ func TestExample_ScenarioInput_Encoding(t *testing.T) {
 		{
 			name: "params and body",
 			ex: ir.Example{Name: "ex", Input: &ir.ScenarioInput{
-				Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioStr},
+				Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioString},
 				Body:   &body,
 			}},
 			want: `{"name":"ex","input":{"params":{"parameter/x/o/q":{"kind":"string","string":"v"}},` +
@@ -70,7 +70,7 @@ func TestExample_ScenarioInput_Encoding(t *testing.T) {
 func TestExample_ScenarioInput_RoundTrips(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
-	body := scenarioStr
+	body := scenarioString
 	for _, tc := range []struct {
 		name  string
 		input *ir.ScenarioInput
@@ -78,10 +78,10 @@ func TestExample_ScenarioInput_RoundTrips(t *testing.T) {
 		{name: "a nil input", input: nil},
 		{name: "an empty input", input: &ir.ScenarioInput{}},
 		{name: "a nil parameter map", input: &ir.ScenarioInput{Body: &body}},
-		{name: "a nil body", input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioStr}}},
+		{name: "a nil body", input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioString}}},
 		{name: "a body holding a null value", input: &ir.ScenarioInput{Body: &null}},
 		{name: "a key that is no valid ParameterID", input: &ir.ScenarioInput{
-			Params: map[ir.ParameterID]ir.Value{"": scenarioStr, "not an id": null, "type/x/M": scenarioStr},
+			Params: map[ir.ParameterID]ir.Value{"": scenarioString, "not an id": null, "type/x/M": scenarioString},
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestExample_ScenarioInput_RoundTrips(t *testing.T) {
 // as no member and read back nil, and a Body beside it is untouched.
 func TestExample_ScenarioInput_EmptyParamMapIsTheNilOne(t *testing.T) {
 	t.Parallel()
-	body := scenarioStr
+	body := scenarioString
 	in := ir.Example{Name: "ex", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{}, Body: &body}}
 	raw, err := json.Marshal(in, json.Deterministic(true))
 	require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestExample_ScenarioInput_ParamsEncodeInKeyOrder(t *testing.T) {
 	sorted := make([]string, 0, keys)
 	for i := range keys {
 		id := fmt.Sprintf("parameter/x/o/k%d", keys-1-i)
-		params[ir.ParameterID(id)] = scenarioStr
+		params[ir.ParameterID(id)] = scenarioString
 		sorted = append(sorted, id)
 	}
 	slices.Sort(sorted)

@@ -201,7 +201,7 @@ func TestPageStatementOf_ReadsTheRootForTrue(t *testing.T) {
 	t.Parallel()
 	src := promotion.ExtensionSource{Key: "x-page", Member: "cursor"}
 	promoter := promotion.New(mapping(promotion.TargetPaginationCursor, src))
-	onTrue := ir.Unmodeled{"openapi:x-page": opKey(`true`)}
+	onTrue := ir.Unmodeled{"openapi:x-page": operationKey(`true`)}
 	rootKey := func(value string) ir.Unmodeled {
 		return ir.Unmodeled{"openapi:x-page": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(value),
 			Provenance: ir.Provenance{Pointer: "/x-page"}}}
@@ -216,15 +216,15 @@ func TestPageStatementOf_ReadsTheRootForTrue(t *testing.T) {
 			promotion.PageStatement{Expression: "$request.c", At: ir.Provenance{Pointer: "/x-page/cursor"}, Stated: true,
 				Written: true}, "", ""},
 		{"a root writing none", onTrue, ir.Unmodeled{},
-			promotion.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/paths/~1x/get/x-page"},
+			promotion.PageStatement{At: operationAt(), Written: true}, "openapi/unpromoted-extension", "/paths/~1x/get/x-page"},
 		{"a root writing true", onTrue, rootKey(`true`),
-			promotion.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/x-page"},
-		{"a path item's statement beside the true, nearer than the root's", ir.Unmodeled{"openapi:x-page": opKey(`true`),
-			"openapi:pathItem/x-page": opKey(`{"cursor":"$request.d"}`)}, rootKey(`{"cursor":"$request.c"}`),
+			promotion.PageStatement{At: operationAt(), Written: true}, "openapi/unpromoted-extension", "/x-page"},
+		{"a path item's statement beside the true, nearer than the root's", ir.Unmodeled{"openapi:x-page": operationKey(`true`),
+			"openapi:pathItem/x-page": operationKey(`{"cursor":"$request.d"}`)}, rootKey(`{"cursor":"$request.c"}`),
 			promotion.PageStatement{Expression: "$request.d", At: ir.Provenance{Pointer: "/paths/~1x/get/x-page/cursor"},
 				Stated: true, Written: true}, "", ""},
 		{"no root, as for a node that is no operation", onTrue, nil,
-			promotion.PageStatement{At: opAt(), Written: true}, "openapi/degraded-construct", "/paths/~1x/get/x-page"},
+			promotion.PageStatement{At: operationAt(), Written: true}, "openapi/degraded-construct", "/paths/~1x/get/x-page"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -242,10 +242,10 @@ func TestPageStatementOf_ReadsTheRootForTrue(t *testing.T) {
 	}
 }
 
-// opAt is where opKey writes its value.
-func opAt() ir.Provenance { return ir.Provenance{Pointer: "/paths/~1x/get/x-page"} }
+// operationAt is where operationKey writes its value.
+func operationAt() ir.Provenance { return ir.Provenance{Pointer: "/paths/~1x/get/x-page"} }
 
-// opKey is an operation's key holding rawJSON.
-func opKey(rawJSON string) ir.UnmodeledEntry {
-	return ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(rawJSON), Provenance: opAt()}
+// operationKey is an operation's key holding rawJSON.
+func operationKey(rawJSON string) ir.UnmodeledEntry {
+	return ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(rawJSON), Provenance: operationAt()}
 }

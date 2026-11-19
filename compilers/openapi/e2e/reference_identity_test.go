@@ -116,9 +116,9 @@ func TestReferenceIdentity_ASchemaRefThroughAnAliasIsOneNode(t *testing.T) {
 				alias := ir.TypeID("type/anonymous" + a.spell("X"))
 				assert.NotContains(t, doc.Types, alias, "and at no pointer an alias spells")
 				for _, name := range []string{"through", "direct"} {
-					op, ok := opByName(doc, name)
+					operation, ok := operationByName(doc, name)
 					require.True(t, ok, name)
-					assert.Equal(t, declared, firstContent(t, op).Type.Target, "%s types its body by that node", name)
+					assert.Equal(t, declared, firstContent(t, operation).Type.Target, "%s types its body by that node", name)
 				}
 			})
 		})

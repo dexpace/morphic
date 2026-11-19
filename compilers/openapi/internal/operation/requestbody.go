@@ -18,18 +18,18 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerRequestBody lowers an operation's request body onto op.Request and the
+// lowerRequestBody lowers an operation's request body onto operation.Request and the
 // binding's RequestContentTypes. Payload.Required is always set, because an
 // undeclared `required` means false by the specification's own default, and nil
 // would report the format as unable to express optionality.
 //
-// opDeclPtr is the operation's own declaration pointer. A $ref'd body interns
+// operationDeclPtr is the operation's own declaration pointer. A $ref'd body interns
 // its content once at its declaration, not once per mount site, under the
 // component's name rather than the operationId hint (issue #107). A body $ref'd
 // from another operation has no component name, so it is named for the
 // operation declaring it, never this mount's (lowering.NameAt, GitHub #433).
-func lowerRequestBody(serviceContext service.Ctx, loweringState operationLoweringState, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
-	usePtr := opDeclPtr + ids.Ptr("requestBody")
+func lowerRequestBody(serviceContext service.Ctx, loweringState operationLoweringState, operation *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, operationDeclPtr jsontext.Pointer) []ir.Diagnostic {
+	usePtr := operationDeclPtr + ids.Ptr("requestBody")
 	rb, dc, bodyPtr := service.Declared[soa.RequestBody](serviceContext, src.GetRequestBody(), usePtr)
 	if rb == nil {
 		return nil
@@ -55,7 +55,7 @@ func lowerRequestBody(serviceContext service.Ctx, loweringState operationLowerin
 	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, dc.Place(), bodyPtr)...)
 	beside, besideDiags := service.Beside[soa.RequestBody](serviceContext, src.GetRequestBody(), usePtr, true)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, beside)
-	op.Request = payload
+	operation.Request = payload
 	diags = append(diags, besideDiags...)
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
 	return diags

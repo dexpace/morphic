@@ -20,7 +20,7 @@ import (
 // (ir.IDReferences, which ir/irverify resolves through too), not a list of
 // field names, which would drift behind the IR unnoticed. Integer-index
 // references are enumerated by hand in validate_indices.go, and ir.PropertyID
-// is checkPropIDRefs's. Provenance.Source is irverify's: a stale index is a
+// is checkPropertyIDRefs's. Provenance.Source is irverify's: a stale index is a
 // compiler bug, and this pass's own ir.NoSource diagnostics would make a
 // document-wide check report its own output.
 func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
@@ -58,7 +58,7 @@ func checkEmptyRefs(empty *ir.EmptyReferences) []ir.Diagnostic {
 	return diags
 }
 
-// checkPropIDRefs reports every PropertyID a document carries that names no
+// checkPropertyIDRefs reports every PropertyID a document carries that names no
 // property it declares, unless the walk reading both was cut short: it then
 // read part of the declarations, so it claims nothing, and checkDanglingRefs
 // reports the cut.
@@ -69,11 +69,11 @@ func checkEmptyRefs(empty *ir.EmptyReferences) []ir.Diagnostic {
 // each path's root, which only a hand-kept list of fields could add;
 // checkDiscriminators makes the model-scoped claim for Discriminator.Property,
 // whose root is the model declaring it.
-func checkPropIDRefs(props *propIDSites, refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
+func checkPropertyIDRefs(properties *propertyIDSites, refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 	if truncated {
 		return nil
 	}
-	dangling := byLocation(props.dangling(refs))
+	dangling := byLocation(properties.dangling(refs))
 	diags := make([]ir.Diagnostic, 0, len(dangling))
 	for _, ref := range dangling {
 		diags = append(diags, diag(ir.SeverityError, "ir/dangling-property-ref",
@@ -98,13 +98,13 @@ func byLocation(sites []ir.IDReference) []ir.IDReference {
 	return sites
 }
 
-// propIDType is the reflect.Type of ir.PropertyID. A PropertyID references no
+// propertyIDType is the reflect.Type of ir.PropertyID. A PropertyID references no
 // document-level registry — a property is a position inside its model — so both
 // halves of resolving one come from the walk itself: the sites that carry a
 // PropertyID, and the nodes that declare them.
-var propIDType = reflect.TypeFor[ir.PropertyID]()
+var propertyIDType = reflect.TypeFor[ir.PropertyID]()
 
-// propIDSites gathers, as an ir.Visitor, the ir.PropertyID references a walk
+// propertyIDSites gathers, as an ir.Visitor, the ir.PropertyID references a walk
 // reaches that may not resolve, each with its path kept unspelled. One naming
 // a property refs has already read, the property's own ID among them,
 // resolves, so it is not kept.
@@ -114,21 +114,21 @@ var propIDType = reflect.TypeFor[ir.PropertyID]()
 // keys against the properties of the model the content names, a tighter claim
 // about the same defect. Reporting both would give one defect two codes, which
 // the package doc rules out.
-type propIDSites struct {
+type propertyIDSites struct {
 	refs  *ir.IDReferences
 	sites []ir.IDReference
 	paths ir.PathLog
 }
 
 // Visit keeps v if it is a PropertyID reference that may not resolve.
-func (p *propIDSites) Visit(v reflect.Value, at ir.WalkPath) bool {
-	if v.Kind() != reflect.String || v.Type() != propIDType || v.String() == "" || at.IsMapKey() {
+func (p *propertyIDSites) Visit(v reflect.Value, at ir.WalkPath) bool {
+	if v.Kind() != reflect.String || v.Type() != propertyIDType || v.String() == "" || at.IsMapKey() {
 		return true
 	}
-	if p.refs.Declares(propIDType, v.String()) {
+	if p.refs.Declares(propertyIDType, v.String()) {
 		return true
 	}
-	p.sites = append(p.sites, ir.IDReference{Class: propIDType, ID: v.String()})
+	p.sites = append(p.sites, ir.IDReference{Class: propertyIDType, ID: v.String()})
 	p.paths.Record(at)
 	return true
 }
@@ -136,13 +136,13 @@ func (p *propIDSites) Visit(v reflect.Value, at ir.WalkPath) bool {
 // dangling returns, in walk order, the references p kept that name no
 // property refs declares now the walk is over, each with its path. Only these
 // have their paths spelled.
-func (p *propIDSites) dangling(refs *ir.IDReferences) []ir.IDReference {
-	if !slices.ContainsFunc(p.sites, func(idReference ir.IDReference) bool { return !refs.Declares(propIDType, idReference.ID) }) {
+func (p *propertyIDSites) dangling(refs *ir.IDReferences) []ir.IDReference {
+	if !slices.ContainsFunc(p.sites, func(idReference ir.IDReference) bool { return !refs.Declares(propertyIDType, idReference.ID) }) {
 		return nil
 	}
 	var out []ir.IDReference
 	for i, at := range p.paths.All() {
-		if idReference := p.sites[i]; !refs.Declares(propIDType, idReference.ID) {
+		if idReference := p.sites[i]; !refs.Declares(propertyIDType, idReference.ID) {
 			idReference.Path = at.String()
 			out = append(out, idReference)
 		}

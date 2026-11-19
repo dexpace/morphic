@@ -198,7 +198,7 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // the phases honouring ctx stop mid-registry, leaving references to types never
 // interned or settled, but returns the diagnostics gathered before the stop.
 // It refuses a document past Limits.MaxReferenceExpansion without error.
-func run(ctx context.Context, serviceContext service.Ctx, inf inferences, ts *compile.Types,
+func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, ts *compile.Types,
 	newWhole func(*ir.Document) *compileddoc.CompiledDocumentView,
 ) (*ir.Document, []ir.Diagnostic, error) {
 	// out is this function's, not a struct's: a document being built
@@ -269,9 +269,9 @@ func run(ctx context.Context, serviceContext service.Ctx, inf inferences, ts *co
 	acc.AppendAll(stream.PromoteDetail(promoter, compiledDocumentView))
 	acc.AppendAll(paramchoice.PromoteChoices(promoter, compiledDocumentView))
 	acc.AppendAll(replacement.Resolve(promoter, compiledDocumentView))
-	acc.AppendAll(replacement.Infer(inf.replacement, promoter, compiledDocumentView))
-	acc.AppendAll(convention.Apply(inf.convention, promoter, compiledDocumentView))
-	acc.AppendAll(pagination.InferWalks(inf.pagination, compiledDocumentView, stated))
+	acc.AppendAll(replacement.Infer(infinity.replacement, promoter, compiledDocumentView))
+	acc.AppendAll(convention.Apply(infinity.convention, promoter, compiledDocumentView))
+	acc.AppendAll(pagination.InferWalks(infinity.pagination, compiledDocumentView, stated))
 
 	out.Name, out.Version = meta.Name, meta.Version
 	out.TermsOfService, out.Docs = meta.TermsOfService, meta.Docs

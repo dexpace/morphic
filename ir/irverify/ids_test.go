@@ -167,12 +167,12 @@ func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 	assert.Equal(t, "ir/unknown-prim-kind", got[1].Code)
 }
 
-// TestVerify_NonPrimitiveInThePrimSpaceIsAViolation covers the other direction.
+// TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation covers the other direction.
 // The space is reserved rather than conventional: a node there either collides
 // with the primitive of that kind outright, or squats a name the next
 // PrimitiveKind takes — and either way which node is reached depends on what
 // was interned first, which is invariant 3's corollary.
-func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
+func TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -194,7 +194,7 @@ func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
 	}
 }
 
-// TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind is the control for both
+// TestVerify_PrimitiveIDChecksAreScopedToTheSpaceAndTheKind is the control for both
 // checks above: every primitive at the ID its kind derives, beside ordinary
 // types in a format's own space, reports nothing. Without it a check that fired
 // on everything would pass both tables.
@@ -203,7 +203,7 @@ func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
 // and neither is in the reserved space, which only reading the space segment
 // can tell. Matching the ID as a substring passes both tables above and fails
 // here.
-func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
+func TestVerify_PrimitiveIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
 	for _, kind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveInt32, ir.PrimitiveDatetimeOffset, ir.PrimitiveAny} {

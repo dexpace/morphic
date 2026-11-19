@@ -76,49 +76,49 @@ func TestRun_AppendsNothingAfterAFirstAsk(t *testing.T) {
 // document made afresh, gives otherwise.
 func staleReadings(kept, fresh *compileddoc.CompiledDocumentView) []string {
 	var stale []string
-	for _, op := range fresh.Ops {
-		for _, parameter := range op.Params {
-			if !slices.Equal(kept.Params(op).Placements(parameter.ID), fresh.Params(op).Placements(parameter.ID)) {
+	for _, operation := range fresh.Operations {
+		for _, parameter := range operation.Params {
+			if !slices.Equal(kept.Params(operation).Placements(parameter.ID), fresh.Params(operation).Placements(parameter.ID)) {
 				stale = append(stale, "placements of "+string(parameter.ID))
 			}
 		}
-		for key, headers := range responseHeaders(op) {
+		for key, headers := range responseHeaders(operation) {
 			for _, header := range headers {
 				name := header.EffectiveWireName()
 				if !slices.Equal(kept.Header(key, headers, name), fresh.Header(key, headers, name)) {
-					stale = append(stale, "header "+name+" of "+string(op.ID))
+					stale = append(stale, "header "+name+" of "+string(operation.ID))
 				}
 			}
 		}
 	}
 	for id := range fresh.Types {
-		if !slices.Equal(propIDs(kept.Members(id)), propIDs(fresh.Members(id))) {
+		if !slices.Equal(propertyIDs(kept.Members(id)), propertyIDs(fresh.Members(id))) {
 			stale = append(stale, "members of "+string(id))
 		}
 	}
 	return stale
 }
 
-// responseHeaders returns the headers of each response op holds, by the key a
+// responseHeaders returns the headers of each response operation holds, by the key a
 // step reads them under.
-func responseHeaders(op *ir.Operation) map[compileddoc.ResponseKey][]ir.Header {
+func responseHeaders(operation *ir.Operation) map[compileddoc.ResponseKey][]ir.Header {
 	out := map[compileddoc.ResponseKey][]ir.Header{}
-	for i := range op.Responses {
-		out[compileddoc.ResponseKey{Op: op.ID, List: compileddoc.ListResponses, Index: i}] = op.Responses[i].Headers
+	for i := range operation.Responses {
+		out[compileddoc.ResponseKey{Operation: operation.ID, List: compileddoc.ListResponses, Index: i}] = operation.Responses[i].Headers
 	}
-	for i := range op.Errors {
-		out[compileddoc.ResponseKey{Op: op.ID, List: compileddoc.ListErrors, Index: i}] = op.Errors[i].Headers
+	for i := range operation.Errors {
+		out[compileddoc.ResponseKey{Operation: operation.ID, List: compileddoc.ListErrors, Index: i}] = operation.Errors[i].Headers
 	}
-	if op.Default != nil {
-		out[compileddoc.ResponseKey{Op: op.ID, List: compileddoc.ListDefault}] = op.Default.Headers
+	if operation.Default != nil {
+		out[compileddoc.ResponseKey{Operation: operation.ID, List: compileddoc.ListDefault}] = operation.Default.Headers
 	}
 	return out
 }
 
-// propIDs returns the IDs of props, in order.
-func propIDs(props []*ir.Property) []ir.PropertyID {
-	ids := make([]ir.PropertyID, len(props))
-	for i, property := range props {
+// propertyIDs returns the IDs of properties, in order.
+func propertyIDs(properties []*ir.Property) []ir.PropertyID {
+	ids := make([]ir.PropertyID, len(properties))
+	for i, property := range properties {
 		ids[i] = property.ID
 	}
 	return ids

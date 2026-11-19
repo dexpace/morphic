@@ -20,7 +20,7 @@ import (
 // one way each. Every model names a nested object, so a copy's nested node is
 // compared as a copy too.
 func alikeRegistry() map[ir.TypeID]ir.TypeDef {
-	str := primRef(ir.PrimitiveString)
+	stringType := primitiveRef(ir.PrimitiveString)
 	reg := narrowingRegistry()
 	owner := func(id ir.TypeID, at jsontext.Pointer, anonymous bool, name ir.TypeRef, addr ir.TypeID) *ir.Model {
 		return &ir.Model{ID: id, Anonymous: anonymous, Provenance: ptrAt(at),
@@ -31,28 +31,28 @@ func alikeRegistry() map[ir.TypeID]ir.TypeDef {
 	}
 	addr := func(id ir.TypeID, at jsontext.Pointer, anonymous bool) *ir.Model {
 		return &ir.Model{ID: id, Anonymous: anonymous, Provenance: ptrAt(at),
-			Properties: []ir.Property{{ID: ir.PropertyID("property" + at + "/street"), WireName: "street", Type: str}}}
+			Properties: []ir.Property{{ID: ir.PropertyID("property" + at + "/street"), WireName: "street", Type: stringType}}}
 	}
 	for _, model := range []*ir.Model{
-		owner("type/Owner", "/components/schemas/Owner", false, str, "type/Owner/addr"),
+		owner("type/Owner", "/components/schemas/Owner", false, stringType, "type/Owner/addr"),
 		addr("type/Owner/addr", "/components/schemas/Owner/properties/addr", true),
-		owner("type/Twin", "/components/schemas/Twin", false, str, "type/Twin/addr"),
+		owner("type/Twin", "/components/schemas/Twin", false, stringType, "type/Twin/addr"),
 		addr("type/Twin/addr", "/components/schemas/Twin/properties/addr", true),
 		addr("type/Addr", "/components/schemas/Addr", false),
-		owner("type/Home", "/components/schemas/Home", false, str, "type/Addr"),
-		owner("type/House", "/components/schemas/House", false, str, "type/Addr"),
-		owner("type/copy0", declaredAt(0), true, str, "type/copy0/addr"),
+		owner("type/Home", "/components/schemas/Home", false, stringType, "type/Addr"),
+		owner("type/House", "/components/schemas/House", false, stringType, "type/Addr"),
+		owner("type/copy0", declaredAt(0), true, stringType, "type/copy0/addr"),
 		addr("type/copy0/addr", declaredAt(0)+"/properties/addr", true),
-		owner("type/copy1", declaredAt(1), true, str, "type/copy1/addr"),
+		owner("type/copy1", declaredAt(1), true, stringType, "type/copy1/addr"),
 		addr("type/copy1/addr", declaredAt(1)+"/properties/addr", true),
-		owner("type/copy1-addr", declaredAt(1), true, str, "type/Addr"),
-		owner("type/copy1-uuid", declaredAt(1), true, primRef(ir.PrimitiveUUID), "type/copy1/addr"),
-		owner("type/copy1-int", declaredAt(1), true, primRef(ir.PrimitiveInteger), "type/copy1/addr"),
+		owner("type/copy1-addr", declaredAt(1), true, stringType, "type/Addr"),
+		owner("type/copy1-uuid", declaredAt(1), true, primitiveRef(ir.PrimitiveUUID), "type/copy1/addr"),
+		owner("type/copy1-int", declaredAt(1), true, primitiveRef(ir.PrimitiveInteger), "type/copy1/addr"),
 	} {
 		reg[model.ID] = model
 	}
 	more := *reg["type/copy1"].(*ir.Model)
-	more.Properties = append(slices.Clone(more.Properties), ir.Property{WireName: "more", Type: str})
+	more.Properties = append(slices.Clone(more.Properties), ir.Property{WireName: "more", Type: stringType})
 	reg["type/copy1-more"] = &more
 	required := *reg["type/copy1"].(*ir.Model)
 	required.Properties = slices.Clone(required.Properties)
@@ -73,10 +73,10 @@ func alikeRegistry() map[ir.TypeID]ir.TypeDef {
 		model := *reg[ir.TypeID(fmt.Sprintf("type/copy%d", min(n, 1)))].(*ir.Model)
 		value := ref(ir.TypeID(fmt.Sprintf("type/copy%d/addr", min(n, 1))))
 		if n == 2 {
-			value = primRef(ir.PrimitiveInteger)
+			value = primitiveRef(ir.PrimitiveInteger)
 		}
-		model.AdditionalProperties = &ir.AdditionalProperties{Value: &value, Key: new(primRef(ir.PrimitiveString)),
-			Patterns: []ir.PatternProperties{{Pattern: "^x", Value: primRef(ir.PrimitiveString)}}}
+		model.AdditionalProperties = &ir.AdditionalProperties{Value: &value, Key: new(primitiveRef(ir.PrimitiveString)),
+			Patterns: []ir.PatternProperties{{Pattern: "^x", Value: primitiveRef(ir.PrimitiveString)}}}
 		model.Implements, model.Base = []ir.TypeRef{ref("type/Addr")}, new(ref("type/Addr"))
 		reg[id] = &model
 	}
@@ -198,7 +198,7 @@ func TestTypeJudge_ModelPairsStopAtTheirBudget(t *testing.T) {
 				at := declaredAt(n) + jsontext.Pointer(fmt.Sprintf("/properties/f%d", k))
 				id := ir.TypeID(fmt.Sprintf("type/%d/%d", n, k))
 				reg[id] = &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(at),
-					Properties: []ir.Property{{WireName: "x", Type: primRef(ir.PrimitiveString)}}}
+					Properties: []ir.Property{{WireName: "x", Type: primitiveRef(ir.PrimitiveString)}}}
 				outer.Properties = append(outer.Properties, ir.Property{WireName: fmt.Sprintf("f%d", k), Type: ref(id)})
 			}
 			reg[outer.ID] = outer

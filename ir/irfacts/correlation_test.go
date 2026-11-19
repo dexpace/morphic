@@ -33,8 +33,8 @@ var correlationFixtures = map[string]func() *ir.Document{
 	"leastFirst": func() *ir.Document { return leastFixture(false) },
 }
 
-// anonAny is an anonymous type holding nothing, keyed only by a position.
-func anonAny(id ir.TypeID) *ir.Any {
+// anonymousAny is an anonymous type holding nothing, keyed only by a position.
+func anonymousAny(id ir.TypeID) *ir.Any {
 	return &ir.Any{ID: id, Anonymous: true}
 }
 
@@ -43,23 +43,23 @@ func withAnonymous(defs []ir.TypeDef, ids ...string) []ir.TypeDef {
 	out := make([]ir.TypeDef, 0, len(defs)+len(ids))
 	out = append(out, defs...)
 	for _, id := range ids {
-		out = append(out, anonAny(ir.TypeID(id)))
+		out = append(out, anonymousAny(ir.TypeID(id)))
 	}
 	return out
 }
 
-// namedOp is an operation the source names, bound to GET path.
-func namedOp(id ir.OperationID, name, path string) ir.Operation {
+// namedOperation is an operation the source names, bound to GET path.
+func namedOperation(id ir.OperationID, name, path string) ir.Operation {
 	return ir.Operation{
 		ID: id, Name: ir.Naming{Source: name},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "GET", URITemplate: path}}},
+		Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "GET", URITemplate: path}}},
 	}
 }
 
-// opsDoc is a document of types whose one service groups ops.
-func opsDoc(ops []ir.Operation, defs ...ir.TypeDef) *ir.Document {
+// operationsDoc is a document of types whose one service groups operations.
+func operationsDoc(operations []ir.Operation, defs ...ir.TypeDef) *ir.Document {
 	doc := irtest.DocOf(defs...)
-	doc.Services = []ir.Service{{ID: "service/test/0", Groups: []ir.OperationGroup{{ID: "operation-group/default", Operations: ops}}}}
+	doc.Services = []ir.Service{{ID: "service/test/0", Groups: []ir.OperationGroup{{ID: "operation-group/default", Operations: operations}}}}
 	return doc
 }
 
@@ -89,13 +89,13 @@ func assertKeys(t *testing.T, doc *ir.Document, want map[string]string) {
 // routesFixture holds an operation of each kind the route and name rules
 // tell apart: two of them share a route once its variables are erased.
 func routesFixture() *ir.Document {
-	hook := ir.Operation{ID: "operation/test/hook", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{
+	hook := ir.Operation{ID: "operation/test/hook", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{
 		{Method: "POST", Inbound: ir.HTTPInboundWebhook, WebhookName: "created"},
 	}}}
-	return opsDoc([]ir.Operation{
-		namedOp("operation/test/a", "getA", "/a"), namedOp("operation/test/b", "", "/b/{id}/c{?q}"), hook,
-		namedOp("operation/test/open", "", "/x/{y"), {ID: "operation/test/bare"}, {ID: "operation/test/rpc", Name: ir.Naming{Source: "list"}},
-		namedOp("operation/test/s1", "first", "/s/{a}"), namedOp("operation/test/s2", "", "/s/{b}"),
+	return operationsDoc([]ir.Operation{
+		namedOperation("operation/test/a", "getA", "/a"), namedOperation("operation/test/b", "", "/b/{id}/c{?q}"), hook,
+		namedOperation("operation/test/open", "", "/x/{y"), {ID: "operation/test/bare"}, {ID: "operation/test/rpc", Name: ir.Naming{Source: "list"}},
+		namedOperation("operation/test/s1", "first", "/s/{a}"), namedOperation("operation/test/s2", "", "/s/{b}"),
 	})
 }
 
@@ -115,21 +115,21 @@ func TestCorrelation_KeysAnOperationByRouteElseName(t *testing.T) {
 
 // paramsFixture holds a parameter of each place one travels.
 func paramsFixture() *ir.Document {
-	op := namedOp("operation/test/a", "getA", "/a/{Fallback}")
-	op.Params = []ir.Parameter{
+	operation := namedOperation("operation/test/a", "getA", "/a/{Fallback}")
+	operation.Params = []ir.Parameter{
 		{ID: "parameter/test/q", Name: ir.Naming{Source: "q"}, Type: ir.TypeRef{Target: "type/anonymous/q"}},
 		{ID: "parameter/test/h", Name: ir.Naming{Source: "X-Trace"}},
 		{ID: "parameter/test/f", Name: ir.Naming{Source: "Fallback"}},
 		{ID: "parameter/test/host", Name: ir.Naming{Source: "region"}},
 		{ID: "parameter/test/none"},
 	}
-	op.Bindings.HTTP[0].ParamBindings = []ir.HTTPParamBinding{
+	operation.Bindings.HTTP[0].ParamBindings = []ir.HTTPParamBinding{
 		{Param: "parameter/test/q", Location: ir.HTTPLocationQuery, WireName: "q"},
 		{Param: "parameter/test/h", Location: ir.HTTPLocationHeader, WireName: "X-Trace"},
 		{Param: "parameter/test/f", Location: ir.HTTPLocationPath},
 		{Param: "parameter/test/host", Location: ir.HTTPLocationHost, WireName: "region"},
 	}
-	return opsDoc([]ir.Operation{op}, anonAny("type/anonymous/q"))
+	return operationsDoc([]ir.Operation{operation}, anonymousAny("type/anonymous/q"))
 }
 
 func TestCorrelation_KeysAParameterByWhereItTravels(t *testing.T) {
@@ -147,13 +147,13 @@ func TestCorrelation_KeysAParameterByWhereItTravels(t *testing.T) {
 // positionsFixture holds an anonymous type at each position an operation
 // names one.
 func positionsFixture() *ir.Document {
-	op := namedOp("operation/test/a", "getA", "/a")
-	op.Request = &ir.Payload{Contents: []ir.Content{{
+	operation := namedOperation("operation/test/a", "getA", "/a")
+	operation.Request = &ir.Payload{Contents: []ir.Content{{
 		MediaType: "application/json", Type: ir.TypeRef{Target: "type/anonymous/req"},
 		Item: &ir.TypeRef{Target: "type/anonymous/item"}, File: &ir.FileInfo{Contents: &ir.TypeRef{Target: "type/anonymous/file"}},
 		ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{ID: "property/test/ih", Name: ir.Naming{Source: "X-I"}}}},
 	}, {MediaType: "text/plain", Type: ir.TypeRef{Target: "type/anonymous/text"}}}}
-	op.Responses = []ir.Response{{
+	operation.Responses = []ir.Response{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}, {From: 400, To: 499}}},
 		Payload:    &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "type/anonymous/ok"}}}},
 		Headers: []ir.Header{{
@@ -161,21 +161,21 @@ func positionsFixture() *ir.Document {
 			Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "type/anonymous/rhd"}},
 		}},
 	}}
-	op.Default = &ir.Response{
+	operation.Default = &ir.Response{
 		Payload: &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "type/anonymous/def"}}}},
 		Headers: []ir.Header{{ID: "property/test/dh", WireName: "X-D"}},
 	}
-	op.Errors = []ir.ErrorCase{{
+	operation.Errors = []ir.ErrorCase{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 500, To: 599}}},
 		Payload:    &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "type/anonymous/err"}}}},
 	}}
-	op.RequestStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: "type/anonymous/in"}}
-	op.ResponseStream = &ir.StreamDetail{Initial: &ir.TypeRef{Target: "type/anonymous/init"}}
-	op.Bindings.RPC = &ir.RPCBinding{InputType: &ir.TypeRef{Target: "type/anonymous/rpc"}}
-	op.LongRunning = &ir.LongRunning{PollingType: &ir.TypeRef{Target: "type/anonymous/poll"}, FinalType: &ir.TypeRef{Target: "type/anonymous/final"}}
+	operation.RequestStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: "type/anonymous/in"}}
+	operation.ResponseStream = &ir.StreamDetail{Initial: &ir.TypeRef{Target: "type/anonymous/init"}}
+	operation.Bindings.RPC = &ir.RPCBinding{InputType: &ir.TypeRef{Target: "type/anonymous/rpc"}}
+	operation.LongRunning = &ir.LongRunning{PollingType: &ir.TypeRef{Target: "type/anonymous/poll"}, FinalType: &ir.TypeRef{Target: "type/anonymous/final"}}
 	defs := withAnonymous(nil, "type/anonymous/req", "type/anonymous/item", "type/anonymous/file", "type/anonymous/text", "type/anonymous/ok", "type/anonymous/rh",
 		"type/anonymous/rhd", "type/anonymous/def", "type/anonymous/err", "type/anonymous/in", "type/anonymous/init", "type/anonymous/rpc", "type/anonymous/poll", "type/anonymous/final")
-	return opsDoc([]ir.Operation{op}, defs...)
+	return operationsDoc([]ir.Operation{operation}, defs...)
 }
 
 func TestCorrelation_KeysWhatAnOperationNamesByItsPosition(t *testing.T) {
@@ -205,33 +205,33 @@ func TestCorrelation_KeysWhatAnOperationNamesByItsPosition(t *testing.T) {
 // prefix is, and a header under the empty prefix, and the same of a request's
 // parameters, with query maps under the empty prefix and under a mixed-case one.
 func prefixesFixture() *ir.Document {
-	op := namedOp("operation/test/a", "getA", "/a")
-	op.Params = []ir.Parameter{
+	operation := namedOperation("operation/test/a", "getA", "/a")
+	operation.Params = []ir.Parameter{
 		{ID: "parameter/test/named", Name: ir.Naming{Source: "named"}},
 		{ID: "parameter/test/meta", Name: ir.Naming{Source: "meta"}, Type: ir.TypeRef{Target: "type/anonymous/pmeta"}},
 		{ID: "parameter/test/all", Name: ir.Naming{Source: "all"}},
 		{ID: "parameter/test/rest", Name: ir.Naming{Source: "rest"}},
 		{ID: "parameter/test/filter", Name: ir.Naming{Source: "filter"}},
 	}
-	op.Bindings.HTTP[0].ParamBindings = []ir.HTTPParamBinding{
+	operation.Bindings.HTTP[0].ParamBindings = []ir.HTTPParamBinding{
 		{Param: "parameter/test/named", Location: ir.HTTPLocationHeader, WireName: "X-Meta-"},
 		{Param: "parameter/test/meta", Location: ir.HTTPLocationHeader, Prefix: new("X-Meta-")},
 		{Param: "parameter/test/all", Location: ir.HTTPLocationHeader, Prefix: new("")},
 		{Param: "parameter/test/rest", Location: ir.HTTPLocationQuery, Prefix: new("")},
 		{Param: "parameter/test/filter", Location: ir.HTTPLocationQuery, Prefix: new("Filter-")},
 	}
-	op.Responses = []ir.Response{{
+	operation.Responses = []ir.Response{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}}},
 		Headers: []ir.Header{
 			{ID: "property/test/named", WireName: "X-Meta-"},
 			{ID: "property/test/meta", Name: ir.Naming{Source: "meta"}, Type: ir.TypeRef{Target: "type/anonymous/meta"}, Prefix: new("X-Meta-")},
 		},
 	}}
-	op.Errors = []ir.ErrorCase{{
+	operation.Errors = []ir.ErrorCase{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 500, To: 500}}},
 		Headers:    []ir.Header{{ID: "property/test/all", Name: ir.Naming{Source: "all"}, Prefix: new("")}},
 	}}
-	return opsDoc([]ir.Operation{op}, withAnonymous(nil, "type/anonymous/meta", "type/anonymous/pmeta")...)
+	return operationsDoc([]ir.Operation{operation}, withAnonymous(nil, "type/anonymous/meta", "type/anonymous/pmeta")...)
 }
 
 // TestCorrelation_KeysAHeaderUnderAPrefixByItsPrefix holds a header under a
@@ -282,13 +282,13 @@ func partsFixture() *ir.Document {
 			}}}},
 		}}}
 	}
-	op := namedOp("operation/test/a", "", "/a")
-	op.Request = multipart("Req", "req")
-	op.Responses = []ir.Response{{Payload: multipart("Res", "res")}}
-	op.Default = &ir.Response{Payload: multipart("Def", "def")}
-	op.Errors = []ir.ErrorCase{{Payload: multipart("Err", "err")}, {Payload: multipart("Twice", "twice1")}}
-	doc := opsDoc([]ir.Operation{op}, holder("Req"), holder("Res"), holder("Def"), holder("Err"), holder("Common"),
-		holder("Twice"), anonAny("type/anonymous/req"))
+	operation := namedOperation("operation/test/a", "", "/a")
+	operation.Request = multipart("Req", "req")
+	operation.Responses = []ir.Response{{Payload: multipart("Res", "res")}}
+	operation.Default = &ir.Response{Payload: multipart("Def", "def")}
+	operation.Errors = []ir.ErrorCase{{Payload: multipart("Err", "err")}, {Payload: multipart("Twice", "twice1")}}
+	doc := operationsDoc([]ir.Operation{operation}, holder("Req"), holder("Res"), holder("Def"), holder("Err"), holder("Common"),
+		holder("Twice"), anonymousAny("type/anonymous/req"))
 	doc.Services[0].CommonErrors = []ir.ErrorCase{{Payload: multipart("Common", "common")}, {Payload: multipart("Twice", "twice2")}}
 	return doc
 }
@@ -301,17 +301,17 @@ func TestCorrelation_KeysAServerALinkNames(t *testing.T) {
 	link := func(name string, server ir.ServerID) []ir.OperationLink {
 		return []ir.OperationLink{{Name: ir.Naming{Source: name}, Operation: "operation/test/a", Server: &server}}
 	}
-	op := namedOp("operation/test/a", "getA", "/a")
-	op.Responses = []ir.Response{{
+	operation := namedOperation("operation/test/a", "getA", "/a")
+	operation.Responses = []ir.Response{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 201, To: 201}}},
 		Links:      link("Next", "server/test/ok"),
 	}}
-	op.Errors = []ir.ErrorCase{{
+	operation.Errors = []ir.ErrorCase{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 409, To: 409}}},
 		Links:      link("Next", "server/test/err"),
 	}}
-	op.Default = &ir.Response{Links: link("Retry", "server/test/def")}
-	doc := opsDoc([]ir.Operation{op})
+	operation.Default = &ir.Response{Links: link("Retry", "server/test/def")}
+	doc := operationsDoc([]ir.Operation{operation})
 	doc.Servers = map[ir.ServerID]ir.Server{}
 	for _, id := range []ir.ServerID{"server/test/ok", "server/test/err", "server/test/def"} {
 		doc.Servers[id] = ir.Server{ID: id, URLTemplate: "https://" + string(id[len("server/test/"):]) + ".example"}
@@ -338,7 +338,7 @@ func TestCorrelation_WalksGroupsThatShareASliceAsTheIRWalkDoes(t *testing.T) {
 	t.Parallel()
 	looped := []ir.OperationGroup{{ID: "operation-group/test/a"}, {ID: "operation-group/test/b"}}
 	looped[0].Groups, looped[1].Groups = looped, looped
-	shared := []ir.OperationGroup{{ID: "operation-group/test/c", Operations: []ir.Operation{namedOp("operation/test/c", "", "/c")}}}
+	shared := []ir.OperationGroup{{ID: "operation-group/test/c", Operations: []ir.Operation{namedOperation("operation/test/c", "", "/c")}}}
 	doc := irtest.DocOf()
 	doc.Services = []ir.Service{{Groups: looped}, {Groups: []ir.OperationGroup{{Groups: shared}, {Groups: shared}}}}
 	assertKeys(t, doc, map[string]string{
@@ -350,8 +350,8 @@ func TestCorrelation_WalksGroupsThatShareASliceAsTheIRWalkDoes(t *testing.T) {
 // layerFixture holds a named and an unnamed service, servers a service and
 // two operations name, and a named and an unnamed auth scheme.
 func layerFixture() *ir.Document {
-	doc := opsDoc([]ir.Operation{namedOp("operation/test/b", "b", "/b"), namedOp("operation/test/a", "a", "/a")},
-		anonAny("type/anonymous/common"), anonAny("type/anonymous/cred"))
+	doc := operationsDoc([]ir.Operation{namedOperation("operation/test/b", "b", "/b"), namedOperation("operation/test/a", "a", "/a")},
+		anonymousAny("type/anonymous/common"), anonymousAny("type/anonymous/cred"))
 	doc.Services[0].Name = ir.Naming{Source: "Svc"}
 	doc.Services[0].Servers = []ir.ServerID{"server/test/root", "server/test/missing"}
 	doc.Services[0].CommonErrors = []ir.ErrorCase{{Payload: &ir.Payload{Contents: []ir.Content{
@@ -408,29 +408,29 @@ func TestCorrelation_KeysAGroupOnlyWithinTheDepthBound(t *testing.T) {
 // constant URL spelling the operation's own route, one under another name to
 // that URL, and two of one method that one name keys by two expressions.
 func callbacksFixture() *ir.Document {
-	parent := namedOp("operation/test/sub", "subscribe", "/sub")
+	parent := namedOperation("operation/test/sub", "subscribe", "/sub")
 	parent.Bindings.HTTP[0].Callbacks = []ir.Callback{{
 		Name: "on/event", Expression: "{$request.body#/url}",
 		Operations: []ir.OperationID{"operation/test/cb", "operation/test/named", "operation/test/nobinding", "operation/test/missing"},
 	}}
-	cb := ir.Operation{ID: "operation/test/cb", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "POST"}}}}
+	cb := ir.Operation{ID: "operation/test/cb", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "POST"}}}}
 	// A callback's own route and name sort before the key through its parent,
 	// so a callback seeded with either would settle on it.
-	named := namedOp("operation/test/named", "onEvent", "{$request.body#/url}")
+	named := namedOperation("operation/test/named", "onEvent", "{$request.body#/url}")
 	// A callback to a constant URL spells its parent's route, which the parent
 	// shares with no other operation.
 	parent.Bindings.HTTP[0].Callbacks = append(parent.Bindings.HTTP[0].Callbacks,
 		ir.Callback{Name: "echo", Expression: "/sub", Operations: []ir.OperationID{"operation/test/same"}})
-	same := namedOp("operation/test/same", "", "/sub")
+	same := namedOperation("operation/test/same", "", "/sub")
 	put := func(id ir.OperationID) ir.Operation {
-		return ir.Operation{ID: id, Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "PUT"}}}}
+		return ir.Operation{ID: id, Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "PUT"}}}}
 	}
 	parent.Bindings.HTTP[0].Callbacks = append(parent.Bindings.HTTP[0].Callbacks,
 		ir.Callback{Name: "alias", Expression: "/sub", Operations: []ir.OperationID{"operation/test/alias"}},
 		ir.Callback{Name: "twice", Expression: "{$request.body#/a}", Operations: []ir.OperationID{"operation/test/twiceA"}},
 		ir.Callback{Name: "twice", Expression: "{$request.body#/b}", Operations: []ir.OperationID{"operation/test/twiceB"}})
-	alias := namedOp("operation/test/alias", "", "/sub")
-	return opsDoc([]ir.Operation{parent, cb, named, {ID: "operation/test/nobinding"}, same, alias,
+	alias := namedOperation("operation/test/alias", "", "/sub")
+	return operationsDoc([]ir.Operation{parent, cb, named, {ID: "operation/test/nobinding"}, same, alias,
 		put("operation/test/twiceA"), put("operation/test/twiceB")})
 }
 
@@ -553,7 +553,7 @@ func conjunctsFixture() *ir.Document {
 		model.Mixins = irtest.RefsTo("type/anonymous/solo")
 	})
 	var typedNil *ir.Model
-	doc := irtest.DocOf(base, inner, c1, c2, solo, irModel, single, anonAny("type/anonymous/extra"))
+	doc := irtest.DocOf(base, inner, c1, c2, solo, irModel, single, anonymousAny("type/anonymous/extra"))
 	doc.Types["type/test/nil"] = typedNil
 	return doc
 }
@@ -605,14 +605,14 @@ func TestCorrelation_KeysAVariantsTypeByWhatNamesTheVariant(t *testing.T) {
 // sharedFixture holds two models of one name in two namespaces of IDs, and a
 // model with no name.
 func sharedFixture() *ir.Document {
-	pet := func(id ir.TypeID, prop ir.PropertyID, held ir.TypeID) *ir.Model {
+	pet := func(id ir.TypeID, property ir.PropertyID, held ir.TypeID) *ir.Model {
 		return irtest.ModelOf(id, func(model *ir.Model) {
 			model.Name = ir.Naming{Source: "Pet"}
-			model.Properties = []ir.Property{{ID: prop, Name: ir.Naming{Source: string(prop)}, Type: ir.TypeRef{Target: held}}}
+			model.Properties = []ir.Property{{ID: property, Name: ir.Naming{Source: string(property)}, Type: ir.TypeRef{Target: held}}}
 		})
 	}
 	return irtest.DocOf(pet("type/one/Pet", "property/one/id", "type/anonymous/one"), pet("type/two/Pet", "property/two/tag", "type/anonymous/two"),
-		anonAny("type/anonymous/one"), anonAny("type/anonymous/two"), irtest.ModelOf("type/test/Anon", func(*ir.Model) {}))
+		anonymousAny("type/anonymous/one"), anonymousAny("type/anonymous/two"), irtest.ModelOf("type/test/Anon", func(*ir.Model) {}))
 }
 
 func TestCorrelation_ASharedKeyKeysNeitherEntityNorWhatTheyName(t *testing.T) {
@@ -630,21 +630,21 @@ func TestCorrelation_ASharedKeyKeysNeitherEntityNorWhatTheyName(t *testing.T) {
 // in either order, and a map naming one type as its key and its value.
 func leastFixture(swapped bool) *ir.Document {
 	withParam := func(id ir.OperationID, name string) ir.Operation {
-		op := namedOp(id, name, "/"+name)
-		op.Params = []ir.Parameter{{ID: ir.ParameterID("parameter/test/" + name), Name: ir.Naming{Source: "p"}, Type: ir.TypeRef{Target: "type/anonymous/shared"}}}
-		op.Request = &ir.Payload{Contents: []ir.Content{
+		operation := namedOperation(id, name, "/"+name)
+		operation.Params = []ir.Parameter{{ID: ir.ParameterID("parameter/test/" + name), Name: ir.Naming{Source: "p"}, Type: ir.TypeRef{Target: "type/anonymous/shared"}}}
+		operation.Request = &ir.Payload{Contents: []ir.Content{
 			{MediaType: "application/json", Type: ir.TypeRef{Target: "type/anonymous/twice"}},
 			{MediaType: "application/json", Type: ir.TypeRef{Target: "type/anonymous/twice"}},
 		}}
-		return op
+		return operation
 	}
 	pair := &ir.MapT{ID: "type/test/Pair", Name: ir.Naming{Source: "Pair"},
 		Key: &ir.TypeRef{Target: "type/anonymous/kv"}, Value: ir.TypeRef{Target: "type/anonymous/kv"}}
-	ops := []ir.Operation{withParam("operation/test/b", "b"), withParam("operation/test/a", "a")}
+	operations := []ir.Operation{withParam("operation/test/b", "b"), withParam("operation/test/a", "a")}
 	if swapped {
-		slices.Reverse(ops)
+		slices.Reverse(operations)
 	}
-	return opsDoc(ops, anonAny("type/anonymous/shared"), anonAny("type/anonymous/twice"), anonAny("type/anonymous/kv"), pair)
+	return operationsDoc(operations, anonymousAny("type/anonymous/shared"), anonymousAny("type/anonymous/twice"), anonymousAny("type/anonymous/kv"), pair)
 }
 
 func TestCorrelation_TakesTheLeastKeyAmongThePositionsNamingAType(t *testing.T) {

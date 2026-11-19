@@ -260,9 +260,9 @@ func TestCycleVisitor_WalkReportsTruncation(t *testing.T) {
 type nodeKind int
 
 const (
-	ctorNode   nodeKind = iota // a *ir.ConstructorValue, holding its arguments
-	listNode                   // a []ir.Value, holding its elements
-	objectNode                 // a []ir.Field, holding its members' values
+	constructorNode nodeKind = iota // a *ir.ConstructorValue, holding its arguments
+	listNode                        // a []ir.Value, holding its elements
+	objectNode                      // a []ir.Field, holding its members' values
 )
 
 // graphNode is one node of the random graphs the encoder comparison builds: a
@@ -277,13 +277,13 @@ type graphNode struct {
 // node's value holds the values of the nodes it points at, so an edge back to
 // an ancestor makes the Go value contain itself.
 func buildGraph(nodes []graphNode) []ir.Value {
-	ctors := make([]*ir.ConstructorValue, len(nodes))
+	constructors := make([]*ir.ConstructorValue, len(nodes))
 	lists := make([][]ir.Value, len(nodes))
 	objects := make([][]ir.Field, len(nodes))
 	for i, graphNode := range nodes {
 		switch {
-		case graphNode.kind == ctorNode:
-			ctors[i] = &ir.ConstructorValue{Scalar: "type/x/S", Name: "n"}
+		case graphNode.kind == constructorNode:
+			constructors[i] = &ir.ConstructorValue{Scalar: "type/x/S", Name: "n"}
 		case len(graphNode.out) == 0: // an empty list or object stays nil
 		case graphNode.kind == listNode:
 			lists[i] = make([]ir.Value, len(graphNode.out))
@@ -293,8 +293,8 @@ func buildGraph(nodes []graphNode) []ir.Value {
 	}
 	ref := func(i int) ir.Value {
 		switch nodes[i].kind {
-		case ctorNode:
-			return ir.Value{Kind: ir.ValueConstructor, Constructor: ctors[i]}
+		case constructorNode:
+			return ir.Value{Kind: ir.ValueConstructor, Constructor: constructors[i]}
 		case listNode:
 			return ir.Value{Kind: ir.ValueList, List: lists[i]}
 		default:
@@ -304,8 +304,8 @@ func buildGraph(nodes []graphNode) []ir.Value {
 	for i, graphNode := range nodes {
 		for k, j := range graphNode.out {
 			switch graphNode.kind {
-			case ctorNode:
-				ctors[i].Args = append(ctors[i].Args, ref(j))
+			case constructorNode:
+				constructors[i].Args = append(constructors[i].Args, ref(j))
 			case listNode:
 				lists[i][k] = ref(j)
 			case objectNode:
@@ -349,11 +349,11 @@ func hasCycle(nodes []graphNode) bool {
 	return false
 }
 
-// unfoldedCtors counts the constructors met in reading nodes as the tree the
+// unfoldedConstructors counts the constructors met in reading nodes as the tree the
 // document's JSON encodes, one for each way in, except that a node met again from
 // inside itself is not entered: the count a traversal that ends at cycles must
 // reach, worked out on the graph as drawn.
-func unfoldedCtors(nodes []graphNode) int {
+func unfoldedConstructors(nodes []graphNode) int {
 	onPath := make([]bool, len(nodes))
 	var count func(i int) int
 	count = func(i int) int {
@@ -362,7 +362,7 @@ func unfoldedCtors(nodes []graphNode) int {
 		}
 		onPath[i] = true
 		n := 0
-		if nodes[i].kind == ctorNode {
+		if nodes[i].kind == constructorNode {
 			n++
 		}
 		for _, j := range nodes[i].out {
@@ -429,8 +429,8 @@ func TestCycleVisitor_AgreesWithTheEncoder(t *testing.T) {
 		require.False(t, truncated, "%+v", nodes)
 		require.Equal(t, want, len(cycles) > 0, "the walk disagrees with the graph drawn: %+v", nodes)
 		require.Equal(t, want, irtest.RefusedAsCyclic(doc), "the encoder disagrees with the graph drawn: %+v", nodes)
-		ctors := unfoldedCtors(nodes)
-		require.Equal(t, ctors, countEdges(model, ctors),
+		constructors := unfoldedConstructors(nodes)
+		require.Equal(t, constructors, countEdges(model, constructors),
 			"TypeEdges does not end where the graph drawn does: %+v", nodes)
 		if want {
 			cyclic++

@@ -37,7 +37,7 @@ func lowerDiscriminator(loweringContext lowering.Ctx, ts *compile.Types, discrim
 	}
 	mapping, diags := discriminatorMapping(loweringContext, ts, discriminator, branchIndexValue, pointer)
 	disc := &ir.Discriminator{Mapping: mapping}
-	if pid, ok := propIDByName(model, discriminator.PropertyName); ok {
+	if pid, ok := propertyIDByName(model, discriminator.PropertyName); ok {
 		disc.Property = pid
 	} else {
 		disc.PropertyName = discriminator.PropertyName
@@ -56,15 +56,15 @@ func tagLocated(discriminator *statement.Discriminator, model *ir.Model) bool {
 	if discriminator.PropertyName != "" {
 		return true
 	}
-	_, ok := propIDByName(model, "")
+	_, ok := propertyIDByName(model, "")
 	return ok
 }
 
-// propIDByName returns the PropertyID of the model property with the given
+// propertyIDByName returns the PropertyID of the model property with the given
 // source name, if the model declares it. model is nil-safe:
 // lowerDiscriminator's oneOf/anyOf union case has no model to search, only a
 // tag name.
-func propIDByName(model *ir.Model, name string) (ir.PropertyID, bool) {
+func propertyIDByName(model *ir.Model, name string) (ir.PropertyID, bool) {
 	if model == nil {
 		return "", false
 	}

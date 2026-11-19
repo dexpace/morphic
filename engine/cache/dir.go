@@ -40,14 +40,14 @@ var errNoDirectory = errors.New("no directory to keep entries in")
 // none. Past MaxBytes a Store removes the entries unused longest. The zero Dir
 // names no directory, and refuses every call.
 type Dir struct {
-	path  string
-	limit int
-	ops   fileOps
+	path       string
+	limit      int
+	operations fileOperations
 }
 
-// fileOps are the calls a Dir makes on its directory's files beyond writing an
+// fileOperations are the calls a Dir makes on its directory's files beyond writing an
 // entry, a field each so a test can fail one.
-type fileOps struct {
+type fileOperations struct {
 	list   func(dir string) ([]fs.DirEntry, error)
 	remove func(name string) error
 	mark   func(name string, atime, mtime time.Time) error
@@ -59,7 +59,7 @@ func NewDir(path string) (*Dir, error) {
 	if path == "" {
 		return nil, errNoDirectory
 	}
-	return &Dir{path: path, limit: MaxBytes, ops: fileOps{list: os.ReadDir, remove: os.Remove, mark: os.Chtimes}}, nil
+	return &Dir{path: path, limit: MaxBytes, operations: fileOperations{list: os.ReadDir, remove: os.Remove, mark: os.Chtimes}}, nil
 }
 
 // fileOf is the path of the entry named key.
@@ -88,7 +88,7 @@ func (d *Dir) Load(ctx context.Context, key Key) ([]byte, bool, error) {
 	// it means a read-only directory or another user's entry, which still
 	// answers, and the mark only orders what goes first.
 	now := time.Now()
-	_ = d.ops.mark(d.fileOf(key), now, now)
+	_ = d.operations.mark(d.fileOf(key), now, now)
 	return entry, true, nil
 }
 

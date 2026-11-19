@@ -13,17 +13,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// scenarioOpPath is where the walk reaches the first operation of a document
+// scenarioOperationPath is where the walk reaches the first operation of a document
 // docWithOperations builds.
-const scenarioOpPath = "document.Services[0].Groups[0].Operations[0]"
+const scenarioOperationPath = "document.Services[0].Groups[0].Operations[0]"
 
 // scenarioDoc returns a document with two operations, each declaring and
 // binding its own parameters, the first of which carries one example whose
 // input holds params.
 func scenarioDoc(params map[ir.ParameterID]ir.Value) *ir.Document {
-	first := paramBindingOp("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
+	first := paramBindingOperation("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
 	first.Examples = []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{Params: params}}}
-	second := paramBindingOp("operation/x/p", ir.Parameter{ID: "parameter/x/p/z", Name: ir.Naming{Source: "z"}})
+	second := paramBindingOperation("operation/x/p", ir.Parameter{ID: "parameter/x/p/z", Name: ir.Naming{Source: "z"}})
 	return docWithOperations(first, second)
 }
 
@@ -44,7 +44,7 @@ func nodesOfCode(diags []ir.Diagnostic, code string) []string {
 func TestValidate_ScenarioKeyNamesADeclaredParameter(t *testing.T) {
 	t.Parallel()
 	diags := validated(t, scenarioDoc(map[ir.ParameterID]ir.Value{"parameter/x/none": {Kind: ir.ValueString, String: "v"}}))
-	assert.Equal(t, []string{scenarioOpPath + ".Examples[0].Input.Params[parameter/x/none].key"},
+	assert.Equal(t, []string{scenarioOperationPath + ".Examples[0].Input.Params[parameter/x/none].key"},
 		nodesOfCode(diags, "ir/dangling-parameter-ref"))
 
 	valid := validated(t, scenarioDoc(map[ir.ParameterID]ir.Value{"parameter/x/o/q": {Kind: ir.ValueString, String: "v"}}))
@@ -57,7 +57,7 @@ func TestValidate_ScenarioKeyIsNeverEmpty(t *testing.T) {
 	t.Parallel()
 	diags := validated(t, scenarioDoc(map[ir.ParameterID]ir.Value{"": {Kind: ir.ValueString, String: "v"}}))
 
-	assert.Equal(t, []string{scenarioOpPath + ".Examples[0].Input.Params[].key"}, nodesOfCode(diags, "ir/empty-parameter-ref"))
+	assert.Equal(t, []string{scenarioOperationPath + ".Examples[0].Input.Params[].key"}, nodesOfCode(diags, "ir/empty-parameter-ref"))
 	assert.Empty(t, nodesOfCode(diags, "pass/param-binding-mismatch"), "an empty key has one code")
 	assert.Empty(t, nodesOfCode(diags, "ir/dangling-parameter-ref"))
 }
@@ -96,9 +96,9 @@ func TestValidate_ScenarioReportHasOneOrder(t *testing.T) {
 		params[id] = ir.Value{Kind: ir.ValueString, String: "v"}
 		other = append(other, ir.Parameter{ID: id, Name: ir.Naming{Source: fmt.Sprintf("z%d", i)}})
 	}
-	first := paramBindingOp("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
+	first := paramBindingOperation("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
 	first.Examples = []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{Params: params}}}
-	doc := docWithOperations(first, paramBindingOp("operation/x/p", other...))
+	doc := docWithOperations(first, paramBindingOperation("operation/x/p", other...))
 
 	require.Equal(t, keys, countCode(t, validated(t, doc), "pass/param-binding-mismatch"))
 }
@@ -110,8 +110,8 @@ func TestValidate_ScenarioReportHasOneOrder(t *testing.T) {
 func TestValidate_ScenarioKeyIsPlacedAtItsOwnExample(t *testing.T) {
 	t.Parallel()
 	doc := scenarioDoc(map[ir.ParameterID]ir.Value{"parameter/x/p/z": {Kind: ir.ValueString, String: "v"}})
-	op := &doc.Services[0].Groups[0].Operations[0]
-	op.Examples = append([]ir.Example{{Name: "value", Value: &ir.Value{Kind: ir.ValueString, String: "v"}}}, op.Examples...)
+	operation := &doc.Services[0].Groups[0].Operations[0]
+	operation.Examples = append([]ir.Example{{Name: "value", Value: &ir.Value{Kind: ir.ValueString, String: "v"}}}, operation.Examples...)
 
 	var at []string
 	for _, diagnostic := range validated(t, doc) {

@@ -51,17 +51,17 @@ func sentinel(text string) string { return sentinelKey + ": " + quoted(text) }
 func quoted(text string) string { return `"` + text + `"` }
 
 // chat is a document of one operation, chat, whose request body has a boolean
-// stream member and a string prompt, whose own keys are opKeys, a block of
+// stream member and a string prompt, whose own keys are operationKeys, a block of
 // lines indented as the operation's, and whose success response holds
 // contents.
-func chat(opKeys string, contents ...string) string {
+func chat(operationKeys string, contents ...string) string {
 	return `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
   /chat:
     post:
       operationId: chat
-` + opKeys + `      requestBody:
+` + operationKeys + `      requestBody:
         content:
           application/json:
             schema: {type: object, properties: {stream: {type: boolean}, prompt: {type: string}}}
@@ -95,7 +95,7 @@ func compile(t *testing.T, src string, opts openapi.Options) (ir.Operation, *ir.
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
-	return openapitest.FindOp(t, doc, "chat"), doc, diags
+	return openapitest.FindOperation(t, doc, "chat"), doc, diags
 }
 
 // findings returns the pointers of the unpromoted-extension reports among
@@ -112,20 +112,20 @@ func findings(t *testing.T, diags []ir.Diagnostic) []string {
 	return out
 }
 
-// contents returns the contents of op's one success response.
-func contents(t *testing.T, op ir.Operation) []ir.Content {
+// contents returns the contents of operation's one success response.
+func contents(t *testing.T, operation ir.Operation) []ir.Content {
 	t.Helper()
-	require.Len(t, op.Responses, 1)
-	require.NotNil(t, op.Responses[0].Payload)
-	return op.Responses[0].Payload.Contents
+	require.Len(t, operation.Responses, 1)
+	require.NotNil(t, operation.Responses[0].Payload)
+	return operation.Responses[0].Payload.Contents
 }
 
-// terminator returns what op's response stream ends on, or nil.
-func terminator(op ir.Operation) *string {
-	if op.ResponseStream == nil {
+// terminator returns what operation's response stream ends on, or nil.
+func terminator(operation ir.Operation) *string {
+	if operation.ResponseStream == nil {
 		return nil
 	}
-	return op.ResponseStream.Terminator
+	return operation.ResponseStream.Terminator
 }
 
 // markers splits a marker list into its names.
@@ -145,17 +145,17 @@ func TestPromote_FillsTheTerminator(t *testing.T) {
 	t.Parallel()
 	src := chat(when("$request.stream"), jsonBody, framed("text/event-stream", sentinel("[DONE]")))
 
-	op, _, diags := compile(t, src, openapi.Options{})
-	require.NotNil(t, terminator(op))
-	assert.Equal(t, "[DONE]", *terminator(op))
-	assert.Nil(t, op.ResponseStream.Condition, "no key is mapped to the condition by default")
-	cs := contents(t, op)
+	operation, _, diags := compile(t, src, openapi.Options{})
+	require.NotNil(t, terminator(operation))
+	assert.Equal(t, "[DONE]", *terminator(operation))
+	assert.Nil(t, operation.ResponseStream.Condition, "no key is mapped to the condition by default")
+	cs := contents(t, operation)
 	require.Len(t, cs, 2)
 	assert.Empty(t, cs[0].Inferred)
 	assert.Equal(t, ir.Inferred("extension-promotion"), cs[1].Inferred)
 	require.NotNil(t, cs[1].Stream)
 	assert.Equal(t, ir.Inferred("streaming-inference"), cs[1].Stream.Inferred, "how it streams is unchanged")
-	assert.Equal(t, ir.Inferred("streaming-inference"), op.Provenance.Inferred, "the operation read no key")
+	assert.Equal(t, ir.Inferred("streaming-inference"), operation.Provenance.Inferred, "the operation read no key")
 	assert.Contains(t, cs[1].Unmodeled, "openapi:"+sentinelKey)
 	assert.Empty(t, diags)
 
@@ -174,21 +174,21 @@ func TestPromote_FillsTheTerminator(t *testing.T) {
 // states one, is the terminator and is recorded on the operation.
 func TestPromote_FillsTheTerminatorOfEveryStreamingContent(t *testing.T) {
 	t.Parallel()
-	op, _, diags := compile(t, chat("", jsonBody, framed("text/event-stream", sentinel("[DONE]")),
+	operation, _, diags := compile(t, chat("", jsonBody, framed("text/event-stream", sentinel("[DONE]")),
 		framed("application/x-ndjson", sentinel("[DONE]"))), openapi.Options{})
-	require.NotNil(t, terminator(op))
-	assert.Equal(t, "[DONE]", *terminator(op))
-	cs := contents(t, op)
+	require.NotNil(t, terminator(operation))
+	assert.Equal(t, "[DONE]", *terminator(operation))
+	cs := contents(t, operation)
 	assert.Empty(t, cs[0].Inferred)
 	assert.Equal(t, ir.Inferred("extension-promotion"), cs[1].Inferred)
 	assert.Equal(t, ir.Inferred("extension-promotion"), cs[2].Inferred)
 	assert.Empty(t, findings(t, diags))
 
-	op, _, diags = compile(t, chat("      x-stream-terminator: \"[DONE]\"\n", jsonBody, framed("text/event-stream", "")), both())
-	require.NotNil(t, terminator(op))
-	assert.Equal(t, "[DONE]", *terminator(op))
-	assert.Contains(t, markers(op.Provenance.Inferred), "extension-promotion")
-	assert.Empty(t, contents(t, op)[1].Inferred, "the key sat on the operation")
+	operation, _, diags = compile(t, chat("      x-stream-terminator: \"[DONE]\"\n", jsonBody, framed("text/event-stream", "")), both())
+	require.NotNil(t, terminator(operation))
+	assert.Equal(t, "[DONE]", *terminator(operation))
+	assert.Contains(t, markers(operation.Provenance.Inferred), "extension-promotion")
+	assert.Empty(t, contents(t, operation)[1].Inferred, "the key sat on the operation")
 	assert.Empty(t, diags)
 }
 
@@ -223,11 +223,11 @@ func TestPromote_TerminatorIsAllOrNone(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op, doc, diags := compile(t, tc.src, tc.opts)
-			assert.Nil(t, terminator(op), "a terminator is filled all or none")
+			operation, doc, diags := compile(t, tc.src, tc.opts)
+			assert.Nil(t, terminator(operation), "a terminator is filled all or none")
 			assert.Equal(t, tc.want, findings(t, diags))
 			assert.Empty(t, irverify.Verify(doc))
-			for _, content := range contents(t, op) {
+			for _, content := range contents(t, operation) {
 				assert.Empty(t, content.Inferred, "a content records only a key it filled")
 			}
 		})
@@ -240,16 +240,16 @@ func TestPromote_TerminatorIsAllOrNone(t *testing.T) {
 // stating none is passed over.
 func TestPromote_OperationAndContentsMustAgree(t *testing.T) {
 	t.Parallel()
-	op, _, diags := compile(t, chat("      x-stream-terminator: \"[DONE]\"\n", jsonBody,
+	operation, _, diags := compile(t, chat("      x-stream-terminator: \"[DONE]\"\n", jsonBody,
 		framed("text/event-stream", sentinel("[END]"))), both())
-	assert.Nil(t, terminator(op))
+	assert.Nil(t, terminator(operation))
 	require.Len(t, findings(t, diags), 1)
 
 	for _, key := range []string{sentinel("[DONE]"), ""} {
-		op, _, diags = compile(t, chat("      x-stream-terminator: \"[DONE]\"\n", jsonBody,
+		operation, _, diags = compile(t, chat("      x-stream-terminator: \"[DONE]\"\n", jsonBody,
 			framed("text/event-stream", key)), both())
-		require.NotNil(t, terminator(op), "content key %q", key)
-		assert.Equal(t, "[DONE]", *terminator(op))
+		require.NotNil(t, terminator(operation), "content key %q", key)
+		assert.Equal(t, "[DONE]", *terminator(operation))
 		assert.Empty(t, findings(t, diags))
 	}
 }
@@ -265,16 +265,16 @@ func TestPromote_FillsTheCondition(t *testing.T) {
 	const stream = "property/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream"
 	src := chat(when("$request.stream"), jsonBody, framed("text/event-stream", sentinel("[DONE]")))
 
-	op, _, diags := compile(t, src, both())
-	require.NotNil(t, op.ResponseStream)
-	require.NotNil(t, op.ResponseStream.Condition)
-	cond := op.ResponseStream.Condition
+	operation, _, diags := compile(t, src, both())
+	require.NotNil(t, operation.ResponseStream)
+	require.NotNil(t, operation.ResponseStream.Condition)
+	cond := operation.ResponseStream.Condition
 	assert.Nil(t, cond.Input.Param, "the input is a member of the request body")
 	assert.Equal(t, []ir.PropertyID{stream}, cond.Input.Segments)
 	assert.Equal(t, ir.ValueBool, cond.Value.Kind)
 	assert.True(t, cond.Value.Bool, "the stream is asked for when the input is true")
-	assert.ElementsMatch(t, []string{"streaming-inference", "extension-promotion"}, markers(op.Provenance.Inferred))
-	assert.Contains(t, op.Unmodeled, "openapi:"+whenKey)
+	assert.ElementsMatch(t, []string{"streaming-inference", "extension-promotion"}, markers(operation.Provenance.Inferred))
+	assert.Contains(t, operation.Unmodeled, "openapi:"+whenKey)
 	assert.Empty(t, diags)
 
 	at := "/paths/~1chat/post/" + whenKey
@@ -288,12 +288,12 @@ func TestPromote_FillsTheCondition(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op, doc, diags := compile(t, tc.src, both())
-			if op.ResponseStream != nil {
-				assert.Nil(t, op.ResponseStream.Condition)
+			irOperation, doc, diags := compile(t, tc.src, both())
+			if irOperation.ResponseStream != nil {
+				assert.Nil(t, irOperation.ResponseStream.Condition)
 			}
 			assert.Equal(t, []string{at}, findings(t, diags))
-			assert.NotContains(t, markers(op.Provenance.Inferred), "extension-promotion")
+			assert.NotContains(t, markers(irOperation.Provenance.Inferred), "extension-promotion")
 			assert.Empty(t, irverify.Verify(doc))
 		})
 	}

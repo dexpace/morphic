@@ -21,10 +21,10 @@ import (
 func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	t.Parallel()
 	admissible := []struct {
-		name string
-		val  ir.Value
-		prim ir.PrimitiveKind
-		text string
+		name      string
+		val       ir.Value
+		primitive ir.PrimitiveKind
+		text      string
 	}{
 		{"string", ir.Value{Kind: ir.ValueString, String: "s"}, ir.PrimitiveString, "s"},
 		{"symbol", ir.Value{Kind: ir.ValueSymbol, String: "ok"}, ir.PrimitiveString, "ok"},
@@ -35,9 +35,9 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	for _, tc := range admissible {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			prim, text, ok := enumMemberForm(tc.val)
+			primitive, text, ok := enumMemberForm(tc.val)
 			require.True(t, ok, "%s is admissible as an enum member", tc.name)
-			assert.Equal(t, tc.prim, prim)
+			assert.Equal(t, tc.primitive, primitive)
 			assert.Equal(t, tc.text, text)
 		})
 	}
@@ -50,9 +50,9 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	for _, kind := range refused {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			prim, text, ok := enumMemberForm(ir.Value{Kind: kind})
+			primitive, text, ok := enumMemberForm(ir.Value{Kind: kind})
 			assert.False(t, ok, "%q has no place in an Enum", kind)
-			assert.Empty(t, prim, "a refused kind asserts no primitive")
+			assert.Empty(t, primitive, "a refused kind asserts no primitive")
 			assert.Empty(t, text)
 		})
 	}
@@ -71,10 +71,10 @@ func TestEnumMembers_KeepsNoneBeneathAnIDNoMemberFits(t *testing.T) {
 	assert.Equal(t, []ir.EnumMember{{ID: "enum-member/openapi/components/schemas/E/string:a", Name: ir.NamingFor("a"),
 		Value: ir.Value{Kind: ir.ValueString, String: "a"}}}, members)
 
-	members, prim, ok := enumMembers(readEnum(nodes), "openapi/components/schemas/E")
+	members, primitive, ok := enumMembers(readEnum(nodes), "openapi/components/schemas/E")
 	assert.False(t, ok, "no member is placed beneath an ID that is no type ID")
 	assert.Empty(t, members)
-	assert.Empty(t, prim)
+	assert.Empty(t, primitive)
 }
 
 // TestValueKey_IsInjectiveAcrossNesting holds that values a flat encoding would
@@ -82,22 +82,22 @@ func TestEnumMembers_KeepsNoneBeneathAnIDNoMemberFits(t *testing.T) {
 // it, a member name or value spelling a key, and one member against two.
 func TestValueKey_IsInjectiveAcrossNesting(t *testing.T) {
 	t.Parallel()
-	str := func(s string) ir.Value { return ir.Value{Kind: ir.ValueString, String: s} }
+	stringValue := func(s string) ir.Value { return ir.Value{Kind: ir.ValueString, String: s} }
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(fs ...ir.Field) ir.Value { return ir.Value{Kind: ir.ValueObject, Object: fs} }
 	values := []ir.Value{
-		list(str("a,b")),
-		list(str("a"), str("b")),
-		list(str("as:b")),
-		list(list(str("a")), str("b")),
+		list(stringValue("a,b")),
+		list(stringValue("a"), stringValue("b")),
+		list(stringValue("as:b")),
+		list(list(stringValue("a")), stringValue("b")),
 		list(),
 		obj(),
-		obj(ir.Field{Name: "a", Value: str("b")}),
+		obj(ir.Field{Name: "a", Value: stringValue("b")}),
 		obj(ir.Field{Name: `a":"s:b`, Value: list()}),
-		obj(ir.Field{Name: "a", Value: str("b")}, ir.Field{Name: "c", Value: str("d")}),
-		obj(ir.Field{Name: "a", Value: str("bs:c")}),
-		obj(ir.Field{Name: "a", Value: str("b")}, ir.Field{Name: "", Value: str("c")}),
-		str("l:[]"),
+		obj(ir.Field{Name: "a", Value: stringValue("b")}, ir.Field{Name: "c", Value: stringValue("d")}),
+		obj(ir.Field{Name: "a", Value: stringValue("bs:c")}),
+		obj(ir.Field{Name: "a", Value: stringValue("b")}, ir.Field{Name: "", Value: stringValue("c")}),
+		stringValue("l:[]"),
 	}
 	seen := map[string]int{}
 	for i, value := range values {
@@ -158,7 +158,7 @@ func TestValueKey_GrowsByAFixedAmountPerLevel(t *testing.T) {
 // defines judges nothing, and no type declared admits every value.
 func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
 	t.Parallel()
-	str, one, half := ir.Value{Kind: ir.ValueString, String: "1"}, ir.Value{Kind: ir.ValueNumber, Number: "1.0"},
+	stringValue, one, half := ir.Value{Kind: ir.ValueString, String: "1"}, ir.Value{Kind: ir.ValueNumber, Number: "1.0"},
 		ir.Value{Kind: ir.ValueNumber, Number: "0.5"}
 	null, yes := ir.Value{Kind: ir.ValueNull}, ir.Value{Kind: ir.ValueBool, Bool: true}
 	obj, list := ir.Value{Kind: ir.ValueObject}, ir.Value{Kind: ir.ValueList}
@@ -168,15 +168,15 @@ func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
 		admits []ir.Value
 		not    []ir.Value
 	}{
-		{nil, []ir.Value{str, null, obj}, nil},
-		{[]statement.JSONSchemaTypeName{statement.KindString}, []ir.Value{str, bin}, []ir.Value{one, null}},
-		{[]statement.JSONSchemaTypeName{statement.KindInteger}, []ir.Value{one}, []ir.Value{half, str}},
-		{[]statement.JSONSchemaTypeName{statement.KindNumber}, []ir.Value{one, half}, []ir.Value{str}},
-		{[]statement.JSONSchemaTypeName{statement.KindBoolean}, []ir.Value{yes}, []ir.Value{str}},
+		{nil, []ir.Value{stringValue, null, obj}, nil},
+		{[]statement.JSONSchemaTypeName{statement.KindString}, []ir.Value{stringValue, bin}, []ir.Value{one, null}},
+		{[]statement.JSONSchemaTypeName{statement.KindInteger}, []ir.Value{one}, []ir.Value{half, stringValue}},
+		{[]statement.JSONSchemaTypeName{statement.KindNumber}, []ir.Value{one, half}, []ir.Value{stringValue}},
+		{[]statement.JSONSchemaTypeName{statement.KindBoolean}, []ir.Value{yes}, []ir.Value{stringValue}},
 		{[]statement.JSONSchemaTypeName{statement.KindObject}, []ir.Value{obj}, []ir.Value{list}},
 		{[]statement.JSONSchemaTypeName{statement.KindArray}, []ir.Value{list}, []ir.Value{obj}},
-		{[]statement.JSONSchemaTypeName{statement.KindInteger, statement.KindBoolean}, []ir.Value{one, yes}, []ir.Value{str}},
-		{[]statement.JSONSchemaTypeName{statement.KindInteger, "file"}, []ir.Value{str, one, null}, nil},
+		{[]statement.JSONSchemaTypeName{statement.KindInteger, statement.KindBoolean}, []ir.Value{one, yes}, []ir.Value{stringValue}},
+		{[]statement.JSONSchemaTypeName{statement.KindInteger, "file"}, []ir.Value{stringValue, one, null}, nil},
 	} {
 		for _, value := range tc.admits {
 			assert.True(t, typesAdmit(tc.types, value), "%v admits %+v", tc.types, value)

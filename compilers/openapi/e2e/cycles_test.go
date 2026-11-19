@@ -583,10 +583,10 @@ components:
 	assert.NotContains(t, string(clean), "\ufffd",
 		"U+FFFD must not reach anything but a diagnostic message")
 
-	op := openapitest.FirstOp(t, doc.Services[0])
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	content := op.Request.Contents[0]
+	operation := openapitest.FirstOperation(t, doc.Services[0])
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 1)
+	content := operation.Request.Contents[0]
 	// The property beside the $ref is the body's own, a conjunct of it, so the
 	// part names it, by a key its UTF-8 pointer derives.
 	assert.Len(t, content.Encoding, 1, "the body's type holds the part's property")

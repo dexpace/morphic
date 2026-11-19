@@ -28,10 +28,10 @@ var errNoFunction = errors.New("barrier: no function to call")
 // bounded length whatever the panic value was; the value whole, its text, and
 // the stack cut at 64 KiB stay beside it, for the caller that wants them.
 type PanicError struct {
-	value any
-	text  string
-	msg   string
-	stack []byte
+	value   any
+	text    string
+	message string
+	stack   []byte
 }
 
 // Catch calls f and returns nil when it returns, or the *PanicError describing
@@ -64,17 +64,17 @@ func Catch(f func()) (err error) {
 // the deferred call that recovered r, so the stack it reads is the panic's own.
 func newPanicError(r any) *PanicError {
 	text := describe(r)
-	msg := "panic: " + render(text, visible)
+	message := "panic: " + render(text, visible)
 	if site := siteOf(); site != "" {
-		msg += " (at " + site + ")"
+		message += " (at " + site + ")"
 	}
-	return &PanicError{value: r, text: render(text, asIs), msg: msg, stack: stackOf()}
+	return &PanicError{value: r, text: render(text, asIs), message: message, stack: stackOf()}
 }
 
 // Error returns the panic as one line: its value, then where it was raised.
 // Control characters are replaced with U+FFFD, since an error's text is
 // printed as it is.
-func (e *PanicError) Error() string { return e.msg }
+func (e *PanicError) Error() string { return e.message }
 
 // Text returns the panic value's text as Line renders it, for a caller that
 // words a message of its own around it: the text Error carries, with control

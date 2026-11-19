@@ -36,7 +36,7 @@ func TestApplyPathItemDocs_WritesTheBindingItIsGiven(t *testing.T) {
 	var docs ir.Docs
 	diags := applyPathItemDocs(lowerer.ctx, onOperations(&kept, &docs), item, "/paths/~1a", owners{}.cedes(0))
 
-	bound := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{}, {}}}}
+	bound := &ir.Operation{Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{}, {}}}}
 	diags = append(diags, keepOn(bound, kept, docs)...)
 	want := ir.Docs{Summary: summary, Description: description}
 	assert.Equal(t, want, bound.Bindings.HTTP[0].PathDocs)
@@ -81,11 +81,11 @@ func TestPathOperations_NilAdditionalOperationSkipped(t *testing.T) {
 		),
 	}
 
-	ops := pathOperations(pi)
+	operations := pathOperations(pi)
 
-	require.Len(t, ops, 1, "the nil entry is skipped and the real one is not")
-	assert.Equal(t, "PURGE", ops[0].method)
-	assert.Equal(t, jsontext.Pointer("/additionalOperations/PURGE"), ops[0].seg)
+	require.Len(t, operations, 1, "the nil entry is skipped and the real one is not")
+	assert.Equal(t, "PURGE", operations[0].method)
+	assert.Equal(t, jsontext.Pointer("/additionalOperations/PURGE"), operations[0].seg)
 }
 
 // httpMethodsNames is the plain-string projection of httpMethods, which

@@ -49,14 +49,14 @@ func Promote(promoter promotion.Promoter, compiledDocumentView *compileddoc.Comp
 		return nil, nil
 	}
 	stated = map[ir.OperationID]bool{}
-	for _, op := range compiledDocumentView.Ops {
-		if op.Pagination != nil {
+	for _, operation := range compiledDocumentView.Operations {
+		if operation.Pagination != nil {
 			continue
 		}
-		spoke, opDiags := pg.operation(op)
-		diags = append(diags, opDiags...)
+		spoke, operationDiags := pg.operation(operation)
+		diags = append(diags, operationDiags...)
 		if spoke {
-			stated[op.ID] = true
+			stated[operation.ID] = true
 		}
 	}
 	return stated, diags
@@ -82,21 +82,21 @@ func (pg *pager) maps() bool {
 // a source's key is written where it is read, whatever it states.
 type pageFields struct {
 	inputs  map[promotion.ExtensionTarget]*ir.InputPath
-	outputs map[promotion.ExtensionTarget]*ir.PropPath
+	outputs map[promotion.ExtensionTarget]*ir.PropertyPath
 	read    []*ir.Provenance
 	written bool
 }
 
-// operation fills op's pagination from what its extensions state, if they
+// operation fills operation's pagination from what its extensions state, if they
 // state any, and reports whether they speak of it at all: whether a source's
 // key is written where it is read, whatever its value, filling a pagination,
 // failing to or stating nothing.
-func (pg *pager) operation(op *ir.Operation) (bool, []ir.Diagnostic) {
+func (pg *pager) operation(operation *ir.Operation) (bool, []ir.Diagnostic) {
 	fields := pageFields{inputs: map[promotion.ExtensionTarget]*ir.InputPath{},
-		outputs: map[promotion.ExtensionTarget]*ir.PropPath{}}
+		outputs: map[promotion.ExtensionTarget]*ir.PropertyPath{}}
 	var diags []ir.Diagnostic
 	for _, target := range requestTargets() {
-		in, failed, readDiags := pg.input(op, target)
+		in, failed, readDiags := pg.input(operation, target)
 		diags = append(diags, readDiags...)
 		fields.written = fields.written || in.written
 		if failed {
@@ -107,7 +107,7 @@ func (pg *pager) operation(op *ir.Operation) (bool, []ir.Diagnostic) {
 		}
 	}
 	for _, target := range responseTargets() {
-		out, failed, readDiags := pg.output(op, target)
+		out, failed, readDiags := pg.output(operation, target)
 		diags = append(diags, readDiags...)
 		fields.written = fields.written || out.written
 		if failed {
@@ -122,20 +122,20 @@ func (pg *pager) operation(op *ir.Operation) (bool, []ir.Diagnostic) {
 	}
 	walk, reason := assemble(fields)
 	if walk == nil {
-		diags = append(diags, pg.report(op, "the pagination the policy reads from its extensions %s, so it fills none", reason))
+		diags = append(diags, pg.report(operation, "the pagination the policy reads from its extensions %s, so it fills none", reason))
 		return fields.written, diags
 	}
-	op.Pagination = walk
+	operation.Pagination = walk
 	for _, prov := range fields.read {
 		prov.Inferred = ir.JoinInferred(prov.Inferred, promotion.ExtensionPromotionHeuristic)
 	}
 	return fields.written, diags
 }
 
-// report is a finding at op about what its extensions state of its pagination.
-func (pg *pager) report(op *ir.Operation, format string, args ...any) ir.Diagnostic {
-	return diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance, "operation %q: "+format,
-		append([]any{op.ID}, args...)...)
+// report is a finding at operation about what its extensions state of its pagination.
+func (pg *pager) report(operation *ir.Operation, format string, args ...any) ir.Diagnostic {
+	return diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, operation.Provenance, "operation %q: "+format,
+		append([]any{operation.ID}, args...)...)
 }
 
 // assemble builds the pagination fields state, and returns why it builds none:

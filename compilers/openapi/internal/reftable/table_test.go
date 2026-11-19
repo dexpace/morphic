@@ -300,8 +300,8 @@ func TestBind_ReadsEachPositionAsTheJSONItSpells(t *testing.T) {
 // the model takes no extensions (GitHub #949).
 func TestBind_ReadsEveryWebhookAsAPathItem(t *testing.T) {
 	t.Parallel()
-	const op = "{post: {requestBody: {content: {a/b: {schema: {$ref: '#/components/schemas/T'}}}}}}\n"
-	table := bound(t, head+"webhooks:\n  x-h: "+op+"  example: "+op+"  plain: "+op+
+	const operation = "{post: {requestBody: {content: {a/b: {schema: {$ref: '#/components/schemas/T'}}}}}}\n"
+	table := bound(t, head+"webhooks:\n  x-h: "+operation+"  example: "+operation+"  plain: "+operation+
 		"components:\n  schemas:\n    T: {type: string}\n", self)
 	for _, name := range []string{"x-h", "example", "plain"} {
 		referenceSite := entryAt(t, table, jsontext.Pointer("/webhooks/"+name+"/post/requestBody/content/a~1b/schema"))

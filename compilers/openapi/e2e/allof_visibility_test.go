@@ -98,7 +98,7 @@ func thingIDVisibility(t *testing.T, name, spec string) (ir.Visibility, []ir.Dia
 	doc, diags := compileAnnotationSpec(t, name, spec)
 	model, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing must own a Model node")
-	property, ok := propByWire(model, "id")
+	property, ok := propertyByWire(model, "id")
 	require.True(t, ok, "Thing must carry a merged \"id\" property")
 	return property.Visibility, diags
 }

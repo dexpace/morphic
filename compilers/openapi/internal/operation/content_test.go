@@ -37,13 +37,13 @@ func TestContent_AllMediaTypesKeptInOrder(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 2, "no primary-content selection in the IR")
-	assert.Equal(t, "application/json", op.Request.Contents[0].MediaType)
-	assert.Equal(t, "application/xml", op.Request.Contents[1].MediaType)
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 2, "no primary-content selection in the IR")
+	assert.Equal(t, "application/json", operation.Request.Contents[0].MediaType)
+	assert.Equal(t, "application/xml", operation.Request.Contents[1].MediaType)
 	assert.Equal(t, []string{"application/json", "application/xml"},
-		op.Bindings.HTTP[0].RequestContentTypes)
+		operation.Bindings.HTTP[0].RequestContentTypes)
 }
 
 // TestContent_MixedCaseFormContentKeepsEncoding drives the form arm of
@@ -79,10 +79,10 @@ func TestContent_MixedCaseFormContentKeepsEncoding(t *testing.T) {
 `)
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
-			metaProp := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", tc.mt, "schema", "properties", "meta"))
-			enc, ok := content.Encoding[metaProp]
+			metaProperty := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", tc.mt, "schema", "properties", "meta"))
+			enc, ok := content.Encoding[metaProperty]
 			require.True(t, ok, "encoding keyed by the part property's PropertyID; got keys %v", content.Encoding)
 			assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 		})
@@ -120,10 +120,10 @@ func TestContent_MixedCaseURLEncodedKeepsPartEncoding(t *testing.T) {
 `)
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
-			tagsProp := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/submit", "post", "requestBody", "content", tc.mt, "schema", "properties", "tags"))
-			enc, ok := content.Encoding[tagsProp]
+			tagsProperty := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/submit", "post", "requestBody", "content", tc.mt, "schema", "properties", "tags"))
+			enc, ok := content.Encoding[tagsProperty]
 			require.True(t, ok, "a repeated part carries a PartEncoding keyed by its PropertyID; got keys %v", content.Encoding)
 			assert.True(t, enc.RepeatsPerArrayItem, "the structural flag is read off the part")
 		})
@@ -144,10 +144,10 @@ func TestContent_BinaryOctetStreamBody(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	content := op.Request.Contents[0]
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 1)
+	content := operation.Request.Contents[0]
 	require.NotNil(t, content.File, "binary body lowers to a FileInfo")
 	assert.False(t, content.File.IsText)
 	assert.Equal(t, ir.TypeID("type/primitive/bytes"), content.Type.Target)
@@ -215,10 +215,10 @@ components:
     Opaque: {description: Says nothing}
 `, tc.schema)))
 			openapitest.RequireNoErrorDiags(t, diags)
-			op := openapitest.FirstOp(t, svc)
+			operation := openapitest.FirstOperation(t, svc)
 			for side, content := range map[string]ir.Content{
-				"requestBody":   op.Request.Contents[0],
-				"responses/200": op.Responses[0].Payload.Contents[0],
+				"requestBody":   operation.Request.Contents[0],
+				"responses/200": operation.Responses[0].Payload.Contents[0],
 			} {
 				want := tc.want
 				if want.Target == "" {
@@ -262,7 +262,7 @@ func TestContent_MixedCaseOctetStreamBodyIsFile(t *testing.T) {
 `)
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 			require.NotNil(t, content.File, "an octet-stream body with no schema is a file body")
 			assert.False(t, content.File.IsText)
 			assert.Equal(t, []string{tc.mt}, content.File.ContentTypes, "the declared spelling is what the IR records")
@@ -290,7 +290,7 @@ components:
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	content := openapitest.FirstOp(t, svc).Request.Contents[0]
+	content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 	require.NotNil(t, content.File, "binary body behind a $ref lowers to a FileInfo")
 	assert.False(t, content.File.IsText)
 	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Blob"), content.Type.Target)
@@ -338,7 +338,7 @@ components:
 `)
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 			assert.Equal(t, tc.want != "", content.File != nil)
 			if tc.want != "" {
 				assert.Equal(t, tc.want, content.Type.Target)
@@ -421,7 +421,7 @@ paths:
 func TestContent_FullPipeline(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, contentSpec)
-	upload := openapitest.FindOp(t, doc, "upload")
+	upload := openapitest.FindOperation(t, doc, "upload")
 
 	// Non-required body preserved as present, optionality on the typed field.
 	require.NotNil(t, upload.Request)
@@ -461,7 +461,7 @@ func TestContent_OctetAndErrorMulti(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, contentSpec)
 	// The /raw octet-stream body without a schema is a binary file body.
-	raw := opByPath(t, doc, "POST", "/raw")
+	raw := operationByPath(t, doc, "POST", "/raw")
 	require.NotNil(t, raw.Request)
 	require.NotEmpty(t, raw.Request.Contents)
 	assert.NotNil(t, raw.Request.Contents[0].File)
@@ -478,7 +478,7 @@ func TestContent_OctetAndErrorMulti(t *testing.T) {
 func TestContent_SequentialAndEmptyBody(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, contentSpec)
-	stream := openapitest.FindOp(t, doc, "stream")
+	stream := openapitest.FindOperation(t, doc, "stream")
 	resp := stream.Responses[0]
 	require.NotNil(t, resp.Payload)
 	content := resp.Payload.Contents[0]
@@ -488,16 +488,16 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 	assert.True(t, content.ItemEncoding.RepeatsPerArrayItem, "itemEncoding governs a repeated tail")
 
 	// Empty request-body content lowers to a body naming no media type.
-	empty := openapitest.FindOp(t, doc, "emptyBody")
+	empty := openapitest.FindOperation(t, doc, "emptyBody")
 	require.NotNil(t, empty.Request)
 	assert.Empty(t, empty.Request.Contents)
 }
 
 // multipartEncoding returns the part-encoding map of an operation's request.
-func multipartEncoding(t *testing.T, op ir.Operation) map[ir.PropertyID]ir.PartEncoding {
+func multipartEncoding(t *testing.T, operation ir.Operation) map[ir.PropertyID]ir.PartEncoding {
 	t.Helper()
-	require.NotNil(t, op.Request)
-	for _, content := range op.Request.Contents {
+	require.NotNil(t, operation.Request)
+	for _, content := range operation.Request.Contents {
 		if len(content.Encoding) > 0 {
 			return content.Encoding
 		}
@@ -506,16 +506,16 @@ func multipartEncoding(t *testing.T, op ir.Operation) map[ir.PropertyID]ir.PartE
 	return nil
 }
 
-// opByPath finds an operation by HTTP method and URI template. A webhook
+// operationByPath finds an operation by HTTP method and URI template. A webhook
 // binding has no URI template, so no webhook is found.
-func opByPath(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
+func operationByPath(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
 	t.Helper()
 	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
 	for _, operationGroup := range doc.Services[0].Groups {
-		for _, op := range operationGroup.Operations {
-			for _, hb := range op.Bindings.HTTP {
+		for _, operation := range operationGroup.Operations {
+			for _, hb := range operation.Bindings.HTTP {
 				if hb.Method == method && hb.URITemplate == uri {
-					return op
+					return operation
 				}
 			}
 		}
@@ -632,9 +632,9 @@ func TestContent_AMediaTypeRefHoldingNoStringLowersNothing(t *testing.T) {
             application/json: {$ref: `+ref+`}
             text/plain: {schema: {type: string}}
 `))
-			op := openapitest.FirstOp(t, svc)
-			require.Len(t, op.Responses[0].Payload.Contents, 1)
-			assert.Equal(t, "text/plain", op.Responses[0].Payload.Contents[0].MediaType)
+			operation := openapitest.FirstOperation(t, svc)
+			require.Len(t, operation.Responses[0].Payload.Contents, 1)
+			assert.Equal(t, "text/plain", operation.Responses[0].Payload.Contents[0].MediaType)
 			require.Len(t, diags, 1, "got %v", diags)
 			assert.Equal(t, at, string(diags[0].Provenance.Pointer))
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -674,13 +674,13 @@ components:
     Json: {description: D, schema: {type: object, properties: {q: {type: string}}}}
 `))
 			openapitest.RequireNoErrorDiags(t, diags)
-			op := openapitest.FirstOp(t, svc)
-			content := op.Responses[0].Payload.Contents[0]
+			operation := openapitest.FirstOperation(t, svc)
+			content := operation.Responses[0].Payload.Contents[0]
 			assert.Equal(t, declared, content.Type.Target)
 			assert.Equal(t, ir.Docs{Summary: "S", Description: "D"}, content.Docs)
 			assert.Empty(t, content.Unmodeled)
-			require.Len(t, op.Params, 1)
-			assert.Equal(t, declared, op.Params[0].Type.Target)
+			require.Len(t, operation.Params, 1)
+			assert.Equal(t, declared, operation.Params[0].Type.Target)
 			assert.Contains(t, doc.Types, declared)
 			assert.NotContains(t, doc.Unmodeled, "openapi:components/mediaTypes/Json", "a reached entry is not kept")
 			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
@@ -720,15 +720,15 @@ func TestContent_MediaTypeDescriptionReachesItsDocs(t *testing.T) {
             text/plain: {<<: {description: Merged.}, schema: {type: string}}
 `))
 			openapitest.RequireNoErrorDiags(t, diags)
-			op := openapitest.FirstOp(t, svc)
-			require.Len(t, op.Responses[0].Payload.Contents, 2)
-			body := op.Responses[0].Payload.Contents[0]
+			operation := openapitest.FirstOperation(t, svc)
+			require.Len(t, operation.Responses[0].Payload.Contents, 2)
+			body := operation.Responses[0].Payload.Contents[0]
 			assert.Equal(t, ir.Docs{Description: "The body."}, body.Docs)
 			assert.Empty(t, body.Unmodeled)
-			assert.Equal(t, ir.Docs{Description: "Merged."}, op.Responses[0].Payload.Contents[1].Docs)
-			require.Len(t, op.Params, 1)
+			assert.Equal(t, ir.Docs{Description: "Merged."}, operation.Responses[0].Payload.Contents[1].Docs)
+			require.Len(t, operation.Params, 1)
 			assert.Equal(t, ir.ReasonNoIRHome,
-				op.Params[0].Unmodeled["openapi:content/application~1json/description"].Reason)
+				operation.Params[0].Unmodeled["openapi:content/application~1json/description"].Reason)
 			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), "a body's has a home")
 			openapitest.AssertInfoDiagAt(t, diags, paramAt)
 			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
@@ -765,7 +765,7 @@ paths:
 x-headers:
   h: {schema: {type: object, properties: {h: {type: integer}}}}
 `
-	op := func(path, id, body, header string) string {
+	operation := func(path, id, body, header string) string {
 		return "  " + path + ":\n    post:\n      operationId: " + id + "\n      requestBody: {$ref: '" + body + "'}\n" +
 			"      responses:\n        \"200\":\n          description: ok\n          headers: {X-" + id +
 			": {$ref: '" + header + "'}}\n"
@@ -799,7 +799,7 @@ x-headers:
 				openapitest.RequireNoErrorDiags(t, diags)
 				return doc.Types
 			}
-			alpha, bravo := op(tc.path, "alpha", tc.body, tc.header), op("/b", "bravo", tc.body, tc.header)
+			alpha, bravo := operation(tc.path, "alpha", tc.body, tc.header), operation("/b", "bravo", tc.body, tc.header)
 
 			forward, backward := compile(alpha, bravo), compile(bravo, alpha)
 

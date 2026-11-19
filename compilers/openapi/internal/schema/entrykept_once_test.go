@@ -88,7 +88,7 @@ components:
 	property := propertyOf(t, doc, "P", "a")
 	assert.Equal(t, []string{"openapi:allOf/1", "openapi:x-a"}, unmodeledKeys(property.Unmodeled))
 	assert.Equal(t, jsontext.Pointer("/components/schemas/P/properties/a/allOf/2/x-a"), property.Unmodeled["openapi:x-a"].Provenance.Pointer)
-	parameter, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+	parameter, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, doc.Services[0]), "q")
 	require.True(t, ok)
 	assert.Equal(t, []string{"openapi:schema/allOf/1", "openapi:schema/readOnly", "openapi:schema/x-a"}, unmodeledKeys(parameter.Unmodeled))
 	for _, key := range []string{"openapi:schema/readOnly", "openapi:schema/x-a"} {

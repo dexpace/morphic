@@ -71,8 +71,8 @@ func declaredAt(n int) jsontext.Pointer {
 // nthDecl is the nth declaration of a field, of target.
 func nthDecl(n int, target ir.TypeID) declaration {
 	return declaration{
-		prop:   ir.Property{WireName: "data", Type: ir.TypeRef{Target: target}, Provenance: ptrAt(declaredAt(n))},
-		source: written(`{}`),
+		property: ir.Property{WireName: "data", Type: ir.TypeRef{Target: target}, Provenance: ptrAt(declaredAt(n))},
+		source:   written(`{}`),
 	}
 }
 
@@ -220,7 +220,7 @@ func TestFold_AComposedFieldIntersectsNull(t *testing.T) {
 		reg := composeRegistry()
 		stubbed, _ := stubMerger(reg)
 		decls := declsOf("type/A", "type/in1")
-		decls[0].prop.Type.Nullable, decls[1].prop.Type.Nullable = tc.a, tc.b
+		decls[0].property.Type.Nullable, decls[1].property.Type.Nullable = tc.a, tc.b
 
 		got := stubbed.fold(decls)
 
@@ -240,9 +240,9 @@ func TestFold_AComposedFieldKeepsEveryDeclarationsDetail(t *testing.T) {
 	t.Parallel()
 	stubbed, recorded := stubMerger(composeRegistry())
 	decls := declsOf("type/A", "type/B", "type/in1")
-	decls[0].prop.Constraints = &ir.Constraints{MinProperties: new(int64(1)), Pattern: "^a$"}
-	decls[1].prop.Constraints = &ir.Constraints{MaxProperties: new(int64(4))}
-	decls[2].prop.Constraints = &ir.Constraints{MinProperties: new(int64(2)), Pattern: "^b$"}
+	decls[0].property.Constraints = &ir.Constraints{MinProperties: new(int64(1)), Pattern: "^a$"}
+	decls[1].property.Constraints = &ir.Constraints{MaxProperties: new(int64(4))}
+	decls[2].property.Constraints = &ir.Constraints{MinProperties: new(int64(2)), Pattern: "^b$"}
 
 	got := stubbed.fold(decls)
 
@@ -269,7 +269,7 @@ func TestFold_AComposedFieldHoldsTheBoundsOfEachDeclarationsOwnNode(t *testing.T
 	reg["type/A"].(*ir.Model).Constraints = &ir.Constraints{MinProperties: new(int64(3))}
 	stubbed, recorded := stubMerger(reg)
 	decls := declsOf("type/in0", "type/in1", "type/A")
-	decls[2].prop.Constraints = &ir.Constraints{MaxProperties: new(int64(7))}
+	decls[2].property.Constraints = &ir.Constraints{MaxProperties: new(int64(7))}
 
 	got := stubbed.fold(decls)
 
@@ -291,13 +291,13 @@ func TestOwnBounds_ReadsTheNodeADeclarationOwns(t *testing.T) {
 	common := func(id ir.TypeID) ir.TypeCommon {
 		return ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(0))}
 	}
-	str := ir.TypeRef{Target: "type/str"}
+	stringType := ir.TypeRef{Target: "type/str"}
 	reg := map[ir.TypeID]ir.TypeDef{
 		"type/model":  &ir.Model{TypeCommon: common("type/model"), Constraints: bound},
-		"type/map":    &ir.MapT{TypeCommon: common("type/map"), Value: str, Constraints: bound},
-		"type/scalar": &ir.Scalar{TypeCommon: common("type/scalar"), Base: &str, Constraints: length},
-		"type/union":  &ir.Union{TypeCommon: common("type/union"), Variants: []ir.Variant{{Type: str}}, Constraints: length},
-		"type/list":   &ir.List{TypeCommon: common("type/list"), ElementType: str, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
+		"type/map":    &ir.MapT{TypeCommon: common("type/map"), Value: stringType, Constraints: bound},
+		"type/scalar": &ir.Scalar{TypeCommon: common("type/scalar"), Base: &stringType, Constraints: length},
+		"type/union":  &ir.Union{TypeCommon: common("type/union"), Variants: []ir.Variant{{Type: stringType}}, Constraints: length},
+		"type/list":   &ir.List{TypeCommon: common("type/list"), ElementType: stringType, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
 		"type/named":  &ir.Model{ID: "type/named", Provenance: ptrAt("/components/schemas/N"), Constraints: bound},
 	}
 	stubbed, _ := stubMerger(reg)
@@ -355,8 +355,8 @@ func TestFold_AComposedFieldAdoptsOnlyANull(t *testing.T) {
 			t.Parallel()
 			stubbed, recorded := stubMerger(composeRegistry())
 			decls := declsOf("type/A", "type/in1")
-			decls[0].prop.Type.Nullable, decls[1].prop.Type.Nullable = tc.nullable, tc.nullable
-			decls[tc.at].prop.Default = &tc.value
+			decls[0].property.Type.Nullable, decls[1].property.Type.Nullable = tc.nullable, tc.nullable
+			decls[tc.at].property.Default = &tc.value
 
 			got := stubbed.fold(decls)
 

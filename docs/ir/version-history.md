@@ -1245,13 +1245,16 @@ it sees. Changes made together in one bump are listed together under it.
     `primitiveKind`; `Model.additionalProps` is `additionalProperties`; `Constraints.minProps` and
     `maxProps` are `minProperties` and `maxProperties`; `Discriminator.index` is
     `tupleElementIndex`; `PartEncoding.multi` and `filename` are `repeatsPerArrayItem` and
-    `hasFilename`; and `Visibility.none` is `invisibleInEveryLifecycle`.
+    `hasFilename`; `ResourceInfo.instanceOps` and `collectionOps` are `instanceOperations` and
+    `collectionOperations`; `Response.statusCodeProp` is `statusCodeProperty`; and
+    `Visibility.none` is `invisibleInEveryLifecycle`.
   - **Values**: the value kinds `ref`, `ctor`, `inf` and `neginf` are `reference`, `constructor`,
     `infinity` and `negative-infinity`, and the streaming mode `bidi` is `bidirectional`.
   - **Go names**: `OpID`, `PropID` and `ParamID` are `OperationID`, `PropertyID` and
     `ParameterID`, `PrimKind` and its constants are `PrimitiveKind` and `Primitive…`,
     `AdditionalProps` and `PatternProps` are `AdditionalProperties` and `PatternProperties`,
-    `ExposedProps` is `ExposedProperties`, and `MsgDirection` is `MessageDirection`.
+    `ExposedProps` is `ExposedProperties`, `OpBindings` and `PropPath` are `OperationBindings` and
+    `PropertyPath`, and `MsgDirection` is `MessageDirection`.
   - **Locations**: a walk path opens with `document.`, where it opened with `doc.`, as an
     `irverify` violation and a census line spell it, and a finding about the whole document, as a
     pass's collision between two of its types, is at the node `document`, where it was at `doc`,

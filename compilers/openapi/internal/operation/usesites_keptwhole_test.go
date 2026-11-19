@@ -25,7 +25,7 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 	for _, diagnostic := range diags {
 		assert.Equal(t, "openapi/degraded-construct info", diagnostic.Code+" "+string(diagnostic.Severity), diagnostic.Message)
 	}
-	facts := opTree(t, doc, "facts")
+	facts := operationTree(t, doc, "facts")
 	params, headers := valueAtPath(facts, "params"), valueAtPath(facts, "responses", "0", "headers")
 	body := tree(t, doc.Types[ir.TypeID("type/anonymous/paths/~1facts/get/responses/200/content/application~1json/schema")])
 	properties := valueAtPath(body, "properties")
@@ -59,12 +59,12 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 	}
 
 	for _, name := range []string{"pagesRefFirst", "pagesBranchFirst", "pagesContentRefFirst", "pagesContentBranchFirst"} {
-		op := opTree(t, doc, name)
-		if !assert.NotNil(t, valueAtPath(op, "pagination"), name) {
+		operation := operationTree(t, doc, name)
+		if !assert.NotNil(t, valueAtPath(operation, "pagination"), name) {
 			continue
 		}
-		assert.Equal(t, "cursor", valueAtPath(op, "pagination", "strategy"), name)
-		assert.Equal(t, valueAtPath(namedItem(t, valueAtPath(op, "params"), "cursor"), "id"), valueAtPath(op, "pagination", "inputCursor", "param"), name)
-		assert.NotNil(t, valueAtPath(op, "pagination", "nextCursor", "segments"), name)
+		assert.Equal(t, "cursor", valueAtPath(operation, "pagination", "strategy"), name)
+		assert.Equal(t, valueAtPath(namedItem(t, valueAtPath(operation, "params"), "cursor"), "id"), valueAtPath(operation, "pagination", "inputCursor", "param"), name)
+		assert.NotNil(t, valueAtPath(operation, "pagination", "nextCursor", "segments"), name)
 	}
 }

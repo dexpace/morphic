@@ -11,20 +11,20 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-var strKey = strT
+var stringKey = stringT
 
 // shapesDoc is valueDoc holding the types a row of these tests names its
 // positions' types by, one of each shape the checks tell apart.
-func shapesDoc(props ...ir.Property) *ir.Document {
-	doc := modelOf(props...)
+func shapesDoc(properties ...ir.Property) *ir.Document {
+	doc := modelOf(properties...)
 	for _, kind := range []ir.PrimitiveKind{ir.PrimitiveBytes, ir.PrimitiveFloat64} {
 		id := ir.PrimitiveTypeID(kind)
 		doc.Types[id] = &ir.Primitive{ID: id, PrimitiveKind: kind}
 	}
 	for _, td := range []ir.TypeDef{
-		&ir.List{ID: "type/list", ElementType: strT},
-		&ir.Tuple{ID: "type/tuple", ElementTypes: []ir.TypeRef{strT, strT}},
-		&ir.MapT{ID: "type/map", Key: &strKey, Value: strT},
+		&ir.List{ID: "type/list", ElementType: stringT},
+		&ir.Tuple{ID: "type/tuple", ElementTypes: []ir.TypeRef{stringT, stringT}},
+		&ir.MapT{ID: "type/map", Key: &stringKey, Value: stringT},
 		&ir.Model{ID: "type/obj"},
 		&ir.Any{ID: "type/any"},
 		&ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/list"}},
@@ -34,7 +34,7 @@ func shapesDoc(props ...ir.Property) *ir.Document {
 			{ID: "enum-member/null", Value: *null()}, {ID: "enum-member/flag", Value: ir.Value{Kind: ir.ValueBool, Bool: true}},
 			{ID: "enum-member/symbol", Value: ir.Value{Kind: ir.ValueSymbol, String: "sym"}},
 			{ID: "enum-member/bytes", Value: ir.Value{Kind: ir.ValueBytes, Bytes: []byte("ab")}},
-			{ID: "enum-member/list", Value: ir.Value{Kind: ir.ValueList}}, {ID: "enum-member/bad", Value: *num("x")},
+			{ID: "enum-member/list", Value: ir.Value{Kind: ir.ValueList}}, {ID: "enum-member/bad", Value: *number("x")},
 		}},
 	} {
 		doc.Types[td.Common().ID] = td
@@ -77,7 +77,7 @@ func TestValidate_BoundsAreJoinedAcrossTheShapesAChainEnds(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := shapesDoc(prop("property/a/x", tc.typ, bounded(tc.c)))
+			doc := shapesDoc(property("property/a/x", tc.typ, bounded(tc.c)))
 			atLeast := &ir.Constraints{MinItems: new(int64(2)), MinProperties: new(int64(2))}
 			doc.Types["type/list"].(*ir.List).Constraints = atLeast
 			doc.Types["type/tuple"].(*ir.Tuple).Constraints = atLeast
@@ -97,7 +97,7 @@ func TestValidate_ADefaultIsHeldToTheShapeOfItsType(t *testing.T) {
 		"a bool":       {Kind: ir.ValueBool},
 		"a string":     text("s"),
 		"a symbol":     {Kind: ir.ValueSymbol, String: "s"},
-		"a number":     num("1"),
+		"a number":     number("1"),
 		"bytes":        {Kind: ir.ValueBytes, Bytes: []byte("a")},
 		"a list":       {Kind: ir.ValueList},
 		"an object":    {Kind: ir.ValueObject},
@@ -107,7 +107,7 @@ func TestValidate_ADefaultIsHeldToTheShapeOfItsType(t *testing.T) {
 		"a thing":      {Kind: "thing"},
 	}
 	holds := map[string]ir.TypeRef{
-		"a bool": boolT, "a string": strT, "bytes": {Target: ir.PrimitiveTypeID(ir.PrimitiveBytes)},
+		"a bool": boolT, "a string": stringT, "bytes": {Target: ir.PrimitiveTypeID(ir.PrimitiveBytes)},
 		"a number": {Target: ir.PrimitiveTypeID(ir.PrimitiveFloat64)}, "an integer": intT,
 		"a list": {Target: "type/list"}, "an object": {Target: "type/obj"},
 	}
@@ -115,7 +115,7 @@ func TestValidate_ADefaultIsHeldToTheShapeOfItsType(t *testing.T) {
 		for shapeWords, typ := range holds {
 			t.Run(kindWords+" for "+shapeWords, func(t *testing.T) {
 				t.Parallel()
-				got := found(t, shapesDoc(prop("property/a/x", typ, defaulted(value))), defaultCode)
+				got := found(t, shapesDoc(property("property/a/x", typ, defaulted(value))), defaultCode)
 				if kindWords == shapeWords || (kindWords == "a string" && shapeWords == "bytes") ||
 					(kindWords == "a symbol" && shapeWords == "a string") || (shapeWords == "a number" && value.Kind != ir.ValueNumber &&
 					(value.Kind == ir.ValueInfinity || value.Kind == ir.ValueNegativeInfinity || value.Kind == ir.ValueNaN)) ||
@@ -148,17 +148,17 @@ func TestValidate_ADefaultIsHeldToTheBoundsOfItsShape(t *testing.T) {
 		{"a string given for bytes, not measured", bytes, text("abcdef"), lengths(0, 2), 0},
 		{"an object over its maximum", ir.TypeRef{Target: "type/obj"}, obj, &ir.Constraints{MaxProperties: new(int64(1))}, 1},
 		{"an object within it", ir.TypeRef{Target: "type/obj"}, obj, &ir.Constraints{MaxProperties: new(int64(2))}, 0},
-		{"a number over its maximum", intT, num("5"), numeric("", "", "4", ""), 1},
-		{"a number at an exclusive maximum", intT, num("4"), numeric("", "", "", "4"), 1},
-		{"a number at its maximum", intT, num("4"), numeric("", "", "4", ""), 0},
+		{"a number over its maximum", intT, number("5"), numeric("", "", "4", ""), 1},
+		{"a number at an exclusive maximum", intT, number("4"), numeric("", "", "", "4"), 1},
+		{"a number at its maximum", intT, number("4"), numeric("", "", "4", ""), 0},
 		{"an infinity under bounds on numbers", ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveFloat64)},
 			&ir.Value{Kind: ir.ValueInfinity}, numeric("", "", "4", ""), 0},
-		{"a number that does not parse", intT, num("x"), numeric("", "", "4", ""), 0},
+		{"a number that does not parse", intT, number("x"), numeric("", "", "4", ""), 0},
 		{"a bool under bounds", boolT, &ir.Value{Kind: ir.ValueBool}, lengths(0, 1), 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := found(t, shapesDoc(prop("property/a/x", tc.typ, func(property *ir.Property) { property.Default = tc.def; property.Constraints = tc.c })), defaultCode)
+			got := found(t, shapesDoc(property("property/a/x", tc.typ, func(property *ir.Property) { property.Default = tc.def; property.Constraints = tc.c })), defaultCode)
 			assert.Len(t, got, tc.want, "%v", got)
 		})
 	}
@@ -184,11 +184,11 @@ func TestValidate_ADefaultIsHeldToTheMembersOfAnEnumAsTheyAreWritten(t *testing.
 		"the same bytes":           {&ir.Value{Kind: ir.ValueBytes, Bytes: []byte("ab")}, 0},
 		"other bytes":              {&ir.Value{Kind: ir.ValueBytes, Bytes: []byte("ac")}, 1},
 		"any list":                 {&ir.Value{Kind: ir.ValueList, List: []ir.Value{*text("x")}}, 0},
-		"a number beside one that does not parse": {num("1"), 0},
+		"a number beside one that does not parse": {number("1"), 0},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := found(t, shapesDoc(prop("property/a/x", enum, defaulted(tc.def))), defaultCode)
+			got := found(t, shapesDoc(property("property/a/x", enum, defaulted(tc.def))), defaultCode)
 			assert.Len(t, got, tc.want, "%v", got)
 		})
 	}
@@ -204,13 +204,13 @@ func TestValidate_ATypeOnlyATypeCycleNeedsHasNoFiniteValueOfItsOwn(t *testing.T)
 	doc := noFiniteValueDoc(
 		composed("type/n", nil, needs("property/n/0", ref("type/n"))),
 		composed("type/m", nil, needs("property/m/0", ref("type/n"))),
-		composed("type/h", nil, needs("property/h/0", ref("type/m")), needs("property/h/1", strT)),
+		composed("type/h", nil, needs("property/h/0", ref("type/m")), needs("property/h/1", stringT)),
 	)
 
 	assert.Equal(t, []finding{{"type/n", "no finite value: each needs its required property 0, type/n, which has none either"}},
 		found(t, doc, finiteCode))
 
-	bare := shapesDoc(prop("property/a/x", ir.TypeRef{Target: "type/bare"}, bounded(lengths(2, 1))))
+	bare := shapesDoc(property("property/a/x", ir.TypeRef{Target: "type/bare"}, bounded(lengths(2, 1))))
 	bare.Types["type/bare"] = &ir.Scalar{ID: "type/bare"}
 	assert.Empty(t, found(t, bare, boundsCode))
 }

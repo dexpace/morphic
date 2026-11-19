@@ -126,7 +126,7 @@ func TestOperationGroup_JSONContract(t *testing.T) {
 			{ID: "operation-group/tags/pets/sub2", Name: ir.Naming{Source: "sub2"}},
 		},
 		Operations: []ir.Operation{
-			{ID: "operation/list", Name: ir.Naming{Source: "list"}, Bindings: ir.OpBindings{}, Auth: []ir.AuthRequirement{}},
+			{ID: "operation/list", Name: ir.Naming{Source: "list"}, Bindings: ir.OperationBindings{}, Auth: []ir.AuthRequirement{}},
 		},
 		Resource: &ir.ResourceInfo{
 			Identifiers: []ir.Property{populatedProperty()},
@@ -147,12 +147,12 @@ func TestOperationGroup_JSONContract(t *testing.T) {
 func TestResourceInfo_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.ResourceInfo{}, `{"noReplace":false}`, ir.ResourceInfo{
-		Identifiers:   []ir.Property{{ID: "property/id"}},
-		Properties:    []ir.Property{{ID: "property/name"}, {ID: "property/age"}},
-		Lifecycle:     map[string]ir.OperationID{"create": "operation/create", "read": "operation/read", "delete": "operation/delete"},
-		NoReplace:     true,
-		InstanceOps:   []ir.OperationID{"operation/get", "operation/update"},
-		CollectionOps: []ir.OperationID{"operation/list", "operation/create"},
+		Identifiers:          []ir.Property{{ID: "property/id"}},
+		Properties:           []ir.Property{{ID: "property/name"}, {ID: "property/age"}},
+		Lifecycle:            map[string]ir.OperationID{"create": "operation/create", "read": "operation/read", "delete": "operation/delete"},
+		NoReplace:            true,
+		InstanceOperations:   []ir.OperationID{"operation/get", "operation/update"},
+		CollectionOperations: []ir.OperationID{"operation/list", "operation/create"},
 	})
 }
 

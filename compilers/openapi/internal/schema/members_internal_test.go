@@ -138,12 +138,12 @@ func TestMembers_ReadsPastTheBudgetFoldTheirOwnDeclarationsAlone(t *testing.T) {
 // naming no model, an alias with no base among them, or a chain no model ends.
 func TestMembers_ReadsAPartThroughItsAliasesAndNothingElse(t *testing.T) {
 	t.Parallel()
-	prop := func(wire string) ir.Property {
+	property := func(wire string) ir.Property {
 		return ir.Property{ID: ir.PropertyID("property/" + wire), WireName: wire, Type: ir.TypeRef{Target: "type/primitive/string"}}
 	}
 	reg := ir.TypeRegistry{
-		"type/M":     &ir.Model{ID: "type/M", Properties: []ir.Property{prop("p"), prop("q")}},
-		"type/N":     &ir.Model{ID: "type/N", Properties: []ir.Property{prop("p")}},
+		"type/M":     &ir.Model{ID: "type/M", Properties: []ir.Property{property("p"), property("q")}},
+		"type/N":     &ir.Model{ID: "type/N", Properties: []ir.Property{property("p")}},
 		"type/alias": &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/M"}},
 		"type/loop":  &ir.Scalar{ID: "type/loop", Base: &ir.TypeRef{Target: "type/loop"}},
 		"type/bare":  &ir.Scalar{ID: "type/bare"},
@@ -172,15 +172,15 @@ func TestMembers_ReadsAPartThroughItsAliasesAndNothingElse(t *testing.T) {
 // and the table's one entry.
 func TestMembers_ReadingAModelNotSettledChargesItsComposition(t *testing.T) {
 	t.Parallel()
-	prop := func(id string) ir.Property {
+	property := func(id string) ir.Property {
 		return ir.Property{ID: ir.PropertyID(id), WireName: "p", Type: ir.TypeRef{Target: "type/primitive/string"}}
 	}
 	reg := ir.TypeRegistry{
 		"type/N": &ir.Model{ID: "type/N", Base: &ir.TypeRef{Target: "type/alias"}, Mixins: []ir.TypeRef{{Target: "type/M2"}},
-			Properties: []ir.Property{prop("property/N")}},
+			Properties: []ir.Property{property("property/N")}},
 		"type/alias": &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/M"}},
-		"type/M":     &ir.Model{ID: "type/M", Properties: []ir.Property{prop("property/M")}},
-		"type/M2":    &ir.Model{ID: "type/M2", Properties: []ir.Property{prop("property/M2")}},
+		"type/M":     &ir.Model{ID: "type/M", Properties: []ir.Property{property("property/M")}},
+		"type/M2":    &ir.Model{ID: "type/M2", Properties: []ir.Property{property("property/M2")}},
 	}
 	rec := &members{byID: map[ir.TypeID]modelFields{"type/N": {}}, settled: map[ir.TypeID]bool{},
 		tables: map[ir.TypeID]merge.RedeclaredWireNameTable{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}

@@ -22,7 +22,7 @@ type registryCase struct {
 // registryCases are the families that range the type registry through
 // liveTypeIDs, each with the type that draws one finding.
 func registryCases() []registryCase {
-	str := ir.TypeRef{Target: "type/primitive/string"}
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
 	return []registryCase{
 		{
 			name: "checkDiscriminators", code: "pass/discriminator-missing-variant",
@@ -56,8 +56,8 @@ func registryCases() []registryCase {
 			name: "checkDuplicateWireNames", code: "pass/duplicate-wire-name",
 			typeOf: func(id ir.TypeID) ir.TypeDef {
 				return &ir.Model{ID: id, Properties: []ir.Property{
-					{ID: ir.PropertyID("property/" + id + "/a"), WireName: "a", Type: str},
-					{ID: ir.PropertyID("property/" + id + "/b"), WireName: "a", Type: str},
+					{ID: ir.PropertyID("property/" + id + "/a"), WireName: "a", Type: stringType},
+					{ID: ir.PropertyID("property/" + id + "/b"), WireName: "a", Type: stringType},
 				}}
 			},
 			at: func(id ir.TypeID) string { return string(id) },
@@ -66,8 +66,8 @@ func registryCases() []registryCase {
 			name: "checkAmbiguousAliases", code: "pass/ambiguous-alias",
 			typeOf: func(id ir.TypeID) ir.TypeDef {
 				return &ir.Model{ID: id, Properties: []ir.Property{
-					{ID: ir.PropertyID("property/" + id + "/a"), WireName: "a", Type: str, Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{"b"}}},
-					{ID: ir.PropertyID("property/" + id + "/b"), WireName: "b", Type: str, Name: ir.Naming{Source: "b", Canonical: "b"}},
+					{ID: ir.PropertyID("property/" + id + "/a"), WireName: "a", Type: stringType, Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{"b"}}},
+					{ID: ir.PropertyID("property/" + id + "/b"), WireName: "b", Type: stringType, Name: ir.Naming{Source: "b", Canonical: "b"}},
 				}}
 			},
 			at: func(id ir.TypeID) string { return string(id) + "/properties/0" },

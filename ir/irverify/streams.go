@@ -44,8 +44,8 @@ func checkContentStreams(*ir.Document) walkCheck {
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			switch v.Type() {
 			case operationType:
-				if op, ok := reflect.TypeAssert[ir.Operation](v); ok {
-					vs = appendUnsummarizedStreams(vs, &op, at)
+				if operation, ok := reflect.TypeAssert[ir.Operation](v); ok {
+					vs = appendUnsummarizedStreams(vs, &operation, at)
 				}
 				return true
 			case contentType:
@@ -65,18 +65,18 @@ func checkContentStreams(*ir.Document) walkCheck {
 	}
 }
 
-// appendUnsummarizedStreams reports each content of op, the operation at at,
+// appendUnsummarizedStreams reports each content of operation, the operation at at,
 // that streams in its request or a success response while that side carries
 // no StreamDetail.
-func appendUnsummarizedStreams(vs []Violation, op *ir.Operation, at ir.WalkPath) []Violation {
-	if op.RequestStream == nil && op.Request != nil {
-		vs = appendUnsummarized(vs, op.Request.Contents, at, ".Request", "request")
+func appendUnsummarizedStreams(vs []Violation, operation *ir.Operation, at ir.WalkPath) []Violation {
+	if operation.RequestStream == nil && operation.Request != nil {
+		vs = appendUnsummarized(vs, operation.Request.Contents, at, ".Request", "request")
 	}
-	if op.ResponseStream != nil {
+	if operation.ResponseStream != nil {
 		return vs
 	}
-	for i := range op.Responses {
-		if payload := op.Responses[i].Payload; payload != nil {
+	for i := range operation.Responses {
+		if payload := operation.Responses[i].Payload; payload != nil {
 			vs = appendUnsummarized(vs, payload.Contents, at, ".Responses["+strconv.Itoa(i)+"].Payload", "response")
 		}
 	}

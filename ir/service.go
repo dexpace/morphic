@@ -103,10 +103,10 @@ type ResourceInfo struct {
 	Lifecycle map[string]OperationID `json:"lifecycle,omitempty"`
 	// NoReplace reports that put may create but not replace (Smithy @noReplace).
 	NoReplace bool `json:"noReplace"`
-	// InstanceOps are declared non-lifecycle instance operations (require
+	// InstanceOperations are declared non-lifecycle instance operations (require
 	// identifiers); no entry is empty.
-	InstanceOps []OperationID `json:"instanceOps,omitempty"`
-	// CollectionOps are declared collection operations; the split drives
+	InstanceOperations []OperationID `json:"instanceOperations,omitempty"`
+	// CollectionOperations are declared collection operations; the split drives
 	// sub-client shape and is a declared fact, not a heuristic. No entry is empty.
-	CollectionOps []OperationID `json:"collectionOps,omitempty"`
+	CollectionOperations []OperationID `json:"collectionOperations,omitempty"`
 }

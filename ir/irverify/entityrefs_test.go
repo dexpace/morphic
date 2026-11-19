@@ -42,8 +42,8 @@ func TestVerify_AnEntityRefNamesOneEntity(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "operation/x/S/op", Deprecation: &ir.Deprecation{ReplacedBy: tc.refs}}
-			assert.Equal(t, tc.want, entityRefFindings(opDoc(op)))
+			operation := ir.Operation{ID: "operation/x/S/op", Deprecation: &ir.Deprecation{ReplacedBy: tc.refs}}
+			assert.Equal(t, tc.want, entityRefFindings(singleOperationDocument(operation)))
 		})
 	}
 }
@@ -53,9 +53,9 @@ func TestVerify_AnEntityRefNamesOneEntity(t *testing.T) {
 // declares is dangling, at its field.
 func TestVerify_AReplacementIsAReference(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{ID: "operation/x/S/op", Deprecation: &ir.Deprecation{ReplacedBy: []ir.EntityRef{{Operation: "operation/x/S/ghost"}}}}
+	operation := ir.Operation{ID: "operation/x/S/op", Deprecation: &ir.Deprecation{ReplacedBy: []ir.EntityRef{{Operation: "operation/x/S/ghost"}}}}
 	assert.Equal(t, []string{"document.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy[0].Operation"},
-		violationPaths(irverify.Verify(opDoc(op)), "ir/dangling-operation-ref"))
+		violationPaths(irverify.Verify(singleOperationDocument(operation)), "ir/dangling-operation-ref"))
 }
 
 // TestVerify_NothingReplacesItself holds every carrier of a Deprecation to
@@ -65,7 +65,7 @@ func TestVerify_AReplacementIsAReference(t *testing.T) {
 func TestVerify_NothingReplacesItself(t *testing.T) {
 	t.Parallel()
 	self := func(ref ir.EntityRef) *ir.Deprecation { return &ir.Deprecation{ReplacedBy: []ir.EntityRef{ref}} }
-	op := ir.Operation{
+	operation := ir.Operation{
 		ID: "operation/x/S/op", Deprecation: self(ir.EntityRef{Operation: "operation/x/S/op"}),
 		Params: []ir.Parameter{
 			{ID: "parameter/x/a", Name: named("a"), Deprecation: self(ir.EntityRef{Param: "parameter/x/a"})},
@@ -73,7 +73,7 @@ func TestVerify_NothingReplacesItself(t *testing.T) {
 			{ID: "parameter/x/c", Name: named("c"), Deprecation: self(ir.EntityRef{Property: "parameter/x/c"})},
 		},
 	}
-	doc := opDoc(op)
+	doc := singleOperationDocument(operation)
 	doc.Types = ir.TypeRegistry{
 		"type/x/M": &ir.Model{ID: "type/x/M", Name: named("m"), Deprecation: self(ir.EntityRef{Type: "type/x/M"}),
 			Properties: []ir.Property{{ID: "property/x/M/a", Name: named("a"), Deprecation: self(ir.EntityRef{Property: "property/x/M/a"})}}},

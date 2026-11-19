@@ -190,8 +190,8 @@ func (d DocumentIDNamespace) NamedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(OpenAPISpace), string(pointer))
 }
 
-// AnonType returns the stable ID of a hoisted inline type at pointer in d.
-func (d DocumentIDNamespace) AnonType(pointer jsontext.Pointer) ir.TypeID {
+// AnonymousType returns the stable ID of a hoisted inline type at pointer in d.
+func (d DocumentIDNamespace) AnonymousType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(AnonymousSpace), string(pointer))
 }
 
@@ -204,20 +204,20 @@ func (d DocumentIDNamespace) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(ComposedSpace), string(pointer))
 }
 
-// ComposedProp returns the stable ID of a field the declaration at pointer in d
+// ComposedProperty returns the stable ID of a field the declaration at pointer in d
 // names, where another model carries the field's first declaration, so that no
 // declaration's own ID is taken.
-func (d DocumentIDNamespace) ComposedProp(pointer jsontext.Pointer) ir.PropertyID {
+func (d DocumentIDNamespace) ComposedProperty(pointer jsontext.Pointer) ir.PropertyID {
 	return compile.PropertyID(d.space(ComposedSpace), string(pointer))
 }
 
-// Op returns the stable ID of the operation at pointer.
-func Op(pointer jsontext.Pointer) ir.OperationID {
+// Operation returns the stable ID of the operation at pointer.
+func Operation(pointer jsontext.Pointer) ir.OperationID {
 	return compile.OperationID(OpenAPISpace, string(pointer))
 }
 
-// Prop returns the stable ID of the property at pointer in d.
-func (d DocumentIDNamespace) Prop(pointer jsontext.Pointer) ir.PropertyID {
+// Property returns the stable ID of the property at pointer in d.
+func (d DocumentIDNamespace) Property(pointer jsontext.Pointer) ir.PropertyID {
 	return compile.PropertyID(d.space(OpenAPISpace), string(pointer))
 }
 
@@ -388,7 +388,7 @@ func (d DocumentIDNamespace) ForPointer(pointer jsontext.Pointer) ir.TypeID {
 	if schemaSpace(pointer) == OpenAPISpace {
 		return d.NamedType(pointer)
 	}
-	return d.AnonType(pointer)
+	return d.AnonymousType(pointer)
 }
 
 // schemaSpace returns the namespace of the type a schema at pointer lowers to:

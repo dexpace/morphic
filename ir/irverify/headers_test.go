@@ -19,13 +19,13 @@ var prefixHeaderCodes = []string{"ir/prefix-header-not-map", "ir/prefix-header-w
 // map, an anonymous model decorating it, a model, two anonymous models
 // decorating each other, and a nil entry.
 func prefixHeaderTypes() ir.TypeRegistry {
-	str := ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}
+	stringType := ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}
 	decorates := func(id, base ir.TypeID) *ir.Model {
 		return &ir.Model{ID: id, Anonymous: true, Base: &ir.TypeRef{Target: base}}
 	}
 	types := ir.TypeRegistry{"type/x/Nil": (*ir.Model)(nil)}
 	for _, td := range []ir.TypeDef{
-		&ir.MapT{ID: "type/x/Meta", Name: named("meta"), Value: str},
+		&ir.MapT{ID: "type/x/Meta", Name: named("meta"), Value: stringType},
 		decorates("type/x/Meta/decorated", "type/x/Meta"),
 		&ir.Model{ID: "type/x/Name", Name: named("name")},
 		decorates("type/x/loop/a", "type/x/loop/b"),
@@ -39,7 +39,7 @@ func prefixHeaderTypes() ir.TypeRegistry {
 // prefixHeaderViolations returns the paths checkPrefixHeaders reports for a
 // response declaring header, each prefixed by its code.
 func prefixHeaderViolations(header ir.Header) []string {
-	doc := opDoc(ir.Operation{ID: "operation/x/S/op", Responses: []ir.Response{{Headers: []ir.Header{header}}}})
+	doc := singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Responses: []ir.Response{{Headers: []ir.Header{header}}}})
 	doc.Types = prefixHeaderTypes()
 	var got []string
 	for _, violation := range irverify.Verify(doc) {
@@ -109,7 +109,7 @@ func TestVerify_AHeaderUnderAPrefixIsCheckedWhereverAHeaderIs(t *testing.T) {
 			}},
 		}}}
 	}
-	doc := opDoc(ir.Operation{
+	doc := singleOperationDocument(ir.Operation{
 		ID: "operation/x/S/op", Request: parts(),
 		Responses: []ir.Response{{Headers: bad(), Payload: parts()}},
 		Default:   &ir.Response{Headers: bad(), Payload: parts()},
@@ -119,12 +119,12 @@ func TestVerify_AHeaderUnderAPrefixIsCheckedWhereverAHeaderIs(t *testing.T) {
 	doc.Messages = map[ir.MessageID]ir.Message{"m/x": {ID: "m/x", Name: named("m"), Payload: *parts()}}
 	doc.Types = prefixHeaderTypes()
 
-	const op = "document.Services[0].Groups[0].Operations[0]"
+	const operationPath = "document.Services[0].Groups[0].Operations[0]"
 	payloads := []string{
-		op + ".Request", op + ".Responses[0].Payload", op + ".Default.Payload", op + ".Errors[0].Payload",
+		operationPath + ".Request", operationPath + ".Responses[0].Payload", operationPath + ".Default.Payload", operationPath + ".Errors[0].Payload",
 		"document.Services[0].CommonErrors[0].Payload", "document.Messages[m/x].Payload",
 	}
-	holders := []string{op + ".Responses[0]", op + ".Default", op + ".Errors[0]", "document.Services[0].CommonErrors[0]"}
+	holders := []string{operationPath + ".Responses[0]", operationPath + ".Default", operationPath + ".Errors[0]", "document.Services[0].CommonErrors[0]"}
 	want := make([]string, 0, 4*len(payloads)+len(holders))
 	for _, payload := range payloads {
 		want = append(want, payload+".Contents[0].ItemEncoding.Headers[0].Type",

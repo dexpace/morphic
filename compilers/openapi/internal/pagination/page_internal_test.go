@@ -57,7 +57,7 @@ func TestPageContents_ListsWhatCanBeAPage(t *testing.T) {
 		}
 		return ct
 	}
-	op := &ir.Operation{Responses: []ir.Response{
+	operation := &ir.Operation{Responses: []ir.Response{
 		{},
 		{Payload: &ir.Payload{Contents: []ir.Content{content("text/event-stream", true)}}},
 		{Payload: &ir.Payload{Contents: []ir.Content{content("application/json", false), content("text/event-stream", true),
@@ -65,13 +65,13 @@ func TestPageContents_ListsWhatCanBeAPage(t *testing.T) {
 		{Payload: &ir.Payload{Contents: []ir.Content{content("application/yaml", false)}}},
 	}}
 	var all []string
-	for ct := range pageContents(op) {
+	for ct := range pageContents(operation) {
 		all = append(all, ct.MediaType)
 	}
 	assert.Equal(t, []string{"application/json", "application/xml", "application/yaml"}, all)
 
 	var first []string
-	for ct := range pageContents(op) {
+	for ct := range pageContents(operation) {
 		first = append(first, ct.MediaType)
 		break
 	}

@@ -110,7 +110,7 @@ type operationLoweringState struct {
 	links   *Links
 }
 
-// opPointers pairs the two pointers every operation lowering needs. mount is
+// operationPointers pairs the two pointers every operation lowering needs. mount is
 // where the operation is mounted and fixes its identity — OperationID, its
 // parameters' IDs, and the root its callback operations hang from. decl is
 // where its body is declared, which its provenance names: the same node for an
@@ -118,17 +118,17 @@ type operationLoweringState struct {
 // through a $ref'd path item or callback (issue #107). Passing them as one
 // value is what keeps two same-typed pointer arguments from being transposed at
 // a call site.
-type opPointers struct {
+type operationPointers struct {
 	mount jsontext.Pointer
 	decl  jsontext.Pointer
 }
 
-// opContext carries the per-operation lowering inputs that do not come from the
+// operationContext carries the per-operation lowering inputs that do not come from the
 // source Operation itself: its own two pointers, its HTTP binding shape,
 // grouping provenance, and the path-item-merged parameter list — each entry
 // still carrying the pointer of its own declaration site rather than a position
 // in the merged list.
-type opContext struct {
+type operationContext struct {
 	// method is the method as sent on the wire — a fixed field's name upper-cased,
 	// or an additionalOperations key exactly as the source spelled it — so nothing
 	// downstream has to know which of the two declared the operation.
@@ -152,13 +152,13 @@ type opContext struct {
 	groups   *serviceGroups
 	inferred ir.Inferred
 	params   []sourcedParam
-	ptrs     opPointers
+	ptrs     operationPointers
 }
 
 // keyFields returns the binding's route: a webhook's key names an event, so it
 // is the WebhookName and the binding has no template; any other route's
 // template is the URITemplate.
-func (o opContext) keyFields() (uriTemplate, webhookName string) {
+func (o operationContext) keyFields() (uriTemplate, webhookName string) {
 	if o.inbound == ir.HTTPInboundWebhook {
 		return "", o.key
 	}
@@ -169,67 +169,67 @@ func (o opContext) keyFields() (uriTemplate, webhookName string) {
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (docs/ir/operations.md,
 // docs/ir/http-binding.md).
-func lowerOperation(serviceContext service.Ctx, loweringState operationLoweringState, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
-	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
+func lowerOperation(serviceContext service.Ctx, loweringState operationLoweringState, src *soa.Operation, operationCtx operationContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+	mount, decl := operationCtx.ptrs.mount, operationCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place. Its
 	// heuristic marker is filled in below, once every lowering that can add one
 	// has run: the grouping choice is known here, but the streaming reading is
 	// not known until the payloads are lowered.
-	opProv := serviceContext.Place().At(decl)
-	opAuth, diags := loweringState.schemes.Requirements(serviceContext, src.Security, decl)
+	operationProv := serviceContext.Place().At(decl)
+	operationAuth, diags := loweringState.schemes.Requirements(serviceContext, src.Security, decl)
 	tags, tagDiags := operationTags(serviceContext, src.GetTags(), decl)
 	diags = append(diags, tagDiags...)
-	op := ir.Operation{
-		ID:   ids.Op(mount),
-		Name: operationName(src, opCtx.method, opCtx.key),
+	operation := ir.Operation{
+		ID:   ids.Operation(mount),
+		Name: operationName(src, operationCtx.method, operationCtx.key),
 		Tags: tags,
-		Auth: opAuth,
+		Auth: operationAuth,
 		// The ID is the mount — two mounts of one $ref'd path item are two
 		// operations — but provenance is where the operation is written, which
 		// for those two is one component. A mount pointer under a $ref'd path
 		// item addresses no node at all, and docs/ir/provenance.md defines
 		// Pointer as a pointer into the source, so it has to name the
 		// declaration.
-		Provenance: opProv,
+		Provenance: operationProv,
 	}
-	fillOperationDocs(&op.Docs, src)
+	fillOperationDocs(&operation.Docs, src)
 	if src.GetDeprecated() {
-		op.Deprecation = &ir.Deprecation{}
+		operation.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings, paramDiags := lowerParameters(serviceContext, loweringState, mount, opCtx.params)
+	params, bindings, paramDiags := lowerParameters(serviceContext, loweringState, mount, operationCtx.params)
 	diags = append(diags, paramDiags...)
-	op.Params = params
-	diags = append(diags, lowerResponses(serviceContext, loweringState, &op, src, decl)...)
-	if opCtx.method == "" {
+	operation.Params = params
+	diags = append(diags, lowerResponses(serviceContext, loweringState, &operation, src, decl)...)
+	if operationCtx.method == "" {
 		diags = append(diags, serviceContext.DiagAt(ir.SeverityWarning, diag.InvalidMethodKey, decl,
 			"additionalOperations key names no method; the operation lowers with an empty "+
 				"HTTP method, which no request can be sent with"))
 	}
-	uriTemplate, webhookName := opCtx.keyFields()
+	uriTemplate, webhookName := operationCtx.keyFields()
 	hb := ir.HTTPBinding{
-		Method:        opCtx.method,
+		Method:        operationCtx.method,
 		URITemplate:   uriTemplate,
 		WebhookName:   webhookName,
-		Inbound:       opCtx.inbound,
+		Inbound:       operationCtx.inbound,
 		ParamBindings: bindings,
 	}
-	diags = append(diags, lowerRequestBody(serviceContext, loweringState, &op, &hb, src, decl)...)
+	diags = append(diags, lowerRequestBody(serviceContext, loweringState, &operation, &hb, src, decl)...)
 	// After both payload lowerings, which are what it reads.
-	streaming := applyStreaming(serviceContext, loweringState.types, &op, decl)
-	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, opCtx.inferred, streaming)
-	callbacks, extra, cbExt, cbDiags := operationCallbacks(serviceContext, loweringState, src, opCtx)
+	streaming := applyStreaming(serviceContext, loweringState.types, &operation, decl)
+	operation.Provenance.Inferred = ir.JoinInferred(operation.Provenance.Inferred, operationCtx.inferred, streaming)
+	callbacks, extra, cbExt, cbDiags := operationCallbacks(serviceContext, loweringState, src, operationCtx)
 	hb.Callbacks = callbacks
 	hb.Unmodeled = annotation.MergeUnmodeled(hb.Unmodeled, cbExt)
 	diags = append(diags, cbDiags...)
-	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
-	diags = append(diags, applyOperationAnnotations(serviceContext, &op, src, decl)...)
+	operation.Bindings = ir.OperationBindings{HTTP: []ir.HTTPBinding{hb}}
+	diags = append(diags, applyOperationAnnotations(serviceContext, &operation, src, decl)...)
 	// mountPathItem names the path item's servers only where these name none,
 	// since an operation's own override them.
 	own, serverDiags := loweringState.servers.Declared(serviceContext, src.GetServers(), decl)
-	op.Servers = own
+	operation.Servers = own
 	diags = append(diags, serverDiags...)
-	loweringState.claims.add(src, opCtx.ptrs)
-	return op, extra, diags
+	loweringState.claims.add(src, operationCtx.ptrs)
+	return operation, extra, diags
 }
 
 // operationTags returns the tags written, the list an operation declared at decl
@@ -254,7 +254,7 @@ func operationTags(serviceContext service.Ctx, written []string, decl jsontext.P
 // The Responses Object contributes extensions but no census: its keys are the
 // status codes the document chooses, so an undeclared key there reads as one
 // more response.
-func applyOperationAnnotations(serviceContext service.Ctx, op *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
+func applyOperationAnnotations(serviceContext service.Ctx, operation *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
 	docsPtr := decl + ids.Ptr("externalDocs")
 	ext, diags := annotation.ExtensionsAt(serviceContext.Place(),
 		annotation.ExtensionSite{Owner: decl, Ext: src.GetExtensions()},
@@ -263,9 +263,9 @@ func applyOperationAnnotations(serviceContext service.Ctx, op *ir.Operation, src
 		annotation.ExtensionSite{Scope: "responses", Owner: decl + ids.Ptr("responses"),
 			Ext: src.GetResponses().GetExtensions()},
 	)
-	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
-	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, serviceContext.Place(), decl)...)
-	return append(diags, annotation.UnknownKeysUnder(&op.Unmodeled,
+	operation.Unmodeled = annotation.MergeUnmodeled(operation.Unmodeled, ext)
+	diags = append(diags, annotation.UnknownKeysIn(&operation.Unmodeled, src, serviceContext.Place(), decl)...)
+	return append(diags, annotation.UnknownKeysUnder(&operation.Unmodeled,
 		src.GetExternalDocs(), serviceContext.Place(), docsPtr, "externalDocs")...)
 }
 
@@ -289,18 +289,18 @@ func fillOperationDocs(docs *ir.Docs, src *soa.Operation) {
 	}
 }
 
-// promoteOperation fills what op's keys state of its deprecation and its tier,
+// promoteOperation fills what operation's keys state of its deprecation and its tier,
 // once its path item's are on it beside its own, since that is what it reads:
-// a deprecation where op or its path item states one, and the tier op states,
+// a deprecation where operation or its path item states one, and the tier operation states,
 // else its path item's (docs/compilers/openapi.md#extension-promotion).
-func promoteOperation(promoter promotion.Promoter, op *ir.Operation) []ir.Diagnostic {
-	own := promotion.Carried(promoter, op.Unmodeled, pathItemScope)
-	diags := promoter.Deprecation(own, promoter.WithOwnCarriedState(promotion.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
-		&op.Provenance)
-	diags = append(diags, promotion.Stability(promoter, own, &op.Stability, &op.Provenance)...)
+func promoteOperation(promoter promotion.Promoter, operation *ir.Operation) []ir.Diagnostic {
+	own := promotion.Carried(promoter, operation.Unmodeled, pathItemScope)
+	diags := promoter.Deprecation(own, promoter.WithOwnCarriedState(promotion.Referent{}, operation.Unmodeled, pathItemScope), &operation.Deprecation,
+		&operation.Provenance)
+	diags = append(diags, promotion.Stability(promoter, own, &operation.Stability, &operation.Provenance)...)
 	// What the path item states behind the operation's own key is read for its
 	// misfits alone, reported once at the path item's key.
-	for _, layer := range promotion.Shadowed(promoter, op.Unmodeled, pathItemScope) {
+	for _, layer := range promotion.Shadowed(promoter, operation.Unmodeled, pathItemScope) {
 		var dep *ir.Deprecation
 		var tier ir.Stability
 		var prov ir.Provenance

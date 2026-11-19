@@ -23,9 +23,9 @@ import (
 const ownershipHead = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"
 
 // okResponse is a GET operation answering 200 with content holding schema.
-func okResponse(path, opID, schema string) string {
+func okResponse(path, operationID, schema string) string {
 	return fmt.Sprintf("  %s:\n    get:\n      operationId: %s\n      responses:\n        '200':\n"+
-		"          description: ok\n          content: {application/json: {schema: %s}}\n", path, opID, schema)
+		"          description: ok\n          content: {application/json: {schema: %s}}\n", path, operationID, schema)
 }
 
 // arraysAround wraps body in n arrays.

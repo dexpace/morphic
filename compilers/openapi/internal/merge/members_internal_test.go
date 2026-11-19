@@ -27,8 +27,8 @@ func declared(wire string, target ir.TypeID, pointer string) ir.Property {
 // membersRegistry holds A and B declaring p apart, Sub composing A with a p of
 // its own, and C and D declaring z and y apart.
 func membersRegistry() ir.TypeRegistry {
-	model := func(id ir.TypeID, base *ir.TypeRef, props ...ir.Property) *ir.Model {
-		return &ir.Model{ID: id, Base: base, Properties: props}
+	model := func(id ir.TypeID, base *ir.TypeRef, properties ...ir.Property) *ir.Model {
+		return &ir.Model{ID: id, Base: base, Properties: properties}
 	}
 	return ir.TypeRegistry{
 		"type/primitive/string":  &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString},
@@ -94,14 +94,14 @@ func own(wire string, target ir.TypeID, n string) func(idx *ModelPropertyDeclara
 	}
 }
 
-// TestPropIndex_SettlesAMemberItsEntriesDeclareApart pins a member two entries
+// TestPropertyIndex_SettlesAMemberItsEntriesDeclareApart pins a member two entries
 // declare apart, in either entry order: the model declares the later's at
 // <model>/allOf/properties/<name> in the composed namespace, reports where the
 // one that lost is written, naming the property, and keeps nothing, the loser
 // staying declared on its model.
-func TestPropIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
+func TestPropertyIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 	t.Parallel()
-	id := ids.DocumentIDNamespace{}.ComposedProp("/M/allOf/properties/p")
+	id := ids.DocumentIDNamespace{}.ComposedProperty("/M/allOf/properties/p")
 	for _, tc := range []struct {
 		first, second ir.TypeID
 		want          ir.TypeID
@@ -124,11 +124,11 @@ func TestPropIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 	}
 }
 
-// TestPropIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper pins where a
+// TestPropertyIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper pins where a
 // model the merge composed declares a member its entries declare apart: an
 // allOf deeper than a model a schema names, since the schema written at its
 // pointer may settle a member of that name too.
-func TestPropIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper(t *testing.T) {
+func TestPropertyIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
 	id := ids.DocumentIDNamespace{}.ComposedType("/M")
@@ -142,15 +142,15 @@ func TestPropIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper(t *testing.T) {
 	settleFlat(stubbed, idx, reg)
 
 	require.Len(t, model.Properties, 1)
-	assert.Equal(t, ids.DocumentIDNamespace{}.ComposedProp("/M/allOf/allOf/properties/p"), model.Properties[0].ID)
+	assert.Equal(t, ids.DocumentIDNamespace{}.ComposedProperty("/M/allOf/allOf/properties/p"), model.Properties[0].ID)
 }
 
-// TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt pins a model's own
+// TestPropertyIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt pins a model's own
 // declaration beside an entry's, read where the walk met each: the later wins
 // a tie, and the result replaces the own declaration at the composed identity,
 // which, losing, is kept verbatim; a name the model requires and declares only
 // through an entry is the member's, leaving Requires.
-func TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt(t *testing.T) {
+func TestPropertyIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt(t *testing.T) {
 	t.Parallel()
 	model, diags := settled(t, membersRegistry(), own("p", "type/primitive/string", "0"), composes("type/B", "1"))
 	require.Len(t, model.Properties, 1)
@@ -168,14 +168,14 @@ func TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt(t *testing.T) {
 	assert.Empty(t, model.Requires)
 }
 
-// TestPropIndex_PlacesADeclarationAtTheEntryBringingIt pins where a brought
+// TestPropertyIndex_PlacesADeclarationAtTheEntryBringingIt pins where a brought
 // declaration is read: at the entry naming its owner or a type composing it,
 // and at the model, read first, where no entry does, a conflict over it sitting
 // where it is written either way; an owner
 // another entry's composes brings nothing, Sub's p standing within A's, but
 // one of two models composing each other does, and a declaration two entries
 // bring is read once.
-func TestPropIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
+func TestPropertyIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
 	reg["type/viaSub"] = &ir.Model{ID: "type/viaSub", Base: &ir.TypeRef{Target: "type/B"}}
@@ -214,21 +214,21 @@ func TestPropIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
 	assert.Len(t, diags, 1)
 }
 
-// TestPropIndex_SettlesTheMembersOnlyEntriesDeclareByWireName pins the order
+// TestPropertyIndex_SettlesTheMembersOnlyEntriesDeclareByWireName pins the order
 // members only entries declare are appended in: by wire name, not as an entry
 // lists them.
-func TestPropIndex_SettlesTheMembersOnlyEntriesDeclareByWireName(t *testing.T) {
+func TestPropertyIndex_SettlesTheMembersOnlyEntriesDeclareByWireName(t *testing.T) {
 	t.Parallel()
 	model, _ := settled(t, membersRegistry(), composes("type/C", "0"), composes("type/D", "1"))
 	require.Len(t, model.Properties, 2)
 	assert.Equal(t, []string{"y", "z"}, []string{model.Properties[0].WireName, model.Properties[1].WireName})
 }
 
-// TestPropIndex_APromotedRedactionBringsItsMarkerInEitherOrder pins an entry
+// TestPropertyIndex_APromotedRedactionBringsItsMarkerInEitherOrder pins an entry
 // whose declaration a promotion made secret beside one declaring nothing: the
 // field is secret and carries the promotion's marker whichever is written
 // later.
-func TestPropIndex_APromotedRedactionBringsItsMarkerInEitherOrder(t *testing.T) {
+func TestPropertyIndex_APromotedRedactionBringsItsMarkerInEitherOrder(t *testing.T) {
 	t.Parallel()
 	const promoted ir.Inferred = "extension-promotion"
 	for _, order := range [][2]ir.TypeID{{"type/A", "type/B"}, {"type/B", "type/A"}} {
@@ -266,11 +266,11 @@ func TestTypeJudge_AUnionsVariantIsJudgedAtTheUnionsSite(t *testing.T) {
 	assert.Equal(t, firstTypeIsNarrower, stubbed.judgeAt(sitesAt("/d1"), sitesAt("/d0")).relateFrom(copied, union, 0))
 }
 
-// TestPropIndex_ComposesModelsAsTheirEntriesBringThem pins a member entries
+// TestPropertyIndex_ComposesModelsAsTheirEntriesBringThem pins a member entries
 // declare as two models: the field composes them in the order the entries are
 // written, recording where each part was brought, so the composed model's own
 // members report at those entries and read the later as the specialization.
-func TestPropIndex_ComposesModelsAsTheirEntriesBringThem(t *testing.T) {
+func TestPropertyIndex_ComposesModelsAsTheirEntriesBringThem(t *testing.T) {
 	t.Parallel()
 	for _, order := range [][2]ir.TypeID{{"type/E", "type/F"}, {"type/F", "type/E"}} {
 		reg := membersRegistry()
@@ -306,7 +306,7 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 		decls = append(decls, nthDecl(0, "type/primitive/string"))
 	}
 	past := declared("data", "type/primitive/string", "/B/data")
-	decls = append(decls, declaration{prop: past, via: &composedEntry{target: "type/B", at: "/M/allOf/9"}})
+	decls = append(decls, declaration{property: past, via: &composedEntry{target: "type/B", at: "/M/allOf/9"}})
 	stubbed, _ := stubMerger(membersRegistry())
 
 	got, diags := stubbed.foldAt(decls, "/M/allOf/properties/data", nil)
@@ -317,17 +317,17 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 	assert.NotContains(t, got.Unmodeled, losingDeclarationKey+"/B/data")
 }
 
-// TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the identity
+// TestPropertyIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the identity
 // of a member the model declares beside an entry's declaration: its own
 // declaration's, where that is written, unless another model holds that
 // declaration too, as a node interned at the allOf branch writing it does, or
 // it is written outside the model's schema, as the body a distributed variant
 // shares is; then one in the composed namespace. The conflict over the entry's
 // declaration sits where that is written either way, naming the member.
-func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
+func TestPropertyIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 	t.Parallel()
 	const composedAt jsontext.Pointer = "/M/allOf/properties/p"
-	composed := ids.DocumentIDNamespace{}.ComposedProp(composedAt)
+	composed := ids.DocumentIDNamespace{}.ComposedProperty(composedAt)
 	for name, tc := range map[string]struct {
 		at, wantAt jsontext.Pointer
 		interned   []jsontext.Pointer
@@ -373,8 +373,8 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 	theirs.Provenance.Source, theirs.Provenance.WrittenBy = 1, 2
 	entry := &composedEntry{target: "type/B", at: "/M/allOf/0", order: 1}
 	decls := []declaration{
-		{prop: theirs, order: 1, via: entry},
-		{prop: declared("p", "type/primitive/string", "/M/allOf/1/properties/p"), source: written(`{}`), order: 2},
+		{property: theirs, order: 1, via: entry},
+		{property: declared("p", "type/primitive/string", "/M/allOf/1/properties/p"), source: written(`{}`), order: 2},
 	}
 
 	_, diags := stubbed.foldAt(decls, "/M/allOf/1/properties/p", nil)
@@ -395,7 +395,7 @@ func TestFold_NamesEachPlaceAgainstTheDocumentTheReportIsIn(t *testing.T) {
 	at := func(target ir.TypeID, pointer string, source int) declaration {
 		property := declared("p", target, pointer)
 		property.Provenance.Source = source
-		return declaration{prop: property, via: &composedEntry{target: "type/E", at: "/M/allOf/0", order: 1}}
+		return declaration{property: property, via: &composedEntry{target: "type/E", at: "/M/allOf/0", order: 1}}
 	}
 	for name, tc := range map[string]struct {
 		sources     []string
@@ -440,7 +440,7 @@ func TestFold_NamesEachPlaceAgainstTheDocumentTheReportIsIn(t *testing.T) {
 		assert.Equal(t, tc.lostIn, diags[0].Provenance.Source, "%s: the report stands in the losing declaration's document", name)
 		require.Len(t, diags[0].Related, 1, name)
 		listed := diags[0].Related[0].Provenance
-		assert.Equal(t, ir.Provenance{Source: tc.keptIn, Pointer: kept.prop.Provenance.Pointer}, listed, name)
+		assert.Equal(t, ir.Provenance{Source: tc.keptIn, Pointer: kept.property.Provenance.Pointer}, listed, name)
 		assert.Equal(t, tc.keptNamesIn, listed.Source != diags[0].Provenance.Source, "%s: the message names a document where the entry lists another", name)
 		assert.Equal(t, tc.keptNamesIn, strings.Contains(diags[0].Message, string(listed.Pointer)+" in "+tc.sources[listed.Source]), name)
 	}
@@ -479,9 +479,9 @@ func TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten(t *testing.T) {
 	for i := range maxTypeSites {
 		partSites = append(partSites, ptrAt(jsontext.Pointer(fmt.Sprintf("/part/deeper/%d", i))))
 	}
-	brought := declaration{prop: declared("p", "type/primitive/string", "/part/allOf/0/p"), via: part, typeAt: partSites}
-	own := declaration{prop: declared("p", "type/primitive/integer", "/M/p")}
-	twin := declaration{prop: declared("p", "type/primitive/string", "/M/q")}
+	brought := declaration{property: declared("p", "type/primitive/string", "/part/allOf/0/p"), via: part, typeAt: partSites}
+	own := declaration{property: declared("p", "type/primitive/integer", "/M/p")}
+	twin := declaration{property: declared("p", "type/primitive/string", "/M/q")}
 	field := func(target ir.TypeID) ir.Property { return declared("p", target, "/M/p") }
 
 	kept := stubbed.typeSites(field("type/primitive/string"), []declaration{own, brought})
@@ -490,7 +490,7 @@ func TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten(t *testing.T) {
 	assert.Nil(t, stubbed.typeSites(field("type/primitive/string"), []declaration{brought, own, twin}), "no declaration writes a primitive")
 	assert.Nil(t, stubbed.typeSites(field("type/unregistered"), []declaration{own}))
 
-	named := func(pointer string) declaration { return declaration{prop: declared("p", "type/enum", pointer)} }
+	named := func(pointer string) declaration { return declaration{property: declared("p", "type/enum", pointer)} }
 	assert.Equal(t, sitesAt("/part/allOf/1/p"),
 		stubbed.typeSites(field("type/enum"), []declaration{named("/M/a"), own, named("/part/allOf/1/p")}), "the one whose place holds the node")
 	assert.Equal(t, sitesAt("/M/a"),
@@ -518,7 +518,7 @@ func TestBuiltSites_ReadsNoMoreNodesThanItsBound(t *testing.T) {
 			id := ir.TypeID(fmt.Sprintf("type/held-%d", i))
 			reg[id] = &ir.Enum{ID: id, Anonymous: true, Provenance: ptrAt(at)}
 			built.ElementTypes = append(built.ElementTypes, ir.TypeRef{Target: id})
-			decls[i] = declaration{prop: declared("p", id, string(at))}
+			decls[i] = declaration{property: declared("p", id, string(at))}
 		}
 		built.ElementTypes = append([]ir.TypeRef{built.ElementTypes[0]}, built.ElementTypes...)
 		reg["type/built"] = built
@@ -558,7 +558,7 @@ func TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes(t *testing.T) {
 		brought("type/part", "/part/allOf/properties/p", sitesAt("/part/allOf/properties/p")),
 		brought("type/part", "/part/allOf/0/p", nil),
 		brought("type/primitive/string", "/part/allOf/properties/p", built),
-		{prop: declared("p", "type/primitive/string", "/M/allOf/properties/p")},
+		{property: declared("p", "type/primitive/string", "/M/allOf/properties/p")},
 	}}
 
 	for i, want := range []string{"/part/allOf/1/p", "/part/allOf/0/p", "/M/allOf/0", "/M/allOf/0", "/part/allOf/1/p",
@@ -783,11 +783,11 @@ func TestOwnership_ChargesWhatItReadsAndLeavesInWhatACutWalkMisses(t *testing.T)
 	assert.True(t, reads.Exhausted(), "the walk charged its reads")
 }
 
-// TestPropIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID pins the
+// TestPropertyIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID pins the
 // locator a discriminator takes once the settlement appends the member it names
 // by name: the member's ID alone, as for a member the model declares, while one
 // naming another member keeps its name.
-func TestPropIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID(t *testing.T) {
+func TestPropertyIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]ir.Discriminator{
 		"kind":  {Property: "property/composed/M/allOf/properties/kind"},
@@ -828,12 +828,12 @@ func TestTakenOutside_LeavesOutTheComposingModelsOwn(t *testing.T) {
 	}
 }
 
-// TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn pins a part on a cycle
+// TestPropertyIndex_ReadsItsOwnDeclarationBackAsItsOwn pins a part on a cycle
 // whose Table holds the model's own declaration: it is the model's, so the
 // model brings nothing from that part, folds nothing, and keeps the member's
 // identity, which a fold would move to the composed namespace, as an interned
 // branch writes the declaration.
-func TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
+func TestPropertyIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
 	model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}

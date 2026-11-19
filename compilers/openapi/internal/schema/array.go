@@ -42,9 +42,9 @@ func lowerArray(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 			diags = append(diags, tupleDiags...)
 			return typeDef, read | keySetOf("prefixItems", "additionalItems")
 		}
-		elem, elemDiags := Ref(loweringContext, ts, depth, loweringContext.Statements().Subschema(itemsSchema(schema)), pointer+ids.Ptr("items"))
-		diags = append(diags, elemDiags...)
-		return &ir.List{TypeCommon: common, ElementType: elem, Constraints: cons}, read
+		element, elementDiags := Ref(loweringContext, ts, depth, loweringContext.Statements().Subschema(itemsSchema(schema)), pointer+ids.Ptr("items"))
+		diags = append(diags, elementDiags...)
+		return &ir.List{TypeCommon: common, ElementType: element, Constraints: cons}, read
 	}, fin)
 	return id, diags
 }
@@ -94,14 +94,14 @@ func buildListedTuple(loweringContext lowering.Ctx, ts *compile.Types, depth int
 ) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	there, site := writtenAt(loweringContext, schema, pointer)
-	elems := make([]ir.TypeRef, 0, n)
+	elements := make([]ir.TypeRef, 0, n)
 	for i := range n {
 		entry := ids.Ptr("items", strconv.Itoa(i))
 		ref, refDiags := Ref(loweringContext, ts, depth, heldAt(there, site+entry), pointer+entry)
 		diags = append(diags, refDiags...)
-		elems = append(elems, ref)
+		elements = append(elements, ref)
 	}
-	tuple := &ir.Tuple{TypeCommon: common, ElementTypes: elems, Constraints: cons}
+	tuple := &ir.Tuple{TypeCommon: common, ElementTypes: elements, Constraints: cons}
 	diags = append(diags, keepPrefixItems(loweringContext, &tuple.Unmodeled, schema, pointer)...)
 	rest := ids.Ptr("additionalItems")
 	if js := heldAt(there, site+rest); !js.Truth.ReadsFalse() {
@@ -188,13 +188,13 @@ func buildTuple(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 	cons *ir.Constraints,
 ) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	elems := make([]ir.TypeRef, 0, len(prefix))
+	elements := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
 		ref, refDiags := Ref(loweringContext, ts, depth, loweringContext.Statements().Subschema(ps), pointer+ids.Ptr("prefixItems", strconv.Itoa(i)))
 		diags = append(diags, refDiags...)
-		elems = append(elems, ref)
+		elements = append(elements, ref)
 	}
-	tuple := &ir.Tuple{TypeCommon: common, ElementTypes: elems, Constraints: cons}
+	tuple := &ir.Tuple{TypeCommon: common, ElementTypes: elements, Constraints: cons}
 	if items := loweringContext.Statements().Subschema(itemsSchema(schema)); !items.Truth.ReadsFalse() {
 		rest, restDiags := Ref(loweringContext, ts, depth, items, pointer+ids.Ptr("items"))
 		diags = append(diags, restDiags...)

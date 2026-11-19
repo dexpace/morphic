@@ -4,14 +4,14 @@ Part of the [IR design](./README.md). An operation's declared outcomes, and how 
 
 ```go
 type Response struct {
-    Name       Naming             // for formats with named outputs; Hint elsewhere
-    Conditions ResponseConditions // HTTP status codes/ranges; empty for RPC single-response
-    Payload    *Payload           // nil = no body
-    Headers    []Header           // response metadata fields
-    Links      []OperationLink    // the requests the response leads to, in source order
-    StatusCodeProp *PropPath      // output member populated from the runtime HTTP status line
-                                  // (Smithy @httpResponseCode, TypeSpec non-literal @statusCode);
-                                  // the member is suppressed from the body
+    Name       Naming                // for formats with named outputs; Hint elsewhere
+    Conditions ResponseConditions    // HTTP status codes/ranges; empty for RPC single-response
+    Payload    *Payload              // nil = no body
+    Headers    []Header              // response metadata fields
+    Links      []OperationLink       // the requests the response leads to, in source order
+    StatusCodeProperty *PropertyPath // output member populated from the runtime HTTP status line
+                                     // (Smithy @httpResponseCode, TypeSpec non-literal @statusCode);
+                                     // the member is suppressed from the body
     Docs       Docs
     Unmodeled  Unmodeled
 }
@@ -66,7 +66,7 @@ type LinkValue struct {          // Kind says which one field is set
     Kind     LinkValueKind        // constant | request | response | url | method | status
     Constant *Value               // constant: the value the link states
     Request  *InputPath           // request: a parameter or the body of the request answered
-    Response *PropPath            // response: a header or the body of this response; Root nil
+    Response *PropertyPath        // response: a header or the body of this response; Root nil
 }
 ```
 
@@ -80,11 +80,11 @@ from that exchange, and an error response can lead somewhere as a success can.
 
 **A value is resolved to what it reads, not kept as an expression.** A value read from the request
 is an `InputPath`, the parameter of the operation answered or the request body and members within
-it, and one read from the response a `PropPath` into its body, or `In: "header"` and the header's
+it, and one read from the response a `PropertyPath` into its body, or `In: "header"` and the header's
 ID. That is the IR's spelling of a value of an exchange wherever one is read, as pagination reads
 its cursor ([interaction patterns](./interaction-patterns.md#pagination)), and it names members by
 ID, so a renamed property renames nothing here (invariant 3). An `InputPath` with neither a
-parameter nor a segment is the request body whole, and a `PropPath` with no segment the response
+parameter nor a segment is the request body whole, and a `PropertyPath` with no segment the response
 body whole. The two alternatives were rejected. Keeping OpenAPI's runtime expression as text would
 have every consumer reimplement that grammar and resolve it against the types, which is a
 compiler's work done once per emitter (invariant 1). A structured expression with a JSON pointer

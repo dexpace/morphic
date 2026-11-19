@@ -18,17 +18,17 @@ type linkSite struct {
 	field string
 }
 
-// appendLinkSites appends to dst every link op's responses carry: its
+// appendLinkSites appends to dst every link operation's responses carry: its
 // responses', its errors' and its default's, in that order.
-func appendLinkSites(dst []linkSite, op *ir.Operation) []linkSite {
-	for i := range op.Responses {
-		dst = appendLinks(dst, op.ID, op.Responses[i].Links, "responses/"+strconv.Itoa(i))
+func appendLinkSites(dst []linkSite, operation *ir.Operation) []linkSite {
+	for i := range operation.Responses {
+		dst = appendLinks(dst, operation.ID, operation.Responses[i].Links, "responses/"+strconv.Itoa(i))
 	}
-	for i := range op.Errors {
-		dst = appendLinks(dst, op.ID, op.Errors[i].Links, "errors/"+strconv.Itoa(i))
+	for i := range operation.Errors {
+		dst = appendLinks(dst, operation.ID, operation.Errors[i].Links, "errors/"+strconv.Itoa(i))
 	}
-	if op.Default != nil {
-		dst = appendLinks(dst, op.ID, op.Default.Links, "default")
+	if operation.Default != nil {
+		dst = appendLinks(dst, operation.ID, operation.Default.Links, "default")
 	}
 	return dst
 }
@@ -42,10 +42,10 @@ func appendLinks(dst []linkSite, from ir.OperationID, links []ir.OperationLink, 
 	return dst
 }
 
-// appendLinkInputRefs appends to dst the parameters op's links read from the
-// request their response answers, which are op's own.
-func appendLinkInputRefs(dst []paramRef, op *ir.Operation) []paramRef {
-	for _, site := range appendLinkSites(nil, op) {
+// appendLinkInputRefs appends to dst the parameters operation's links read from the
+// request their response answers, which are operation's own.
+func appendLinkInputRefs(dst []paramRef, operation *ir.Operation) []paramRef {
+	for _, site := range appendLinkSites(nil, operation) {
 		for k := range site.link.Params {
 			dst = appendLinkInputRef(dst, &site.link.Params[k].Value, site.field+"/params/"+strconv.Itoa(k))
 		}
@@ -73,7 +73,7 @@ func appendLinkInputRef(dst []paramRef, lv *ir.LinkValue, field string) []paramR
 // their parameters read.
 func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	var sites []linkSite
-	ir.ForEachOperation(doc, func(op ir.Operation) { sites = appendLinkSites(sites, &op) })
+	ir.ForEachOperation(doc, func(operation ir.Operation) { sites = appendLinkSites(sites, &operation) })
 	if len(sites) == 0 {
 		return nil
 	}
@@ -81,15 +81,15 @@ func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	for _, site := range sites {
 		targets[site.link.Operation] = nil
 	}
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		if _, named := targets[op.ID]; !named {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		if _, named := targets[operation.ID]; !named {
 			return
 		}
-		own := make(map[ir.ParameterID]bool, len(op.Params))
-		for _, parameter := range op.Params {
+		own := make(map[ir.ParameterID]bool, len(operation.Params))
+		for _, parameter := range operation.Params {
 			own[parameter.ID] = true
 		}
-		targets[op.ID] = own
+		targets[operation.ID] = own
 	})
 	var diags []ir.Diagnostic
 	for _, site := range sites {

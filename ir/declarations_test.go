@@ -223,15 +223,15 @@ func TestIDReader_ReadsEachStructTypeOnce(t *testing.T) {
 
 	reads := 0
 	idReader := ir.CountingIDReader(&reads)
-	var ops []string
+	var operations []string
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
 		if class, id, _ := idReader.DeclaredIDOf(v); class == reflect.TypeFor[ir.OperationID]() {
-			ops = append(ops, id)
+			operations = append(operations, id)
 		}
 		return true
 	}))
 	assert.Equal(t, len(types), reads)
-	assert.Equal(t, []string{"operation/x", "operation/y", "operation/z"}, ops, "a type read once still answers for each value")
+	assert.Equal(t, []string{"operation/x", "operation/y", "operation/z"}, operations, "a type read once still answers for each value")
 }
 
 // TestDeclaredIDField_CostsNoAllocation holds the rule an IDReader remembers to

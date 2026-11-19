@@ -26,9 +26,9 @@ func emptyRefService(service ir.Service) *ir.Document {
 	return &ir.Document{Services: []ir.Service{service}}
 }
 
-// emptyRefOperation wraps op in one service and group.
-func emptyRefOperation(op ir.Operation) *ir.Document {
-	return emptyRefService(ir.Service{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}})
+// emptyRefOperation wraps operation in one service and group.
+func emptyRefOperation(operation ir.Operation) *ir.Document {
+	return emptyRefService(ir.Service{Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}}})
 }
 
 // TestEmptyReferences_ReadsEachShapeAnIDIsHeldIn walks one document per shape

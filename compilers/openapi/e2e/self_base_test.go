@@ -139,10 +139,10 @@ func TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead(t *testin
 		require.NoError(t, err, name)
 		assertNoErrorDiags(t, diags)
 		assert.Equal(t, ids.In("other.yaml").ForPointer("/OS"), useTarget(t, doc, "S"), name)
-		op, ok := opByName(doc, "a")
+		operation, ok := operationByName(doc, "a")
 		require.True(t, ok, name)
-		require.Len(t, op.Responses, 1, name)
-		assert.Equal(t, "r", op.Responses[0].Docs.Description, "%s: the response other.yaml declares", name)
+		require.Len(t, operation.Responses, 1, name)
+		assert.Equal(t, "r", operation.Responses[0].Docs.Description, "%s: the response other.yaml declares", name)
 		irs = append(irs, jsonOf(t, doc))
 	}
 	require.Len(t, irs, 2)
@@ -188,11 +188,11 @@ func TestCompile_ARequirementKeyNamingTheSelfNamesTheSchemeOfTheSource(t *testin
 
 	assert.Empty(t, byCode(diags, diag.UnresolvedSecurityScheme), "%+v", diags)
 	assert.Empty(t, irverify.Verify(doc))
-	op, ok := opByName(doc, "a")
+	operation, ok := operationByName(doc, "a")
 	require.True(t, ok)
-	require.Len(t, op.Auth, 1)
-	require.Len(t, op.Auth[0].Schemes, 1)
-	assert.Equal(t, ir.AuthID("auth/openapi/components/securitySchemes/key"), op.Auth[0].Schemes[0].Scheme)
+	require.Len(t, operation.Auth, 1)
+	require.Len(t, operation.Auth[0].Schemes, 1)
+	assert.Equal(t, ir.AuthID("auth/openapi/components/securitySchemes/key"), operation.Auth[0].Schemes[0].Scheme)
 }
 
 // TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing holds a $self with

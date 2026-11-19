@@ -51,13 +51,13 @@ type encodingCarrier struct {
 func encodingCarriers() []encodingCarrier {
 	return []encodingCarrier{
 		{"Operation.Request", "op/request", true, func(document *ir.Document, payload ir.Payload) {
-			firstOp(document).Request = &payload
+			firstOperation(document).Request = &payload
 		}},
 		{"Response.Payload", "op/responses/0", false, func(document *ir.Document, payload ir.Payload) {
-			firstOp(document).Responses = []ir.Response{{Name: ir.Naming{Source: "ok"}, Payload: &payload}}
+			firstOperation(document).Responses = []ir.Response{{Name: ir.Naming{Source: "ok"}, Payload: &payload}}
 		}},
 		{"ErrorCase.Payload", "op/errors/0", false, func(document *ir.Document, payload ir.Payload) {
-			firstOp(document).Errors = []ir.ErrorCase{{Name: ir.Naming{Source: "bad_request"}, Payload: &payload}}
+			firstOperation(document).Errors = []ir.ErrorCase{{Name: ir.Naming{Source: "bad_request"}, Payload: &payload}}
 		}},
 		{"Message.Payload", "message/a", false, func(document *ir.Document, payload ir.Payload) {
 			putMessage(document, func(message *ir.Message) { message.Payload = payload })
@@ -143,9 +143,9 @@ func TestValidate_EncodingKeyIsPlacedWhereItSits(t *testing.T) {
 	twoContents := ir.Payload{Contents: append(
 		[]ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "type/m"}}}, ghost.Contents...)}
 	for _, tc := range []struct {
-		name string
-		op   ir.Operation
-		at   string
+		name      string
+		operation ir.Operation
+		at        string
 	}{
 		{"the second content", ir.Operation{ID: "op", Request: &twoContents}, "op/request/contents/1"},
 		{"the second response", ir.Operation{ID: "op", Responses: []ir.Response{{}, {Payload: &ghost}}},
@@ -156,7 +156,7 @@ func TestValidate_EncodingKeyIsPlacedWhereItSits(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, []string{tc.at + "/encoding/property/m/ghost"},
-				pointers(withCode(validated(t, docWithOperation(tc.op)), "ir/encoding-key-unknown-property")))
+				pointers(withCode(validated(t, docWithOperation(tc.operation)), "ir/encoding-key-unknown-property")))
 		})
 	}
 }
@@ -674,7 +674,7 @@ func TestValidate_ADefaultPayloadIsJudgedAsAResponsesIs(t *testing.T) {
 		payload.Required = new(true)
 		def := defaultResponse()
 		def.Payload = &payload
-		firstOp(doc).Default = def
+		firstOperation(doc).Default = def
 
 		found := withCode(validated(t, doc), "ir/payload-required-outside-request")
 		require.Len(t, found, 1)
@@ -690,7 +690,7 @@ func TestValidate_ADefaultPayloadIsJudgedAsAResponsesIs(t *testing.T) {
 		payload := multipartPayload(map[ir.PropertyID]ir.PartEncoding{"property/m/ghost": {RepeatsPerArrayItem: true}})
 		def := defaultResponse()
 		def.Payload = &payload
-		firstOp(doc).Default = def
+		firstOperation(doc).Default = def
 
 		found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
 		require.Len(t, found, 1)
@@ -707,7 +707,7 @@ func TestValidate_ADefaultPayloadIsJudgedAsAResponsesIs(t *testing.T) {
 		payload := multipartPayload(map[ir.PropertyID]ir.PartEncoding{"property/m/a": {RepeatsPerArrayItem: true}})
 		def := defaultResponse()
 		def.Payload = &payload
-		firstOp(doc).Default = def
+		firstOperation(doc).Default = def
 
 		assert.Empty(t, validated(t, doc))
 	})

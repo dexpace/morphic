@@ -31,13 +31,13 @@ type TextPlan struct {
 
 // EnvelopeRead is a body one of plan.Policy.Envelopes matched (policy.md), as it is read here.
 type EnvelopeRead struct {
-    Name     string        // the Envelope that matched
-    Body     ir.TypeRef    // what the body decodes into: the elected content's type
-    Value    *ir.PropPath  // where Type sits inside Body; nil = Type is Body, read whole
-    Flag     *ir.PropPath  // the member saying whether the call succeeded; nil = none
-    Succeeds []ir.Value    // the Flag values meaning it succeeded
-    Failures []ir.TypeRef  // what a failing body may decode into: the first whose flag admits
-                           // the value read (below); none admitting it = the target's untyped JSON
+    Name     string           // the Envelope that matched
+    Body     ir.TypeRef       // what the body decodes into: the elected content's type
+    Value    *ir.PropertyPath // where Type sits inside Body; nil = Type is Body, read whole
+    Flag     *ir.PropertyPath // the member saying whether the call succeeded; nil = none
+    Succeeds []ir.Value       // the Flag values meaning it succeeded
+    Failures []ir.TypeRef     // what a failing body may decode into: the first whose flag admits
+                              // the value read (below); none admitting it = the target's untyped JSON
 }
 
 // BodyShape is how a body reaches its reader, a small closed enum:

@@ -265,16 +265,16 @@ type factsWorkShape struct {
 // detector sync.Pool drops a share of what it is handed, so fmt allocates a
 // random amount.
 type factsIDs struct {
-	chain []ir.TypeID     // factsChainID of 0 to n
-	bases []ir.TypeID     // factsBaseID of 0 to n-1
-	props []ir.PropertyID // factsPropID of 0 to n
+	chain      []ir.TypeID     // factsChainID of 0 to n
+	bases      []ir.TypeID     // factsBaseID of 0 to n-1
+	properties []ir.PropertyID // factsPropertyID of 0 to n
 }
 
 // newFactsIDs makes the IDs of size n.
 func newFactsIDs(n int) factsIDs {
-	ids := factsIDs{chain: make([]ir.TypeID, n+1), bases: make([]ir.TypeID, n), props: make([]ir.PropertyID, n+1)}
+	ids := factsIDs{chain: make([]ir.TypeID, n+1), bases: make([]ir.TypeID, n), properties: make([]ir.PropertyID, n+1)}
 	for i := range n + 1 {
-		ids.chain[i], ids.props[i] = factsChainID(i), factsPropID(i)
+		ids.chain[i], ids.properties[i] = factsChainID(i), factsPropertyID(i)
 		if i < n {
 			ids.bases[i] = factsBaseID(i)
 		}
@@ -326,24 +326,24 @@ func factsWorkShapes() map[string]factsWorkShape {
 			doc: func(n int) *ir.Document {
 				return irtest.DocOf(factsChain(n, func(i int, model *ir.Model) {
 					if i == 0 {
-						model.Properties = []ir.Property{{ID: factsPropID(0)}}
+						model.Properties = []ir.Property{{ID: factsPropertyID(0)}}
 					}
 				})...)
 			},
 			ask: func(documentFacts *irfacts.DocumentFacts, ids factsIDs, n int) (yes int) {
 				for i := 1; i <= n; i++ {
-					yes += factsCount(documentFacts.Exposes(ids.chain[i], ids.props[0]))
+					yes += factsCount(documentFacts.Exposes(ids.chain[i], ids.properties[0]))
 				}
 				return yes
 			},
 		},
 		"every model's property asked of the bottom of a chain": {
 			doc: func(n int) *ir.Document {
-				return irtest.DocOf(factsChain(n, func(i int, model *ir.Model) { model.Properties = []ir.Property{{ID: factsPropID(i)}} })...)
+				return irtest.DocOf(factsChain(n, func(i int, model *ir.Model) { model.Properties = []ir.Property{{ID: factsPropertyID(i)}} })...)
 			},
 			ask: func(documentFacts *irfacts.DocumentFacts, ids factsIDs, n int) (yes int) {
 				for i := range n {
-					yes += factsCount(documentFacts.Exposes(ids.chain[n], ids.props[i]))
+					yes += factsCount(documentFacts.Exposes(ids.chain[n], ids.properties[i]))
 				}
 				return yes
 			},
@@ -509,12 +509,12 @@ type factsAnswers struct {
 	keyed     string // the entity that key names
 }
 
-// factsConcurrentProps are the properties the concurrency test asks each type
+// factsConcurrentProperties are the properties the concurrency test asks each type
 // about.
-var factsConcurrentProps = []ir.PropertyID{"property/kind", "property/side", "property/ghost"}
+var factsConcurrentProperties = []ir.PropertyID{"property/kind", "property/side", "property/ghost"}
 
 // factsAsk collects everything facts says about id, asking IsSubtype of each
-// base in universe and Exposes of each of factsConcurrentProps.
+// base in universe and Exposes of each of factsConcurrentProperties.
 func factsAsk(facts *irfacts.DocumentFacts, id ir.TypeID, universe []ir.TypeID) factsAnswers {
 	got := factsAnswers{
 		usage:     facts.Usage(id),
@@ -527,8 +527,8 @@ func factsAsk(facts *irfacts.DocumentFacts, id ir.TypeID, universe []ir.TypeID) 
 	for _, base := range universe {
 		got.supers[base] = facts.IsSubtype(id, base)
 	}
-	for _, prop := range factsConcurrentProps {
-		got.exposes[prop] = facts.Exposes(id, prop)
+	for _, property := range factsConcurrentProperties {
+		got.exposes[property] = facts.Exposes(id, property)
 	}
 	got.key, _ = facts.Correlation(string(id))
 	got.keyed, _ = facts.Correlated(got.key)
@@ -570,8 +570,8 @@ func TestIndex_EveryMethodIsSafeForConcurrentUse(t *testing.T) {
 				walked++
 			}
 		}
-		for _, prop := range factsConcurrentProps {
-			if _, settled := sequential.ExposesIndexAnswer(target, prop); !settled {
+		for _, property := range factsConcurrentProperties {
+			if _, settled := sequential.ExposesIndexAnswer(target, property); !settled {
 				walkedExposure++
 			}
 		}

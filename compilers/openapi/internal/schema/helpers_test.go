@@ -190,9 +190,9 @@ func onlyBodyTarget(t *testing.T, doc *ir.Document) ir.TypeID {
 	require.Len(t, doc.Services, 1)
 	require.Len(t, doc.Services[0].Groups, 1)
 	require.Len(t, doc.Services[0].Groups[0].Operations, 1)
-	op := doc.Services[0].Groups[0].Operations[0]
-	require.Len(t, op.Responses, 1)
-	return openapitest.BodyTarget(t, op.Responses[0].Payload)
+	operation := doc.Services[0].Groups[0].Operations[0]
+	require.Len(t, operation.Responses, 1)
+	return openapitest.BodyTarget(t, operation.Responses[0].Payload)
 }
 
 // withCode returns the diagnostics among diags that carry code.
@@ -275,7 +275,7 @@ func propertyOf(t *testing.T, doc *ir.Document, model, wire string) ir.Property 
 	t.Helper()
 	irModel, ok := doc.Types[componentID(model)].(*ir.Model)
 	require.True(t, ok, "%s lowers to a model", model)
-	property, ok := openapitest.PropsByWire(irModel.Properties)[wire]
+	property, ok := openapitest.PropertiesByWire(irModel.Properties)[wire]
 	require.True(t, ok, "%s declares a property %q", model, wire)
 	return property
 }

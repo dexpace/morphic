@@ -23,12 +23,12 @@ func TestContent_RefdResponseHeaderNestedRefInternsSchemaOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, refdResponseNestedHeaderSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "getA")
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 1)
+	operation := openapitest.FindOperation(t, doc, "getA")
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
 
 	wantID := ir.TypeID("type/anonymous/components/headers/Rate/schema")
-	assert.Equal(t, wantID, op.Responses[0].Headers[0].Type.Target)
+	assert.Equal(t, wantID, operation.Responses[0].Headers[0].Type.Target)
 	_, ok := doc.Types[wantID]
 	require.True(t, ok, "the header's schema is registered under the header component's own pointer")
 }
@@ -42,9 +42,9 @@ func TestContent_HeaderMapEntriesSharingComponentGetDistinctIDs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, headerIdentitySpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "getA")
-	require.Len(t, op.Responses[0].Headers, 2)
-	byWire := openapitest.IndexBy(op.Responses[0].Headers, func(header ir.Header) string { return header.WireName })
+	operation := openapitest.FindOperation(t, doc, "getA")
+	require.Len(t, operation.Responses[0].Headers, 2)
+	byWire := openapitest.IndexBy(operation.Responses[0].Headers, func(header ir.Header) string { return header.WireName })
 
 	rate, limit := byWire["X-Rate"], byWire["X-Limit"]
 	assert.NotEqual(t, rate.ID, limit.ID, "distinct map keys keep distinct PropIDs")
@@ -62,10 +62,10 @@ func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, refdEncodingHeaderSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "upload")
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	enc := op.Request.Contents[0].Encoding
+	operation := openapitest.FindOperation(t, doc, "upload")
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 1)
+	enc := operation.Request.Contents[0].Encoding
 	require.Len(t, enc, 1)
 
 	var headers []ir.Header
@@ -95,7 +95,7 @@ func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
 			"            X-H: {schema: "+openapitest.InlineProbeBody+"}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+	header := openapitest.FirstOperation(t, svc).Responses[0].Headers[0]
 	openapitest.AssertProbeDocsKept(t, header.Docs)
 	assert.NotNil(t, header.Deprecation)
 	openapitest.AssertProbeExample(t, header.Examples)
@@ -127,7 +127,7 @@ func TestHeaders_OwnAnnotationsOverrideTheSchema(t *testing.T) {
 			"                {type: string, description: SCHEMA, example: SCHEMA, x-scope: schema}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+	header := openapitest.FirstOperation(t, svc).Responses[0].Headers[0]
 	assert.Equal(t, "HEADER", header.Docs.Description, "the header's own description wins")
 	require.Len(t, header.Examples, 1, "and its own example replaces the schema's rather than joining it")
 	require.NotNil(t, header.Examples[0].Value)
@@ -158,7 +158,7 @@ func TestHeaders_DeprecationUnionsWithTheSchema(t *testing.T) {
 					"              schema: {type: string, deprecated: "+tc.schema+"}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+			header := openapitest.FirstOperation(t, svc).Responses[0].Headers[0]
 			assert.NotNil(t, header.Deprecation, "either side alone deprecates the header")
 		})
 	}
@@ -201,7 +201,7 @@ func TestHeaders_SerializationKeywordsLower(t *testing.T) {
 			t.Parallel()
 			_, svc, diags := compileService(t, tc.spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			assertHeaderSerialization(t, headerAt(t, openapitest.FirstOp(t, svc)), diags, tc.at)
+			assertHeaderSerialization(t, headerAt(t, openapitest.FirstOperation(t, svc)), diags, tc.at)
 		})
 	}
 }
@@ -218,7 +218,7 @@ func TestHeaders_SerializationKeywordsAbsentRecordNothing(t *testing.T) {
 			"            X-H: {schema: {type: string}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+	header := openapitest.FirstOperation(t, svc).Responses[0].Headers[0]
 	assert.Empty(t, header.Style, "an undeclared style is not written as the default")
 	assert.Nil(t, header.Explode, "nor an undeclared explode")
 	assert.Empty(t, header.Unmodeled)
@@ -251,7 +251,7 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+	header := openapitest.FirstOperation(t, svc).Responses[0].Headers[0]
 	assert.Equal(t, "simple", header.Style)
 	require.NotNil(t, header.Explode, "a declared false is a declaration")
 	assert.False(t, *header.Explode)
@@ -288,7 +288,7 @@ func TestHeaders_ReservedContentTypeEntryIsReported(t *testing.T) {
 					"            "+tc.header+": {schema: {type: string}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			headers := openapitest.FirstOp(t, svc).Responses[0].Headers
+			headers := openapitest.FirstOperation(t, svc).Responses[0].Headers
 			require.Len(t, headers, 1, "the header lowers either way; nothing is dropped")
 			assert.Equal(t, tc.header, headers[0].WireName)
 			assert.Equal(t, tc.reported, openapitest.HasDiagCodeAt(diags, diag.ReservedHeaderName, tc.at),
@@ -368,7 +368,7 @@ func TestHeaders_RefSiteKeywordsAreKeptOnTheHeader(t *testing.T) {
 	doc, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	header := headerAt(t, openapitest.FirstOp(t, svc))
+	header := headerAt(t, openapitest.FirstOperation(t, svc))
 	assert.Empty(t, header.Unmodeled, "the header keeps nothing")
 	en, ok := doc.Types[header.Type.Target].(*ir.Enum)
 	require.True(t, ok, "the header names the value set, got %T", doc.Types[header.Type.Target])
@@ -403,8 +403,8 @@ components:
 `
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	require.Len(t, openapitest.FirstOp(t, svc).Responses, 1)
-	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+	require.Len(t, openapitest.FirstOperation(t, svc).Responses, 1)
+	header := openapitest.FirstOperation(t, svc).Responses[0].Headers[0]
 	assert.Equal(t, "HS", header.Docs.Summary)
 	assert.Equal(t, "HD", header.Docs.Description)
 }
@@ -452,14 +452,14 @@ components:
 
 // headerAt returns the one header a serialization fixture declares, whichever
 // of the two positions carries it.
-func headerAt(t *testing.T, op ir.Operation) ir.Header {
+func headerAt(t *testing.T, operation ir.Operation) ir.Header {
 	t.Helper()
-	if len(op.Responses) > 0 && len(op.Responses[0].Headers) > 0 {
-		return op.Responses[0].Headers[0]
+	if len(operation.Responses) > 0 && len(operation.Responses[0].Headers) > 0 {
+		return operation.Responses[0].Headers[0]
 	}
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	for _, pe := range op.Request.Contents[0].Encoding {
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 1)
+	for _, pe := range operation.Request.Contents[0].Encoding {
 		require.Len(t, pe.Headers, 1)
 		return pe.Headers[0]
 	}

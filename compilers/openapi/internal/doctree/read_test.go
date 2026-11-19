@@ -413,10 +413,10 @@ func TestRead_NoKeyAndNoValueIsRewrittenToItsNumber(t *testing.T) {
 	doc := read(t, minDoc+"components:\n  schemas:\n    S:\n      required: [\"007\", 007]\n"+
 		"      properties:\n        007: {type: string}\n        1: {type: string}\n        01: {type: integer}\n")
 
-	props := nodeAtSteps(t, doc.Root, "components", "schemas", "S", "properties")
+	properties := nodeAtSteps(t, doc.Root, "components", "schemas", "S", "properties")
 	var keys []string
-	for i := 0; i < len(props.Content); i += 2 {
-		keys = append(keys, props.Content[i].Value)
+	for i := 0; i < len(properties.Content); i += 2 {
+		keys = append(keys, properties.Content[i].Value)
 	}
 	assert.Equal(t, []string{"007", "1", "01"}, keys)
 	req := nodeAtSteps(t, doc.Root, "components", "schemas", "S", "required")

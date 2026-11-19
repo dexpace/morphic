@@ -100,10 +100,10 @@ func TestKindInference_AnInferredCollectionKeepsItsMemberTypes(t *testing.T) {
 				doc, _ := compileKindInference(t, "members", admissionSpec(version, "", schemas...), false)
 				list, ok := kindNode(t, doc, componentID("Elements")).(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, prim(ir.PrimitiveString), list.ElementType.Target)
+				assert.Equal(t, primitive(ir.PrimitiveString), list.ElementType.Target)
 				mapped, ok := kindNode(t, doc, componentID("AddlOnly")).(*ir.MapT)
 				require.True(t, ok)
-				assert.Equal(t, prim(ir.PrimitiveString), mapped.Value.Target)
+				assert.Equal(t, primitive(ir.PrimitiveString), mapped.Value.Target)
 			})
 		})
 	}
@@ -385,7 +385,7 @@ func TestKindInference_AKindReadThroughAnInferredBranchIsMarked(t *testing.T) {
 			scalar, ok := kindNode(t, off, componentID(name)).(*ir.Scalar)
 			require.True(t, ok, name)
 			require.NotNil(t, scalar.Base, name)
-			assert.Equal(t, prim(ir.PrimitiveAny), scalar.Base.Target, name)
+			assert.Equal(t, primitive(ir.PrimitiveAny), scalar.Base.Target, name)
 		}
 	})
 }

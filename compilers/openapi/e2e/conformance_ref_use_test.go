@@ -29,7 +29,7 @@ func assertRefChainAnnotations(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		"own": {"f", "from-use"},
 	}
 	for wire, w := range want {
-		property, found := propByWire(holder, wire)
+		property, found := propertyByWire(holder, wire)
 		require.True(t, found, wire)
 		require.NotNil(t, property.Default, wire)
 		assert.Equal(t, ir.Value{Kind: ir.ValueString, String: w.def}, *property.Default, "%s: the nearest default", wire)

@@ -80,9 +80,9 @@ func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
 		"type/alias": &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/u"}},
 		"type/nil":   (*ir.Union)(nil),
 	}
-	ids := func(props []*ir.Property) []ir.PropertyID {
-		out := make([]ir.PropertyID, 0, len(props))
-		for _, property := range props {
+	ids := func(properties []*ir.Property) []ir.PropertyID {
+		out := make([]ir.PropertyID, 0, len(properties))
+		for _, property := range properties {
 			out = append(out, property.ID)
 		}
 		return out
@@ -105,9 +105,9 @@ func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
 // union of t/a, declaring file, and t/b, declaring url; t/two, composing t/u
 // and t/v, two unions; and t/plain, which composes no union.
 func narrowingRegistry() ir.TypeRegistry {
-	str := ir.TypeRef{Target: "type/primitive/string"}
-	model := func(id ir.TypeID, props []ir.Property, mixins ...ir.TypeID) *ir.Model {
-		model := &ir.Model{ID: id, Properties: props}
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
+	model := func(id ir.TypeID, properties []ir.Property, mixins ...ir.TypeID) *ir.Model {
+		model := &ir.Model{ID: id, Properties: properties}
 		for _, mixin := range mixins {
 			model.Mixins = append(model.Mixins, ir.TypeRef{Target: mixin})
 		}
@@ -122,14 +122,14 @@ func narrowingRegistry() ir.TypeRegistry {
 	}
 	return ir.TypeRegistry{
 		"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString},
-		"type/a":                model("type/a", []ir.Property{{ID: "property/a/file", WireName: "file", Type: str}}),
-		"type/b":                model("type/b", []ir.Property{{ID: "property/b/url", WireName: "url", Type: str}}),
-		"type/c":                model("type/c", []ir.Property{{ID: "property/c/id", WireName: "id", Type: str}}),
+		"type/a":                model("type/a", []ir.Property{{ID: "property/a/file", WireName: "file", Type: stringType}}),
+		"type/b":                model("type/b", []ir.Property{{ID: "property/b/url", WireName: "url", Type: stringType}}),
+		"type/c":                model("type/c", []ir.Property{{ID: "property/c/id", WireName: "id", Type: stringType}}),
 		"type/u":                union("type/u", "type/a", "type/b"),
 		"type/v":                union("type/v", "type/c"),
-		"type/n":                model("type/n", []ir.Property{{ID: "property/n/note", WireName: "note", Type: str}}, "type/u"),
+		"type/n":                model("type/n", []ir.Property{{ID: "property/n/note", WireName: "note", Type: stringType}}, "type/u"),
 		"type/two":              model("type/two", nil, "type/u", "type/v"),
-		"type/plain":            model("type/plain", []ir.Property{{ID: "property/plain/x", WireName: "x", Type: str}}),
+		"type/plain":            model("type/plain", []ir.Property{{ID: "property/plain/x", WireName: "x", Type: stringType}}),
 	}
 }
 
@@ -174,12 +174,12 @@ func TestShapeFlattenings_ReadsShapesWithinItsLimit(t *testing.T) {
 	assert.Equal(t, &unreadNarrowing{model: "type/n", why: "past 1 steps"}, why)
 }
 
-// TestDeclaredProp_PlacesNothingTheBindingsDoNot pins that a schema the
+// TestDeclaredProperty_PlacesNothingTheBindingsDoNot pins that a schema the
 // bindings never read names no property, so a part's reading keeps it.
-func TestDeclaredProp_PlacesNothingTheBindingsDoNot(t *testing.T) {
+func TestDeclaredProperty_PlacesNothingTheBindingsDoNot(t *testing.T) {
 	t.Parallel()
 	lowerer := newRawLowerer(&soa.OpenAPI{})
-	_, ok := declaredProp(lowerer.ctx, oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{}))
+	_, ok := declaredProperty(lowerer.ctx, oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{}))
 	assert.False(t, ok)
 }
 
@@ -256,7 +256,7 @@ func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 		{"type/union", false, true},
 		{"type/tuple", true, true},
 		{"type/cycle/a", false, true},
-		{lowerer.types.PrimID(ir.PrimitiveString), false, true},
+		{lowerer.types.PrimitiveID(ir.PrimitiveString), false, true},
 	}
 	for _, tc := range cases {
 		multi, file, decided := partTypeFlags(newPartUnions(), lowerer.types.Node, ir.TypeRef{Target: tc.target}, true /* multipart */)
@@ -275,8 +275,8 @@ func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 	t.Parallel()
 	lowerer := newRawLowerer(&soa.OpenAPI{})
-	bytes := lowerer.types.PrimRef(ir.PrimitiveBytes)
-	str := lowerer.types.PrimRef(ir.PrimitiveString)
+	bytes := lowerer.types.PrimitiveRef(ir.PrimitiveBytes)
+	stringType := lowerer.types.PrimitiveRef(ir.PrimitiveString)
 	lowerer.types.Register("type/alias", &ir.Scalar{ID: "type/alias", Base: &bytes})
 	lowerer.types.Register("type/base64", &ir.Scalar{ID: "type/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
 	lowerer.types.Register("type/png", &ir.Scalar{ID: "type/png", Base: &bytes, Encoding: &ir.Encoding{MediaType: "image/png"}})
@@ -295,14 +295,14 @@ func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 		{&ir.List{ID: "type/pngs", ElementType: ir.TypeRef{Target: "type/png"}}, true, true},
 		{&ir.List{ID: "type/opaques", ElementType: ir.TypeRef{Target: "type/opaque"}}, true, false},
 		{&ir.List{ID: "type/cycles", ElementType: ir.TypeRef{Target: "type/cycle"}}, true, false},
-		{&ir.List{ID: "type/strings", ElementType: str}, true, false},
+		{&ir.List{ID: "type/strings", ElementType: stringType}, true, false},
 		{&ir.List{ID: "type/absent", ElementType: ir.TypeRef{Target: "type/nothing"}}, true, false},
 		{&ir.List{ID: "type/models", ElementType: ir.TypeRef{Target: "type/model"}}, true, false},
 		{&ir.Tuple{ID: "type/closed", ElementTypes: []ir.TypeRef{bytes, {Target: "type/alias"}}}, true, true},
 		{&ir.Tuple{ID: "type/rest", ElementTypes: []ir.TypeRef{bytes}, Rest: &bytes}, true, true},
 		{&ir.Tuple{ID: "type/restonly", Rest: &bytes}, true, true},
-		{&ir.Tuple{ID: "type/stringrest", ElementTypes: []ir.TypeRef{bytes}, Rest: &str}, true, false},
-		{&ir.Tuple{ID: "type/mixed", ElementTypes: []ir.TypeRef{bytes, str}}, true, false},
+		{&ir.Tuple{ID: "type/stringrest", ElementTypes: []ir.TypeRef{bytes}, Rest: &stringType}, true, false},
+		{&ir.Tuple{ID: "type/mixed", ElementTypes: []ir.TypeRef{bytes, stringType}}, true, false},
 		{&ir.Tuple{ID: "type/empty"}, true, false},
 		{&ir.Tuple{ID: "type/formtuple", ElementTypes: []ir.TypeRef{bytes}}, false, false},
 	} {
@@ -323,11 +323,11 @@ func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 	t.Parallel()
 	lowerer := newRawLowerer(&soa.OpenAPI{})
-	bytes := lowerer.types.PrimRef(ir.PrimitiveBytes)
-	str := lowerer.types.PrimRef(ir.PrimitiveString)
-	files, strs := ir.TypeRef{Target: "type/files"}, ir.TypeRef{Target: "type/strings"}
+	bytes := lowerer.types.PrimitiveRef(ir.PrimitiveBytes)
+	stringType := lowerer.types.PrimitiveRef(ir.PrimitiveString)
+	files, stringValues := ir.TypeRef{Target: "type/files"}, ir.TypeRef{Target: "type/strings"}
 	lowerer.types.Register("type/files", &ir.List{ID: "type/files", ElementType: bytes})
-	lowerer.types.Register("type/strings", &ir.List{ID: "type/strings", ElementType: str})
+	lowerer.types.Register("type/strings", &ir.List{ID: "type/strings", ElementType: stringType})
 	lowerer.types.Register("type/tuple", &ir.Tuple{ID: "type/tuple", ElementTypes: []ir.TypeRef{bytes}})
 	lowerer.types.Register("type/model", &ir.Model{ID: "type/model"})
 	lowerer.types.Register("type/base64", &ir.Scalar{ID: "type/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
@@ -354,8 +354,8 @@ func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 	}{
 		{"a file or a list of files", "type/inner", true, true, true, true},
 		{"a form's file or list of files", "type/inner", false, true, false, true},
-		{"a string or a list of strings", registered(lowerer, unionOf("type/texts", str, strs)), true, true, false, true},
-		{"a file or a list of strings", registered(lowerer, unionOf("type/filetexts", bytes, strs)), true, true, false, true},
+		{"a string or a list of strings", registered(lowerer, unionOf("type/texts", stringType, stringValues)), true, true, false, true},
+		{"a file or a list of strings", registered(lowerer, unionOf("type/filetexts", bytes, stringValues)), true, true, false, true},
 		{"a model or a list", registered(lowerer, unionOf("type/modellist", ir.TypeRef{Target: "type/model"}, files)), true, true, false, true},
 		{"files alone", registered(lowerer, unionOf("type/bytes", bytes, bytes)), true, false, true, true},
 		{"a form's files alone", "type/bytes", false, false, false, true},
@@ -552,7 +552,7 @@ func TestDeclarationSchemas_PlacesEachSchemaOnce(t *testing.T) {
 		require.Len(t, part.schemas, n)
 		decls := make([]*ir.Property, 0, n)
 		for _, s := range part.schemas {
-			id, placed := declaredProp(lowerer.ctx, s)
+			id, placed := declaredProperty(lowerer.ctx, s)
 			require.True(t, placed)
 			decls = append(decls, &ir.Property{ID: id})
 		}

@@ -160,14 +160,14 @@ func TestVerify_NamespaceDeclaredForAnotherKindDoesNotCount(t *testing.T) {
 // have to list it, and a document of nothing else needs no declaration at all.
 func TestVerify_PrimitiveNamespaceNeedsNoDeclaration(t *testing.T) {
 	t.Parallel()
-	prim := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString}
-	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{prim.ID: prim}}
+	primitive := &ir.Primitive{ID: ir.PrimitiveTypeID(ir.PrimitiveString), PrimitiveKind: ir.PrimitiveString}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{primitive.ID: primitive}}
 
 	got := irverify.Verify(doc)
 	assert.Empty(t, violationPaths(got, "ir/id-space-undeclared"))
 	assert.Empty(t, violationPaths(got, "ir/id-spaces-absent"))
 
-	declared := declaring(&ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{prim.ID: prim}},
+	declared := declaring(&ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{primitive.ID: primitive}},
 		map[string][]string{ir.IDKindType: {"openapi"}})
 	assert.Empty(t, violationPaths(irverify.Verify(declared), "ir/id-space-undeclared"))
 }

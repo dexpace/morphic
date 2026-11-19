@@ -43,17 +43,17 @@ paths:
             X-Limited: {$ref: '#/components/headers/Limited'}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Params, 1)
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 1)
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Params, 1)
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
 
-	assert.Nil(t, op.Params[0].Constraints)
-	listed, ok := doc.Types[op.Params[0].Type.Target].(*ir.List)
+	assert.Nil(t, operation.Params[0].Constraints)
+	listed, ok := doc.Types[operation.Params[0].Type.Target].(*ir.List)
 	require.True(t, ok)
 	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, listed.Constraints)
-	assert.Nil(t, op.Responses[0].Headers[0].Constraints)
-	limited, ok := doc.Types[op.Responses[0].Headers[0].Type.Target].(*ir.List)
+	assert.Nil(t, operation.Responses[0].Headers[0].Constraints)
+	limited, ok := doc.Types[operation.Responses[0].Headers[0].Type.Target].(*ir.List)
 	require.True(t, ok)
 	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(5))}, limited.Constraints)
 }
@@ -84,18 +84,18 @@ paths:
             X-Plain: {schema: {type: array, items: {type: string}, maxItems: 5}}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Params, 2)
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Params, 2)
 
-	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, op.Params[0].Constraints)
-	assert.Empty(t, op.Params[0].Unmodeled, "a bound the parameter holds is not also kept")
-	assert.Nil(t, op.Params[1].Constraints, "the List holds its own bound")
-	plain, ok := doc.Types[op.Params[1].Type.Target].(*ir.List)
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, operation.Params[0].Constraints)
+	assert.Empty(t, operation.Params[0].Unmodeled, "a bound the parameter holds is not also kept")
+	assert.Nil(t, operation.Params[1].Constraints, "the List holds its own bound")
+	plain, ok := doc.Types[operation.Params[1].Type.Target].(*ir.List)
 	require.True(t, ok)
 	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, plain.Constraints)
 
-	require.Len(t, op.Responses, 1)
-	headers := op.Responses[0].Headers
+	require.Len(t, operation.Responses, 1)
+	headers := operation.Responses[0].Headers
 	require.Len(t, headers, 2)
 	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(5))}, headers[0].Constraints)
 	assert.Empty(t, headers[0].Unmodeled, "a bound the header holds is not also kept")
@@ -113,9 +113,9 @@ func TestParams_SchemaConstraints(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Params, 1)
-	constraints := op.Params[0].Constraints
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Params, 1)
+	constraints := operation.Params[0].Constraints
 	require.NotNil(t, constraints, "param scalar constraints land via annotation.Constraints")
 	require.NotNil(t, constraints.Max)
 	assert.Equal(t, ir.BigVal("120"), *constraints.Max, "numeric bound read at full precision")
@@ -133,7 +133,7 @@ func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
 			"      responses: {\"204\": {description: ok}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	parameter := openapitest.FirstOp(t, svc).Params[0]
+	parameter := openapitest.FirstOperation(t, svc).Params[0]
 	openapitest.AssertProbeDocsKept(t, parameter.Docs)
 	assert.NotNil(t, parameter.Deprecation)
 	openapitest.AssertProbeExample(t, parameter.Examples)
@@ -161,7 +161,7 @@ func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
 			"    Outsider: {$ref: '#/paths/~1x/get/parameters/0/schema'}\n")
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	parameter := openapitest.FirstOp(t, svc).Params[0]
+	parameter := openapitest.FirstOperation(t, svc).Params[0]
 	assert.Equal(t, ir.TypeID("type/primitive/string"), parameter.Type.Target,
 		"the parameter's own type is unchanged by the outside reference")
 	openapitest.AssertProbeDocsKept(t, parameter.Docs)
@@ -203,7 +203,7 @@ components:
 // paramsOf indexes an operation's parameters by source name.
 func paramsOf(t *testing.T, svc ir.Service) map[string]ir.Parameter {
 	t.Helper()
-	return openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
+	return openapitest.IndexBy(openapitest.FirstOperation(t, svc).Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 }
 
 // TestParams_RefSchemaInheritsFromItsReferent covers the referent-fallback half
@@ -513,7 +513,7 @@ func TestParams_OwnAnnotationsWinOverTheSchema(t *testing.T) {
 			"      responses: {\"204\": {description: ok}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	parameter := openapitest.FirstOp(t, svc).Params[0]
+	parameter := openapitest.FirstOperation(t, svc).Params[0]
 	assert.Equal(t, "PARAM", parameter.Docs.Description, "the parameter's own description wins")
 	raw, ok := parameter.Unmodeled["openapi:x-scope"]
 	require.True(t, ok)
@@ -537,11 +537,11 @@ func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
         - {name: enm, in: query, schema: {type: string, enum: [a, b], readOnly: true}}
       responses: {"200": {description: ok}}
 `))
-	op := openapitest.FindOp(t, doc, "")
-	require.Len(t, op.Params, 3)
+	operation := openapitest.FindOperation(t, doc, "")
+	require.Len(t, operation.Params, 3)
 
 	for i, want := range []string{"openapi:schema/readOnly", "openapi:schema/writeOnly", "openapi:schema/readOnly"} {
-		param := op.Params[i]
+		param := operation.Params[i]
 		entry, ok := param.Unmodeled[want]
 		require.True(t, ok, "%s: %s kept on the carrier that has no field for it", param.Name.Source, want)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
@@ -568,7 +568,7 @@ func TestParams_RefSiteKeywordsAreKeptOnTheParameter(t *testing.T) {
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	params := openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
+	params := openapitest.IndexBy(openapitest.FirstOperation(t, svc).Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 	irParameter, ok := params["q"]
 	require.True(t, ok)
 	entry, ok := irParameter.Unmodeled["openapi:schema/format"]
@@ -681,12 +681,12 @@ components:
 	doc, _, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	withSiblings, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "a"), "limit")
+	withSiblings, ok := openapitest.ParamBySource(openapitest.FindOperation(t, doc, "a"), "limit")
 	require.True(t, ok)
 	assert.Equal(t, "S", withSiblings.Docs.Summary)
 	assert.Equal(t, "D", withSiblings.Docs.Description)
 
-	without, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "b"), "limit")
+	without, ok := openapitest.ParamBySource(openapitest.FindOperation(t, doc, "b"), "limit")
 	require.True(t, ok)
 	assert.Empty(t, without.Docs.Summary, "no sibling means no summary is invented")
 	assert.Equal(t, "declared", without.Docs.Description,
@@ -715,7 +715,7 @@ components:
     Str: {type: string, title: A string}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), "q")
+	param, ok := openapitest.ParamBySource(openapitest.FindOperation(t, doc, "get"), "q")
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Str"), param.Type.Target)
 	assert.Equal(t, "mine", param.Docs.Description)
@@ -755,7 +755,7 @@ components:
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for source, key := range map[string]string{"list": "openapi:schema/readOnly", "narrowed": "openapi:schema/writeOnly"} {
-		param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), source)
+		param, ok := openapitest.ParamBySource(openapitest.FindOperation(t, doc, "get"), source)
 		require.True(t, ok, source)
 		entry, kept := param.Unmodeled[key]
 		if assert.True(t, kept, "%s: got %v", source, param.Unmodeled) {
@@ -800,7 +800,7 @@ components:
 		{"branches", "openapi:schema/writeOnly", base(1) + "/allOf/1/writeOnly"},
 		{"branches", "openapi:schema/xml", base(1) + "/allOf/1/xml"},
 	} {
-		param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), tc.source)
+		param, ok := openapitest.ParamBySource(openapitest.FindOperation(t, doc, "get"), tc.source)
 		require.True(t, ok, tc.source)
 		entry, kept := param.Unmodeled[tc.key]
 		require.True(t, kept, tc.key)
@@ -824,11 +824,11 @@ components:
     Mode: {type: string, enum: [a, b], default: a}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "get")
-	taken, ok := openapitest.ParamBySource(op, "taken")
+	operation := openapitest.FindOperation(t, doc, "get")
+	taken, ok := openapitest.ParamBySource(operation, "taken")
 	require.True(t, ok)
 	assert.NotNil(t, taken.Default)
-	dropped, ok := openapitest.ParamBySource(op, "dropped")
+	dropped, ok := openapitest.ParamBySource(operation, "dropped")
 	require.True(t, ok)
 	assert.Nil(t, dropped.Default)
 }
@@ -864,12 +864,12 @@ func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := compileService(t, paramBoundsSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
+	operation := openapitest.FirstOperation(t, svc)
 
 	t.Run("row 38: a bound a string cannot take is kept", func(t *testing.T) {
 		t.Parallel()
 		for i, name := range []string{"q", "r"} {
-			parameter, ok := openapitest.ParamBySource(op, name)
+			parameter, ok := openapitest.ParamBySource(operation, name)
 			require.True(t, ok, name)
 			assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1a/get/parameters/"+name+"/query"), parameter.ID, name)
 			assert.Nil(t, parameter.Constraints, name)
@@ -884,15 +884,15 @@ func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
 	})
 	t.Run("row 39: the bounds a type takes are held beside the kept one", func(t *testing.T) {
 		t.Parallel()
-		parameter, ok := openapitest.ParamBySource(op, "h")
+		parameter, ok := openapitest.ParamBySource(operation, "h")
 		require.True(t, ok)
 		assert.Equal(t, &ir.Constraints{MinLength: new(int64(2))}, parameter.Constraints)
 		assert.Contains(t, parameter.Unmodeled, "openapi:schema/minimum")
 		assert.NotContains(t, parameter.Unmodeled, "openapi:schema/minLength")
 
-		require.Len(t, op.Responses, 1)
-		require.Len(t, op.Responses[0].Headers, 1)
-		header := op.Responses[0].Headers[0]
+		require.Len(t, operation.Responses, 1)
+		require.Len(t, operation.Responses[0].Headers, 1)
+		header := operation.Responses[0].Headers[0]
 		assert.Equal(t, ir.PropertyID("property/openapi/paths/~1a/get/responses/200/headers/X-Names"), header.ID)
 		assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, header.Constraints)
 		entry, ok := header.Unmodeled["openapi:schema/maxLength"]

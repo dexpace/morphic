@@ -131,7 +131,7 @@ func TestCheckDeclaredIDs_EmptyOperationServiceAndGroupIDs(t *testing.T) {
 // TestCheckDeclaredIDs_EmptyPropertyID covers the third class with no registry
 // key. A property is a position inside its model rather than a document-level
 // entry, but its ID is minted from a source pointer like any other and every
-// PropertyID reference in the document — a PropPath segment, an encoding key, a
+// PropertyID reference in the document — a PropertyPath segment, an encoding key, a
 // discriminator's tag — resolves against it.
 func TestCheckDeclaredIDs_EmptyPropertyID(t *testing.T) {
 	t.Parallel()

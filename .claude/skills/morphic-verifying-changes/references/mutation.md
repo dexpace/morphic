@@ -182,7 +182,7 @@ yourself. These rules are the ways that reading still lies.
   accesses, so one run is no verdict, and reports the same race once per process, so each run is its
   own `go test -count=1`. Run it at least 10 times and report the rate. A plant caught in fewer than
   every run moves to a path more tests take, or its rate is the result.
-- **Why.** A race planted in `pass`' `checkPropIDRefs` was reported in 3 of 14 runs, one on a path
+- **Why.** A race planted in `pass`' `checkPropertyIDRefs` was reported in 3 of 14 runs, one on a path
   many `pass` tests take in 5 of 5, so a single run read either way could be wrong (#1438).
 - **Probe.** `for i in $(seq 10); do go test -race -count=1 ./<pkg> 2>&1 | grep -c 'WARNING: DATA RACE'; done`,
   counting the runs above 0.

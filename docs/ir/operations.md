@@ -53,7 +53,7 @@ type Operation struct {
     ReturnTypeVisibility []Lifecycle // filter override for the response view; nil = protocol default
     OverloadOf *OperationID       // TypeSpec @overload grouping
 
-    Bindings   OpBindings         // docs/ir/bindings.md — how the core maps onto concrete protocols
+    Bindings   OperationBindings  // docs/ir/bindings.md — how the core maps onto concrete protocols
     Examples   []Example
     Unmodeled  Unmodeled
     Provenance Provenance
@@ -74,7 +74,7 @@ type Parameter struct {
                                    // Property.Encoding does; nil = the type's. The parameter's own,
                                    // since a $ref'd or shared type cannot carry one use's text
                                    // (invariant 3) (constraints.md#encodings)
-    ValueFrom  *PropPath           // the parameter's value is derived from a location in the
+    ValueFrom  *PropertyPath       // the parameter's value is derived from a location in the
                                    // outgoing/incoming message (AsyncAPI parameter `location`
                                    // runtime expressions) — SDKs may auto-fill it; nil = caller-supplied
     Docs       Docs

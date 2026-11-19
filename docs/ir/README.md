@@ -57,7 +57,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 
 | Document | Owns |
 |---|---|
-| [bindings](./bindings.md) | `OpBindings` |
+| [bindings](./bindings.md) | `OperationBindings` |
 | [http-binding](./http-binding.md) | `HTTPBinding`, `HTTPParamBinding`, webhooks |
 | [rpc-binding](./rpc-binding.md) | `RPCBinding` |
 | [messaging](./messaging.md) | `MessageBinding`, `Reply`, `Channel`, `Message` |

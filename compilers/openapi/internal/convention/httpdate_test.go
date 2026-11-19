@@ -24,7 +24,7 @@ func responding(header ir.Header, reg ir.TypeRegistry) *ir.Document {
 
 // dated is a header named name, holding an instant.
 func dated(name string) ir.Header {
-	return ir.Header{WireName: name, Type: prim(ir.PrimitiveDatetimeOffset)}
+	return ir.Header{WireName: name, Type: primitive(ir.PrimitiveDatetimeOffset)}
 }
 
 // TestHTTPDate_AFieldItsRFCDefinesAsADate pins which response headers are
@@ -37,7 +37,7 @@ func TestHTTPDate_AFieldItsRFCDefinesAsADate(t *testing.T) {
 	prefixed.Prefix = new("Date")
 	content := dated("Last-Modified")
 	content.Encoding = &ir.Encoding{MediaType: "application/json"}
-	named := ir.Header{Name: ir.NamingFor("Expires"), Type: prim(ir.PrimitiveDatetimeOffset)}
+	named := ir.Header{Name: ir.NamingFor("Expires"), Type: primitive(ir.PrimitiveDatetimeOffset)}
 	scalar := dated("Last-Modified")
 	scalar.Type = ir.TypeRef{Target: "type/s"}
 	encoded := dated("Last-Modified")
@@ -66,8 +66,8 @@ func TestHTTPDate_AFieldItsRFCDefinesAsADate(t *testing.T) {
 		{"a field under a prefix", prefixed, false},
 		{"a content header", content, false},
 		{"a scalar naming an encoding", encoded, false},
-		{"a date", ir.Header{WireName: "Date", Type: prim(ir.PrimitiveDate)}, false},
-		{"text", ir.Header{WireName: "Date", Type: prim(ir.PrimitiveString)}, false},
+		{"a date", ir.Header{WireName: "Date", Type: primitive(ir.PrimitiveDate)}, false},
+		{"text", ir.Header{WireName: "Date", Type: primitive(ir.PrimitiveString)}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -112,10 +112,10 @@ func TestHTTPDate_ReadsEveryResponseAndNoPart(t *testing.T) {
 		}, registry(nil))
 	}
 	encoded := func(doc *ir.Document) []ir.PropertyID {
-		op := operationOf(doc)
+		operation := operationOf(doc)
 		var ids []ir.PropertyID
-		for _, hs := range [][]ir.Header{op.Request.Contents[0].Encoding["property/part"].Headers, op.Responses[0].Headers,
-			op.Errors[0].Headers, op.Default.Headers} {
+		for _, hs := range [][]ir.Header{operation.Request.Contents[0].Encoding["property/part"].Headers, operation.Responses[0].Headers,
+			operation.Errors[0].Headers, operation.Default.Headers} {
 			if hs[0].Encoding != nil {
 				ids = append(ids, hs[0].ID)
 			}

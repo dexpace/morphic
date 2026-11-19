@@ -149,12 +149,12 @@ func namedItem(t *testing.T, list any, name string) any {
 	return nil
 }
 
-// opTree returns the operation whose operationId is source, as its JSON.
-func opTree(t *testing.T, doc *ir.Document, source string) any {
+// operationTree returns the operation whose operationId is source, as its JSON.
+func operationTree(t *testing.T, doc *ir.Document, source string) any {
 	t.Helper()
-	op, ok := opByName(doc, source)
+	operation, ok := operationByName(doc, source)
 	require.True(t, ok, "operation %q", source)
-	return tree(t, op)
+	return tree(t, operation)
 }
 
 // groupTree returns the operation group with the ID id, as its JSON, found

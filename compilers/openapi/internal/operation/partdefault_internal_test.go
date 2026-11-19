@@ -20,11 +20,11 @@ import (
 // naming a node no registry entry declares.
 func defaultsRegistry() ir.TypeRegistry {
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
-	prim := func(primitiveKind ir.PrimitiveKind) ir.TypeRef { return ref(ir.PrimitiveTypeID(primitiveKind)) }
+	primitive := func(primitiveKind ir.PrimitiveKind) ir.TypeRef { return ref(ir.PrimitiveTypeID(primitiveKind)) }
 	reg := ir.TypeRegistry{
-		"type/base64":    &ir.Scalar{ID: "type/base64", Base: new(prim(ir.PrimitiveBytes)), Encoding: &ir.Encoding{Name: "base64"}},
-		"type/base64url": &ir.Scalar{ID: "type/base64url", Base: new(prim(ir.PrimitiveBytes)), Encoding: &ir.Encoding{Name: "base64url"}},
-		"type/email":     &ir.Scalar{ID: "type/email", Base: new(prim(ir.PrimitiveString)), Encoding: &ir.Encoding{Name: "email"}},
+		"type/base64":    &ir.Scalar{ID: "type/base64", Base: new(primitive(ir.PrimitiveBytes)), Encoding: &ir.Encoding{Name: "base64"}},
+		"type/base64url": &ir.Scalar{ID: "type/base64url", Base: new(primitive(ir.PrimitiveBytes)), Encoding: &ir.Encoding{Name: "base64url"}},
+		"type/email":     &ir.Scalar{ID: "type/email", Base: new(primitive(ir.PrimitiveString)), Encoding: &ir.Encoding{Name: "email"}},
 		"type/opaque":    &ir.Scalar{ID: "type/opaque"},
 		"type/enum":      &ir.Enum{ID: "type/enum", ValueType: ir.PrimitiveInt32},
 		"type/lit/str":   &ir.Literal{ID: "type/lit/str", ValueType: ir.PrimitiveString},
@@ -32,12 +32,12 @@ func defaultsRegistry() ir.TypeRegistry {
 		"type/lit/obj":   &ir.Literal{ID: "type/lit/obj", Value: ir.Value{Kind: ir.ValueObject}},
 		"type/lit/list":  &ir.Literal{ID: "type/lit/list", Value: ir.Value{Kind: ir.ValueList}},
 		"type/model":     &ir.Model{ID: "type/model"},
-		"type/map":       &ir.MapT{ID: "type/map", Value: prim(ir.PrimitiveString)},
-		"type/list":      &ir.List{ID: "type/list", ElementType: prim(ir.PrimitiveString)},
+		"type/map":       &ir.MapT{ID: "type/map", Value: primitive(ir.PrimitiveString)},
+		"type/list":      &ir.List{ID: "type/list", ElementType: primitive(ir.PrimitiveString)},
 		"type/matrix":    &ir.List{ID: "type/matrix", ElementType: ref("type/list")},
-		"type/tuple":     &ir.Tuple{ID: "type/tuple", ElementTypes: []ir.TypeRef{prim(ir.PrimitiveInt64)}, Rest: new(prim(ir.PrimitiveBool))},
-		"type/u/agree":   &ir.Union{ID: "type/u/agree", Variants: []ir.Variant{{Type: prim(ir.PrimitiveString)}, {Type: ref("type/lit/null")}, {Type: prim(ir.PrimitiveNumber)}}},
-		"type/u/differ":  &ir.Union{ID: "type/u/differ", Variants: []ir.Variant{{Type: prim(ir.PrimitiveString)}, {Type: ref("type/model")}}},
+		"type/tuple":     &ir.Tuple{ID: "type/tuple", ElementTypes: []ir.TypeRef{primitive(ir.PrimitiveInt64)}, Rest: new(primitive(ir.PrimitiveBool))},
+		"type/u/agree":   &ir.Union{ID: "type/u/agree", Variants: []ir.Variant{{Type: primitive(ir.PrimitiveString)}, {Type: ref("type/lit/null")}, {Type: primitive(ir.PrimitiveNumber)}}},
+		"type/u/differ":  &ir.Union{ID: "type/u/differ", Variants: []ir.Variant{{Type: primitive(ir.PrimitiveString)}, {Type: ref("type/model")}}},
 		"type/u/missing": &ir.Union{ID: "type/u/missing", Variants: []ir.Variant{{Type: ref("type/absent")}}},
 		"type/u/empty":   &ir.Union{ID: "type/u/empty"},
 		"type/ext":       &ir.External{ID: "type/ext"},

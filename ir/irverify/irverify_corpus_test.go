@@ -212,12 +212,12 @@ func unmodeledKeys(doc *ir.Document) []string {
 	}
 	for _, svc := range doc.Services {
 		for _, operationGroup := range svc.Groups {
-			for _, op := range operationGroup.Operations {
-				collect(op.Unmodeled)
-				for _, parameter := range op.Params {
+			for _, operation := range operationGroup.Operations {
+				collect(operation.Unmodeled)
+				for _, parameter := range operation.Params {
 					collect(parameter.Unmodeled)
 				}
-				for _, ec := range op.Errors {
+				for _, ec := range operation.Errors {
 					collect(ec.Unmodeled)
 				}
 			}

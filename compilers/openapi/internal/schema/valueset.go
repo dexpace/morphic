@@ -55,7 +55,7 @@ func (vs valueSetSite) pointer() jsontext.Pointer {
 }
 
 // valueType types the node vs lowers to: own, what its set's schema selects,
-// narrowed by every conjunct where its position refines (conjunctPrim), fits
+// narrowed by every conjunct where its position refines (conjunctPrimitive), fits
 // saying which primitives the values are of. The position is the stand's, else
 // the set's own; a member has none.
 func (vs valueSetSite) valueType(loweringContext lowering.Ctx, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
@@ -70,7 +70,7 @@ func (vs valueSetSite) valueType(loweringContext lowering.Ctx, own ir.PrimitiveK
 	if !refines {
 		return own
 	}
-	return conjunctPrim(loweringContext, refinement, position, own, fits)
+	return conjunctPrimitive(loweringContext, refinement, position, own, fits)
 }
 
 // valueSetPrincipal returns the inline principal of refinementValue that lowers
@@ -158,8 +158,8 @@ func lowerPrincipalValueSet(loweringContext lowering.Ctx, ts *compile.Types, sch
 // setType is the ValueType of the Enum or Literal a refinement's value set
 // lowers to, ok false where it lowers to no such node (refinedValueType).
 type setType struct {
-	prim ir.PrimitiveKind
-	ok   bool
+	primitive ir.PrimitiveKind
+	ok        bool
 }
 
 // refinedValueType returns the ValueType of the Enum or Literal the refinement
@@ -182,7 +182,7 @@ func refinedValueType(loweringContext lowering.Ctx, refinementValue refinement, 
 	case "const":
 		return constSetType(loweringContext, site)
 	default:
-		return setType{prim: site.enumType(loweringContext, admitsEvery, ir.PrimitiveAny), ok: nullAlone(site.set)}
+		return setType{primitive: site.enumType(loweringContext, admitsEvery, ir.PrimitiveAny), ok: nullAlone(site.set)}
 	}
 }
 
@@ -194,11 +194,11 @@ func enumSetType(loweringContext lowering.Ctx, site valueSetSite) setType {
 		return setType{}
 	}
 	kept := slices.DeleteFunc(readEnum(written), enumEntry.isNull)
-	prim, ok := enumMemberPrim(kept)
+	primitive, ok := enumMemberPrimitive(kept)
 	if !ok {
-		return setType{prim: site.enumType(loweringContext, admitsEvery, prim)}
+		return setType{primitive: site.enumType(loweringContext, admitsEvery, primitive)}
 	}
-	return setType{prim: site.enumType(loweringContext, func(primitiveKind ir.PrimitiveKind) bool { return entriesAre(kept, primitiveKind) }, prim), ok: true}
+	return setType{primitive: site.enumType(loweringContext, func(primitiveKind ir.PrimitiveKind) bool { return entriesAre(kept, primitiveKind) }, primitive), ok: true}
 }
 
 // constSetType is refinedValueType for a const: the Literal's ValueType, or
@@ -207,16 +207,16 @@ func enumSetType(loweringContext lowering.Ctx, site valueSetSite) setType {
 func constSetType(loweringContext lowering.Ctx, site valueSetSite) setType {
 	val, err := value.FromNode(site.set.Const())
 	if err == nil && val.Kind == ir.ValueNull {
-		return setType{prim: site.enumType(loweringContext, admitsEvery, ir.PrimitiveAny), ok: true}
+		return setType{primitive: site.enumType(loweringContext, admitsEvery, ir.PrimitiveAny), ok: true}
 	}
-	return setType{prim: site.literalType(loweringContext, val), ok: err == nil}
+	return setType{primitive: site.literalType(loweringContext, val), ok: err == nil}
 }
 
-// enumType is the ValueType an Enum of members classified as memberPrim takes
+// enumType is the ValueType an Enum of members classified as memberPrimitive takes
 // at vs (enumValueType), admits saying whether every member is a value of a
 // primitive, narrowed where its position refines.
-func (vs valueSetSite) enumType(loweringContext lowering.Ctx, admits func(ir.PrimitiveKind) bool, memberPrim ir.PrimitiveKind) ir.PrimitiveKind {
-	return vs.valueType(loweringContext, enumValueType(vs.set, admits, memberPrim), admits)
+func (vs valueSetSite) enumType(loweringContext lowering.Ctx, admits func(ir.PrimitiveKind) bool, memberPrimitive ir.PrimitiveKind) ir.PrimitiveKind {
+	return vs.valueType(loweringContext, enumValueType(vs.set, admits, memberPrimitive), admits)
 }
 
 // admitsEvery is what enumType asks of an Enum with no member: every value of
@@ -229,29 +229,29 @@ func (vs valueSetSite) literalType(loweringContext lowering.Ctx, val ir.Value) i
 	return vs.valueType(loweringContext, literalValueType(vs.set, val), func(primitiveKind ir.PrimitiveKind) bool { return merge.Admits(primitiveKind, val) })
 }
 
-// valueTypeHoldsFormat reports whether a value set typed prim holds the format
-// schema pairs with its type: prim is that format's primitive or a narrower
+// valueTypeHoldsFormat reports whether a value set typed primitive holds the format
+// schema pairs with its type: primitive is that format's primitive or a narrower
 // one.
-func valueTypeHoldsFormat(prim ir.PrimitiveKind, schema *statement.Schema) bool {
+func valueTypeHoldsFormat(primitive ir.PrimitiveKind, schema *statement.Schema) bool {
 	paired, ok := formatPrimitive(schema)
-	return ok && narrowsOrIs(prim, paired)
+	return ok && narrowsOrIs(primitive, paired)
 }
 
-// conjunctPrim returns, of own and the primitive each conjunct of
-// refinementValue selects (declaredPrim), the one narrowing every other, and
+// conjunctPrimitive returns, of own and the primitive each conjunct of
+// refinementValue selects (declaredPrimitive), the one narrowing every other, and
 // own where none does: two formats neither of which narrows the other say no
 // one primitive. The conjuncts are schema, each inline branch, and what decides
 // what a $ref branch lands on (conjunctSchemas). own is "" for a value no
 // primitive types, which none fits, so it stands.
-func conjunctPrim(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
-	prims := []ir.PrimitiveKind{own}
+func conjunctPrimitive(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
+	primitives := []ir.PrimitiveKind{own}
 	for _, cs := range conjunctSchemas(loweringContext, refinementValue, schema) {
-		if prim, ok := declaredPrim(cs, fits); ok {
-			prims = append(prims, prim)
+		if primitive, ok := declaredPrimitive(cs, fits); ok {
+			primitives = append(primitives, primitive)
 		}
 	}
-	for _, primitiveKind := range prims {
-		if !slices.ContainsFunc(prims, func(irPrimitiveKind ir.PrimitiveKind) bool { return !narrowsOrIs(primitiveKind, irPrimitiveKind) }) {
+	for _, primitiveKind := range primitives {
+		if !slices.ContainsFunc(primitives, func(irPrimitiveKind ir.PrimitiveKind) bool { return !narrowsOrIs(primitiveKind, irPrimitiveKind) }) {
 			return primitiveKind
 		}
 	}
@@ -282,16 +282,16 @@ func narrowsOrIs(primitiveKind, irPrimitiveKind ir.PrimitiveKind) bool {
 	return rel == typeformat.Same || rel == typeformat.ANarrower
 }
 
-// declaredPrim returns the primitive schema's type and format select, else its
+// declaredPrimitive returns the primitive schema's type and format select, else its
 // type alone, where fits says its values are of it, as a value set's own schema
 // types it (literalValueType), and false where schema selects none they fit.
-func declaredPrim(schema *statement.Schema, fits func(ir.PrimitiveKind) bool) (ir.PrimitiveKind, bool) {
-	if prim, paired := formatPrimitive(schema); paired && fits(prim) {
-		return prim, true
+func declaredPrimitive(schema *statement.Schema, fits func(ir.PrimitiveKind) bool) (ir.PrimitiveKind, bool) {
+	if primitive, paired := formatPrimitive(schema); paired && fits(primitive) {
+		return primitive, true
 	}
 	if types := effectiveTypes(schema); len(types) == 1 {
-		if prim, known := typeformat.Lookup(string(types[0])); known && fits(prim) {
-			return prim, true
+		if primitive, known := typeformat.Lookup(string(types[0])); known && fits(primitive) {
+			return primitive, true
 		}
 	}
 	return "", false

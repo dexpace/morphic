@@ -144,7 +144,7 @@ func TestPathItemRefSiblings_UnmountedCallbackKeepsSiblings(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	const expr = "{$request.body#~1url}"
-	parent := openapitest.FindOp(t, doc, "parent")
+	parent := openapitest.FindOperation(t, doc, "parent")
 	entry, ok := parent.Bindings.HTTP[0].Unmodeled["openapi:pathItem/paths/~1p/post/callbacks/onEvent/"+expr+"/x-beside"]
 	require.True(t, ok, "the expression's sibling x-* is kept on the parent's binding")
 	assert.JSONEq(t, `"use"`, string(entry.Value))

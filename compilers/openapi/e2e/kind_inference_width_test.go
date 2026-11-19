@@ -44,7 +44,7 @@ func nodeAtWidthPosition(t *testing.T, doc *ir.Document, at jsontext.Pointer) ir
 	case widthPositions[1]:
 		holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
 		require.True(t, ok)
-		property, ok := propByWire(holder, "p")
+		property, ok := propertyByWire(holder, "p")
 		require.True(t, ok)
 		return kindNode(t, doc, property.Type.Target)
 	case widthPositions[2]:
@@ -125,7 +125,7 @@ func assertWidthOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, a
 	scalar, ok := td.(*ir.Scalar)
 	require.True(t, ok, "%s: the top type, got %s", where, td.Kind())
 	require.NotNil(t, scalar.Base, where)
-	assert.Equal(t, prim(ir.PrimitiveAny), scalar.Base.Target, where)
+	assert.Equal(t, primitive(ir.PrimitiveAny), scalar.Base.Target, where)
 	assert.False(t, markedKindInference(td), where)
 	assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:" + keyword: ir.ReasonDegradedLowering}, keptOn(td), where)
 	assert.Equal(t, []jsontext.Pointer{at}, degradedUnder(diags, at), where)
@@ -169,7 +169,7 @@ func TestKindInference_AKeywordTypingNothingStillSpeaksOfItsKind(t *testing.T) {
 						variant, isScalar := kindNode(t, doc, irVariant.Type.Target).(*ir.Scalar)
 						require.True(t, isScalar, "variant %d", i)
 						require.NotNil(t, variant.Base)
-						assert.Equal(t, prim(ir.PrimitiveAny), variant.Base.Target, "variant %d", i)
+						assert.Equal(t, primitive(ir.PrimitiveAny), variant.Base.Target, "variant %d", i)
 						assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:required": ir.ReasonDegradedLowering},
 							keptOn(variant), "variant %d", i)
 					}
@@ -194,7 +194,7 @@ func TestKindInference_ANarrowingBesideATypingKeywordStaysOnItsModel(t *testing.
 			model, ok := kindNode(t, doc, componentID("Closed")).(*ir.Model)
 			require.True(t, ok)
 			assert.True(t, markedKindInference(model))
-			a, ok := propByWire(model, "a")
+			a, ok := propertyByWire(model, "a")
 			require.True(t, ok)
 			assert.True(t, a.Required, "required names the member")
 			assert.Equal(t, ir.AdditionalClosed, model.Additional)

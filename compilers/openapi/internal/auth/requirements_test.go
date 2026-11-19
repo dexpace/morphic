@@ -289,9 +289,9 @@ components:
   securitySchemes:
     key: {type: apiKey, in: header, name: X-Key}
 `)
-	op := onlyOperation(t, svc)
-	require.Len(t, op.Auth, 1, "the operation keeps its own requirement")
-	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("missing")}, schemeUses(op.Auth[0]))
+	operation := onlyOperation(t, svc)
+	require.Len(t, operation.Auth, 1, "the operation keeps its own requirement")
+	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("missing")}, schemeUses(operation.Auth[0]))
 	diagnostic, ok := openapitest.FirstDiag(diags, diag.UnresolvedSecurityScheme)
 	require.True(t, ok, "reported: %+v", diags)
 	assert.Equal(t, jsontext.Pointer("/paths/~1x/get/security/0"), diagnostic.Provenance.Pointer,
@@ -505,9 +505,9 @@ components:
   securitySchemes:
     key: {type: apiKey, in: header, name: X-Key}
 `, other(tc.other))
-		op := openapitest.FindOp(t, doc, "there")
-		require.Len(t, op.Auth, 2, "%s mounting %s: %+v", tc.source, tc.other, diags)
-		assert.Equal(t, tc.want, []ir.AuthID{op.Auth[0].Schemes[0].Scheme, op.Auth[1].Schemes[0].Scheme},
+		operation := openapitest.FindOperation(t, doc, "there")
+		require.Len(t, operation.Auth, 2, "%s mounting %s: %+v", tc.source, tc.other, diags)
+		assert.Equal(t, tc.want, []ir.AuthID{operation.Auth[0].Schemes[0].Scheme, operation.Auth[1].Schemes[0].Scheme},
 			"%s mounting %s", tc.source, tc.other)
 	}
 }
@@ -559,9 +559,9 @@ paths:
     key: {type: apiKey, in: header, name: X-Key}
 `, other)
 		for name, want := range map[string]ir.AuthID{"here": ids.Auth("key"), "there": ids.UnresolvedAuth(key)} {
-			op := openapitest.FindOp(t, doc, name)
-			require.Len(t, op.Auth, 1, "%s, %s: %+v", order, name, diags)
-			assert.Equal(t, []ir.AuthID{want}, schemeUses(op.Auth[0]), "%s, %s", order, name)
+			operation := openapitest.FindOperation(t, doc, name)
+			require.Len(t, operation.Auth, 1, "%s, %s: %+v", order, name, diags)
+			assert.Equal(t, []ir.AuthID{want}, schemeUses(operation.Auth[0]), "%s, %s", order, name)
 		}
 	}
 }
@@ -595,9 +595,9 @@ func TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder(t *testing.
 	for order, doc := range map[string]*ir.Document{"name first": nameFirst, "URI first": uriFirst} {
 		assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("ghost")}, slices.Collect(maps.Keys(doc.Auth)), order)
 		for _, name := range []string{"byName", "byURI"} {
-			op := openapitest.FindOp(t, doc, name)
-			require.Len(t, op.Auth, 1, name)
-			assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("ghost")}, schemeUses(op.Auth[0]), "%s: %s", order, name)
+			operation := openapitest.FindOperation(t, doc, name)
+			require.Len(t, operation.Auth, 1, name)
+			assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("ghost")}, schemeUses(operation.Auth[0]), "%s: %s", order, name)
 		}
 	}
 	assert.Empty(t, cmp.Diff(nameFirst, uriFirst, cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
@@ -666,17 +666,17 @@ components:
 
 	// Each lookup is required to hit before it is asserted on: a missing key
 	// yields the zero Operation, whose Auth is nil.
-	ops := operationsByDeclaration(svc)
-	require.Len(t, ops, len(want)+1, "one operation per carrier, plus the callback's own parent")
-	hook, ok := ops["/webhooks/hook/post"]
+	operations := operationsByDeclaration(svc)
+	require.Len(t, operations, len(want)+1, "one operation per carrier, plus the callback's own parent")
+	hook, ok := operations["/webhooks/hook/post"]
 	require.True(t, ok, "the webhook operation was lowered")
 	require.Len(t, hook.Auth, 1, "the webhook keeps its own requirement")
 	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("missing")}, schemeUses(hook.Auth[0]))
-	callback, ok := ops["/paths/~1cb/post/callbacks/onEvent/{$request.body#~1url}/post"]
+	callback, ok := operations["/paths/~1cb/post/callbacks/onEvent/{$request.body#~1url}/post"]
 	require.True(t, ok, "the callback operation was lowered")
 	require.Len(t, callback.Auth, 1, "the callback operation keeps its own requirement")
 	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("missing")}, schemeUses(callback.Auth[0]))
-	shared, ok := ops["/components/pathItems/shared/get"]
+	shared, ok := operations["/components/pathItems/shared/get"]
 	require.True(t, ok, "the $ref'd path item's operation was lowered")
 	require.Len(t, shared.Auth, 2, "it keeps both options, in order")
 	assert.Equal(t, []ir.AuthID{ids.Auth("key")}, schemeUses(shared.Auth[0]))
@@ -688,8 +688,8 @@ components:
 func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 	out := make(map[string]ir.Operation)
 	for _, operationGroup := range svc.Groups {
-		for _, op := range operationGroup.Operations {
-			out[string(op.Provenance.Pointer)] = op
+		for _, operation := range operationGroup.Operations {
+			out[string(operation.Provenance.Pointer)] = operation
 		}
 	}
 	return out
@@ -812,13 +812,13 @@ components:
   securitySchemes:
     key: {type: apiKey, in: header, name: X-Key}
 `)
-			op := onlyOperation(t, svc)
-			require.Len(t, op.Auth, tc.wantOptions, "surviving options: %+v", op.Auth)
-			require.Len(t, op.Auth[0].Schemes, 1, "the real requirement is untouched")
-			assert.Equal(t, ids.Auth("key"), op.Auth[0].Schemes[0].Scheme)
+			operation := onlyOperation(t, svc)
+			require.Len(t, operation.Auth, tc.wantOptions, "surviving options: %+v", operation.Auth)
+			require.Len(t, operation.Auth[0].Schemes, 1, "the real requirement is untouched")
+			assert.Equal(t, ids.Auth("key"), operation.Auth[0].Schemes[0].Scheme)
 
 			if tc.wantOptions == 2 {
-				assert.Empty(t, op.Auth[1].Schemes, "the empty option the operation wrote is kept")
+				assert.Empty(t, operation.Auth[1].Schemes, "the empty option the operation wrote is kept")
 				return
 			}
 			assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), "/paths/~1x/get/security/1: ",
@@ -881,12 +881,12 @@ components:
 // assertion without anything having been compiled.
 func onlyOperation(t *testing.T, svc ir.Service) ir.Operation {
 	t.Helper()
-	var ops []ir.Operation
+	var operations []ir.Operation
 	for _, operationGroup := range svc.Groups {
-		ops = append(ops, operationGroup.Operations...)
+		operations = append(operations, operationGroup.Operations...)
 	}
-	require.Len(t, ops, 1, "the fixture declares exactly one operation")
-	return ops[0]
+	require.Len(t, operations, 1, "the fixture declares exactly one operation")
+	return operations[0]
 }
 
 // loaderErrors returns every error the load phase's validation produced, in
@@ -967,7 +967,7 @@ func carrierAuth(t *testing.T, doc *ir.Document) map[string][]ir.AuthRequirement
 	t.Helper()
 	out := map[string][]ir.AuthRequirement{"root": doc.Services[0].Auth}
 	for _, name := range []string{"inline", "callback", "mounted", "hook"} {
-		out[name] = openapitest.FindOp(t, doc, name).Auth
+		out[name] = openapitest.FindOperation(t, doc, name).Auth
 	}
 	return out
 }

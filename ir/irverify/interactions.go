@@ -61,10 +61,10 @@ func checkInteractions(*ir.Document) walkCheck {
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			switch v.Type() {
 			case operationType:
-				op, ok := reflect.TypeAssert[ir.Operation](v)
-				bodyless = ok && op.Request == nil
+				operation, ok := reflect.TypeAssert[ir.Operation](v)
+				bodyless = ok && operation.Request == nil
 				if ok {
-					vs = appendScenarioViolations(vs, &op, at)
+					vs = appendScenarioViolations(vs, &operation, at)
 				}
 				return true
 			case inputPathType:
@@ -106,20 +106,20 @@ func appendInputViolation(vs []Violation, in ir.InputPath, bodyless bool, at ir.
 	})
 }
 
-// appendScenarioViolations reports each scenario of op, the operation at at,
-// whose Body op cannot take: one on an operation that sends no request, which
+// appendScenarioViolations reports each scenario of operation, the operation at at,
+// whose Body operation cannot take: one on an operation that sends no request, which
 // has no content for it to be the value of (ir/input-body-absent), and one on
 // an operation binding a parameter into its body, whole or by property, where
 // the parameters state the body, so a Body states part of it twice
 // (ir/input-body-twice). A path is spelled only for a report.
-func appendScenarioViolations(vs []Violation, op *ir.Operation, at ir.WalkPath) []Violation {
-	twice := bindsIntoBody(op)
-	for i, ex := range op.Examples {
-		if ex.Input == nil || ex.Input.Body == nil || (op.Request != nil && !twice) {
+func appendScenarioViolations(vs []Violation, operation *ir.Operation, at ir.WalkPath) []Violation {
+	twice := bindsIntoBody(operation)
+	for i, ex := range operation.Examples {
+		if ex.Input == nil || ex.Input.Body == nil || (operation.Request != nil && !twice) {
 			continue
 		}
 		where := at.String() + ".Examples[" + strconv.Itoa(i) + "].Input.Body"
-		if op.Request == nil {
+		if operation.Request == nil {
 			vs = append(vs, Violation{
 				Code:    "ir/input-body-absent",
 				Message: "scenario sends a request body, and the operation sends none",
@@ -137,10 +137,10 @@ func appendScenarioViolations(vs []Violation, op *ir.Operation, at ir.WalkPath) 
 	return vs
 }
 
-// bindsIntoBody reports whether any HTTP binding of op binds a parameter into
+// bindsIntoBody reports whether any HTTP binding of operation binds a parameter into
 // the request body, whole or by property.
-func bindsIntoBody(op *ir.Operation) bool {
-	for _, b := range op.Bindings.HTTP {
+func bindsIntoBody(operation *ir.Operation) bool {
+	for _, b := range operation.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {
 			if pb.Location == ir.HTTPLocationBody || pb.Location == ir.HTTPLocationBodyProperty {
 				return true

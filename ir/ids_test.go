@@ -74,7 +74,7 @@ func TestTypeID_JSONRoundTrip(t *testing.T) {
 
 // TestPropertyID_UsableAsMapKey pins that PropertyID (and by construction every
 // ID type sharing its underlying string representation) can be used as a JSON
-// object key, since Property lookups and PropPath segments depend on that.
+// object key, since Property lookups and PropertyPath segments depend on that.
 func TestPropertyID_UsableAsMapKey(t *testing.T) {
 	t.Parallel()
 	m := map[ir.PropertyID]int{
@@ -149,8 +149,8 @@ func TestPrimitiveTypeID_IsTheSharedScheme(t *testing.T) {
 // them depend on which was interned first.
 func TestPrimitiveTypeID_IsWellFormedAndInjective(t *testing.T) {
 	t.Parallel()
-	byID := make(map[ir.TypeID]ir.PrimitiveKind, len(primKindSpellings))
-	for kind := range primKindSpellings {
+	byID := make(map[ir.TypeID]ir.PrimitiveKind, len(primitiveKindSpellings))
+	for kind := range primitiveKindSpellings {
 		id := ir.PrimitiveTypeID(kind)
 		require.True(t, ir.WellFormedID(ir.IDKindType, string(id)),
 			"%q is not an ID the grammar produces", id)
@@ -168,7 +168,7 @@ func TestPrimitiveTypeID_IsWellFormedAndInjective(t *testing.T) {
 		}
 		byID[id] = kind
 	}
-	assert.Len(t, byID, len(primKindSpellings), "every kind reaches an ID of its own")
+	assert.Len(t, byID, len(primitiveKindSpellings), "every kind reaches an ID of its own")
 }
 
 // TestIDSpace_Extraction pins what an ID's space is, including the answers that

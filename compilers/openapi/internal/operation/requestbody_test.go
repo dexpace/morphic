@@ -29,11 +29,11 @@ func TestContent_NonRequiredRequestBody(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request, "a non-required body still lowers to a present Payload")
-	require.NotNil(t, op.Request.Required, "OpenAPI always states body optionality")
-	assert.False(t, *op.Request.Required)
-	assert.NotContains(t, op.Request.Unmodeled, "openapi:required",
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.Request, "a non-required body still lowers to a present Payload")
+	require.NotNil(t, operation.Request.Required, "OpenAPI always states body optionality")
+	assert.False(t, *operation.Request.Required)
+	assert.NotContains(t, operation.Request.Unmodeled, "openapi:required",
 		"the typed field carries the fact, so no sentinel is written beside it")
 	for _, diagnostic := range diags {
 		assert.NotContains(t, diagnostic.Message, "request body",
@@ -57,10 +57,10 @@ func TestContent_RequiredRequestBody(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request)
-	require.NotNil(t, op.Request.Required)
-	assert.True(t, *op.Request.Required)
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.Request)
+	require.NotNil(t, operation.Request.Required)
+	assert.True(t, *operation.Request.Required)
 }
 
 // TestContent_ResponsePayloadStatesNoOptionality pins the third state: only a
@@ -79,10 +79,10 @@ func TestContent_ResponsePayloadStatesNoOptionality(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Responses, 1)
-	require.NotNil(t, op.Responses[0].Payload)
-	assert.Nil(t, op.Responses[0].Payload.Required,
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Responses, 1)
+	require.NotNil(t, operation.Responses[0].Payload)
+	assert.Nil(t, operation.Responses[0].Payload.Required,
 		"a response body has no optionality to state")
 }
 
@@ -101,9 +101,9 @@ func TestContent_RequestBodyDocsReachThePayload(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request)
-	assert.Equal(t, "The thing to create.", op.Request.Docs.Description,
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.Request)
+	assert.Equal(t, "The thing to create.", operation.Request.Docs.Description,
 		"a declared body description has a home on the payload")
 }
 
@@ -122,11 +122,11 @@ func TestContent_ResponsePayloadStatesNoDocs(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Responses, 1)
-	require.NotNil(t, op.Responses[0].Payload)
-	assert.Zero(t, op.Responses[0].Payload.Docs, "only the request-body lowering writes payload docs")
-	assert.Equal(t, "ok", op.Responses[0].Docs.Description)
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Responses, 1)
+	require.NotNil(t, operation.Responses[0].Payload)
+	assert.Zero(t, operation.Responses[0].Payload.Docs, "only the request-body lowering writes payload docs")
+	assert.Equal(t, "ok", operation.Responses[0].Docs.Description)
 }
 
 // TestContent_RequestBodyDocsAreOrderIndependent is the hand-rolled two-order
@@ -170,9 +170,9 @@ paths:
 		openapitest.RequireNoErrorDiags(t, diags)
 		out := map[string]string{}
 		for _, name := range []string{"createOrder", "replaceOrder"} {
-			op := openapitest.FindOp(t, doc, name)
-			require.NotNil(t, op.Request, "%s: the body lowers", name)
-			out[name] = op.Request.Docs.Description + " " + string(openapitest.BodyTarget(t, op.Request))
+			operation := openapitest.FindOperation(t, doc, name)
+			require.NotNil(t, operation.Request, "%s: the body lowers", name)
+			out[name] = operation.Request.Docs.Description + " " + string(openapitest.BodyTarget(t, operation.Request))
 		}
 		return out
 	}
@@ -218,7 +218,7 @@ components:
   requestBodies:
     Empty: {content: {}}
 `)
-	inline := openapitest.FindOp(t, doc, "inline")
+	inline := openapitest.FindOperation(t, doc, "inline")
 	require.NotNil(t, inline.Request)
 	assert.Empty(t, inline.Request.Contents)
 	assert.Equal(t, new(true), inline.Request.Required)
@@ -226,10 +226,10 @@ components:
 	assert.Contains(t, inline.Request.Unmodeled, "openapi:x-note")
 	assert.Empty(t, inline.Bindings.HTTP[0].RequestContentTypes)
 	for _, name := range []string{"sharedPost", "sharedPut", "missing"} {
-		op := openapitest.FindOp(t, doc, name)
-		require.NotNil(t, op.Request, name)
-		assert.Empty(t, op.Request.Contents, name)
-		assert.Equal(t, new(false), op.Request.Required, name)
+		operation := openapitest.FindOperation(t, doc, name)
+		require.NotNil(t, operation.Request, name)
+		assert.Empty(t, operation.Request.Contents, name)
+		assert.Equal(t, new(false), operation.Request.Required, name)
 	}
 
 	var at []jsontext.Pointer
@@ -255,8 +255,8 @@ func TestContent_RequestBodyRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, componentBodyRefSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	postA := openapitest.FindOp(t, doc, "postA")
-	postB := openapitest.FindOp(t, doc, "postB")
+	postA := openapitest.FindOperation(t, doc, "postA")
+	postB := openapitest.FindOperation(t, doc, "postB")
 	require.NotNil(t, postA.Request)
 	require.NotNil(t, postB.Request)
 
@@ -293,7 +293,7 @@ components:
 `
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request)
-	assert.Equal(t, "the use site", op.Request.Docs.Description)
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.Request)
+	assert.Equal(t, "the use site", operation.Request.Docs.Description)
 }

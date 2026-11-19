@@ -105,7 +105,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			model, ok := doc.Types[componentID(tc.model)].(*ir.Model)
 			require.True(t, ok, "%s should be a model", tc.model)
-			property, ok := openapitest.PropsByWire(model.Properties)[tc.wire]
+			property, ok := openapitest.PropertiesByWire(model.Properties)[tc.wire]
 			require.True(t, ok, "%s should have a %q property", tc.model, tc.wire)
 			assert.True(t, property.Required, "%s.%s should be required via composition-scope required", tc.model, tc.wire)
 			assert.Empty(t, model.Requires, "every required name matches an own property, so none is listed beside them")
@@ -139,9 +139,9 @@ func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires(t *testi
 	require.NotNil(t, model.Base, "the sole $ref still becomes Base")
 	assert.Equal(t, componentID("Human"), model.Base.Target)
 
-	_, hasLevel := openapitest.PropsByWire(model.Properties)["level"]
+	_, hasLevel := openapitest.PropertiesByWire(model.Properties)["level"]
 	assert.False(t, hasLevel, "level belongs to the base, not to SuperBaby's own properties")
-	gender, hasGender := openapitest.PropsByWire(model.Properties)["gender"]
+	gender, hasGender := openapitest.PropertiesByWire(model.Properties)["gender"]
 	require.True(t, hasGender, "gender is SuperBaby's own property")
 	assert.False(t, gender.Required, "level's requiredness never misattaches to gender")
 	assert.Equal(t, []string{"level"}, model.Requires, "SuperBaby makes the level Human declares required")
@@ -169,10 +169,10 @@ func TestAllOf_RequiredNameNothingDeclaresLandsInRequires(t *testing.T) {
 	assert.Nil(t, model.Base, "no $ref branch at all: no Base")
 	assert.Empty(t, model.Mixins, "no $ref branch at all: no Mixins")
 
-	id, hasID := openapitest.PropsByWire(model.Properties)["id"]
+	id, hasID := openapitest.PropertiesByWire(model.Properties)["id"]
 	require.True(t, hasID, "the branch's own id property still lowers")
 	assert.False(t, id.Required, "ghost's requiredness never misattaches to id")
-	_, hasGhost := openapitest.PropsByWire(model.Properties)["ghost"]
+	_, hasGhost := openapitest.PropertiesByWire(model.Properties)["ghost"]
 	assert.False(t, hasGhost, "ghost is never invented as a property")
 	assert.Equal(t, []string{"ghost"}, model.Requires)
 	assert.Empty(t, diags, "the requirement is carried, so nothing is reported")
@@ -205,7 +205,7 @@ func TestAllOf_RefBranchWithSiblingRequired31(t *testing.T) {
 	require.True(t, ok, "SuperBoyLike should be a model")
 	require.NotNil(t, model.Base, "the sole $ref still becomes Base despite the sibling required")
 
-	level, ok := openapitest.PropsByWire(model.Properties)["level"]
+	level, ok := openapitest.PropertiesByWire(model.Properties)["level"]
 	require.True(t, ok, "level is declared by the inline branch")
 	assert.True(t, level.Required,
 		"a required sibling on a $ref branch is read off the branch's own local schema and attaches to level")
@@ -291,7 +291,7 @@ func TestAllOf_BoolBranchContributesNoRequiredNames(t *testing.T) {
 	assert.Nil(t, model.Base, "a bare boolean branch is never a $ref, so no Base")
 	assert.Empty(t, model.Mixins)
 
-	id, hasID := openapitest.PropsByWire(model.Properties)["id"]
+	id, hasID := openapitest.PropertiesByWire(model.Properties)["id"]
 	require.True(t, hasID, "the object branch's own property still lowers despite the sibling bool branch")
 	assert.True(t, id.Required, "the object branch's own required still attaches to its own property")
 	assert.Empty(t, model.Requires, "the boolean branch contributes no required names, so nothing goes unattached")

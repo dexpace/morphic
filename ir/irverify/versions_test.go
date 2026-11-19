@@ -187,9 +187,9 @@ func TestVerify_EveryAvailabilityCarrierIsHeldToTheLabels(t *testing.T) {
 		},
 			"document.Types[type/x/M].Properties[0].Availability.Added[0]"},
 		{"operation", func(document *ir.Document) { scenarioOperation(document).Availability = avail() },
-			scenarioOp + ".Availability.Added[0]"},
+			scenarioOperationPath + ".Availability.Added[0]"},
 		{"parameter", func(document *ir.Document) { scenarioOperation(document).Params[0].Availability = avail() },
-			scenarioOp + ".Params[0].Availability.Added[0]"},
+			scenarioOperationPath + ".Params[0].Availability.Added[0]"},
 		{"enum member", func(document *ir.Document) { document.Types["type/x/E"].(*ir.Enum).Members[0].Availability = avail() },
 			"document.Types[type/x/E].Members[0].Availability.Added[0]"},
 		{"variant", func(document *ir.Document) {

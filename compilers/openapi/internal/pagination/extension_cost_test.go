@@ -26,9 +26,9 @@ import (
 // members, as the walk of each states: operation is one operation's text, its
 // %[1]d the operation's number.
 func pageSpec(n int, operation string) string {
-	var paths, props strings.Builder
+	var paths, properties strings.Builder
 	for i := range n {
-		fmt.Fprintf(&props, "        m%d: {type: string}\n", i)
+		fmt.Fprintf(&properties, "        m%d: {type: string}\n", i)
 		fmt.Fprintf(&paths, operation, i)
 	}
 	return openapitest.PathsSpec(paths.String()) + `components:
@@ -37,7 +37,7 @@ func pageSpec(n int, operation string) string {
       type: object
       properties:
         items: {type: array, items: {type: string}}
-` + props.String()
+` + properties.String()
 }
 
 // pageSpecs are the shapes whose operations read the one model: the cursor from
@@ -89,11 +89,11 @@ func promoteBytes(t *testing.T, src string, operations int) float64 {
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size fills its paginations alike")
 		filled := 0
-		for _, op := range compileddoc.New(doc).Ops {
-			if op.Pagination != nil {
+		for _, operation := range compileddoc.New(doc).Operations {
+			if operation.Pagination != nil {
 				filled++
 			}
-			op.Pagination = nil
+			operation.Pagination = nil
 		}
 		require.Equal(t, operations, filled)
 		fewest = min(fewest, float64(after.TotalAlloc-before.TotalAlloc))

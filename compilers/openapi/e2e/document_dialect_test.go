@@ -137,7 +137,7 @@ func TestDocumentDialect_AParameterReadsItsSchemasDialect(t *testing.T) {
 		"        - {name: q, in: query, schema: {$schema: "+draft04+", type: integer, minimum: 5, exclusiveMinimum: true}}\n"+
 		"      responses: {'200': {description: ok}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	parameter, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+	parameter, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, doc.Services[0]), "q")
 	require.True(t, ok)
 	require.NotNil(t, parameter.Constraints)
 	require.NotNil(t, parameter.Constraints.ExclusiveMin)

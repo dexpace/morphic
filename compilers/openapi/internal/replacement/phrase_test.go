@@ -39,28 +39,28 @@ func phraseDocument(message string) (*ir.Document, *ir.Operation, *ir.Property) 
 		route("operation/v2", http.MethodGet, "/v2/zones", nil),
 		route("operation/v0", http.MethodGet, "/v0/zones", nil),
 		route("operation/v0-post", http.MethodPost, "/v0/zones", nil))
-	props := make([]ir.Property, 0, 1+len(phraseMembers))
-	props = append(props, ir.Property{ID: "property/old", WireName: "old", Deprecation: says(message),
+	properties := make([]ir.Property, 0, 1+len(phraseMembers))
+	properties = append(properties, ir.Property{ID: "property/old", WireName: "old", Deprecation: says(message),
 		Provenance: ir.Provenance{Pointer: "/components/schemas/m/properties/old"}})
 	for _, name := range phraseMembers {
-		props = append(props, ir.Property{ID: ir.PropertyID("property/" + name), WireName: name})
+		properties = append(properties, ir.Property{ID: ir.PropertyID("property/" + name), WireName: name})
 	}
-	model := &ir.Model{ID: "type/m", Properties: props}
+	model := &ir.Model{ID: "type/m", Properties: properties}
 	doc.Types = ir.TypeRegistry{"type/m": model}
 	return doc, &doc.Services[0].Groups[0].Operations[0], &model.Properties[0]
 }
 
 // entities returns the references naming each of names: a route by its
 // operation, anything else by the member it spells.
-func entities(names []string) (ops, members []ir.EntityRef) {
+func entities(names []string) (operations, members []ir.EntityRef) {
 	for _, name := range names {
-		if op, ok := phraseRoutes[name]; ok {
-			ops = append(ops, ir.EntityRef{Operation: op})
+		if operation, ok := phraseRoutes[name]; ok {
+			operations = append(operations, ir.EntityRef{Operation: operation})
 			continue
 		}
 		members = append(members, ir.EntityRef{Property: ir.PropertyID("property/" + name)})
 	}
-	return ops, members
+	return operations, members
 }
 
 // TestMessage_ReadsOnlyIntroducedNames pins that a message names a replacement
@@ -115,13 +115,13 @@ func TestMessage_ReadsOnlyIntroducedNames(t *testing.T) {
 	} {
 		t.Run(tc.message, func(t *testing.T) {
 			t.Parallel()
-			doc, op, member := phraseDocument(tc.message)
+			doc, operation, member := phraseDocument(tc.message)
 
 			assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)),
 				"a name no phrase introduces is not reported")
 
-			wantOps, wantMembers := entities(tc.want)
-			assert.Equal(t, wantOps, op.Deprecation.ReplacedBy, "the operation")
+			wantOperations, wantMembers := entities(tc.want)
+			assert.Equal(t, wantOperations, operation.Deprecation.ReplacedBy, "the operation")
 			assert.Equal(t, wantMembers, member.Deprecation.ReplacedBy, "the member")
 		})
 	}
@@ -178,14 +178,14 @@ func TestMessage_ReadsEachCueAndNoNearMiss(t *testing.T) {
 func TestMessage_CostsItsLength(t *testing.T) {
 	cost := func(n int) float64 {
 		names := make([]string, n)
-		props := make([]ir.Property, 0, n+1)
+		properties := make([]ir.Property, 0, n+1)
 		for i := range names {
 			names[i] = fmt.Sprintf("`m%d`", i)
-			props = append(props, ir.Property{ID: ir.PropertyID(fmt.Sprintf("property/m%d", i)), WireName: fmt.Sprintf("m%d", i)})
+			properties = append(properties, ir.Property{ID: ir.PropertyID(fmt.Sprintf("property/m%d", i)), WireName: fmt.Sprintf("m%d", i)})
 		}
 		message := "Use " + strings.Join(names, " And ") + "."
 		return testing.AllocsPerRun(5, func() {
-			own := append([]ir.Property{{ID: "property/old", WireName: "old", Deprecation: says(message)}}, props...)
+			own := append([]ir.Property{{ID: "property/old", WireName: "old", Deprecation: says(message)}}, properties...)
 			doc := routes()
 			doc.Types = ir.TypeRegistry{"type/m": &ir.Model{ID: "type/m", Properties: own}}
 			replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc))

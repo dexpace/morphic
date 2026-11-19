@@ -33,16 +33,16 @@ const (
 	statusKeyLen = 3
 )
 
-// lowerResponses lowers an operation's responses onto op
+// lowerResponses lowers an operation's responses onto operation
 // (docs/ir/responses.md): each status below 400, or a key naming no status, to
 // Responses and each from 400 to Errors, in source order, as RFC 9110 classes
 // them, and the default, which answers every status the others leave and so
-// states neither class, to Default. opDeclPtr is the operation's own
+// states neither class, to Default. operationDeclPtr is the operation's own
 // declaration pointer, so a $ref'd response interns its content once at its
 // component pointer rather than once per mount site (issue #107). Each
 // response's links go to loweringState's, which resolves them once the service
 // is whole.
-func lowerResponses(serviceContext service.Ctx, loweringState operationLoweringState, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerResponses(serviceContext service.Ctx, loweringState operationLoweringState, operation *ir.Operation, src *soa.Operation, operationDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
@@ -58,7 +58,7 @@ func lowerResponses(serviceContext service.Ctx, loweringState operationLoweringS
 		// map. Sited at the component it named no operation, and the second
 		// operation to make the same mistake lost its warning to the first,
 		// since the diagnostic stream dedups on full identity.
-		entry := opDeclPtr + ids.Ptr("responses", code)
+		entry := operationDeclPtr + ids.Ptr("responses", code)
 		r, rc, rptr := service.Declared[soa.Response](serviceContext, rr, entry)
 		if r == nil {
 			continue
@@ -81,30 +81,30 @@ func lowerResponses(serviceContext service.Ctx, loweringState operationLoweringS
 			ec, drafts, ecDiags := lowerErrorCase(rc, loweringState, r, code, rng, rptr, rr)
 			ec.Unmodeled = annotation.MergeUnmodeled(ec.Unmodeled, beside)
 			diags = append(diags, ecDiags...)
-			loweringState.links.add(op.ID, responseSlot{list: compileddoc.ListErrors, index: len(op.Errors)}, drafts)
-			op.Errors = append(op.Errors, ec)
+			loweringState.links.add(operation.ID, responseSlot{list: compileddoc.ListErrors, index: len(operation.Errors)}, drafts)
+			operation.Errors = append(operation.Errors, ec)
 		} else {
 			resp, drafts, respDiags := lowerResponse(rc, loweringState, r, code, statusConditions(rng, named), rptr, rr)
 			resp.Unmodeled = annotation.MergeUnmodeled(resp.Unmodeled, beside)
 			diags = append(diags, respDiags...)
-			loweringState.links.add(op.ID, responseSlot{list: compileddoc.ListResponses, index: len(op.Responses)}, drafts)
-			op.Responses = append(op.Responses, resp)
+			loweringState.links.add(operation.ID, responseSlot{list: compileddoc.ListResponses, index: len(operation.Responses)}, drafts)
+			operation.Responses = append(operation.Responses, resp)
 		}
 	}
-	diags = append(diags, lowerDefaultResponse(serviceContext, loweringState, op, resps, opDeclPtr)...)
-	return append(diags, duplicateStatusKeyDiags(serviceContext, byRange, opDeclPtr+ids.Ptr("responses"))...)
+	diags = append(diags, lowerDefaultResponse(serviceContext, loweringState, operation, resps, operationDeclPtr)...)
+	return append(diags, duplicateStatusKeyDiags(serviceContext, byRange, operationDeclPtr+ids.Ptr("responses"))...)
 }
 
 // lowerDefaultResponse lowers the responses map's default, if it declares one,
-// to op.Default, whose conditions are the catch-all. OpenAPI says it answers
+// to operation.Default, whose conditions are the catch-all. OpenAPI says it answers
 // every status no other key names, which takes in successes and failures alike
 // (docs/ir/responses.md), so the compiler classes it as neither: whether it is
 // the success response, an error, or both is a reading of the API, which the
 // plan makes under its policy.
-func lowerDefaultResponse(serviceContext service.Ctx, loweringState operationLoweringState, op *ir.Operation,
-	resps *soa.Responses, opDeclPtr jsontext.Pointer,
+func lowerDefaultResponse(serviceContext service.Ctx, loweringState operationLoweringState, operation *ir.Operation,
+	resps *soa.Responses, operationDeclPtr jsontext.Pointer,
 ) []ir.Diagnostic {
-	use := opDeclPtr + ids.Ptr("responses", defaultResponseKey)
+	use := operationDeclPtr + ids.Ptr("responses", defaultResponseKey)
 	def, dc, dptr := service.Declared[soa.Response](serviceContext, resps.GetDefault(), use)
 	if def == nil {
 		return nil
@@ -114,8 +114,8 @@ func lowerDefaultResponse(serviceContext service.Ctx, loweringState operationLow
 	beside, besideDiags := service.Beside[soa.Response](serviceContext, resps.GetDefault(), use, true)
 	resp.Unmodeled = annotation.MergeUnmodeled(resp.Unmodeled, beside)
 	diags = append(diags, besideDiags...)
-	op.Default = &resp
-	loweringState.links.add(op.ID, responseSlot{list: compileddoc.ListDefault}, drafts)
+	operation.Default = &resp
+	loweringState.links.add(operation.ID, responseSlot{list: compileddoc.ListDefault}, drafts)
 	return diags
 }
 

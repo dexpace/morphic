@@ -133,13 +133,13 @@ func checkModelEnums(doc *ir.Document) []Violation {
 				Path:    typePath(id) + ".Additional",
 			})
 		}
-		for i, prop := range model.Properties {
-			if prop.Presence.Valid() {
+		for i, property := range model.Properties {
+			if property.Presence.Valid() {
 				continue
 			}
 			vs = append(vs, Violation{
 				Code:    "ir/unknown-presence-kind",
-				Message: "property carries undeclared presence " + strconv.Quote(string(prop.Presence)),
+				Message: "property carries undeclared presence " + strconv.Quote(string(property.Presence)),
 				Path:    typePath(id) + ".Properties[" + strconv.Itoa(i) + "].Presence",
 			})
 		}

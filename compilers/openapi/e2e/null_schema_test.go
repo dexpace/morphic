@@ -121,14 +121,14 @@ paths:
 		assert.Empty(t, twinDiags, "the twin writes no null, and draws nothing")
 
 		top := ir.TypeRef{Target: "type/primitive/any"}
-		op := openapitest.FirstOp(t, doc.Services[0])
-		require.Len(t, op.Params, 1)
-		assert.Equal(t, top, op.Params[0].Type, "a parameter's schema")
-		require.Len(t, op.Responses, 1)
-		require.Len(t, op.Responses[0].Headers, 1)
-		assert.Equal(t, top, op.Responses[0].Headers[0].Type, "a header's schema")
-		require.Len(t, op.Responses[0].Payload.Contents, 1)
-		assert.Equal(t, top, op.Responses[0].Payload.Contents[0].Type, "a media type's schema")
+		irOperation := openapitest.FirstOperation(t, doc.Services[0])
+		require.Len(t, irOperation.Params, 1)
+		assert.Equal(t, top, irOperation.Params[0].Type, "a parameter's schema")
+		require.Len(t, irOperation.Responses, 1)
+		require.Len(t, irOperation.Responses[0].Headers, 1)
+		assert.Equal(t, top, irOperation.Responses[0].Headers[0].Type, "a header's schema")
+		require.Len(t, irOperation.Responses[0].Payload.Contents, 1)
+		assert.Equal(t, top, irOperation.Responses[0].Payload.Contents[0].Type, "a media type's schema")
 
 		assert.Empty(t, cmp.Diff(twin.Services, doc.Services, cmpopts.EquateEmpty()), "as the empty schema lowers")
 	})

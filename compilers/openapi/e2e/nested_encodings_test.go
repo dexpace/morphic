@@ -163,8 +163,8 @@ components:
 		doc   *ir.Document
 		diags []ir.Diagnostic
 	}{
-		ids.In("responses.yaml").AnonType(below):                   {beside, besideDiags},
-		ids.DocumentIDNamespace{}.AnonType("/x-responses" + below): {extension, extensionDiags},
+		ids.In("responses.yaml").AnonymousType(below):                   {beside, besideDiags},
+		ids.DocumentIDNamespace{}.AnonymousType("/x-responses" + below): {extension, extensionDiags},
 	} {
 		require.NotNil(t, got.doc, at)
 		assertNoErrorDiags(t, got.diags)
@@ -209,7 +209,7 @@ x-defs:
 	}
 	assert.ElementsMatch(t, []string{"/components/schemas/Nested", "/components/schemas/Extension"}, got)
 	for _, schema := range []string{at, "/x-defs/X/schema"} {
-		assert.NotContains(t, doc.Types, ids.DocumentIDNamespace{}.AnonType(jsontext.Pointer(schema)))
+		assert.NotContains(t, doc.Types, ids.DocumentIDNamespace{}.AnonymousType(jsontext.Pointer(schema)))
 	}
 }
 

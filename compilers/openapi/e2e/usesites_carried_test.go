@@ -26,7 +26,7 @@ func checkCarriedParams(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	assert.Equal(t, []string{"openapi/unpromoted-extension info /tags/1/x-stability"}, findings(diags),
 		"the whole diagnostic list: the one tier no group reads")
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 
 	p := namedItem(t, valueAtPath(a, "params"), "p")
 	assert.Empty(t, cmp.Diff(map[string]any{
@@ -60,12 +60,12 @@ func checkCarriedParams(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // finding about it.
 func checkCarriedTiers(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 	assert.Equal(t, "beta", valueAtPath(a, "stability"), "the path item states beta")
 	assert.Equal(t, "extension-promotion", valueAtPath(a, "provenance", "inferred"))
 	assert.Contains(t, keptValues(valueAtPath(a, "unmodeled")), "openapi:pathItem/x-stability")
 
-	own := opTree(t, doc, "own")
+	own := operationTree(t, doc, "own")
 	assert.Equal(t, "stable", valueAtPath(own, "stability"), "the operation's own key is the nearer statement")
 	for _, f := range findings(diags) {
 		assert.NotContains(t, f, "/paths/~1a/x-stability", "a carried key draws no finding")
@@ -163,7 +163,7 @@ func TestParameter_SchemaAndObjectSpellOneKeyEndToEnd(t *testing.T) {
 		"openapi/unknown-schema-keyword info /paths/~1a/get/parameters/0/schema/divisibleBy",
 		"openapi/unknown-schema-keyword info /paths/~1a/get/responses/200/headers/X-H/schema/divisibleBy",
 	}, findings(diags))
-	p := namedItem(t, valueAtPath(opTree(t, doc, "a"), "params"), "p")
+	p := namedItem(t, valueAtPath(operationTree(t, doc, "a"), "params"), "p")
 	assert.Contains(t, keptValues(valueAtPath(p, "unmodeled")), "openapi:schema/divisibleBy")
 }
 
@@ -178,7 +178,7 @@ func TestParameter_XMLAndBranchKeptOnceEndToEnd(t *testing.T) {
 	assert.Equal(t, []string{"openapi/degraded-construct info /paths/~1p/get/parameters/0/schema/xml"}, findings(diags))
 
 	doc, diags = compileNamedVerified(t, "x.yaml", testdataSpec(t, "param_branch_kept_once"))
-	g := opTree(t, doc, "g")
+	g := operationTree(t, doc, "g")
 	id := namedItem(t, valueAtPath(g, "params"), "schema_id")
 	assert.Equal(t, []string{"openapi:schema/format", "openapi:schema/readOnly"}, sortedKeys(keptValues(valueAtPath(id, "unmodeled"))),
 		"each keyword the branch keeps is kept once, under its own key")
@@ -196,7 +196,7 @@ func TestParameter_RedactionIsSingleSidedEndToEnd(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileNamedVerified(t, "x.yaml", testdataSpec(t, "param_redaction_single_sided"))
 	assert.Empty(t, diags)
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 	for _, name := range []string{"inl", "ref"} {
 		p := namedItem(t, valueAtPath(a, "params"), name)
 		assert.Equal(t, true, valueAtPath(p, "secret"), name)
@@ -217,7 +217,7 @@ func TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "beta", valueAtPath(g, "stability"))
 	assert.Equal(t, "extension-promotion", valueAtPath(g, "inferred"))
-	assert.Nil(t, valueAtPath(opTree(t, doc, "a"), "stability"), "the tier is read through the group alone")
+	assert.Nil(t, valueAtPath(operationTree(t, doc, "a"), "stability"), "the tier is read through the group alone")
 }
 
 // TestTags_ARepeatedNameKeepsEachDeclaration compiles two tags of one name: the

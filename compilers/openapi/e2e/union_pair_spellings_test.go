@@ -130,12 +130,12 @@ type pairView struct {
 // target's kind, the properties and required ones a model holds with those
 // of what it composes, a scalar's base and an enum's members.
 type variantView struct {
-	Nullable bool
-	Kind     ir.TypeKind
-	Props    []string
-	Required []string
-	Base     string
-	Members  []string
+	Nullable   bool
+	Kind       ir.TypeKind
+	Properties []string
+	Required   []string
+	Base       string
+	Members    []string
 }
 
 // viewOfVariant reads what the variant ref names in doc is.
@@ -156,14 +156,14 @@ func viewOfVariant(doc *ir.Document, ref ir.TypeRef) variantView {
 			}
 		}
 		for _, model := range models {
-			for _, prop := range model.Properties {
-				variantViewValue.Props = append(variantViewValue.Props, prop.Name.Source)
-				if prop.Required {
-					variantViewValue.Required = append(variantViewValue.Required, prop.Name.Source)
+			for _, property := range model.Properties {
+				variantViewValue.Properties = append(variantViewValue.Properties, property.Name.Source)
+				if property.Required {
+					variantViewValue.Required = append(variantViewValue.Required, property.Name.Source)
 				}
 			}
 		}
-		slices.Sort(variantViewValue.Props)
+		slices.Sort(variantViewValue.Properties)
 		slices.Sort(variantViewValue.Required)
 	case *ir.Scalar:
 		variantViewValue.Base = strings.TrimPrefix(string(n.Base.Target), "type/primitive/")

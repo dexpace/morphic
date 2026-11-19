@@ -230,11 +230,11 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 	const pointer = "/components/schemas/User"
 	got := map[string]string{
 		"named":      string(ids.DocumentIDNamespace{}.NamedType(pointer)),
-		"anon":       string(ids.DocumentIDNamespace{}.AnonType(pointer)),
+		"anon":       string(ids.DocumentIDNamespace{}.AnonymousType(pointer)),
 		"composed":   string(ids.DocumentIDNamespace{}.ComposedType(pointer)),
-		"op":         string(ids.Op(pointer)),
-		"prop":       string(ids.DocumentIDNamespace{}.Prop(pointer)),
-		"minted":     string(ids.DocumentIDNamespace{}.ComposedProp(pointer)),
+		"op":         string(ids.Operation(pointer)),
+		"prop":       string(ids.DocumentIDNamespace{}.Property(pointer)),
+		"minted":     string(ids.DocumentIDNamespace{}.ComposedProperty(pointer)),
 		"member":     string(ids.DocumentIDNamespace{}.ComposedMember(pointer, "/string:a")),
 		"auth":       string(ids.Auth("apiKey")),
 		"unresolved": string(ids.UnresolvedAuth("apiKey")),
@@ -283,11 +283,11 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 		"coordinate": "@dir~1a~0b.yaml/components/schemas/User",
 	}, map[string]string{
 		"named":      string(other.NamedType(pointer)),
-		"anon":       string(other.AnonType(pointer)),
+		"anon":       string(other.AnonymousType(pointer)),
 		"composed":   string(other.ComposedType(pointer)),
 		"for":        string(other.ForPointer("/X")),
-		"prop":       string(other.Prop(pointer)),
-		"minted":     string(other.ComposedProp(pointer)),
+		"prop":       string(other.Property(pointer)),
+		"minted":     string(other.ComposedProperty(pointer)),
 		"composite":  string(other.ComposedMember(pointer, "/string:a")),
 		"coordinate": other.Coordinate(pointer),
 	})

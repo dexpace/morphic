@@ -110,10 +110,10 @@ func TestCompile_ARepeatedKeyIsKeptAsItsLastCopy(t *testing.T) {
 	assert.JSONEq(t, `{"rate":2}`, string(limits.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, limits.Reason)
 
-	ops := allOperations(doc)
-	require.Len(t, ops, 1)
-	require.NotNil(t, ops[0].Request)
-	kept := ops[0].Request.Contents[0].Unmodeled
+	operations := allOperations(doc)
+	require.Len(t, operations, 1)
+	require.NotNil(t, operations[0].Request)
+	kept := operations[0].Request.Contents[0].Unmodeled
 	assert.JSONEq(t, `{"k":2}`, string(unmodeledEntry(t, kept, "openapi:encoding/a/bogus").Value))
 	assert.JSONEq(t, `{"x":{"contentType":"image/png"}}`,
 		string(unmodeledEntry(t, kept, "openapi:encoding/a/encoding").Value))

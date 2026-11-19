@@ -30,7 +30,7 @@ func TestPromote_TrueReadsThePathItemFirst(t *testing.T) {
 	require.NoError(t, err)
 	doc, diags := compile(t, string(src), openapi.Options{})
 
-	list := openapitest.FindOp(t, doc, "listDogs")
+	list := openapitest.FindOperation(t, doc, "listDogs")
 	require.NotNil(t, list.Pagination, "the path item's statement fills the operation that wrote true")
 	got, err := json.Marshal(list.Pagination, json.Deterministic(true))
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestPromote_ASilentOperationReadsNeitherItsPathItemNorTheRoot(t *testing.T)
 	require.NoError(t, err)
 	doc, diags := compile(t, string(src), openapi.Options{})
 
-	purge := openapitest.FindOp(t, doc, "purgeDogs")
+	purge := openapitest.FindOperation(t, doc, "purgeDogs")
 	assert.Nil(t, purge.Pagination)
 	assert.NotContains(t, string(purge.Provenance.Inferred), "extension-promotion")
 	assert.Contains(t, purge.Unmodeled, "openapi:pathItem/x-fern-pagination")

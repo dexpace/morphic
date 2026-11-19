@@ -38,12 +38,12 @@ webhooks:
 	}
 	require.True(t, found, "webhook operations land in the webhooks group")
 	require.Len(t, group.Operations, 1)
-	op := group.Operations[0]
-	assert.Equal(t, ir.OperationID("operation/openapi/webhooks/newPet/post"), op.ID)
-	require.Len(t, op.Bindings.HTTP, 1)
-	assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound)
-	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
-	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
+	operation := group.Operations[0]
+	assert.Equal(t, ir.OperationID("operation/openapi/webhooks/newPet/post"), operation.ID)
+	require.Len(t, operation.Bindings.HTTP, 1)
+	assert.Equal(t, ir.HTTPInboundWebhook, operation.Bindings.HTTP[0].Inbound)
+	assert.Equal(t, "newPet", operation.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
+	assert.Empty(t, operation.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
 }
 
 // TestWebhooks_KeyIsTheEventName lowers a webhooks-map key as the event's name
@@ -82,13 +82,13 @@ webhooks:
 `
 			svc, diags := lowerServiceSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			op := webhookOperation(t, svc)
-			assert.Equal(t, tc.wantID, op.ID, "the mount pointer, not the event name, identifies the operation")
-			assert.Equal(t, tc.wantName, op.Name)
-			require.Len(t, op.Bindings.HTTP, 1)
-			assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound)
-			assert.Equal(t, tc.key, op.Bindings.HTTP[0].WebhookName, "the key, verbatim")
-			assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook has no URI template")
+			operation := webhookOperation(t, svc)
+			assert.Equal(t, tc.wantID, operation.ID, "the mount pointer, not the event name, identifies the operation")
+			assert.Equal(t, tc.wantName, operation.Name)
+			require.Len(t, operation.Bindings.HTTP, 1)
+			assert.Equal(t, ir.HTTPInboundWebhook, operation.Bindings.HTTP[0].Inbound)
+			assert.Equal(t, tc.key, operation.Bindings.HTTP[0].WebhookName, "the key, verbatim")
+			assert.Empty(t, operation.Bindings.HTTP[0].URITemplate, "a webhook has no URI template")
 		})
 	}
 }
@@ -127,7 +127,7 @@ webhooks:
 	require.Len(t, svc.Groups, 1)
 	group := svc.Groups[0]
 	assert.Equal(t, "webhooks", group.Name.Hint)
-	byName := openapitest.IndexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
+	byName := openapitest.IndexBy(group.Operations, func(operation ir.Operation) string { return operation.Name.Source })
 	hook, ok := byName["onNewPet"]
 	require.True(t, ok)
 	ack, ok := byName["ackPost"]
@@ -159,7 +159,7 @@ func TestCallbacks_RegisteredAndBound(t *testing.T) {
 	require.Len(t, svc.Groups, 1)
 	group := svc.Groups[0]
 	require.Len(t, group.Operations, 2, "parent op and callback op both registered")
-	byName := openapitest.IndexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
+	byName := openapitest.IndexBy(group.Operations, func(operation ir.Operation) string { return operation.Name.Source })
 	sub, ok := byName["sub"]
 	require.True(t, ok)
 	cb, ok := byName["cbPost"]

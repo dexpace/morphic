@@ -88,14 +88,14 @@ func readAs(t *testing.T, lowererValue *lowerer, name string, part bool, reads *
 func TestReadSchema_ReadsAUnionOncePerRun(t *testing.T) {
 	t.Parallel()
 	const width = 6
-	strs := make([]string, width)
-	for i := range strs {
-		strs[i] = "{type: string}"
+	stringValues := make([]string, width)
+	for i := range stringValues {
+		stringValues[i] = "{type: string}"
 	}
 	for _, uses := range []int{1, 8} {
 		t.Run(fmt.Sprintf("%d contents", uses), func(t *testing.T) {
 			t.Parallel()
-			lowerer, _ := loweredFor(t, unionSchemas(strs, uses))
+			lowerer, _ := loweredFor(t, unionSchemas(stringValues, uses))
 			reads := 0
 			for i := range uses {
 				readAs(t, lowerer, fmt.Sprintf("C%d", i), false, &reads)

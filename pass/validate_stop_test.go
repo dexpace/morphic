@@ -75,15 +75,15 @@ func TestValidate_AStoppedWalkIsReportedOnce(t *testing.T) {
 	assert.Equal(t, 1, countCode(t, diags, "ir/walk-truncated"), "%v", irtest.DiagCodes(diags))
 }
 
-// propPathDocument returns a document whose operation names a property in its
+// propertyPathDocument returns a document whose operation names a property in its
 // response body path, which the walk reaches in Services before the model
 // declaring it in Types, or one naming nothing when ghost is set.
-func propPathDocument(ghost bool) *ir.Document {
+func propertyPathDocument(ghost bool) *ir.Document {
 	segment := ir.PropertyID("property/m/a")
 	if ghost {
 		segment = "property/m/ghost"
 	}
-	return docWithOperation(propPathOperation([]ir.PropertyID{segment}))
+	return docWithOperation(propertyPathOperation([]ir.PropertyID{segment}))
 }
 
 // TestValidate_AStoppedWalkClaimsNoReferenceDangling holds Validate to leaving
@@ -94,11 +94,11 @@ func propPathDocument(ghost bool) *ir.Document {
 // shows the claim is made where the walk read everything.
 func TestValidate_AStoppedWalkClaimsNoReferenceDangling(t *testing.T) {
 	t.Parallel()
-	ghost, err := pass.ValidateWith(t.Context(), propPathDocument(true), ir.WalkValuesContext)
+	ghost, err := pass.ValidateWith(t.Context(), propertyPathDocument(true), ir.WalkValuesContext)
 	require.NoError(t, err)
 	require.Equal(t, 1, countCode(t, ghost, "ir/dangling-property-ref"), "the control: a whole walk finds the reference")
 
-	doc := propPathDocument(false)
+	doc := propertyPathDocument(false)
 	whole := shownWhole(doc)
 	for n := range whole {
 		cut, err := pass.ValidateWith(t.Context(), doc, cutWalk(n))

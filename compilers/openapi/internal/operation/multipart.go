@@ -334,7 +334,7 @@ func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), keyedPartVal
 
 // declarationSchemas returns, for each of decls, the declarations the body's
 // type holds of part's name, the schemas of part declaring it, in source
-// order: the one written where it is (declaredProp), and every one written
+// order: the one written where it is (declaredProperty), and every one written
 // where none of decls is, which a declaration the merge folded into one of
 // them, an allOf branch's, is. So one variant's declaration is read apart
 // from another's, and each schema is placed once.
@@ -351,7 +351,7 @@ func declarationSchemas(serviceContext service.Ctx, part bodyPart, decls []*ir.P
 		held[property.ID] = true
 	}
 	for _, js := range part.schemas {
-		if id, ok := declaredProp(serviceContext, js); ok && held[id] {
+		if id, ok := declaredProperty(serviceContext, js); ok && held[id] {
 			out[id] = append(out[id], js)
 			continue
 		}
@@ -362,14 +362,14 @@ func declarationSchemas(serviceContext service.Ctx, part bodyPart, decls []*ir.P
 	return out
 }
 
-// declaredProp returns the ID of the property whose schema is js, as the
+// declaredProperty returns the ID of the property whose schema is js, as the
 // schema lowering names one by where it is read, and false where the bindings
 // do not place js in a document the compile read. Where they place it
 // nowhere, the zero position names the source, which is read and not used.
-func declaredProp(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropertyID, bool) {
+func declaredProperty(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropertyID, bool) {
 	at, placed := serviceContext.Bindings().Site(js)
 	dc, read := service.InDocument(serviceContext, at.Doc)
-	return dc.IDs().Prop(at.Pointer), placed && read
+	return dc.IDs().Property(at.Pointer), placed && read
 }
 
 // keepWhole keeps the entry of keyedPartValue, a part the body's type holds no

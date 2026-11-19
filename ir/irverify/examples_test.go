@@ -45,7 +45,7 @@ func scenarioErrorExample() *ir.ErrorExample {
 func TestVerify_ExampleArms(t *testing.T) {
 	t.Parallel()
 	const model = "document.Types[type/x/M].Examples[0]"
-	op := scenarioOp + ".Examples[0]"
+	operation := scenarioOperationPath + ".Examples[0]"
 	cases := []struct {
 		name  string
 		owner func(doc *ir.Document) *[]ir.Example
@@ -63,13 +63,13 @@ func TestVerify_ExampleArms(t *testing.T) {
 		{"an operation's example with a value and headers", operationExamples, ir.Example{
 			Value: &scenarioValue, Headers: &scenarioValue, Output: &scenarioValue,
 		}, []string{
-			armMisplaced + " " + op + ".Headers: operation's example holds headers, and a scenario states its input and its outcome",
-			armMisplaced + " " + op + ".Value: operation's example holds a value, and a scenario states its input and its outcome",
+			armMisplaced + " " + operation + ".Headers: operation's example holds headers, and a scenario states its input and its outcome",
+			armMisplaced + " " + operation + ".Value: operation's example holds a value, and a scenario states its input and its outcome",
 		}},
 		{"an operation's example ending in both", operationExamples, ir.Example{
 			Input: &ir.ScenarioInput{}, Output: &scenarioValue, Error: scenarioErrorExample(),
 		}, []string{
-			outcomeTwice + " " + op + ".Error: example ends in both an output and an error",
+			outcomeTwice + " " + operation + ".Error: example ends in both an output and an error",
 		}},
 		// The valid twins: each is what its carrier takes, and draws nothing.
 		{"a model's example holding a value and headers", modelExamples, ir.Example{
@@ -125,10 +125,10 @@ func TestVerify_ExampleArmsAreHeldAtEveryCarrier(t *testing.T) {
 				{Name: named("m"), Type: ir.TypeRef{Target: "type/x/M"}, Examples: example},
 			}}
 		},
-		scenarioOp + ".Params[0].Examples[0].Output": func(document *ir.Document) {
+		scenarioOperationPath + ".Params[0].Examples[0].Output": func(document *ir.Document) {
 			scenarioOperation(document).Params[0].Examples = example
 		},
-		scenarioOp + ".Request.Contents[0].Examples[0].Output": func(document *ir.Document) {
+		scenarioOperationPath + ".Request.Contents[0].Examples[0].Output": func(document *ir.Document) {
 			scenarioOperation(document).Request = &ir.Payload{Contents: []ir.Content{{
 				MediaType: "application/json", Type: ir.TypeRef{Target: "type/x/M"}, Examples: example,
 			}}}

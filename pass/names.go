@@ -87,14 +87,14 @@ func (r *nameReader) groups(doc *ir.Document) {
 	}
 	ir.ForEachGroup(doc, func(operationGroup ir.OperationGroup) {
 		r.groupList("operation group", string(operationGroup.ID), operationGroup.Groups)
-		ops := operationGroup.Operations
-		if r.readScope(byWords, len(ops), func(i int) ir.Naming { return ops[i].Name }) {
+		operations := operationGroup.Operations
+		if r.readScope(byWords, len(operations), func(i int) ir.Naming { return operations[i].Name }) {
 			r.report(scope{in: "operation group", id: string(operationGroup.ID), one: "operation", many: "operations",
-				ids: idsOf(len(ops), func(i int) string { return string(ops[i].ID) })})
+				ids: idsOf(len(operations), func(i int) string { return string(operations[i].ID) })})
 		}
-		for i := range ops {
-			r.params(ops[i].ID, ops[i].Params)
-			r.choices(ops[i].ID, ops[i].ParamChoices)
+		for i := range operations {
+			r.params(operations[i].ID, operations[i].Params)
+			r.choices(operations[i].ID, operations[i].ParamChoices)
 		}
 	})
 }
@@ -108,26 +108,26 @@ func (r *nameReader) groupList(in, id string, groups []ir.OperationGroup) {
 	}
 }
 
-// params reads the parameters of the operation op as one scope.
-func (r *nameReader) params(op ir.OperationID, params []ir.Parameter) {
+// params reads the parameters of the operation operation as one scope.
+func (r *nameReader) params(operation ir.OperationID, params []ir.Parameter) {
 	if r.readScope(byWords, len(params), func(i int) ir.Naming { return params[i].Name }) {
-		r.report(scope{in: "operation", id: string(op), one: "parameter", many: "parameters",
+		r.report(scope{in: "operation", id: string(operation), one: "parameter", many: "parameters",
 			ids: idsOf(len(params), func(i int) string { return string(params[i].ID) })})
 	}
 }
 
-// choices reads the parameter choices of the operation op as one scope, and
+// choices reads the parameter choices of the operation operation as one scope, and
 // each choice's variants as one of its own. Neither holds an ID, so a party is
 // named by its index, and a target tells two named alike apart by position.
-func (r *nameReader) choices(op ir.OperationID, choices []ir.ParamChoice) {
+func (r *nameReader) choices(operation ir.OperationID, choices []ir.ParamChoice) {
 	if r.readScope(byWords, len(choices), func(i int) ir.Naming { return choices[i].Name }) {
-		r.report(scope{in: "operation", id: string(op), one: "parameter choice", many: "parameter choices",
+		r.report(scope{in: "operation", id: string(operation), one: "parameter choice", many: "parameter choices",
 			apart: "position"})
 	}
 	for i := range choices {
 		variants := choices[i].Variants
 		if r.readScope(byWords, len(variants), func(k int) ir.Naming { return variants[k].Name }) {
-			r.report(scope{in: "parameter choice " + strconv.Itoa(i) + " of operation", id: string(op),
+			r.report(scope{in: "parameter choice " + strconv.Itoa(i) + " of operation", id: string(operation),
 				one: "variant", many: "variants", apart: "position"})
 		}
 	}

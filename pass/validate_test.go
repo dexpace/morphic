@@ -90,25 +90,25 @@ func readRepeatedly(tb fataler, read func() []ir.Diagnostic) []ir.Diagnostic {
 
 // docWithOperation wraps a single operation in a service/group so the operation
 // walkers reach it.
-func docWithOperation(op ir.Operation) *ir.Document {
+func docWithOperation(operation ir.Operation) *ir.Document {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
 		ID:     "s",
-		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
+		Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}},
 	}}
 	return doc
 }
 
-// docWithOperations wraps ops in one service and group.
-func docWithOperations(ops ...ir.Operation) *ir.Document {
+// docWithOperations wraps operations in one service and group.
+func docWithOperations(operations ...ir.Operation) *ir.Document {
 	doc := validDoc()
-	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: ops}}}}
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: operations}}}}
 	return doc
 }
 
-// nestGroups buries op under depth levels of operation groups.
-func nestGroups(depth int, op ir.Operation) *ir.Document {
-	operationGroup := ir.OperationGroup{Operations: []ir.Operation{op}}
+// nestGroups buries operation under depth levels of operation groups.
+func nestGroups(depth int, operation ir.Operation) *ir.Document {
+	operationGroup := ir.OperationGroup{Operations: []ir.Operation{operation}}
 	for range depth {
 		operationGroup = ir.OperationGroup{Groups: []ir.OperationGroup{operationGroup}}
 	}
@@ -154,7 +154,7 @@ func TestValidate_NilDocumentReturnsNil(t *testing.T) {
 func TestValidate_SharedRouteIsLegal(t *testing.T) {
 	t.Parallel()
 	mk := func() ir.Operation {
-		return ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+		return ir.Operation{Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET", URITemplate: "/x", SharedRoute: true,
 		}}}}
 	}

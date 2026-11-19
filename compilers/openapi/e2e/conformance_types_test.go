@@ -23,7 +23,7 @@ func assertNamedTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	user, ok := doc.Types[componentID("User")].(*ir.Model)
 	require.True(t, ok, "named schema User present under its pointer-derived ID")
 	assert.False(t, user.Anonymous)
-	addr, ok := propByWire(user, "address")
+	addr, ok := propertyByWire(user, "address")
 	require.True(t, ok)
 	assert.Equal(t, componentID("Address"), addr.Type.Target)
 	_, ok = doc.Types[componentID("Address")].(*ir.Model)
@@ -44,11 +44,11 @@ func assertNeutralNaming(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, svc.Groups, 1)
 	assert.Equal(t, "inventory_core", svc.Groups[0].Name.Canonical, "tag")
 
-	op, ok := opByName(doc, "widgets.list")
+	operation, ok := operationByName(doc, "widgets.list")
 	require.True(t, ok, "operation present under its source operationId")
-	assert.Equal(t, "widgets_list", op.Name.Canonical, "operationId")
+	assert.Equal(t, "widgets_list", operation.Name.Canonical, "operationId")
 	byParam := map[string]string{}
-	for _, parameter := range op.Params {
+	for _, parameter := range operation.Params {
 		byParam[parameter.Name.Source] = parameter.Name.Canonical
 	}
 	assert.Equal(t, "widget_id", byParam["widget.id"], "path parameter")
@@ -58,23 +58,23 @@ func assertNeutralNaming(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "namespaced component keeps its pointer-derived ID")
 	assert.Equal(t, "com_example_widget", widget.Name.Canonical, "component name")
 	assert.Equal(t, "com.example.Widget", widget.Name.Source, "the source spelling is kept beside it")
-	name, ok := propByWire(widget, "widget.name")
+	name, ok := propertyByWire(widget, "widget.name")
 	require.True(t, ok)
 	assert.Equal(t, "widget_name", name.Name.Canonical, "property name")
-	version, ok := propByWire(widget, "api.version.v2")
+	version, ok := propertyByWire(widget, "api.version.v2")
 	require.True(t, ok)
 	assert.Equal(t, "api_version_v_2", version.Name.Canonical,
 		"the letter/digit boundary still splits inside a dotted segment")
 
-	assertNeutralNamingLeaves(t, doc, widget, op)
+	assertNeutralNamingLeaves(t, doc, widget, operation)
 }
 
 // assertNeutralNamingLeaves checks the three canonicals that hang off another
 // node rather than off the service walk: an enum member under a property, a
 // header under a response, a scheme in the auth registry.
-func assertNeutralNamingLeaves(t *testing.T, doc *ir.Document, widget *ir.Model, op ir.Operation) {
+func assertNeutralNamingLeaves(t *testing.T, doc *ir.Document, widget *ir.Model, operation ir.Operation) {
 	t.Helper()
-	state, ok := propByWire(widget, "rollout.state")
+	state, ok := propertyByWire(widget, "rollout.state")
 	require.True(t, ok)
 	rollout, ok := doc.Types[state.Type.Target].(*ir.Enum)
 	require.True(t, ok, "the enum property hoists an Enum node")
@@ -83,9 +83,9 @@ func assertNeutralNamingLeaves(t *testing.T, doc *ir.Document, widget *ir.Model,
 	assert.Equal(t, "rollout_state", rollout.Name.Hint,
 		"the hoisted node's hint is words too, not the property key verbatim")
 
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 1)
-	assert.Equal(t, "x_rate_limit", op.Responses[0].Headers[0].Name.Canonical, "response header")
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	assert.Equal(t, "x_rate_limit", operation.Responses[0].Headers[0].Name.Canonical, "response header")
 
 	require.Len(t, doc.Auth, 1)
 	for _, scheme := range doc.Auth {
@@ -154,13 +154,13 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 	widget, ok := doc.Types[componentID("Widget")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, widget.Properties, 1)
-	prop := widget.Properties[0]
-	assert.Equal(t, "empty", prop.Name.Hint, "property keyed \"\"")
-	assert.Empty(t, prop.WireName, "the wire key itself is still the empty string")
+	property := widget.Properties[0]
+	assert.Equal(t, "empty", property.Name.Hint, "property keyed \"\"")
+	assert.Empty(t, property.WireName, "the wire key itself is still the empty string")
 
-	inline, ok := doc.Types[prop.Type.Target]
+	inline, ok := doc.Types[property.Type.Target]
 	require.True(t, ok, "the property's inline object is hoisted")
-	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Widget/properties/"), prop.Type.Target)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Widget/properties/"), property.Type.Target)
 	assert.Equal(t, "empty", inline.Common().Name.Hint,
 		"a hint derived from an empty position is minted, not passed through empty")
 }
@@ -299,36 +299,36 @@ func inlineHoistPositionIDs() map[string]ir.TypeID {
 // at the right ID but wired to nothing still fails.
 func inlineHoistPositionRefs(t *testing.T, doc *ir.Document) map[string]ir.TypeID {
 	t.Helper()
-	order, ok := opByName(doc, "placeOrder")
+	order, ok := operationByName(doc, "placeOrder")
 	require.True(t, ok)
 	audit, ok := openapitest.ParamBySource(order, "audit")
 	require.True(t, ok, "the operation declares its inline-schema parameter")
 	require.Len(t, order.Responses, 1)
 	require.Len(t, order.Responses[0].Headers, 1, "the response declares its inline-schema header")
-	webhook, ok := opByName(doc, "onShipped")
+	webhook, ok := operationByName(doc, "onShipped")
 	require.True(t, ok, "the webhook operation is registered")
-	callback, ok := opByName(doc, "onProgress")
+	callback, ok := operationByName(doc, "onProgress")
 	require.True(t, ok, "the callback operation is registered")
 
 	return map[string]ir.TypeID{
 		"parameter schema":       audit.Type.Target,
 		"response-header schema": order.Responses[0].Headers[0].Type.Target,
-		"request-body property":  inlinePropTarget(t, doc, openapitest.BodyTarget(t, order.Request), "shipping"),
-		"response-body property": inlinePropTarget(t, doc, openapitest.BodyTarget(t, order.Responses[0].Payload), "receipt"),
+		"request-body property":  inlinePropertyTarget(t, doc, openapitest.BodyTarget(t, order.Request), "shipping"),
+		"response-body property": inlinePropertyTarget(t, doc, openapitest.BodyTarget(t, order.Responses[0].Payload), "receipt"),
 		"webhook body":           openapitest.BodyTarget(t, webhook.Request),
 		"callback body":          openapitest.BodyTarget(t, callback.Request),
 	}
 }
 
-// inlinePropTarget returns the type the named property of the model at id refers
+// inlinePropertyTarget returns the type the named property of the model at id refers
 // to — the body-property positions, one level inside a body root.
-func inlinePropTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string) ir.TypeID {
+func inlinePropertyTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string) ir.TypeID {
 	t.Helper()
 	model, ok := doc.Types[id].(*ir.Model)
 	require.True(t, ok, "the body at %s hoisted as a model", id)
-	prop, ok := propByWire(model, wire)
+	property, ok := propertyByWire(model, wire)
 	require.True(t, ok, "the body declares the property %q", wire)
-	return prop.Type.Target
+	return property.Type.Target
 }
 
 // assertSharedResponseAcrossStatus reads the one shape that puts lowerResponse
@@ -340,12 +340,12 @@ func inlinePropTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string)
 // same whichever side reaches it first. No other corpus spec reaches one
 // response component from both sides, so the oracle needs this one to ask.
 func assertSharedResponseAcrossStatus(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op := operationAt(t, doc, "GET", "/widgets")
-	require.Len(t, op.Responses, 1, "the success mount")
-	require.Len(t, op.Errors, 1, "and the error mount, of the one component")
+	operation := operationAt(t, doc, "GET", "/widgets")
+	require.Len(t, operation.Responses, 1, "the success mount")
+	require.Len(t, operation.Errors, 1, "and the error mount, of the one component")
 
-	success := op.Responses[0].Payload.Contents[0].Type.Target
-	failure := op.Errors[0].Payload.Contents[0].Type.Target
+	success := operation.Responses[0].Payload.Contents[0].Type.Target
+	failure := operation.Errors[0].Payload.Contents[0].Type.Target
 	assert.Equal(t, success, failure, "one declaration is one type, reached from either status")
 
 	td, ok := doc.Types[success]
@@ -411,23 +411,23 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 	require.Len(t, order.Bindings.HTTP[0].Callbacks, 1)
 	assert.Equal(t, "{$request.body#/callbackUrl}", order.Bindings.HTTP[0].Callbacks[0].Expression)
-	_, ok := opByName(doc, "onShipped")
+	_, ok := operationByName(doc, "onShipped")
 	assert.True(t, ok, "the shared callback's operation is registered alongside its parent")
 }
 
 func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	property, ok := propByWire(model, "r")
+	property, ok := propertyByWire(model, "r")
 	require.True(t, ok)
-	irProperty, ok := propByWire(model, "w")
+	irProperty, ok := propertyByWire(model, "w")
 	require.True(t, ok)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, property.Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, irProperty.Visibility)
 
 	// A declaration-site readOnly reaches the referencing property, and the
 	// declaration keeps it verbatim because the type node has no field for it.
-	viaRef, ok := propByWire(model, "viaRef")
+	viaRef, ok := propertyByWire(model, "viaRef")
 	require.True(t, ok)
 	assert.Equal(t, property.Visibility, viaRef.Visibility, "the referent's readOnly binds the reference site")
 
@@ -449,7 +449,7 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 func assertBothFlagsAreVisibleNowhere(t *testing.T, model *ir.Model, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, wire := range []string{"both", "bothViaRef"} {
-		property, ok := propByWire(model, wire)
+		property, ok := propertyByWire(model, wire)
 		require.True(t, ok)
 		assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, property.Visibility,
 			"readOnly and writeOnly both in force admit no lifecycle: %s", wire)
@@ -462,7 +462,7 @@ func assertBothFlagsAreVisibleNowhere(t *testing.T, model *ir.Model, diags []ir.
 func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	model, ok := doc.Types[componentID("Node")].(*ir.Model)
 	require.True(t, ok)
-	next, ok := propByWire(model, "next")
+	next, ok := propertyByWire(model, "next")
 	require.True(t, ok)
 	assert.Equal(t, componentID("Node"), next.Type.Target, "self-reference terminates on the interned ID")
 }
@@ -559,10 +559,10 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	pair := []ir.TypeRef{{Target: "type/primitive/string"}, {Target: "type/primitive/integer"}}
 	restID := ir.TypeID("type/anonymous/components/schemas/PairWithRest/items")
 	for _, tc := range []struct {
-		name   string
-		elems  []ir.TypeRef
-		rest   ir.TypeID // "" = no element may follow
-		bounds *ir.Constraints
+		name     string
+		elements []ir.TypeRef
+		rest     ir.TypeID // "" = no element may follow
+		bounds   *ir.Constraints
 	}{
 		{"ClosedPair", pair, "", nil},
 		{"Pair", pair, "type/primitive/any", nil},
@@ -572,7 +572,7 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	} {
 		tup, ok := doc.Types[componentID(tc.name)].(*ir.Tuple)
 		require.True(t, ok, "%s: prefixItems hoists a Tuple; got %T", tc.name, doc.Types[componentID(tc.name)])
-		assert.Equal(t, tc.elems, tup.ElementTypes, tc.name)
+		assert.Equal(t, tc.elements, tup.ElementTypes, tc.name)
 		if tc.rest == "" {
 			assert.Nil(t, tup.Rest, "%s: no element may follow the head", tc.name)
 		} else if assert.NotNil(t, tup.Rest, tc.name) {
@@ -586,7 +586,7 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	rest, ok := doc.Types[restID].(*ir.Model)
 	require.True(t, ok, "the inline rest is hoisted at its own pointer; got %T", doc.Types[restID])
 	assert.Equal(t, "pair_with_rest_item", rest.Name.Hint, "named as a List's items would be")
-	_, ok = propByWire(rest, "flag")
+	_, ok = propertyByWire(rest, "flag")
 	assert.True(t, ok, "the rest's own properties reach the IR")
 
 	for name, want := range map[string]string{
@@ -647,12 +647,12 @@ func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Dia
 	assert.NotContains(t, doc.Unmodeled, "openapi:components/links/Next",
 		"a link the lowered response's links map names is followed, so it lowers rather than being kept")
 
-	op, ok := opByName(doc, "getA")
+	operation, ok := operationByName(doc, "getA")
 	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	assert.Equal(t, "reached from the paths", op.Responses[0].Docs.Description)
-	require.Len(t, op.Responses[0].Links, 1, "the link the response names lowers onto it")
-	assert.Equal(t, op.ID, op.Responses[0].Links[0].Operation)
+	require.Len(t, operation.Responses, 1)
+	assert.Equal(t, "reached from the paths", operation.Responses[0].Docs.Description)
+	require.Len(t, operation.Responses[0].Links, 1, "the link the response names lowers onto it")
+	assert.Equal(t, operation.ID, operation.Responses[0].Links[0].Operation)
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
 }
 

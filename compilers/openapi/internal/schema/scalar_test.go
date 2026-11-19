@@ -54,29 +54,29 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		typ, format string
-		prim        ir.PrimitiveKind // the primitive the pairing selects; "" = it hoists
+		primitive   ir.PrimitiveKind // the primitive the pairing selects; "" = it hoists
 		base        ir.PrimitiveKind // the hoisted Scalar's base
 	}{
-		{typ: "integer", format: "int8", prim: ir.PrimitiveInt8},
-		{typ: "integer", format: "int16", prim: ir.PrimitiveInt16},
-		{typ: "integer", format: "int32", prim: ir.PrimitiveInt32},
-		{typ: "integer", format: "int64", prim: ir.PrimitiveInt64},
-		{typ: "integer", format: "uint8", prim: ir.PrimitiveUint8},
-		{typ: "integer", format: "uint16", prim: ir.PrimitiveUint16},
-		{typ: "integer", format: "uint32", prim: ir.PrimitiveUint32},
-		{typ: "integer", format: "uint64", prim: ir.PrimitiveUint64},
-		{typ: "number", format: "int8", prim: ir.PrimitiveInt8},
-		{typ: "number", format: "int16", prim: ir.PrimitiveInt16},
-		{typ: "number", format: "int32", prim: ir.PrimitiveInt32},
-		{typ: "number", format: "int64", prim: ir.PrimitiveInt64},
-		{typ: "number", format: "uint8", prim: ir.PrimitiveUint8},
-		{typ: "number", format: "uint16", prim: ir.PrimitiveUint16},
-		{typ: "number", format: "uint32", prim: ir.PrimitiveUint32},
-		{typ: "number", format: "uint64", prim: ir.PrimitiveUint64},
-		{typ: "number", format: "float", prim: ir.PrimitiveFloat32},
-		{typ: "number", format: "double", prim: ir.PrimitiveFloat64},
-		{typ: "number", format: "decimal", prim: ir.PrimitiveDecimal},
-		{typ: "number", format: "decimal128", prim: ir.PrimitiveDecimal128},
+		{typ: "integer", format: "int8", primitive: ir.PrimitiveInt8},
+		{typ: "integer", format: "int16", primitive: ir.PrimitiveInt16},
+		{typ: "integer", format: "int32", primitive: ir.PrimitiveInt32},
+		{typ: "integer", format: "int64", primitive: ir.PrimitiveInt64},
+		{typ: "integer", format: "uint8", primitive: ir.PrimitiveUint8},
+		{typ: "integer", format: "uint16", primitive: ir.PrimitiveUint16},
+		{typ: "integer", format: "uint32", primitive: ir.PrimitiveUint32},
+		{typ: "integer", format: "uint64", primitive: ir.PrimitiveUint64},
+		{typ: "number", format: "int8", primitive: ir.PrimitiveInt8},
+		{typ: "number", format: "int16", primitive: ir.PrimitiveInt16},
+		{typ: "number", format: "int32", primitive: ir.PrimitiveInt32},
+		{typ: "number", format: "int64", primitive: ir.PrimitiveInt64},
+		{typ: "number", format: "uint8", primitive: ir.PrimitiveUint8},
+		{typ: "number", format: "uint16", primitive: ir.PrimitiveUint16},
+		{typ: "number", format: "uint32", primitive: ir.PrimitiveUint32},
+		{typ: "number", format: "uint64", primitive: ir.PrimitiveUint64},
+		{typ: "number", format: "float", primitive: ir.PrimitiveFloat32},
+		{typ: "number", format: "double", primitive: ir.PrimitiveFloat64},
+		{typ: "number", format: "decimal", primitive: ir.PrimitiveDecimal},
+		{typ: "number", format: "decimal128", primitive: ir.PrimitiveDecimal128},
 
 		// A pairing no primitive holds hoists over its type's primitive.
 		{typ: "integer", format: "float", base: ir.PrimitiveInteger},
@@ -100,11 +100,11 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 			assert.Empty(t, model.Properties[0].Unmodeled, "the format is homed either way, so nothing is kept")
 			target := model.Properties[0].Type.Target
 
-			if tc.prim != "" {
-				assert.Equal(t, ir.PrimitiveTypeID(tc.prim), target, "the position resolves to the shared primitive")
-				prim, ok := doc.Types[target].(*ir.Primitive)
+			if tc.primitive != "" {
+				assert.Equal(t, ir.PrimitiveTypeID(tc.primitive), target, "the position resolves to the shared primitive")
+				primitive, ok := doc.Types[target].(*ir.Primitive)
 				require.True(t, ok, "the primitive is interned")
-				assert.Equal(t, tc.prim, prim.PrimitiveKind)
+				assert.Equal(t, tc.primitive, primitive.PrimitiveKind)
 				for id, td := range doc.Types {
 					assert.NotEqual(t, ir.KindScalar, td.Kind(), "%s: no node is hoisted for the position", id)
 				}
@@ -379,12 +379,12 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags)
 	model, ok := typeByName(doc, "H").(*ir.Model)
 	require.True(t, ok)
-	props := openapitest.PropsByWire(model.Properties)
+	properties := openapitest.PropertiesByWire(model.Properties)
 	params := doc.Services[0].Groups[0].Operations[0].Params
 	require.Len(t, params, 1)
 	for at, carrier := range map[jsontext.Pointer]*ir.Constraints{
 		"/components/schemas/N":              nil,
-		"/components/schemas/H/properties/p": props["p"].Constraints,
+		"/components/schemas/H/properties/p": properties["p"].Constraints,
 		"/paths/~1n/get/parameters/0/schema": params[0].Constraints,
 	} {
 		assert.Nil(t, carrier, "%s: what carries the number holds no bound", at)
@@ -402,10 +402,10 @@ components:
 		}
 		assert.Len(t, sc.Unmodeled, len(keywords), "%s keeps nothing else", at)
 	}
-	assert.Empty(t, props["p"].Unmodeled, "the property keeps no copy of what its node keeps")
+	assert.Empty(t, properties["p"].Unmodeled, "the property keeps no copy of what its node keeps")
 	assert.Empty(t, params[0].Unmodeled, "the parameter keeps no copy of what its node keeps")
-	require.NotNil(t, props["d"].Constraints, "a date keeps the length bound of its text")
-	assert.Equal(t, new(int64(10)), props["d"].Constraints.MaxLength)
+	require.NotNil(t, properties["d"].Constraints, "a date keeps the length bound of its text")
+	assert.Equal(t, new(int64(10)), properties["d"].Constraints.MaxLength)
 
 	scalar, ok := typeByName(doc, "R").(*ir.Scalar)
 	require.True(t, ok, "the refinement owns an alias")

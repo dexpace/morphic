@@ -663,10 +663,10 @@ func TestNewEditor_NilDocumentIsRefused(t *testing.T) {
 	_, typeHeld := editor.Type("type/x")
 	_, svcHeld := editor.Service("service/x")
 	_, groupHeld := editor.Group("operation-group/x")
-	_, opHeld := editor.Operation("o/x")
+	_, operationHeld := editor.Operation("o/x")
 	_, serverHeld := editor.Server("v/x")
 	_, chHeld := editor.Channel("c/x")
-	_, msgHeld := editor.Message("m/x")
+	_, messageHeld := editor.Message("m/x")
 	_, authHeld := editor.AuthScheme("a/x")
 
 	out, diags := editor.Finish()
@@ -679,7 +679,7 @@ func TestNewEditor_NilDocumentIsRefused(t *testing.T) {
 		`internal: edit: remove rejected: no operation "o/x" to remove; an edit adds no operation`,
 		`internal: edit: update rejected: no channel "c/x" to update; an edit adds no channel`,
 	}, refusals(t, diags))
-	assert.False(t, typeHeld || svcHeld || groupHeld || opHeld || serverHeld || chHeld || msgHeld || authHeld)
+	assert.False(t, typeHeld || svcHeld || groupHeld || operationHeld || serverHeld || chHeld || messageHeld || authHeld)
 }
 
 // references returns the address of every pointer, non-empty slice and map v
@@ -817,7 +817,7 @@ func TestEditor_UpdateCopiesEveryNodeWhole(t *testing.T) {
 			return operationGroup
 		}},
 		{"operation", func(editor *ir.Editor, h func(any)) {
-			editor.UpdateOperation("o/a", func(op *ir.Operation) { h(*op) })
+			editor.UpdateOperation("o/a", func(operation *ir.Operation) { h(*operation) })
 		}, func(doc *ir.Document) any { return doc.Services[0].Groups[0].Operations[0] }},
 		{"server", func(editor *ir.Editor, h func(any)) {
 			editor.UpdateServer("v/a", func(server *ir.Server) { h(*server) })
@@ -881,9 +881,9 @@ func wholeDoc(t *testing.T, raw ir.Unmodeled) *ir.Document {
 	svc.ID, svc.Unmodeled = "service/a", raw
 	group := &svc.Groups[0]
 	group.ID, group.Unmodeled, group.Groups = "operation-group/a", raw, nil
-	op := &group.Operations[0]
-	op.ID, op.Unmodeled = "o/a", raw
-	op.Examples = append(op.Examples, ir.Example{Value: &ir.Value{Kind: ir.ValueBytes, Bytes: []byte("raw")}})
+	operation := &group.Operations[0]
+	operation.ID, operation.Unmodeled = "o/a", raw
+	operation.Examples = append(operation.Examples, ir.Example{Value: &ir.Value{Kind: ir.ValueBytes, Bytes: []byte("raw")}})
 	for serverID, server := range doc.Servers {
 		delete(doc.Servers, serverID)
 		server.ID, server.Unmodeled = "v/a", raw
@@ -917,13 +917,13 @@ func TestEditor_UpdateKeepsAliasingAndEndsACycle(t *testing.T) {
 	shared := &ir.Value{Kind: ir.ValueString, String: "shared"}
 	list := []ir.Value{{Kind: ir.ValueString, String: "listed"}}
 	extensions := ir.Unmodeled{"x-a": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`)}}
-	ctor := &ir.ConstructorValue{Scalar: "type/s", Name: "now"}
-	ctor.Args = []ir.Value{{Kind: ir.ValueConstructor, Constructor: ctor}}
+	constructor := &ir.ConstructorValue{Scalar: "type/s", Name: "now"}
+	constructor.Args = []ir.Value{{Kind: ir.ValueConstructor, Constructor: constructor}}
 	base := []string{"a", "b", "c"}
 	node := &ir.Scalar{ID: "type/s", Tags: base[:2], Namespace: base[:3], Examples: []ir.Example{
 		{Name: "a", Value: shared, Input: &ir.ScenarioInput{Body: &ir.Value{Kind: ir.ValueList, List: list}}, Unmodeled: extensions},
 		{Name: "b", Value: shared, Input: &ir.ScenarioInput{Body: &ir.Value{Kind: ir.ValueList, List: list}}, Unmodeled: extensions},
-		{Name: "c", Value: &ir.Value{Kind: ir.ValueConstructor, Constructor: ctor}},
+		{Name: "c", Value: &ir.Value{Kind: ir.ValueConstructor, Constructor: constructor}},
 	}}
 
 	cp, ok := updatedCopy(t, node).(*ir.Scalar)
@@ -941,7 +941,7 @@ func TestEditor_UpdateKeepsAliasingAndEndsACycle(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, cp.Namespace)
 	assert.NotSame(t, &base[0], &cp.Tags[0])
 	copied := examples[2].Value.Constructor
-	assert.NotSame(t, ctor, copied)
+	assert.NotSame(t, constructor, copied)
 	assert.Same(t, copied, copied.Args[0].Constructor, "the cycle comes out as the same cycle")
 }
 

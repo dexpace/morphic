@@ -49,20 +49,20 @@ func TestEditor_RefusesAGroupItsReadDidNotReach(t *testing.T) {
 // walk reaches within the same limit.
 func TestEditor_HoldsTheOperationsForEachOperationReachesWithinItsSteps(t *testing.T) {
 	t.Parallel()
-	ops := make([]ir.Operation, 10)
-	for i := range ops {
-		ops[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("operation/x/o%d", i))}
+	operations := make([]ir.Operation, 10)
+	for i := range operations {
+		operations[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("operation/x/o%d", i))}
 	}
-	doc := &ir.Document{Services: []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x/a", Operations: ops}}}}}
+	doc := &ir.Document{Services: []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x/a", Operations: operations}}}}}
 	const limit = 6
 	var walked []ir.OperationID
-	require.True(t, ir.ForEachOperationWithin(limit, doc, func(op ir.Operation) { walked = append(walked, op.ID) }))
+	require.True(t, ir.ForEachOperationWithin(limit, doc, func(operation ir.Operation) { walked = append(walked, operation.ID) }))
 
 	editor := ir.NewEditorWithin(limit, doc)
 	var held []ir.OperationID
-	for _, op := range ops {
-		if _, ok := editor.Operation(op.ID); ok {
-			held = append(held, op.ID)
+	for _, operation := range operations {
+		if _, ok := editor.Operation(operation.ID); ok {
+			held = append(held, operation.ID)
 		}
 	}
 

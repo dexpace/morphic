@@ -35,7 +35,7 @@ type operationIDClaims struct {
 // declaration pointer are the two ways a claim names the declaration it mounts.
 type operationIDClaim struct {
 	node *yaml.Node
-	ptrs opPointers
+	ptrs operationPointers
 }
 
 func newOperationIDClaims() *operationIDClaims {
@@ -44,7 +44,7 @@ func newOperationIDClaims() *operationIDClaims {
 
 // add records the claim src makes at ptrs. An operation with no operationId
 // claims nothing: emitters synthesize its name from the method and path.
-func (o *operationIDClaims) add(src *soa.Operation, ptrs opPointers) {
+func (o *operationIDClaims) add(src *soa.Operation, ptrs operationPointers) {
 	name := src.GetOperationID()
 	if name == "" {
 		return

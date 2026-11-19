@@ -45,9 +45,9 @@ components:
 func TestOperations_DuplicateOperationIDReported(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, duplicateOperationIDSpec)
-	opA := opByPath(t, doc, "GET", "/a")
-	opB := opByPath(t, doc, "GET", "/b")
-	assert.Equal(t, opA.Name.Source, opB.Name.Source, "the IR still records what the document said")
+	operationA := operationByPath(t, doc, "GET", "/a")
+	operationB := operationByPath(t, doc, "GET", "/b")
+	assert.Equal(t, operationA.Name.Source, operationB.Name.Source, "the IR still records what the document said")
 
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateOperationID, ir.SeverityWarning),
 		"the second claim is reported once, not both claims")

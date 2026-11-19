@@ -66,7 +66,7 @@ var loweringRecursions = [][]string{
 	// holding operations of its own (docs/ir/http-binding.md), so the operation
 	// lowering reaches itself through them. Bounded by maxCallbackNesting, the
 	// callbacks an operation whose own lower may be nested in.
-	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem", "operationCallbacks"},
+	{"lowerCallbackOperations", "lowerCallbacks", "lowerOperation", "mountPathItem", "operationCallbacks"},
 	// Whether one conjunct restates another. Two lists compare by their elements,
 	// each read the same way, down what `items` nests. Each step reads a schema,
 	// which spends the budget maxAdmissionReads holds it to.
@@ -104,7 +104,7 @@ var schemaRecursion = []string{
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel", "lowerNullOnlyUnion",
 	"lowerOneOfAnyOf", "lowerPrincipal", "lowerPrincipalValueSet", "lowerSchemaBody", "lowerSubtypeUnion", "lowerTypeVariant",
 	"lowerTyped", "lowerUndecided", "lowerUnion",
-	"lowerUntyped", "lowerUntypedUnion", "mintUnion", "outcomeKeeps.record", "patternProps",
+	"lowerUntyped", "lowerUntypedUnion", "mintUnion", "outcomeKeeps.record", "patternProperties",
 	"preserveUnmergedBranch", "recordEntryUnhomed",
 	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",

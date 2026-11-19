@@ -51,12 +51,12 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
 	spec32 := func(schemas string) string { return openapitest.ComponentSpecVer("3.2.0", schemas) }
 
 	const (
-		propTarget    = "/components/schemas/Kennel/properties/Dog"
-		itemsTarget   = "/components/schemas/Kennel/items"
-		keywordTarget = "/components/schemas/Kennel/properties/items/items"
-		defsTarget    = "/components/schemas/Kennel/$defs/Dog"
-		pathsBase     = "/paths/~1a/get/responses/200/content/application~1json/schema"
-		pathsTarget   = "/paths/~1b/get/responses/200/content/application~1json/schema/items"
+		propertyTarget = "/components/schemas/Kennel/properties/Dog"
+		itemsTarget    = "/components/schemas/Kennel/items"
+		keywordTarget  = "/components/schemas/Kennel/properties/items/items"
+		defsTarget     = "/components/schemas/Kennel/$defs/Dog"
+		pathsBase      = "/paths/~1a/get/responses/200/content/application~1json/schema"
+		pathsTarget    = "/paths/~1b/get/responses/200/content/application~1json/schema/items"
 	)
 	ownerProperty := `    Kennel:
       type: object
@@ -114,16 +114,16 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
 		baseID, targetID ir.TypeID
 		wantDefault      bool
 	}{
-		{"a property", openapitest.ComponentSpec, mapping(propTarget), ownerProperty,
-			componentID("Pet"), "type/anonymous" + propTarget, false},
+		{"a property", openapitest.ComponentSpec, mapping(propertyTarget), ownerProperty,
+			componentID("Pet"), "type/anonymous" + propertyTarget, false},
 		{"items", openapitest.ComponentSpec, mapping(itemsTarget), ownerItems,
 			componentID("Pet"), "type/anonymous" + itemsTarget, false},
 		{"a keyword-named key", openapitest.ComponentSpec, mapping(keywordTarget), ownerKeywordKey,
 			componentID("Pet"), "type/anonymous" + keywordTarget, false},
 		{"a $defs entry", openapitest.ComponentSpec, mapping(defsTarget), ownerDefs,
 			componentID("Pet"), "type/anonymous" + defsTarget, false},
-		{"a 3.2 defaultMapping", spec32, pet(`defaultMapping: '#` + propTarget + `'`), ownerProperty,
-			componentID("Pet"), "type/anonymous" + propTarget, true},
+		{"a 3.2 defaultMapping", spec32, pet(`defaultMapping: '#` + propertyTarget + `'`), ownerProperty,
+			componentID("Pet"), "type/anonymous" + propertyTarget, true},
 		{"a /paths inline subtype", openapitest.PathsSpec, pathBase, pathOwner,
 			"type/anonymous" + pathsBase, "type/anonymous" + pathsTarget, false},
 	}
@@ -646,9 +646,9 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 		cat    = "  Cat: {" + petSub + ", properties: {meow: {type: string}}}\n"
 	)
 	pet := componentID("Pet")
-	anon := func(pointer string) ir.TypeID { return ir.TypeID("type/anonymous/" + pointer) }
+	anonymous := func(pointer string) ir.TypeID { return ir.TypeID("type/anonymous/" + pointer) }
 	model := func(base ir.TypeID, tag, pointer string) wantMapping {
-		return wantMapping{base: base, tag: tag, target: anon(pointer), kind: ir.KindModel}
+		return wantMapping{base: base, tag: tag, target: anonymous(pointer), kind: ir.KindModel}
 	}
 	tests := []struct {
 		name       string
@@ -681,7 +681,7 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 			},
 			// A member that is an object is lowered to a literal, which no model
 			// subtypes, so only the resolution is pinned here, not a variant.
-			wants: []wantMapping{{pet, "e", anon("components/schemas/Kennel/properties/e/enum/0"), ir.KindLiteral}},
+			wants: []wantMapping{{pet, "e", anonymous("components/schemas/Kennel/properties/e/enum/0"), ir.KindLiteral}},
 		},
 		{
 			name:       "a defaultMapping to an extension's value",
@@ -697,7 +697,7 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 				"  Inner:\n    type: object\n    required: [tag]\n    properties: {tag: {type: string}}\n" +
 				"    discriminator: {propertyName: tag, mapping: {d: '#/x-lib/Dog'}}\n" +
 				"  Dog: {allOf: [{$ref: '#/x-lib/Inner'}], type: object}\n",
-			wants: []wantMapping{model(anon("x-lib/Inner"), "d", "x-lib/Dog")},
+			wants: []wantMapping{model(anonymous("x-lib/Inner"), "d", "x-lib/Dog")},
 		},
 		{
 			name:       "a mapping in a raw schema only another mapping reaches",
@@ -709,7 +709,7 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 				"  Dog: {allOf: [{$ref: '#/x-lib/Inner'}], type: object}\n",
 			wants: []wantMapping{
 				model(pet, "i", "x-lib/Inner"),
-				model(anon("x-lib/Inner"), "d", "x-lib/Dog"),
+				model(anonymous("x-lib/Inner"), "d", "x-lib/Dog"),
 			},
 		},
 	}

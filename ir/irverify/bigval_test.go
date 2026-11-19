@@ -47,10 +47,10 @@ func bigValCarriers(literal string) map[string]*ir.Document {
 			Properties: []ir.Property{property},
 		}}}
 	}
-	prop := ir.Property{ID: "property/x/M/f", Name: named("f"), Provenance: prov}
-	prop.Type = ir.TypeRef{Target: "type/x/M"}
+	irProperty := ir.Property{ID: "property/x/M/f", Name: named("f"), Provenance: prov}
+	irProperty.Type = ir.TypeRef{Target: "type/x/M"}
 
-	withDefault, withBound := prop, prop
+	withDefault, withBound := irProperty, irProperty
 	def := numericValue(literal)
 	withDefault.Default = &def
 	withBound.Constraints = &ir.Constraints{Max: new(ir.BigVal(literal))}
@@ -140,13 +140,13 @@ func TestVerify_CanonicalBigValIsClean(t *testing.T) {
 	}
 }
 
-// TestVerify_UnusedNumIsNotABound pins the one distinction the walk has to
+// TestVerify_UnusedNumberIsNotABound pins the one distinction the walk has to
 // draw. Value.Number is not a pointer and is the zero string on every Value
 // that is not a number — most of the values a document holds — so an empty one
 // there says the field is unused. A bound is carried by pointer and is present
 // because something set it, so an empty one there is a bound that constrains
 // nothing.
-func TestVerify_UnusedNumIsNotABound(t *testing.T) {
+func TestVerify_UnusedNumberIsNotABound(t *testing.T) {
 	t.Parallel()
 	prov := ir.Provenance{Source: ir.NoSource}
 	unused := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/L": &ir.Literal{

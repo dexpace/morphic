@@ -85,18 +85,18 @@ func TestAliases_AnchorReuseWithinBudgetIsClean(t *testing.T) {
 		"ordinary anchor reuse well under the budget is not amplification")
 }
 
-func wideBaseReuseSpec(props, siblings int) string {
+func wideBaseReuseSpec(properties, siblings int) string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n")
 	b.WriteString("    Base: &base {type: object, properties: {")
-	for i := range props {
+	for i := range properties {
 		if i > 0 {
 			b.WriteString(", ")
 		}
 		fmt.Fprintf(&b, "p%d: {type: string, description: 'field %d'}", i, i)
 	}
 	b.WriteString("}, required: [")
-	for i := range props {
+	for i := range properties {
 		if i > 0 {
 			b.WriteString(", ")
 		}
@@ -111,9 +111,9 @@ func wideBaseReuseSpec(props, siblings int) string {
 
 func TestAliases_RealWorldAnchorReuseIsClean(t *testing.T) {
 	t.Parallel()
-	const props = 20
+	const properties = 20
 	const siblings = 900
-	src := wideBaseReuseSpec(props, siblings)
+	src := wideBaseReuseSpec(properties, siblings)
 
 	docRoot := indexOf(t, []byte(src)).Root()
 	raw := rawNodes(t, docRoot)
@@ -136,9 +136,9 @@ func TestAliases_RealWorldAnchorReuseIsClean(t *testing.T) {
 
 func TestAliases_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	t.Parallel()
-	const props = 200
+	const properties = 200
 	const siblings = 500
-	src := wideBaseReuseSpec(props, siblings)
+	src := wideBaseReuseSpec(properties, siblings)
 
 	root := indexOf(t, []byte(src)).Root()
 	pastShape := len(newAliasWeigher(shapeAllowance(rawNodes(t, root))).weigh(t.Context(), root)) > 0
@@ -159,18 +159,18 @@ func TestAliases_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 // leaf: a document whose ratio settles near the leaf's size however large n
 // grows, so only the surplus bound can refuse it.
 func flatFanOutSpec(n int) string {
-	const props = 4
+	const properties = 4
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n")
 	b.WriteString("    Leaf: &leaf {type: object, properties: {")
-	for i := range props {
+	for i := range properties {
 		if i > 0 {
 			b.WriteString(", ")
 		}
 		fmt.Fprintf(&b, "p%d: {type: string}", i)
 	}
 	b.WriteString("}, required: [")
-	for i := range props {
+	for i := range properties {
 		if i > 0 {
 			b.WriteString(", ")
 		}

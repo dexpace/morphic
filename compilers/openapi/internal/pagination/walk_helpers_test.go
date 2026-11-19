@@ -14,15 +14,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// bodyProps is the ID prefix of the members of the JSON body the success
+// bodyProperties is the ID prefix of the members of the JSON body the success
 // response of the operation method at path declares.
-func bodyProps(path, method string) string {
+func bodyProperties(path, method string) string {
 	return "property/openapi/paths/~1" + strings.ReplaceAll(path, "/", "~1") + "/" + method + "/responses/200/content/application~1json/schema/properties"
 }
 
-// propPath is a path of the members whose IDs are ids, in a response body.
-func propPath(ids ...string) *ir.PropPath {
-	return &ir.PropPath{Segments: memberIDs(ids)}
+// propertyPath is a path of the members whose IDs are ids, in a response body.
+func propertyPath(ids ...string) *ir.PropertyPath {
+	return &ir.PropertyPath{Segments: memberIDs(ids)}
 }
 
 // inputPath is a path of the members whose IDs are ids, walked from the

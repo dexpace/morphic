@@ -134,12 +134,12 @@ type member struct {
 // it, equal to num only for the first model of a component the walk met, and
 // how many models were finished when it was met.
 type frame struct {
-	id    TypeID
-	m     *Model
-	next  int
-	num   int
-	low   int
-	since int
+	id     TypeID
+	m      *Model
+	next   int
+	number int
+	low    int
+	since  int
 }
 
 // flatten is [FlattenedProperties] over f's registry.
@@ -197,9 +197,9 @@ func (f *flattener) walk(id TypeID, model *Model) {
 
 // meet numbers the model id names as the next the walk meets.
 func (f *flattener) meet(id TypeID, model *Model) frame {
-	num := len(f.met)
-	f.met[id] = num
-	return frame{id: id, m: model, num: num, low: num, since: len(f.finished)}
+	number := len(f.met)
+	f.met[id] = number
+	return frame{id: id, m: model, number: number, low: number, since: len(f.finished)}
 }
 
 // finish records that the walk is done composing fr. When fr is the first
@@ -208,10 +208,10 @@ func (f *flattener) meet(id TypeID, model *Model) frame {
 // finished.
 func (f *flattener) finish(fr frame) {
 	f.finished = append(f.finished, fr)
-	if fr.low < fr.num {
+	if fr.low < fr.number {
 		return
 	}
-	if f.narrow != nil && fr.num == 0 {
+	if f.narrow != nil && fr.number == 0 {
 		f.narrow.readRoot(f.finished[fr.since:])
 	}
 	for _, frame := range f.finished[fr.since:] {
@@ -267,12 +267,12 @@ func (f *flattener) parent(target TypeID, from *frame) (TypeID, *Model, bool) {
 		}
 		return "", nil, false
 	}
-	num, met := f.met[id]
+	number, met := f.met[id]
 	if !met {
 		return id, model, true
 	}
-	if num != metRead {
-		from.low = min(from.low, num)
+	if number != metRead {
+		from.low = min(from.low, number)
 	}
 	return "", nil, false
 }

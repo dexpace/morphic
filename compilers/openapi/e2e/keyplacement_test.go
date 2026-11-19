@@ -64,12 +64,12 @@ func TestKeyFindings_AnAliasedValueIsPlacedAtItsKey(t *testing.T) {
 func TestKeyFindings_AReservedHeaderIsPlacedAtItsKeyInEitherOrder(t *testing.T) {
 	t.Parallel()
 	const header = "/paths/~1p/get/responses/200/headers/Content-Type"
-	const op = "  /p:\n    get:\n      responses:\n        \"200\":\n          description: ok\n" +
+	const operation = "  /p:\n    get:\n      responses:\n        \"200\":\n          description: ok\n" +
 		"          headers:\n            Content-Type: %s\n"
 	extensionFirst := "openapi: 3.1.0\ninfo: {title: t, version: v}\nx-h: &h {schema: {type: string}}\npaths:\n" +
-		fmt.Sprintf(op, "*h")
+		fmt.Sprintf(operation, "*h")
 	headerFirst := "openapi: 3.1.0\ninfo: {title: t, version: v}\npaths:\n" +
-		fmt.Sprintf(op, "&h {schema: {type: string}}") + "x-h: *h\n"
+		fmt.Sprintf(operation, "&h {schema: {type: string}}") + "x-h: *h\n"
 	for name, src := range map[string]string{"extension first": extensionFirst, "header first": headerFirst} {
 		_, diags := parseVerified(t, src)
 		assert.Equal(t, header, firstPointer(diags, "openapi/reserved-header-name"), name)

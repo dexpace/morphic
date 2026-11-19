@@ -144,16 +144,16 @@ func settleAllocs(t *testing.T, width, pinned int) float64 {
 	variants := make([]ir.Variant, width)
 	for i := range variants {
 		id := ir.TypeID(fmt.Sprintf("type/v%d", i))
-		props := make([]ir.Property, 4)
-		for j := range props {
+		properties := make([]ir.Property, 4)
+		for j := range properties {
 			target := ir.TypeID("type/primitive/string")
 			if j < pinned {
 				target = "type/lit/x"
 			}
-			props[j] = ir.Property{ID: ir.PropertyID(fmt.Sprintf("property/v%d/k%d", i, j)), Name: ir.Naming{Source: fmt.Sprintf("k%d", j)},
+			properties[j] = ir.Property{ID: ir.PropertyID(fmt.Sprintf("property/v%d/k%d", i, j)), Name: ir.Naming{Source: fmt.Sprintf("k%d", j)},
 				Required: true, Type: ir.TypeRef{Target: target}}
 		}
-		reg[id] = &ir.Model{ID: id, Properties: props}
+		reg[id] = &ir.Model{ID: id, Properties: properties}
 		variants[i] = ir.Variant{Type: ir.TypeRef{Target: id}}
 	}
 	reg["type/u"] = &ir.Union{ID: "type/u", Variants: variants, Closed: true}

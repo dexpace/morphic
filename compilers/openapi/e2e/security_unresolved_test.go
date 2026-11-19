@@ -59,10 +59,10 @@ paths:
 			require.Len(t, doc.Auth, 1, "%+v", doc.Auth)
 			assert.Equal(t, ir.Provenance{Source: 0}, doc.Auth[minted].Provenance)
 			for _, id := range []string{"here", "there"} {
-				op, ok := opByName(doc, id)
+				operation, ok := operationByName(doc, id)
 				require.True(t, ok, id)
-				require.Len(t, op.Auth, 1, id)
-				assert.Equal(t, minted, op.Auth[0].Schemes[0].Scheme, id)
+				require.Len(t, operation.Auth, 1, id)
+				assert.Equal(t, minted, operation.Auth[0].Schemes[0].Scheme, id)
 			}
 		})
 	}

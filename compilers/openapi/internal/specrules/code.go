@@ -142,8 +142,8 @@ type operationAt struct {
 func operationsOf(rulerValue ruler, item map[string]*yaml.Node, ptr jsontext.Pointer) []operationAt {
 	var out []operationAt
 	for _, m := range standardMethods() {
-		if op, ok := item[m]; ok {
-			out = append(out, operationAt{node: op, ptr: ptr.AppendToken(m)})
+		if operation, ok := item[m]; ok {
+			out = append(out, operationAt{node: operation, ptr: ptr.AppendToken(m)})
 		}
 	}
 	extra := ptr.AppendToken("additionalOperations")
@@ -305,10 +305,10 @@ func checkPathItem(rulerValue ruler, rule Rule, path string, item map[string]*ya
 		shared.unread = true
 	}
 	reportStrayParams(rulerValue, rule, path, exprs, shared)
-	ops := operationsOf(rulerValue, item, ptr)
-	perOperation := make([]paramList, 0, len(ops))
-	for _, op := range ops {
-		own := pathParams(rulerValue, rulerValue.keysOf(op.node)["parameters"], op.ptr.AppendToken("parameters"))
+	operations := operationsOf(rulerValue, item, ptr)
+	perOperation := make([]paramList, 0, len(operations))
+	for _, operation := range operations {
+		own := pathParams(rulerValue, rulerValue.keysOf(operation.node)["parameters"], operation.ptr.AppendToken("parameters"))
 		reportStrayParams(rulerValue, rule, path, exprs, own)
 		perOperation = append(perOperation, own)
 	}

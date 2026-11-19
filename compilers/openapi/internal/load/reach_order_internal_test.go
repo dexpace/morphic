@@ -108,14 +108,14 @@ func TestExternal_WhoReadsAProxiedDocumentTurnsOnNoOrderOfAsking(t *testing.T) {
 			for _, role := range order {
 				_, err := external.document(t.Context(), orderProxied, orderAskers[role])
 				assert.Equal(t, admitted[role], err == nil, "resolved %d, order %v: %s: %v", resolved, order, role, err)
-				msg := ""
+				message := ""
 				if err != nil {
-					msg = err.Error()
+					message = err.Error()
 				}
 				if seen, ok := why[role]; ok {
-					assert.Equal(t, seen, msg, "resolved %d, order %v: %s is answered alike in every order", resolved, order, role)
+					assert.Equal(t, seen, message, "resolved %d, order %v: %s is answered alike in every order", resolved, order, role)
 				}
-				why[role] = msg
+				why[role] = message
 			}
 			assert.Equal(t, compilers.SpacePublic, external.reachOf(orderProxied), "resolved %d, order %v", resolved, order)
 			_, err := external.document(t.Context(), reachPriv, orderProxied)

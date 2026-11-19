@@ -5,7 +5,7 @@ Each protocol has a document of its own: [HTTP](./http-binding.md), [RPC](./rpc-
 [messaging](./messaging.md), [GraphQL](./graphql-binding.md) and [Erlang/OTP](./otp-binding.md).
 
 ```go
-type OpBindings struct {
+type OperationBindings struct {
     HTTP    []HTTPBinding     // OpenAPI/Swagger ops, TypeSpec @route, Smithy http traits.
                               // A slice: one operation may carry several HTTP mappings —
                               // gRPC transcoding's additional_bindings — with the primary first

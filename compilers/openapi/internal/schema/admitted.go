@@ -18,9 +18,9 @@ import (
 // scalarForm is one `format` a reading holds: as written, and the primitive the
 // type and format beside each other select where the table has a row for them.
 type scalarForm struct {
-	spelled string
-	prim    ir.PrimitiveKind
-	listed  bool
+	spelled   string
+	primitive ir.PrimitiveKind
+	listed    bool
 }
 
 // narrows reports whether f is the form scalarFormValue is, or a narrower one.
@@ -28,7 +28,7 @@ func (f scalarForm) narrows(scalarFormValue scalarForm) bool {
 	if f.spelled == scalarFormValue.spelled {
 		return true
 	}
-	return f.listed && scalarFormValue.listed && typeformat.Relate(f.prim, scalarFormValue.prim) == typeformat.ANarrower
+	return f.listed && scalarFormValue.listed && typeformat.Relate(f.primitive, scalarFormValue.primitive) == typeformat.ANarrower
 }
 
 // admitted is what a schema's keywords leave an instance able to be: its kinds,

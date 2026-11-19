@@ -74,10 +74,10 @@ var heldLists = map[string]listFixture{
 // heldListDoc returns a document that verifies clean and holds every list in
 // heldLists, each empty until a case sets one.
 func heldListDoc() *ir.Document {
-	doc := opDoc(ir.Operation{
+	doc := singleOperationDocument(ir.Operation{
 		ID:       "operation/x/S/op",
 		Name:     named("op"),
-		Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query"}},
+		Bindings: ir.OperationBindings{GraphQL: &ir.GraphQLBinding{Kind: "query"}},
 	})
 	doc.IRVersion = ir.IRVersion
 	doc.Services[0].Groups[0].Name = named("g")

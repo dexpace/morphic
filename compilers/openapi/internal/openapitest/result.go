@@ -15,13 +15,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// FindOp returns the operation whose source name matches.
-func FindOp(tb TB, doc *ir.Document, source string) ir.Operation {
+// FindOperation returns the operation whose source name matches.
+func FindOperation(tb TB, doc *ir.Document, source string) ir.Operation {
 	tb.Helper()
 	for _, operationGroup := range doc.Services[0].Groups {
-		for _, op := range operationGroup.Operations {
-			if op.Name.Source == source {
-				return op
+		for _, operation := range operationGroup.Operations {
+			if operation.Name.Source == source {
+				return operation
 			}
 		}
 	}
@@ -29,10 +29,10 @@ func FindOp(tb TB, doc *ir.Document, source string) ir.Operation {
 	return ir.Operation{}
 }
 
-// FirstOp returns the operation at svc.Groups[0].Operations[0], requiring both
+// FirstOperation returns the operation at svc.Groups[0].Operations[0], requiring both
 // to be non-empty first rather than letting a malformed fixture fail with a bare
 // index-out-of-range panic.
-func FirstOp(tb TB, svc ir.Service) ir.Operation {
+func FirstOperation(tb TB, svc ir.Service) ir.Operation {
 	tb.Helper()
 	require.NotEmpty(tb, svc.Groups, "service has no operation groups")
 	require.NotEmpty(tb, svc.Groups[0].Operations, "first group has no operations")
@@ -41,8 +41,8 @@ func FirstOp(tb TB, svc ir.Service) ir.Operation {
 
 // ParamBySource returns the operation's logical parameter with the given
 // source name.
-func ParamBySource(op ir.Operation, name string) (ir.Parameter, bool) {
-	for _, parameter := range op.Params {
+func ParamBySource(operation ir.Operation, name string) (ir.Parameter, bool) {
+	for _, parameter := range operation.Params {
 		if parameter.Name.Source == name {
 			return parameter, true
 		}
@@ -61,9 +61,9 @@ func IndexBy[T any, K comparable](items []T, key func(T) K) map[K]T {
 	return out
 }
 
-// PropsByWire indexes a model's properties by wire name.
-func PropsByWire(props []ir.Property) map[string]ir.Property {
-	return IndexBy(props, func(property ir.Property) string { return property.WireName })
+// PropertiesByWire indexes a model's properties by wire name.
+func PropertiesByWire(properties []ir.Property) map[string]ir.Property {
+	return IndexBy(properties, func(property ir.Property) string { return property.WireName })
 }
 
 // BodyTarget returns the type a single-media-type payload refers to.

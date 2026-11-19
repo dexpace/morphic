@@ -97,24 +97,24 @@ func withDefaultContentType(unions *partUnions, node func(ir.TypeID) (ir.TypeDef
 // itemsOf returns the element types of ref where it stands for a list or a
 // tuple (elementsOf), and ref itself otherwise.
 func itemsOf(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef) []ir.TypeRef {
-	if elems, isArray := elementsOf(bodyNode(node, ref.Target)); isArray {
-		return elems
+	if elements, isArray := elementsOf(bodyNode(node, ref.Target)); isArray {
+		return elements
 	}
 	return []ir.TypeRef{ref}
 }
 
 // elementsOf returns the element types of td where it is a list or a tuple, a
 // tuple's rest included.
-func elementsOf(td ir.TypeDef) (elems []ir.TypeRef, isArray bool) {
+func elementsOf(td ir.TypeDef) (elements []ir.TypeRef, isArray bool) {
 	switch t := td.(type) {
 	case *ir.List:
 		return []ir.TypeRef{t.ElementType}, true
 	case *ir.Tuple:
-		elems = append(elems, t.ElementTypes...)
+		elements = append(elements, t.ElementTypes...)
 		if t.Rest != nil {
-			elems = append(elems, *t.Rest)
+			elements = append(elements, *t.Rest)
 		}
-		return elems, true
+		return elements, true
 	default:
 		return nil, false
 	}
@@ -193,11 +193,11 @@ func readValue(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rule
 // their primitive (primitiveCase), a model and a map as objects, an array
 // inside an array by its row or else its items, and a union by its members.
 func readNode(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules specrules.EncodingRules, td ir.TypeDef, encoding string, encodedBy contentEncoding) valueReading {
-	if elems, isArray := elementsOf(td); isArray {
+	if elements, isArray := elementsOf(td); isArray {
 		if ct, ok := rules.ContentType(specrules.DefaultNestedArray); ok {
 			return valueReading{contentType: ct}
 		}
-		return valueReading{instead: elems}
+		return valueReading{instead: elements}
 	}
 	switch t := td.(type) {
 	case *ir.Primitive:

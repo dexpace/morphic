@@ -198,7 +198,7 @@ func canonicalJSON(doc *ir.Document) ([]byte, error) {
 // lists written by arrange, and more, when set, consulted before orderFree.
 // The marshalers go through comparableOptions and never opts, where a second
 // json.WithMarshalers would replace orderFree rather than join it.
-func encodeComparable(doc *ir.Document, arrange func(elems [][]byte) []byte, more *json.Marshalers,
+func encodeComparable(doc *ir.Document, arrange func(elements [][]byte) []byte, more *json.Marshalers,
 	opts ...json.Options,
 ) ([]byte, error) {
 	type plain ir.Document // no methods, so the options below reach it
@@ -214,7 +214,7 @@ func encodeComparable(doc *ir.Document, arrange func(elems [][]byte) []byte, mor
 // comparableOptions are the options encodeComparable writes under: maps and a
 // verbatim value's members sorted, more's marshalers, when set, and each
 // collection orderFree lists written by arrange.
-func comparableOptions(arrange func(elems [][]byte) []byte, more *json.Marshalers) json.Options {
+func comparableOptions(arrange func(elements [][]byte) []byte, more *json.Marshalers) json.Options {
 	return json.JoinOptions(json.Deterministic(true), json.WithMarshalers(json.JoinMarshalers(more, orderFree(arrange))),
 		jsontext.ReorderRawObjects(true))
 }
@@ -227,7 +227,7 @@ func comparableOptions(arrange func(elems [][]byte) []byte, more *json.Marshaler
 // two whose members the permutation reversed still pair up (#683). Examples
 // alone hold both a mapping's entries and a sequence's elements
 // (sortedExamples).
-func orderFree(arrange func(elems [][]byte) []byte) *json.Marshalers {
+func orderFree(arrange func(elements [][]byte) []byte) *json.Marshalers {
 	return json.JoinMarshalers(
 		sortedElements[ir.Property](arrange),
 		sortedElements[ir.Header](arrange),
@@ -259,7 +259,7 @@ func orderFree(arrange func(elems [][]byte) []byte) *json.Marshalers {
 
 // sortedElements writes a []T as arrange writes its elements' encodings
 // (writeOrderFree).
-func sortedElements[T any](arrange func(elems [][]byte) []byte) *json.Marshalers {
+func sortedElements[T any](arrange func(elements [][]byte) []byte) *json.Marshalers {
 	return json.MarshalToFunc(func(enc *jsontext.Encoder, v []T) error {
 		return writeOrderFree(enc, len(v), func(i int) any { return &v[i] }, arrange)
 	})
@@ -271,7 +271,7 @@ func sortedElements[T any](arrange func(elems [][]byte) []byte) *json.Marshalers
 // element of a schema's `examples` array, which no mapping orders. A mapping
 // entry keyed by the empty string is unnamed too, so a list holding a named one
 // is arranged whole, unnamed ones among it included.
-func sortedExamples(enc *jsontext.Encoder, examples []ir.Example, arrange func(elems [][]byte) []byte) error {
+func sortedExamples(enc *jsontext.Encoder, examples []ir.Example, arrange func(elements [][]byte) []byte) error {
 	if !slices.ContainsFunc(examples, func(example ir.Example) bool { return example.Name != "" }) {
 		return errors.ErrUnsupported
 	}
@@ -282,30 +282,30 @@ func sortedExamples(enc *jsontext.Encoder, examples []ir.Example, arrange func(e
 // encodings, each encoded under the options writing the collection, these
 // marshalers among them. An empty collection is written as it would be
 // otherwise.
-func writeOrderFree(enc *jsontext.Encoder, n int, at func(i int) any, arrange func(elems [][]byte) []byte) error {
+func writeOrderFree(enc *jsontext.Encoder, n int, at func(i int) any, arrange func(elements [][]byte) []byte) error {
 	if n == 0 {
 		return errors.ErrUnsupported
 	}
-	elems := make([][]byte, n)
+	encodedElements := make([][]byte, n)
 	for i := range n {
 		b, err := json.Marshal(at(i), enc.Options())
 		if err != nil {
 			return err
 		}
-		elems[i] = b
+		encodedElements[i] = b
 	}
-	return enc.WriteValue(arrange(elems))
+	return enc.WriteValue(arrange(encodedElements))
 }
 
-// sortedArray is an array of elems in the byte order of their encodings.
-func sortedArray(elems [][]byte) []byte {
-	slices.SortFunc(elems, bytes.Compare)
-	return array(elems)
+// sortedArray is an array of elements in the byte order of their encodings.
+func sortedArray(elements [][]byte) []byte {
+	slices.SortFunc(elements, bytes.Compare)
+	return array(elements)
 }
 
-// array is an array of elems as they stand.
-func array(elems [][]byte) []byte {
-	return append(append([]byte{'['}, bytes.Join(elems, []byte{','})...), ']')
+// array is an array of elements as they stand.
+func array(elements [][]byte) []byte {
+	return append(append([]byte{'['}, bytes.Join(elements, []byte{','})...), ']')
 }
 
 // sortedRequestContentTypes writes an HTTP binding with its request's content

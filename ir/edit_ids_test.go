@@ -85,7 +85,7 @@ func TestEditor_UpdateRefusesAChangeAddingAnID(t *testing.T) {
 			})
 		}, `the change of "type/m" declares the ir.PropertyID "property/y", which the node does not`},
 		{"a parameter added", func(t *testing.T, editor *ir.Editor) {
-			editor.UpdateOperation("o/a", func(op *ir.Operation) { op.Params = append(op.Params, ir.Parameter{ID: "q/b"}) })
+			editor.UpdateOperation("o/a", func(operation *ir.Operation) { operation.Params = append(operation.Params, ir.Parameter{ID: "q/b"}) })
 		}, `the change of "o/a" declares the ir.ParameterID "q/b", which the node does not`},
 		{"a resource property added", func(t *testing.T, editor *ir.Editor) {
 			editor.UpdateGroup("operation-group/a", func(operationGroup *ir.OperationGroup) {
@@ -121,7 +121,7 @@ func TestEditor_UpdateTakesAChangeAddingNoID(t *testing.T) {
 		modelValue := model(t, td)
 		modelValue.Properties = []ir.Property{modelValue.Properties[1], {}}
 	})
-	editor.UpdateOperation("o/a", func(op *ir.Operation) { op.Params = nil })
+	editor.UpdateOperation("o/a", func(operation *ir.Operation) { operation.Params = nil })
 	out, diags := editor.Finish()
 
 	require.Empty(t, diags)
@@ -316,25 +316,25 @@ func TestEditor_ChecksIDsWhereverTheyNestAndOnlyThere(t *testing.T) {
 	t.Parallel()
 	deep := []ir.Property{{ID: "property/a", Default: nestedValue(ir.MaxWalkDepth)}}
 	doc := idsDoc()
-	op := &doc.Services[0].Groups[0].Operations[0]
-	op.Request = &ir.Payload{Contents: []ir.Content{{
+	operation := &doc.Services[0].Groups[0].Operations[0]
+	operation.Request = &ir.Payload{Contents: []ir.Content{{
 		ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{ID: "property/i", Args: []ir.Parameter{{ID: "q/i"}}}}},
 		Encoding:     map[ir.PropertyID]ir.PartEncoding{"property/part": {Headers: []ir.Header{{ID: "property/e"}}}},
 	}}}
 
 	editor := ir.NewEditor(doc)
-	editor.UpdateOperation("o/a", func(op *ir.Operation) {
-		header := &op.Request.Contents[0].ItemEncoding.Headers[0]
+	editor.UpdateOperation("o/a", func(irOperation *ir.Operation) {
+		header := &irOperation.Request.Contents[0].ItemEncoding.Headers[0]
 		header.Args = append(header.Args, ir.Parameter{ID: "q/minted"})
 	})
-	editor.UpdateOperation("o/a", func(op *ir.Operation) {
-		part := op.Request.Contents[0].Encoding["property/part"]
+	editor.UpdateOperation("o/a", func(irOperation *ir.Operation) {
+		part := irOperation.Request.Contents[0].Encoding["property/part"]
 		part.Headers = append(part.Headers, ir.Header{ID: "property/minted"})
-		op.Request.Contents[0].Encoding["property/part"] = part
+		irOperation.Request.Contents[0].Encoding["property/part"] = part
 	})
-	editor.UpdateOperation("o/a", func(op *ir.Operation) {
-		part := op.Request.Contents[0].Encoding["property/part"]
-		op.Request.Contents[0].Encoding["property/other"] = part
+	editor.UpdateOperation("o/a", func(irOperation *ir.Operation) {
+		part := irOperation.Request.Contents[0].Encoding["property/part"]
+		irOperation.Request.Contents[0].Encoding["property/other"] = part
 	})
 	editor.UpdateType("type/m", func(td ir.TypeDef) { model(t, td).Properties = append(model(t, td).Properties[:0], deep...) })
 	editor.ReplaceType(&ir.Model{ID: "type/m", Properties: deep})

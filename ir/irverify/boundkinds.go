@@ -36,9 +36,9 @@ func checkBoundKinds(doc *ir.Document) []Violation {
 func foreignBounds(td ir.TypeDef) (string, bool) {
 	switch n := td.(type) {
 	case *ir.Model:
-		return "model", n != nil && beyondProps(n.Constraints)
+		return "model", n != nil && beyondProperties(n.Constraints)
 	case *ir.MapT:
-		return "map", n != nil && beyondProps(n.Constraints)
+		return "map", n != nil && beyondProperties(n.Constraints)
 	case *ir.List:
 		return "list", n != nil && beyondItems(n.Constraints)
 	case *ir.Tuple:
@@ -48,9 +48,9 @@ func foreignBounds(td ir.TypeDef) (string, bool) {
 	}
 }
 
-// beyondProps reports whether constraints holds a bound other than the property
+// beyondProperties reports whether constraints holds a bound other than the property
 // counts.
-func beyondProps(constraints *ir.Constraints) bool {
+func beyondProperties(constraints *ir.Constraints) bool {
 	if constraints == nil {
 		return false
 	}

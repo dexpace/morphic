@@ -53,7 +53,7 @@ var notParts = map[reflect.Type]string{
 	reflect.TypeFor[ir.Value]():                 "a value names the type it was written against",
 	reflect.TypeFor[ir.Example]():               "an example illustrates a value; it holds none",
 	reflect.TypeFor[ir.Availability]():          "a type changed from is one an older version used",
-	reflect.TypeFor[ir.PropPath]():              "a path locates a member inside a value another position carries",
+	reflect.TypeFor[ir.PropertyPath]():          "a path locates a member inside a value another position carries",
 	reflect.TypeFor[ir.Discriminator]():         "a discriminator routes to a type; only a subtype is one a value may be",
 	reflect.TypeFor[ir.TemplateInstantiation](): "a template argument made the type; a value of it holds none",
 	reflect.TypeFor[ir.DocRef]():                "prose naming a type holds no value of it",
@@ -219,9 +219,9 @@ func componentsTree(hold func() ir.Property, extra ...ir.TypeDef) *ir.Document {
 func TestIndex_RecursionThroughAPolymorphicReference(t *testing.T) {
 	t.Parallel()
 	for name, doc := range map[string]*ir.Document{
-		"held directly":      componentsTree(func() ir.Property { return useProp("node") }),
-		"held in a list":     componentsTree(func() ir.Property { return useProp("children") }, &ir.List{ID: "children", ElementType: useRef("node")}),
-		"held through alias": componentsTree(func() ir.Property { return useProp("nodeAlias") }, irtest.ScalarOf("nodeAlias", "node")),
+		"held directly":      componentsTree(func() ir.Property { return useProperty("node") }),
+		"held in a list":     componentsTree(func() ir.Property { return useProperty("children") }, &ir.List{ID: "children", ElementType: useRef("node")}),
+		"held through alias": componentsTree(func() ir.Property { return useProperty("nodeAlias") }, irtest.ScalarOf("nodeAlias", "node")),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -236,7 +236,7 @@ func TestIndex_RecursionThroughAPolymorphicReference(t *testing.T) {
 
 	t.Run("a plain base is no route back", func(t *testing.T) {
 		t.Parallel()
-		doc := componentsTree(func() ir.Property { return useProp("node") })
+		doc := componentsTree(func() ir.Property { return useProperty("node") })
 		doc.Types["node"].(*ir.Model).Discriminator = nil
 		assert.False(t, irfacts.New(doc).Recursive("branch"), "a value of a plain base is of exactly its shape")
 	})
@@ -322,7 +322,7 @@ func factsLongContainment(n int) *ir.Document {
 	for i := range n {
 		defs = append(defs, irtest.ModelOf(factsLongID(i), func(model *ir.Model) {
 			if i+1 < n {
-				model.Properties = []ir.Property{useProp(factsLongID(i + 1))}
+				model.Properties = []ir.Property{useProperty(factsLongID(i + 1))}
 			}
 		}))
 	}
@@ -342,7 +342,7 @@ func TestIndex_AVeryLongChainNeedsNoRecursion(t *testing.T) {
 
 	// Closing the chain on itself makes every model one component.
 	last := doc.Types[factsLongID(n-1)].(*ir.Model)
-	last.Properties = []ir.Property{useProp(factsLongID(0))}
+	last.Properties = []ir.Property{useProperty(factsLongID(0))}
 	ring := irfacts.New(doc)
 	assert.True(t, ring.Recursive(factsLongID(n-1)))
 	members := ring.Component(factsLongID(n / 2))
@@ -385,7 +385,7 @@ func componentsRandom(rng *rand.Rand) (doc *ir.Document, ids []ir.TypeID, held, 
 		model := useHolder(id)
 		for range rng.IntN(4) {
 			target := pick()
-			model.Properties = append(model.Properties, useProp(target))
+			model.Properties = append(model.Properties, useProperty(target))
 			held[id] = append(held[id], target)
 		}
 		if rng.IntN(3) == 0 {

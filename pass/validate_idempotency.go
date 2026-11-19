@@ -16,19 +16,19 @@ import (
 // the token names the operation's own parameter is checkParamReferences'.
 func checkIdempotency(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		idem := op.Idempotency
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		idem := operation.Idempotency
 		hasToken := idem.TokenParam != ""
 		if hasToken == (idem.Kind == ir.IdempotencyToken) {
 			return
 		}
-		where := fmt.Sprintf("%s/idempotency", op.ID)
-		msg := fmt.Sprintf("%s is idempotent by token but names no token parameter", op.ID)
+		where := fmt.Sprintf("%s/idempotency", operation.ID)
+		message := fmt.Sprintf("%s is idempotent by token but names no token parameter", operation.ID)
 		if hasToken {
-			msg = fmt.Sprintf("%s names token parameter %q under idempotency kind %q, which takes none",
-				op.ID, idem.TokenParam, idem.Kind)
+			message = fmt.Sprintf("%s names token parameter %q under idempotency kind %q, which takes none",
+				operation.ID, idem.TokenParam, idem.Kind)
 		}
-		diags = append(diags, diag(ir.SeverityError, "pass/idempotency-token-mismatch", msg, where))
+		diags = append(diags, diag(ir.SeverityError, "pass/idempotency-token-mismatch", message, where))
 	})
 	return diags
 }

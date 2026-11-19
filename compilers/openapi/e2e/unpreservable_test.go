@@ -252,7 +252,7 @@ paths:
 	// It replaced the response's links map when ir.Response gained a field for
 	// links, as that replaced a parameter's allowEmptyValue when the HTTP binding
 	// gained its field, so this reason rides on what still has no typed home.
-	responses := openapitest.FirstOp(t, svc).Responses
+	responses := openapitest.FirstOperation(t, svc).Responses
 	require.Len(t, responses, 1, "the operation must own the response writing links")
 	for _, entry := range responses[0].Unmodeled {
 		seen[entry.Reason] = true

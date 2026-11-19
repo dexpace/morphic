@@ -20,8 +20,8 @@ import (
 func TestInteractions_PageStopWithoutFlag(t *testing.T) {
 	t.Parallel()
 	const stop = "document.Services[0].Groups[0].Operations[0].Pagination.Stop"
-	flag := func() *ir.PropPath {
-		return &ir.PropPath{Segments: []ir.PropertyID{"property/x/Page/properties/has_more"}}
+	flag := func() *ir.PropertyPath {
+		return &ir.PropertyPath{Segments: []ir.PropertyID{"property/x/Page/properties/has_more"}}
 	}
 	for _, tc := range []struct {
 		name string
@@ -38,13 +38,13 @@ func TestInteractions_PageStopWithoutFlag(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			vs := irverify.Verify(opDoc(ir.Operation{ID: "operation/x/S/a", Pagination: &tc.page}))
+			vs := irverify.Verify(singleOperationDocument(ir.Operation{ID: "operation/x/S/a", Pagination: &tc.page}))
 			assert.Equal(t, tc.want, violationPaths(vs, "ir/page-stop-without-flag"))
 			assert.NotContains(t, violationCodes(vs), "ir/unknown-page-stop", "no_more is a declared stop")
 		})
 	}
 
-	vs := irverify.Verify(opDoc(ir.Operation{ID: "operation/x/S/a", Pagination: &ir.Pagination{Stop: []ir.PageStop{ir.PageStopNoMore}}}))
+	vs := irverify.Verify(singleOperationDocument(ir.Operation{ID: "operation/x/S/a", Pagination: &ir.Pagination{Stop: []ir.PageStop{ir.PageStopNoMore}}}))
 	for _, violation := range vs {
 		if violation.Code == "ir/page-stop-without-flag" {
 			assert.Equal(t, `pagination stops on "no_more" and names no flag to read`, violation.Message)

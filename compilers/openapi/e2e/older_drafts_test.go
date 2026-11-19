@@ -98,20 +98,20 @@ func TestOlderDrafts_ATupleBelowAnotherSchemaIsATuple(t *testing.T) {
 		"      at: {type: array, items: [{type: number}, {type: number}]}}}}\n")
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "the document writes no false")
-	elem := func(id ir.TypeID) ir.TypeDef {
+	element := func(id ir.TypeID) ir.TypeDef {
 		list, ok := doc.Types[id].(*ir.List)
 		require.True(t, ok, "%s is a list", id)
 		return doc.Types[list.ElementType.Target]
 	}
-	pair, ok := elem(componentID("Pairs")).(*ir.Tuple)
+	pair, ok := element(componentID("Pairs")).(*ir.Tuple)
 	require.True(t, ok, "an array's items is the tuple written")
 	assert.Len(t, pair.ElementTypes, 2)
-	cube, ok := elem(elem(componentID("Cube")).Common().ID).(*ir.Tuple)
+	cube, ok := element(element(componentID("Cube")).Common().ID).(*ir.Tuple)
 	require.True(t, ok, "three arrays deep")
 	assert.Len(t, cube.ElementTypes, 1)
-	row, ok := elem(componentID("Rows")).(*ir.Model)
+	row, ok := element(componentID("Rows")).(*ir.Model)
 	require.True(t, ok, "an array's items above a tuple is the model written")
-	at, ok := propByWire(row, "at")
+	at, ok := propertyByWire(row, "at")
 	require.True(t, ok)
 	assert.Equal(t, ir.KindTuple, doc.Types[at.Type.Target].Kind())
 }
@@ -296,7 +296,7 @@ func TestOlderDrafts_AnIdentifierBesideARefSetsNoBase(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			tm, ok := doc.Types[componentID("T")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := propByWire(tm, "p")
+			property, ok := propertyByWire(tm, "p")
 			require.True(t, ok)
 			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/T/"+c.defs+"/"+c.want), property.Type.Target)
 			assert.Empty(t, openapitest.PointersOf(diags, diag.LaterVersionConstruct), "the identifier is read as the draft reads it")
@@ -322,10 +322,10 @@ func TestOlderDrafts_AnIDNamesAResource(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	tm, ok := doc.Types[componentID("T")].(*ir.Model)
 	require.True(t, ok)
-	property, ok := propByWire(tm, "u")
+	property, ok := propertyByWire(tm, "u")
 	require.True(t, ok)
 	assert.Equal(t, componentID("U"), property.Type.Target, "u resolves against the id above it")
-	leaf, ok := propByWire(tm, "leaf")
+	leaf, ok := propertyByWire(tm, "leaf")
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/T/definitions/Leaf"), leaf.Type.Target)
 	assert.Equal(t, ir.ReasonOutOfScope, unmodeledEntry(t, tm.Unmodeled, "openapi:id").Reason)
@@ -449,7 +449,7 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader(t *
 			bound := func(at string) *ir.Constraints {
 				model, ok := doc.Types[componentID(at)].(*ir.Model)
 				require.True(t, ok, at)
-				property, ok := propByWire(model, "lo")
+				property, ok := propertyByWire(model, "lo")
 				require.True(t, ok, at)
 				require.NotNil(t, property.Constraints, at)
 				return property.Constraints

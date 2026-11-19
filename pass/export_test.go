@@ -22,13 +22,13 @@ func DanglingRefs(tb testing.TB, doc *ir.Document) []ir.Diagnostic {
 	return checkDanglingRefs(walked.refs, walked.truncated)
 }
 
-// KeptPropIDs returns where the PropertyID references one walk of doc keeps for
-// checkPropIDRefs to settle sit, in walk order, for the external tests.
-func KeptPropIDs(tb testing.TB, doc *ir.Document) []string {
+// KeptPropertyIDs returns where the PropertyID references one walk of doc keeps for
+// checkPropertyIDRefs to settle sit, in walk order, for the external tests.
+func KeptPropertyIDs(tb testing.TB, doc *ir.Document) []string {
 	tb.Helper()
-	props := walkedFor(tb, doc).props
-	paths := make([]string, 0, len(props.sites))
-	for _, at := range props.paths.All() {
+	properties := walkedFor(tb, doc).properties
+	paths := make([]string, 0, len(properties.sites))
+	for _, at := range properties.paths.All() {
 		paths = append(paths, at.String())
 	}
 	return paths
@@ -112,12 +112,12 @@ func WalkAllocs(tb testing.TB, doc *ir.Document) float64 {
 	return testing.AllocsPerRun(5, func() { _ = walkedFor(tb, doc) })
 }
 
-// PropIDRefs returns checkPropIDRefs over what one walk of doc reads, as
+// PropertyIDRefs returns checkPropertyIDRefs over what one walk of doc reads, as
 // validate runs it, for the external tests to measure.
-func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
+func PropertyIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	tb.Helper()
 	walked := walkedFor(tb, doc)
-	return func() []ir.Diagnostic { return checkPropIDRefs(walked.props, walked.refs, walked.truncated) }
+	return func() []ir.Diagnostic { return checkPropertyIDRefs(walked.properties, walked.refs, walked.truncated) }
 }
 
 // UnionReads is how many unions pass.ConstUnions reads in doc, as it reads

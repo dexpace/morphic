@@ -92,15 +92,15 @@ components:
 	assert.True(t, strings.HasPrefix(diags[0].Message, `unresolved $dynamicRef "#node": `), diags[0].Message)
 
 	held := useTargetOf(t, doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/Held")])
-	assert.Equal(t, ext.AnonType("/Param/schema"), held, "Held names the schema ext.yaml declares")
+	assert.Equal(t, ext.AnonymousType("/Param/schema"), held, "Held names the schema ext.yaml declares")
 	model, ok := doc.Types[held].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/Param/schema"}, model.Provenance)
 	require.Len(t, model.Properties, 1)
-	prop := model.Properties[0]
-	assert.Equal(t, ext.Prop(inner), prop.ID)
-	assert.Equal(t, ir.TypeID("type/primitive/any"), prop.Type.Target)
-	assert.NotContains(t, prop.Unmodeled, "openapi:$dynamicRef")
+	property := model.Properties[0]
+	assert.Equal(t, ext.Property(inner), property.ID)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), property.Type.Target)
+	assert.NotContains(t, property.Unmodeled, "openapi:$dynamicRef")
 }
 
 // TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor pins the resolvable half of
@@ -119,10 +119,10 @@ func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 
 	kids, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/Tree/properties/kids")].(*ir.List)
 	require.True(t, ok)
-	elem, ok := doc.Types[kids.ElementType.Target].(*ir.Scalar)
+	element, ok := doc.Types[kids.ElementType.Target].(*ir.Scalar)
 	require.True(t, ok, "the items position keeps a node of its own")
-	require.NotNil(t, elem.Base)
-	assert.Equal(t, componentID("Tree"), elem.Base.Target,
+	require.NotNil(t, element.Base)
+	assert.Equal(t, componentID("Tree"), element.Base.Target,
 		"a self-recursive dynamic reference terminates on the interned component ID")
 
 	for _, td := range doc.Types {
@@ -351,7 +351,7 @@ func TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept(t *testing.T) 
 		openapitest.ComponentSpec("    StrList: {$id: 'https://example.com/strlist', $ref: 'list', "+
 			"$defs: {items: {$dynamicAnchor: items, type: string}}}\n    Plain: {$ref: './ext.yaml#/List'}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	items, ok := doc.Types[ids.In("ext.yaml").AnonType("/List/items")].(*ir.Scalar)
+	items, ok := doc.Types[ids.In("ext.yaml").AnonymousType("/List/items")].(*ir.Scalar)
 	require.True(t, ok)
 	assert.Equal(t, ir.ReasonDegradedLowering, items.Unmodeled["openapi:$dynamicRef"].Reason)
 	assert.Empty(t, openapitest.PointersOf(diags, diag.DynamicRefExpanded))

@@ -16,9 +16,9 @@ import (
 
 // nilReceiverError implements error on a pointer receiver that reads through
 // itself, so a typed nil of it panics when its text is read.
-type nilReceiverError struct{ msg string }
+type nilReceiverError struct{ message string }
 
-func (e *nilReceiverError) Error() string { return e.msg }
+func (e *nilReceiverError) Error() string { return e.message }
 
 // TestOneLine_QuotesAsBarrierLineDoes holds OneLine to barrier.Line, whose
 // tests pin the joins, the bound, the cut on a rune boundary and the work: a

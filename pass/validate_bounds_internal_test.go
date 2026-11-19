@@ -13,10 +13,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestPrimShapes_EveryPrimKindHasARow holds primShape to the kinds ir declares:
+// TestPrimitiveShapes_EveryPrimitiveKindHasARow holds primitiveShape to the kinds ir declares:
 // a kind added there with no case here would be judged by no check, and
 // nothing else would say so.
-func TestPrimShapes_EveryPrimKindHasARow(t *testing.T) {
+func TestPrimitiveShapes_EveryPrimitiveKindHasARow(t *testing.T) {
 	t.Parallel()
 	loadedPackage, err := decls.Load("github.com/dexpace/morphic/ir")
 	require.NoError(t, err)
@@ -25,9 +25,9 @@ func TestPrimShapes_EveryPrimKindHasARow(t *testing.T) {
 	require.NotEmpty(t, kinds)
 
 	for _, declaredConst := range kinds {
-		assert.NotEqual(t, shapeNotChecked, primShape(ir.PrimitiveKind(declaredConst.Value)), "%s has no shape", declaredConst.Value)
+		assert.NotEqual(t, shapeNotChecked, primitiveShape(ir.PrimitiveKind(declaredConst.Value)), "%s has no shape", declaredConst.Value)
 	}
-	assert.Equal(t, shapeNotChecked, primShape("no-such-kind"))
+	assert.Equal(t, shapeNotChecked, primitiveShape("no-such-kind"))
 }
 
 // TestKindWords_NamesEveryKind holds the words a value is described in to

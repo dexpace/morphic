@@ -51,8 +51,8 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		diags = site.appendExamples(diags, positionValue.examples)
 	})
 	var params []ir.ParameterID
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		diags = appendScenarioValues(diags, doc, &op, &params)
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		diags = appendScenarioValues(diags, doc, &operation, &params)
 	})
 	return diags
 }
@@ -82,18 +82,18 @@ func exampleLabel(ex *ir.Example, i int) string {
 	return strconv.Itoa(i)
 }
 
-// appendScenarioValues reports the values of op's scenarios the type of what
+// appendScenarioValues reports the values of operation's scenarios the type of what
 // they stand for does not admit: each input parameter, against the parameter
 // of its ID, and the content of the error a scenario ends in, against the
 // error's type. params holds the sorted IDs of one input.
-func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation, params *[]ir.ParameterID) []ir.Diagnostic {
-	for i := range op.Examples {
-		ex := &op.Examples[i]
+func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, operation *ir.Operation, params *[]ir.ParameterID) []ir.Diagnostic {
+	for i := range operation.Examples {
+		ex := &operation.Examples[i]
 		if ex.Input != nil {
-			diags = appendInputValues(diags, doc, op, ex, i, params)
+			diags = appendInputValues(diags, doc, operation, ex, i, params)
 		}
 		if ex.Error != nil {
-			site := valueSite{doc: doc, node: string(op.ID), from: op.Provenance, ref: ex.Error.Type}
+			site := valueSite{doc: doc, node: string(operation.ID), from: operation.Provenance, ref: ex.Error.Type}
 			if why := site.fits(&ex.Error.Content); why != "" {
 				diags = append(diags, site.finding("pass/example-outside-type",
 					"scenario "+exampleLabel(ex, i)+" error "+why))
@@ -103,11 +103,11 @@ func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operat
 	return diags
 }
 
-// appendInputValues reports each parameter of scenario ex, the ith of op, whose
+// appendInputValues reports each parameter of scenario ex, the ith of operation, whose
 // value the parameter's type does not admit, in the order of their IDs. An input
-// naming a parameter op does not declare is skipped: pass/param-binding-mismatch
+// naming a parameter operation does not declare is skipped: pass/param-binding-mismatch
 // has it.
-func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation, ex *ir.Example, i int,
+func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, operation *ir.Operation, ex *ir.Example, i int,
 	params *[]ir.ParameterID,
 ) []ir.Diagnostic {
 	*params = (*params)[:0]
@@ -116,11 +116,11 @@ func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation
 	}
 	slices.Sort(*params)
 	for _, id := range *params {
-		pm := parameterOf(op, id)
+		pm := parameterOf(operation, id)
 		if pm == nil {
 			continue
 		}
-		site := valueSite{doc: doc, node: string(op.ID), from: op.Provenance, ref: pm.Type, own: pm.Constraints}
+		site := valueSite{doc: doc, node: string(operation.ID), from: operation.Provenance, ref: pm.Type, own: pm.Constraints}
 		value := ex.Input.Params[id]
 		if why := site.fits(&value); why != "" {
 			diags = append(diags, site.finding("pass/example-outside-type",
@@ -130,11 +130,11 @@ func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation
 	return diags
 }
 
-// parameterOf returns the parameter of op with the ID id, or nil.
-func parameterOf(op *ir.Operation, id ir.ParameterID) *ir.Parameter {
-	for i := range op.Params {
-		if op.Params[i].ID == id {
-			return &op.Params[i]
+// parameterOf returns the parameter of operation with the ID id, or nil.
+func parameterOf(operation *ir.Operation, id ir.ParameterID) *ir.Parameter {
+	for i := range operation.Params {
+		if operation.Params[i].ID == id {
+			return &operation.Params[i]
 		}
 	}
 	return nil
@@ -285,7 +285,7 @@ func outside(value *ir.Value, sh shape, b *bounds) bool {
 	case sh == shapeList:
 		return beyond(int64(len(value.List)), b.minItems, b.maxItems)
 	case sh == shapeObject:
-		return beyond(int64(len(value.Object)), b.minProps, b.maxProps)
+		return beyond(int64(len(value.Object)), b.minProperties, b.maxProperties)
 	case (sh == shapeNumber || sh == shapeInteger) && value.Kind == ir.ValueNumber:
 		decimal, err := value.Number.Decimal()
 		return err == nil && ((b.loSet && below(decimal.Cmp(b.lo), b.loOpen)) || (b.hiSet && below(-decimal.Cmp(b.hi), b.hiOpen)))

@@ -23,40 +23,40 @@ func stubResolve(reg map[ir.TypeID]ir.TypeDef) func(ir.TypeID) (ir.TypeDef, bool
 // compare against a bare primitive, and the container pairs.
 func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg := narrowingRegistry()
-	i32, integer := primRef(ir.PrimitiveInt32), primRef(ir.PrimitiveInteger)
+	i32, integer := primitiveRef(ir.PrimitiveInt32), primitiveRef(ir.PrimitiveInteger)
 	nullable := func(typeRef ir.TypeRef) ir.TypeRef { typeRef.Nullable = true; return typeRef }
 	minItems := int64(1)
 	zero := int64(0)
-	reg["type/enum-int"] = &ir.Enum{ID: "type/enum-int", ValueType: ir.PrimitiveInteger, Members: []ir.EnumMember{{Value: num("1")}}}
-	reg["type/enum-big"] = &ir.Enum{ID: "type/enum-big", ValueType: ir.PrimitiveInteger, Members: []ir.EnumMember{{Value: num("5000000000")}}}
+	reg["type/enum-int"] = &ir.Enum{ID: "type/enum-int", ValueType: ir.PrimitiveInteger, Members: []ir.EnumMember{{Value: number("1")}}}
+	reg["type/enum-big"] = &ir.Enum{ID: "type/enum-big", ValueType: ir.PrimitiveInteger, Members: []ir.EnumMember{{Value: number("5000000000")}}}
 	reg["type/enum-none"] = &ir.Enum{ID: "type/enum-none", ValueType: ir.PrimitiveInteger}
 	reg["type/enum-bytes"] = &ir.Enum{ID: "type/enum-bytes", ValueType: ir.PrimitiveBytes, Members: []ir.EnumMember{{Value: ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}}}}
-	reg["type/enum-str"] = &ir.Enum{ID: "type/enum-str", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{Value: str("a")}}}
-	reg["type/lit-a"] = &ir.Literal{ID: "type/lit-a", Value: str("a")}
+	reg["type/enum-str"] = &ir.Enum{ID: "type/enum-str", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{Value: stringValue("a")}}}
+	reg["type/lit-a"] = &ir.Literal{ID: "type/lit-a", Value: stringValue("a")}
 	reg["type/list-enum-str-min"] = &ir.List{ID: "type/list-enum-str-min", ElementType: ir.TypeRef{Target: "type/enum-str"},
 		Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["type/list-enum-str"] = &ir.List{ID: "type/list-enum-str", ElementType: ir.TypeRef{Target: "type/enum-str"}}
 	reg["type/list-enum-int"] = &ir.List{ID: "type/list-enum-int", ElementType: ir.TypeRef{Target: "type/enum-int"}}
-	reg["type/lit-a-twin"] = &ir.Literal{ID: "type/lit-a-twin", Value: str("a")}
-	reg["type/enum-str-twin"] = &ir.Enum{ID: "type/enum-str-twin", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{ID: "twin/a", Value: str("a")}}}
+	reg["type/lit-a-twin"] = &ir.Literal{ID: "type/lit-a-twin", Value: stringValue("a")}
+	reg["type/enum-str-twin"] = &ir.Enum{ID: "type/enum-str-twin", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{ID: "twin/a", Value: stringValue("a")}}}
 	reg["type/scalar-str-twin"] = &ir.Scalar{ID: "type/scalar-str-twin", Base: &ir.TypeRef{Target: "type/primitive/string"}}
 	for _, id := range []ir.TypeID{"type/lit-a-h1", "type/lit-a-h2"} {
-		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a")}
+		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: stringValue("a")}
 	}
 	reg["type/enum-str-h"] = &ir.Enum{ID: "type/enum-str-h", Anonymous: true,
-		ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{ID: "h/a", Value: str("a")}}}
-	reg["type/lit-x"] = &ir.Literal{ID: "type/lit-x", Value: str("x")}
-	reg["type/lit-local"] = &ir.Literal{ID: "type/lit-local", Value: str("2024-01-01T00:00:00")}
-	reg["type/lit-1.5"] = &ir.Literal{ID: "type/lit-1.5", Value: num("1.5")}
+		ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{ID: "h/a", Value: stringValue("a")}}}
+	reg["type/lit-x"] = &ir.Literal{ID: "type/lit-x", Value: stringValue("x")}
+	reg["type/lit-local"] = &ir.Literal{ID: "type/lit-local", Value: stringValue("2024-01-01T00:00:00")}
+	reg["type/lit-1.5"] = &ir.Literal{ID: "type/lit-1.5", Value: number("1.5")}
 	reg["type/lit-null"] = &ir.Literal{ID: "type/lit-null", Value: ir.Value{Kind: ir.ValueNull}}
-	reg["type/lit-1"] = &ir.Literal{ID: "type/lit-1", Value: num("1")}
+	reg["type/lit-1"] = &ir.Literal{ID: "type/lit-1", Value: number("1")}
 	reg["type/scalar-str"] = &ir.Scalar{ID: "type/scalar-str", Base: &ir.TypeRef{Target: "type/primitive/string"}}
 	reg["type/scalar-int"] = &ir.Scalar{ID: "type/scalar-int", Base: &integer}
 	reg["type/scalar-any"] = &ir.Scalar{ID: "type/scalar-any", Base: &ir.TypeRef{Target: "type/primitive/any"}}
 	reg["type/scalar-any-doc"] = &ir.Scalar{Base: &ir.TypeRef{Target: "type/primitive/any"},
 		ID: "type/scalar-any-doc", Docs: ir.Docs{Description: "d"}, Deprecation: &ir.Deprecation{}, Sensitive: true}
 	reg["type/scalar-any-ex"] = &ir.Scalar{Base: &ir.TypeRef{Target: "type/primitive/any"},
-		ID: "type/scalar-any-ex", Examples: []ir.Example{{Value: new(num("1"))}}}
+		ID: "type/scalar-any-ex", Examples: []ir.Example{{Value: new(number("1"))}}}
 	reg["type/alias-scalar-any-doc"] = &ir.Scalar{ID: "type/alias-scalar-any-doc", Base: &ir.TypeRef{Target: "type/scalar-any-doc"}}
 	reg["type/alias-doc-scalar-any"] = &ir.Scalar{Base: &ir.TypeRef{Target: "type/scalar-any"},
 		ID: "type/alias-doc-scalar-any", Docs: ir.Docs{Description: "d"}}
@@ -107,16 +107,16 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 		Encoding: &ir.Encoding{Name: "base64"}}
 	reg["type/scalar-time-int"] = &ir.Scalar{ID: "type/scalar-time-int", Base: &integer, Encoding: &ir.Encoding{Name: "time"}}
 	reg["type/alias-offset"] = &ir.Scalar{ID: "type/alias-offset", Base: &ir.TypeRef{Target: "type/primitive/datetime_offset"}}
-	reg["type/lit-time"] = &ir.Literal{ID: "type/lit-time", Value: str("12:00:00Z")}
-	reg["type/enum-time"] = &ir.Enum{ID: "type/enum-time", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{Value: str("12:00:00Z")}}}
+	reg["type/lit-time"] = &ir.Literal{ID: "type/lit-time", Value: stringValue("12:00:00Z")}
+	reg["type/enum-time"] = &ir.Enum{ID: "type/enum-time", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{Value: stringValue("12:00:00Z")}}}
 	reg["type/any"] = &ir.Any{ID: "type/any"}
 	reg["type/model"] = &ir.Model{ID: "type/model"}
 	reg["type/list-int-null"] = &ir.List{ID: "type/list-int-null", ElementType: nullable(integer)}
 	reg["type/list-int"] = &ir.List{ID: "type/list-int", ElementType: integer}
 	reg["type/list-i32"] = &ir.List{ID: "type/list-i32", ElementType: i32}
 	reg["type/list-i32-null"] = &ir.List{ID: "type/list-i32-null", ElementType: nullable(i32)}
-	reg["type/list-u32"] = &ir.List{ID: "type/list-u32", ElementType: primRef(ir.PrimitiveUint32)}
-	reg["type/lit-a-doc"] = &ir.Literal{ID: "type/lit-a-doc", Docs: ir.Docs{Description: "d"}, Value: str("a")}
+	reg["type/list-u32"] = &ir.List{ID: "type/list-u32", ElementType: primitiveRef(ir.PrimitiveUint32)}
+	reg["type/lit-a-doc"] = &ir.Literal{ID: "type/lit-a-doc", Docs: ir.Docs{Description: "d"}, Value: stringValue("a")}
 	reg["type/list-i32-kept-other"] = &ir.List{ID: "type/list-i32-kept-other", ElementType: i32,
 		Unmodeled: ir.Unmodeled{"openapi:x-a": {Value: ir.RawValue("2")}}}
 	reg["type/list-int-kept"] = &ir.List{ID: "type/list-int-kept",
@@ -125,9 +125,9 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 		Docs: ir.Docs{Description: "d"}, ElementType: i32}
 	reg["type/scalar-opaque-doc"] = &ir.Scalar{ID: "type/scalar-opaque-doc", Docs: ir.Docs{Description: "d"}}
 	reg["type/enum-ab-doc"] = &ir.Enum{ID: "type/enum-ab-doc", ValueType: ir.PrimitiveString,
-		Members: []ir.EnumMember{{Value: str("a"), Docs: ir.Docs{Description: "x"}}, {Value: str("b")}}}
+		Members: []ir.EnumMember{{Value: stringValue("a"), Docs: ir.Docs{Description: "x"}}, {Value: stringValue("b")}}}
 	reg["type/enum-ab"] = &ir.Enum{ID: "type/enum-ab", ValueType: ir.PrimitiveString,
-		Members: []ir.EnumMember{{Value: str("a")}, {Value: str("b")}}}
+		Members: []ir.EnumMember{{Value: stringValue("a")}, {Value: stringValue("b")}}}
 	reg["type/list-int-exampled"] = &ir.List{ID: "type/list-int-exampled",
 		Examples: []ir.Example{{Value: &ir.Value{Kind: ir.ValueList}}}, ElementType: integer}
 	bound := func(lo, hi int64) *ir.Constraints {
@@ -160,8 +160,8 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["type/scalar-enc-max"] = encoded("type/scalar-enc-max", &ir.Constraints{Max: new(ir.BigVal("5"))})
 	reg["type/scalar-enc-a"] = encoded("type/scalar-enc-a", &ir.Constraints{Pattern: "^a$"})
 	reg["type/scalar-enc-b"] = encoded("type/scalar-enc-b", &ir.Constraints{Pattern: "^b$"})
-	tuple := func(id ir.TypeID, constraints *ir.Constraints, rest *ir.TypeRef, elems ...ir.TypeRef) *ir.Tuple {
-		return &ir.Tuple{ID: id, ElementTypes: elems, Rest: rest, Constraints: constraints}
+	tuple := func(id ir.TypeID, constraints *ir.Constraints, rest *ir.TypeRef, elements ...ir.TypeRef) *ir.Tuple {
+		return &ir.Tuple{ID: id, ElementTypes: elements, Rest: rest, Constraints: constraints}
 	}
 	reg["type/tuple"] = tuple("type/tuple", nil, nil, i32)
 	reg["type/tuple-min"] = tuple("type/tuple-min", bound(1, 0), nil, i32)
@@ -171,8 +171,8 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["type/tuple-null"] = tuple("type/tuple-null", nil, nil, nullable(i32))
 	reg["type/tuple-rest"] = tuple("type/tuple-rest", nil, &i32, i32)
 	reg["type/tuple-rest-int"] = tuple("type/tuple-rest-int", nil, &integer, i32)
-	str := primRef(ir.PrimitiveString)
-	reg["type/tuple-rest-str"] = tuple("type/tuple-rest-str", nil, &str, i32)
+	stringType := primitiveRef(ir.PrimitiveString)
+	reg["type/tuple-rest-str"] = tuple("type/tuple-rest-str", nil, &stringType, i32)
 	reg["type/list-i32-min"] = &ir.List{ID: "type/list-i32-min", ElementType: i32, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["type/list-int-min"] = &ir.List{ID: "type/list-int-min", ElementType: integer, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["type/list-i32-twin"] = &ir.List{ID: "type/list-i32-twin", ElementType: i32}
@@ -182,15 +182,15 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["type/list-i32-other"] = &ir.List{ID: "type/list-i32-other", Anonymous: true, ElementType: i32,
 		Provenance: ir.Provenance{Source: 1}}
 	reg["type/list-int-min0"] = &ir.List{ID: "type/list-int-min0", ElementType: integer, Constraints: &ir.Constraints{MinItems: &zero}}
-	reg["type/list-str-null"] = &ir.List{ID: "type/list-str-null", ElementType: nullable(primRef(ir.PrimitiveString))}
+	reg["type/list-str-null"] = &ir.List{ID: "type/list-str-null", ElementType: nullable(primitiveRef(ir.PrimitiveString))}
 	reg["type/list-int-null-min"] = &ir.List{ID: "type/list-int-null-min", ElementType: nullable(integer),
 		Constraints: &ir.Constraints{MinItems: &minItems}}
-	reg["type/list-str"] = &ir.List{ID: "type/list-str", ElementType: primRef(ir.PrimitiveString)}
+	reg["type/list-str"] = &ir.List{ID: "type/list-str", ElementType: primitiveRef(ir.PrimitiveString)}
 	reg["type/list-list-int"] = &ir.List{ID: "type/list-list-int", ElementType: ir.TypeRef{Target: "type/list-int"}}
 	reg["type/list-list-i32"] = &ir.List{ID: "type/list-list-i32", ElementType: ir.TypeRef{Target: "type/list-i32"}}
 	reg["type/map-int"] = &ir.MapT{ID: "type/map-int", Value: integer}
 	reg["type/map-int-h"] = &ir.MapT{ID: "type/map-int-h", Anonymous: true, Value: integer}
-	reg["type/map-str"] = &ir.MapT{ID: "type/map-str", Value: primRef(ir.PrimitiveString)}
+	reg["type/map-str"] = &ir.MapT{ID: "type/map-str", Value: primitiveRef(ir.PrimitiveString)}
 	reg["type/map-int-min"] = &ir.MapT{ID: "type/map-int-min", Value: integer, Constraints: &ir.Constraints{MinProperties: &minItems}}
 	reg["type/map-i32"] = &ir.MapT{ID: "type/map-i32", Value: i32}
 	reg["type/map-i32-keyed"] = &ir.MapT{ID: "type/map-i32-keyed", Key: &ir.TypeRef{Target: "type/primitive/uuid"}, Value: i32}
@@ -219,7 +219,7 @@ func valueTypedEnums(reg map[ir.TypeID]ir.TypeDef) {
 		id := ir.TypeID("type/enum-" + string(e.kind) + "-" + strings.Join(e.values, ""))
 		members := make([]ir.EnumMember, len(e.values))
 		for k, v := range e.values {
-			members[k] = ir.EnumMember{Value: num(v)}
+			members[k] = ir.EnumMember{Value: number(v)}
 		}
 		reg[id] = &ir.Enum{ID: id, ValueType: e.kind, Members: members}
 	}
@@ -245,12 +245,12 @@ func aliasesOverNodes(reg map[ir.TypeID]ir.TypeDef) {
 	reg["type/alias-enum-str-null"] = &ir.Scalar{ID: "type/alias-enum-str-null",
 		Base: &ir.TypeRef{Target: "type/enum-str", Nullable: true}}
 	reg["type/enum-str-closed"] = &ir.Enum{ID: "type/enum-str-closed", ValueType: ir.PrimitiveString, Closed: true,
-		Members: []ir.EnumMember{{Value: str("a")}}}
+		Members: []ir.EnumMember{{Value: stringValue("a")}}}
 	reg["type/alias-list-i32-min-doc"].Common().Docs = ir.Docs{Description: "d"}
 	reg["type/alias-lit-time-doc"].Common().Docs = ir.Docs{Description: "x"}
 	reg["type/enum-bc"] = &ir.Enum{ID: "type/enum-bc", ValueType: ir.PrimitiveString,
-		Members: []ir.EnumMember{{Value: str("b")}, {Value: str("c")}}}
-	reg["type/scalar-i32-doc"] = &ir.Scalar{ID: "type/scalar-i32-doc", Base: new(primRef(ir.PrimitiveInt32)),
+		Members: []ir.EnumMember{{Value: stringValue("b")}, {Value: stringValue("c")}}}
+	reg["type/scalar-i32-doc"] = &ir.Scalar{ID: "type/scalar-i32-doc", Base: new(primitiveRef(ir.PrimitiveInt32)),
 		Docs: ir.Docs{Description: "d"}}
 }
 
@@ -262,7 +262,7 @@ func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateFrom(a, b, 
 func TestTypeJudge_RelateArms(t *testing.T) {
 	t.Parallel()
 	typeJudgeValue := typeJudge{resolve: stubResolve(judgeRegistry()), sites: atRoot(&stubWalk{})}
-	prim := func(primitiveKind ir.PrimitiveKind) ir.TypeID { return primRef(primitiveKind).Target }
+	primitive := func(primitiveKind ir.PrimitiveKind) ir.TypeID { return primitiveRef(primitiveKind).Target }
 
 	for _, tc := range []struct {
 		name string
@@ -272,48 +272,48 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"one target", "type/lit-a", "type/lit-a", relSame},
 		{"a dangling target", "type/absent", "type/primitive/integer", relUnrelated},
 		{"a dangling second", "type/primitive/integer", "type/absent", relUnrelated},
-		{"the top loses to a bare kind", prim(ir.PrimitiveAny), prim(ir.PrimitiveInt32), secondTypeIsNarrower},
+		{"the top loses to a bare kind", primitive(ir.PrimitiveAny), primitive(ir.PrimitiveInt32), secondTypeIsNarrower},
 		{"a degraded any node is not the top", "type/model", "type/any", relUnrelated},
-		{"`{}` is unrelated to a degraded any", prim(ir.PrimitiveAny), "type/any", relUnrelated},
-		{"bare narrower", prim(ir.PrimitiveInt32), prim(ir.PrimitiveInteger), firstTypeIsNarrower},
-		{"bare broader", prim(ir.PrimitiveInteger), prim(ir.PrimitiveInt32), secondTypeIsNarrower},
-		{"bare overlap", prim(ir.PrimitiveInt32), prim(ir.PrimitiveUint32), relOverlap},
-		{"bare disjoint", prim(ir.PrimitiveString), prim(ir.PrimitiveInteger), relDisjoint},
-		{"an enum of integer against bare int32", "type/enum-int", prim(ir.PrimitiveInt32), relOverlap},
-		{"bare int32 against an enum of integer", prim(ir.PrimitiveInt32), "type/enum-int", relOverlap},
-		{"an enum no member of which the kind admits", "type/enum-big", prim(ir.PrimitiveInt32), relDisjoint},
-		{"bare int32 against an enum none of whose members it admits", prim(ir.PrimitiveInt32), "type/enum-big", relDisjoint},
-		{"an enum with no members against an overlapping kind", "type/enum-none", prim(ir.PrimitiveInt32), relDisjoint},
-		{"an enum against a kind with no judge", "type/enum-str", prim(ir.PrimitiveBytes), relOverlap},
-		{"an enum of bytes against a format no member meets", "type/enum-bytes", prim(ir.PrimitiveUUID), relDisjoint},
-		{"an enum of string over bare string", "type/enum-str", prim(ir.PrimitiveString), firstTypeIsNarrower},
-		{"bare string under an enum of string", prim(ir.PrimitiveString), "type/enum-str", secondTypeIsNarrower},
-		{"an enum against another family", "type/enum-str", prim(ir.PrimitiveInteger), relDisjoint},
-		{"a scalar over its own kind", "type/scalar-str", prim(ir.PrimitiveString), firstTypeIsNarrower},
-		{"a scalar over a narrower kind", "type/scalar-int", prim(ir.PrimitiveNumber), firstTypeIsNarrower},
-		{"a scalar over a broader kind", "type/scalar-int", prim(ir.PrimitiveInt32), relOverlap},
-		{"an alias over the top type", "type/scalar-any", prim(ir.PrimitiveInt32), secondTypeIsNarrower},
-		{"an alias over the top type holding what a reference carries down", "type/scalar-any-doc", prim(ir.PrimitiveInt32), secondTypeIsNarrower},
-		{"an alias over the top type holding examples", "type/scalar-any-ex", prim(ir.PrimitiveInt32), relOverlap},
+		{"`{}` is unrelated to a degraded any", primitive(ir.PrimitiveAny), "type/any", relUnrelated},
+		{"bare narrower", primitive(ir.PrimitiveInt32), primitive(ir.PrimitiveInteger), firstTypeIsNarrower},
+		{"bare broader", primitive(ir.PrimitiveInteger), primitive(ir.PrimitiveInt32), secondTypeIsNarrower},
+		{"bare overlap", primitive(ir.PrimitiveInt32), primitive(ir.PrimitiveUint32), relOverlap},
+		{"bare disjoint", primitive(ir.PrimitiveString), primitive(ir.PrimitiveInteger), relDisjoint},
+		{"an enum of integer against bare int32", "type/enum-int", primitive(ir.PrimitiveInt32), relOverlap},
+		{"bare int32 against an enum of integer", primitive(ir.PrimitiveInt32), "type/enum-int", relOverlap},
+		{"an enum no member of which the kind admits", "type/enum-big", primitive(ir.PrimitiveInt32), relDisjoint},
+		{"bare int32 against an enum none of whose members it admits", primitive(ir.PrimitiveInt32), "type/enum-big", relDisjoint},
+		{"an enum with no members against an overlapping kind", "type/enum-none", primitive(ir.PrimitiveInt32), relDisjoint},
+		{"an enum against a kind with no judge", "type/enum-str", primitive(ir.PrimitiveBytes), relOverlap},
+		{"an enum of bytes against a format no member meets", "type/enum-bytes", primitive(ir.PrimitiveUUID), relDisjoint},
+		{"an enum of string over bare string", "type/enum-str", primitive(ir.PrimitiveString), firstTypeIsNarrower},
+		{"bare string under an enum of string", primitive(ir.PrimitiveString), "type/enum-str", secondTypeIsNarrower},
+		{"an enum against another family", "type/enum-str", primitive(ir.PrimitiveInteger), relDisjoint},
+		{"a scalar over its own kind", "type/scalar-str", primitive(ir.PrimitiveString), firstTypeIsNarrower},
+		{"a scalar over a narrower kind", "type/scalar-int", primitive(ir.PrimitiveNumber), firstTypeIsNarrower},
+		{"a scalar over a broader kind", "type/scalar-int", primitive(ir.PrimitiveInt32), relOverlap},
+		{"an alias over the top type", "type/scalar-any", primitive(ir.PrimitiveInt32), secondTypeIsNarrower},
+		{"an alias over the top type holding what a reference carries down", "type/scalar-any-doc", primitive(ir.PrimitiveInt32), secondTypeIsNarrower},
+		{"an alias over the top type holding examples", "type/scalar-any-ex", primitive(ir.PrimitiveInt32), relOverlap},
 		{"an alias of an alias holding docs over the top type", "type/alias-scalar-any-doc", "type/model", relUnrelated},
 		{"an alias holding docs of an alias over the top type", "type/alias-doc-scalar-any", "type/model", secondTypeIsNarrower},
 		{"a list of an alias over the top type", "type/list-scalar-any", "type/list-i32", secondTypeIsNarrower},
 		{"a list of an alias holding docs over the top type", "type/list-scalar-any-doc", "type/list-i32", relOverlap},
-		{"an opaque scalar", "type/scalar-opaque", prim(ir.PrimitiveInt32), relUnrelated},
-		{"a literal the kind admits", "type/lit-1", prim(ir.PrimitiveInteger), firstTypeIsNarrower},
-		{"a literal string against integer", "type/lit-a", prim(ir.PrimitiveInteger), relDisjoint},
-		{"a literal 1.5 against integer", "type/lit-1.5", prim(ir.PrimitiveInteger), relDisjoint},
-		{"a literal against a kind with no judge", "type/lit-x", prim(ir.PrimitiveBytes), relOverlap},
-		{"a literal the local date-time kind admits", "type/lit-local", prim(ir.PrimitiveDatetime), firstTypeIsNarrower},
-		{"a literal the local date-time kind refuses", "type/lit-x", prim(ir.PrimitiveDatetime), relDisjoint},
-		{"a time scalar within string", "type/scalar-time", prim(ir.PrimitiveString), firstTypeIsNarrower},
-		{"a time scalar against a date-time", "type/scalar-time", prim(ir.PrimitiveDatetimeOffset), relDisjoint},
-		{"a time scalar against a local time", "type/scalar-time", prim(ir.PrimitiveTime), relDisjoint},
-		{"a time scalar against bytes", "type/scalar-time", prim(ir.PrimitiveBytes), relOverlap},
-		{"a time scalar against an integer", "type/scalar-time", prim(ir.PrimitiveInteger), relDisjoint},
-		{"an alias of a time scalar against a date-time", "type/alias-time", prim(ir.PrimitiveDatetimeOffset), relDisjoint},
-		{"a time scalar whose encoding says more", "type/scalar-time-media", prim(ir.PrimitiveDatetimeOffset), relOverlap},
-		{"a scalar of a format with no grammar here", "type/scalar-email", prim(ir.PrimitiveDatetimeOffset), relOverlap},
+		{"an opaque scalar", "type/scalar-opaque", primitive(ir.PrimitiveInt32), relUnrelated},
+		{"a literal the kind admits", "type/lit-1", primitive(ir.PrimitiveInteger), firstTypeIsNarrower},
+		{"a literal string against integer", "type/lit-a", primitive(ir.PrimitiveInteger), relDisjoint},
+		{"a literal 1.5 against integer", "type/lit-1.5", primitive(ir.PrimitiveInteger), relDisjoint},
+		{"a literal against a kind with no judge", "type/lit-x", primitive(ir.PrimitiveBytes), relOverlap},
+		{"a literal the local date-time kind admits", "type/lit-local", primitive(ir.PrimitiveDatetime), firstTypeIsNarrower},
+		{"a literal the local date-time kind refuses", "type/lit-x", primitive(ir.PrimitiveDatetime), relDisjoint},
+		{"a time scalar within string", "type/scalar-time", primitive(ir.PrimitiveString), firstTypeIsNarrower},
+		{"a time scalar against a date-time", "type/scalar-time", primitive(ir.PrimitiveDatetimeOffset), relDisjoint},
+		{"a time scalar against a local time", "type/scalar-time", primitive(ir.PrimitiveTime), relDisjoint},
+		{"a time scalar against bytes", "type/scalar-time", primitive(ir.PrimitiveBytes), relOverlap},
+		{"a time scalar against an integer", "type/scalar-time", primitive(ir.PrimitiveInteger), relDisjoint},
+		{"an alias of a time scalar against a date-time", "type/alias-time", primitive(ir.PrimitiveDatetimeOffset), relDisjoint},
+		{"a time scalar whose encoding says more", "type/scalar-time-media", primitive(ir.PrimitiveDatetimeOffset), relOverlap},
+		{"a scalar of a format with no grammar here", "type/scalar-email", primitive(ir.PrimitiveDatetimeOffset), relOverlap},
 		{"a time a time scalar admits", "type/lit-time", "type/scalar-time", firstTypeIsNarrower},
 		{"a string a time scalar refuses", "type/lit-x", "type/scalar-time", relDisjoint},
 		{"a time a time scalar's bound refuses", "type/lit-time", "type/scalar-time-max", relDisjoint},
@@ -327,19 +327,19 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two time scalars declared apart", "type/scalar-time", "type/scalar-time-doc", relOverlap},
 		{"a time scalar against an alias of a date-time", "type/scalar-time", "type/alias-offset", relDisjoint},
 		{"a time scalar against a format with no grammar here", "type/scalar-time", "type/scalar-email", relOverlap},
-		{"a null literal against a bare integer", "type/lit-null", prim(ir.PrimitiveInteger), relDisjoint},
-		{"a model against a bare kind", "type/model", prim(ir.PrimitiveInteger), relDisjoint},
-		{"a model stating no instance type against a bare kind", "type/model-untyped", prim(ir.PrimitiveInteger), secondTypeIsNarrower},
-		{"one holding docs a reference carries down", "type/model-untyped-doc", prim(ir.PrimitiveInteger), secondTypeIsNarrower},
-		{"one holding examples", "type/model-untyped-ex", prim(ir.PrimitiveInteger), relOverlap},
-		{"one holding docs written at the declaration", "type/model-untyped-doc-inline", prim(ir.PrimitiveInteger), relOverlap},
+		{"a null literal against a bare integer", "type/lit-null", primitive(ir.PrimitiveInteger), relDisjoint},
+		{"a model against a bare kind", "type/model", primitive(ir.PrimitiveInteger), relDisjoint},
+		{"a model stating no instance type against a bare kind", "type/model-untyped", primitive(ir.PrimitiveInteger), secondTypeIsNarrower},
+		{"one holding docs a reference carries down", "type/model-untyped-doc", primitive(ir.PrimitiveInteger), secondTypeIsNarrower},
+		{"one holding examples", "type/model-untyped-ex", primitive(ir.PrimitiveInteger), relOverlap},
+		{"one holding docs written at the declaration", "type/model-untyped-doc-inline", primitive(ir.PrimitiveInteger), relOverlap},
 		{"an enum against a model stating no instance type", "type/enum-str", "type/model-untyped", firstTypeIsNarrower},
 		{"a literal against a model stating no instance type", "type/lit-a", "type/model-untyped", firstTypeIsNarrower},
 		{"a list against a model stating no instance type", "type/list-i32", "type/model-untyped", firstTypeIsNarrower},
-		{"an alias stating none of a model stating none", "type/alias-untyped", prim(ir.PrimitiveInteger), secondTypeIsNarrower},
-		{"an alias holding docs a reference carries down of one", "type/alias-doc-untyped", prim(ir.PrimitiveInteger), secondTypeIsNarrower},
-		{"an alias of one holding docs", "type/alias-of-untyped-doc", prim(ir.PrimitiveInteger), relOverlap},
-		{"an alias stating a type of a model stating none", "type/alias-typed-untyped", prim(ir.PrimitiveInteger), relDisjoint},
+		{"an alias stating none of a model stating none", "type/alias-untyped", primitive(ir.PrimitiveInteger), secondTypeIsNarrower},
+		{"an alias holding docs a reference carries down of one", "type/alias-doc-untyped", primitive(ir.PrimitiveInteger), secondTypeIsNarrower},
+		{"an alias of one holding docs", "type/alias-of-untyped-doc", primitive(ir.PrimitiveInteger), relOverlap},
+		{"an alias stating a type of a model stating none", "type/alias-typed-untyped", primitive(ir.PrimitiveInteger), relDisjoint},
 		{"two structures each stating no instance type", "type/list-untyped", "type/model-untyped", relOverlap},
 		{"a list stating none against a model", "type/list-untyped", "type/model", secondTypeIsNarrower},
 		{"a map stating none against a list", "type/map-untyped", "type/list-i32", secondTypeIsNarrower},
@@ -426,9 +426,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"enums of different value types sharing none", "type/enum-number-2.5", "type/enum-integer-13", relDisjoint},
 		{"enums of overlapping value types sharing values", "type/enum-int32-12", "type/enum-uint32-12", relOverlap},
 		{"enums of overlapping value types sharing none", "type/enum-int32-1", "type/enum-uint32-2", relDisjoint},
-		{"an alias of an enum no member of which a kind admits", "type/alias-enum-str-max", prim(ir.PrimitiveUUID), relDisjoint},
-		{"an alias of a const a kind refuses", "type/alias-lit-a-max", prim(ir.PrimitiveInteger), relDisjoint},
-		{"an alias of a const a kind admits", "type/alias-lit-a-max", prim(ir.PrimitiveString), firstTypeIsNarrower},
+		{"an alias of an enum no member of which a kind admits", "type/alias-enum-str-max", primitive(ir.PrimitiveUUID), relDisjoint},
+		{"an alias of a const a kind refuses", "type/alias-lit-a-max", primitive(ir.PrimitiveInteger), relDisjoint},
+		{"an alias of a const a kind admits", "type/alias-lit-a-max", primitive(ir.PrimitiveString), firstTypeIsNarrower},
 		{"an alias of an enum against a node of a kind no member meets", "type/alias-enum-big-max", "type/scalar-i32-doc", relDisjoint},
 		{"an alias of an enum against the enum", "type/alias-enum-ab", "type/enum-ab", firstTypeIsNarrower},
 		{"an alias of an enum against one it meets", "type/alias-enum-ab", "type/enum-bc", relMeet},
@@ -440,7 +440,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two enums differing in closedness", "type/enum-str", "type/enum-str-closed", relOverlap},
 		{"an alias of the top type against the top it stands for", "type/alias-doc-scalar-any", "type/scalar-any", firstTypeIsNarrower},
 		{"an alias adding null to an enum against the enum", "type/alias-enum-str-null", "type/enum-str", secondTypeIsNarrower},
-		{"an alias adding null to an enum against a kind holding it", "type/alias-enum-str-null", prim(ir.PrimitiveString), relOverlap},
+		{"an alias adding null to an enum against a kind holding it", "type/alias-enum-str-null", primitive(ir.PrimitiveString), relOverlap},
 	} {
 		want := tc.want
 		assert.Equal(t, want, typeJudgeValue.relate(ref(tc.a), ref(tc.b)), tc.name)
@@ -452,12 +452,12 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 	assert.Equal(t, secondTypeIsNarrower, typeJudgeValue.relate(nullTwin, ref("type/lit-a-h1")), "identical hoisted nodes order by null")
 	assert.Equal(t, firstTypeIsNarrower, typeJudgeValue.relate(ref("type/lit-a-h1"), nullTwin), "in either order")
 
-	nullInt := primRef(ir.PrimitiveInteger)
+	nullInt := primitiveRef(ir.PrimitiveInteger)
 	nullInt.Nullable = true
 	assert.Equal(t, firstTypeIsNarrower, typeJudgeValue.relate(ref("type/lit-null"), nullInt), "a null literal against a nullable integer")
 	assert.Equal(t, secondTypeIsNarrower, typeJudgeValue.relate(nullInt, ref("type/lit-null")), "a nullable integer against a null literal")
 
-	nullString := primRef(ir.PrimitiveString)
+	nullString := primitiveRef(ir.PrimitiveString)
 	nullString.Nullable = true
 	assert.Equal(t, firstTypeIsNarrower, typeJudgeValue.relate(ref("type/alias-enum-str-null"), nullString),
 		"an alias admitting null within a kind whose reference admits null too")
@@ -473,17 +473,17 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 // before reading kinds, and a second held format, which only time is today.
 func TestRelateKinds_ReadsAHeldFormatAsAStringFormat(t *testing.T) {
 	t.Parallel()
-	held := valueKind{prim: ir.PrimitiveString, format: "time"}
+	held := valueKind{primitive: ir.PrimitiveString, format: "time"}
 	for _, tc := range []struct {
 		name string
 		k    valueKind
 		want relation
 	}{
-		{"the top", valueKind{prim: ir.PrimitiveAny}, firstTypeIsNarrower},
+		{"the top", valueKind{primitive: ir.PrimitiveAny}, firstTypeIsNarrower},
 		{"itself", held, relSame},
-		{"another held format", valueKind{prim: ir.PrimitiveString, format: "other"}, relDisjoint},
-		{"string", valueKind{prim: ir.PrimitiveString}, firstTypeIsNarrower},
-		{"a string format", valueKind{prim: ir.PrimitiveDate}, relDisjoint},
+		{"another held format", valueKind{primitive: ir.PrimitiveString, format: "other"}, relDisjoint},
+		{"string", valueKind{primitive: ir.PrimitiveString}, firstTypeIsNarrower},
+		{"a string format", valueKind{primitive: ir.PrimitiveDate}, relDisjoint},
 	} {
 		assert.Equal(t, tc.want, relateKinds(held, tc.k), tc.name)
 		assert.Equal(t, tc.want.flipped(), relateKinds(tc.k, held), "%s, swapped", tc.name)
@@ -501,18 +501,18 @@ func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 		id   ir.TypeID
 		want valueKind
 	}{
-		{"type/scalar-time", valueKind{prim: ir.PrimitiveString, format: "time"}},
-		{"type/alias-time", valueKind{prim: ir.PrimitiveString, format: "time"}},
-		{"type/alias-encoded-time", valueKind{prim: ir.PrimitiveString}},
-		{"type/scalar-time-int", valueKind{prim: ir.PrimitiveInteger}},
-		{"type/scalar-time-media", valueKind{prim: ir.PrimitiveString}},
-		{"type/scalar-time-wire", valueKind{prim: ir.PrimitiveString}},
-		{"type/scalar-time-schema", valueKind{prim: ir.PrimitiveString}},
-		{"type/scalar-email", valueKind{prim: ir.PrimitiveString}},
+		{"type/scalar-time", valueKind{primitive: ir.PrimitiveString, format: "time"}},
+		{"type/alias-time", valueKind{primitive: ir.PrimitiveString, format: "time"}},
+		{"type/alias-encoded-time", valueKind{primitive: ir.PrimitiveString}},
+		{"type/scalar-time-int", valueKind{primitive: ir.PrimitiveInteger}},
+		{"type/scalar-time-media", valueKind{primitive: ir.PrimitiveString}},
+		{"type/scalar-time-wire", valueKind{primitive: ir.PrimitiveString}},
+		{"type/scalar-time-schema", valueKind{primitive: ir.PrimitiveString}},
+		{"type/scalar-email", valueKind{primitive: ir.PrimitiveString}},
 	} {
 		got, ok := typeJudgeValue.kindOf(ref(tc.id))
 		require.True(t, ok, "%s", tc.id)
-		assert.Equal(t, tc.want.prim, got.prim, "%s", tc.id)
+		assert.Equal(t, tc.want.primitive, got.primitive, "%s", tc.id)
 		assert.Equal(t, tc.want.format, got.format, "%s: the held format", tc.id)
 	}
 }
@@ -525,8 +525,11 @@ func encodedRegistry() map[ir.TypeID]ir.TypeDef {
 	scalar := func(id ir.TypeID, base ir.TypeID, enc ir.Encoding) {
 		reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: base}, Encoding: &enc}
 	}
-	wire := func(primitiveKind ir.PrimitiveKind) *ir.TypeRef { typeRef := primRef(primitiveKind); return &typeRef }
-	offset, bytes := primRef(ir.PrimitiveDatetimeOffset).Target, primRef(ir.PrimitiveBytes).Target
+	wire := func(primitiveKind ir.PrimitiveKind) *ir.TypeRef {
+		typeRef := primitiveRef(primitiveKind)
+		return &typeRef
+	}
+	offset, bytes := primitiveRef(ir.PrimitiveDatetimeOffset).Target, primitiveRef(ir.PrimitiveBytes).Target
 	scalar("type/unixtime-int", offset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimitiveInteger)})
 	scalar("type/unixtime-num", offset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimitiveNumber)})
 	scalar("type/unixtime-str", offset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimitiveString)})
@@ -536,19 +539,19 @@ func encodedRegistry() map[ir.TypeID]ir.TypeDef {
 	scalar("type/offset-time", offset, ir.Encoding{Name: "time"})
 	scalar("type/byte", bytes, ir.Encoding{Name: "base64", WireType: wire(ir.PrimitiveString)})
 	scalar("type/base64url", bytes, ir.Encoding{Name: "base64url", WireType: wire(ir.PrimitiveString)})
-	scalar("type/number-text", primRef(ir.PrimitiveInt64).Target, ir.Encoding{Name: "string", WireType: wire(ir.PrimitiveString)})
-	scalar("type/string-email", primRef(ir.PrimitiveString).Target, ir.Encoding{Name: "email"})
-	scalar("type/int-weird", primRef(ir.PrimitiveInteger).Target, ir.Encoding{Name: "weird"})
+	scalar("type/number-text", primitiveRef(ir.PrimitiveInt64).Target, ir.Encoding{Name: "string", WireType: wire(ir.PrimitiveString)})
+	scalar("type/string-email", primitiveRef(ir.PrimitiveString).Target, ir.Encoding{Name: "email"})
+	scalar("type/int-weird", primitiveRef(ir.PrimitiveInteger).Target, ir.Encoding{Name: "weird"})
 	scalar("type/wire-gone", offset, ir.Encoding{Name: "x", WireType: &ir.TypeRef{Target: "type/absent"}})
 	scalar("type/wire-node", offset, ir.Encoding{Name: "x", WireType: &ir.TypeRef{Target: "type/unixtime-int"}})
 	scalar("type/alias-wired", "type/http-date", ir.Encoding{Name: "x", WireType: wire(ir.PrimitiveInteger)})
 	reg["type/alias-unixtime-int"] = &ir.Scalar{ID: "type/alias-unixtime-int", Base: &ir.TypeRef{Target: "type/unixtime-int"}}
 	reg["type/enum-http-date"] = &ir.Enum{ID: "type/enum-http-date", ValueType: ir.PrimitiveString,
-		Members: []ir.EnumMember{{Value: str("Sun, 06 Nov 1994 08:49:37 GMT")}}}
+		Members: []ir.EnumMember{{Value: stringValue("Sun, 06 Nov 1994 08:49:37 GMT")}}}
 	reg["type/enum-base64"] = &ir.Enum{ID: "type/enum-base64", ValueType: ir.PrimitiveString,
-		Members: []ir.EnumMember{{Value: str("MjAyMA==")}}}
+		Members: []ir.EnumMember{{Value: stringValue("MjAyMA==")}}}
 	reg["type/enum-seconds"] = &ir.Enum{ID: "type/enum-seconds", ValueType: ir.PrimitiveInteger,
-		Members: []ir.EnumMember{{Value: num("1700000000")}}}
+		Members: []ir.EnumMember{{Value: number("1700000000")}}}
 	return reg
 }
 
@@ -563,21 +566,21 @@ func TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel(t *testing.T) {
 	t.Parallel()
 	typeJudgeValue := typeJudge{resolve: stubResolve(encodedRegistry()), sites: atRoot(&stubWalk{})}
 	for id, want := range map[ir.TypeID]valueKind{
-		"type/unixtime-int":       {prim: ir.PrimitiveInteger},
-		"type/alias-unixtime-int": {prim: ir.PrimitiveInteger},
-		"type/unixtime-num":       {prim: ir.PrimitiveNumber},
-		"type/unixtime-str":       {prim: ir.PrimitiveDatetimeOffset, unjudged: true},
-		"type/http-date":          {prim: ir.PrimitiveDatetimeOffset, unjudged: true},
-		"type/offset-base64":      {prim: ir.PrimitiveDatetimeOffset, unjudged: true},
-		"type/offset-media":       {prim: ir.PrimitiveDatetimeOffset},
-		"type/offset-time":        {prim: ir.PrimitiveDatetimeOffset, unjudged: true},
-		"type/byte":               {prim: ir.PrimitiveBytes, unjudged: true},
-		"type/number-text":        {prim: ir.PrimitiveString},
-		"type/string-email":       {prim: ir.PrimitiveString},
-		"type/int-weird":          {prim: ir.PrimitiveInteger},
-		"type/wire-gone":          {prim: ir.PrimitiveDatetimeOffset, unjudged: true},
-		"type/wire-node":          {prim: ir.PrimitiveDatetimeOffset, unjudged: true},
-		"type/alias-wired":        {prim: ir.PrimitiveDatetimeOffset, unjudged: true},
+		"type/unixtime-int":       {primitive: ir.PrimitiveInteger},
+		"type/alias-unixtime-int": {primitive: ir.PrimitiveInteger},
+		"type/unixtime-num":       {primitive: ir.PrimitiveNumber},
+		"type/unixtime-str":       {primitive: ir.PrimitiveDatetimeOffset, unjudged: true},
+		"type/http-date":          {primitive: ir.PrimitiveDatetimeOffset, unjudged: true},
+		"type/offset-base64":      {primitive: ir.PrimitiveDatetimeOffset, unjudged: true},
+		"type/offset-media":       {primitive: ir.PrimitiveDatetimeOffset},
+		"type/offset-time":        {primitive: ir.PrimitiveDatetimeOffset, unjudged: true},
+		"type/byte":               {primitive: ir.PrimitiveBytes, unjudged: true},
+		"type/number-text":        {primitive: ir.PrimitiveString},
+		"type/string-email":       {primitive: ir.PrimitiveString},
+		"type/int-weird":          {primitive: ir.PrimitiveInteger},
+		"type/wire-gone":          {primitive: ir.PrimitiveDatetimeOffset, unjudged: true},
+		"type/wire-node":          {primitive: ir.PrimitiveDatetimeOffset, unjudged: true},
+		"type/alias-wired":        {primitive: ir.PrimitiveDatetimeOffset, unjudged: true},
 	} {
 		got, ok := typeJudgeValue.kindOf(ref(id))
 		require.True(t, ok, "%s", id)
@@ -594,29 +597,29 @@ func TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel(t *testing.T) {
 func TestTypeJudge_AnEncodedScalarRelatesAsItsValues(t *testing.T) {
 	t.Parallel()
 	typeJudgeValue := typeJudge{resolve: stubResolve(encodedRegistry()), sites: atRoot(&stubWalk{})}
-	prim := func(primitiveKind ir.PrimitiveKind) ir.TypeID { return primRef(primitiveKind).Target }
+	primitive := func(primitiveKind ir.PrimitiveKind) ir.TypeID { return primitiveRef(primitiveKind).Target }
 	for _, tc := range []struct {
 		a, b ir.TypeID
 		want relation
 	}{
-		{"type/unixtime-int", prim(ir.PrimitiveInteger), firstTypeIsNarrower},
-		{"type/unixtime-int", prim(ir.PrimitiveNumber), firstTypeIsNarrower},
-		{"type/unixtime-int", prim(ir.PrimitiveInt64), relOverlap},
-		{"type/unixtime-int", prim(ir.PrimitiveString), relDisjoint},
-		{"type/unixtime-int", prim(ir.PrimitiveDatetimeOffset), relDisjoint},
+		{"type/unixtime-int", primitive(ir.PrimitiveInteger), firstTypeIsNarrower},
+		{"type/unixtime-int", primitive(ir.PrimitiveNumber), firstTypeIsNarrower},
+		{"type/unixtime-int", primitive(ir.PrimitiveInt64), relOverlap},
+		{"type/unixtime-int", primitive(ir.PrimitiveString), relDisjoint},
+		{"type/unixtime-int", primitive(ir.PrimitiveDatetimeOffset), relDisjoint},
 		{"type/unixtime-int", "type/http-date", relDisjoint},
 		{"type/unixtime-int", "type/enum-seconds", relOverlap},
-		{"type/unixtime-num", prim(ir.PrimitiveInteger), relOverlap},
-		{"type/unixtime-str", prim(ir.PrimitiveString), firstTypeIsNarrower},
-		{"type/unixtime-str", prim(ir.PrimitiveInteger), relDisjoint},
-		{"type/http-date", prim(ir.PrimitiveDatetimeOffset), firstTypeIsNarrower},
-		{"type/http-date", prim(ir.PrimitiveString), firstTypeIsNarrower},
-		{"type/http-date", prim(ir.PrimitiveInteger), relDisjoint},
+		{"type/unixtime-num", primitive(ir.PrimitiveInteger), relOverlap},
+		{"type/unixtime-str", primitive(ir.PrimitiveString), firstTypeIsNarrower},
+		{"type/unixtime-str", primitive(ir.PrimitiveInteger), relDisjoint},
+		{"type/http-date", primitive(ir.PrimitiveDatetimeOffset), firstTypeIsNarrower},
+		{"type/http-date", primitive(ir.PrimitiveString), firstTypeIsNarrower},
+		{"type/http-date", primitive(ir.PrimitiveInteger), relDisjoint},
 		{"type/http-date", "type/enum-http-date", relOverlap},
 		{"type/offset-base64", "type/enum-base64", relOverlap},
-		{"type/byte", prim(ir.PrimitiveBytes), firstTypeIsNarrower},
+		{"type/byte", primitive(ir.PrimitiveBytes), firstTypeIsNarrower},
 		{"type/byte", "type/base64url", relOverlap},
-		{"type/enum-http-date", prim(ir.PrimitiveDatetimeOffset), relDisjoint},
+		{"type/enum-http-date", primitive(ir.PrimitiveDatetimeOffset), relDisjoint},
 	} {
 		assert.Equal(t, tc.want, typeJudgeValue.relate(ref(tc.a), ref(tc.b)), "%s against %s", tc.a, tc.b)
 		assert.Equal(t, tc.want.flipped(), typeJudgeValue.relate(ref(tc.b), ref(tc.a)), "%s against %s", tc.b, tc.a)
@@ -629,14 +632,14 @@ func TestTypeJudge_AnEncodedScalarRelatesAsItsValues(t *testing.T) {
 // narrower or disjoint, as against bytes.
 func TestValueKind_AnUnjudgedKindAdmitsNothing(t *testing.T) {
 	t.Parallel()
-	offset := valueKind{prim: ir.PrimitiveDatetimeOffset}
-	unjudged := valueKind{prim: ir.PrimitiveDatetimeOffset, unjudged: true}
-	for _, value := range []ir.Value{str("2020-01-01T00:00:00Z"), str("Sun, 06 Nov 1994 08:49:37 GMT"), num("1")} {
+	offset := valueKind{primitive: ir.PrimitiveDatetimeOffset}
+	unjudged := valueKind{primitive: ir.PrimitiveDatetimeOffset, unjudged: true}
+	for _, value := range []ir.Value{stringValue("2020-01-01T00:00:00Z"), stringValue("Sun, 06 Nov 1994 08:49:37 GMT"), number("1")} {
 		assert.False(t, unjudged.admits(value), "%v", value)
 		assert.Equal(t, relOverlap, literalAgainst(value, unjudged, false), "%v", value)
 	}
-	assert.True(t, offset.admits(str("2020-01-01T00:00:00Z")), "the judged kind reads its own text")
-	assert.Equal(t, relDisjoint, literalAgainst(str("Sun, 06 Nov 1994 08:49:37 GMT"), offset, false))
+	assert.True(t, offset.admits(stringValue("2020-01-01T00:00:00Z")), "the judged kind reads its own text")
+	assert.Equal(t, relDisjoint, literalAgainst(stringValue("Sun, 06 Nov 1994 08:49:37 GMT"), offset, false))
 }
 
 // TestKindOf_ANumberAsTextIsAString pins travelsAs: a Scalar whose Encoding
@@ -647,39 +650,39 @@ func TestValueKind_AnUnjudgedKindAdmitsNothing(t *testing.T) {
 func TestKindOf_ANumberAsTextIsAString(t *testing.T) {
 	t.Parallel()
 	wire := func() *ir.Encoding {
-		typeRef := primRef(ir.PrimitiveString)
+		typeRef := primitiveRef(ir.PrimitiveString)
 		return &ir.Encoding{Name: "string", WireType: &typeRef}
 	}
 	reg := map[ir.TypeID]ir.TypeDef{}
 	for _, primitiveKind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveInt64, ir.PrimitiveBytes} {
-		reg[primRef(primitiveKind).Target] = &ir.Primitive{ID: primRef(primitiveKind).Target, PrimitiveKind: primitiveKind}
+		reg[primitiveRef(primitiveKind).Target] = &ir.Primitive{ID: primitiveRef(primitiveKind).Target, PrimitiveKind: primitiveKind}
 	}
-	i64, b := primRef(ir.PrimitiveInt64), primRef(ir.PrimitiveBytes)
+	i64, b := primitiveRef(ir.PrimitiveInt64), primitiveRef(ir.PrimitiveBytes)
 	reg["type/num-text"] = &ir.Scalar{ID: "type/num-text", Base: &i64, Encoding: wire()}
 	reg["type/alias-num-text"] = &ir.Scalar{ID: "type/alias-num-text", Base: &ir.TypeRef{Target: "type/num-text"}}
 	reg["type/num"] = &ir.Scalar{ID: "type/num", Base: &i64, Encoding: &ir.Encoding{Name: "string"}}
 	reg["type/bytes-b64"] = &ir.Scalar{ID: "type/bytes-b64", Base: &b, Encoding: wire()}
 	typeJudgeValue := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
 	for id, want := range map[ir.TypeID]valueKind{
-		"type/num-text": {prim: ir.PrimitiveString}, "type/alias-num-text": {prim: ir.PrimitiveString}, "type/num": {prim: ir.PrimitiveInt64},
-		"type/bytes-b64": {prim: ir.PrimitiveBytes, unjudged: true},
+		"type/num-text": {primitive: ir.PrimitiveString}, "type/alias-num-text": {primitive: ir.PrimitiveString}, "type/num": {primitive: ir.PrimitiveInt64},
+		"type/bytes-b64": {primitive: ir.PrimitiveBytes, unjudged: true},
 	} {
 		got, ok := typeJudgeValue.kindOf(ref(id))
 		require.True(t, ok, "%s", id)
 		assert.Equal(t, want, got, "%s", id)
 	}
-	str, _ := typeJudgeValue.kindOf(primRef(ir.PrimitiveString))
-	num, _ := typeJudgeValue.kindOf(primRef(ir.PrimitiveInt64))
+	stringValue, _ := typeJudgeValue.kindOf(primitiveRef(ir.PrimitiveString))
+	number, _ := typeJudgeValue.kindOf(primitiveRef(ir.PrimitiveInt64))
 	text, _ := typeJudgeValue.kindOf(ref("type/num-text"))
-	assert.Equal(t, relSame, relateKinds(str, text), "a string and a number as text share their instances")
-	assert.Equal(t, relDisjoint, relateKinds(num, text), "a JSON number is no string")
+	assert.Equal(t, relSame, relateKinds(stringValue, text), "a string and a number as text share their instances")
+	assert.Equal(t, relDisjoint, relateKinds(number, text), "a JSON number is no string")
 }
 
 func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 	t.Parallel()
 	reg := judgeRegistry()
 	reg["type/enum-1"] = &ir.Enum{ID: "type/enum-1", ValueType: ir.PrimitiveInteger,
-		Members: []ir.EnumMember{{Value: num("1")}, {Value: num("2")}}}
+		Members: []ir.EnumMember{{Value: number("1")}, {Value: number("2")}}}
 	reg["type/list-1"] = &ir.List{ID: "type/list-1", ElementType: ref("type/enum-1")}
 	reg["type/map-1"] = &ir.MapT{ID: "type/map-1", Value: ref("type/enum-1")}
 	short, two := int64(3), int64(2)
@@ -693,34 +696,34 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: value}}}
 	}
 
-	assert.True(t, typeJudgeValue.admits(ref("type/enum-1"), num("1.0")), "an enum member by magnitude")
-	assert.False(t, typeJudgeValue.admits(ref("type/enum-1"), num("3")))
-	assert.True(t, typeJudgeValue.admits(ref("type/lit-a"), str("a")))
-	assert.False(t, typeJudgeValue.admits(ref("type/lit-a"), str("b")))
-	assert.True(t, typeJudgeValue.admits(ref("type/scalar-int"), num("3")))
-	assert.False(t, typeJudgeValue.admits(ref("type/scalar-enc"), num("3")), "an encoded scalar admits nothing")
-	assert.False(t, typeJudgeValue.admits(ref("type/scalar-opaque"), num("3")), "an opaque scalar admits nothing")
-	assert.True(t, typeJudgeValue.admits(ref("type/scalar-time"), str("12:00:00Z")), "a held format admits what its grammar does")
-	assert.False(t, typeJudgeValue.admits(ref("type/scalar-time"), str("12:00:00")), "and refuses what it does not")
-	assert.False(t, typeJudgeValue.admits(ref("type/scalar-time-max"), str("12:00:00Z")), "a held format's bounds are judged too")
-	assert.True(t, typeJudgeValue.admits(ref("type/alias-time"), str("12:00:00Z")), "an alias of it admits what it does")
-	assert.False(t, typeJudgeValue.admits(ref("type/scalar-time-media"), str("12:00:00Z")), "an encoding saying more admits nothing")
-	assert.False(t, typeJudgeValue.admits(ref("type/scalar-email"), str("a@b.c")), "a format with no grammar here admits nothing")
-	assert.False(t, typeJudgeValue.admits(ref("type/scalar-time-int"), str("12:00:00Z")), "nor does a time format over an integer")
-	assert.True(t, typeJudgeValue.admits(ref("type/any"), str("a")))
-	assert.False(t, typeJudgeValue.admits(ref("type/model"), str("a")))
-	assert.False(t, typeJudgeValue.admits(ref("type/absent"), str("a")))
-	assert.True(t, typeJudgeValue.admits(ref("type/list-1"), list(num("1"), num("2"))))
-	assert.False(t, typeJudgeValue.admits(ref("type/list-1"), list(num("1"), num("3"))))
-	assert.False(t, typeJudgeValue.admits(ref("type/list-1"), str("a")))
-	assert.True(t, typeJudgeValue.admits(ref("type/map-1"), obj(num("2"))))
-	assert.False(t, typeJudgeValue.admits(ref("type/map-1"), obj(num("3"))))
-	assert.False(t, typeJudgeValue.admits(ref("type/map-1"), list(num("1"))))
-	assert.True(t, typeJudgeValue.admits(ref("type/scalar-short"), str("abc")), "a scalar's constraints admit what meets them")
-	assert.False(t, typeJudgeValue.admits(ref("type/scalar-short"), str("abcd")), "and refuse what does not")
-	assert.False(t, typeJudgeValue.admits(ref("type/list-pair"), list(num("1"), num("2"), num("1"))), "a list's constraints are judged")
-	pairs := ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: num("1")}, {Name: "b", Value: num("1")},
-		{Name: "c", Value: num("2")}}}
+	assert.True(t, typeJudgeValue.admits(ref("type/enum-1"), number("1.0")), "an enum member by magnitude")
+	assert.False(t, typeJudgeValue.admits(ref("type/enum-1"), number("3")))
+	assert.True(t, typeJudgeValue.admits(ref("type/lit-a"), stringValue("a")))
+	assert.False(t, typeJudgeValue.admits(ref("type/lit-a"), stringValue("b")))
+	assert.True(t, typeJudgeValue.admits(ref("type/scalar-int"), number("3")))
+	assert.False(t, typeJudgeValue.admits(ref("type/scalar-enc"), number("3")), "an encoded scalar admits nothing")
+	assert.False(t, typeJudgeValue.admits(ref("type/scalar-opaque"), number("3")), "an opaque scalar admits nothing")
+	assert.True(t, typeJudgeValue.admits(ref("type/scalar-time"), stringValue("12:00:00Z")), "a held format admits what its grammar does")
+	assert.False(t, typeJudgeValue.admits(ref("type/scalar-time"), stringValue("12:00:00")), "and refuses what it does not")
+	assert.False(t, typeJudgeValue.admits(ref("type/scalar-time-max"), stringValue("12:00:00Z")), "a held format's bounds are judged too")
+	assert.True(t, typeJudgeValue.admits(ref("type/alias-time"), stringValue("12:00:00Z")), "an alias of it admits what it does")
+	assert.False(t, typeJudgeValue.admits(ref("type/scalar-time-media"), stringValue("12:00:00Z")), "an encoding saying more admits nothing")
+	assert.False(t, typeJudgeValue.admits(ref("type/scalar-email"), stringValue("a@b.c")), "a format with no grammar here admits nothing")
+	assert.False(t, typeJudgeValue.admits(ref("type/scalar-time-int"), stringValue("12:00:00Z")), "nor does a time format over an integer")
+	assert.True(t, typeJudgeValue.admits(ref("type/any"), stringValue("a")))
+	assert.False(t, typeJudgeValue.admits(ref("type/model"), stringValue("a")))
+	assert.False(t, typeJudgeValue.admits(ref("type/absent"), stringValue("a")))
+	assert.True(t, typeJudgeValue.admits(ref("type/list-1"), list(number("1"), number("2"))))
+	assert.False(t, typeJudgeValue.admits(ref("type/list-1"), list(number("1"), number("3"))))
+	assert.False(t, typeJudgeValue.admits(ref("type/list-1"), stringValue("a")))
+	assert.True(t, typeJudgeValue.admits(ref("type/map-1"), obj(number("2"))))
+	assert.False(t, typeJudgeValue.admits(ref("type/map-1"), obj(number("3"))))
+	assert.False(t, typeJudgeValue.admits(ref("type/map-1"), list(number("1"))))
+	assert.True(t, typeJudgeValue.admits(ref("type/scalar-short"), stringValue("abc")), "a scalar's constraints admit what meets them")
+	assert.False(t, typeJudgeValue.admits(ref("type/scalar-short"), stringValue("abcd")), "and refuse what does not")
+	assert.False(t, typeJudgeValue.admits(ref("type/list-pair"), list(number("1"), number("2"), number("1"))), "a list's constraints are judged")
+	pairs := ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: number("1")}, {Name: "b", Value: number("1")},
+		{Name: "c", Value: number("2")}}}
 	assert.False(t, typeJudgeValue.admits(ref("type/map-pair"), pairs), "and so are a map's")
 	assert.False(t, typeJudgeValue.admits(ref("type/cycle"), list(list(list(list(list(list(list(list(list(list())))))))))),
 		"a list nested past the cap is refused")
@@ -740,16 +743,16 @@ func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 	null := ir.Value{Kind: ir.ValueNull}
 	typeJudgeValue := typeJudge{resolve: stubResolve(narrowingRegistry()), sites: atRoot(&stubWalk{})}
 	nullable := func(primitiveKind ir.PrimitiveKind) ir.TypeRef {
-		typeRef := primRef(primitiveKind)
+		typeRef := primitiveRef(primitiveKind)
 		typeRef.Nullable = true
 		return typeRef
 	}
 
 	assert.True(t, typeJudgeValue.admits(nullable(ir.PrimitiveInteger), null))
-	assert.False(t, typeJudgeValue.admits(primRef(ir.PrimitiveInteger), null))
-	assert.False(t, typeJudgeValue.admits(nullable(ir.PrimitiveInteger), str("x")))
-	assert.True(t, typeJudgeValue.admits(primRef(ir.PrimitiveInteger), num("1")))
-	assert.True(t, typeJudgeValue.admits(primRef(ir.PrimitiveAny), null), "the top type admits null whatever the bit says")
+	assert.False(t, typeJudgeValue.admits(primitiveRef(ir.PrimitiveInteger), null))
+	assert.False(t, typeJudgeValue.admits(nullable(ir.PrimitiveInteger), stringValue("x")))
+	assert.True(t, typeJudgeValue.admits(primitiveRef(ir.PrimitiveInteger), number("1")))
+	assert.True(t, typeJudgeValue.admits(primitiveRef(ir.PrimitiveAny), null), "the top type admits null whatever the bit says")
 }
 
 // TestClassify_ComparesResolvedKinds pins the last-resort comparison classify
@@ -1008,9 +1011,9 @@ func TestTypeJudge_UnrelatedPrimitivesAreDisjoint(t *testing.T) {
 	reg["type/enm"] = &ir.Enum{ID: "type/enm", ValueType: ir.PrimitiveString}
 	stubbed, _ := stubMerger(reg)
 
-	assert.Equal(t, relDisjoint, judge(stubbed).relate(primRef(ir.PrimitiveUUID), primRef(ir.PrimitiveDatetimeOffset)))
-	assert.Equal(t, relDisjoint, judge(stubbed).relate(ir.TypeRef{Target: "type/enm"}, primRef(ir.PrimitiveInteger)))
-	assert.Equal(t, relOverlap, judge(stubbed).relate(primRef(ir.PrimitiveInt32), primRef(ir.PrimitiveUint32)),
+	assert.Equal(t, relDisjoint, judge(stubbed).relate(primitiveRef(ir.PrimitiveUUID), primitiveRef(ir.PrimitiveDatetimeOffset)))
+	assert.Equal(t, relDisjoint, judge(stubbed).relate(ir.TypeRef{Target: "type/enm"}, primitiveRef(ir.PrimitiveInteger)))
+	assert.Equal(t, relOverlap, judge(stubbed).relate(primitiveRef(ir.PrimitiveInt32), primitiveRef(ir.PrimitiveUint32)),
 		"overlapping kinds are no conflict")
 }
 
@@ -1026,11 +1029,11 @@ func TestSameValue_ComparesJSONValues(t *testing.T) {
 		a, b ir.Value
 		same bool
 	}{
-		{"one number, two spellings", num("1"), num("1.0"), true},
-		{"two numbers", num("1"), num("2"), false},
-		{"one object, two member orders", obj(ir.Field{Name: "a", Value: num("1")}, ir.Field{Name: "b", Value: str("x")}),
-			obj(ir.Field{Name: "b", Value: str("x")}, ir.Field{Name: "a", Value: num("1e0")}), true},
-		{"a number and a string", num("1"), str("1"), false},
+		{"one number, two spellings", number("1"), number("1.0"), true},
+		{"two numbers", number("1"), number("2"), false},
+		{"one object, two member orders", obj(ir.Field{Name: "a", Value: number("1")}, ir.Field{Name: "b", Value: stringValue("x")}),
+			obj(ir.Field{Name: "b", Value: stringValue("x")}, ir.Field{Name: "a", Value: number("1e0")}), true},
+		{"a number and a string", number("1"), stringValue("1"), false},
 		{"one symbol, compared deeply", sym("s"), sym("s"), true},
 		{"two symbols, compared deeply", sym("s"), sym("t"), false},
 	} {
@@ -1075,12 +1078,12 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 	reg := judgeRegistry()
 	not := ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"n.json"}`)}}
 	for _, id := range []ir.TypeID{"type/lit-a-ref1", "type/lit-a-ref2"} {
-		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: not}
+		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: stringValue("a"), Unmodeled: not}
 	}
-	reg["type/lit-a-ref"] = &ir.Literal{ID: "type/lit-a-ref", Value: str("a"), Unmodeled: not}
+	reg["type/lit-a-ref"] = &ir.Literal{ID: "type/lit-a-ref", Value: stringValue("a"), Unmodeled: not}
 	absolute := ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"https://ex.test/n.json"}`)}}
 	for _, id := range []ir.TypeID{"type/lit-a-abs1", "type/lit-a-abs2"} {
-		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: absolute}
+		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: stringValue("a"), Unmodeled: absolute}
 	}
 	typeJudgeValue := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{apart: true})}
 	assert.Equal(t, relOverlap, typeJudgeValue.relate(ref("type/lit-a-ref1"), ref("type/lit-a-ref2")))
@@ -1160,7 +1163,7 @@ func TestInstance_NamesTheKindOfAValue(t *testing.T) {
 		ir.PrimitiveDecimal: InstanceNumber, ir.PrimitiveString: InstanceString, ir.PrimitiveBytes: InstanceString,
 		ir.PrimitiveDatetime: InstanceString,
 	} {
-		assert.Equal(t, want, primInstance(primitiveKind), primitiveKind)
+		assert.Equal(t, want, primitiveInstance(primitiveKind), primitiveKind)
 	}
 	for _, tc := range []struct {
 		td   ir.TypeDef

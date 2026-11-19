@@ -298,10 +298,10 @@ func TestValidate_DiscriminatorDefaultIsHeldToVariantMembership(t *testing.T) {
 			diags := validated(t, tc.doc("type/primitive/string"))
 
 			assert.Equal(t, 0, countCode(t, diags, "ir/dangling-type-ref"))
-			msg := messageForCode(t, diags, "pass/discriminator-missing-variant")
-			assert.Contains(t, msg, "discriminator default on",
+			message := messageForCode(t, diags, "pass/discriminator-missing-variant")
+			assert.Contains(t, message, "discriminator default on",
 				"the diagnostic names the default, not a wire key that does not exist")
-			assert.Contains(t, msg, "is not a variant of it")
+			assert.Contains(t, message, "is not a variant of it")
 		})
 	}
 }

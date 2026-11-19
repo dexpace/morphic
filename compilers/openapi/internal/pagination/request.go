@@ -49,11 +49,11 @@ func roleOf(canonical string) role {
 // where none is named. strict reports that the operation is a POST, whose page
 // is read by the narrower rules a create cannot meet (pageKey.strict).
 type inputs struct {
-	strategy ir.PageStrategy
-	cursor   place
-	prim     ir.PrimitiveKind
-	limit    *place
-	strict   bool
+	strategy  ir.PageStrategy
+	cursor    place
+	primitive ir.PrimitiveKind
+	limit     *place
+	strict    bool
 }
 
 // readsNextCursor reports whether the walk sends a value a page hands back,
@@ -62,16 +62,16 @@ func (in inputs) readsNextCursor() bool {
 	return in.strategy == ir.PageStrategyCursor || in.strategy == ir.PageStrategyToken
 }
 
-// requestInputs returns the inputs the places of op's request name
+// requestInputs returns the inputs the places of operation's request name
 // (docs/compilers/openapi.md#pagination-policy). named reports whether one
-// names where a walk continues under what op's method admits; where one does
+// names where a walk continues under what operation's method admits; where one does
 // and they give no walk, why says what stops it: a method no walk is read
 // for, two places naming a continuation or a page size, a POST failing a
 // condition that tells it from a create, one of a type a walk cannot send, or
 // a page sent as a string no number shows it counts.
-func requestInputs(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation) (in inputs, why string, named bool) {
-	name, kind := methodOf(op)
-	continuations, limits := places(compiledDocumentView, op, kind)
+func requestInputs(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation) (in inputs, why string, named bool) {
+	name, kind := methodOf(operation)
+	continuations, limits := places(compiledDocumentView, operation, kind)
 	switch {
 	case len(continuations) == 0:
 		return inputs{}, "", false
@@ -99,7 +99,7 @@ func requestInputs(compiledDocumentView *compileddoc.CompiledDocumentView, op *i
 		return inputs{}, why, true
 	}
 	if in.strict {
-		if why := postAnswers(op); why != "" {
+		if why := postAnswers(operation); why != "" {
 			return inputs{}, why, true
 		}
 	}
@@ -110,12 +110,12 @@ func requestInputs(compiledDocumentView *compileddoc.CompiledDocumentView, op *i
 // in's places are no values a walk sends: a type it cannot send, or a page
 // sent as a string no number shows it counts.
 func sendsItsInputs(compiledDocumentView *compileddoc.CompiledDocumentView, in *inputs) string {
-	prim, ok := sendable(compiledDocumentView, in.cursor.typeID())
+	primitive, ok := sendable(compiledDocumentView, in.cursor.typeID())
 	if !ok {
 		return notSendable(in.cursor, "where a walk continues")
 	}
-	in.prim = prim
-	if in.strategy == ir.PageStrategyPage && prim == ir.PrimitiveString && !in.cursor.numbered() {
+	in.primitive = primitive
+	if in.strategy == ir.PageStrategyPage && primitive == ir.PrimitiveString && !in.cursor.numbered() {
 		return fmt.Sprintf("%s names the page as a string with no whole number for its default or an example, "+
 			"so it may be a token", in.cursor)
 	}
@@ -278,10 +278,10 @@ const (
 	methodOther
 )
 
-// methodOf returns the method of op's first HTTP binding that is no GET or
+// methodOf returns the method of operation's first HTTP binding that is no GET or
 // QUERY, and what it admits.
-func methodOf(op *ir.Operation) (string, methodKind) {
-	for _, b := range op.Bindings.HTTP {
+func methodOf(operation *ir.Operation) (string, methodKind) {
+	for _, b := range operation.Bindings.HTTP {
 		switch b.Method {
 		case http.MethodGet, methodQuery:
 		case http.MethodPost:
@@ -293,22 +293,22 @@ func methodOf(op *ir.Operation) (string, methodKind) {
 	return "", methodSafe
 }
 
-// places returns the places of op's request naming where a walk continues and
+// places returns the places of operation's request naming where a walk continues and
 // those naming the page size, under what kind admits: any method's query
 // parameters and members of object query parameters, and, but for a method
 // that is no GET, QUERY or POST, the request body's members. A POST's body
 // offset is no place: a body offset is often an identifier a create takes.
-func places(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation, kind methodKind) (continuations, limits []place) {
-	continuations, limits = paramPlaces(compiledDocumentView, op)
-	if kind == methodOther || op.Request == nil || len(op.Request.Contents) == 0 {
+func places(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation, kind methodKind) (continuations, limits []place) {
+	continuations, limits = paramPlaces(compiledDocumentView, operation)
+	if kind == methodOther || operation.Request == nil || len(operation.Request.Contents) == 0 {
 		return continuations, limits
 	}
-	for _, property := range compiledDocumentView.Members(op.Request.Contents[0].Type.Target) {
+	for _, property := range compiledDocumentView.Members(operation.Request.Contents[0].Type.Target) {
 		roleValue := roleOf(property.Name.Canonical)
 		if roleValue == (role{}) || kind == methodPost && roleValue.strategy == ir.PageStrategyOffset {
 			continue
 		}
-		segments, _, ok := runtimeexpr.BodyPath(compiledDocumentView, op.Request, []string{property.EffectiveWireName()}, "request")
+		segments, _, ok := runtimeexpr.BodyPath(compiledDocumentView, operation.Request, []string{property.EffectiveWireName()}, "request")
 		if !ok {
 			continue // a member some content does not hold is no value every request sends
 		}
@@ -322,18 +322,18 @@ func places(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Opera
 	return continuations, limits
 }
 
-// paramPlaces returns the places op's query parameters name. An object
+// paramPlaces returns the places operation's query parameters name. An object
 // parameter, bound in the query or as the query string and standing for a
 // model, is read through its members, one level down, where one of them
 // names a role, a continuation or a page size, its own name then giving it
 // none; otherwise a parameter bound in the query is read by its own name.
-func paramPlaces(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation) (continuations, limits []place) {
-	if len(op.Params) == 0 {
+func paramPlaces(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation) (continuations, limits []place) {
+	if len(operation.Params) == 0 {
 		return nil, nil
 	}
-	ix := compiledDocumentView.Params(op)
-	for i := range op.Params {
-		parameter := &op.Params[i]
+	ix := compiledDocumentView.Params(operation)
+	for i := range operation.Params {
+		parameter := &operation.Params[i]
 		location, ok := queryPlaced(ix.Placements(parameter.ID))
 		if !ok {
 			continue
@@ -423,14 +423,14 @@ func postRequest(in inputs) string {
 	return ""
 }
 
-// postAnswers returns why op, a POST, answers as no walk does: a success
+// postAnswers returns why operation, a POST, answers as no walk does: a success
 // response declaring a body under a status other than 200, as a 201 says a
 // resource was created (RFC 9110 §15.3.2). The least such status is named, so
 // the finding reads the same in any order.
-func postAnswers(op *ir.Operation) string {
+func postAnswers(operation *ir.Operation) string {
 	var other []string
-	for i := range op.Responses {
-		response := &op.Responses[i]
+	for i := range operation.Responses {
+		response := &operation.Responses[i]
 		if pageBody(response.Payload) != nil && !okOnly(response.Conditions) {
 			other = append(other, statusOf(response.Conditions))
 		}

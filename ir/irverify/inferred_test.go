@@ -201,7 +201,7 @@ func TestVerify_OnlyAnInferredMarkerIsHeldToTheListForm(t *testing.T) {
 // marker, in a body's part map and as a sequential body's item encoding alike.
 func TestVerify_APartMarkerQualifiesItsFilename(t *testing.T) {
 	t.Parallel()
-	const op = "document.Services[0].Groups[0].Operations[0].Request.Contents[0]"
+	const operationPath = "document.Services[0].Groups[0].Operations[0].Request.Contents[0]"
 	doc := func(content ir.Content) *ir.Document {
 		content.MediaType, content.Type = "multipart/form-data", ir.TypeRef{Target: "type/x/M"}
 		document := closedDoc(&ir.Model{ID: "type/x/M", Name: named("m"), Properties: []ir.Property{{
@@ -221,10 +221,10 @@ func TestVerify_APartMarkerQualifiesItsFilename(t *testing.T) {
 	}{
 		{"a part in a body's map", ir.Content{Encoding: map[ir.PropertyID]ir.PartEncoding{
 			"property/x/M/f": {RepeatsPerArrayItem: true, Inferred: "guess"},
-		}}, op + ".Encoding[property/x/M/f].Inferred"},
+		}}, operationPath + ".Encoding[property/x/M/f].Inferred"},
 		{"a sequential body's item", ir.Content{ItemEncoding: &ir.PartEncoding{
 			ContentTypes: []string{"image/png"}, Inferred: "guess",
-		}}, op + ".ItemEncoding.Inferred"},
+		}}, operationPath + ".ItemEncoding.Inferred"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

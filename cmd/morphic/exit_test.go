@@ -116,6 +116,6 @@ func TestReportError_PlainLines(t *testing.T) {
 	}
 }
 
-func misuseOf(path, msg string) error {
-	return &usageError{path: path, err: errors.New(msg)}
+func misuseOf(path, message string) error {
+	return &usageError{path: path, err: errors.New(message)}
 }

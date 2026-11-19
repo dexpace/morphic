@@ -56,14 +56,14 @@ func conventionFacts(doc *ir.Document) map[string]useFacts {
 		return deprecation.ReplacedBy
 	}
 	facts := map[string]useFacts{}
-	for _, op := range allOperations(doc) {
-		facts[string(op.ID)] = useFacts{Idempotency: op.Idempotency, ReplacedBy: replaced(op.Deprecation),
-			Inferred: op.Provenance.Inferred}
-		for _, parameter := range op.Params {
+	for _, operation := range allOperations(doc) {
+		facts[string(operation.ID)] = useFacts{Idempotency: operation.Idempotency, ReplacedBy: replaced(operation.Deprecation),
+			Inferred: operation.Provenance.Inferred}
+		for _, parameter := range operation.Params {
 			facts[string(parameter.ID)] = useFacts{Secret: parameter.Secret, ReplacedBy: replaced(parameter.Deprecation),
 				Inferred: parameter.Provenance.Inferred}
 		}
-		for _, response := range op.Responses {
+		for _, response := range operation.Responses {
 			for _, header := range response.Headers {
 				facts[string(header.ID)] = useFacts{Secret: header.Secret, Encoding: header.Encoding, Inferred: header.Provenance.Inferred}
 			}

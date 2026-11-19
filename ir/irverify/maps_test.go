@@ -18,18 +18,18 @@ import (
 // are not.
 func TestCheckMaps_ReportsAModelThatIsAMap(t *testing.T) {
 	t.Parallel()
-	str := ir.TypeRef{Target: "type/primitive/string"}
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
 	for _, tc := range []struct {
 		name string
 		td   ir.TypeDef
 		want []string
 	}{
-		{"a model that is a map", &ir.Model{AdditionalProperties: &ir.AdditionalProperties{Value: &str}},
+		{"a model that is a map", &ir.Model{AdditionalProperties: &ir.AdditionalProperties{Value: &stringType}},
 			[]string{"types[type/x]"}},
-		{"the map it should be", &ir.MapT{Value: str}, nil},
+		{"the map it should be", &ir.MapT{Value: stringType}, nil},
 		{"a model with a property beside its catch-all", &ir.Model{
-			Properties:           []ir.Property{{ID: "property/x/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: str}},
-			AdditionalProperties: &ir.AdditionalProperties{Value: &str},
+			Properties:           []ir.Property{{ID: "property/x/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: stringType}},
+			AdditionalProperties: &ir.AdditionalProperties{Value: &stringType},
 		}, nil},
 		{"a model with no catch-all", &ir.Model{}, nil},
 	} {
@@ -49,20 +49,20 @@ func TestCheckMaps_ReportsAModelThatIsAMap(t *testing.T) {
 // and a nullable string key are not, and neither is a nil registry entry.
 func TestCheckMapKeys_ReportsAStringKeySpelledOut(t *testing.T) {
 	t.Parallel()
-	str := ir.TypeRef{Target: "type/primitive/string"}
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
 	for _, tc := range []struct {
 		name string
 		td   ir.TypeDef
 		want []string
 	}{
-		{"a map spelling its string key", &ir.MapT{Key: &str, Value: str}, []string{"types[type/x].Key"}},
+		{"a map spelling its string key", &ir.MapT{Key: &stringType, Value: stringType}, []string{"types[type/x].Key"}},
 		{"a catch-all spelling its string key", &ir.Model{
-			Properties:           []ir.Property{{ID: "property/x/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: str}},
-			AdditionalProperties: &ir.AdditionalProperties{Key: &str, Value: &str},
+			Properties:           []ir.Property{{ID: "property/x/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: stringType}},
+			AdditionalProperties: &ir.AdditionalProperties{Key: &stringType, Value: &stringType},
 		}, []string{"types[type/x].AdditionalProperties.Key"}},
-		{"a map with a nil key", &ir.MapT{Value: str}, nil},
-		{"a map keyed by another type", &ir.MapT{Key: &ir.TypeRef{Target: "type/primitive/int64"}, Value: str}, nil},
-		{"a map keyed by a nullable string", &ir.MapT{Key: &ir.TypeRef{Target: str.Target, Nullable: true}, Value: str}, nil},
+		{"a map with a nil key", &ir.MapT{Value: stringType}, nil},
+		{"a map keyed by another type", &ir.MapT{Key: &ir.TypeRef{Target: "type/primitive/int64"}, Value: stringType}, nil},
+		{"a map keyed by a nullable string", &ir.MapT{Key: &ir.TypeRef{Target: stringType.Target, Nullable: true}, Value: stringType}, nil},
 		{"a model with no catch-all", &ir.Model{}, nil},
 		{"a nil map", (*ir.MapT)(nil), nil},
 		{"a nil model", (*ir.Model)(nil), nil},
@@ -85,8 +85,8 @@ func TestCheckMapKeys_ReportsAStringKeySpelledOut(t *testing.T) {
 // while every shape docs/ir/models.md#catch-alls allows is not.
 func TestCheckCatchAlls_ReportsACatchAllSayingTwoThings(t *testing.T) {
 	t.Parallel()
-	str := ir.TypeRef{Target: "type/primitive/string"}
-	patterns := []ir.PatternProperties{{Pattern: "^x-", Value: str}}
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
+	patterns := []ir.PatternProperties{{Pattern: "^x-", Value: stringType}}
 	var typedNil *ir.Model
 	for _, tc := range []struct {
 		name         string
@@ -96,16 +96,16 @@ func TestCheckCatchAlls_ReportsACatchAllSayingTwoThings(t *testing.T) {
 		{"neither a value nor a pattern", &ir.Model{AdditionalProperties: &ir.AdditionalProperties{}},
 			[]string{"types[type/x].AdditionalProperties"}, nil},
 		{"a closed model's value", &ir.Model{Additional: ir.AdditionalClosed, AdditionalProperties: &ir.AdditionalProperties{
-			Value: &str, Patterns: patterns,
+			Value: &stringType, Patterns: patterns,
 		}}, nil, []string{"types[type/x].AdditionalProperties.Value"}},
 		{"patterns and no value beside a closure", &ir.Model{Additional: ir.AdditionalClosed,
 			AdditionalProperties: &ir.AdditionalProperties{Patterns: patterns}}, nil, nil},
-		{"patterns and a value", &ir.Model{AdditionalProperties: &ir.AdditionalProperties{Value: &str, Patterns: patterns}}, nil, nil},
+		{"patterns and a value", &ir.Model{AdditionalProperties: &ir.AdditionalProperties{Value: &stringType, Patterns: patterns}}, nil, nil},
 		{"a value closed only after composition", &ir.Model{Additional: ir.AdditionalClosedAfterComposition,
-			AdditionalProperties: &ir.AdditionalProperties{Value: &str, Patterns: patterns}}, nil, nil},
+			AdditionalProperties: &ir.AdditionalProperties{Value: &stringType, Patterns: patterns}}, nil, nil},
 		{"no catch-all", &ir.Model{Additional: ir.AdditionalClosed}, nil, nil},
 		{"a nil model", typedNil, nil, nil},
-		{"a map", &ir.MapT{Value: str}, nil, nil},
+		{"a map", &ir.MapT{Value: stringType}, nil, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

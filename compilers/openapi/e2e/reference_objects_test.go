@@ -81,9 +81,9 @@ func sitedFindings(diags []ir.Diagnostic) []string {
 // requestType is the type the request body of the operation named name holds.
 func requestType(t *testing.T, doc *ir.Document, name string) ir.TypeID {
 	t.Helper()
-	op, ok := opByName(doc, name)
+	operation, ok := operationByName(doc, name)
 	require.True(t, ok, name)
-	return requestContent(t, op).Type.Target
+	return requestContent(t, operation).Type.Target
 }
 
 // bodyAt is the type ID of the JSON body a request body at pointer declares.
@@ -128,21 +128,21 @@ paths:
 func TestReferenceObjects_AFieldBesideAPathItemRefIsReadWhereItIsWritten(t *testing.T) {
 	t.Parallel()
 	const body = "{content: {application/json: {schema: {type: object, properties: {%s: {type: string}}}}}}"
-	op := func(id, body string) string {
+	operation := func(id, body string) string {
 		return fmt.Sprintf("{operationId: %s, requestBody: %s, responses: {\"200\": {description: ok}}}", id, body)
 	}
 	schemaRef := func(pointer string) string {
 		return "{content: {application/json: {schema: {$ref: '#" + pointer + "/requestBody/content/application~1json/schema'}}}}"
 	}
 	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
-		"  /c1: {post: " + op("c1", "{$ref: '#/paths/~1a/put/requestBody'}") + "}\n" +
-		"  /c2: {post: " + op("c2", "{$ref: '#/paths/~1a/get/requestBody'}") + "}\n" +
-		"  /c3: {post: " + op("c3", "{$ref: '#/paths/~1a/post/requestBody'}") + "}\n" +
-		"  /c4: {post: " + op("c4", schemaRef("/paths/~1a/put")) + "}\n" +
-		"  /c5: {post: " + op("c5", schemaRef("/paths/~1a/post")) + "}\n" +
+		"  /c1: {post: " + operation("c1", "{$ref: '#/paths/~1a/put/requestBody'}") + "}\n" +
+		"  /c2: {post: " + operation("c2", "{$ref: '#/paths/~1a/get/requestBody'}") + "}\n" +
+		"  /c3: {post: " + operation("c3", "{$ref: '#/paths/~1a/post/requestBody'}") + "}\n" +
+		"  /c4: {post: " + operation("c4", schemaRef("/paths/~1a/put")) + "}\n" +
+		"  /c5: {post: " + operation("c5", schemaRef("/paths/~1a/post")) + "}\n" +
 		"  /a:\n    $ref: '#/paths/~1b'\n" +
-		"    put: " + op("aput", fmt.Sprintf(body, "p")) + "\n    get: " + op("aget", fmt.Sprintf(body, "g")) + "\n" +
-		"  /b:\n    get: " + op("bget", fmt.Sprintf(body, "bg")) + "\n    post: " + op("bpost", fmt.Sprintf(body, "bp")) + "\n"
+		"    put: " + operation("aput", fmt.Sprintf(body, "p")) + "\n    get: " + operation("aget", fmt.Sprintf(body, "g")) + "\n" +
+		"  /b:\n    get: " + operation("bget", fmt.Sprintf(body, "bg")) + "\n    post: " + operation("bpost", fmt.Sprintf(body, "bp")) + "\n"
 	want := map[string]ir.TypeID{
 		"c1": bodyAt("/paths/~1a/put"), "c2": bodyAt("/paths/~1a/get"), "c3": bodyAt("/paths/~1b/post"),
 		"c4": bodyAt("/paths/~1a/put"), "c5": bodyAt("/paths/~1b/post"),
@@ -170,13 +170,13 @@ func TestReferenceObjects_AFieldBesideAPathItemRefIsReadWhereItIsWritten(t *test
 func TestReferenceObjects_AnEndingSlashNamesAnEmptyMember(t *testing.T) {
 	t.Parallel()
 	const object = "{name: q, in: query, schema: {type: object, properties: {a: {type: string}}}}"
-	const ops = "paths:\n  /a: {get: {operationId: a, parameters: [{$ref: '%sx-params/q/'}], responses: {\"200\": {description: ok}}}}\n" +
+	const operations = "paths:\n  /a: {get: {operationId: a, parameters: [{$ref: '%sx-params/q/'}], responses: {\"200\": {description: ok}}}}\n" +
 		"  /b: {get: {operationId: b, parameters: [{$ref: '#/x-params/q'}], responses: {\"200\": {description: ok}}}}\n"
 	const head = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
 	for _, where := range []string{"#/", "ext.yaml#/"} {
 		t.Run(where+" none", func(t *testing.T) {
 			t.Parallel()
-			refSpecValue := refSpec{spec: head + fmt.Sprintf(ops, where) + "x-params:\n  q: " + object + "\n", disk: true,
+			refSpecValue := refSpec{spec: head + fmt.Sprintf(operations, where) + "x-params:\n  q: " + object + "\n", disk: true,
 				others: map[string]string{"ext.yaml": "x-params:\n  q: " + object + "\n"}}
 			refSpecValue.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 				t.Helper()
@@ -187,14 +187,14 @@ func TestReferenceObjects_AnEndingSlashNamesAnEmptyMember(t *testing.T) {
 			})
 		})
 	}
-	otherRefSpec := refSpec{spec: head + fmt.Sprintf(ops, "#/") + "x-params:\n  q: {\"\": " + object + ", name: r, in: query, schema: {type: string}}\n"}
+	otherRefSpec := refSpec{spec: head + fmt.Sprintf(operations, "#/") + "x-params:\n  q: {\"\": " + object + ", name: r, in: query, schema: {type: string}}\n"}
 	otherRefSpec.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		t.Helper()
 		assertNoErrorDiags(t, diags)
-		op, ok := opByName(doc, "a")
+		operation, ok := operationByName(doc, "a")
 		require.True(t, ok)
-		require.Len(t, op.Params, 1)
-		assert.Equal(t, ir.TypeID("type/anonymous/x-params/q//schema"), op.Params[0].Type.Target, "the member keyed \"\"")
+		require.Len(t, operation.Params, 1)
+		assert.Equal(t, ir.TypeID("type/anonymous/x-params/q//schema"), operation.Params[0].Type.Target, "the member keyed \"\"")
 	})
 }
 
@@ -241,7 +241,7 @@ func TestReferenceObjects_AMergeListIsReadAsTheDecoderMergesIt(t *testing.T) {
 			for _, spec := range []string{written, other} {
 				doc, diags := refSpec{}.compile(t, spec)
 				assert.Empty(t, placedFindings(diags))
-				_, ok := opByName(doc, "a")
+				_, ok := operationByName(doc, "a")
 				assert.True(t, ok, "the operation lowers")
 				registries = append(registries, typesJSON(t, doc))
 				findings = append(findings, placedFindings(diags))
@@ -276,12 +276,12 @@ paths:
 `}.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		t.Helper()
 		assert.Empty(t, placedFindings(diags))
-		_, ok := opByName(doc, "g")
+		_, ok := operationByName(doc, "g")
 		assert.True(t, ok, "the path item lowers")
-		op, ok := opByName(doc, "b")
+		operation, ok := operationByName(doc, "b")
 		require.True(t, ok)
-		require.Len(t, op.Params, 1, "the parameter lowers")
-		assert.Equal(t, "p", op.Params[0].Name.Source)
+		require.Len(t, operation.Params, 1, "the parameter lowers")
+		assert.Equal(t, "p", operation.Params[0].Name.Source)
 	})
 }
 
@@ -399,7 +399,7 @@ components:
 		strings.Repeat("{x-next: ", n), strings.Repeat("}", n))
 	doc, diags := refSpec{}.compile(t, b.String())
 	assert.Empty(t, placedFindings(diags))
-	_, ok := opByName(doc, "deep")
+	_, ok := operationByName(doc, "deep")
 	assert.True(t, ok, "/a mounts the item at the end of %d reads, each needing the next", n)
 }
 
@@ -478,11 +478,11 @@ components:
 		assert.Empty(t, placedFindings(diags))
 		operationAt(t, doc, "GET", "/m")
 		assert.Equal(t, "mput", operationAt(t, doc, "PUT", "/m").Name.Source, "the field beside the merged $ref")
-		op, ok := opByName(doc, "a")
+		operation, ok := operationByName(doc, "a")
 		require.True(t, ok)
-		require.Len(t, op.Params, 2)
-		assert.ElementsMatch(t, []string{"p", "q"}, []string{op.Params[0].Name.Source, op.Params[1].Name.Source})
-		assert.Equal(t, ir.TypeID("type/primitive/string"), firstContent(t, op).Type.Target, "the response R declares")
+		require.Len(t, operation.Params, 2)
+		assert.ElementsMatch(t, []string{"p", "q"}, []string{operation.Params[0].Name.Source, operation.Params[1].Name.Source})
+		assert.Equal(t, ir.TypeID("type/primitive/string"), firstContent(t, operation).Type.Target, "the response R declares")
 	})
 }
 
@@ -512,10 +512,10 @@ components:
 			"warning " + diag.UnknownObjectKey + " /paths/~1a/get/parameters/0/examples",
 			"warning " + diag.UnknownObjectKey + " /paths/~1a/get/parameters/0/schema",
 		}, slices.Sorted(slices.Values(sitedFindings(diags))))
-		op, ok := opByName(doc, "a")
+		operation, ok := operationByName(doc, "a")
 		require.True(t, ok)
-		require.Len(t, op.Params, 1)
-		assert.Equal(t, ir.TypeID("type/primitive/string"), op.Params[0].Type.Target, "the parameter P declares")
+		require.Len(t, operation.Params, 1)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), operation.Params[0].Type.Target, "the parameter P declares")
 	})
 }
 
@@ -549,13 +549,13 @@ components:
 `}.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 			t.Helper()
 			assert.Empty(t, placedFindings(diags))
-			op, ok := opByName(doc, "a")
+			operation, ok := operationByName(doc, "a")
 			require.True(t, ok)
-			require.Len(t, op.Responses, 1)
-			header, ok := headerByWire(op.Responses[0].Headers, "X-Rate")
+			require.Len(t, operation.Responses, 1)
+			header, ok := headerByWire(operation.Responses[0].Headers, "X-Rate")
 			require.True(t, ok, "the header lowers")
 			assert.Equal(t, ir.TypeID("type/primitive/integer"), header.Type.Target)
-			assert.Len(t, firstContent(t, op).Examples, 1, "the example lowers")
+			assert.Len(t, firstContent(t, operation).Examples, 1, "the example lowers")
 		})
 	})
 	t.Run("a path item", func(t *testing.T) {
@@ -579,10 +579,10 @@ components:
 			t.Helper()
 			assert.Equal(t, []string{"error " + diag.UnresolvedRef + " /x-items/a/get/parameters/1: unresolved $ref " +
 				`"#/components/parameters/Ghost": it names nothing in the document it points into`}, placedFindings(diags))
-			op, ok := opByName(doc, "a")
+			operation, ok := operationByName(doc, "a")
 			require.True(t, ok)
-			require.Len(t, op.Params, 1, "the parameter P declares lowers")
-			assert.Len(t, op.Responses, 1, "the response R declares lowers")
+			require.Len(t, operation.Params, 1, "the parameter P declares lowers")
+			assert.Len(t, operation.Responses, 1, "the response R declares lowers")
 		})
 	})
 }
@@ -650,10 +650,10 @@ x-r:
 			"error " + typeMismatch + " /x-p/q/$ref",
 			"error " + typeMismatch + " /x-r/B/$ref",
 		}, sitedFindings(diags))
-		ops := allOperations(doc)
-		require.Len(t, ops, 1)
-		assert.Empty(t, ops[0].Params, "the parameter is left out")
-		assert.Empty(t, ops[0].Responses, "the response is left out")
+		operations := allOperations(doc)
+		require.Len(t, operations, 1)
+		assert.Empty(t, operations[0].Params, "the parameter is left out")
+		assert.Empty(t, operations[0].Responses, "the response is left out")
 	})
 }
 
@@ -684,10 +684,10 @@ components:
 			require.Len(t, diags, 1)
 			assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/F"}, ir.Provenance{Source: diags[0].Provenance.Source,
 				Pointer: diags[0].Provenance.Pointer}, "where ext.yaml writes the hop that fails")
-			op, ok := opByName(doc, "a")
+			operation, ok := operationByName(doc, "a")
 			require.True(t, ok)
-			require.Len(t, op.Params, 1)
-			assert.Equal(t, ir.TypeID("type/primitive/integer"), op.Params[0].Type.Target, "Q, in the source")
+			require.Len(t, operation.Params, 1)
+			assert.Equal(t, ir.TypeID("type/primitive/integer"), operation.Params[0].Type.Target, "Q, in the source")
 		})
 	})
 	t.Run("unread", func(t *testing.T) {
@@ -743,7 +743,7 @@ components:
     S: {$ref: '#/paths/~1a/get/parameters/0/schema'}
 `)
 	assert.Empty(t, diags)
-	assert.Equal(t, ids.In("ext.yaml").AnonType("/x-params/q/schema"), useTarget(t, doc, "S"))
+	assert.Equal(t, ids.In("ext.yaml").AnonymousType("/x-params/q/schema"), useTarget(t, doc, "S"))
 }
 
 // TestReferenceObjects_AURLWithASpaceNamesTheDocumentItsEscapeDoes pins GitHub
@@ -767,7 +767,7 @@ paths:
 		assert.NoError(t, err)
 	}))
 	t.Cleanup(srv.Close)
-	want := ids.In(srv.URL + "/c%20d.yaml").AnonType("/paths/~1x/get/parameters/0/schema")
+	want := ids.In(srv.URL + "/c%20d.yaml").AnonymousType("/paths/~1x/get/parameters/0/schema")
 	for spelling, findings := range map[string][]string{
 		"c d.yaml":   {"error openapi/validation/validation-invalid-format /paths/~1p/$ref"},
 		"c%20d.yaml": {},

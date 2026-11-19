@@ -736,13 +736,13 @@ components:
 		body.Mixins, "one union, composed once")
 }
 
-// wireNames lists the wire names of props, nil for none.
-func wireNames(props []ir.Property) []string {
-	if len(props) == 0 {
+// wireNames lists the wire names of properties, nil for none.
+func wireNames(properties []ir.Property) []string {
+	if len(properties) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(props))
-	for _, property := range props {
+	out := make([]string, 0, len(properties))
+	for _, property := range properties {
 		out = append(out, property.WireName)
 	}
 	return out

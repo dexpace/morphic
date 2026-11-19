@@ -127,14 +127,14 @@ func appendScalar(dst jsontext.Value, node *yaml.Node) (jsontext.Value, error) {
 	case value.ScalarBool:
 		return strconv.AppendBool(dst, scalar.Bool), nil
 	case value.ScalarNumber:
-		return spliceNumber(dst, node.Value, string(scalar.Num))
+		return spliceNumber(dst, node.Value, string(scalar.Number))
 	default:
 		// A string, and the kinds JSON names only as the text they were written as.
 		return appendString(dst, scalar.Text)
 	}
 }
 
-// spliceNumber appends num, an already-validated number value.Classify read, to
+// spliceNumber appends number, an already-validated number value.Classify read, to
 // dst as raw JSON, refusing it if it is not a JSON number. appendScalar is the
 // one caller that splices a numeric literal straight into a document rather
 // than an ir.Value field, so BigVal's contract (its text always renders as a
@@ -144,11 +144,11 @@ func appendScalar(dst jsontext.Value, node *yaml.Node) (jsontext.Value, error) {
 // appendScalar and tests call this directly. It stays because dropping it would
 // turn a future regression in BigVal into a document silently carrying a
 // construct JSON cannot name (GitHub #45).
-func spliceNumber(dst jsontext.Value, source, num string) (jsontext.Value, error) {
-	if !jsontext.Value(num).IsValid() {
-		return nil, fmt.Errorf("numeric literal %q renders as %q, which is not JSON", source, num)
+func spliceNumber(dst jsontext.Value, source, number string) (jsontext.Value, error) {
+	if !jsontext.Value(number).IsValid() {
+		return nil, fmt.Errorf("numeric literal %q renders as %q, which is not JSON", source, number)
 	}
-	return append(dst, num...), nil
+	return append(dst, number...), nil
 }
 
 // sequence appends a YAML sequence to dst as a JSON array, in source order.

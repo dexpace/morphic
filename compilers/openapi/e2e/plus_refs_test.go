@@ -57,8 +57,8 @@ paths:
 	want := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr(responseSchema("/a+b")...))
 	assert.Contains(t, string(want), "~1a+b")
 	require.NotNil(t, doc.Types[want], "the type is interned at the key the pointer names")
-	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "h").Responses[0].Payload))
-	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "g").Responses[0].Payload))
+	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, "h").Responses[0].Payload))
+	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, "g").Responses[0].Payload))
 }
 
 // plusCollisionSpec holds the paths "/a b" and "/a+b", each with an object of
@@ -116,7 +116,7 @@ func viewOf(t *testing.T, src string) plusView {
 	})
 	plusViewValue := plusView{Types: doc.Types, Diagnostics: diags, Responses: map[string]ir.TypeID{}, Components: map[string]ir.TypeID{}}
 	for _, name := range []string{"sp", "pl"} {
-		plusViewValue.Responses[name] = openapitest.BodyTarget(t, openapitest.FindOp(t, doc, name).Responses[0].Payload)
+		plusViewValue.Responses[name] = openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, name).Responses[0].Payload)
 	}
 	for _, name := range []string{"Plus", "Escaped", "Space"} {
 		plusViewValue.Components[name] = useTarget(t, doc, name)
@@ -254,7 +254,7 @@ func TestCompile_AReferenceOfEveryKindThroughAPlusKeyIsLoweredWhereItIsDeclared(
 	doc, diags := parseFull(t, string(readReproducer(t, "ref_fragment_plus")))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	relay := openapitest.FindOp(t, doc, "relay")
+	relay := openapitest.FindOperation(t, doc, "relay")
 	require.Len(t, relay.Params, 1)
 	assert.Equal(t, "/paths/~1a+b/get/parameters/0", string(relay.Params[0].Provenance.Pointer), "the parameter")
 	require.Len(t, relay.Responses, 1)
@@ -265,9 +265,9 @@ func TestCompile_AReferenceOfEveryKindThroughAPlusKeyIsLoweredWhereItIsDeclared(
 
 	var mounted []string
 	for _, operationGroup := range doc.Services[0].Groups {
-		for _, op := range operationGroup.Operations {
-			if strings.HasPrefix(string(op.ID), "operation/openapi/paths/~1c/") {
-				mounted = append(mounted, string(op.Provenance.Pointer))
+		for _, operation := range operationGroup.Operations {
+			if strings.HasPrefix(string(operation.ID), "operation/openapi/paths/~1c/") {
+				mounted = append(mounted, string(operation.Provenance.Pointer))
 			}
 		}
 	}
@@ -348,9 +348,9 @@ components:
 		}
 		slices.Sort(got)
 		reported = append(reported, got)
-		body, ok := doc.Types[theirs.AnonType(schema)].(*ir.Model)
+		body, ok := doc.Types[theirs.AnonymousType(schema)].(*ir.Model)
 		require.True(t, ok, "ext.yaml's /a schema is lowered where ext.yaml declares it")
-		pet, ok := propByWire(body, "pet")
+		pet, ok := propertyByWire(body, "pet")
 		require.True(t, ok)
 		assert.Equal(t, theirs.NamedType("/components/schemas/Pet"), pet.Type.Target, "ext.yaml's Pet, not the source's")
 	}
@@ -395,7 +395,7 @@ paths:
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
-	put := opWithID(t, doc, "operation/openapi/paths/~1m/put")
+	put := operationWithID(t, doc, "operation/openapi/paths/~1m/put")
 	assert.Equal(t, "putBeside", put.Name.Source)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1a/x-n/put"}, put.Provenance)
 	for _, diagnostic := range diags {

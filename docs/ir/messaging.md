@@ -20,7 +20,7 @@ type MessageBinding struct {
 type Reply struct {
     Channel  *ChannelID    // static reply channel; nil when the address is dynamic-only.
                            // (An AsyncAPI reply channel's own address is null by spec)
-    Address  *PropPath     // dynamic reply address: where in the *request* message the reply
+    Address  *PropertyPath // dynamic reply address: where in the *request* message the reply
                            // destination lives, e.g. In:"header", Segments:[replyTo]
                            // (AsyncAPI Operation Reply Address runtime expressions)
     Messages []MessageID   // reply payload message set (a subset of Channel's when set — validated)
@@ -52,7 +52,7 @@ type Message struct {
                                    // type registry like any anonymous type (headers can be named,
                                    // composed, even Avro-defined; and $message.header#/… paths need
                                    // a type to resolve against). Emitters compute flat lists per docs/ir/models.md
-    CorrelationID *PropPath        // In: "header" | "" (payload)
+    CorrelationID *PropertyPath    // In: "header" | "" (payload)
     ContentType string
     Tags        []string
     Docs        Docs

@@ -117,10 +117,10 @@ func TestAdmitted_ACompileErrorEndsTheCase(t *testing.T) {
 	assert.Contains(t, res.Detail, "harness: compiling case [0]: the engine is misconfigured")
 }
 
-// kindSpec writes the components schemas, and a model C holding props.
-func kindSpec(schemas, props string) []byte {
+// kindSpec writes the components schemas, and a model C holding properties.
+func kindSpec(schemas, properties string) []byte {
 	return fmt.Appendf(nil, `{"openapi": "3.1.0", "info": {"title": "t", "version": "1"}, "paths": {},
-  "components": {"schemas": {%s, "C": {"type": "object", "properties": {%s}}}}}`, schemas, props)
+  "components": {"schemas": {%s, "C": {"type": "object", "properties": {%s}}}}}`, schemas, properties)
 }
 
 // Where kindSpec's defaults are: the property t of C, and the property m of O
@@ -169,7 +169,7 @@ func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			props := fmt.Sprintf(`"t": {"$ref": "#/components/schemas/%s", "default": %s}`, tc.ref, tc.def)
+			properties := fmt.Sprintf(`"t": {"$ref": "#/components/schemas/%s", "default": %s}`, tc.ref, tc.def)
 			instances := []Instance{{Node: kindT, Valid: true, Name: "t"}}
 			if tc.also != "" {
 				instances = append(instances, Instance{Node: tc.also, Valid: true, Name: "m"})
@@ -186,7 +186,7 @@ func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
 				}
 				return doc, diags, err
 			}
-			verdict := instanceVerdict(t, instanceCase(kindSpec(tc.schemas, props), instances...))
+			verdict := instanceVerdict(t, instanceCase(kindSpec(tc.schemas, properties), instances...))
 			if tc.want == "" {
 				assert.Equal(t, passed(OracleInstance), verdict)
 				return

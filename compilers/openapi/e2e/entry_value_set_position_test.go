@@ -36,11 +36,11 @@ type entryValueSet struct {
 // over a string target, an enum outside the values its target holds, and an
 // enum and a const of objects over an object target.
 func entryValueSets() []entryValueSet {
-	str := "T: {type: string}"
+	stringSchema := "T: {type: string}"
 	obj := "T: {type: object, properties: {a: {type: string}}}"
 	return []entryValueSet{
-		{name: "enum", target: str, keyword: "enum: [a]", kind: ir.KindEnum, check: requireEntryEnum("a")},
-		{name: "const", target: str, keyword: "const: a", only31: true, kind: ir.KindLiteral, check: requireEntryLiteral("a")},
+		{name: "enum", target: stringSchema, keyword: "enum: [a]", kind: ir.KindEnum, check: requireEntryEnum("a")},
+		{name: "const", target: stringSchema, keyword: "const: a", only31: true, kind: ir.KindLiteral, check: requireEntryLiteral("a")},
 		{
 			name: "enum outside the target", target: "T: {type: string, enum: [low, mid]}", keyword: "enum: [other]",
 			apart: true, kind: ir.KindEnum, check: requireEntryEnum("other"),
@@ -328,7 +328,7 @@ func TestEntryValueSet_AReferenceToThePositionReadsItsNode(t *testing.T) {
 				assert.Equal(t, ir.KindEnum, kindNode(t, doc, position).Kind(), "the position's node")
 				assert.Equal(t, ir.KindEnum, kindNode(t, doc, componentID("Comp")).Kind(), "the component is the enum")
 				holder := requireEntryModelOf(t, doc, "Holder")
-				property, ok := propByWire(holder, "p")
+				property, ok := propertyByWire(holder, "p")
 				require.True(t, ok)
 				assert.Equal(t, position, property.Type.Target)
 				assert.Empty(t, property.Unmodeled, "the property keeps nothing the enum holds")
@@ -336,8 +336,8 @@ func TestEntryValueSet_AReferenceToThePositionReadsItsNode(t *testing.T) {
 				requireEntryScalarOver(t, doc, "ToPosition", position)
 				requireEntryScalarOver(t, doc, "ToComp", componentID("Comp"))
 				uses := requireEntryModelOf(t, doc, "Uses")
-				irProperty, _ := propByWire(uses, "q")
-				propertyValue, _ := propByWire(uses, "r")
+				irProperty, _ := propertyByWire(uses, "q")
+				propertyValue, _ := propertyByWire(uses, "r")
 				assert.Equal(t, position, irProperty.Type.Target)
 				assert.Equal(t, componentID("Comp"), propertyValue.Type.Target)
 			})

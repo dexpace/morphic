@@ -35,7 +35,7 @@ func holderProperty(t *testing.T, doc *ir.Document, wire string) ir.Property {
 	t.Helper()
 	model, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
-	property, ok := propByWire(model, wire)
+	property, ok := propertyByWire(model, wire)
 	require.True(t, ok, "no property %s", wire)
 	return property
 }

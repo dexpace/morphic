@@ -74,7 +74,7 @@ func TestCompile_AnOverlayDescribesOneSchemaOfASharedNode(t *testing.T) {
 	for _, name := range []string{"A", "B", "C"} {
 		model, ok := typeByName(shared, name).(*ir.Model)
 		require.True(t, ok, name)
-		_, has := propByWire(model, "x")
+		_, has := propertyByWire(model, "x")
 		assert.True(t, has, "%s still holds x", name)
 	}
 

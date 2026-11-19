@@ -116,12 +116,12 @@ func (t *serviceTree) indexGroups(parent *treeNode, groups []OperationGroup, dep
 }
 
 // indexOperations reads the operations of the group treeNodeValue, a step each.
-func (t *serviceTree) indexOperations(treeNodeValue *treeNode, ops []Operation, treeReadValue *treeRead) {
-	for j := range ops {
+func (t *serviceTree) indexOperations(treeNodeValue *treeNode, operations []Operation, treeReadValue *treeRead) {
+	for j := range operations {
 		if !treeReadValue.steps.take() {
 			return
 		}
-		t.add(treeNodeValue, &treeNodeValue.operations, operationNode, string(ops[j].ID)).operation = &ops[j]
+		t.add(treeNodeValue, &treeNodeValue.operations, operationNode, string(operations[j].ID)).operation = &operations[j]
 	}
 }
 
@@ -223,9 +223,9 @@ func built[T any](serviceTreeValue *serviceTree, list *treeList, element func(*t
 	if len(list.nodes) == 0 {
 		return nil
 	}
-	elems := make([]T, len(list.nodes))
+	elements := make([]T, len(list.nodes))
 	for i, treeNode := range list.nodes {
-		elems[i] = element(treeNode)
+		elements[i] = element(treeNode)
 	}
-	return elems
+	return elements
 }

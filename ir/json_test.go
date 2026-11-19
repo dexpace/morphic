@@ -73,8 +73,8 @@ func TestOperation_AuthEmptyNonNilRoundTrips(t *testing.T) {
 	// An empty non-nil Auth ("explicitly public") must survive the JSON round
 	// trip distinct from nil ("inherit the service default"): nil omits the
 	// key entirely (omitzero), while an empty slice is still written as [].
-	op := ir.Operation{ID: "operation/x", Auth: []ir.AuthRequirement{}}
-	raw, err := json.Marshal(op)
+	operation := ir.Operation{ID: "operation/x", Auth: []ir.AuthRequirement{}}
+	raw, err := json.Marshal(operation)
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"auth":[]`, "empty non-nil Auth serializes as []")
 
@@ -83,8 +83,8 @@ func TestOperation_AuthEmptyNonNilRoundTrips(t *testing.T) {
 	require.NotNil(t, back.Auth, "empty Auth must not deserialize to nil")
 	assert.Empty(t, back.Auth)
 
-	var nilOp ir.Operation
-	rawNil, err := json.Marshal(nilOp)
+	var nilOperation ir.Operation
+	rawNil, err := json.Marshal(nilOperation)
 	require.NoError(t, err)
 	assert.NotContains(t, string(rawNil), `"auth"`, "nil Auth omits the key rather than writing null")
 	var backNil ir.Operation

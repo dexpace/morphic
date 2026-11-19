@@ -14,7 +14,7 @@ import (
 
 var (
 	httpBindingType = reflect.TypeFor[ir.HTTPBinding]()
-	opIDType        = reflect.TypeFor[ir.OperationID]()
+	operationIDType = reflect.TypeFor[ir.OperationID]()
 )
 
 // webhookPath is operationPath and the two types between an Operation and its
@@ -22,7 +22,7 @@ var (
 // counts of both are pinned by TestEnumPath_ListsEveryCarrier.
 var webhookPath = func() map[reflect.Type]bool {
 	path := maps.Clone(operationPath)
-	path[reflect.TypeFor[ir.OpBindings]()] = true
+	path[reflect.TypeFor[ir.OperationBindings]()] = true
 	path[reflect.TypeFor[[]ir.HTTPBinding]()] = true
 	return path
 }()
@@ -97,8 +97,8 @@ func checkCallbacks(*ir.Document) walkCheck {
 	listed := map[ir.OperationID]string{}
 	return walkCheck{
 		visit: func(v reflect.Value, path ir.WalkPath) bool {
-			if op, ok := reflect.TypeAssert[ir.Operation](v); ok {
-				noteCallbacks(&op, path, marked, listed)
+			if operation, ok := reflect.TypeAssert[ir.Operation](v); ok {
+				noteCallbacks(&operation, path, marked, listed)
 			}
 			return true
 		},
@@ -108,12 +108,12 @@ func checkCallbacks(*ir.Document) walkCheck {
 	}
 }
 
-// noteCallbacks records where op, at path, is first marked a callback, and
+// noteCallbacks records where operation, at path, is first marked a callback, and
 // where each operation its bindings list among their Callbacks is first listed.
-func noteCallbacks(op *ir.Operation, path ir.WalkPath, marked, listed map[ir.OperationID]string) {
-	for i, b := range op.Bindings.HTTP {
-		if _, seen := marked[op.ID]; b.Inbound == ir.HTTPInboundCallback && !seen {
-			marked[op.ID] = path.String() + ".Bindings.HTTP"
+func noteCallbacks(operation *ir.Operation, path ir.WalkPath, marked, listed map[ir.OperationID]string) {
+	for i, b := range operation.Bindings.HTTP {
+		if _, seen := marked[operation.ID]; b.Inbound == ir.HTTPInboundCallback && !seen {
+			marked[operation.ID] = path.String() + ".Bindings.HTTP"
 		}
 		for j, cb := range b.Callbacks {
 			for k, id := range cb.Operations {
@@ -149,7 +149,7 @@ func callbackDisagreements(declarationsValue declarations, marked, listed map[ir
 	}
 	held := map[ir.OperationID]bool{}
 	for _, decl := range declarationsValue.list() {
-		if decl.Class == opIDType {
+		if decl.Class == operationIDType {
 			held[ir.OperationID(decl.ID)] = true
 		}
 	}

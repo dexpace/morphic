@@ -307,8 +307,8 @@ func layerViolations(sites []importSite, table map[string]layer, libraries map[l
 		if !ok {
 			continue
 		}
-		if msg := crossing(importSite, from, table, libraries); msg != "" {
-			out = append(out, importSite.file+": "+msg)
+		if message := crossing(importSite, from, table, libraries); message != "" {
+			out = append(out, importSite.file+": "+message)
 		}
 	}
 	slices.Sort(out)

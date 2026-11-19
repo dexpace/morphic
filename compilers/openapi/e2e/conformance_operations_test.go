@@ -36,8 +36,8 @@ func assertGroupIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	got := map[ir.GroupID][]string{}
 	for _, operationGroup := range doc.Services[0].Groups {
 		require.NotContains(t, got, operationGroup.ID, "two groups share an ID")
-		for _, op := range operationGroup.Operations {
-			got[operationGroup.ID] = append(got[operationGroup.ID], op.Name.Source)
+		for _, operation := range operationGroup.Operations {
+			got[operationGroup.ID] = append(got[operationGroup.ID], operation.Name.Source)
 		}
 	}
 	assert.Equal(t, map[ir.GroupID][]string{
@@ -63,16 +63,16 @@ func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	got := map[ir.OperationID][]ir.ParameterID{}
 	svc := doc.Services[0]
 	for _, operationGroup := range svc.Groups {
-		for _, op := range operationGroup.Operations {
-			for _, parameter := range op.Params {
-				got[op.ID] = append(got[op.ID], parameter.ID)
+		for _, operation := range operationGroup.Operations {
+			for _, parameter := range operation.Params {
+				got[operation.ID] = append(got[operation.ID], parameter.ID)
 			}
-			require.Len(t, op.Bindings.HTTP, 1)
+			require.Len(t, operation.Bindings.HTTP, 1)
 			var bound []ir.ParameterID
-			for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+			for _, pb := range operation.Bindings.HTTP[0].ParamBindings {
 				bound = append(bound, pb.Param)
 			}
-			assert.ElementsMatch(t, got[op.ID], bound, "%s: each binding names its own parameter", op.ID)
+			assert.ElementsMatch(t, got[operation.ID], bound, "%s: each binding names its own parameter", operation.ID)
 		}
 	}
 	assert.Equal(t, map[ir.OperationID][]ir.ParameterID{
@@ -135,10 +135,10 @@ func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 }
 
 func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "getItem")
+	operation, ok := operationByName(doc, "getItem")
 	require.True(t, ok)
-	require.Len(t, op.Bindings.HTTP, 1)
-	hb := op.Bindings.HTTP[0]
+	require.Len(t, operation.Bindings.HTTP, 1)
+	hb := operation.Bindings.HTTP[0]
 	assert.Equal(t, "GET", hb.Method)
 	assert.Equal(t, "/items/{id}", hb.URITemplate)
 }
@@ -154,9 +154,9 @@ func assertPathKeyFragments(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	}{
 		"bearerOAuth": {"oauth2", true}, "bearerApiKey": {"apiKey", true}, "bearer": {"", true}, "other": {"", false},
 	} {
-		op, ok := opByName(doc, name)
+		operation, ok := operationByName(doc, name)
 		require.True(t, ok, name)
-		hb := op.Bindings.HTTP[0]
+		hb := operation.Bindings.HTTP[0]
 		assert.Equal(t, want.shared, hb.SharedRoute, "%s: whether its route is shared", name)
 		kept, fragmented := hb.Unmodeled["openapi:fragment"]
 		assert.Equal(t, want.fragment != "", fragmented, "%s: whether it keeps a fragment", name)
@@ -214,12 +214,12 @@ func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // scope a requirement lists twice for one scheme are each kept once, at the
 // first occurrence, and reported once each, as a warning at the repeat.
 func assertRepeatedTagsAndScopes(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "listPets")
+	operation, ok := operationByName(doc, "listPets")
 	require.True(t, ok)
-	assert.Equal(t, []string{"pets", "store"}, op.Tags)
-	require.Len(t, op.Auth, 1)
+	assert.Equal(t, []string{"pets", "store"}, operation.Tags)
+	require.Len(t, operation.Auth, 1)
 	assert.Equal(t, []ir.SchemeUse{{Scheme: "auth/openapi/components/securitySchemes/oauth", Scopes: []string{"read", "write"}}},
-		op.Auth[0].Schemes)
+		operation.Auth[0].Schemes)
 
 	for _, pointer := range []string{"/paths/~1pets/get/tags/2", "/paths/~1pets/get/security/0/oauth/2"} {
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, diag.RepeatedEntry, pointer), pointer)
@@ -234,38 +234,38 @@ func assertRepeatedTagsAndScopes(t *testing.T, doc *ir.Document, diags []ir.Diag
 // totals a page states, every one marked inferred; and the operation naming
 // two continuations left with none and reported.
 func assertPaginationInferred(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	paths := func(segments ...ir.PropertyID) *ir.PropPath { return &ir.PropPath{Segments: segments} }
-	input := func(op ir.Operation, name string) *ir.InputPath {
-		id := linkParam(t, op, name)
+	paths := func(segments ...ir.PropertyID) *ir.PropertyPath { return &ir.PropertyPath{Segments: segments} }
+	input := func(operation ir.Operation, name string) *ir.InputPath {
+		id := linkParam(t, operation, name)
 		return &ir.InputPath{Param: &id}
 	}
-	zones, logs, keys, jobs := linkOp(t, doc, "listZones"), linkOp(t, doc, "listLogs"), linkOp(t, doc, "listKeys"),
-		linkOp(t, doc, "listJobs")
+	zones, logs, keys, jobs := linkOperation(t, doc, "listZones"), linkOperation(t, doc, "listLogs"), linkOperation(t, doc, "listKeys"),
+		linkOperation(t, doc, "listJobs")
 	keysBody := ir.PropertyID("property/openapi/paths/~1keys/get/responses/200/content/application~1json/schema/properties/")
-	for op, want := range map[*ir.Operation]*ir.Pagination{
+	for operation, want := range map[*ir.Operation]*ir.Pagination{
 		&zones: {Strategy: ir.PageStrategyPage, Inferred: true, InputCursor: input(zones, "page"),
 			InputLimit: input(zones, "per_page"),
 			Items:      paths("property/openapi/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result"),
-			TotalCount: paths(componentProp("Collection/properties/result_info"), componentProp("ResultInfo/properties/total_count")),
-			TotalPages: paths(componentProp("Collection/properties/result_info"), componentProp("ResultInfo/properties/total_pages"))},
+			TotalCount: paths(componentProperty("Collection/properties/result_info"), componentProperty("ResultInfo/properties/total_count")),
+			TotalPages: paths(componentProperty("Collection/properties/result_info"), componentProperty("ResultInfo/properties/total_pages"))},
 		&logs: {Strategy: ir.PageStrategyOffset, Inferred: true, InputCursor: input(logs, "offset"),
 			InputLimit: input(logs, "limit"), Items: paths()},
 		&keys: {Strategy: ir.PageStrategyCursor, Inferred: true, InputCursor: input(keys, "cursor"),
 			InputLimit: input(keys, "limit"), Items: paths(keysBody + "result"),
-			NextCursor: paths(keysBody+"result_info", componentProp("CursorInfo/properties/cursor")),
+			NextCursor: paths(keysBody+"result_info", componentProperty("CursorInfo/properties/cursor")),
 			Stop:       []ir.PageStop{ir.PageStopNoNext}},
 		&jobs: {Strategy: ir.PageStrategyToken, Inferred: true, InputCursor: input(jobs, "pageToken"),
 			InputLimit: input(jobs, "pageSize"),
-			Items:      paths(componentProp("JobPage/properties/result"), componentProp("JobPage/properties/result/properties/jobs")),
-			NextCursor: paths(componentProp("JobPage/properties/result"),
-				componentProp("JobPage/properties/result/properties/nextPageToken")),
+			Items:      paths(componentProperty("JobPage/properties/result"), componentProperty("JobPage/properties/result/properties/jobs")),
+			NextCursor: paths(componentProperty("JobPage/properties/result"),
+				componentProperty("JobPage/properties/result/properties/nextPageToken")),
 			Stop: []ir.PageStop{ir.PageStopNoNext}},
 	} {
-		assert.Equal(t, want, op.Pagination, op.Name.Source)
-		assert.Equal(t, openapi.PaginationInferenceHeuristic, op.Provenance.Inferred, op.Name.Source)
+		assert.Equal(t, want, operation.Pagination, operation.Name.Source)
+		assert.Equal(t, openapi.PaginationInferenceHeuristic, operation.Provenance.Inferred, operation.Name.Source)
 	}
 
-	events := linkOp(t, doc, "listEvents")
+	events := linkOperation(t, doc, "listEvents")
 	assert.Nil(t, events.Pagination, "two continuations settle no walk")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/undecided-pagination", "/paths/~1events/get"))
 	reported := 0
@@ -290,8 +290,8 @@ func assertIdempotencyInference(t *testing.T, doc *ir.Document, diags []ir.Diagn
 		openapitest.DiagMessageAt(t, diags, "openapi/undecided-idempotency", ir.SeverityInfo,
 			"/paths/~1payments~1{id}/delete"))
 	for _, tc := range []struct {
-		op    string
-		token ir.ParameterID
+		operation string
+		token     ir.ParameterID
 	}{
 		{"createPayment", "parameter/openapi/paths/~1payments/post/parameters/Idempotency-Key/header"},
 		{"replacePayment", "parameter/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header"},
@@ -299,14 +299,14 @@ func assertIdempotencyInference(t *testing.T, doc *ir.Document, diags []ir.Diagn
 		{"patchPayment", ""},
 		{"deletePayment", ""},
 	} {
-		op, ok := opByName(doc, tc.op)
-		require.True(t, ok, tc.op)
+		operation, ok := operationByName(doc, tc.operation)
+		require.True(t, ok, tc.operation)
 		if tc.token == "" {
-			assert.Equal(t, ir.Idempotency{}, op.Idempotency, tc.op)
-			assert.Empty(t, op.Provenance.Inferred, tc.op)
+			assert.Equal(t, ir.Idempotency{}, operation.Idempotency, tc.operation)
+			assert.Empty(t, operation.Provenance.Inferred, tc.operation)
 			continue
 		}
-		assert.Equal(t, ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: tc.token}, op.Idempotency, tc.op)
-		assert.Equal(t, openapi.IdempotencyInferenceHeuristic, op.Provenance.Inferred, tc.op)
+		assert.Equal(t, ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: tc.token}, operation.Idempotency, tc.operation)
+		assert.Equal(t, openapi.IdempotencyInferenceHeuristic, operation.Provenance.Inferred, tc.operation)
 	}
 }

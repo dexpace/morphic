@@ -17,9 +17,9 @@ import (
 // the set into each union naming it, which a document can make grow with the
 // square of its size.
 type unionValues struct {
-	union *ir.Union
-	prim  ir.PrimitiveKind
-	parts []valuePart
+	union     *ir.Union
+	primitive ir.PrimitiveKind
+	parts     []valuePart
 	// n is how many values it holds, and keys the key of each, which the one
 	// union taking these values takes over (distinct).
 	n    int
@@ -47,11 +47,11 @@ func (r *unionReading) valuesOf(union *ir.Union) (*unionValues, bool) {
 	}
 	vs := &unionValues{union: union, parts: make([]valuePart, 0, len(union.Variants))}
 	for i, variant := range union.Variants {
-		parts, prim, ok := r.appendValues(vs.parts, variant)
-		if !ok || (i > 0 && prim != vs.prim) {
+		parts, primitive, ok := r.appendValues(vs.parts, variant)
+		if !ok || (i > 0 && primitive != vs.primitive) {
 			return nil, false
 		}
-		vs.parts, vs.prim = parts, prim
+		vs.parts, vs.primitive = parts, primitive
 	}
 	return vs, r.distinct(vs)
 }
@@ -77,7 +77,7 @@ func (r *unionReading) appendValues(parts []valuePart, variant ir.Variant) ([]va
 	if !plain {
 		return parts, "", false
 	}
-	values, prim, common, ok := r.branchValues(variant.Type.Target)
+	values, primitive, common, ok := r.branchValues(variant.Type.Target)
 	if !ok {
 		return parts, "", false
 	}
@@ -89,7 +89,7 @@ func (r *unionReading) appendValues(parts []valuePart, variant ir.Variant) ([]va
 		if !said.none() || !typed.none() {
 			return parts, "", false
 		}
-		return append(parts, values...), prim, true
+		return append(parts, values...), primitive, true
 	}
 	said, ok = said.with(typed)
 	if !ok {
@@ -98,7 +98,7 @@ func (r *unionReading) appendValues(parts []valuePart, variant ir.Variant) ([]va
 	one := values[0]
 	said, ok = said.with(factsOf(one.member))
 	one.member = said.onto(one.member)
-	return append(parts, one), prim, ok
+	return append(parts, one), primitive, ok
 }
 
 // branchValues returns the values the type at id holds, its primitive and its
@@ -138,11 +138,11 @@ func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimitiveKind
 		case !read:
 			return nil, "", ir.TypeCommon{}, false
 		case vs.n == 1:
-			return vs.parts, vs.prim, vs.union.TypeCommon, true
+			return vs.parts, vs.primitive, vs.union.TypeCommon, true
 		case !r.refs.sole(id):
 			return nil, "", ir.TypeCommon{}, false
 		default:
-			return []valuePart{{of: vs}}, vs.prim, vs.union.TypeCommon, true
+			return []valuePart{{of: vs}}, vs.primitive, vs.union.TypeCommon, true
 		}
 	default:
 		return nil, "", ir.TypeCommon{}, false
@@ -237,7 +237,7 @@ func (r *unionReading) enum(vs *unionValues) *ir.Enum {
 		enumMember.ID, _ = ir.EnumMemberIDFor(vs.union.ID, valuePart.key, 1 /* occurrence */)
 		members = append(members, enumMember)
 	}
-	return &ir.Enum{TypeCommon: vs.union.TypeCommon, ValueType: vs.prim, Members: members, Closed: true}
+	return &ir.Enum{TypeCommon: vs.union.TypeCommon, ValueType: vs.primitive, Members: members, Closed: true}
 }
 
 // commonFacts returns what typeCommon, the common part of a variant's type,

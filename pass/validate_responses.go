@@ -15,15 +15,15 @@ import (
 // a Default among them: it is a response, whichever class the plan gives it.
 func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		declared := len(op.Responses)
-		if op.Default != nil {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		declared := len(operation.Responses)
+		if operation.Default != nil {
 			declared++
 		}
-		if op.OneWay && declared > 0 {
+		if operation.OneWay && declared > 0 {
 			diags = append(diags, diag(ir.SeverityError, "pass/oneway-with-responses",
-				fmt.Sprintf("operation %s is one-way but declares %d response(s)", op.ID, declared),
-				string(op.ID)))
+				fmt.Sprintf("operation %s is one-way but declares %d response(s)", operation.ID, declared),
+				string(operation.ID)))
 		}
 	})
 	return diags
@@ -34,14 +34,14 @@ func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 // is a Response or an ErrorCase (docs/ir/responses.md).
 func checkDefaultResponses(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		if op.Default == nil || answersCatchAllOnly(op.Default.Conditions) {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		if operation.Default == nil || answersCatchAllOnly(operation.Default.Conditions) {
 			return
 		}
-		where := string(op.ID) + "/default"
+		where := string(operation.ID) + "/default"
 		diags = append(diags, diag(ir.SeverityError, "ir/default-response-conditions",
 			fmt.Sprintf("default response at %s answers %s, where a default answers the catch-all alone",
-				where, statusNames(op.Default.Conditions.StatusCodes)), where))
+				where, statusNames(operation.Default.Conditions.StatusCodes)), where))
 	})
 	return diags
 }

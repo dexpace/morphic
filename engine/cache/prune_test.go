@@ -117,7 +117,7 @@ func TestPrune_TiesGoInNameOrder(t *testing.T) {
 	slices.Sort(names)
 	var removed []string
 	dir := cache.NewDirLimited("d", 9)
-	cache.UseOps(dir, cache.Ops{
+	cache.UseOperations(dir, cache.Operations{
 		List: listing(listedEntry{name: names[1], size: 9}, listedEntry{name: names[0], size: 9}),
 		Remove: func(name string) error {
 			removed = append(removed, filepath.Base(name))
@@ -133,33 +133,33 @@ func TestPrune_Failures(t *testing.T) {
 	boom := errors.New("boom")
 	own := func(n int) string { return keyN(n).String() + ".entry" }
 	keep := func(string) error { return nil }
-	failing := func(limit int, ops cache.Ops) error {
+	failing := func(limit int, operations cache.Operations) error {
 		dir := cache.NewDirLimited("d", limit)
-		cache.UseOps(dir, ops)
+		cache.UseOperations(dir, operations)
 		return cache.Prune(dir)
 	}
 
 	t.Run("a directory that will not list", func(t *testing.T) {
 		t.Parallel()
 		list := func(string) ([]fs.DirEntry, error) { return nil, boom }
-		require.ErrorIs(t, failing(1, cache.Ops{List: list, Remove: keep}), boom)
+		require.ErrorIs(t, failing(1, cache.Operations{List: list, Remove: keep}), boom)
 	})
 	t.Run("a file that will not stat", func(t *testing.T) {
 		t.Parallel()
 		list := listing(listedEntry{name: own(0), infoErr: boom})
-		require.ErrorIs(t, failing(1, cache.Ops{List: list, Remove: keep}), boom)
+		require.ErrorIs(t, failing(1, cache.Operations{List: list, Remove: keep}), boom)
 	})
 	t.Run("a file another process removed is no failure", func(t *testing.T) {
 		t.Parallel()
 		gone := listedEntry{name: own(0), size: 9, infoErr: fs.ErrNotExist}
 		remove := func(string) error { return boom }
-		require.NoError(t, failing(1, cache.Ops{List: listing(gone), Remove: remove}),
+		require.NoError(t, failing(1, cache.Operations{List: listing(gone), Remove: remove}),
 			"it counts for nothing, so nothing is removed")
 	})
 	t.Run("a file that will not go", func(t *testing.T) {
 		t.Parallel()
 		list := listing(listedEntry{name: own(0), size: 9})
-		require.ErrorIs(t, failing(1, cache.Ops{List: list, Remove: func(string) error { return boom }}), boom)
+		require.ErrorIs(t, failing(1, cache.Operations{List: list, Remove: func(string) error { return boom }}), boom)
 	})
 	t.Run("a file another process removed first still counts as gone", func(t *testing.T) {
 		t.Parallel()
@@ -169,7 +169,7 @@ func TestPrune_Failures(t *testing.T) {
 			return fs.ErrNotExist
 		}
 		files := listing(listedEntry{name: own(0), size: 9}, listedEntry{name: own(1), size: 9})
-		require.NoError(t, failing(9, cache.Ops{List: files, Remove: remove}))
+		require.NoError(t, failing(9, cache.Operations{List: files, Remove: remove}))
 		assert.Len(t, removed, 1, "one removal brings the rest under the limit")
 	})
 }

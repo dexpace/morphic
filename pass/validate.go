@@ -137,7 +137,7 @@ func families(doc *ir.Document, read walked, facts *irfacts.DocumentFacts) []fun
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
 		func() []ir.Diagnostic { return checkCatchAllEncodingKeys(doc) },
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },
-		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.refs, read.truncated) },
+		func() []ir.Diagnostic { return checkPropertyIDRefs(read.properties, read.refs, read.truncated) },
 		func() []ir.Diagnostic { return checkDiscriminators(doc, live, facts) },
 		func() []ir.Diagnostic { return checkRepeatedVariants(doc, live) },
 		func() []ir.Diagnostic { return checkDuplicateWireNames(doc, live) },
@@ -159,18 +159,18 @@ func families(doc *ir.Document, read walked, facts *irfacts.DocumentFacts) []fun
 // references that may dangle with the identities they resolve against, its
 // PropIDs, the references it holds empty, and whether the walk was cut short.
 type walked struct {
-	refs      *ir.IDReferences
-	props     *propIDSites
-	empty     *ir.EmptyReferences
-	truncated bool
+	refs       *ir.IDReferences
+	properties *propertyIDSites
+	empty      *ir.EmptyReferences
+	truncated  bool
 }
 
 // walkDocument reads doc in one walk, taken with walk under ctx, and returns
 // ctx's error alone if the walk stopped at it.
 func walkDocument(ctx context.Context, doc *ir.Document, walk walkFunc) (walked, error) {
 	refs := ir.NewIDReferences(doc)
-	walkedValue := walked{refs: refs, props: &propIDSites{refs: refs}, empty: &ir.EmptyReferences{}}
-	truncated, err := walk(ctx, doc, ir.DocumentPath, walkedValue.refs, walkedValue.props, walkedValue.empty)
+	walkedValue := walked{refs: refs, properties: &propertyIDSites{refs: refs}, empty: &ir.EmptyReferences{}}
+	truncated, err := walk(ctx, doc, ir.DocumentPath, walkedValue.refs, walkedValue.properties, walkedValue.empty)
 	if err != nil {
 		return walked{}, err
 	}

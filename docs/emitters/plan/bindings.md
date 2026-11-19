@@ -1,24 +1,24 @@
 # BindingView — the per-protocol request/response projection
 
 `Parameter`s carry no protocol location ([operations](../../ir/operations.md)). The plan derives,
-from `OpBindings`, a neutral per-protocol view a refiner turns into a request builder: which params
+from `OperationBindings`, a neutral per-protocol view a refiner turns into a request builder: which params
 are path/query/ header/cookie/body, their style/explode/prefix, escaping, empty value and media
 type, RPC message folding, message channel + reply, the GraphQL entry point, the OTP call/cast
 shape. One operation may carry several bindings (gRPC transcoding `additional_bindings`, HTTP+RPC);
 all are represented, in the order below. This resolves [open question 6](../../ir/open-questions.md)
-on the emitter side: status conditions and `StatusCodeProp` are read through the HTTP binding a
+on the emitter side: status conditions and `StatusCodeProperty` are read through the HTTP binding a
 target lowers, so RPC/OTP single-response ops with empty conditions are handled uniformly.
 
 ```go
 type BindingView struct {
-    All      []ProtoBinding   // every binding: OpBindings.RPC, then HTTP in its order, then
+    All      []ProtoBinding   // every binding: OperationBindings.RPC, then HTTP in its order, then
                               // Message, GraphQL and OTP (below)
 }
 type ProtoBinding struct {
-    Protocol Protocol         // the OpBindings field this binding comes from
+    Protocol Protocol         // the OperationBindings field this binding comes from
     Params   []ParamBind      // HTTP's neutralized param placement, one per HTTPParamBinding
-    ResponseBodyPath *ir.PropPath // HTTPBinding.ResponseBodyPath: the response body is this
-                                  // sub-field of the payload; nil = the whole payload
+    ResponseBodyPath *ir.PropertyPath // HTTPBinding.ResponseBodyPath: the response body is this
+                                      // sub-field of the payload; nil = the whole payload
     NoBody   bool             // no response under this binding carries a body: an HTTP binding
                               // whose method is HEAD (below)
     // The binding itself, by reference, not restructured; exactly the one Protocol names is set:
@@ -55,7 +55,7 @@ through `Message`; a messaging target consumes them the same way an HTTP target 
 view copying the message binding's fields, as `MsgView` once did, was dropped: it restructured the
 one binding and left out its `Unmodeled`, which a refiner reads (below).
 
-A `Protocol` names the `OpBindings` field a binding comes from, never the system speaking it: `rpc`
+A `Protocol` names the `OperationBindings` field a binding comes from, never the system speaking it: `rpc`
 is every `RPCBinding`, gRPC, Connect, JSON-RPC and Smithy RPC alike, and its `RPC.System` says which
 ([RPC binding](../../ir/rpc-binding.md)). A label for each system was rejected: `System` is an open
 string, so the vocabulary would be open too and no switch over `Protocol` could be complete, while
@@ -63,7 +63,7 @@ labelling every system `grpc`, as the vocabulary once did, handed a gRPC target 
 lower as gRPC.
 
 **The order.** The IR orders an operation's HTTP mappings, the primary first, and nothing across
-`OpBindings`' fields, which hold one RPC, message, GraphQL and OTP binding each. So `All` is a rule
+`OperationBindings`' fields, which hold one RPC, message, GraphQL and OTP binding each. So `All` is a rule
 over the fields: `RPC`, then `HTTP` in its order, then `Message`, `GraphQL` and `OTP`, whatever
 order the source wrote them in. "The binding the source states first" was rejected as underivable: a
 Protobuf method states its RPC binding and its transcoding in one declaration, and no field records

@@ -38,9 +38,9 @@ func pathItemObject() Object {
 		field("description", String, c(V30, "An optional string description, intended to apply to all operations in this path.")),
 	}
 	methods := []string{"get", "put", "post", "delete", "options", "head", "patch", "trace"}
-	ops := make([]Field, len(methods))
+	operations := make([]Field, len(methods))
 	for i, m := range methods {
-		ops[i] = objectOf(m, Operation, c(V30, "A definition of a "+upper(m)+" operation on this path."))
+		operations[i] = objectOf(m, Operation, c(V30, "A definition of a "+upper(m)+" operation on this path."))
 	}
 	tail := []Field{
 		objectOf("query", Operation, c(V32, "A definition of a QUERY operation, as defined in the most recent IETF draft")).
@@ -50,7 +50,7 @@ func pathItemObject() Object {
 		listOf("parameters", Parameter, c(V30, "A list of parameters that are applicable for all the operations described under this path.")),
 	}
 	return Object{
-		Kind: PathItem, Name: "Path Item Object", Extensible: true, Fields: slices.Concat(head, ops, tail),
+		Kind: PathItem, Name: "Path Item Object", Extensible: true, Fields: slices.Concat(head, operations, tail),
 		Rules: []Rule{
 			code(Always(), "parameters-unique", ownerLoad, c(V30, "The list MUST NOT include duplicated parameters.")),
 			uniqueNames(From(V32), "servers",

@@ -16,8 +16,8 @@ const (
 	exampleCode = "pass/example-outside-type"
 )
 
-// num is the number s, as written.
-func num(s string) *ir.Value { return &ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal(s)} }
+// number is the number s, as written.
+func number(s string) *ir.Value { return &ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal(s)} }
 
 // text is the string s.
 func text(s string) *ir.Value { return &ir.Value{Kind: ir.ValueString, String: s} }
@@ -51,12 +51,12 @@ func TestValidate_ADefaultItsTypeDoesNotAdmitIsReported(t *testing.T) {
 	enum := &ir.Enum{ID: "type/e", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{
 		{ID: "enum-member/red", Value: *text("red")}, {ID: "enum-member/green", Value: *text("green")},
 	}}
-	literal := &ir.Literal{ID: "type/four", Value: *num("4")}
-	list := &ir.List{ID: "type/l", ElementType: strT}
+	literal := &ir.Literal{ID: "type/four", Value: *number("4")}
+	list := &ir.List{ID: "type/l", ElementType: stringT}
 	decimal := &ir.Scalar{ID: "type/dec", Base: &ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveDecimal)}, Encoding: &ir.Encoding{Name: "string"}}
-	union := &ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: intT}, {Type: strT}}}
+	union := &ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: intT}, {Type: stringT}}}
 	at := func(set func(*ir.Property), typ ir.TypeRef) *ir.Document {
-		doc := modelOf(prop("property/a/c", typ, set))
+		doc := modelOf(property("property/a/c", typ, set))
 		for _, td := range []ir.TypeDef{enum, literal, list, decimal, union} {
 			doc.Types[td.Common().ID] = td
 		}
@@ -64,42 +64,42 @@ func TestValidate_ADefaultItsTypeDoesNotAdmitIsReported(t *testing.T) {
 	}
 	two := &ir.Value{Kind: ir.ValueList, List: []ir.Value{*text("a"), *text("b")}}
 	one := &ir.Value{Kind: ir.ValueList, List: []ir.Value{*text("a")}}
-	want := func(msg string) []finding { return []finding{{"property/a/c", "default " + msg}} }
+	want := func(message string) []finding { return []finding{{"property/a/c", "default " + message}} }
 	for _, tc := range []struct {
 		name string
 		doc  *ir.Document
 		want []finding
 	}{
 		{"a string for an integer", at(defaulted(text("5")), intT), want("is a string, and type/primitive/integer holds an integer")},
-		{"a number for an integer", at(defaulted(num("5")), intT), nil},
-		{"a whole number written with a fraction", at(defaulted(num("1.0")), intT), nil},
-		{"a fraction for an integer", at(defaulted(num("1.5")), intT), want("is no integer, and type/primitive/integer holds one")},
-		{"a bool for a string", at(defaulted(&ir.Value{Kind: ir.ValueBool, Bool: true}), strT), want("is a bool, and type/primitive/string holds a string")},
+		{"a number for an integer", at(defaulted(number("5")), intT), nil},
+		{"a whole number written with a fraction", at(defaulted(number("1.0")), intT), nil},
+		{"a fraction for an integer", at(defaulted(number("1.5")), intT), want("is no integer, and type/primitive/integer holds one")},
+		{"a bool for a string", at(defaulted(&ir.Value{Kind: ir.ValueBool, Bool: true}), stringT), want("is a bool, and type/primitive/string holds a string")},
 		{"null for a type that admits none", at(defaulted(null()), boolT), want("is null, and type/primitive/bool is not nullable here")},
 		{"null for a nullable form of it", at(func(property *ir.Property) { property.Default = null(); nullable(property) }, boolT), nil},
 		{"a value outside an enum", at(defaulted(text("blue")), ir.TypeRef{Target: "type/e"}), want("is not a member of enum type/e")},
 		{"a member of an enum", at(defaulted(text("green")), ir.TypeRef{Target: "type/e"}), nil},
-		{"a number for an enum of strings", at(defaulted(num("1")), ir.TypeRef{Target: "type/e"}), want("is not a member of enum type/e")},
-		{"a value other than a literal's", at(defaulted(num("5")), ir.TypeRef{Target: "type/four"}), want("is not the value of literal type/four")},
-		{"a literal's value written another way", at(defaulted(num("4.0")), ir.TypeRef{Target: "type/four"}), nil},
+		{"a number for an enum of strings", at(defaulted(number("1")), ir.TypeRef{Target: "type/e"}), want("is not a member of enum type/e")},
+		{"a value other than a literal's", at(defaulted(number("5")), ir.TypeRef{Target: "type/four"}), want("is not the value of literal type/four")},
+		{"a literal's value written another way", at(defaulted(number("4.0")), ir.TypeRef{Target: "type/four"}), nil},
 		{"below the minimum", at(func(property *ir.Property) {
-			property.Default = num("1")
+			property.Default = number("1")
 			property.Constraints = numeric("3", "", "", "")
 		}, intT),
 			want("lies outside the bounds declared for it")},
 		{"at the minimum", at(func(property *ir.Property) {
-			property.Default = num("3")
+			property.Default = number("3")
 			property.Constraints = numeric("3", "", "", "")
 		}, intT), nil},
 		{"at an exclusive minimum", at(func(property *ir.Property) {
-			property.Default = num("3")
+			property.Default = number("3")
 			property.Constraints = numeric("", "3", "", "")
 		}, intT),
 			want("lies outside the bounds declared for it")},
-		{"a string over its maximum length", at(func(property *ir.Property) { property.Default = text("ABC"); property.Constraints = lengths(0, 1) }, strT),
+		{"a string over its maximum length", at(func(property *ir.Property) { property.Default = text("ABC"); property.Constraints = lengths(0, 1) }, stringT),
 			want("lies outside the bounds declared for it")},
-		{"a string of its maximum length", at(func(property *ir.Property) { property.Default = text("A"); property.Constraints = lengths(0, 1) }, strT), nil},
-		{"a string of one character in two bytes", at(func(property *ir.Property) { property.Default = text("é"); property.Constraints = lengths(0, 1) }, strT), nil},
+		{"a string of its maximum length", at(func(property *ir.Property) { property.Default = text("A"); property.Constraints = lengths(0, 1) }, stringT), nil},
+		{"a string of one character in two bytes", at(func(property *ir.Property) { property.Default = text("é"); property.Constraints = lengths(0, 1) }, stringT), nil},
 		{"a list over its maximum", at(func(property *ir.Property) {
 			property.Default = two
 			property.Constraints = &ir.Constraints{MaxItems: new(int64(1))}
@@ -142,7 +142,7 @@ func TestValidate_AParametersDefaultIsHeldToItsType(t *testing.T) {
 
 	assert.Equal(t, []finding{{"parameter/x/q", "default is a string, and type/primitive/integer holds an integer"}},
 		found(t, at(text("x")), defaultCode))
-	assert.Empty(t, found(t, at(num("1")), defaultCode))
+	assert.Empty(t, found(t, at(number("1")), defaultCode))
 }
 
 // TestValidate_AnExampleItsTypeDoesNotAdmitIsReported holds each example of a
@@ -155,7 +155,7 @@ func TestValidate_AnExampleItsTypeDoesNotAdmitIsReported(t *testing.T) {
 	t.Parallel()
 	typeExamples := func(vs ...*ir.Value) *ir.Document {
 		doc := valueDoc()
-		list := &ir.List{ID: "type/l", ElementType: strT, Provenance: provAt("type/l")}
+		list := &ir.List{ID: "type/l", ElementType: stringT, Provenance: provAt("type/l")}
 		for _, value := range vs {
 			list.Examples = append(list.Examples, ir.Example{Value: value})
 		}
@@ -187,27 +187,27 @@ func TestValidate_AnExampleItsTypeDoesNotAdmitIsReported(t *testing.T) {
 		want []finding
 	}{
 		{"a property's examples, one of which fails", func() *ir.Document {
-			doc := modelOf(prop("property/a/e", intT, func(property *ir.Property) {
-				property.Examples = []ir.Example{{Value: num("7")}, badNamed}
+			doc := modelOf(property("property/a/e", intT, func(property *ir.Property) {
+				property.Examples = []ir.Example{{Value: number("7")}, badNamed}
 			}))
 			return doc
 		}(), []finding{{"property/a/e", `example "bad" is a string, and type/primitive/integer holds an integer`}}},
-		{"a property's examples, labelled by index", modelOf(prop("property/a/e", intT, exampled(num("7"), text("x")))),
+		{"a property's examples, labelled by index", modelOf(property("property/a/e", intT, exampled(number("7"), text("x")))),
 			[]finding{{"property/a/e", `example 1 is a string, and type/primitive/integer holds an integer`}}},
-		{"a property's examples, all admitted", modelOf(prop("property/a/e", intT, exampled(num("7"), num("8")))), nil},
+		{"a property's examples, all admitted", modelOf(property("property/a/e", intT, exampled(number("7"), number("8")))), nil},
 		{"a type's example, a string for a list", typeExamples(text("a")),
 			[]finding{{"type/l", "example 0 is a string, and type/l holds a list"}}},
 		{"a type's example, null", typeExamples(null()), nil},
 		{"a type's example, a list", typeExamples(&ir.Value{Kind: ir.ValueList, List: []ir.Value{*text("a")}}), nil},
 		{"a scenario's parameter, a string for an integer", scenario(params(text("x"))),
 			[]finding{{"operation/x", `scenario "s" parameter "parameter/x/q" is a string, and type/primitive/integer holds an integer`}}},
-		{"a scenario's parameter, an integer", scenario(params(num("1"))), nil},
+		{"a scenario's parameter, an integer", scenario(params(number("1"))), nil},
 		{"a scenario's two parameters, each a string, in ID order", func() *ir.Document {
 			doc := scenario(ir.Example{Name: "s", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{
 				"parameter/x/q": *text("x"), "parameter/x/a": *text("y"),
 			}}})
-			op := &doc.Services[0].Groups[0].Operations[0]
-			op.Params = append(op.Params, ir.Parameter{ID: "parameter/x/a", Type: intT})
+			operation := &doc.Services[0].Groups[0].Operations[0]
+			operation.Params = append(operation.Params, ir.Parameter{ID: "parameter/x/a", Type: intT})
 			return doc
 		}(), []finding{
 			{"operation/x", `scenario "s" parameter "parameter/x/a" is a string, and type/primitive/integer holds an integer`},

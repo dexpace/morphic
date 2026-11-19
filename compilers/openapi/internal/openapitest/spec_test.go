@@ -197,14 +197,14 @@ func TestClearAnchors_EmptiesEveryAnchorBeneathTheRoot(t *testing.T) {
 	assert.Same(t, doc.Content[0].Content[1], alias.Alias)
 }
 
-// TestScalarNode_BuildsABareScalar covers both builders, StrNode being the
+// TestScalarNode_BuildsABareScalar covers both builders, StringNode being the
 // string-tagged case of ScalarNode.
 func TestScalarNode_BuildsABareScalar(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "7"},
 		openapitest.ScalarNode("!!int", "7"))
 	assert.Equal(t, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "x"},
-		openapitest.StrNode("x"))
+		openapitest.StringNode("x"))
 }
 
 // TestInlineProbeBody_WritesEveryKeywordTheProbeAssertsOn keeps the constant

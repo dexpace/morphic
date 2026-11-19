@@ -65,7 +65,7 @@ func lowerHeader(serviceContext, dc service.Ctx, loweringState operationLowering
 	headerType, headerDiags := schema.CarriedRef(elected.ctx.Ctx, loweringState.types, schema.TopLevelDepth, serviceContext.Statements().Of(elected.js), elected.pointer)
 	diags = append(diags, headerDiags...)
 	property := ir.Property{
-		ID:         serviceContext.IDs().Prop(hptr),
+		ID:         serviceContext.IDs().Property(hptr),
 		Name:       ir.NamingFor(name),
 		WireName:   name,
 		Type:       headerType,

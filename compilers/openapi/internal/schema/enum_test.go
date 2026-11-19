@@ -49,11 +49,11 @@ func TestEnum_StringClosed(t *testing.T) {
 func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 	t.Parallel()
 	const enumID = ir.TypeID("type/anonymous/components/schemas/S/properties/p")
-	strMembers := []ir.Value{
+	stringMembers := []ir.Value{
 		{Kind: ir.ValueString, String: "red"},
 		{Kind: ir.ValueString, String: "green"},
 	}
-	numMembers := []ir.Value{
+	numberMembers := []ir.Value{
 		{Kind: ir.ValueNumber, Number: ir.BigVal("1")},
 		{Kind: ir.ValueNumber, Number: ir.BigVal("2")},
 	}
@@ -67,21 +67,21 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 			version:       "3.1.0",
 			schema:        `{type: [string, "null"], enum: [red, green, null]}`,
 			wantValueType: ir.PrimitiveString,
-			wantMembers:   strMembers,
+			wantMembers:   stringMembers,
 		},
 		{
 			name:          "3.1 type array, leading null",
 			version:       "3.1.0",
 			schema:        `{type: [string, "null"], enum: [null, red, green]}`,
 			wantValueType: ir.PrimitiveString,
-			wantMembers:   strMembers,
+			wantMembers:   stringMembers,
 		},
 		{
 			name:          "3.0 nullable keyword, trailing null",
 			version:       "3.0.3",
 			schema:        `{type: string, nullable: true, enum: [red, green, null]}`,
 			wantValueType: ir.PrimitiveString,
-			wantMembers:   strMembers,
+			wantMembers:   stringMembers,
 		},
 		{
 			// No type keyword to read a value type from, so the Enum's ValueType
@@ -91,7 +91,7 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 			version:       "3.0.3",
 			schema:        `{nullable: true, enum: [null, 1, 2]}`,
 			wantValueType: ir.PrimitiveNumber,
-			wantMembers:   numMembers,
+			wantMembers:   numberMembers,
 		},
 		{
 			// A bare enum: nothing beside the members says whether null is in the
@@ -102,14 +102,14 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 			version:       "3.1.0",
 			schema:        `{enum: [red, green, null]}`,
 			wantValueType: ir.PrimitiveString,
-			wantMembers:   strMembers,
+			wantMembers:   stringMembers,
 		},
 		{
 			name:          "bare enum, leading null",
 			version:       "3.1.0",
 			schema:        `{enum: [null, 1, 2]}`,
 			wantValueType: ir.PrimitiveNumber,
-			wantMembers:   numMembers,
+			wantMembers:   numberMembers,
 		},
 	}
 	for _, tc := range cases {
@@ -740,10 +740,10 @@ func TestEnum_ValueTypeVariants(t *testing.T) {
 		"ENoTypeBool": ir.PrimitiveBool, "ENoTypeNum": ir.PrimitiveNumber,
 		"ENoTypeStr": ir.PrimitiveString, "EBytes": ir.PrimitiveBytes,
 	}
-	for name, prim := range want {
+	for name, primitive := range want {
 		enum, ok := typeByName(doc, name).(*ir.Enum)
 		require.True(t, ok, "%s is an enum", name)
-		assert.Equal(t, prim, enum.ValueType, "%s value type", name)
+		assert.Equal(t, primitive, enum.ValueType, "%s value type", name)
 	}
 }
 
@@ -922,8 +922,8 @@ func TestEnumMemberIDs_RepeatedValueIsKeptSuffixedAndWarned(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"/components/schemas/E/enum/2", "/components/schemas/E/enum/3"}, at)
-	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
-	assert.Contains(t, msg, "the entry at index 0;", "the third a repeats the first, not the second")
+	message := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
+	assert.Contains(t, message, "the entry at index 0;", "the third a repeats the first, not the second")
 }
 
 // TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex covers a nullable enum,
@@ -936,8 +936,8 @@ func TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex(t *testing.T) {
       enum: [null, a, b, a]
 `))
 	assert.Equal(t, []string{"string:a", "string:b", "string:a/2"}, memberKeys(enumOf(t, doc, componentID("E"))))
-	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
-	assert.Contains(t, msg, "the entry at index 1;")
+	message := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
+	assert.Contains(t, message, "the entry at index 1;")
 }
 
 // TestEnumRepeats_AreReportedWhateverTheSetLowersTo pins the report to the list
@@ -965,8 +965,8 @@ func TestEnumRepeats_AreReportedWhateverTheSetLowersTo(t *testing.T) {
 		"/components/schemas/Nullable/enum/2", "/components/schemas/Nulls/enum/1",
 		"/components/schemas/Lists/enum/2", "/components/schemas/Objects/enum/1",
 	}, at)
-	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/Mixed/enum/3")
-	assert.Contains(t, msg, "the entry at index 1;", "1.0 repeats 1, not the a between them")
+	message := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/Mixed/enum/3")
+	assert.Contains(t, message, "the entry at index 1;", "1.0 repeats 1, not the a between them")
 }
 
 func TestEnumMemberIDs_AreScopedToTheirEnum(t *testing.T) {

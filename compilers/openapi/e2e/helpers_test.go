@@ -244,11 +244,11 @@ func allOperations(doc *ir.Document) []ir.Operation {
 	return out
 }
 
-// opByName finds an operation by its source operationId.
-func opByName(doc *ir.Document, source string) (ir.Operation, bool) {
-	for _, op := range allOperations(doc) {
-		if op.Name.Source == source {
-			return op, true
+// operationByName finds an operation by its source operationId.
+func operationByName(doc *ir.Document, source string) (ir.Operation, bool) {
+	for _, operation := range allOperations(doc) {
+		if operation.Name.Source == source {
+			return operation, true
 		}
 	}
 	return ir.Operation{}, false
@@ -260,10 +260,10 @@ func opByName(doc *ir.Document, source string) (ir.Operation, bool) {
 // no URI template, so no webhook is found.
 func operationAt(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
 	t.Helper()
-	for _, op := range allOperations(doc) {
-		for _, hb := range op.Bindings.HTTP {
+	for _, operation := range allOperations(doc) {
+		for _, hb := range operation.Bindings.HTTP {
 			if hb.Method == method && hb.URITemplate == uri {
-				return op
+				return operation
 			}
 		}
 	}
@@ -278,21 +278,21 @@ func operationsNamed(doc *ir.Document, name string) []ir.Operation {
 	for _, svc := range doc.Services {
 		groups = append(groups, svc.Groups...)
 	}
-	var ops []ir.Operation
+	var operations []ir.Operation
 	for len(groups) > 0 {
 		operationGroup := groups[0]
 		groups = append(groups[1:], operationGroup.Groups...)
-		for _, op := range operationGroup.Operations {
-			if op.Name.Source == name {
-				ops = append(ops, op)
+		for _, operation := range operationGroup.Operations {
+			if operation.Name.Source == name {
+				operations = append(operations, operation)
 			}
 		}
 	}
-	return ops
+	return operations
 }
 
-// propByWire returns the property of model with the given wire name.
-func propByWire(model *ir.Model, wire string) (ir.Property, bool) {
+// propertyByWire returns the property of model with the given wire name.
+func propertyByWire(model *ir.Model, wire string) (ir.Property, bool) {
 	for _, property := range model.Properties {
 		if property.WireName == wire {
 			return property, true
@@ -312,20 +312,20 @@ func headerByWire(headers []ir.Header, wire string) (ir.Header, bool) {
 }
 
 // firstContent returns an operation's single success-response content.
-func firstContent(t *testing.T, op ir.Operation) ir.Content {
+func firstContent(t *testing.T, operation ir.Operation) ir.Content {
 	t.Helper()
-	require.Len(t, op.Responses, 1)
-	require.NotNil(t, op.Responses[0].Payload)
-	require.Len(t, op.Responses[0].Payload.Contents, 1)
-	return op.Responses[0].Payload.Contents[0]
+	require.Len(t, operation.Responses, 1)
+	require.NotNil(t, operation.Responses[0].Payload)
+	require.Len(t, operation.Responses[0].Payload.Contents, 1)
+	return operation.Responses[0].Payload.Contents[0]
 }
 
 // requestContent returns an operation's single request-body content.
-func requestContent(t *testing.T, op ir.Operation) ir.Content {
+func requestContent(t *testing.T, operation ir.Operation) ir.Content {
 	t.Helper()
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	return op.Request.Contents[0]
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 1)
+	return operation.Request.Contents[0]
 }
 
 // withoutVersion encodes doc with what records the declared version set aside:

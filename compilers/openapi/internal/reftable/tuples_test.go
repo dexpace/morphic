@@ -175,7 +175,7 @@ func TestDialectRule_AnIdentifierBesideARefNamesNothing(t *testing.T) {
 		"      definitions: {A: {id: 'a', type: string}, B: {id: 'https://example.com/a', type: integer}},\n" +
 		"      properties: {p: {id: 'https://example.com/', $ref: 'a'}, f: {id: '#f', $ref: 'a'},\n" +
 		"        g: {$ref: '#f'}, h: {$ref: 'https://example.com/'}}}\n"
-	const props = "/components/schemas/T/properties/"
+	const properties = "/components/schemas/T/properties/"
 	for name, c := range map[string]struct {
 		ignores bool
 		p       jsontext.Pointer
@@ -188,11 +188,11 @@ func TestDialectRule_AnIdentifierBesideARefNamesNothing(t *testing.T) {
 			rule := d4Rule
 			rule.IgnoresRefFields = c.ignores
 			table := bound(t, src, ruleFor(self, rule))
-			referenceSite := entryAt(t, table, props+"p")
+			referenceSite := entryAt(t, table, properties+"p")
 			require.Equal(t, reftable.Resolved, referenceSite.Hop.Status, referenceSite.Hop.Why())
 			assert.Equal(t, documentPointerAt(c.p), referenceSite.Hop.Target, "the base p's $ref resolves against")
-			for site, target := range map[jsontext.Pointer]jsontext.Pointer{"g": props + "f", "h": props + "p"} {
-				referenceSiteValue := entryAt(t, table, props+site)
+			for site, target := range map[jsontext.Pointer]jsontext.Pointer{"g": properties + "f", "h": properties + "p"} {
+				referenceSiteValue := entryAt(t, table, properties+site)
 				if !c.ignores {
 					require.Equal(t, reftable.Resolved, referenceSiteValue.Hop.Status, "%s: %s", site, referenceSiteValue.Hop.Why())
 					assert.Equal(t, documentPointerAt(target), referenceSiteValue.Hop.Target, site)

@@ -48,7 +48,7 @@ func (l layout) runServiceTreeWrites(pass *analysis.Pass) (any, error) {
 		if tn == nil {
 			return nil, nil // a package that reaches no ir holds none of its trees
 		}
-		treeCheckValue.elems = append(treeCheckValue.elems, tn.Type())
+		treeCheckValue.elements = append(treeCheckValue.elements, tn.Type())
 	}
 	for _, f := range productionFiles(pass) {
 		for n := range ast.Preorder(f) {
@@ -62,13 +62,13 @@ func (l layout) runServiceTreeWrites(pass *analysis.Pass) (any, error) {
 type treeCheck struct {
 	l    layout
 	pass *analysis.Pass
-	// elems are ir.Service, ir.OperationGroup and ir.Operation.
-	elems []types.Type
+	// elements are ir.Service, ir.OperationGroup and ir.Operation.
+	elements []types.Type
 }
 
-// isElem reports whether t is one of the tree's element types.
-func (c treeCheck) isElem(t types.Type) bool {
-	for _, e := range c.elems {
+// isElement reports whether t is one of the tree's element types.
+func (c treeCheck) isElement(t types.Type) bool {
+	for _, e := range c.elements {
 		if types.Identical(t, e) {
 			return true
 		}
@@ -80,7 +80,7 @@ func (c treeCheck) isElem(t types.Type) bool {
 // whatever it is named.
 func (c treeCheck) isTree(t types.Type) bool {
 	s, isSlice := t.Underlying().(*types.Slice)
-	return isSlice && c.isElem(s.Elem())
+	return isSlice && c.isElement(s.Elem())
 }
 
 func (c treeCheck) node(n ast.Node) {
@@ -213,7 +213,7 @@ func (c treeCheck) anyTree(vars *types.Tuple) bool {
 // treeArgs reports whether one of args is a tree slice or element.
 func (c treeCheck) treeArgs(args *types.TypeList) bool {
 	for t := range args.Types() {
-		if c.isTree(t) || c.isElem(t) {
+		if c.isTree(t) || c.isElement(t) {
 			return true
 		}
 	}

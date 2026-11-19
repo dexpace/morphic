@@ -20,7 +20,7 @@ import (
 // registryChecks are the checks that range over a document's registries and
 // tables themselves rather than through the walk.
 var registryChecks = []func(*ir.Document) []Violation{
-	checkRegistryKeys, checkIDs, checkMemberIDs, checkPrimIDs, checkPrimKinds, checkAuthKinds, checkModelEnums, checkVersions, checkEnumMemberKinds,
+	checkRegistryKeys, checkIDs, checkMemberIDs, checkPrimitiveIDs, checkPrimitiveKinds, checkAuthKinds, checkModelEnums, checkVersions, checkEnumMemberKinds,
 	checkUnresolvedSchemes, checkOAuthScopes, checkUnions, checkMaps, checkMapKeys, checkCatchAlls,
 	checkBoundKinds, checkRequires, checkVersion, checkDocument,
 }

@@ -38,12 +38,12 @@ func judgedAt(diags []ir.Diagnostic) []string {
 func onlyParam(t *testing.T, doc *ir.Document) (ir.Parameter, ir.HTTPParamBinding) {
 	t.Helper()
 	require.NotNil(t, doc)
-	ops := allOperations(doc)
-	require.Len(t, ops, 1)
-	require.Len(t, ops[0].Params, 1)
-	require.Len(t, ops[0].Bindings.HTTP, 1)
-	require.Len(t, ops[0].Bindings.HTTP[0].ParamBindings, 1)
-	return ops[0].Params[0], ops[0].Bindings.HTTP[0].ParamBindings[0]
+	operations := allOperations(doc)
+	require.Len(t, operations, 1)
+	require.Len(t, operations[0].Params, 1)
+	require.Len(t, operations[0].Bindings.HTTP, 1)
+	require.Len(t, operations[0].Bindings.HTTP[0].ParamBindings, 1)
+	return operations[0].Params[0], operations[0].Bindings.HTTP[0].ParamBindings[0]
 }
 
 // reachedSpec writes the one operation of the reached-parameter documents, its
@@ -131,13 +131,13 @@ func TestCompile_ANullableARefLandsOnWritesWrongIsNotAdmitted(t *testing.T) {
 // the property and the refusal is reported once, in either declaration order.
 func TestCompile_AValueOneReadingRefusesAndAnotherAcceptsIsKeptForTheOther(t *testing.T) {
 	t.Parallel()
-	const op = "  /a:\n    get:\n      operationId: a\n      parameters: [{$ref: '#/x-lib/n'}]\n" +
+	const operation = "  /a:\n    get:\n      operationId: a\n      parameters: [{$ref: '#/x-lib/n'}]\n" +
 		"      responses: {'200': {description: ok}}\n"
 	const comps = "components:\n  schemas:\n    S: {$ref: '#/x-lib/n'}\n"
 	const lib = "x-lib:\n  n: {name: p, in: query, type: object, required: [a], properties: {a: {type: string}}}\n"
 	orders := map[string]string{
-		"paths first":      head31 + "paths:\n" + op + comps + lib,
-		"components first": head31 + comps + "paths:\n" + op + lib,
+		"paths first":      head31 + "paths:\n" + operation + comps + lib,
+		"components first": head31 + comps + "paths:\n" + operation + lib,
 	}
 	var first []string
 	for _, name := range []string{"paths first", "components first"} {
@@ -151,7 +151,7 @@ func TestCompile_AValueOneReadingRefusesAndAnotherAcceptsIsKeptForTheOther(t *te
 		}
 		model, ok := doc.Types[ir.TypeID("type/anonymous/x-lib/n")].(*ir.Model)
 		require.True(t, ok, name)
-		a, found := propByWire(model, "a")
+		a, found := propertyByWire(model, "a")
 		require.True(t, found, name)
 		assert.True(t, a.Required, "%s: the schema reading accepts required: [a]", name)
 

@@ -99,13 +99,13 @@ func namedItem(t *testing.T, list any, name string) any {
 	return nil
 }
 
-// opTree returns the operation named source as its JSON.
-func opTree(t *testing.T, doc *ir.Document, source string) any {
+// operationTree returns the operation named source as its JSON.
+func operationTree(t *testing.T, doc *ir.Document, source string) any {
 	t.Helper()
 	for _, operationGroup := range doc.Services[0].Groups {
-		for _, op := range operationGroup.Operations {
-			if op.Name.Source == source {
-				return tree(t, op)
+		for _, operation := range operationGroup.Operations {
+			if operation.Name.Source == source {
+				return tree(t, operation)
 			}
 		}
 	}

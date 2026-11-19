@@ -12,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// primSourceCode is what a primitive credited to a source draws.
-const primSourceCode = "ir/prim-names-source"
+// primitiveSourceCode is what a primitive credited to a source draws.
+const primitiveSourceCode = "ir/prim-names-source"
 
 // primitiveOf returns the one primitive of scenarioBase.
 func primitiveOf(doc *ir.Document) *ir.Primitive {
@@ -45,7 +45,7 @@ func TestVerify_PrimitiveNamesNoSource(t *testing.T) {
 			doc := scenarioBase()
 			doc.Sources = tc.sources
 			primitiveOf(doc).Provenance = tc.prov
-			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), primSourceCode))
+			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), primitiveSourceCode))
 		})
 	}
 }
@@ -59,7 +59,7 @@ func TestVerify_PrimitiveSourceMessage(t *testing.T) {
 	primitiveOf(doc).Provenance = ir.Provenance{Source: 0}
 	var got []string
 	for _, violation := range irverify.Verify(doc) {
-		if violation.Code == primSourceCode {
+		if violation.Code == primitiveSourceCode {
 			got = append(got, violation.Message)
 		}
 	}
@@ -73,5 +73,5 @@ func TestVerify_OnlyAPrimitiveIsHeldToNoSource(t *testing.T) {
 	doc := scenarioBase()
 	doc.Sources = oneSource()
 	doc.Types["type/x/M"].Common().Provenance = ir.Provenance{Source: 0}
-	assert.Empty(t, violationPaths(irverify.Verify(doc), primSourceCode))
+	assert.Empty(t, violationPaths(irverify.Verify(doc), primitiveSourceCode))
 }

@@ -35,12 +35,12 @@ func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	require.Len(t, second.Variables, 2)
 	assert.Equal(t, "base", second.Variables[1].Name)
 
-	ops := allOperations(doc)
-	require.Len(t, ops, 1)
-	require.Len(t, ops[0].Params, 1)
-	assert.Equal(t, ir.Naming{Hint: "empty"}, ops[0].Params[0].Name, "the empty name is minted a hint")
-	require.Len(t, ops[0].Responses, 1)
-	assert.Empty(t, ops[0].Responses[0].Docs.Description)
+	operations := allOperations(doc)
+	require.Len(t, operations, 1)
+	require.Len(t, operations[0].Params, 1)
+	assert.Equal(t, ir.Naming{Hint: "empty"}, operations[0].Params[0].Name, "the empty name is minted a hint")
+	require.Len(t, operations[0].Responses, 1)
+	assert.Empty(t, operations[0].Responses[0].Docs.Description)
 
 	require.Len(t, doc.Auth, 3, "every scheme interns")
 	assert.Len(t, doc.Auth["auth/openapi/components/securitySchemes/oauth"].Flows, 4)
@@ -55,8 +55,8 @@ func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagno
 func assertRelaxedRequiredFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assertNoValidationFinding(t, diags)
 	byName := map[string]ir.Operation{}
-	for _, op := range allOperations(doc) {
-		byName[op.Name.Source] = op
+	for _, operation := range allOperations(doc) {
+		byName[operation.Name.Source] = operation
 	}
 	send := byName["sendEvent"]
 	assert.Empty(t, send.Responses, "no responses declared, none lowered")
@@ -78,8 +78,8 @@ func assertRelaxedRequiredFields(t *testing.T, doc *ir.Document, diags []ir.Diag
 func assertEmptyRequestContent(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const code = "openapi/empty-request-content"
 	byName := map[string]ir.Operation{}
-	for _, op := range allOperations(doc) {
-		byName[op.Name.Source] = op
+	for _, operation := range allOperations(doc) {
+		byName[operation.Name.Source] = operation
 	}
 	inline := byName["postInline"].Request
 	require.NotNil(t, inline)
@@ -142,15 +142,15 @@ func assertReferenceObjectChains(t *testing.T, doc *ir.Document, diags []ir.Diag
 		}
 	}
 	assert.Empty(t, findings, "every reference resolves; what an inference notes is no finding")
-	op, ok := opByName(doc, "createOrder")
+	operation, ok := operationByName(doc, "createOrder")
 	require.True(t, ok)
-	names := make([]string, 0, len(op.Params))
-	for _, parameter := range op.Params {
+	names := make([]string, 0, len(operation.Params))
+	for _, parameter := range operation.Params {
 		names = append(names, parameter.Name.Source)
 	}
 	assert.Equal(t, []string{"page", "limit", "cursor", "key"}, names)
-	assert.Equal(t, bodyAt("/paths/~1archive/post"), requestContent(t, op).Type.Target, "the body /archive declares")
-	header, ok := headerByWire(op.Responses[0].Headers, "X-Rate")
+	assert.Equal(t, bodyAt("/paths/~1archive/post"), requestContent(t, operation).Type.Target, "the body /archive declares")
+	header, ok := headerByWire(operation.Responses[0].Headers, "X-Rate")
 	require.True(t, ok, "the header inside the raw response lowers")
 	assert.Equal(t, ir.TypeID("type/primitive/integer"), header.Type.Target)
 	assert.Equal(t, bodyAt("/paths/~1drafts/put"), requestType(t, doc, "replaceOrder"), "the field beside the $ref")

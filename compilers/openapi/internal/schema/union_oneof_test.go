@@ -328,11 +328,11 @@ func TestOneOf_InlineCoDeclaredDistributionHasNoImplicitDiscriminatorValue(t *te
 	}
 }
 
-// TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody covers the naming of the
+// TestOneOf_CoDeclaredAdditionalPropertiesHintNamesTheBody covers the naming of the
 // one node every variant shares. additionalProperties is declared once, on the
 // enclosing schema, and lowers at its pointer — so the first variant to reach it
 // must not stamp its own branch name on the shared node.
-func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
+func TestOneOf_CoDeclaredAdditionalPropertiesHintNamesTheBody(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
@@ -1613,11 +1613,11 @@ func TestOneOf_CoDeclaredRestatementOfTheBodyItselfOutlastsItsComposition(t *tes
 func TestOneOf_CoDeclaredOwnReadingSettlesInAnyBranchOrder(t *testing.T) {
 	t.Parallel()
 	restating := func(from, to int) string {
-		var props []string
+		var properties []string
 		for i := from; i < to; i++ {
-			props = append(props, fmt.Sprintf("p%d: {type: string, minLength: 1}", i))
+			properties = append(properties, fmt.Sprintf("p%d: {type: string, minLength: 1}", i))
 		}
-		return "{properties: {" + strings.Join(props, ", ") + "}}"
+		return "{properties: {" + strings.Join(properties, ", ") + "}}"
 	}
 	own := make([]string, 0, 260)
 	for i := range 260 {

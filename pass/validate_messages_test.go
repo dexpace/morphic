@@ -22,7 +22,7 @@ func messageBindingDoc(channel ir.ChannelID, carried, used []ir.MessageID) *ir.D
 		"message/b": {ID: "message/b", Name: ir.Naming{Source: "b"}},
 	}
 	putChannel(doc, func(channel *ir.Channel) { channel.Messages = carried })
-	firstOp(doc).Bindings.Message = &ir.MessageBinding{Channel: channel, Messages: used}
+	firstOperation(doc).Bindings.Message = &ir.MessageBinding{Channel: channel, Messages: used}
 	return doc
 }
 
@@ -92,7 +92,7 @@ func TestValidate_OperationWithoutAMessageBindingIsClean(t *testing.T) {
 // replyUsed. A nil replyChannel is the dynamic-address spelling.
 func replyBindingDoc(replyChannel *ir.ChannelID, carried, replyUsed []ir.MessageID) *ir.Document {
 	doc := messageBindingDoc("channel/a", carried, nil)
-	firstOp(doc).Bindings.Message.Reply = &ir.Reply{Channel: replyChannel, Messages: replyUsed}
+	firstOperation(doc).Bindings.Message.Reply = &ir.Reply{Channel: replyChannel, Messages: replyUsed}
 	return doc
 }
 
@@ -108,9 +108,9 @@ func TestValidate_ReplyMessageNotCarriedByChannel(t *testing.T) {
 
 	assert.Equal(t, 0, countCode(t, diags, "ir/dangling-message-ref"),
 		"msg/b is registered, so the reference walk has nothing to say")
-	msg := messageForCode(t, diags, "pass/message-not-in-channel")
-	assert.Contains(t, msg, "message/b")
-	assert.Contains(t, msg, "/bindings/message/reply/messages/0",
+	message := messageForCode(t, diags, "pass/message-not-in-channel")
+	assert.Contains(t, message, "message/b")
+	assert.Contains(t, message, "/bindings/message/reply/messages/0",
 		"the reply's own position, not the request set's")
 }
 
@@ -135,7 +135,7 @@ func replyOnItsOwnChannelDoc(replyUsed []ir.MessageID) *ir.Document {
 	doc := messageBindingDoc("channel/a", []ir.MessageID{"message/a"}, []ir.MessageID{"message/a"})
 	doc.Messages["message/reply"] = ir.Message{ID: "message/reply", Name: ir.Naming{Source: "reply"}}
 	doc.Channels["channel/reply"] = ir.Channel{ID: "channel/reply", Messages: []ir.MessageID{"message/reply"}}
-	firstOp(doc).Bindings.Message.Reply = &ir.Reply{Channel: new(ir.ChannelID("channel/reply")), Messages: replyUsed}
+	firstOperation(doc).Bindings.Message.Reply = &ir.Reply{Channel: new(ir.ChannelID("channel/reply")), Messages: replyUsed}
 	return doc
 }
 
@@ -144,7 +144,7 @@ func replyOnItsOwnChannelDoc(replyUsed []ir.MessageID) *ir.Document {
 // both spellings agree, so a check that reused the operation's channel passes
 // such a case and still reports the wrong set on every real request-reply pair.
 //
-// The illegal half is the one that separates them. msg/a is carried by the
+// The illegal half is the one that separates them. message/a is carried by the
 // operation's channel and not by the reply's, so reading the wrong channel
 // reports nothing at all here.
 func TestValidate_ReplyIsHeldToItsOwnChannel(t *testing.T) {
@@ -152,9 +152,9 @@ func TestValidate_ReplyIsHeldToItsOwnChannel(t *testing.T) {
 	assert.Empty(t, validated(t, replyOnItsOwnChannelDoc([]ir.MessageID{"message/reply"})),
 		"the reply channel carries message/reply, so the reply names nothing it forbids")
 
-	msg := messageForCode(t, validated(t, replyOnItsOwnChannelDoc([]ir.MessageID{"message/a"})),
+	message := messageForCode(t, validated(t, replyOnItsOwnChannelDoc([]ir.MessageID{"message/a"})),
 		"pass/message-not-in-channel")
-	assert.Contains(t, msg, "message/a")
-	assert.Contains(t, msg, "channel/reply",
+	assert.Contains(t, message, "message/a")
+	assert.Contains(t, message, "channel/reply",
 		"judged against the channel the reply travels on, not the one the operation binds")
 }

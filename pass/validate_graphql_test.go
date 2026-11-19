@@ -49,14 +49,14 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 				Args: []ir.Parameter{{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "type/primitive/string"}}}},
 		},
 	}
-	op := ir.Operation{
+	operation := ir.Operation{
 		ID:       "q",
 		Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/gql"}}},
-		Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"q"}}},
+		Bindings: ir.OperationBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"q"}}},
 	}
 	doc.Services = []ir.Service{{
 		ID:     "s",
-		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
+		Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}},
 	}}
 	assert.NotContains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
 }
@@ -69,10 +69,10 @@ func TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable(t *testing.T) {
 	t.Parallel()
 	mention := ir.Docs{Description: "see Mentioned", Refs: []ir.DocRef{{StartByte: 4, EndByte: 13, Type: "type/mentioned"}}}
 	for _, tc := range []struct {
-		name     string
-		op, root ir.Docs
+		name            string
+		operation, root ir.Docs
 	}{
-		{name: "an operation's docs", op: mention},
+		{name: "an operation's docs", operation: mention},
 		{name: "a reachable type's docs", root: mention},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -84,13 +84,13 @@ func TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable(t *testing.T) {
 				Args: []ir.Parameter{{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "type/primitive/string"}}},
 			}}}
 			doc.Types["type/root"] = &ir.Model{ID: "type/root", Docs: tc.root}
-			op := ir.Operation{
+			operation := ir.Operation{
 				ID:       "q",
-				Docs:     tc.op,
+				Docs:     tc.operation,
 				Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/root"}}},
-				Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"q"}}},
+				Bindings: ir.OperationBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"q"}}},
 			}
-			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
+			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}}}}
 			assert.Contains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
 		})
 	}
@@ -122,14 +122,14 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
-		bind func(doc *ir.Document, op *ir.Operation)
+		bind func(doc *ir.Document, operation *ir.Operation)
 	}{
-		{"subscription response stream", func(doc *ir.Document, op *ir.Operation) {
+		{"subscription response stream", func(doc *ir.Document, operation *ir.Operation) {
 			doc.Types["type/ev"] = argModel("type/ev")
-			op.Streaming = ir.StreamingServer
-			op.ResponseStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: "type/ev"}}
+			operation.Streaming = ir.StreamingServer
+			operation.ResponseStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: "type/ev"}}
 		}},
-		{"nested field-argument type", func(doc *ir.Document, op *ir.Operation) {
+		{"nested field-argument type", func(doc *ir.Document, operation *ir.Operation) {
 			doc.Types["type/inner"] = argModel("type/inner")
 			doc.Types["type/outer"] = &ir.Model{
 				ID: "type/outer",
@@ -139,9 +139,9 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 					Args: []ir.Parameter{{Name: ir.Naming{Source: "filter"}, Type: ir.TypeRef{Target: "type/inner"}}},
 				}},
 			}
-			op.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/outer"}}}
+			operation.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/outer"}}}
 		}},
-		{"template instantiation argument", func(doc *ir.Document, op *ir.Operation) {
+		{"template instantiation argument", func(doc *ir.Document, operation *ir.Operation) {
 			doc.Types["type/arg"] = argModel("type/arg")
 			doc.Types["type/page"] = &ir.Model{
 				ID: "type/page",
@@ -150,18 +150,18 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 					Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "type/arg"}}},
 				},
 			}
-			op.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/page"}}}
+			operation.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/page"}}}
 		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
-			op := ir.Operation{ID: "operation/gql", Bindings: ir.OpBindings{
+			operation := ir.Operation{ID: "operation/gql", Bindings: ir.OperationBindings{
 				GraphQL: &ir.GraphQLBinding{Kind: "subscription", FieldPath: []string{"f"}},
 			}}
-			tc.bind(doc, &op)
-			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
+			tc.bind(doc, &operation)
+			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}}}}
 
 			assert.NotContains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
 
@@ -180,10 +180,10 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 // reaches look unreachable. Accusing them reports a defect that is not there.
 func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 	t.Parallel()
-	gqlOp := func() ir.Operation {
+	gqlOperation := func() ir.Operation {
 		return ir.Operation{
 			ID:       "gql",
-			Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{}},
+			Bindings: ir.OperationBindings{GraphQL: &ir.GraphQLBinding{}},
 			Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "type/m"}}},
 		}
 	}
@@ -196,11 +196,11 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 		return doc
 	}
 
-	within := irtest.DiagCodes(validated(t, withArgs(nestGroups(127, gqlOp()))))
+	within := irtest.DiagCodes(validated(t, withArgs(nestGroups(127, gqlOperation()))))
 	assert.NotContains(t, within, "pass/args-outside-graphql",
 		"the binding is visible within the cap, so Args is legal")
 
-	past := irtest.DiagCodes(validated(t, withArgs(nestGroups(200, gqlOp()))))
+	past := irtest.DiagCodes(validated(t, withArgs(nestGroups(200, gqlOperation()))))
 	assert.NotContains(t, past, "pass/args-outside-graphql",
 		"past the cap the binding went unseen; unreachable-by-truncation is not evidence of illegality")
 	assert.Contains(t, past, "ir/walk-truncated", "and the truncation must be reported instead")

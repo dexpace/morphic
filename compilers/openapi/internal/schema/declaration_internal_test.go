@@ -51,7 +51,7 @@ func TestHomeDeclaration_HoistsAHomeFinishedWithTheDeclaration(t *testing.T) {
 	t.Parallel()
 	lowerer, schema, at := lowererDeclaringS(t)
 	var outer []ir.TypeDef
-	ref, diags := homeDeclaration(lowerer.Ctx, lowerer.Types, schema, lowerer.Types.PrimRef(ir.PrimitiveString), at, annotation.HomeOwnNode, false,
+	ref, diags := homeDeclaration(lowerer.Ctx, lowerer.Types, schema, lowerer.Types.PrimitiveRef(ir.PrimitiveString), at, annotation.HomeOwnNode, false,
 		func(td ir.TypeDef, _ keySet, _ *principalKept) { outer = append(outer, td) })
 
 	assert.Equal(t, lowerer.Ctx.IDs().ForPointer(at), ref.Target, "the position resolves to its own alias")

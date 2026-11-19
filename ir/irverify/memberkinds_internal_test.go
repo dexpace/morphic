@@ -78,11 +78,11 @@ func enumHolding(vt ir.PrimitiveKind, value ir.Value) *ir.Document {
 	}
 }
 
-// TestMemberKinds_EveryPrimKindHasARow holds the table above to the
+// TestMemberKinds_EveryPrimitiveKindHasARow holds the table above to the
 // PrimitiveKind constants ir declares, both ways: a value type added to ir
 // without a row would admit no kind or all of them, and a row for one ir does
 // not declare is a test of nothing.
-func TestMemberKinds_EveryPrimKindHasARow(t *testing.T) {
+func TestMemberKinds_EveryPrimitiveKindHasARow(t *testing.T) {
 	t.Parallel()
 	consts, err := irDecls(t).StringConsts("PrimitiveKind")
 	require.NoError(t, err)

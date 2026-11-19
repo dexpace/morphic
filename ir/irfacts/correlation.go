@@ -67,7 +67,7 @@ type correlator struct {
 	settled     map[string]bool // every entity decided, keyed or not
 	out         *correlations
 	inline      map[ir.TypeID]bool               // anonymous models another model composes
-	ops         map[ir.OperationID]*ir.Operation // every operation the walk reaches
+	operations  map[ir.OperationID]*ir.Operation // every operation the walk reaches
 	partHeaders map[ir.PropertyID][]ir.Header    // each multipart part's headers, by the property it encodes
 }
 
@@ -79,7 +79,7 @@ func newCorrelations(doc *ir.Document) *correlations {
 	}
 	correlatorValue := &correlator{
 		doc: doc, settled: map[string]bool{}, out: out,
-		inline: inlineConjuncts(doc.Types), ops: map[ir.OperationID]*ir.Operation{},
+		inline: inlineConjuncts(doc.Types), operations: map[ir.OperationID]*ir.Operation{},
 	}
 	correlatorValue.seedLayer()
 	correlatorValue.seedTypes()

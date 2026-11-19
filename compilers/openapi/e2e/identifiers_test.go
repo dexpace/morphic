@@ -56,7 +56,7 @@ func TestCompile_WhatAnotherDocumentDeclaresAnswersAReference(t *testing.T) {
 		model, ok := doc.Types[other.ForPointer("/Pet")].(*ir.Model)
 		require.True(t, ok)
 		for _, wire := range []string{"a", "b"} {
-			property, found := propByWire(model, wire)
+			property, found := propertyByWire(model, wire)
 			require.True(t, found)
 			assert.Equal(t, other.ForPointer("/Pet/$defs/Tag"), property.Type.Target, wire)
 		}

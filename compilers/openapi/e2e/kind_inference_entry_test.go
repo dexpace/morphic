@@ -72,7 +72,7 @@ func TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal(t *testing.
 
 				off, offDiags := compileKindInference(t, "entry", conjunctionSpec(version, spelling), true)
 				for _, at := range conjunctionPositions {
-					assert.Equal(t, prim(ir.PrimitiveAny), usedAt(t, off, at), "no kind read at %s", at)
+					assert.Equal(t, primitive(ir.PrimitiveAny), usedAt(t, off, at), "no kind read at %s", at)
 					key := at + "/allOf/0/" + jsontext.Pointer(strings.SplitN(tc.keyword, ":", 2)[0])
 					assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{key: ir.ReasonDegradedLowering},
 						keptUnder(off, at), at)
@@ -142,12 +142,12 @@ func TestKindInference_AnEntryClaimNamesNoKindItDoesNotHoldAlone(t *testing.T) {
 		{"a declared string", "{allOf: [{type: string}, {items: {type: string}}]}",
 			func(t *testing.T, doc *ir.Document, at jsontext.Pointer) {
 				t.Helper()
-				assert.Equal(t, prim(ir.PrimitiveString), usedAt(t, doc, at), at)
+				assert.Equal(t, primitive(ir.PrimitiveString), usedAt(t, doc, at), at)
 			}},
 		{"an object claimed beside it", "{allOf: [{items: {type: string}}, {properties: {a: {type: string}}}]}",
 			func(t *testing.T, doc *ir.Document, at jsontext.Pointer) {
 				t.Helper()
-				assert.Equal(t, prim(ir.PrimitiveAny), usedAt(t, doc, at), at)
+				assert.Equal(t, primitive(ir.PrimitiveAny), usedAt(t, doc, at), at)
 				assert.Len(t, keptUnder(doc, at), 2, "each entry is kept at %s", at)
 			}},
 		{"the keywords beside it", "{items: {type: string}, allOf: [{items: {minLength: 1}}]}",
@@ -188,19 +188,19 @@ func TestKindInference_ABoundBesideARefToAnInferredListIsPlacedByTheList(t *test
 	require.True(t, ok, "F is the list its entry builds")
 	require.NotNil(t, list.Constraints)
 	assert.Equal(t, new(int64(1)), list.Constraints.MinItems, "holding the bound beside it")
-	props := holderProps(t, on)
-	assert.True(t, props["s"].Constraints == nil || props["s"].Constraints.MinLength == nil,
+	properties := holderProperties(t, on)
+	assert.True(t, properties["s"].Constraints == nil || properties["s"].Constraints.MinLength == nil,
 		"no string bound is typed beside a list")
-	assert.Contains(t, props["s"].Unmodeled, "openapi:minLength")
+	assert.Contains(t, properties["s"].Unmodeled, "openapi:minLength")
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Holder/properties/s"},
 		degradedUnder(onDiags, "/components/schemas/Holder/properties/s"))
-	require.NotNil(t, props["n"].Constraints)
-	require.NotNil(t, props["n"].Constraints.MinItems)
-	assert.Equal(t, int64(2), *props["n"].Constraints.MinItems)
+	require.NotNil(t, properties["n"].Constraints)
+	require.NotNil(t, properties["n"].Constraints.MinItems)
+	assert.Equal(t, int64(2), *properties["n"].Constraints.MinItems)
 
 	off, _ := compileKindInference(t, "bound", spec, true)
-	offProps := holderProps(t, off)
-	require.NotNil(t, offProps["s"].Constraints)
-	require.NotNil(t, offProps["s"].Constraints.MinLength, "the top type takes the bound")
-	assert.Equal(t, int64(2), *offProps["s"].Constraints.MinLength)
+	offProperties := holderProperties(t, off)
+	require.NotNil(t, offProperties["s"].Constraints)
+	require.NotNil(t, offProperties["s"].Constraints.MinLength, "the top type takes the bound")
+	assert.Equal(t, int64(2), *offProperties["s"].Constraints.MinLength)
 }

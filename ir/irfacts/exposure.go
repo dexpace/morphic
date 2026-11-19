@@ -11,30 +11,30 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Exposes reports whether the type id names exposes the property prop, as
+// Exposes reports whether the type id names exposes the property property, as
 // ir.ExposedProperties answers it: id, or a type its composition or its alias
-// scalars lead to, declares prop. Its first questions are walked, as
+// scalars lead to, declares property. Its first questions are walked, as
 // [DocumentFacts.IsSubtype]'s are. After that a question is a few comparisons
-// when one model declares prop, unless the comparisons leave the pair open as
+// when one model declares property, unless the comparisons leave the pair open as
 // IsSubtype's may be. A property several models declare and an open pair are
 // walked.
-func (x *DocumentFacts) Exposes(id ir.TypeID, prop ir.PropertyID) bool {
+func (x *DocumentFacts) Exposes(id ir.TypeID, property ir.PropertyID) bool {
 	if limit := x.exposureWalks.Load(); limit > 0 {
-		exposed, spent, ok := ir.ExposesWithin(x.doc, id, prop, int(limit))
+		exposed, spent, ok := ir.ExposesWithin(x.doc, id, property, int(limit))
 		x.exposureWalks.Add(-int64(spent))
 		if ok {
 			return exposed
 		}
 	}
-	if exposed, settled := x.exposureIndex().exposes(id, prop); settled {
+	if exposed, settled := x.exposureIndex().exposes(id, property); settled {
 		return exposed
 	}
-	exposed, _, _ := ir.ExposesWithin(x.doc, id, prop, math.MaxInt)
+	exposed, _, _ := ir.ExposesWithin(x.doc, id, property, math.MaxInt)
 	return exposed
 }
 
-// sharedProp is the owner of a property more than one model declares.
-const sharedProp = -1
+// sharedProperty is the owner of a property more than one model declares.
+const sharedProperty = -1
 
 // exposure indexes the relation ir.ExposedProperties walks. A model leads to
 // its Base, Implements and Mixins and an alias scalar to its Base, and a type
@@ -43,7 +43,7 @@ const sharedProp = -1
 type exposure struct {
 	vertex map[ir.TypeID]int     // declared types, in sorted order
 	reach  *intervals            // what each type leads to
-	owner  map[ir.PropertyID]int // the model declaring each property, or sharedProp
+	owner  map[ir.PropertyID]int // the model declaring each property, or sharedProperty
 }
 
 // newExposure indexes the parts of the types in types.
@@ -118,26 +118,26 @@ func (e *exposure) read(dst []ir.TypeID, i int, td ir.TypeDef) []ir.TypeID {
 	return dst
 }
 
-// own records that vertex i declares prop, which another declaring it too makes
+// own records that vertex i declares property, which another declaring it too makes
 // shared.
-func (e *exposure) own(prop ir.PropertyID, i int) {
-	if owner, owned := e.owner[prop]; owned && owner != i {
-		e.owner[prop] = sharedProp
+func (e *exposure) own(property ir.PropertyID, i int) {
+	if owner, owned := e.owner[property]; owned && owner != i {
+		e.owner[property] = sharedProperty
 		return
 	}
-	e.owner[prop] = i
+	e.owner[property] = i
 }
 
 // exposes answers [DocumentFacts.Exposes] from the intervals, with settled
-// false when they cannot: several models declare prop, or the intervals leave
+// false when they cannot: several models declare property, or the intervals leave
 // open whether id reaches the one that does.
-func (e *exposure) exposes(id ir.TypeID, prop ir.PropertyID) (exposed, settled bool) {
+func (e *exposure) exposes(id ir.TypeID, property ir.PropertyID) (exposed, settled bool) {
 	v, declared := e.vertex[id]
-	owner, owned := e.owner[prop]
+	owner, owned := e.owner[property]
 	switch {
 	case !declared || !owned:
 		return false, true
-	case owner == sharedProp:
+	case owner == sharedProperty:
 		return false, false
 	case owner == v:
 		return true, true

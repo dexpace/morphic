@@ -72,10 +72,10 @@ func enumMemberCarrierDoc(value ir.Value) *ir.Document {
 // holds to ask for an operation's stream.
 func streamConditionCarrierDoc(value ir.Value) *ir.Document {
 	doc := otpCarrierDoc(ir.Value{Kind: ir.ValueNull})
-	op := &doc.Services[0].Groups[0].Operations[0]
-	op.Bindings = ir.OpBindings{}
-	op.Request = &ir.Payload{}
-	op.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{
+	operation := &doc.Services[0].Groups[0].Operations[0]
+	operation.Bindings = ir.OperationBindings{}
+	operation.Request = &ir.Payload{}
+	operation.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{
 		Input: ir.InputPath{Segments: []ir.PropertyID{"property/x/Body/stream"}}, Value: value,
 	}}
 	return doc
@@ -85,11 +85,11 @@ func streamConditionCarrierDoc(value ir.Value) *ir.Document {
 // to the operation's own parameter.
 func linkConstantCarrierDoc(value ir.Value) *ir.Document {
 	doc := parameterCarrierDoc(ir.Value{Kind: ir.ValueNull})
-	op := &doc.Services[0].Groups[0].Operations[0]
-	op.Params[0].ID, op.Params[0].Default = "parameter/x/Get/q", nil
-	op.Responses = []ir.Response{{Links: []ir.OperationLink{{
-		Name: named("again"), Operation: op.ID,
-		Params: []ir.LinkParam{{Param: op.Params[0].ID, Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: &value}}},
+	operation := &doc.Services[0].Groups[0].Operations[0]
+	operation.Params[0].ID, operation.Params[0].Default = "parameter/x/Get/q", nil
+	operation.Responses = []ir.Response{{Links: []ir.OperationLink{{
+		Name: named("again"), Operation: operation.ID,
+		Params: []ir.LinkParam{{Param: operation.Params[0].ID, Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: &value}}},
 	}}}}
 	return doc
 }
@@ -100,10 +100,10 @@ func linkConstantCarrierDoc(value ir.Value) *ir.Document {
 // it.
 func otpCarrierDoc(value ir.Value) *ir.Document {
 	const ch ir.ChannelID = "c/x/Proc"
-	op := ir.Operation{
+	operation := ir.Operation{
 		ID:   "operation/x/Call",
 		Name: named("call"),
-		Bindings: ir.OpBindings{OTP: &ir.OTPBinding{
+		Bindings: ir.OperationBindings{OTP: &ir.OTPBinding{
 			Behaviour:  "gen_server",
 			Kind:       "call",
 			Process:    ch,
@@ -119,7 +119,7 @@ func otpCarrierDoc(value ir.Value) *ir.Document {
 			Groups: []ir.OperationGroup{{
 				ID:         "operation-group/x/S/g",
 				Name:       named("g"),
-				Operations: []ir.Operation{op},
+				Operations: []ir.Operation{operation},
 			}},
 		}},
 	}
@@ -129,7 +129,7 @@ func otpCarrierDoc(value ir.Value) *ir.Document {
 // parameter, which like the OTP request tag is reached only through
 // Document.Services.
 func parameterCarrierDoc(value ir.Value) *ir.Document {
-	op := ir.Operation{
+	operation := ir.Operation{
 		ID:     "operation/x/Get",
 		Name:   named("get"),
 		Params: []ir.Parameter{{Name: named("q"), Default: &value}},
@@ -142,7 +142,7 @@ func parameterCarrierDoc(value ir.Value) *ir.Document {
 			Groups: []ir.OperationGroup{{
 				ID:         "operation-group/x/S/g",
 				Name:       named("g"),
-				Operations: []ir.Operation{op},
+				Operations: []ir.Operation{operation},
 			}},
 		}},
 	}

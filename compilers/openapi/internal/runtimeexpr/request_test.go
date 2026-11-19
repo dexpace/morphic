@@ -13,10 +13,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// requestOp is an operation whose request body is the page and whose
+// requestOperation is an operation whose request body is the page and whose
 // parameters are a query parameter q of the info model, and a parameter d
 // bound in both the query and a header.
-func requestOp() *ir.Operation {
+func requestOperation() *ir.Operation {
 	d1, d2 := ir.ParameterID("parameter/d/query"), ir.ParameterID("parameter/d/header")
 	return &ir.Operation{
 		ID:      "operation/r",
@@ -26,7 +26,7 @@ func requestOp() *ir.Operation {
 			{ID: d1, Name: ir.Naming{Source: "d"}, Type: ir.TypeRef{Target: "type/text"}},
 			{ID: d2, Name: ir.Naming{Source: "d"}, Type: ir.TypeRef{Target: "type/text"}},
 		},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+		Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
 			{Param: "parameter/q", Location: ir.HTTPLocationQuery},
 			{Param: d1, Location: ir.HTTPLocationQuery},
 			{Param: d2, Location: ir.HTTPLocationHeader},
@@ -61,7 +61,7 @@ func TestRequestValue_ResolvesEachSpelling(t *testing.T) {
 	} {
 		t.Run(tc.text, func(t *testing.T) {
 			t.Parallel()
-			in, typ, why := runtimeexpr.RequestValue(compileddoc.New(&ir.Document{Types: registry()}), requestOp(), tc.text)
+			in, typ, why := runtimeexpr.RequestValue(compileddoc.New(&ir.Document{Types: registry()}), requestOperation(), tc.text)
 			if tc.error != "" {
 				assert.Nil(t, in)
 				assert.Contains(t, why, tc.error)

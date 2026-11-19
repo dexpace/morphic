@@ -42,7 +42,7 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok, "S should be a model")
 
-	a, ok := openapitest.PropsByWire(model.Properties)["a"]
+	a, ok := openapitest.PropertiesByWire(model.Properties)["a"]
 	require.True(t, ok, "the merge still contributes the branch's properties")
 	assert.True(t, a.Required, "and still ORs the branch's required list onto them")
 
@@ -438,7 +438,7 @@ func TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase(t *testing.T) 
 	typeCommon := typeByName(doc, "N").Common()
 	assert.Equal(t, "d", typeCommon.Docs.Description)
 	assert.JSONEq(t, `{"$ref":"https://ex.test/b/n.json"}`, string(typeCommon.Unmodeled["openapi:not"].Value))
-	assert.Equal(t, typeByName(doc, "A").Common().ID, openapitest.PropsByWire(model.Properties)["a"].Type.Target)
+	assert.Equal(t, typeByName(doc, "A").Common().ID, openapitest.PropertiesByWire(model.Properties)["a"].Type.Target)
 	scalar, ok := typeByName(doc, "S").(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, scalar.Constraints)

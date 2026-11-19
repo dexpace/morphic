@@ -25,10 +25,10 @@ func mandatory(id ir.PropertyID, wire string) ir.Property {
 	return property
 }
 
-// owning builds the model id declaring props, shaped further by mutate.
-func owning(id ir.TypeID, mutate func(*ir.Model), props ...ir.Property) *ir.Model {
+// owning builds the model id declaring properties, shaped further by mutate.
+func owning(id ir.TypeID, mutate func(*ir.Model), properties ...ir.Property) *ir.Model {
 	return irtest.ModelOf(id, func(model *ir.Model) {
-		model.Properties = props
+		model.Properties = properties
 		if mutate != nil {
 			mutate(model)
 		}
@@ -636,11 +636,11 @@ func redactionChain(n int, end *ir.Scalar) (ir.TypeRegistry, ir.TypeID) {
 		doc.Types[scalarAt(i)] = irtest.ScalarOf(scalarAt(i), scalarAt(i+1))
 	}
 
-	props := make([]ir.Property, n)
-	for i := range props {
-		props[i] = typed(ir.PropertyID(fmt.Sprintf("p%04d", i)), fmt.Sprintf("w%04d", i), scalarAt(0))
+	properties := make([]ir.Property, n)
+	for i := range properties {
+		properties[i] = typed(ir.PropertyID(fmt.Sprintf("p%04d", i)), fmt.Sprintf("w%04d", i), scalarAt(0))
 	}
-	doc.Types["m"] = owning("m", nil, props...)
+	doc.Types["m"] = owning("m", nil, properties...)
 
 	return doc.Types, "m"
 }

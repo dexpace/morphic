@@ -83,7 +83,7 @@ func TestElection_ARefIsThePrincipalOverAUnionWhichSaysNothingMoreOfIt(t *testin
 			t.Parallel()
 			doc, diags := compileInEveryOrder(t, version, func(swapped bool) []string {
 				schemas := pairSchemas(swapped, "RefAndUnion",
-					"{$ref: '#/components/schemas/Zed'}", oneStrInt, "", "Zed: {type: string}")
+					"{$ref: '#/components/schemas/Zed'}", oneStringInt, "", "Zed: {type: string}")
 				return schemas
 			})
 			requireErrorsAndWarnings(t, diags, nil)
@@ -122,7 +122,7 @@ func TestElection_TwoInlineEntriesTieOnTheOneWritingItems(t *testing.T) {
 
 				list, ok := kindNode(t, doc, componentID(tc.name)).(*ir.List)
 				require.True(t, ok, "the position is the list")
-				assert.Equal(t, prim(ir.PrimitiveString), list.ElementType.Target)
+				assert.Equal(t, primitive(ir.PrimitiveString), list.ElementType.Target)
 				assert.Empty(t, keptOn(list))
 				assert.Zero(t, degradedInfosAt(diags, tc.name))
 			})
@@ -141,7 +141,7 @@ func TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst(t *testing.T)
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileInEveryOrder(t, version, func(swapped bool) []string {
-				schemas := pairSchemas(swapped, "OneAny", anyNumBool, oneStrInt, "")
+				schemas := pairSchemas(swapped, "OneAny", anyNumberBool, oneStringInt, "")
 				return schemas
 			})
 			requireErrorsAndWarnings(t, diags, nil)
@@ -149,7 +149,7 @@ func TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst(t *testing.T)
 			union := electedUnion(doc, "OneAny")
 			require.NotNil(t, union, "the oneOf is elected, though the anyOf is written first")
 			assert.True(t, union.Exclusive)
-			assert.Equal(t, []ir.TypeID{prim(ir.PrimitiveString), prim(ir.PrimitiveInteger)}, variantTargets(union))
+			assert.Equal(t, []ir.TypeID{primitive(ir.PrimitiveString), primitive(ir.PrimitiveInteger)}, variantTargets(union))
 			requireKeptKeys(t, kindNode(t, doc, componentID("OneAny")), "the anyOf, written first", "openapi:anyOf")
 			requireOneInfoAtEach(t, diags, "OneAny", "the anyOf is reported where it is written", 0)
 		})
@@ -163,8 +163,8 @@ func TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst(t *testing.T)
 func TestElection_TwoUnionsOfOneKeywordElectNeither(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, a, b string }{
-		{"OneOne", oneStrInt, oneIntBool},
-		{"AnyAny", anyNumBool, anyStrInt},
+		{"OneOne", oneStringInt, oneIntBool},
+		{"AnyAny", anyNumberBool, anyStringInt},
 	}
 	for _, version := range electionVersions {
 		for _, tc := range cases {

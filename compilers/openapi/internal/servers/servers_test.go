@@ -278,8 +278,8 @@ components:
 `)
 	const shared = ir.ServerID("server/openapi/components/pathItems/Shared/servers/0")
 	var named int
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		assert.Equal(t, []ir.ServerID{shared}, op.Servers, "%s names the one declaration", op.ID)
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		assert.Equal(t, []ir.ServerID{shared}, operation.Servers, "%s names the one declaration", operation.ID)
 		named++
 	})
 	assert.Equal(t, 2, named, "both mounts lower an operation")

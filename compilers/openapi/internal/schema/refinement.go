@@ -111,7 +111,7 @@ func lowerUndecided(loweringContext lowering.Ctx, ts *compile.Types, depth int, 
 	switch len(types) {
 	case 0:
 		return keepingUnread(loweringContext, ts, schema, pointer, dispatchValue, fin, st, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return ts.PrimID(ir.PrimitiveAny), 0, nil
+			return ts.PrimitiveID(ir.PrimitiveAny), 0, nil
 		})
 	case 1:
 		return keepingUnread(loweringContext, ts, schema, pointer, dispatchValue, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {

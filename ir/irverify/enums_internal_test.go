@@ -116,22 +116,22 @@ func TestEnumPath_ListsEveryCarrier(t *testing.T) {
 	shape, err := os.ReadFile("../testdata/shape.golden.txt")
 	require.NoError(t, err)
 	for typeName, carriers := range map[string]int{
-		"AdditionalMode":   1,
-		"PresenceKind":     1,
-		"HTTPLocation":     1,
-		"IdempotencyKind":  1,
-		"MessageDirection": 1,
-		"PageStrategy":     1,
-		"Severity":         1,
-		"RelatedRole":      1,
-		"Related":          1,
-		"HTTPParamBinding": 1,
-		"MessageBinding":   1,
-		"Pagination":       1,
-		"Idempotency":      1,
-		"Diagnostic":       1,
-		"OpBindings":       1,
-		"HTTPBinding":      1,
+		"AdditionalMode":    1,
+		"PresenceKind":      1,
+		"HTTPLocation":      1,
+		"IdempotencyKind":   1,
+		"MessageDirection":  1,
+		"PageStrategy":      1,
+		"Severity":          1,
+		"RelatedRole":       1,
+		"Related":           1,
+		"HTTPParamBinding":  1,
+		"MessageBinding":    1,
+		"Pagination":        1,
+		"Idempotency":       1,
+		"Diagnostic":        1,
+		"OperationBindings": 1,
+		"HTTPBinding":       1,
 	} {
 		field := regexp.MustCompile(`(?m)^\t"[^"]+" \S*\b` + typeName + `\b`)
 		assert.Len(t, field.FindAllString(string(shape), -1), carriers, typeName)
@@ -146,19 +146,19 @@ func TestEnumPath_ListsEveryCarrier(t *testing.T) {
 func TestPrunedChecks_SeeOnlyTheirPathWhateverTheDocumentHolds(t *testing.T) {
 	t.Parallel()
 	build := func(params int) *ir.Document {
-		op := ir.Operation{
+		operation := ir.Operation{
 			Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe},
 			Pagination:  &ir.Pagination{Strategy: ir.PageStrategyCursor},
-			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 				Method: "GET", ParamBindings: []ir.HTTPParamBinding{{Location: ir.HTTPLocationQuery}},
 			}}},
 		}
 		for i := range params {
-			op.Params = append(op.Params, ir.Parameter{ID: ir.ParameterID("parameter/x/o/" + strconv.Itoa(i))})
+			operation.Params = append(operation.Params, ir.Parameter{ID: ir.ParameterID("parameter/x/o/" + strconv.Itoa(i))})
 		}
 		return &ir.Document{
 			Diagnostics: []ir.Diagnostic{{Severity: ir.SeverityInfo}},
-			Services:    []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}},
+			Services:    []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}}}},
 		}
 	}
 	for name, check := range map[string]func(*ir.Document) walkCheck{

@@ -42,7 +42,7 @@ type boundSite struct {
 func sitesOf(t *testing.T, doc *ir.Document) []boundSite {
 	t.Helper()
 	property := propertyOf(t, doc, "Holder", "p")
-	parameter, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+	parameter, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, doc.Services[0]), "q")
 	require.True(t, ok)
 	owned := func(id ir.TypeID, ref ir.TypeRef) ir.TypeDef {
 		if ref.Target != id {
@@ -247,16 +247,16 @@ func TestConstraints_AReferenceOutcomeReadsByTheTypesItNames(t *testing.T) {
 	t.Parallel()
 	const targets = "    Str: {type: string}\n    Arr: {type: array, items: {type: string}}\n" +
 		"    Node: {$dynamicAnchor: node, type: string}\n"
-	str := "'#/components/schemas/Str'"
+	stringReference := "'#/components/schemas/Str'"
 	arr := "'#/components/schemas/Arr'"
 	for _, tc := range []struct {
 		name, schema string
 		held, kept   []string
 	}{
-		{"a $ref site", "{$ref: " + str + ", minimum: 1, maxLength: 2}", []string{"maxLength"}, []string{"minimum"}},
-		{"a collapsed union", "{anyOf: [{$ref: " + str + "}, {type: 'null'}], minimum: 1, maxLength: 2}",
+		{"a $ref site", "{$ref: " + stringReference + ", minimum: 1, maxLength: 2}", []string{"maxLength"}, []string{"minimum"}},
+		{"a collapsed union", "{anyOf: [{$ref: " + stringReference + "}, {type: 'null'}], minimum: 1, maxLength: 2}",
 			[]string{"maxLength"}, []string{"minimum"}},
-		{"a refinement", "{allOf: [{$ref: " + str + "}], minimum: 1, maxLength: 2}", []string{"maxLength"}, []string{"minimum"}},
+		{"a refinement", "{allOf: [{$ref: " + stringReference + "}], minimum: 1, maxLength: 2}", []string{"maxLength"}, []string{"minimum"}},
 		{"an expanded $dynamicRef", "{$dynamicRef: '#node', minimum: 1, maxLength: 2}",
 			[]string{"maxLength"}, []string{"minimum"}},
 		{"a $ref site with a type", "{$ref: " + arr + ", type: array, minimum: 1, maxItems: 2}",
@@ -276,8 +276,8 @@ func TestConstraints_AReferenceOutcomeReadsByTheTypesItNames(t *testing.T) {
 				for _, keyword := range tc.kept {
 					assert.False(t, site.holds(keyword), "%s %s", site.pointer, keyword)
 					assert.Equal(t, 1, site.keeps(keyword), "%s %s", site.pointer, keyword)
-					msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, site.pointer)
-					assert.Regexp(t, "no home for .*"+keyword, msg, site.pointer)
+					message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, site.pointer)
+					assert.Regexp(t, "no home for .*"+keyword, message, site.pointer)
 				}
 			}
 		})

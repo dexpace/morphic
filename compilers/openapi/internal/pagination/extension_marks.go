@@ -55,15 +55,15 @@ func (m *marker) marksUse(own ir.Unmodeled, keeper *ir.Provenance, of ir.TypeID)
 	return m.marks(common.Unmodeled, &common.Provenance)
 }
 
-// markedInput resolves where src marks a value of op's request: a parameter, or
+// markedInput resolves where src marks a value of operation's request: a parameter, or
 // a member of its body.
-func (pg *pager) markedInput(op *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
+func (pg *pager) markedInput(operation *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
 	markerValue := &marker{pg: pg, target: target, src: src}
 	var found []*ir.InputPath
 	var read []*ir.Provenance
-	mediaTypes := paramMediaTypes(op)
-	for i := range op.Params {
-		parameter := &op.Params[i]
+	mediaTypes := paramMediaTypes(operation)
+	for i := range operation.Params {
+		parameter := &operation.Params[i]
 		// A mark is a valued fact: the parameter's own key, else the nearest object
 		// it carries writing one.
 		own := promotion.Carried(pg.p, parameter.Unmodeled, promotion.CarrierScopes(mediaTypes[parameter.ID])...)
@@ -71,11 +71,11 @@ func (pg *pager) markedInput(op *ir.Operation, target promotion.ExtensionTarget,
 			found, read = append(found, &ir.InputPath{Param: &parameter.ID}), append(read, keeper)
 		}
 	}
-	body, failure := markerValue.within(op.Request)
+	body, failure := markerValue.within(operation.Request)
 	if body != nil {
 		found, read = append(found, &ir.InputPath{Segments: body.segments}), append(read, body.keeper)
 	}
-	resolvedValue := resolved[*ir.InputPath]{read: read, at: op.Provenance, stated: len(found) > 0 || failure != "",
+	resolvedValue := resolved[*ir.InputPath]{read: read, at: operation.Provenance, stated: len(found) > 0 || failure != "",
 		written: markerValue.written}
 	switch {
 	case failure != "":
@@ -92,13 +92,13 @@ func (pg *pager) markedInput(op *ir.Operation, target promotion.ExtensionTarget,
 // body of the success responses (pageBody), or one of their headers, which
 // must all mark the same one. A member is held by every response declaring a
 // page body, and a header by every response, as an expression's value is.
-func (pg *pager) markedOutput(op *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
+func (pg *pager) markedOutput(operation *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.PropertyPath], string, []ir.Diagnostic) {
 	markerValue := &marker{pg: pg, target: target, src: src}
-	resolvedValue := resolved[*ir.PropPath]{at: op.Provenance}
+	resolvedValue := resolved[*ir.PropertyPath]{at: operation.Provenance}
 	var lacking, bodiedLacking bool // a response marks nothing, one declaring a body among them
-	for i := range op.Responses {
-		body := pageBody(op.Responses[i].Payload)
-		found, failure := markerValue.inResponse(body, op.Responses[i].Headers)
+	for i := range operation.Responses {
+		body := pageBody(operation.Responses[i].Payload)
+		found, failure := markerValue.inResponse(body, operation.Responses[i].Headers)
 		switch {
 		case failure != "":
 			resolvedValue.stated = true
@@ -149,11 +149,11 @@ func (m *marker) inResponse(body *ir.Payload, headers []ir.Header) (*position, s
 }
 
 // path is the page value p names.
-func (p *position) path() *ir.PropPath {
+func (p *position) path() *ir.PropertyPath {
 	if p.header {
-		return &ir.PropPath{In: "header", Segments: p.segments}
+		return &ir.PropertyPath{In: "header", Segments: p.segments}
 	}
-	return &ir.PropPath{Segments: p.segments}
+	return &ir.PropertyPath{Segments: p.segments}
 }
 
 // within returns where m's source marks a value of body, the one position
@@ -373,11 +373,11 @@ func (pg *pager) isModel(id ir.TypeID) bool {
 	return ok
 }
 
-// paramMediaTypes returns the media type each binding of op serializes its
+// paramMediaTypes returns the media type each binding of operation serializes its
 // parameter in, by the parameter's ID: none for one its schema states.
-func paramMediaTypes(op *ir.Operation) map[ir.ParameterID]string {
+func paramMediaTypes(operation *ir.Operation) map[ir.ParameterID]string {
 	out := map[ir.ParameterID]string{}
-	for _, hb := range op.Bindings.HTTP {
+	for _, hb := range operation.Bindings.HTTP {
 		for _, pb := range hb.ParamBindings {
 			out[pb.Param] = pb.ContentType
 		}

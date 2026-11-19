@@ -49,7 +49,7 @@ func soundDocument(n int) *ir.Document {
 // addEntityTypes adds entity i's model, its subtypes, a union over them and an
 // enum to doc, and returns the model.
 func addEntityTypes(doc *ir.Document, i int) *ir.Model {
-	str := ir.TypeRef{Target: "type/primitive/string"}
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
 	model := &ir.Model{ID: ir.TypeID(fmt.Sprintf("type/x/M%d", i)), Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{}}}
 	union := &ir.Union{ID: ir.TypeID(fmt.Sprintf("type/x/U%d", i)), Discriminator: &ir.Discriminator{
 		PropertyName: "w0", Mapping: map[string]ir.TypeID{},
@@ -58,7 +58,7 @@ func addEntityTypes(doc *ir.Document, i int) *ir.Model {
 	for j := range wide {
 		wire := fmt.Sprintf("w%d", j)
 		model.Properties = append(model.Properties, ir.Property{
-			ID: ir.PropertyID(fmt.Sprintf("property/x/M%d/%s", i, wire)), WireName: wire, Type: str, Required: true,
+			ID: ir.PropertyID(fmt.Sprintf("property/x/M%d/%s", i, wire)), WireName: wire, Type: stringType, Required: true,
 			Name:        ir.Naming{Source: wire, Aliases: []string{wire + "a", wire + "b"}},
 			Constraints: &ir.Constraints{MinLength: new(int64(1)), MaxLength: new(int64(10))},
 			Default:     &ir.Value{Kind: ir.ValueString, String: "d"},
@@ -102,7 +102,7 @@ type entityMessages struct {
 // entityOperation returns entity i's operation over model and the channel of
 // messages.
 func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operation {
-	op := ir.Operation{
+	operation := ir.Operation{
 		ID:        ir.OperationID(fmt.Sprintf("operation/x/O%d", i)),
 		Servers:   []ir.ServerID{"server/x/a"},
 		Request:   multipartBody(model),
@@ -110,7 +110,7 @@ func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operati
 		Errors:    []ir.ErrorCase{{Payload: jsonPayload(model.ID)}},
 		Default:   &ir.Response{Payload: jsonPayload(model.ID), Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{}}}},
 	}
-	op.Responses[0].Headers = []ir.Header{{
+	operation.Responses[0].Headers = []ir.Header{{
 		ID: ir.PropertyID(fmt.Sprintf("property/x/O%d/h", i)), Type: ir.TypeRef{Target: "type/primitive/string"},
 		Constraints: &ir.Constraints{MinLength: new(int64(1)), MaxLength: new(int64(10))},
 		Default:     &ir.Value{Kind: ir.ValueString, String: "d"},
@@ -118,24 +118,24 @@ func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operati
 	binding := ir.HTTPBinding{SuccessStatus: map[int]int{0: 200}}
 	for j := range wide {
 		id := ir.ParameterID(fmt.Sprintf("operation/x/O%d/q%d", i, j))
-		op.Params = append(op.Params, ir.Parameter{ID: id, Name: ir.Naming{Source: fmt.Sprintf("q%d", j)}})
+		operation.Params = append(operation.Params, ir.Parameter{ID: id, Name: ir.Naming{Source: fmt.Sprintf("q%d", j)}})
 		binding.ParamBindings = append(binding.ParamBindings, ir.HTTPParamBinding{Param: id, Location: ir.HTTPLocationQuery})
 	}
-	op.Bindings.HTTP = []ir.HTTPBinding{binding}
-	op.Examples = []ir.Example{{Name: "s", Input: &ir.ScenarioInput{
-		Params: map[ir.ParameterID]ir.Value{op.Params[0].ID: {Kind: ir.ValueString, String: "q"}},
+	operation.Bindings.HTTP = []ir.HTTPBinding{binding}
+	operation.Examples = []ir.Example{{Name: "s", Input: &ir.ScenarioInput{
+		Params: map[ir.ParameterID]ir.Value{operation.Params[0].ID: {Kind: ir.ValueString, String: "q"}},
 	}}}
-	op.Pagination = &ir.Pagination{
-		InputCursor: &ir.InputPath{Param: new(op.Params[0].ID)}, InputLimit: &ir.InputPath{Param: new(op.Params[1].ID)},
-		Items: &ir.PropPath{Segments: []ir.PropertyID{model.Properties[0].ID}},
+	operation.Pagination = &ir.Pagination{
+		InputCursor: &ir.InputPath{Param: new(operation.Params[0].ID)}, InputLimit: &ir.InputPath{Param: new(operation.Params[1].ID)},
+		Items: &ir.PropertyPath{Segments: []ir.PropertyID{model.Properties[0].ID}},
 	}
-	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: op.Params[2].ID}
+	operation.Idempotency = ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: operation.Params[2].ID}
 	reply := messages.channel
-	op.Bindings.Message = &ir.MessageBinding{
+	operation.Bindings.Message = &ir.MessageBinding{
 		Channel: messages.channel, Messages: messages.messages,
 		Reply: &ir.Reply{Channel: &reply, Messages: messages.messages},
 	}
-	return op
+	return operation
 }
 
 // multipartBody returns a request body sending model as multipart parts,
@@ -167,7 +167,7 @@ func TestValidate_ASoundValueCostsNothing(t *testing.T) {
 	require.Empty(t, validatedOnce(t, many), "the document is sound, or what is measured is a report")
 
 	pair := soundDocument(2) // every kind of value the walk meets
-	require.NotEmpty(t, pass.KeptPropIDs(t, pair), "an item property is kept for its model to settle")
+	require.NotEmpty(t, pass.KeptPropertyIDs(t, pair), "an item property is kept for its model to settle")
 	assert.Empty(t, irtest.AllocatingVisits(pair, pass.WalkVisitors(t, pair)...), "the walk's visits")
 	walked := pass.WalkAllocs(t, many) - pass.WalkAllocs(t, few)
 	assert.Less(t, walked, float64(entities), "the walk: %v allocations more", walked)

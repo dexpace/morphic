@@ -17,15 +17,15 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// treeOp returns an operation whose summary is its ID and whose one parameter
+// treeOperation returns an operation whose summary is its ID and whose one parameter
 // is named after it.
-func treeOp(id ir.OperationID) ir.Operation {
+func treeOperation(id ir.OperationID) ir.Operation {
 	return ir.Operation{ID: id, Docs: ir.Docs{Summary: string(id)}, Params: []ir.Parameter{{ID: ir.ParameterID(id + "/p")}}}
 }
 
 // treeGroup returns a group whose summary is its ID.
-func treeGroup(id ir.GroupID, ops []ir.Operation, groups ...ir.OperationGroup) ir.OperationGroup {
-	return ir.OperationGroup{ID: id, Docs: ir.Docs{Summary: string(id)}, Operations: ops, Groups: groups}
+func treeGroup(id ir.GroupID, operations []ir.Operation, groups ...ir.OperationGroup) ir.OperationGroup {
+	return ir.OperationGroup{ID: id, Docs: ir.Docs{Summary: string(id)}, Operations: operations, Groups: groups}
 }
 
 // treeService returns a service whose summary is its ID.
@@ -40,10 +40,10 @@ func treeService(id ir.ServiceID, groups ...ir.OperationGroup) ir.Service {
 func treeDoc() *ir.Document {
 	return &ir.Document{IRVersion: ir.IRVersion, Name: "tree", Services: []ir.Service{
 		treeService("service/a",
-			treeGroup("operation-group/a", []ir.Operation{treeOp("o/a1"), treeOp("o/a2"), treeOp("o/a3")},
-				treeGroup("operation-group/a/n", []ir.Operation{treeOp("o/n")})),
-			treeGroup("operation-group/b", []ir.Operation{treeOp("o/b")})),
-		treeService("service/b", treeGroup("operation-group/c", []ir.Operation{treeOp("o/c")})),
+			treeGroup("operation-group/a", []ir.Operation{treeOperation("o/a1"), treeOperation("o/a2"), treeOperation("o/a3")},
+				treeGroup("operation-group/a/n", []ir.Operation{treeOperation("o/n")})),
+			treeGroup("operation-group/b", []ir.Operation{treeOperation("o/b")})),
+		treeService("service/b", treeGroup("operation-group/c", []ir.Operation{treeOperation("o/c")})),
 	}}
 }
 
@@ -67,11 +67,11 @@ func renderGroups(groups []ir.OperationGroup, depth int) string {
 	}
 	parts := make([]string, 0, len(groups))
 	for _, operationGroup := range groups {
-		ops := make([]string, 0, len(operationGroup.Operations))
-		for _, op := range operationGroup.Operations {
-			ops = append(ops, named(string(op.ID), op.Docs))
+		operations := make([]string, 0, len(operationGroup.Operations))
+		for _, operation := range operationGroup.Operations {
+			operations = append(operations, named(string(operation.ID), operation.Docs))
 		}
-		part := named(string(operationGroup.ID), operationGroup.Docs) + "(" + strings.Join(ops, " ") + ")"
+		part := named(string(operationGroup.ID), operationGroup.Docs) + "(" + strings.Join(operations, " ") + ")"
 		if len(operationGroup.Groups) > 0 {
 			part += "[" + renderGroups(operationGroup.Groups, depth-1) + "]"
 		}
@@ -96,15 +96,17 @@ func changed(docs *ir.Docs) { docs.Summary = "changed" }
 // document still holds what it held, byte for byte.
 func TestEditor_WritesTheTreeAndNotTheDocument(t *testing.T) {
 	t.Parallel()
-	updateOp := func(id ir.OperationID) func(*ir.Editor) {
-		return func(editor *ir.Editor) { editor.UpdateOperation(id, func(op *ir.Operation) { changed(&op.Docs) }) }
+	updateOperation := func(id ir.OperationID) func(*ir.Editor) {
+		return func(editor *ir.Editor) {
+			editor.UpdateOperation(id, func(operation *ir.Operation) { changed(&operation.Docs) })
+		}
 	}
 	tests := []struct {
 		name  string
 		write func(*ir.Editor)
 		want  string
 	}{
-		{"update an operation", updateOp("o/a2"),
+		{"update an operation", updateOperation("o/a2"),
 			"service/a[operation-group/a(o/a1 o/a2=changed o/a3)[operation-group/a/n(o/n)] operation-group/b(o/b)] service/b[operation-group/c(o/c)]"},
 		{"update a group", func(editor *ir.Editor) {
 			editor.UpdateGroup("operation-group/a", func(operationGroup *ir.OperationGroup) { changed(&operationGroup.Docs) })
@@ -128,27 +130,27 @@ func TestEditor_WritesTheTreeAndNotTheDocument(t *testing.T) {
 			"service/a[operation-group/a(o/a1 o/a2 o/a3)[operation-group/a/n(o/n)] operation-group/b(o/b)] service/b[]"},
 		{"update past a removal", func(editor *ir.Editor) {
 			editor.RemoveOperation("o/a1")
-			updateOp("o/a3")(editor)
+			updateOperation("o/a3")(editor)
 			editor.RemoveOperation("o/a2")
 		}, "service/a[operation-group/a(o/a3=changed)[operation-group/a/n(o/n)] operation-group/b(o/b)] service/b[operation-group/c(o/c)]"},
 		{"update before a removal", func(editor *ir.Editor) {
-			updateOp("o/a3")(editor)
+			updateOperation("o/a3")(editor)
 			editor.RemoveOperation("o/a1")
-			editor.UpdateOperation("o/a3", func(op *ir.Operation) { op.Docs.Summary += " twice" })
+			editor.UpdateOperation("o/a3", func(operation *ir.Operation) { operation.Docs.Summary += " twice" })
 		}, "service/a[operation-group/a(o/a2 o/a3=changed twice)[operation-group/a/n(o/n)] operation-group/b(o/b)] service/b[operation-group/c(o/c)]"},
 		{"update a group past a removed sibling", func(editor *ir.Editor) {
 			editor.RemoveGroup("operation-group/a")
 			editor.UpdateGroup("operation-group/b", func(operationGroup *ir.OperationGroup) { changed(&operationGroup.Docs) })
-			updateOp("o/b")(editor)
+			updateOperation("o/b")(editor)
 		}, "service/a[operation-group/b=changed(o/b=changed)] service/b[operation-group/c(o/c)]"},
 		{"update a service past a removed one", func(editor *ir.Editor) {
 			editor.RemoveService("service/a")
-			updateOp("o/c")(editor)
+			updateOperation("o/c")(editor)
 			editor.UpdateService("service/b", func(service *ir.Service) { changed(&service.Docs) })
 		}, "service/b=changed[operation-group/c(o/c=changed)]"},
 		{"update a group, then what it holds", func(editor *ir.Editor) {
 			editor.UpdateGroup("operation-group/a", func(operationGroup *ir.OperationGroup) { changed(&operationGroup.Docs) })
-			updateOp("o/a1")(editor)
+			updateOperation("o/a1")(editor)
 			editor.RemoveGroup("operation-group/a/n")
 		}, "service/a[operation-group/a=changed(o/a1=changed o/a2 o/a3) operation-group/b(o/b)] service/b[operation-group/c(o/c)]"},
 	}
@@ -202,7 +204,7 @@ func TestEditor_BuildsOnlyTheTreePathItWrites(t *testing.T) {
 	t.Parallel()
 	doc := treeDoc()
 	editor := ir.NewEditor(doc)
-	editor.UpdateOperation("o/a2", func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation("o/a2", func(operation *ir.Operation) { changed(&operation.Docs) })
 	out, diags := editor.Finish()
 	require.Empty(t, diags)
 
@@ -238,7 +240,7 @@ func TestEditor_BuildsOnlyTheTreePathItWrites(t *testing.T) {
 	_, _ = editor.Operation("o/a2")
 	_, _ = editor.Group("operation-group/a")
 	_, _ = editor.Service("service/a")
-	editor.UpdateOperation("o/a2", func(op *ir.Operation) { op.ID = "o/moved" })
+	editor.UpdateOperation("o/a2", func(operation *ir.Operation) { operation.ID = "o/moved" })
 	editor.UpdateGroup("operation-group/a/n", func(operationGroup *ir.OperationGroup) { operationGroup.ID = "operation-group/moved" })
 	editor.UpdateService("service/b", func(service *ir.Service) { service.ID = "service/moved" })
 	editor.RemoveOperation("o/absent")
@@ -255,14 +257,14 @@ func TestEditor_ReadsTheTreeAsTheEditHoldsIt(t *testing.T) {
 	t.Parallel()
 	doc := treeDoc()
 	editor := ir.NewEditor(doc)
-	editor.UpdateOperation("o/a2", func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation("o/a2", func(operation *ir.Operation) { changed(&operation.Docs) })
 	editor.RemoveOperation("o/a1")
 	editor.RemoveGroup("operation-group/a/n")
 	editor.RemoveService("service/b")
 
-	op, held := editor.Operation("o/a2")
+	irOperation, held := editor.Operation("o/a2")
 	assert.True(t, held)
-	assert.Equal(t, "changed", op.Docs.Summary)
+	assert.Equal(t, "changed", irOperation.Docs.Summary)
 	for _, id := range []ir.OperationID{"o/a1", "o/n", "o/c", "o/absent"} {
 		_, held = editor.Operation(id)
 		assert.False(t, held, "operation %s", id)
@@ -303,7 +305,7 @@ func TestEditor_AReadIsNotChangedByWhatFollows(t *testing.T) {
 	before := map[string]func(*ir.Editor){
 		"nothing written": func(*ir.Editor) {},
 		"an operation updated": func(editor *ir.Editor) {
-			editor.UpdateOperation("o/a3", func(op *ir.Operation) { changed(&op.Docs) })
+			editor.UpdateOperation("o/a3", func(operation *ir.Operation) { changed(&operation.Docs) })
 		},
 		"an operation removed and read": func(editor *ir.Editor) {
 			editor.RemoveOperation("o/a3")
@@ -312,7 +314,7 @@ func TestEditor_AReadIsNotChangedByWhatFollows(t *testing.T) {
 	}
 	after := map[string]func(*ir.Editor){
 		"an update": func(editor *ir.Editor) {
-			editor.UpdateOperation("o/a1", func(op *ir.Operation) { op.Docs.Summary = "later" })
+			editor.UpdateOperation("o/a1", func(operation *ir.Operation) { operation.Docs.Summary = "later" })
 		},
 		"a removal":          func(editor *ir.Editor) { editor.RemoveOperation("o/a1") },
 		"a removal and read": func(editor *ir.Editor) { editor.RemoveOperation("o/a1"); _, _ = editor.Group("operation-group/a") },
@@ -347,14 +349,14 @@ func TestEditor_AReadIsNotChangedByWhatFollows(t *testing.T) {
 func TestEditor_RangingOverAReadSeesEveryNode(t *testing.T) {
 	t.Parallel()
 	editor := ir.NewEditor(treeDoc())
-	editor.UpdateOperation("o/a3", func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation("o/a3", func(operation *ir.Operation) { changed(&operation.Docs) })
 	group, held := editor.Group("operation-group/a")
 	require.True(t, held)
 
 	seen := make([]ir.OperationID, 0, len(group.Operations))
-	for _, op := range group.Operations {
-		seen = append(seen, op.ID)
-		editor.RemoveOperation(op.ID)
+	for _, operation := range group.Operations {
+		seen = append(seen, operation.ID)
+		editor.RemoveOperation(operation.ID)
 		_, _ = editor.Group("operation-group/a")
 	}
 	out, diags := editor.Finish()
@@ -377,9 +379,9 @@ func TestEditor_UpdatesItsNodeWhenItsChangeReadsTheTree(t *testing.T) {
 	}{
 		{"an operation after one removed before it", func(editor *ir.Editor) {
 			editor.RemoveOperation("o/a1")
-			editor.UpdateOperation("o/a3", func(op *ir.Operation) {
+			editor.UpdateOperation("o/a3", func(operation *ir.Operation) {
 				_, _ = editor.Group("operation-group/a")
-				changed(&op.Docs)
+				changed(&operation.Docs)
 			})
 		}, "service/a[operation-group/a(o/a2 o/a3=changed)[operation-group/a/n(o/n)] operation-group/b(o/b)] service/b[operation-group/c(o/c)]"},
 		{"a group after one removed before it", func(editor *ir.Editor) {
@@ -433,15 +435,15 @@ func TestEditor_AChangeKeepingItsNodeMovesNothing(t *testing.T) {
 	t.Parallel()
 	editor := ir.NewEditor(treeDoc())
 	var (
-		op  *ir.Operation
-		grp *ir.OperationGroup
-		svc *ir.Service
+		irOperation *ir.Operation
+		grp         *ir.OperationGroup
+		svc         *ir.Service
 	)
-	editor.UpdateOperation("o/a1", func(operation *ir.Operation) { op = operation })
+	editor.UpdateOperation("o/a1", func(operation *ir.Operation) { irOperation = operation })
 	editor.UpdateGroup("operation-group/b", func(operationGroup *ir.OperationGroup) { grp = operationGroup })
 	editor.UpdateService("service/b", func(service *ir.Service) { svc = service })
-	op.ID, grp.ID, svc.ID = "o/moved", "operation-group/moved", "service/moved"
-	changed(&op.Docs)
+	irOperation.ID, grp.ID, svc.ID = "o/moved", "operation-group/moved", "service/moved"
+	changed(&irOperation.Docs)
 	changed(&grp.Docs)
 	changed(&svc.Docs)
 	out, diags := editor.Finish()
@@ -501,9 +503,9 @@ func TestEditor_RefusesTreeWritesOnlyABugMakes(t *testing.T) {
 		{"update a group with no change", nil, func(editor *ir.Editor) { editor.UpdateGroup("operation-group/a", nil) },
 			`update rejected: no change for "operation-group/a"`},
 		{"update moving an operation", nil, func(editor *ir.Editor) {
-			editor.UpdateOperation("o/a1", func(op *ir.Operation) {
-				op.ID = "o/moved"
-				changed(&op.Docs)
+			editor.UpdateOperation("o/a1", func(operation *ir.Operation) {
+				operation.ID = "o/moved"
+				changed(&operation.Docs)
 			})
 		}, `update rejected: the change moved "o/a1" to "o/moved"; a node keeps its ID`},
 		{"update emptying a group's ID", nil, func(editor *ir.Editor) {
@@ -527,7 +529,7 @@ func TestEditor_RefusesTreeWritesOnlyABugMakes(t *testing.T) {
 			})
 		}, `update rejected: the change of "operation-group/a" set its Operations`},
 		{"update adding a parameter", nil, func(editor *ir.Editor) {
-			editor.UpdateOperation("o/a1", func(op *ir.Operation) { op.Params = append(op.Params, ir.Parameter{ID: "o/x/p"}) })
+			editor.UpdateOperation("o/a1", func(operation *ir.Operation) { operation.Params = append(operation.Params, ir.Parameter{ID: "o/x/p"}) })
 		}, `update rejected: the change of "o/a1" declares the ir.ParameterID "o/x/p", which the node does not; ` +
 			`an edit adds no ID`},
 		{"update after a refused update", func(editor *ir.Editor) { editor.UpdateGroup("operation-group/a", nil) }, func(editor *ir.Editor) {
@@ -564,29 +566,29 @@ func TestEditor_RefusesAnIDTheTreeHoldsTwice(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Services: []ir.Service{
 		treeService("service/x",
-			treeGroup("operation-group/x", []ir.Operation{treeOp("o/x")}),
-			treeGroup("operation-group/y", []ir.Operation{treeOp("o/x"), treeOp("o/y")})),
+			treeGroup("operation-group/x", []ir.Operation{treeOperation("o/x")}),
+			treeGroup("operation-group/y", []ir.Operation{treeOperation("o/x"), treeOperation("o/y")})),
 		treeService("service/x"),
 	}}
 
 	editor := ir.NewEditor(doc)
-	editor.UpdateOperation("o/x", func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation("o/x", func(operation *ir.Operation) { changed(&operation.Docs) })
 	editor.RemoveService("service/x")
-	_, opHeld := editor.Operation("o/x")
+	_, operationHeld := editor.Operation("o/x")
 	_, svcHeld := editor.Service("service/x")
 	editor.RemoveGroup("operation-group/x")
-	editor.UpdateOperation("o/x", func(op *ir.Operation) { changed(&op.Docs) })
-	op, nowHeld := editor.Operation("o/x")
+	editor.UpdateOperation("o/x", func(operation *ir.Operation) { changed(&operation.Docs) })
+	irOperation, nowHeld := editor.Operation("o/x")
 	out, diags := editor.Finish()
 
 	assert.Equal(t, []string{
 		`internal: edit: update rejected: 2 operations have the ID "o/x", so the edit cannot tell which to update`,
 		`internal: edit: remove rejected: 2 services have the ID "service/x", so the edit cannot tell which to remove`,
 	}, refusals(t, diags))
-	assert.False(t, opHeld)
+	assert.False(t, operationHeld)
 	assert.False(t, svcHeld)
 	assert.True(t, nowHeld, "removing one of two operations at an ID leaves the other held")
-	assert.Equal(t, "changed", op.Docs.Summary)
+	assert.Equal(t, "changed", irOperation.Docs.Summary)
 	assert.Equal(t, "service/x[operation-group/y(o/x=changed o/y)] service/x[]", render(out))
 }
 
@@ -610,7 +612,7 @@ func TestEditor_ReachesTheTreeForEachOperationReaches(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Services: []ir.Service{nestedGroups(ir.MaxGroupDepth + 2)}}
 	var walked []ir.OperationID
-	require.True(t, ir.ForEachOperation(doc, func(op ir.Operation) { walked = append(walked, op.ID) }))
+	require.True(t, ir.ForEachOperation(doc, func(operation ir.Operation) { walked = append(walked, operation.ID) }))
 
 	editor := ir.NewEditor(doc)
 	var held []ir.OperationID
@@ -620,7 +622,7 @@ func TestEditor_ReachesTheTreeForEachOperationReaches(t *testing.T) {
 		}
 	}
 	onCap, past := ir.OperationID(fmt.Sprint("o/", ir.MaxGroupDepth)), ir.OperationID(fmt.Sprint("o/", ir.MaxGroupDepth+1))
-	editor.UpdateOperation(onCap, func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation(onCap, func(operation *ir.Operation) { changed(&operation.Docs) })
 	editor.RemoveOperation(past)
 	out, diags := editor.Finish()
 
@@ -632,9 +634,9 @@ func TestEditor_ReachesTheTreeForEachOperationReaches(t *testing.T) {
 	}
 	assert.Len(t, last[0].Groups, 1, "the update on the cap dropped the group past it, which the edit never read")
 	summaries := map[ir.OperationID]string{}
-	ir.ForEachOperation(out, func(op ir.Operation) { summaries[op.ID] = op.Docs.Summary })
+	ir.ForEachOperation(out, func(operation ir.Operation) { summaries[operation.ID] = operation.Docs.Summary })
 	assert.Equal(t, "changed", summaries[onCap], "the update on the cap did not land")
-	ir.ForEachOperation(doc, func(op ir.Operation) { assert.Empty(t, op.Docs.Summary, "the edited document changed") })
+	ir.ForEachOperation(doc, func(operation ir.Operation) { assert.Empty(t, operation.Docs.Summary, "the edited document changed") })
 	got := refusals(t, diags)
 	require.Len(t, got, 1)
 	assert.Contains(t, got[0], fmt.Sprintf(`internal: edit: remove rejected: no operation %q to remove; an edit adds `+
@@ -649,12 +651,12 @@ func TestEditor_ReachesTheTreeForEachOperationReaches(t *testing.T) {
 // looping or writing the edited document.
 func TestEditor_EditsAGroupSliceInsideItself(t *testing.T) {
 	t.Parallel()
-	loop := []ir.OperationGroup{treeGroup("operation-group/loop", []ir.Operation{treeOp("o/loop")})}
+	loop := []ir.OperationGroup{treeGroup("operation-group/loop", []ir.Operation{treeOperation("o/loop")})}
 	loop[0].Groups = loop
 	doc := &ir.Document{Services: []ir.Service{treeService("service/a", loop...)}}
 
 	editor := ir.NewEditor(doc)
-	editor.UpdateOperation("o/loop", func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation("o/loop", func(operation *ir.Operation) { changed(&operation.Docs) })
 	editor.UpdateGroup("operation-group/loop", func(operationGroup *ir.OperationGroup) { changed(&operationGroup.Docs) })
 	updated, _ := editor.Finish()
 	editor = ir.NewEditor(doc)
@@ -682,14 +684,14 @@ func TestEditor_EditsAGroupSliceInsideItself(t *testing.T) {
 // is written into a new slice of that one alone.
 func TestEditor_EditsAroundATreeSliceTwoGroupsShare(t *testing.T) {
 	t.Parallel()
-	shared := []ir.Operation{treeOp("o/both"), treeOp("o/one")}
+	shared := []ir.Operation{treeOperation("o/both"), treeOperation("o/one")}
 	doc := &ir.Document{Services: []ir.Service{
 		treeService("service/a", treeGroup("operation-group/long", shared), treeGroup("operation-group/short", shared[:1])),
 	}}
 
 	editor := ir.NewEditor(doc)
-	editor.UpdateOperation("o/both", func(op *ir.Operation) { changed(&op.Docs) })
-	editor.UpdateOperation("o/one", func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation("o/both", func(operation *ir.Operation) { changed(&operation.Docs) })
+	editor.UpdateOperation("o/one", func(operation *ir.Operation) { changed(&operation.Docs) })
 	out, diags := editor.Finish()
 
 	assert.Equal(t, []string{`internal: edit: update rejected: 2 operations have the ID "o/both", ` +
@@ -705,21 +707,21 @@ func TestEditor_EditsAroundATreeSliceTwoGroupsShare(t *testing.T) {
 // neither read nor written.
 func TestEditor_ReadsAGroupSliceTwoGroupsShareFromEach(t *testing.T) {
 	t.Parallel()
-	shared := []ir.OperationGroup{treeGroup("operation-group/inner", []ir.Operation{treeOp("o/inner")})}
+	shared := []ir.OperationGroup{treeGroup("operation-group/inner", []ir.Operation{treeOperation("o/inner")})}
 	doc := &ir.Document{Services: []ir.Service{
 		treeService("service/a", treeGroup("operation-group/x", nil, shared...), treeGroup("operation-group/y", nil, shared...)),
 	}}
 	var walked []ir.OperationID
-	ir.ForEachOperation(doc, func(op ir.Operation) { walked = append(walked, op.ID) })
+	ir.ForEachOperation(doc, func(operation ir.Operation) { walked = append(walked, operation.ID) })
 	require.Equal(t, []ir.OperationID{"o/inner", "o/inner"}, walked)
 
 	editor := ir.NewEditor(doc)
-	_, opHeld := editor.Operation("o/inner")
+	_, operationHeld := editor.Operation("o/inner")
 	_, groupHeld := editor.Group("operation-group/inner")
-	editor.UpdateOperation("o/inner", func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation("o/inner", func(operation *ir.Operation) { changed(&operation.Docs) })
 	_, diags := editor.Finish()
 
-	assert.False(t, opHeld)
+	assert.False(t, operationHeld)
 	assert.False(t, groupHeld)
 	assert.Equal(t, []string{`internal: edit: update rejected: 2 operations have the ID "o/inner", ` +
 		`so the edit cannot tell which to update`}, refusals(t, diags))
@@ -731,13 +733,13 @@ func groupOf(groups, n int) (*ir.Document, []ir.OperationID) {
 	svc := treeService("service/a")
 	ids := make([]ir.OperationID, 0, groups*n)
 	for g := range groups {
-		ops := make([]ir.Operation, 0, n)
+		operations := make([]ir.Operation, 0, n)
 		for i := range n {
 			id := ir.OperationID(fmt.Sprint("o/", g, "/", i))
-			ops = append(ops, treeOp(id))
+			operations = append(operations, treeOperation(id))
 			ids = append(ids, id)
 		}
-		svc.Groups = append(svc.Groups, treeGroup(ir.GroupID(fmt.Sprint("operation-group/", g)), ops))
+		svc.Groups = append(svc.Groups, treeGroup(ir.GroupID(fmt.Sprint("operation-group/", g)), operations))
 	}
 	return &ir.Document{Services: []ir.Service{svc}}, ids
 }
@@ -777,7 +779,7 @@ func TestEditor_TreeWorkIsLinear(t *testing.T) {
 		}, func(n int) int { return n + n/2 }},
 		{"update every operation", func(n int) (int, int) { return 1, n }, func(editor *ir.Editor, ids []ir.OperationID) {
 			for _, id := range ids {
-				editor.UpdateOperation(id, func(op *ir.Operation) { changed(&op.Docs) })
+				editor.UpdateOperation(id, func(operation *ir.Operation) { changed(&operation.Docs) })
 			}
 		}, func(n int) int { return n }},
 		{"empty many groups", func(n int) (int, int) { return n, 2 }, removeEach, func(n int) int { return 2 * n }},
@@ -837,7 +839,7 @@ func TestEditor_ARepeatedReadBuildsNothing(t *testing.T) {
 	_, _ = editor.Group("operation-group/a")
 	assert.Equal(t, built, ir.TreeWork(editor), "a read built what no write had changed")
 
-	editor.UpdateOperation("o/b", func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation("o/b", func(operation *ir.Operation) { changed(&operation.Docs) })
 	stepped := ir.TreeWork(editor)
 	assert.Equal(t, built+3, stepped, "a write built a slice, or stepped past the path to its node")
 	group, _ := editor.Group("operation-group/b")
@@ -850,7 +852,7 @@ func TestEditor_ARepeatedReadBuildsNothing(t *testing.T) {
 // AllocsPerRun measures the process.
 func TestEditor_AReadOfWhatNoWriteReachedAllocatesNothing(t *testing.T) {
 	editor := ir.NewEditor(treeDoc())
-	editor.UpdateOperation("o/c", func(op *ir.Operation) { changed(&op.Docs) })
+	editor.UpdateOperation("o/c", func(operation *ir.Operation) { changed(&operation.Docs) })
 	_, _ = editor.Group("operation-group/a")
 	assert.Zero(t, testing.AllocsPerRun(10, func() { _, _ = editor.Group("operation-group/a") }))
 	assert.Zero(t, testing.AllocsPerRun(10, func() { _, _ = editor.Service("service/a") }))
@@ -958,11 +960,11 @@ func randomTree(r *rand.Rand) *ir.Document {
 		}
 		var out []ir.OperationGroup
 		for range r.IntN(3) {
-			var ops []ir.Operation
+			var operations []ir.Operation
 			for range r.IntN(4) {
-				ops = append(ops, treeOp(ir.OperationID(id("o/"))))
+				operations = append(operations, treeOperation(ir.OperationID(id("o/"))))
 			}
-			out = append(out, treeGroup(ir.GroupID(id("operation-group/")), ops, groups(depth+1)...))
+			out = append(out, treeGroup(ir.GroupID(id("operation-group/")), operations, groups(depth+1)...))
 		}
 		return out
 	}
@@ -1000,8 +1002,8 @@ func treeIDs(doc *ir.Document) []treeID {
 	walk = func(groups []ir.OperationGroup) {
 		for _, operationGroup := range groups {
 			ids = append(ids, treeID{"group", string(operationGroup.ID)})
-			for _, op := range operationGroup.Operations {
-				ids = append(ids, treeID{"operation", string(op.ID)})
+			for _, operation := range operationGroup.Operations {
+				ids = append(ids, treeID{"operation", string(operation.ID)})
 			}
 			walk(operationGroup.Groups)
 		}
@@ -1029,7 +1031,7 @@ func applyEdit(editor *ir.Editor, edit treeEdit, mark string, read func()) {
 	case edit.remove:
 		editor.RemoveOperation(ir.OperationID(id))
 	default:
-		editor.UpdateOperation(ir.OperationID(id), func(op *ir.Operation) { read(); op.Docs.Summary += mark })
+		editor.UpdateOperation(ir.OperationID(id), func(operation *ir.Operation) { read(); operation.Docs.Summary += mark })
 	}
 }
 
@@ -1062,7 +1064,7 @@ func rewriteGroups(groups *[]ir.OperationGroup, pick treeID, remove bool, mark s
 			operationGroup.Docs.Summary += mark
 			return
 		}
-		if j := slices.IndexFunc(operationGroup.Operations, func(op ir.Operation) bool { return string(op.ID) == pick.id }); j >= 0 &&
+		if j := slices.IndexFunc(operationGroup.Operations, func(operation ir.Operation) bool { return string(operation.ID) == pick.id }); j >= 0 &&
 			pick.class == "operation" {
 			if remove {
 				operationGroup.Operations = slices.Delete(operationGroup.Operations, j, j+1)
@@ -1097,10 +1099,10 @@ func requireReadsAgree(t *testing.T, editor *ir.Editor, model *ir.Document, all 
 			require.True(t, ok, "%s: group %s", at, operationGroup.ID)
 			require.Equal(t, renderGroups([]ir.OperationGroup{operationGroup}, 8), renderGroups([]ir.OperationGroup{got}, 8),
 				"%s: group %s", at, operationGroup.ID)
-			for _, op := range operationGroup.Operations {
-				got, ok := editor.Operation(op.ID)
-				require.True(t, ok, "%s: operation %s", at, op.ID)
-				require.Equal(t, op.Docs, got.Docs, "%s: operation %s", at, op.ID)
+			for _, operation := range operationGroup.Operations {
+				got, ok := editor.Operation(operation.ID)
+				require.True(t, ok, "%s: operation %s", at, operation.ID)
+				require.Equal(t, operation.Docs, got.Docs, "%s: operation %s", at, operation.ID)
 			}
 			check(operationGroup.Groups)
 		}

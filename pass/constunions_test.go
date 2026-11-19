@@ -20,14 +20,14 @@ import (
 	"github.com/dexpace/morphic/pass"
 )
 
-// str is the string value s.
-func str(s string) ir.Value { return ir.Value{Kind: ir.ValueString, String: s} }
+// stringValue is the string value s.
+func stringValue(s string) ir.Value { return ir.Value{Kind: ir.ValueString, String: s} }
 
 // lit is the anonymous string Literal at id holding value, as a compiler
 // lowers a const branch.
 func lit(id ir.TypeID, value string) *ir.Literal {
 	return &ir.Literal{ID: id, Anonymous: true, Name: hinted("variant"),
-		Value: str(value), ValueType: ir.PrimitiveString}
+		Value: stringValue(value), ValueType: ir.PrimitiveString}
 }
 
 // pinned is the anonymous closed Enum at id holding values, as a compiler lowers
@@ -44,9 +44,9 @@ func pinned(id ir.TypeID, values ...string) *ir.Enum {
 // member is the member of the enum at enum holding value, under the ID and the
 // name a compiler gives it.
 func member(enum ir.TypeID, value string) ir.EnumMember {
-	key, _ := ir.EnumMemberKey(str(value))
+	key, _ := ir.EnumMemberKey(stringValue(value))
 	id, _ := ir.EnumMemberIDFor(enum, key, 1 /* occurrence */)
-	return ir.EnumMember{ID: id, Name: ir.NamingFor(value), Value: str(value)}
+	return ir.EnumMember{ID: id, Name: ir.NamingFor(value), Value: stringValue(value)}
 }
 
 // union is the closed, exclusive union at id whose variants name targets.
@@ -103,7 +103,7 @@ func TestConstUnions_ReplacesAUnionOfStringsWithTheirEnum(t *testing.T) {
 	t.Parallel()
 	deprecated := &ir.Deprecation{Message: "gone"}
 	available := &ir.Availability{Added: []string{"v2"}}
-	examples := []ir.Example{{Value: new(str("red"))}}
+	examples := []ir.Example{{Value: new(stringValue("red"))}}
 	unmodeled := ir.Unmodeled{"openapi:x-a": {Reason: ir.ReasonVendorExtension}}
 	tests := []struct {
 		name  string
@@ -196,8 +196,8 @@ func TestConstUnions_ReplacesAUnionOfStringsWithTheirEnum(t *testing.T) {
 			return union("type/x/U", "type/x/U/0", "type/x/U/1"), []ir.TypeDef{lit("type/x/U/0", ""), lit("type/x/U/1", "a/b~c")}
 		}, func(union *ir.Union) []ir.EnumMember {
 			return []ir.EnumMember{
-				{ID: "enum-member/x/U/string:", Name: hinted(ir.EmptyNameHint), Value: str("")},
-				{ID: "enum-member/x/U/string:a~1b~0c", Name: named("a/b~c"), Value: str("a/b~c")},
+				{ID: "enum-member/x/U/string:", Name: hinted(ir.EmptyNameHint), Value: stringValue("")},
+				{ID: "enum-member/x/U/string:a~1b~0c", Name: named("a/b~c"), Value: stringValue("a/b~c")},
 			}
 		}},
 	}
@@ -328,7 +328,7 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 			green.ValueType = ir.PrimitiveDate
 		}},
 		{"a value twice", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
-			green.Members[0].Value = str("red")
+			green.Members[0].Value = stringValue("red")
 		}},
 		{"docs a variant and its branch say", func(union *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
 			union.Variants[0].Docs, red.Docs = ir.Docs{Summary: "a"}, ir.Docs{Summary: "b"}
@@ -340,7 +340,7 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 			union.Variants[1].Availability, green.Members[0].Availability = &ir.Availability{}, &ir.Availability{}
 		}},
 		{"examples a variant and its branch say", func(union *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			union.Variants[0].Examples, red.Examples = []ir.Example{{Value: new(str("red"))}}, []ir.Example{{Value: new(str("red"))}}
+			union.Variants[0].Examples, red.Examples = []ir.Example{{Value: new(stringValue("red"))}}, []ir.Example{{Value: new(stringValue("red"))}}
 		}},
 		{"unmodeled entries a branch and its member say", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
 			green.Unmodeled = ir.Unmodeled{"openapi:x-a": {Reason: ir.ReasonVendorExtension}}

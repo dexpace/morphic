@@ -73,11 +73,11 @@ func TestKindInference_AnUntypedPropertiesSchemaIsMarked(t *testing.T) {
 				assert.Empty(t, members.Unmodeled)
 				require.Len(t, members.Properties, 1)
 				assert.True(t, members.Properties[0].Required)
-				assert.Equal(t, prim(ir.PrimitiveString), members.Properties[0].Type.Target)
+				assert.Equal(t, primitive(ir.PrimitiveString), members.Properties[0].Type.Target)
 
 				holder := kindNode(t, doc, componentID("Holder"))
 				assert.False(t, markedKindInference(holder), "a declared object is not marked")
-				property := holderProps(t, doc)["m"]
+				property := holderProperties(t, doc)["m"]
 				assert.Equal(t, componentID("Members"), property.Type.Target)
 				assert.Empty(t, property.Type.Inferred, "the marker is on the node, not on each use of it")
 			})
@@ -219,7 +219,7 @@ func TestKindInference_DisabledLowersAnUntypedShapeToTheTopType(t *testing.T) {
 					scalar, ok := kindNode(t, doc, componentID(tc.name)).(*ir.Scalar)
 					require.True(t, ok, "%s is the top type with the policy off", tc.name)
 					require.NotNil(t, scalar.Base, tc.name)
-					assert.Equal(t, prim(ir.PrimitiveAny), scalar.Base.Target, tc.name)
+					assert.Equal(t, primitive(ir.PrimitiveAny), scalar.Base.Target, tc.name)
 					want := map[string]ir.UnmodeledReason{}
 					for _, keyword := range tc.kept {
 						want["openapi:"+keyword] = ir.ReasonDegradedLowering
@@ -403,7 +403,7 @@ func assertUntypedOutcome(t *testing.T, doc *ir.Document, name string, want unty
 	require.Equal(t, want.kind, td.Kind(), name)
 	if scalar, ok := td.(*ir.Scalar); ok {
 		require.NotNil(t, scalar.Base, name)
-		assert.Equal(t, prim(want.base), scalar.Base.Target, name)
+		assert.Equal(t, primitive(want.base), scalar.Base.Target, name)
 	}
 	kept := map[string]ir.UnmodeledReason{}
 	for _, keyword := range want.kept {

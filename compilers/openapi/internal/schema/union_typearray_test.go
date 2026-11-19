@@ -22,8 +22,8 @@ import (
 // typeArrayVariant is what one variant of a type array lowers to: the shared
 // primitive prim names, or, where prim is empty, a node of its own holding held.
 type typeArrayVariant struct {
-	prim ir.TypeID
-	held *ir.Constraints
+	primitive ir.TypeID
+	held      *ir.Constraints
 }
 
 // typeArrayCase is a type array and what it lowers to: each variant in its
@@ -38,8 +38,8 @@ type typeArrayCase struct {
 // not to others, with the bounds each variant holds.
 func typeArrayCases() []typeArrayCase {
 	node := func(constraints *ir.Constraints) typeArrayVariant { return typeArrayVariant{held: constraints} }
-	prim := func(primitiveKind ir.PrimitiveKind) typeArrayVariant {
-		return typeArrayVariant{prim: ir.PrimitiveTypeID(primitiveKind)}
+	primitive := func(primitiveKind ir.PrimitiveKind) typeArrayVariant {
+		return typeArrayVariant{primitive: ir.PrimitiveTypeID(primitiveKind)}
 	}
 	one := new(int64(1))
 	return []typeArrayCase{
@@ -50,15 +50,15 @@ func typeArrayCases() []typeArrayCase {
 		{"a bound of each group beside a paired format", "{type: [string, integer], format: date, minimum: 1, minLength: 2}",
 			[]typeArrayVariant{node(&ir.Constraints{MinLength: new(int64(2))}), node(&ir.Constraints{Min: new(ir.BigVal("1"))})}, nil},
 		{"a string bound alone", "{type: [string, integer], maxLength: 3}",
-			[]typeArrayVariant{node(&ir.Constraints{MaxLength: new(int64(3))}), prim(ir.PrimitiveInteger)}, nil},
+			[]typeArrayVariant{node(&ir.Constraints{MaxLength: new(int64(3))}), primitive(ir.PrimitiveInteger)}, nil},
 		{"a numeric bound both numbers take", "{type: [integer, number], minimum: 1}",
 			[]typeArrayVariant{node(&ir.Constraints{Min: new(ir.BigVal("1"))}), node(&ir.Constraints{Min: new(ir.BigVal("1"))})}, nil},
 		{"a bound no listed type takes", "{type: [string, boolean], minimum: 1}",
-			[]typeArrayVariant{prim(ir.PrimitiveString), prim(ir.PrimitiveBool)}, []string{"openapi:minimum"}},
+			[]typeArrayVariant{primitive(ir.PrimitiveString), primitive(ir.PrimitiveBool)}, []string{"openapi:minimum"}},
 		{"a collection bound and a string bound", "{type: [array, string], items: {type: string}, minItems: 1, maxLength: 4}",
 			[]typeArrayVariant{node(&ir.Constraints{MinItems: one}), node(&ir.Constraints{MaxLength: new(int64(4))})}, nil},
 		{"an empty pattern, which bounds nothing", "{type: [string, integer], pattern: ''}",
-			[]typeArrayVariant{prim(ir.PrimitiveString), prim(ir.PrimitiveInteger)}, []string{"openapi:pattern"}},
+			[]typeArrayVariant{primitive(ir.PrimitiveString), primitive(ir.PrimitiveInteger)}, []string{"openapi:pattern"}},
 	}
 }
 
@@ -85,8 +85,8 @@ func TestLower_ATypeArraysBoundLandsOnTheVariantItConstrains(t *testing.T) {
 				require.Len(t, union.Variants, len(tc.variants), site.pointer)
 				for i, want := range tc.variants {
 					got := union.Variants[i].Type.Target
-					if want.prim != "" {
-						assert.Equal(t, want.prim, got, "%s variant %d", site.pointer, i)
+					if want.primitive != "" {
+						assert.Equal(t, want.primitive, got, "%s variant %d", site.pointer, i)
 						continue
 					}
 					assert.Equal(t, ir.TypeID(fmt.Sprintf("type/anonymous%s/type/%d", site.pointer, i)), got, "%s variant %d", site.pointer, i)
@@ -192,8 +192,8 @@ func TestLower_ATypeArraysFormatIsTheVariantsItPairsWith(t *testing.T) {
 				assert.Empty(t, union.Unmodeled, site.pointer)
 				for i, want := range tc.variants {
 					got := union.Variants[i].Type.Target
-					if prim, shared := want.(ir.PrimitiveKind); shared {
-						assert.Equal(t, ir.PrimitiveTypeID(prim), got, "%s variant %d", site.pointer, i)
+					if primitive, shared := want.(ir.PrimitiveKind); shared {
+						assert.Equal(t, ir.PrimitiveTypeID(primitive), got, "%s variant %d", site.pointer, i)
 						continue
 					}
 					sc, isScalar := doc.Types[got].(*ir.Scalar)

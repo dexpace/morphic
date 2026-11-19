@@ -56,7 +56,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	model := typeByName(doc, "D").(*ir.Model)
 	assert.NotEmpty(t, model.Docs.ExternalDocs)
-	byWire := openapitest.PropsByWire(model.Properties)
+	byWire := openapitest.PropertiesByWire(model.Properties)
 	require.NotNil(t, byWire["withXml"].XML)
 	assert.Equal(t, new(true), byWire["withXml"].XML.Attribute)
 	assert.Equal(t, "urn:x", byWire["withXml"].XML.Namespace)
@@ -132,7 +132,7 @@ func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	model := doc.Types[componentID("S")].(*ir.Model)
-	byName := openapitest.PropsByWire(model.Properties)
+	byName := openapitest.PropertiesByWire(model.Properties)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, byName["r"].Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, byName["w"].Visibility)
 }
@@ -153,14 +153,14 @@ func TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	model := doc.Types[componentID("S")].(*ir.Model)
-	byName := openapitest.PropsByWire(model.Properties)
+	byName := openapitest.PropertiesByWire(model.Properties)
 
 	assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, byName["both"].Visibility)
 	assert.NotEqual(t, byName["r"].Visibility, byName["both"].Visibility,
 		"declaring both flags must not lower exactly as declaring readOnly alone does")
-	msg := openapitest.DiagMessageAt(t, diags, diag.DisjointVisibility, ir.SeverityWarning,
+	message := openapitest.DiagMessageAt(t, diags, diag.DisjointVisibility, ir.SeverityWarning,
 		"/components/schemas/S/properties/both")
-	assert.Contains(t, msg, "writeOnly", "the report names the keyword that was being dropped")
+	assert.Contains(t, message, "writeOnly", "the report names the keyword that was being dropped")
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DisjointVisibility, ir.SeverityWarning),
 		"the property declaring one flag is not reported")
 }
@@ -258,7 +258,7 @@ func TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty(t *testing.T) 
 
 			model, ok := doc.Types[componentID("A")].(*ir.Model)
 			require.True(t, ok)
-			property, ok := openapitest.PropsByWire(model.Properties)["p"]
+			property, ok := openapitest.PropertiesByWire(model.Properties)["p"]
 			require.True(t, ok)
 			assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target,
 				"the property's own type is unchanged by the outside reference")
@@ -286,7 +286,7 @@ func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
 
 	owner, ok := doc.Types[componentID("A")].(*ir.Model)
 	require.True(t, ok)
-	property, ok := openapitest.PropsByWire(owner.Properties)["p"]
+	property, ok := openapitest.PropertiesByWire(owner.Properties)["p"]
 	require.True(t, ok)
 	assert.Empty(t, property.Docs.Description, "the node the schema owns is the one home")
 	assert.Nil(t, property.Deprecation)
@@ -314,7 +314,7 @@ func TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode(t *testing.T) {
 
 	owner, ok := doc.Types[componentID("A")].(*ir.Model)
 	require.True(t, ok)
-	property, ok := openapitest.PropsByWire(owner.Properties)["p"]
+	property, ok := openapitest.PropertiesByWire(owner.Properties)["p"]
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target, "a property keeps resolving to the shared primitive")
 	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/A/properties/p"))
@@ -473,7 +473,7 @@ components:
 
 	holder, ok := typeByName(lowerer.Document(t), "Holder").(*ir.Model)
 	require.True(t, ok, "Holder must own a Model node")
-	property, ok := openapitest.PropsByWire(holder.Properties)["f"]
+	property, ok := openapitest.PropertiesByWire(holder.Properties)["f"]
 	require.True(t, ok, "property f must be present")
 	require.Len(t, property.Examples, 1, "the example beside the $ref must bind the property")
 	require.NotNil(t, property.Examples[0].Value)

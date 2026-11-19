@@ -394,8 +394,8 @@ func TestSelect_IsRepeatableAndLeavesTheTreeAlone(t *testing.T) {
 func TestSelect_ComparesByEachRuleOfRFC9535(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name, a, op, b string
-		holds          bool
+		name, a, operator, b string
+		holds                bool
 	}{
 		{"a date and its quoted twin", "2021-01-01", "==", "'2021-01-01'", true},
 		{"a hexadecimal and a decimal", "0x10", "==", "16", true},
@@ -419,7 +419,7 @@ func TestSelect_ComparesByEachRuleOfRFC9535(t *testing.T) {
 			t.Parallel()
 			root := readTree(t, "[{a: "+tc.a+", b: "+tc.b+"}]")
 
-			got, _, err := selectWithin(t, "$[?@.a "+tc.op+" @.b]", root, budget.Unbounded())
+			got, _, err := selectWithin(t, "$[?@.a "+tc.operator+" @.b]", root, budget.Unbounded())
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.holds, len(got) == 1)

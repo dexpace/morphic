@@ -165,24 +165,24 @@ func isSubtype(doc *Document, target, base TypeID, left *int) (sub, ok bool) {
 // It is the relation's definition, walked afresh for one root. A caller asking
 // many of one document asks irfacts.DocumentFacts, which is held to it.
 func ExposedProperties(doc *Document, root TypeID) map[PropertyID]bool {
-	props := map[PropertyID]bool{}
+	properties := map[PropertyID]bool{}
 	left := math.MaxInt
 	exposedWalk(doc, root, &left, func(propertyID PropertyID) bool {
-		props[propertyID] = true
+		properties[propertyID] = true
 		return false
 	})
-	return props
+	return properties
 }
 
-// ExposesWithin answers whether [ExposedProperties] holds prop by the same
-// walk, which stops at the first type declaring prop, in at most limit steps:
+// ExposesWithin answers whether [ExposedProperties] holds property by the same
+// walk, which stops at the first type declaring property, in at most limit steps:
 // one for root and for each part source it follows, and one for each property
 // it reads. spent is the steps it took, and ok is false when the walk needed
 // more than limit and stopped without an answer.
-func ExposesWithin(doc *Document, root TypeID, prop PropertyID, limit int) (exposed bool, spent int, ok bool) {
+func ExposesWithin(doc *Document, root TypeID, property PropertyID, limit int) (exposed bool, spent int, ok bool) {
 	left := limit
 	ok = exposedWalk(doc, root, &left, func(propertyID PropertyID) bool {
-		exposed = propertyID == prop
+		exposed = propertyID == property
 		return exposed
 	})
 	return exposed, limit - left, ok

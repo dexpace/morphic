@@ -134,17 +134,17 @@ func (w *stubWalk) Admits(at ir.Provenance, _ JSONInstanceKind) (admits, exact b
 // declaration at pointer names.
 func composedAt(pointer jsontext.Pointer) ir.TypeID { return "type/composed" + ir.TypeID(pointer) }
 
-// mintedProp is the ID a field the declaration at pointer names takes where
+// mintedProperty is the ID a field the declaration at pointer names takes where
 // another model carries its first declaration (identify).
-func mintedProp(pointer jsontext.Pointer) ir.PropertyID {
-	return ids.DocumentIDNamespace{}.ComposedProp(pointer)
+func mintedProperty(pointer jsontext.Pointer) ir.PropertyID {
+	return ids.DocumentIDNamespace{}.ComposedProperty(pointer)
 }
 
 // foldTwo folds src, rendered by source, into dst, a first declaration
 // rendered as firstSource: the pair the walk hands over for one redeclared
 // field.
 func foldTwo(stubbedValue *stubbed, dst, src ir.Property, source DeclarationConstructRenderer) ir.Property {
-	return stubbedValue.fold([]declaration{{prop: dst, source: written(firstSource)}, {prop: src, source: source}})
+	return stubbedValue.fold([]declaration{{property: dst, source: written(firstSource)}, {property: src, source: source}})
 }
 
 // firstSource is how foldTwo renders its first declaration.
@@ -160,12 +160,12 @@ func indexOver(model *ir.Model, stubbedValue *stubbed) (idx *ModelPropertyDeclar
 	}
 }
 
-// TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole pins what frees the
+// TestPropertyIndex_ARedeclarationFoldsOnceTheRegistryIsWhole pins what frees the
 // fold from declaration order (GitHub #898): the walk lands a wire name's first
 // declaration and records every later one, the model hands its folds over
 // once, and the fold reads the registry it settles against, which holds nodes
 // the walk had not built when it met the declarations.
-func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
+func TestPropertyIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	t.Parallel()
 	reg := ir.TypeRegistry{"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString}}
 	model := &ir.Model{ID: "type/m"}
@@ -176,14 +176,14 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	}
 	firsts := make([]bool, 0, 5)
 	for _, d := range []struct {
-		prop   ir.Property
-		source DeclarationConstructRenderer
+		property ir.Property
+		source   DeclarationConstructRenderer
 	}{
 		{redeclared("type/str", "0"), written(`{"type":"string"}`)}, {w("0"), unread(t)},
 		{redeclared("type/uri", "1"), unread(t)}, {w("1"), unread(t)},
 		{redeclared("type/bool", "2"), written(`{"type":"boolean"}`)},
 	} {
-		firsts = append(firsts, idx.MergeProperty(d.prop, d.source, ""))
+		firsts = append(firsts, idx.MergeProperty(d.property, d.source, ""))
 	}
 
 	assert.Equal(t, []bool{false, false, true, false, false}, firsts,
@@ -207,10 +207,10 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	assert.Equal(t, ir.TypeID("type/str"), model.Properties[1].Type.Target, "a field declared once is left as declared")
 }
 
-// TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing pins the common path:
+// TestPropertyIndex_AModelDeclaringEachNameOnceQueuesNothing pins the common path:
 // a model whose properties are each declared once has nothing to fold, so it
 // hands no settlement over.
-func TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing(t *testing.T) {
+func TestPropertyIndex_AModelDeclaringEachNameOnceQueuesNothing(t *testing.T) {
 	t.Parallel()
 	model := &ir.Model{ID: "type/m"}
 	idx := NewModelPropertyDeclarations(model)

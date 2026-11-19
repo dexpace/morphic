@@ -19,24 +19,24 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// wholeOf is a Document over a document whose one service holds op in its one
+// wholeOf is a Document over a document whose one service holds operation in its one
 // group, and the operation as it holds it, which is the one Params reads.
-func wholeOf(op ir.Operation) (*compileddoc.CompiledDocumentView, *ir.Operation) {
-	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}}
+func wholeOf(operation ir.Operation) (*compileddoc.CompiledDocumentView, *ir.Operation) {
+	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}}}}}
 	compiledDocumentView := compileddoc.New(doc)
 	return compiledDocumentView, &doc.Services[0].Groups[0].Operations[0]
 }
 
-// prop is a member of a model with the ID id, the wire name wire and the type
+// property is a member of a model with the ID id, the wire name wire and the type
 // at target.
-func prop(id ir.PropertyID, wire string, target ir.TypeID) ir.Property {
+func property(id ir.PropertyID, wire string, target ir.TypeID) ir.Property {
 	return ir.Property{ID: id, WireName: wire, Type: ir.TypeRef{Target: target}}
 }
 
-// model is the model id declaring props, shaped further by mutate.
-func model(id ir.TypeID, mutate func(*ir.Model), props ...ir.Property) *ir.Model {
+// model is the model id declaring properties, shaped further by mutate.
+func model(id ir.TypeID, mutate func(*ir.Model), properties ...ir.Property) *ir.Model {
 	return irtest.ModelOf(id, func(model *ir.Model) {
-		model.Properties = props
+		model.Properties = properties
 		if mutate != nil {
 			mutate(model)
 		}
@@ -50,27 +50,27 @@ func model(id ir.TypeID, mutate func(*ir.Model), props ...ir.Property) *ir.Model
 // group nested deeper. The order within a group's nested groups is left open.
 func TestDocument_ListsEveryOperationOnce(t *testing.T) {
 	t.Parallel()
-	op := func(id string) ir.Operation { return ir.Operation{ID: ir.OperationID(id)} }
+	operationWithID := func(id string) ir.Operation { return ir.Operation{ID: ir.OperationID(id)} }
 	var chain []ir.OperationGroup
 	for level := ir.MaxGroupDepth + 1; level >= 1; level-- {
-		chain = []ir.OperationGroup{{Operations: []ir.Operation{op(fmt.Sprintf("operation/%d", level))}, Groups: chain}}
+		chain = []ir.OperationGroup{{Operations: []ir.Operation{operationWithID(fmt.Sprintf("operation/%d", level))}, Groups: chain}}
 	}
 	doc := &ir.Document{Services: []ir.Service{
 		{Groups: []ir.OperationGroup{
-			{Operations: []ir.Operation{op("operation/a"), op("operation/b")}},
-			{Operations: []ir.Operation{op("operation/c")}},
+			{Operations: []ir.Operation{operationWithID("operation/a"), operationWithID("operation/b")}},
+			{Operations: []ir.Operation{operationWithID("operation/c")}},
 			{Groups: []ir.OperationGroup{
-				{Operations: []ir.Operation{op("operation/d")}},
-				{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op("operation/e")}}}},
+				{Operations: []ir.Operation{operationWithID("operation/d")}},
+				{Groups: []ir.OperationGroup{{Operations: []ir.Operation{operationWithID("operation/e")}}}},
 			}},
 		}},
-		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op("operation/f")}}, {Groups: chain}}},
+		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{operationWithID("operation/f")}}, {Groups: chain}}},
 	}}
 	compiledDocumentView := compileddoc.New(doc)
 
-	got := make([]ir.OperationID, 0, len(compiledDocumentView.Ops))
+	got := make([]ir.OperationID, 0, len(compiledDocumentView.Operations))
 	seen := map[ir.OperationID]bool{}
-	for _, operation := range compiledDocumentView.Ops {
+	for _, operation := range compiledDocumentView.Operations {
 		got = append(got, operation.ID)
 		assert.False(t, seen[operation.ID], "%s is listed once", operation.ID)
 		seen[operation.ID] = true
@@ -83,11 +83,11 @@ func TestDocument_ListsEveryOperationOnce(t *testing.T) {
 	for _, id := range above {
 		assert.True(t, seen[id], "%s is listed", id)
 	}
-	assert.Len(t, compiledDocumentView.Ops, len(above)+ir.MaxGroupDepth, "those above, and one per level of the chain to the cap")
+	assert.Len(t, compiledDocumentView.Operations, len(above)+ir.MaxGroupDepth, "those above, and one per level of the chain to the cap")
 	assert.True(t, seen[ir.OperationID(fmt.Sprintf("operation/%d", ir.MaxGroupDepth))], "the group at the cap is read")
 	assert.False(t, seen[ir.OperationID(fmt.Sprintf("operation/%d", ir.MaxGroupDepth+1))], "the group past it is not")
 
-	compiledDocumentView.Ops[0].Pagination = &ir.Pagination{}
+	compiledDocumentView.Operations[0].Pagination = &ir.Pagination{}
 	assert.NotNil(t, doc.Services[0].Groups[0].Operations[0].Pagination, "an operation is read in place")
 }
 
@@ -96,20 +96,20 @@ func TestDocument_ListsEveryOperationOnce(t *testing.T) {
 // binding appended after that are in no answer.
 func TestDocument_IndexesParametersOnce(t *testing.T) {
 	t.Parallel()
-	compiledDocumentView, op := wholeOf(ir.Operation{
+	compiledDocumentView, operation := wholeOf(ir.Operation{
 		ID:     "operation/x",
 		Params: []ir.Parameter{{ID: "parameter/q", Name: ir.Naming{Source: "q"}}},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+		Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 			ParamBindings: []ir.HTTPParamBinding{{Param: "parameter/q", Location: ir.HTTPLocationQuery}},
 		}}},
 	})
-	first := compiledDocumentView.Params(op)
+	first := compiledDocumentView.Params(operation)
 	require.Equal(t, []ir.ParameterID{"parameter/q"}, first.Bound(ir.HTTPLocationQuery, "q"))
 
-	op.Params = append(op.Params, ir.Parameter{ID: "parameter/r", Name: ir.Naming{Source: "r"}})
-	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
+	operation.Params = append(operation.Params, ir.Parameter{ID: "parameter/r", Name: ir.Naming{Source: "r"}})
+	operation.Bindings.HTTP[0].ParamBindings = append(operation.Bindings.HTTP[0].ParamBindings,
 		ir.HTTPParamBinding{Param: "parameter/r", Location: ir.HTTPLocationQuery})
-	second := compiledDocumentView.Params(op)
+	second := compiledDocumentView.Params(operation)
 	assert.Equal(t, []ir.ParameterID{"parameter/q"}, second.Bound(ir.HTTPLocationQuery, "q"), "what it indexed first")
 	assert.Empty(t, second.Bound(ir.HTTPLocationQuery, "r"), "and not what was added after")
 	assert.Empty(t, first.Bound(ir.HTTPLocationQuery, "r"))
@@ -143,29 +143,29 @@ func aliasChain(name string, length int, to ir.TypeID) []ir.TypeDef {
 // as a union and through alias chains to the cap and past it.
 func bodyShapes() map[string]bodyShape {
 	chained := func(length int) ir.TypeRegistry {
-		return irtest.DocOf(append(aliasChain("body", length, "m"), model("m", nil, prop("m.a", "a", "string")))...).Types
+		return irtest.DocOf(append(aliasChain("body", length, "m"), model("m", nil, property("m.a", "a", "string")))...).Types
 	}
 	nullable := func(id ir.PropertyID, wire string, target ir.TypeID) ir.Property {
-		property := prop(id, wire, target)
+		property := property(id, wire, target)
 		property.Type.Nullable = true
 		return property
 	}
-	child := model("child", nil, prop("child.v", "v", "string"))
+	child := model("child", nil, property("child.v", "v", "string"))
 	return map[string]bodyShape{
 		"an alias of a model": {
 			types: irtest.DocOf(irtest.ScalarOf("body", "alias"), irtest.ScalarOf("alias", "m"),
-				model("m", nil, prop("m.a", "a", "string"), prop("m.b", "b", "string"))).Types,
+				model("m", nil, property("m.a", "a", "string"), property("m.b", "b", "string"))).Types,
 			root: "body",
 		},
 		"an allOf redeclaring a member": {
 			types: irtest.DocOf(
-				model("m", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "base"} }, prop("m.n", "n", "string")),
-				model("base", nil, prop("base.n", "n", "string"), prop("base.k", "k", "string"))).Types,
+				model("m", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "base"} }, property("m.n", "n", "string")),
+				model("base", nil, property("base.n", "n", "string"), property("base.k", "k", "string"))).Types,
 			root:  "m",
 			taken: map[string]ir.PropertyID{"n": "m.n"},
 		},
 		"members that are references": {
-			types: irtest.DocOf(model("m", nil, prop("m.c", "c", "child"), prop("m.d", "d", "child")), child).Types,
+			types: irtest.DocOf(model("m", nil, property("m.c", "c", "child"), property("m.d", "d", "child")), child).Types,
 			root:  "m",
 		},
 		"a nullable body with nullable members": {
@@ -175,21 +175,21 @@ func bodyShapes() map[string]bodyShape {
 		},
 		"one base composed twice": {
 			types: irtest.DocOf(
-				model("m", func(model *ir.Model) { model.Mixins = irtest.RefsTo("x", "y") }, prop("m.own", "own", "string")),
-				model("x", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "z"} }, prop("x.n", "n", "string")),
+				model("m", func(model *ir.Model) { model.Mixins = irtest.RefsTo("x", "y") }, property("m.own", "own", "string")),
+				model("x", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "z"} }, property("x.n", "n", "string")),
 				model("y", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "z"} }),
-				model("z", nil, prop("z.n", "n", "string"), prop("z.k", "k", "string"))).Types,
+				model("z", nil, property("z.n", "n", "string"), property("z.k", "k", "string"))).Types,
 			root:  "m",
 			taken: map[string]ir.PropertyID{"n": "x.n"},
 		},
 		"a oneOf body": {
 			types: irtest.DocOf(&ir.Union{ID: "u", Exclusive: true, Variants: []ir.Variant{{Type: ir.TypeRef{Target: "m"}}}},
-				model("m", nil, prop("m.n", "n", "string"))).Types,
+				model("m", nil, property("m.n", "n", "string"))).Types,
 			root: "u", none: true,
 		},
 		"an anyOf body": {
 			types: irtest.DocOf(&ir.Union{ID: "u", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "m"}}}},
-				model("m", nil, prop("m.n", "n", "string"))).Types,
+				model("m", nil, property("m.n", "n", "string"))).Types,
 			root: "u", none: true,
 		},
 		"an alias chain to the cap": {types: chained(compileddoc.MaxAliasHops), root: "body000"},
@@ -243,9 +243,9 @@ func TestDocument_MemberAgreesWithMembers(t *testing.T) {
 func TestDocument_WalkNamesEachMemberFromTheRoot(t *testing.T) {
 	t.Parallel()
 	types := irtest.DocOf(
-		model("type/page", nil, prop("property/info", "info", "type/info"), prop("property/items", "items", "type/text"),
-			prop("property/aliased", "aliased", "type/infoalias")),
-		model("type/info", nil, prop("property/next", "next", "type/text")),
+		model("type/page", nil, property("property/info", "info", "type/info"), property("property/items", "items", "type/text"),
+			property("property/aliased", "aliased", "type/infoalias")),
+		model("type/info", nil, property("property/next", "next", "type/text")),
 		irtest.ScalarOf("type/infoalias", "type/info"),
 		irtest.ScalarOf("type/pagealias", "type/page"),
 		&ir.Scalar{ID: "type/text"},
@@ -286,7 +286,7 @@ func TestDocument_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 	t.Parallel()
 	defs := slices.Concat(
 		[]ir.TypeDef{
-			model("m", nil, prop("m.a", "a", "string")),
+			model("m", nil, property("m.a", "a", "string")),
 			irtest.ScalarOf("loop1", "loop2"), irtest.ScalarOf("loop2", "loop1"),
 			irtest.ScalarOf("dangling", "gone"), irtest.ScalarOf("toNil", "nil"),
 		},
@@ -313,20 +313,20 @@ func TestDocument_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 func TestDocument_HeaderMatchesTheNameWithoutCase(t *testing.T) {
 	t.Parallel()
 	headers := []ir.Header{
-		{Property: prop("h/rate", "X-Rate", "type/text")},
-		{Property: prop("h/next", "Link", "type/text")},
-		{Property: prop("h/again", "x-rate", "type/text")},
+		{Property: property("h/rate", "X-Rate", "type/text")},
+		{Property: property("h/next", "Link", "type/text")},
+		{Property: property("h/again", "x-rate", "type/text")},
 	}
 	compiledDocumentView := compileddoc.New(&ir.Document{})
-	at := compileddoc.ResponseKey{Op: "operation/x"}
+	at := compileddoc.ResponseKey{Operation: "operation/x"}
 	assert.Equal(t, []ir.PropertyID{"h/rate", "h/again"}, compiledDocumentView.Header(at, headers, "X-RATE"))
 	assert.Equal(t, []ir.PropertyID{"h/next"}, compiledDocumentView.Header(at, headers, "link"))
 	assert.Empty(t, compiledDocumentView.Header(at, headers, "ETag"))
 
-	other := []ir.Header{{Property: prop("h/other", "X-Rate", "type/text")}}
+	other := []ir.Header{{Property: property("h/other", "X-Rate", "type/text")}}
 	assert.Equal(t, []ir.PropertyID{"h/rate", "h/again"}, compiledDocumentView.Header(at, other, "x-rate"), "a key's first read is kept")
 	for _, key := range []compileddoc.ResponseKey{
-		{Op: "operation/x", List: compileddoc.ListErrors}, {Op: "operation/x", Index: 1}, {Op: "operation/y"},
+		{Operation: "operation/x", List: compileddoc.ListErrors}, {Operation: "operation/x", Index: 1}, {Operation: "operation/y"},
 	} {
 		assert.Equal(t, []ir.PropertyID{"h/other"}, compiledDocumentView.Header(key, other, "x-rate"), "%+v is a response of its own", key)
 	}
@@ -339,16 +339,18 @@ func TestDocument_HeaderMatchesTheNameWithoutCase(t *testing.T) {
 // not run in parallel, since the count is process-wide.
 func TestDocument_ReadsOnceAndAllocatesNothingAfter(t *testing.T) {
 	compiledDocumentView := compileddoc.New(&ir.Document{
-		Types:    irtest.DocOf(model("type/page", nil, prop("property/info", "info", "type/info"))).Types,
+		Types:    irtest.DocOf(model("type/page", nil, property("property/info", "info", "type/info"))).Types,
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "operation/x"}}}}}},
 	})
-	op := compiledDocumentView.Ops[0]
-	headers := []ir.Header{{Property: prop("h/rate", "X-Rate", "type/text")}}
+	operation := compiledDocumentView.Operations[0]
+	headers := []ir.Header{{Property: property("h/rate", "X-Rate", "type/text")}}
 	reads := map[string]func(){
-		"a model's member":   func() { compiledDocumentView.Member("type/page", "info") },
-		"a model's members":  func() { compiledDocumentView.Members("type/page") },
-		"a parameter index":  func() { compiledDocumentView.Params(op) },
-		"a response headers": func() { compiledDocumentView.Header(compileddoc.ResponseKey{Op: "operation/x"}, headers, "x-rate") },
+		"a model's member":  func() { compiledDocumentView.Member("type/page", "info") },
+		"a model's members": func() { compiledDocumentView.Members("type/page") },
+		"a parameter index": func() { compiledDocumentView.Params(operation) },
+		"a response headers": func() {
+			compiledDocumentView.Header(compileddoc.ResponseKey{Operation: "operation/x"}, headers, "x-rate")
+		},
 	}
 	for name, read := range reads {
 		read()
@@ -366,7 +368,7 @@ func TestDocument_ABodyReadFlattensNoModel(t *testing.T) {
 		t.Run(fmt.Sprint(k), func(t *testing.T) {
 			t.Parallel()
 			defs := make([]ir.TypeDef, 0, 1+k)
-			defs = append(defs, model("a", nil, prop("a.a", "a", "string")))
+			defs = append(defs, model("a", nil, property("a.a", "a", "string")))
 			payload := &ir.Payload{}
 			for i := range k {
 				id := ir.TypeID(fmt.Sprintf("b%02d", i))
@@ -394,8 +396,8 @@ func TestDocument_ABodyReadFlattensNoModel(t *testing.T) {
 // the document flattens none.
 func TestDocument_APromotionNoMemberMarksFlattensNoModel(t *testing.T) {
 	t.Parallel()
-	page := model("type/page", nil, prop("property/items", "items", "type/list"), prop("property/next", "next", "type/text"))
-	op := ir.Operation{
+	page := model("type/page", nil, property("property/items", "items", "type/list"), property("property/next", "next", "type/text"))
+	operation := ir.Operation{
 		ID: "operation/list",
 		Responses: []ir.Response{{Payload: &ir.Payload{Contents: []ir.Content{
 			{MediaType: "application/json", Type: ir.TypeRef{Target: "type/page"}},
@@ -403,7 +405,7 @@ func TestDocument_APromotionNoMemberMarksFlattensNoModel(t *testing.T) {
 	}
 	compiledDocumentView := compileddoc.New(&ir.Document{
 		Types:    irtest.DocOf(page, &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/text"}}, &ir.Scalar{ID: "type/text"}).Types,
-		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}},
+		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}}}},
 	})
 	promoter := promotion.New(promotion.ExtensionPromotions{
 		Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
@@ -424,7 +426,7 @@ func TestDocument_APromotionNoMemberMarksFlattensNoModel(t *testing.T) {
 func TestDocument_MembersFlattensAModelOnceWhateverNamesIt(t *testing.T) {
 	t.Parallel()
 	compiledDocumentView := compileddoc.New(&ir.Document{Types: irtest.DocOf(
-		model("m", nil, prop("m.a", "a", "string")), irtest.ScalarOf("one", "m"), irtest.ScalarOf("two", "one"),
+		model("m", nil, property("m.a", "a", "string")), irtest.ScalarOf("one", "m"), irtest.ScalarOf("two", "one"),
 	).Types})
 	flattenings := compileddoc.CountFlattenings(compiledDocumentView)
 	want := compiledDocumentView.Members("m")

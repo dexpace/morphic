@@ -23,13 +23,13 @@ func TestAllOf_AnEntryLoweringAsItsValueSetIsReadAsBesideTheAllOf(t *testing.T) 
 	for _, tc := range []struct {
 		name, s, want string
 	}{
-		{"a const outside its type", `{allOf: [` + refStr + `, {type: integer, const: z}]}`,
+		{"a const outside its type", `{allOf: [` + refString + `, {type: integer, const: z}]}`,
 			"allOf/0: string, allOf/1/type: integer, allOf/1/const: string)"},
 		{"a const beside a union of another kind",
 			`{allOf: [{$ref: '#/components/schemas/U'}, {const: 1, oneOf: [{type: string}, {type: boolean}]}]}`,
 			"allOf/1/const: integer, allOf/1/oneOf: string or boolean)"},
 		{"a const and an enum of two kinds", `{allOf: [{$ref: '#/components/schemas/U'}, {const: 1, enum: [a]}]}`, ""},
-		{"an empty enum, which nothing elects", `{allOf: [` + refStr + `, {enum: []}]}`, "allOf/1: no value)"},
+		{"an empty enum, which nothing elects", `{allOf: [` + refString + `, {enum: []}]}`, "allOf/1: no value)"},
 	} {
 		doc, diags := parseFull(t, disjointSpec(tc.s, ""))
 		require.NotNil(t, doc, tc.name)

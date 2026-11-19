@@ -27,7 +27,7 @@ func TestInferWalks_ReadsTheBodyMembersEveryContentHolds(t *testing.T) {
       responses:`, 1)
 	for _, written := range inEitherOrder(t, src) {
 		doc, diags := compile(t, written, openapi.Options{})
-		assert.Nil(t, openapitest.FindOp(t, doc, "search").Pagination)
+		assert.Nil(t, openapitest.FindOperation(t, doc, "search").Pagination)
 		assert.Empty(t, diags)
 	}
 
@@ -36,8 +36,8 @@ func TestInferWalks_ReadsTheBodyMembersEveryContentHolds(t *testing.T) {
 		okResult), openapi.Options{})
 	assert.Empty(t, diags)
 	assert.Equal(t, &ir.Pagination{Strategy: ir.PageStrategyPage, Inferred: true, InputCursor: inputPath("", q+"/page"),
-		InputLimit: inputPath("", q+"/per_page"), Items: propPath(bodyProps("search", "post") + "/result")},
-		openapitest.FindOp(t, doc, "search").Pagination)
+		InputLimit: inputPath("", q+"/per_page"), Items: propertyPath(bodyProperties("search", "post") + "/result")},
+		openapitest.FindOperation(t, doc, "search").Pagination)
 }
 
 // TestInferWalks_SaysWhyAPostIsNoWalk holds the reasons a POST is left with
@@ -58,7 +58,7 @@ func TestInferWalks_SaysWhyAPostIsNoWalk(t *testing.T) {
 			t.Parallel()
 			for _, src := range inEitherOrder(t, tc.src) {
 				doc, diags := compile(t, src, openapi.Options{})
-				assert.Nil(t, openapitest.FindOp(t, doc, "search").Pagination)
+				assert.Nil(t, openapitest.FindOperation(t, doc, "search").Pagination)
 				got := undecidedAt(diags, postUndecided)
 				require.Len(t, got, 1)
 				assert.Contains(t, got[0], tc.want)
@@ -91,15 +91,15 @@ func TestInferWalks_ReadsALinkWalkOnlyOffAPage(t *testing.T) {
 		{"a root holding no list of items", linkWalkDoc("get", "things", "", "",
 			`{type: object, properties: {next: `+uriString+`, count: {type: integer}}}`), nil, ""},
 		{"a Link header beside a bodyless response", bodyless, &ir.Pagination{Strategy: ir.PageStrategyLinkHeader,
-			Inferred: true, Items: propPath(), Stop: []ir.PageStop{ir.PageStopNoNext}}, ""},
+			Inferred: true, Items: propertyPath(), Stop: []ir.PageStop{ir.PageStopNoNext}}, ""},
 		{"a Link header of no plain string", linkWalkDoc("get", "things", "", `Link: {schema: {type: integer}}`,
 			stringList), nil, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, src := range inEitherOrder(t, tc.src) {
-				op, _, diags := listOp(t, src, openapi.Options{})
-				assert.Equal(t, tc.want, op.Pagination)
+				operation, _, diags := listOperation(t, src, openapi.Options{})
+				assert.Equal(t, tc.want, operation.Pagination)
 				if tc.finding == "" {
 					assert.Empty(t, diags)
 					continue
