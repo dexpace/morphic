@@ -19,8 +19,8 @@ type Wire struct {
 	SpecURL    string `yaml:"specURL"`
 }
 
-// bidi hides a right-to-left override in a string literal.
-const bidi = "‮" // want "found dangerous unicode character sequence RIGHT-TO-LEFT-OVERRIDE (bidichk)"
+// bidirectionalOverride hides a right-to-left override in a string literal.
+const bidirectionalOverride = "‮" // want "found dangerous unicode character sequence RIGHT-TO-LEFT-OVERRIDE (bidichk)"
 
 func init() {} // want "don't use `init` function (gochecknoinits)"
 

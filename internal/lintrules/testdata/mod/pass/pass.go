@@ -42,7 +42,7 @@ func Prune(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	e.ReplaceType(&ir.Any{TypeCommon: ir.TypeCommon{ID: "type/pass/any"}})
 	e.RemoveService("service/pass/unused")
 	e.UpdateGroup("operation-group/pass/kept", func(g *ir.OperationGroup) { g.Docs.Summary = "kept" })
-	e.UpdateOperation("o/pass/kept", func(op *ir.Operation) { op.Params = op.Params[:0] })
+	e.UpdateOperation("o/pass/kept", func(operation *ir.Operation) { operation.Params = operation.Params[:0] })
 	e.RemoveOperation("o/pass/unused")
 	e.UpdateChannel("c/pass/kept", func(c *ir.Channel) { c.Bindings = nil })
 	e.RemoveMessage("m/pass/unused")

@@ -51,8 +51,8 @@ func spell[T ~string]() T {
 	return "type/graphql/generic" // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
 }
 
-// opID converts to a type parameter only an ID satisfies.
-func opID[T interface{ ir.OperationID }](s string) T {
+// operationID converts to a type parameter only an ID satisfies.
+func operationID[T interface{ ir.OperationID }](s string) T {
 	return T(s) // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
 }
 
