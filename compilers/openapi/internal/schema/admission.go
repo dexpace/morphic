@@ -362,8 +362,8 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 func (w *admissionWalk) readOwn(st *statement.Statement) *admission {
 	own := admissionReader{c: w.c, reads: budget.New(budget.Unbounded()), members: budget.New(budget.Unbounded())}
 	r := &admission{reads: 1, admitted: own.written(st.Schema, definesNullableAt(w.c, st))}
-	r.admits = declaredInstanceTypes(st.Schema) & valueKinds(w.c, st.Schema)
-	r.firm, r.claims = r.admits, claimedKinds(w.c, st.Schema)
+	r.firm, r.claims = ownKinds(w.c, st.Schema)
+	r.admits = r.firm
 	r.partial = narrowedWithin(w.c.Statements(), st.Schema)
 	r.members = min(own.members.Spent(), maxAdmissionMembers+1)
 	if !r.within() {
@@ -372,6 +372,15 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *admission {
 	r.cut = own.members.Exhausted()
 	r.loose = declaresDynamicRef(st.Schema) && st.Ref == nil || looseIn(st.Schema)
 	return r
+}
+
+// ownKinds returns the kinds the keywords s writes itself leave: firm, those
+// its type declares met with those its value sets hold (valueKinds), and
+// claims, those the kind-inference policy reads off its shape keywords
+// (claimedKinds). It is the one reading of them, the walk's (readOwn) and that
+// of a schema read with its union left out (restKinds).
+func ownKinds(c lowering.Ctx, s *statement.Schema) (firm, claims kindSet) {
+	return declaredInstanceTypes(s) & valueKinds(c, s), claimedKinds(c, s)
 }
 
 // join is what any of a union's settled branches admits, declares and lowers
