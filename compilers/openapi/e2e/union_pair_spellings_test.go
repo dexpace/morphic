@@ -236,8 +236,8 @@ func singleExplains(view func(int, string) pairView, i int) bool {
 // anyOf, of each pair above, beside each body above or none, lower alike in
 // the flat spelling and the six allOf spellings, in either order of the
 // entries, the branches, the keywords and the components: the same kind of
-// node, the same variants and their nullability, the same keys kept with the
-// same reasons and the same findings, wherever each stands (GitHub #2011).
+// node, as many variants with the same nullability, the same keys kept with
+// the same reasons and the same findings, wherever each stands (GitHub #2011).
 func TestElection_AUnionPairLowersAlikeInEverySpelling(t *testing.T) {
 	t.Parallel()
 	for group, why := range pairOpen {
