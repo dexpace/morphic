@@ -255,9 +255,9 @@ func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 	assert.Equal(t, 2, reads, "each type of answer is read once")
 }
 
-// TestRemembered_KeepsWhatAReadingRemembers pins a reading that asks Remembered
-// for another key of its own types: the answer it remembered is kept beside
-// its own.
+// TestRemembered_KeepsWhatAReadingRemembers pins a reading that asks
+// ReadOncePerRun for another key of its own types: the answer it remembered is
+// kept beside its own.
 func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
 	t.Parallel()
 	serviceContext := servicetest.Context(t, bindingsSpec, service.Policy{})

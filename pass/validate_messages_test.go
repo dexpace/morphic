@@ -127,10 +127,10 @@ func TestValidate_ReplyMessagesCarriedAreClean(t *testing.T) {
 		"a reply with a dynamic address declares no channel to be a subset of")
 }
 
-// replyOnItsOwnChannelDoc returns the shape a request-reply pair normally takes:
-// the operation binds chan/a carrying msg/a, and answers on chan/reply carrying
-// msg/reply. The two message sets are disjoint, so which channel the reply is
-// judged against is observable.
+// replyOnItsOwnChannelDoc returns the shape a request-reply pair normally
+// takes: the operation binds channel/a carrying message/a, and answers on
+// channel/reply carrying message/reply. The two message sets are disjoint, so
+// which channel the reply is judged against is observable.
 func replyOnItsOwnChannelDoc(replyUsed []ir.MessageID) *ir.Document {
 	doc := messageBindingDoc("channel/a", []ir.MessageID{"message/a"}, []ir.MessageID{"message/a"})
 	doc.Messages["message/reply"] = ir.Message{ID: "message/reply", Name: ir.Naming{Source: "reply"}}

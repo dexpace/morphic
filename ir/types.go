@@ -500,16 +500,18 @@ type MapT struct {
 
 // Tuple is a positional sequence: a type for each leading position, then the
 // type of whatever follows them (prefixItems and items, TypeSpec tuples, Erlang
-// tuples) (docs/ir/containers.md). Elems types positions without requiring
-// them: how many elements an instance must hold is Constraints.MinItems, so a
-// tuple of fixed length sets it to len(Elems) and has no Rest.
+// tuples) (docs/ir/containers.md). ElementTypes types positions without
+// requiring them: how many elements an instance must hold is
+// Constraints.MinItems, so a tuple of fixed length sets it to len(ElementTypes)
+// and has no Rest.
 type Tuple struct {
 	TypeCommon
 	// ElementTypes are the element types in position order.
 	ElementTypes []TypeRef `json:"elementTypes,omitempty"`
-	// Rest types every element past Elems; nil = no element may follow them.
+	// Rest types every element past ElementTypes; nil = no element may follow
+	// them.
 	Rest *TypeRef `json:"rest,omitzero"`
-	// Constraints bounds the whole instance, Elems and Rest together
+	// Constraints bounds the whole instance, ElementTypes and Rest together
 	// (minItems/maxItems/uniqueItems).
 	Constraints *Constraints `json:"constraints,omitzero"`
 }

@@ -909,7 +909,7 @@ components:
 // settles in. A form body another document declares is built only once every
 // lowering has returned, after its part keys were queued, and its part `file`
 // is redeclared over a node built later still, so the fold waits too. The
-// part's Filename is read off the type that fold settles on, bytes; read
+// part's HasFilename is read off the type that fold settles on, bytes; read
 // before it, the first declaration's string would leave the part unflagged.
 func TestExternalContent_APartFlagReadsTheFoldedType(t *testing.T) {
 	t.Parallel()

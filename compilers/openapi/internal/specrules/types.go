@@ -8,8 +8,8 @@ import "slices"
 // Kind names an OpenAPI object. The zero value is no object.
 type Kind uint8
 
-// The objects of the specification. Raw values (an example, a default) are
-// not objects: a field holding one has the Any shape.
+// The objects of the specification. Raw values (an example, a default) are not
+// objects: a field holding one has the AnyShapeUnchecked shape.
 const (
 	Document Kind = 1 + iota
 	Info
@@ -46,7 +46,8 @@ const (
 // Shape is the form a field's value takes in the source.
 type Shape uint8
 
-// The shapes a value takes. Any, the zero value, leaves a value unchecked.
+// The shapes a value takes. AnyShapeUnchecked, the zero value, leaves a value
+// unchecked.
 const (
 	AnyShapeUnchecked Shape = iota
 	String

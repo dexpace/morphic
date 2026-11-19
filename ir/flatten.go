@@ -131,7 +131,7 @@ type member struct {
 
 // frame is a model the walk has met: the next of its composition entries to
 // follow, the number met gives it, its low-link as Tarjan's algorithm keeps
-// it, equal to num only for the first model of a component the walk met, and
+// it, equal to number only for the first model of a component the walk met, and
 // how many models were finished when it was met.
 type frame struct {
 	id     TypeID

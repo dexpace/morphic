@@ -267,11 +267,11 @@ func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 }
 
 // TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles holds a repeated part's
-// Filename to its elements: bytes, through the aliases a hoisted position puts
-// over them, one naming only a media type among them, are files in a multipart
-// body, a tuple's only where every element it admits is, and neither a form
-// body's nor a base64 element, nor a model, nor an element that names no node,
-// is read as one.
+// HasFilename to its elements: bytes, through the aliases a hoisted position
+// puts over them, one naming only a media type among them, are files in a
+// multipart body, a tuple's only where every element it admits is, and neither
+// a form body's nor a base64 element, nor a model, nor an element that names no
+// node, is read as one.
 func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 	t.Parallel()
 	lowerer := newRawLowerer(&soa.OpenAPI{})

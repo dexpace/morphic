@@ -20,7 +20,8 @@ import (
 )
 
 // typeArrayVariant is what one variant of a type array lowers to: the shared
-// primitive prim names, or, where prim is empty, a node of its own holding held.
+// primitive node primitive names, or, where primitive is empty, a node of its
+// own holding held.
 type typeArrayVariant struct {
 	primitive ir.TypeID
 	held      *ir.Constraints

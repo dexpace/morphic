@@ -16,7 +16,7 @@ import (
 // numeric literal in canonical form at nothing, whatever its parts: it asks
 // ir.NewBigVal for the canonical form, which hands such a literal back as it
 // is, where rendering the canonical form to compare costs a string per
-// literal. Both carriers are reached, a Value's Num and a bound held by
+// literal. Both carriers are reached, a Value's Number and a bound held by
 // pointer. It is not run in parallel: AllocsPerRun measures the process.
 func TestCheckBigVals_VisitingCostsNoAllocation(t *testing.T) {
 	bound := func(bigVal ir.BigVal) *ir.BigVal { return &bigVal }

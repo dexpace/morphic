@@ -521,8 +521,8 @@ func TestVerify_MessageNamespaceIsDeclared(t *testing.T) {
 }
 
 // TestVerify_ChannelNamespaceIsDeclared is the channel's half of the namespace
-// check, and shows an undeclared kind is no unknown one: "chan" and "msg" are
-// kinds a declaration may key.
+// check, and shows an undeclared kind is no unknown one: "channel" and
+// "message" are kinds a declaration may key.
 func TestVerify_ChannelNamespaceIsDeclared(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()

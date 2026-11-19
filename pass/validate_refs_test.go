@@ -387,8 +387,9 @@ func TestValidate_DanglingRefInMessagePayload(t *testing.T) {
 }
 
 // TestValidate_DanglingRefsAcrossContainerKinds gives every reference a
-// container TypeDef carries (Scalar base/encoding, List elem, MapT key+value,
-// Tuple elems and rest) a dangling target, so each must be reported once.
+// container TypeDef carries (Scalar base/encoding, List element type, MapT
+// key+value, Tuple element types and rest) a dangling target, so each must be
+// reported once.
 func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()

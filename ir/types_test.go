@@ -87,7 +87,7 @@ func typeDefZeroShapeTests() []struct {
 }
 
 // TestPrimitive_PopulatedRoundTrip pins that a fully populated Primitive
-// (TypeCommon plus Prim) round-trips.
+// (TypeCommon plus PrimitiveKind) round-trips.
 func TestPrimitive_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Primitive{

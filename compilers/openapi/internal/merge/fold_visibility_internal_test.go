@@ -30,11 +30,11 @@ func TestFold_VisibilityAdoptedFromRedeclaration(t *testing.T) {
 // TestFold_DisjointVisibilityIsARestrictionNotAConflict pins both
 // halves of the choice for an allOf pairing that admits no lifecycle at all
 // (readOnly against writeOnly on the same field). mergeVisibility represents it
-// exactly as None, so it is recorded rather than dropped and kept — nothing is
-// arbitrarily discarded, as it would be for an incompatible-type
-// redeclaration. But exact is not unremarkable: a
-// field neither a request nor a response can carry is a composition that cannot
-// take effect, so it is warned about under its own code.
+// exactly as InvisibleInEveryLifecycle, so it is recorded rather than dropped
+// and kept — nothing is arbitrarily discarded, as it would be for an
+// incompatible-type redeclaration. But exact is not unremarkable: a field
+// neither a request nor a response can carry is a composition that cannot take
+// effect, so it is warned about under its own code.
 func TestFold_DisjointVisibilityIsARestrictionNotAConflict(t *testing.T) {
 	t.Parallel()
 	stubbed, recorded := stubMerger(nil)
@@ -52,10 +52,11 @@ func TestFold_DisjointVisibilityIsARestrictionNotAConflict(t *testing.T) {
 // TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced pins the half
 // of the report guard the disjoint case above cannot reach. The warning is about
 // the transition — two restricted entries whose intersection empties — not
-// about the state of being invisible, so a side that was already None merges
-// quietly. Drop that half of the condition and every later redeclaration of an
-// invisible field re-announces a fact the document has already been told, which
-// no assertion in the disjoint case would notice.
+// about the state of being invisible, so a side that was already
+// InvisibleInEveryLifecycle merges quietly. Drop that half of the condition and
+// every later redeclaration of an invisible field re-announces a fact the
+// document has already been told, which no assertion in the disjoint case would
+// notice.
 func TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

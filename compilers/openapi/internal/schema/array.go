@@ -71,9 +71,9 @@ func listedItems(schema *statement.Schema) (int, bool) {
 }
 
 // itemsSchema returns the one schema schema writes `items` as, and the zero
-// Sub, which names none, where it writes a list, a tuple, whose entries no
-// reader of one items schema reads: the parser's model holds the false schema
-// there.
+// Subschema, which names none, where it writes a list, a tuple, whose entries
+// no reader of one items schema reads: the parser's model holds the false
+// schema there.
 func itemsSchema(schema *statement.Schema) statement.Subschema {
 	if _, listed := listedItems(schema); listed || schema == nil || schema.Array == nil {
 		return statement.Subschema{}
@@ -82,7 +82,7 @@ func itemsSchema(schema *statement.Schema) statement.Subschema {
 }
 
 // buildListedTuple lowers the n schemas schema writes `items` as a list of into
-// a Tuple's Elems, the `additionalItems` beside them into its Rest, its
+// a Tuple's ElementTypes, the `additionalItems` beside them into its Rest, its
 // Constraints being cons. The parser's model holds none of them, so each is the
 // schema the load phase built at its position (reftable.Landing). An absent
 // additionalItems leaves every element past them unconstrained, as `true` does,
@@ -175,15 +175,16 @@ func heldAt(loweringContext lowering.Ctx, pointer jsontext.Pointer) *statement.S
 	return loweringContext.Statements().At(loweringContext.Position(pointer))
 }
 
-// buildTuple lowers prefixItems into a Tuple's Elems, the items beside them
-// into its Rest, its Constraints being cons.
+// buildTuple lowers prefixItems into a Tuple's ElementTypes, the items beside
+// them into its Rest, its Constraints being cons.
 //
 // 2020-12 applies items to every element past prefixItems, so `items: false`
 // leaves no Rest. Any other lowers as a List's items does, under the same name,
 // since /items is named alike whichever node holds it (lowering.NameAt). An absent one
 // lowers to the top type as `items: true` does, though only the latter makes an
-// unevaluatedItems beside it inert. No field is derived from another: Elems is
-// never trimmed to maxItems, and a closed tuple gains no maxItems.
+// unevaluatedItems beside it inert. No field is derived from another:
+// ElementTypes is never trimmed to maxItems, and a closed tuple gains no
+// maxItems.
 func buildTuple(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []statement.Subschema,
 	cons *ir.Constraints,
 ) (ir.TypeDef, []ir.Diagnostic) {

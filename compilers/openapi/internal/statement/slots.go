@@ -10,10 +10,10 @@ import (
 )
 
 // The slots' values, one struct per slot and one field per keyword, each
-// typed as the parser reads the keyword: a count as *int64, a schema as a Sub,
-// and an instance as its node. A numeric bound, and a keyword the parser's
-// model does not hold, is the node it was written as, nil for a null, since
-// the lowering reads a bound as the decimal its text spells
+// typed as the parser reads the keyword: a count as *int64, a schema as a
+// Subschema, and an instance as its node. A numeric bound, and a keyword the
+// parser's model does not hold, is the node it was written as, nil for a null,
+// since the lowering reads a bound as the decimal its text spells
 // (specrules.Field.Decimal).
 
 // Kinds is what `type` and `nullable` say.

@@ -1062,8 +1062,9 @@ type valueKind struct {
 	primitive ir.PrimitiveKind
 	format    string
 	// unjudged marks a string format whose values an Encoding writes in a text
-	// of its own, as http-date writes a datetime_offset, so prim's grammar,
-	// which reads prim's own text, judges none of them (rewritesText).
+	// of its own, as http-date writes a datetime_offset, so primitive's
+	// grammar, which reads primitive's own text, judges none of them
+	// (rewritesText).
 	unjudged bool
 }
 

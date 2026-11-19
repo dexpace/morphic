@@ -86,10 +86,10 @@ func withoutTypes(doc *ir.Document, ids []ir.TypeID) *ir.Document {
 }
 
 // use is what a decorator stands for: the first type along its Base chain that
-// is no decorator, the chain's annotations, merged nearest first, and lent, the
-// Docs and Deprecation of that type, which a property, parameter or header
-// takes after the chain's, as a reference to the type lends them
-// (docs/ir/annotations.md#what-a-reference-carries-down).
+// is no decorator, the chain's annotations, merged nearest first, and
+// fallbackAnnotations, the Docs and Deprecation of that type, which a property,
+// parameter or header takes after the chain's, as a reference to the type lends
+// them (docs/ir/annotations.md#what-a-reference-carries-down).
 type use struct {
 	target              ir.TypeID
 	notes               annotations

@@ -22,7 +22,7 @@ import (
 // normalized media type: content types, per-part headers, and the arrangement
 // a query parameter's value takes (arrangement). A field the table says has no
 // effect under mt is kept verbatim instead (keepIgnoredFields). The structural
-// flags (Multi, Filename) come from the part, not from here.
+// flags (RepeatsPerArrayItem, HasFilename) come from the part, not from here.
 //
 // It returns what the object declared that PartEncoding has no field for as a
 // second value rather than writing it, because PartEncoding carries no

@@ -349,7 +349,7 @@ components:
 // declares for it (docs/compilers/openapi.md#allof-redeclared-property): one
 // key whichever the allOf lists last, with the flags read off the type the
 // member keeps, the later entry's, as no value is both, which is reported
-// where the declaration that lost is written. Both are files, so Filename
+// where the declaration that lost is written. Both are files, so HasFilename
 // shows nothing either way.
 func TestPartEncodings_KeyedOnTheMemberTheBodyDeclares(t *testing.T) {
 	t.Parallel()
@@ -480,10 +480,11 @@ components:
 	assert.Equal(t, []string{"image/png"}, content.Encoding[want].ContentTypes)
 }
 
-// TestPartEncoding_FlagsComeFromTheMergedType holds a part's Multi and Filename
-// to the type the allOf merge settled on, not to whichever entry declared the
-// name first. The merge keeps the narrower declaration in either order, so a
-// flag read from the first declaration differs between the two orders.
+// TestPartEncoding_FlagsComeFromTheMergedType holds a part's
+// RepeatsPerArrayItem and HasFilename to the type the allOf merge settled on,
+// not to whichever entry declared the name first. The merge keeps the narrower
+// declaration in either order, so a flag read from the first declaration
+// differs between the two orders.
 func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 	t.Parallel()
 	const binary = `{type: string, format: binary}`

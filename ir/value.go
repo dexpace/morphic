@@ -54,8 +54,9 @@ const (
 //
 // irverify holds this contract: a populated field the kind does not select is
 // ir/value-stray-payload, an absent one it does select is
-// ir/value-missing-payload (number, ref and ctor only; the other kinds' zero
-// payload is a real value), and an undeclared kind is ir/unknown-value-kind.
+// ir/value-missing-payload (number, reference and constructor only; the other
+// kinds' zero payload is a real value), and an undeclared kind is
+// ir/unknown-value-kind.
 type Value struct {
 	// Kind selects the meaningful payload field.
 	Kind ValueKind `json:"kind"`

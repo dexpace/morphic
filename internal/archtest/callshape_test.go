@@ -65,7 +65,7 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// Remembered and Settled each call the function they are handed before
+		// ReadOncePerRun and Settled each call the function they are handed before
 		// they return: immediate callbacks. operation's are a union's file reading
 		// and the store of what parts read of unions.
 		"compilers/openapi/internal/operation": 2,

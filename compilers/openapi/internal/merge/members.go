@@ -44,9 +44,9 @@ func DeclaredAt(propertyDecl ir.PropertyDecl) Declared {
 // would take one of by where it reads it, judging none. Each fold reads them in
 // the order the walk met them, an entry's where it met the entry, so a $ref
 // and the schema it names written inline fold alike, but for a tie the entry
-// settled. tables holds the Table of each type the model composes
-// (ComposedOf), settled first, and shared the names more than one model
-// declares. It returns the model's Table.
+// settled. tables holds the RedeclaredWireNameTable of each type the model
+// composes (ComposedOf), settled first, and shared the names more than one
+// model declares. It returns the model's RedeclaredWireNameTable.
 func (idx *ModelPropertyDeclarations) Settle(merger Merger, tables map[ir.TypeID]RedeclaredWireNameTable, shared map[string]bool) ([]ir.Diagnostic, RedeclaredWireNameTable) {
 	brought, inherited := idx.brought(merger, tables)
 	diags := make([]ir.Diagnostic, 0, len(idx.byWire))
@@ -64,10 +64,10 @@ func (idx *ModelPropertyDeclarations) Settle(merger Merger, tables map[ir.TypeID
 	return diags, idx.members(shared, inherited)
 }
 
-// members returns the model's Table once settled: each name its parts leave
-// one declaration of, and each shared one it declares itself, which stands
-// over theirs, its type written where its fold says (Merger.typeSites) or,
-// where one declaration alone decides it, there.
+// members returns the model's RedeclaredWireNameTable once settled: each name
+// its parts leave one declaration of, and each shared one it declares itself,
+// which stands over theirs, its type written where its fold says
+// (Merger.typeSites) or, where one declaration alone decides it, there.
 func (idx *ModelPropertyDeclarations) members(shared map[string]bool, inherited RedeclaredWireNameTable) RedeclaredWireNameTable {
 	out := make(RedeclaredWireNameTable, len(inherited))
 	maps.Copy(out, inherited)

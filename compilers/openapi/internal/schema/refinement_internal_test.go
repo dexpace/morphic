@@ -134,8 +134,9 @@ func TestFoldingAllOfEntries_ReadsASchemaOnce(t *testing.T) {
 }
 
 // TestNullableFoldingEntries_ReadsASchemaOnce pins that the entries widening a
-// schema are read once a run, as its voicing is, since every use of the schema
-// asks: its allOf goes after the first read, so only a remembered answer stays.
+// schema are read once a run, as its allOfEntryFolding is, since every use of
+// the schema asks: its allOf goes after the first read, so only a remembered
+// answer stays.
 func TestNullableFoldingEntries_ReadsASchemaOnce(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}

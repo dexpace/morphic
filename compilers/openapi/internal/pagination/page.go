@@ -54,7 +54,8 @@ type object struct {
 	id     ir.TypeID
 }
 
-// scalar is a member whose type is the primitive prim, a walk sending it.
+// scalar is a member whose type is the primitive kind primitive, a walk sending
+// it.
 type scalar struct {
 	member    *ir.Property
 	primitive ir.PrimitiveKind

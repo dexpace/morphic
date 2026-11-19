@@ -232,7 +232,7 @@ func (c cases) unit(at []int, versionValue version, targetValue target) (written
 // Left out of a unit whose second writes no member, the construct leaves an
 // entry spelling wrap's document; left beside a row's second, it leaves that
 // row's case. A keyword the target's body writes already is replaced by the
-// construct, so no case leaves it out (Document.Replaces).
+// construct, so no case leaves it out (CaseDocument.Replaces).
 func (c cases) neighbours(doc *harness.CaseDocument, versionValue version, targetValue target, at []int) {
 	if at[2] == 0 || (at[2]-1)%2 != 0 {
 		return

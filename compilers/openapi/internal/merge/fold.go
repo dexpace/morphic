@@ -110,9 +110,9 @@ func (g *Merger) judgeAt(a, b []ir.Provenance) typeJudge {
 type declaration struct {
 	property ir.Property
 	source   DeclarationConstructRenderer
-	// secretBy names the heuristics that set prop.Secret, empty where a keyword
-	// declared it. prop.Provenance.Inferred cannot say: one marker covers every
-	// fact a promotion read into the declaration.
+	// secretBy names the heuristics that set property.Secret, empty where a
+	// keyword declared it. property.Provenance.Inferred cannot say: one marker
+	// covers every fact a promotion read into the declaration.
 	secretBy ir.Inferred
 	// order is where the walk met the declaration among the model's
 	// declarations and entries (ModelPropertyDeclarations).

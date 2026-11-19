@@ -45,9 +45,10 @@ func roleOf(canonical string) role {
 }
 
 // inputs are the places a walk sends: cursor carries where it continues
-// under strategy, prim being its primitive, and limit is the page size, nil
-// where none is named. strict reports that the operation is a POST, whose page
-// is read by the narrower rules a create cannot meet (pageKey.strict).
+// under strategy, primitive being its primitive kind, and limit is the page
+// size, nil where none is named. strict reports that the operation is a POST,
+// whose page is read by the narrower rules a create cannot meet
+// (pageKey.strict).
 type inputs struct {
 	strategy  ir.PageStrategy
 	cursor    place

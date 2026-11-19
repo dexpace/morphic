@@ -32,7 +32,8 @@ func partsOf(t *testing.T, doc *ir.Document, operationName string) (map[string]i
 }
 
 // partOf is a part encoding stating the content type ct, empty for none, and
-// the structural flags flags spells: "M" for Multi and "F" for Filename.
+// the structural flags flags spells: "M" for RepeatsPerArrayItem and "F" for
+// HasFilename.
 func partOf(ct, flags string) ir.PartEncoding {
 	pe := ir.PartEncoding{RepeatsPerArrayItem: strings.Contains(flags, "M"), HasFilename: strings.Contains(flags, "F")}
 	if ct != "" {

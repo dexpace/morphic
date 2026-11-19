@@ -141,7 +141,8 @@ func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 // property whose schema writes both flags: they admit disjoint lifecycle sets,
 // so the property is admitted by none. Declaring both used to lower exactly as
 // declaring readOnly alone did, in silence, while the same pairing spread over
-// two allOf entries already intersected to None and warned (GitHub #276).
+// two allOf entries already intersected to InvisibleInEveryLifecycle and warned
+// (GitHub #276).
 func TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    S:

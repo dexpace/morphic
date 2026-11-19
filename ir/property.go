@@ -61,7 +61,8 @@ const (
 // lifecycles.
 type Visibility struct {
 	// Only lists the lifecycles the property is visible in; empty = visible in
-	// all (unless None). It is a set: no entry is blank or repeated.
+	// all (unless InvisibleInEveryLifecycle). It is a set: no entry is blank or
+	// repeated.
 	Only []Lifecycle `json:"only,omitempty"`
 	// InvisibleInEveryLifecycle marks a property visible in NO lifecycle,
 	// excluded from every projection (TypeSpec @invisible); distinct from the

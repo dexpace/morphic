@@ -26,7 +26,7 @@ type entryStack struct {
 }
 
 // mapEntry is one map entry paired with its key as a path spells it, which also
-// orders the walk: label for a labelled key, num for an integer one.
+// orders the walk: label for a labelled key, number for an integer one.
 type mapEntry struct {
 	key    reflect.Value
 	value  reflect.Value
@@ -42,8 +42,8 @@ type keyForm uint8
 
 const (
 	labelledKey keyForm = iota // label holds the key as fmt's %v spells it
-	signedKey                  // num holds a signed key's bits
-	unsignedKey                // num holds an unsigned key
+	signedKey                  // number holds a signed key's bits
+	unsignedKey                // number holds an unsigned key
 )
 
 // appendKey renders a key held in form onto b, as fmt's %v spells it.

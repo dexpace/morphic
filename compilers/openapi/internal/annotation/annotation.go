@@ -40,9 +40,9 @@ func EffectiveDeprecated(chain []*statement.Schema) bool {
 // reads both (docs/compilers/openapi.md#ref-use-site).
 //
 // Both in force is contradictory but legal: JSON Schema forbids neither. Read
-// as sets they leave nothing, which Visibility{None: true} states, as
-// merge.mergeVisibility answers for the pair spread over two allOf entries
-// (GitHub #276).
+// as sets they leave nothing, which Visibility{InvisibleInEveryLifecycle: true}
+// states, as merge.mergeVisibility answers for the pair spread over two allOf
+// entries (GitHub #276).
 func EffectiveVisibility(chain []*statement.Schema) (ir.Visibility, bool) {
 	readOnly := anyFlag(chain, func(notes *statement.Notes) *bool { return notes.ReadOnly })
 	writeOnly := anyFlag(chain, func(notes *statement.Notes) *bool { return notes.WriteOnly })
@@ -164,19 +164,20 @@ const (
 type Kind int
 
 // SchemaPositionAnnotationSources is what a schema position declares: Node is
-// the schema written there, Voices the inline allOf entries read as written
-// beside it, and Referents, honoured only for a reference site, what a use
-// site's annotations fall back to, nearest first.
+// the schema written there, FoldedAllOfEntries the inline allOf entries read as
+// written beside it, and Referents, honoured only for a reference site, what a
+// use site's annotations fall back to, nearest first.
 //
-// A Site At builds carries none of either: a declaration's annotations bind the
-// position they are written at (attachDeclaredAnnotations), and a component
-// that aliases another keeps the target's annotations reachable through its
-// Base. A reader that inherits, FillPropertyDetail (schema/property.go) or
-// fillParamSchema, builds its own Site (schema.UseOf).
+// A SchemaPositionAnnotationSources At builds carries none of either: a
+// declaration's annotations bind the position they are written at
+// (attachDeclaredAnnotations), and a component that aliases another keeps the
+// target's annotations reachable through its Base. A reader that inherits,
+// FillPropertyDetail (schema/property.go) or fillParamSchema, builds its own
+// SchemaPositionAnnotationSources (schema.UseOf).
 type SchemaPositionAnnotationSources struct {
 	Kind Kind
 	Node *statement.Schema
-	// Voices are the entries read as written at Node
+	// FoldedAllOfEntries are the entries read as written at Node
 	// (docs/compilers/openapi.md#allof-inline-residue).
 	FoldedAllOfEntries []FoldedAllOfEntry
 	// Referents is empty when Kind is Reference but the $ref's chain ends on no
@@ -243,7 +244,7 @@ func (st SchemaPositionAnnotationSources) Chain() []*statement.Schema {
 }
 
 // At builds the site for js, a reference site's without its Referents (see
-// Site).
+// SchemaPositionAnnotationSources).
 //
 // A schema whose $ref is present but empty ({$ref: ""}) is a declaration, not a
 // reference site: an empty ref resolves nowhere, so its Text is empty.
@@ -267,10 +268,10 @@ func At(js *statement.Statement) SchemaPositionAnnotationSources {
 // declaration (GitHub #116).
 type Home int
 
-// The readers below consume a Site the caller supplies rather than resolving
-// one themselves, since obtaining a referent is reference resolution — walk
-// work. SchemaPositionAnnotationSources.Referents holds each hop of the $ref's
-// chain, nearest first.
+// The readers below consume a SchemaPositionAnnotationSources the caller
+// supplies rather than resolving one themselves, since obtaining a referent is
+// reference resolution — walk work. SchemaPositionAnnotationSources.Referents
+// holds each hop of the $ref's chain, nearest first.
 
 // Set is everything a site's annotations yield, before any of it is
 // attached to a carrier.

@@ -293,7 +293,7 @@ each document's `$dynamicAnchor`s beside its other identifiers, and
 
 The memo was the first counterexample to §4's claim that interning is
 "irreducibly shared and stateful; nothing else is", and the memos `Ctx` holds now are
-of its kind: `Remembered` keeps each answer a reading of the documents and their
+of its kind: `ReadOncePerRun` keeps each answer a reading of the documents and their
 bindings gives (GitHub #1480), the namer each node's name (GitHub #1106), and the
 promotion policy what each schema lends a carrier (GitHub #1269). Each is a weaker
 exception than that phrasing suggests — a memo caches a pure function of the document,
@@ -321,7 +321,7 @@ what another lowering reads.
 *Later:* a memo `Ctx` holds reads the registry rather than the documents. The
 discriminator-inference policy's settlements share one store of what they read of the registry's
 types (`lowering.Settled`, GitHub #1712), so a type many of them ask about is read once a run.
-Unlike an answer `Remembered` keeps, which no order can make stale, a reading of the registry
+Unlike an answer `ReadOncePerRun` keeps, which no order can make stale, a reading of the registry
 holds only while no settlement after it rewrites what it read, so the store is held apart from
 those answers. Of the settlements, only the fold of a redeclared field changes what a reading
 answers; it runs as a completion, before every reading, and reports a compiler bug where it

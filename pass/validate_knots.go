@@ -171,8 +171,9 @@ func (s *edgeSink) model(ix typeIndex, model *ir.Model, set edgeSet) {
 }
 
 // tuple adds the positions a value of tuple must fill, its first MinItems:
-// Elems types positions without requiring them (docs/ir/containers.md), so a
-// tuple with no minimum needs nothing, and Rest types those past Elems.
+// ElementTypes types positions without requiring them (docs/ir/containers.md),
+// so a tuple with no minimum needs nothing, and Rest types those past
+// ElementTypes.
 func (s *edgeSink) tuple(ix typeIndex, tuple *ir.Tuple) {
 	if tuple.Constraints == nil || tuple.Constraints.MinItems == nil {
 		return

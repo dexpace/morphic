@@ -125,7 +125,7 @@ func WebhookGroup() ir.GroupID { return compile.GroupID(WebhookGroupSpace, "") }
 // document declares in IDSpaces. It names the constants the derivations below use,
 // so a namespace cannot be minted in without being one of these, and the
 // compiler's tests hold the list to the namespaces its corpus really uses. Each
-// of others adds the spaces Document qualifies by it.
+// of others adds the spaces DocumentIDNamespace qualifies by it.
 func Namespaces(others ...DocumentIDNamespace) compile.Namespaces {
 	ns := compile.Namespaces{
 		ir.IDKindType:       {OpenAPISpace, AnonymousSpace, ComposedSpace},
@@ -154,9 +154,10 @@ func Namespaces(others ...DocumentIDNamespace) compile.Namespaces {
 // spaces; another is named by its label (In), which qualifies each space
 // (compile.Space.Qualified), so one pointer in two documents derives two IDs,
 // each still the pointer it records. Operations, parameters and services are
-// named by where the source mounts or names them, so they take no Document; a
-// server, and a security scheme a requirement key reaches outside the source's
-// securitySchemes, is named where it is declared, so it does.
+// named by where the source mounts or names them, so they take no
+// DocumentIDNamespace; a server, and a security scheme a requirement key
+// reaches outside the source's securitySchemes, is named where it is declared,
+// so it does.
 type DocumentIDNamespace struct {
 	label string
 }

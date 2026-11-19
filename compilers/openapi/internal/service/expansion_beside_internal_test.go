@@ -55,7 +55,7 @@ func TestExpansion_AHopNoMappingHoldsIsWeighedWhole(t *testing.T) {
 	schema := table.ReadingAt(reftable.DocumentPointer{Pointer: "/components/schemas/S"})
 	require.True(t, schema.Schema())
 	hop := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("x"))
-	assert.Equal(t, 1, weightBeside(hop, schema, budget.Unbounded()), "a schema weighs one, as weightOf weighs it")
+	assert.Equal(t, 1, weightBeside(hop, schema, budget.Unbounded()), "a schema weighs one, as referenceExpansionSize weighs it")
 }
 
 // TestBeside_ReadsNothingOffNoMapping holds the readers of what a reference

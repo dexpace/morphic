@@ -767,10 +767,10 @@ func memberHolders(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) (hol
 // partFlags returns pe, the encoding written for part, with the structural
 // flags of the part decls declare, read off the types the allOf merge settled
 // on (declarationFlags), multipart saying whether the body is multipart. Where
-// a type is a kind partTypeFlags cannot decide, Multi is read off every schema
-// of part, as refs resolves them (declaredMulti), a reading left until then
-// since it walks a union's branches. unions is the run's reading of the unions
-// parts name.
+// a type is a kind partTypeFlags cannot decide, RepeatsPerArrayItem is read off
+// every schema of part, as refs resolves them (declaredMulti), a reading left
+// until then since it walks a union's branches. unions is the run's reading of
+// the unions parts name.
 func partFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, decls []*ir.Property, part bodyPart, pe ir.PartEncoding, multipart bool) ir.PartEncoding {
 	multi, file, decided := declarationFlags(unions, node, decls, multipart)
 	if !decided {
@@ -884,8 +884,8 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 
 // buildPartEncoding assembles the explicit encoding config of the part named
 // name under mt, a normalized media type: content types, headers and the
-// arrangement. Its structural flags, Multi and Filename, are partKeys' to read
-// once every type has lowered (partFlags).
+// arrangement. Its structural flags, RepeatsPerArrayItem and HasFilename, are
+// partKeys' to read once every type has lowered (partFlags).
 func buildPartEncoding(serviceContext service.Ctx, loweringState operationLoweringState, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	enc, ok := encMap.Get(name)
 	if !ok {

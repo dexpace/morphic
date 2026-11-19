@@ -28,14 +28,15 @@ type Types struct {
 	// byID is byPointer read backwards, so a derivation that maps two distinct
 	// coordinates onto one ID is caught rather than silently overwriting.
 	byID map[ir.TypeID]string
-	// promised holds every coordinate Promise queued, and promises those not
-	// yet taken. See Promise.
+	// promised holds every coordinate ReserveNodeAtCoordinate queued, and
+	// promises those not yet taken. See ReserveNodeAtCoordinate.
 	promised map[string]bool
 	promises map[string]func() []ir.Diagnostic
 	// refused holds why each rejected entry was rejected.
 	refused []string
-	// completing and pending hold the settlements Complete and Defer queued
-	// for Finish. See Settlement.
+	// completing and pending hold the settlements
+	// QueueSettlementBeforeDeferredOnes and Defer queued for Finish. See
+	// Settlement.
 	completing []Settlement
 	pending    []Settlement
 	// reported counts the entries of refused that Finish has reported.
@@ -64,11 +65,12 @@ func (t *Types) refuse(format string, args ...any) {
 const RegistryRefused = "compile/registry-refused"
 
 // Finish ends a compile's use of t, after its last lowering. It builds each
-// promised node no lowering built (Promise), takes every deferred Settlement,
-// then hands over the Document's registry and the diagnostics to report: what
-// building and settling reported, then a RegistryRefused error for each entry
-// t refused, in order. The refusals ride in the list a compiler reports
-// anyway, so it cannot take the registry and lose them.
+// promised node no lowering built (ReserveNodeAtCoordinate), takes every
+// deferred Settlement, then hands over the Document's registry and the
+// diagnostics to report: what building and settling reported, then a
+// RegistryRefused error for each entry t refused, in order. The refusals ride
+// in the list a compiler reports anyway, so it cannot take the registry and
+// lose them.
 //
 // Each refusal is reported once, and one made after Finish only by a later
 // call. A cancelled ctx stops it between steps, leaving a registry the caller

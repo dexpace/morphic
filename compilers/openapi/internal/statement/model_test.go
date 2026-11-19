@@ -505,11 +505,11 @@ func TestRead_ListsExtensionsAsTheModelHoldsThem(t *testing.T) {
 }
 
 // TestSub_TruthTellsNoSchemaFromFalse pins what a value written where a schema
-// belongs states, read from its Sub and from its statement alike. The parser
-// decodes a null, a string, a number or a list as the `false` schema
+// belongs states, read from its Subschema and from its statement alike. The
+// parser decodes a null, a string, a number or a list as the `false` schema
 // (docs/parser-library.md#null-schema-is-false), which admits no value where
-// these state nothing, so only the node tells them apart, through an alias
-// too; and it decodes a mapping it fails beneath as a boolean
+// these state nothing, so only the node tells them apart, through an alias too;
+// and it decodes a mapping it fails beneath as a boolean
 // (docs/parser-library.md#failure-beneath-itself). Only a written `false`, and
 // such a mapping, read as the false schema, and the model holds every value
 // written, so Held tells any of them from a keyword left out.
@@ -639,8 +639,8 @@ func TestRead_AnExclusiveBoundHoldsTheArmTheModelRead(t *testing.T) {
 
 // TestSchema_PropertyIsTheSubPropertiesLists pins Property to the parser's
 // model: on a schema writing forty properties, one of them written twice, once
-// through a merge, each name finds the Sub Object.Properties lists under it,
-// and a name the schema does not write, or any name on no schema object,
+// through a merge, each name finds the Subschema Object.Properties lists under
+// it, and a name the schema does not write, or any name on no schema object,
 // finds none.
 func TestSchema_PropertyIsTheSubPropertiesLists(t *testing.T) {
 	t.Parallel()

@@ -52,14 +52,15 @@ func (t *Types) queue(settlements *[]Settlement, verb string, settlement Settlem
 	*settlements = append(*settlements, settlement)
 }
 
-// settle takes every Settlement once, those Complete queued before those Defer
-// queued, each kind in the order queued, and returns their diagnostics; Finish
-// calls it once every promised node is built. It checks ctx before each
-// settlement and stops once it is done, leaving a registry the caller must not
-// assemble. A settlement leaving the registry any size but the one its Register
-// calls account for is refused and left standing, a compiler bug, not a
-// recovery. A swap of one node for another keeps the count, so the references
-// it leaves dangling are left to pass.Validate and irverify.
+// settle takes every Settlement once, those QueueSettlementBeforeDeferredOnes
+// queued before those Defer queued, each kind in the order queued, and returns
+// their diagnostics; Finish calls it once every promised node is built. It
+// checks ctx before each settlement and stops once it is done, leaving a
+// registry the caller must not assemble. A settlement leaving the registry any
+// size but the one its Register calls account for is refused and left standing,
+// a compiler bug, not a recovery. A swap of one node for another keeps the
+// count, so the references it leaves dangling are left to pass.Validate and
+// irverify.
 func (t *Types) settle(ctx context.Context) []ir.Diagnostic {
 	t.settled = true
 	pending := slices.Concat(t.completing, t.pending)

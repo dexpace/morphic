@@ -69,7 +69,7 @@ type Encoded struct {
 	Primitive ir.PrimitiveKind
 	// Encoding names the text, as docs/ir/constraints.md#encodings does.
 	Encoding string
-	// Wire is the primitive the value travels as, or "" where Prim's own
+	// Wire is the primitive the value travels as, or "" where Primitive's own
 	// spelling says it, as a datetime_offset travels as a string.
 	Wire ir.PrimitiveKind
 }

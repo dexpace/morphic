@@ -96,7 +96,7 @@ type twinDoc struct {
 	// rows' references out name.
 	schemas, headers, responses, top string
 	// header is the header beneath the field; schema its schema's keywords
-	// beside its type and properties, and props its properties beside p.
+	// beside its type and properties, and properties its properties beside p.
 	header, schema, properties string
 	// encoding replaces the Encoding Object holding the field where set, and
 	// other is other.yaml.

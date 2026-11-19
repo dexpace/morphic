@@ -97,10 +97,10 @@ type shared struct {
 	// reads holds those readings in the scope fields they fill: SelfPath, and
 	// Bindings over every $ref.
 	reads componentlookup.Scope
-	// readings remembers each answer Remembered read, in a map per type of key
-	// and answer (memo). Copies share it on purpose: an answer reads only the
-	// documents and their bindings, which no lowering changes, so what one copy
-	// remembers is what another would read.
+	// readings remembers each answer ReadOncePerRun read, in a map per type of
+	// key and answer (memo). Copies share it on purpose: an answer reads only
+	// the documents and their bindings, which no lowering changes, so what one
+	// copy remembers is what another would read.
 	readings map[any]any
 	// statements reads each schema the bindings hold into its statement, once
 	// for the run (Statements). Copies share it on purpose: a statement reads
@@ -231,8 +231,8 @@ func (c Ctx) Statements() *statement.MemoizingSchemaReader {
 func ReadOncePerRun[K comparable, V any](loweringContext Ctx, key K, read func() V) V {
 	answers, ok := loweringContext.shared.readings[memo[K, V]{}].(map[K]V)
 	if !ok {
-		// Kept before read runs, so a reading that asks Remembered for answers of
-		// the same types keeps them here rather than in a map this one replaces.
+		// Kept before read runs, so a reading that asks ReadOncePerRun for answers
+		// of the same types keeps them here rather than in a map this one replaces.
 		answers = map[K]V{}
 		loweringContext.shared.readings[memo[K, V]{}] = answers
 	}
@@ -244,13 +244,13 @@ func ReadOncePerRun[K comparable, V any](loweringContext Ctx, key K, read func()
 	return answer
 }
 
-// memo is what the map of Remembered's answers of type V, to keys of type K, is
-// kept under. It holds nothing, so it is boxed without allocating.
+// memo is what the map of ReadOncePerRun's answers of type V, to keys of type
+// K, is kept under. It holds nothing, so it is boxed without allocating.
 type memo[K comparable, V any] struct{}
 
 // Settled returns the run's store of type S, which build makes on the first ask
 // of any copy of loweringContext, for what settlements (compile.Settlement)
-// read of the registry. Remembered may not keep such a reading, as it reads
+// read of the registry. ReadOncePerRun may not keep such a reading, as it reads
 // what the settlements before it left: it is sound only while no settlement
 // after it rewrites what it read. The run takes every completion
 // (compile.Types.QueueSettlementBeforeDeferredOnes) before any deferred

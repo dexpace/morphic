@@ -147,8 +147,8 @@ func partContentFile(serviceContext service.Ctx, contentTypes []string) partFile
 }
 
 // rawTuple reports whether every element tuple admits is raw bytes (rawBytes):
-// each of Elems and, where elements may follow them, Rest. A tuple admitting
-// no element at all is no file.
+// each of ElementTypes and, where elements may follow them, Rest. A tuple
+// admitting no element at all is no file.
 func rawTuple(node func(ir.TypeID) (ir.TypeDef, bool), tuple *ir.Tuple) bool {
 	if len(tuple.ElementTypes) == 0 && tuple.Rest == nil {
 		return false

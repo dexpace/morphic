@@ -47,14 +47,15 @@ components:
 	return ir.PartEncoding{}
 }
 
-// TestReadPartFile_ReadsDeclarationsEncodingAndVersion holds a part's Filename
-// and marker to its declaration, its encoding entry's media types and the
-// version's default media type, in a multipart body: raw bytes, an array or a
-// tuple of them, an untyped part from 3.1 and a part whose encoding names only
-// binary types are files, and a part saying it is text is none, as no part of
-// a url-encoded body is, its own bytes and base64 text included (GitHub #1214). A
-// union with an array among its branches repeats, and is files where each of
-// its values reads so, an array branch's through its elements.
+// TestReadPartFile_ReadsDeclarationsEncodingAndVersion holds a part's
+// HasFilename and marker to its declaration, its encoding entry's media types
+// and the version's default media type, in a multipart body: raw bytes, an
+// array or a tuple of them, an untyped part from 3.1 and a part whose encoding
+// names only binary types are files, and a part saying it is text is none, as
+// no part of a url-encoded body is, its own bytes and base64 text included
+// (GitHub #1214). A union with an array among its branches repeats, and is
+// files where each of its values reads so, an array branch's through its
+// elements.
 func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 	t.Parallel()
 	const (

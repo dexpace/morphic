@@ -82,9 +82,10 @@ type PartEncoding struct {
     HasFilename         bool       // part carries a filename (file part); a part of a url-encoded
                                    // body, which names no file, never does
     Inferred            Inferred   // "" = the source declares the part a file; else the heuristics
-                                   // that read Filename in (OpenAPI's binary media types), so a
+                                   // that read HasFilename in (OpenAPI's binary media types), so a
                                    // consumer taking only what was declared can set it aside. Set
-                                   // only where Filename is (ir/part-encoding-inferred-not-filename)
+                                   // only where HasFilename is
+                                   // (ir/part-encoding-inferred-not-filename)
     Style               string     // set wherever the source arranges the part's value as a query
                                    // parameter's is (HTTPParamBinding.Style), the style it names or
                                    // the one its format defaults to, so ContentTypes is not read;

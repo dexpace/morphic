@@ -829,10 +829,10 @@ func TestTakenOutside_LeavesOutTheComposingModelsOwn(t *testing.T) {
 }
 
 // TestPropertyIndex_ReadsItsOwnDeclarationBackAsItsOwn pins a part on a cycle
-// whose Table holds the model's own declaration: it is the model's, so the
-// model brings nothing from that part, folds nothing, and keeps the member's
-// identity, which a fold would move to the composed namespace, as an interned
-// entry writes the declaration.
+// whose RedeclaredWireNameTable holds the model's own declaration: it is the
+// model's, so the model brings nothing from that part, folds nothing, and keeps
+// the member's identity, which a fold would move to the composed namespace, as
+// an interned entry writes the declaration.
 func TestPropertyIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()

@@ -21,10 +21,10 @@ const d4 = "$schema: 'http://json-schema.org/draft-04/schema#'"
 
 // TestLower_AListOfItemsInADraftIsATuple pins the lowering of a list of items
 // in a draft that reads it as a tuple, and in one that does not: its entries
-// are the Tuple's Elems and additionalItems its Rest, none for `false`, the top
-// type absent, and the schema it holds otherwise; elsewhere `items` reads as
-// absent, a List of the top type, or beside prefixItems a Rest of it, with no
-// false schema of the parser's making.
+// are the Tuple's ElementTypes and additionalItems its Rest, none for `false`,
+// the top type absent, and the schema it holds otherwise; elsewhere `items`
+// reads as absent, a List of the top type, or beside prefixItems a Rest of it,
+// with no false schema of the parser's making.
 func TestLower_AListOfItemsInADraftIsATuple(t *testing.T) {
 	t.Parallel()
 	const list = "type: array, items: [{type: string}, {type: integer}]"

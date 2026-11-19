@@ -56,9 +56,9 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 			// readOnly admits {read, delete, query}; writeOnly admits
 			// {create, update} — disjoint sets whose intersection is empty,
 			// meaning the field can satisfy no lifecycle both entries
-			// admit. None is the IR's existing shape for "visible in no
-			// lifecycle" (TypeSpec @invisible), so the empty intersection is
-			// recorded exactly rather than read as unrestricted.
+			// admit. InvisibleInEveryLifecycle is the IR's existing shape for
+			// "visible in no lifecycle" (TypeSpec @invisible), so the empty
+			// intersection is recorded exactly rather than read as unrestricted.
 			name: "disjoint restrictions intersect to invisible",
 			dst:  readOnlyVisibility, src: writeOnlyVisibility,
 			want: invisible,

@@ -606,8 +606,8 @@ func (o Object) patternAt(minor Minor) (Pattern, bool) {
 }
 
 // fieldAt returns the field of o named name that minor minor defines, else the
-// first so named, which a later minor added, else the zero Field, whose Any
-// shape admits every value.
+// first so named, which a later minor added, else the zero Field, whose
+// AnyShapeUnchecked shape admits every value.
 func (o Object) fieldAt(name string, minor Minor) Field {
 	var found Field
 	for _, fld := range o.Fields {

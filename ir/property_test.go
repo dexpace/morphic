@@ -13,19 +13,21 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestVisibility_ZeroValueShape pins Visibility's contract that None carries
-// no omitempty: the zero value means "visible in all lifecycles", and None
-// marks a distinct fourth state ("visible in none", TypeSpec @invisible) that
-// must be observable even when Only is also empty. Collapsing None into
-// omitempty would make the zero value and "explicitly invisible with no
-// lifecycle list" indistinguishable on the wire.
+// TestVisibility_ZeroValueShape pins Visibility's contract that
+// InvisibleInEveryLifecycle carries no omitempty: the zero value means "visible
+// in all lifecycles", and InvisibleInEveryLifecycle marks a distinct fourth
+// state ("visible in none", TypeSpec @invisible) that must be observable even
+// when Only is also empty. Collapsing InvisibleInEveryLifecycle into omitempty
+// would make the zero value and "explicitly invisible with no lifecycle list"
+// indistinguishable on the wire.
 func TestVisibility_ZeroValueShape(t *testing.T) {
 	t.Parallel()
 	assertZeroValueShape(t, ir.Visibility{}, `{"invisibleInEveryLifecycle":false}`)
 }
 
 // TestVisibility_PopulatedRoundTrip pins that a populated Visibility (a
-// non-empty Only list, and separately None set true) round-trips.
+// non-empty Only list, and separately InvisibleInEveryLifecycle set true)
+// round-trips.
 func TestVisibility_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	tests := map[string]ir.Visibility{

@@ -36,7 +36,8 @@ type Use struct {
 	// (docs/compilers/openapi.md#ref-use-site).
 	Referents []*statement.Schema
 	// places[i] is where Referents[i] is written, in whichever document;
-	// lend and appendFallbackReferents write the two together.
+	// appendFallbackReferent and appendFallbackReferents write the two
+	// together.
 	places []referentPlace
 	// narrowed is what the position admits where a referent may say more, and nil
 	// where every referent's default stands.
@@ -320,7 +321,7 @@ func nodeUse(loweringContext lowering.Ctx, schema *statement.Schema, pointer jso
 	return use
 }
 
-// fallbackReadKey keys what lentBy read of one schema.
+// fallbackReadKey keys what fallbackAnnotationsOf read of one schema.
 type fallbackReadKey struct {
 	schema *statement.Schema
 }
@@ -336,8 +337,8 @@ func fallbackAnnotationsOf(loweringContext lowering.Ctx, js *statement.Statement
 	return lowering.ReadOncePerRun(loweringContext, fallbackReadKey{js.Schema}, func() Use { return readLent(loweringContext, js) })
 }
 
-// readLent reads what lentBy remembers. A run of aliases is read within one
-// turn, so only the read-throughs throughRef reads spend
+// readLent reads what fallbackAnnotationsOf remembers. A run of aliases is read
+// within one turn, so only the read-throughs throughRef reads spend
 // maxFallbackReferenceHops.
 func readLent(loweringContext lowering.Ctx, js *statement.Statement) Use {
 	var use Use

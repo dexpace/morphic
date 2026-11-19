@@ -138,10 +138,11 @@ func TestAllOfVisibilityMerge_OrderIndependent(t *testing.T) {
 
 // TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict covers
 // one entry readOnly and the other writeOnly, which intersect to the empty
-// set. That is recorded as None, the IR's shape for "invisible everywhere", not
-// as a conflicting-redeclaration: unlike an incompatible-type redeclaration,
-// nothing is arbitrarily discarded. The document is still warned, under a code
-// of its own, that "id" is left in a shape no request or response can carry.
+// set. That is recorded as InvisibleInEveryLifecycle, the IR's shape for
+// "invisible everywhere", not as a conflicting-redeclaration: unlike an
+// incompatible-type redeclaration, nothing is arbitrarily discarded. The
+// document is still warned, under a code of its own, that "id" is left in a
+// shape no request or response can carry.
 func TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict(t *testing.T) {
 	t.Parallel()
 	got, diags := thingIDVisibility(t, "allof-visibility-disjoint", allOfVisibilityDisjointSpec)

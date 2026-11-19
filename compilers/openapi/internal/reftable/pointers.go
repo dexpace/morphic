@@ -66,8 +66,8 @@ func (d *docs) writesRef(readingValue reading) bool {
 // read where it is written, as a mount keeps the nearer layer
 // (docs/compilers/openapi.md#path-item-ref-fields). A chain that does not
 // resolve is Unpassable, and one that waits for documents a pass has yet to
-// read is Held. Without settle, a chain not settled is returned as what the
-// read needs.
+// read is PendingExternalDocumentRead. Without settle, a chain not settled is
+// returned as what the read needs.
 func (b *binder) through(readingValue reading, kind RefKind, token string, settle bool) (reading, Reason, objectKey) {
 	if kind == RefPathItem && token != "$ref" && b.docs.child(readingValue.at.Doc, readingValue.node, token) != nil {
 		return readingValue, NoReason, objectKey{}

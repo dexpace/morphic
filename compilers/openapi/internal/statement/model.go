@@ -110,7 +110,7 @@ func (s *Schema) Held() bool {
 }
 
 // Property returns the schema s writes for the property name, as the parser's
-// model holds it, by one lookup in the model's map: the Sub
+// model holds it, by one lookup in the model's map: the Subschema
 // Object.Properties lists under that name. It is false for a name s does not
 // write, for a nil or unstated s, and for a `properties` its keys do not list
 // (listedOnly).

@@ -49,10 +49,10 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 }
 
 // TestTypes_SettleTakesEveryCompletionFirst pins the order a settlement relies
-// on to read a node finished: one Complete queued runs before every one Defer
-// queued, even one deferred before it, so a settlement that reads the node, or
-// rewrites it, meets what the completion made of it. Each kind keeps the order
-// queued.
+// on to read a node finished: one QueueSettlementBeforeDeferredOnes queued runs
+// before every one Defer queued, even one deferred before it, so a settlement
+// that reads the node, or rewrites it, meets what the completion made of it.
+// Each kind keeps the order queued.
 func TestTypes_SettleTakesEveryCompletionFirst(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
@@ -156,10 +156,10 @@ func TestTypes_SettleWithNothingDeferredReturnsNothing(t *testing.T) {
 	assert.Empty(t, types.Violations())
 }
 
-// TestTypes_DeferRefusesWhatSettleWouldNeverTake pins the two settlements
-// Defer and Complete refuse rather than drop: one queued after Settle ran,
-// which no later Settle is promised to take, and a nil one, which cannot be
-// taken.
+// TestTypes_DeferRefusesWhatSettleWouldNeverTake pins the two settlements Defer
+// and QueueSettlementBeforeDeferredOnes refuse rather than drop: one queued
+// after Settle ran, which no later Settle is promised to take, and a nil one,
+// which cannot be taken.
 func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

@@ -32,10 +32,10 @@ const maxTrackedDepth = 10000
 
 // Measurements is what one walk over a decoded source tree found.
 //
-// A zero Index is the answer for a document with no content: no root, no nodes,
-// no nesting, no anchor cycle, no tagged mapping, nothing truncated. That is the
-// same answer Build returns for an empty document, so a caller never has to
-// tell the two apart.
+// A zero Measurements is the answer for a document with no content: no root, no
+// nodes, no nesting, no anchor cycle, no tagged mapping, nothing truncated.
+// That is the same answer Build returns for an empty document, so a caller
+// never has to tell the two apart.
 type Measurements struct {
 	root           *yaml.Node
 	nodes          int

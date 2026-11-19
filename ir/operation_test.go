@@ -408,11 +408,11 @@ func TestContentStream_JSONContract(t *testing.T) {
 	assertRoundTrip(t, declared)
 }
 
-// TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi,
-// Filename and AllowReserved are plain bools that must always serialize as
-// declared facts ("does not repeat", "carries no filename", "escapes reserved
-// characters") — and that a fully populated
-// PartEncoding round-trips.
+// TestPartEncoding_JSONContract pins PartEncoding's omitempty contract —
+// RepeatsPerArrayItem, HasFilename and AllowReserved are plain bools that must
+// always serialize as declared facts ("does not repeat", "carries no filename",
+// "escapes reserved characters") — and that a fully populated PartEncoding
+// round-trips.
 func TestPartEncoding_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.PartEncoding{}, `{"repeatsPerArrayItem":false,"hasFilename":false,"allowReserved":false}`, ir.PartEncoding{
