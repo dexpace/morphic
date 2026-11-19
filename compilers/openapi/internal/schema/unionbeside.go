@@ -331,7 +331,13 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 	case unionDistributed:
 		return lowerDistributedUnion(c, ts, depth, s, besideUnion(s, pointer), pointer, fin)
 	case unionValidationOnly:
-		return beside(ir.ReasonValidationOnly, "")
+		id, diags := beside(ir.ReasonValidationOnly, "")
+		if writesConjuncts(s) || !pairSharesNoValue(c, s) {
+			// The conjuncts' report names the two (diagDisjointConjuncts), and
+			// two sharing a value conjoin past the body alone.
+			return id, diags
+		}
+		return id, append(diags, diagUnionsShareNothing(c, s, pointer, "its body alone")...)
 	case unionSharesNoKind:
 		return beside(ir.ReasonDegradedLowering,
 			"none of its branches shares a kind with the allOf beside it, so no instance satisfies them together")

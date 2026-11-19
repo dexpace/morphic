@@ -229,3 +229,28 @@ func TestUnion_TwoUnionEntriesBesideABodyElectByCompetingKeywords(t *testing.T) 
 		assert.Equal(t, ir.ReasonDegradedLowering, union.Unmodeled["openapi:anyOf"].Reason, name)
 	}
 }
+
+// TestUnion_TwoShapelessUnionsSharingNoValueBesideTheirBodyWarn holds that a
+// oneOf and an anyOf sharing no value, neither declaring shape against the
+// body written beside them, draw the one warning that the conjuncts share no
+// value there, as beside an allOf of the body, and that two sharing a null the
+// body keeps out are not named apart.
+func TestUnion_TwoShapelessUnionsSharingNoValueBesideTheirBodyWarn(t *testing.T) {
+	t.Parallel()
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Flat: {type: string, oneOf: [{type: 'null'}], anyOf: [{type: string}]}
+    Beside: {allOf: [{type: string}], oneOf: [{type: 'null'}], anyOf: [{type: string}]}
+    Shared: {type: string, oneOf: [{type: 'null'}], anyOf: [{type: 'null'}]}
+`))
+	warned := map[string][]string{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			name := string(d.Provenance.Pointer)[strings.LastIndexByte(string(d.Provenance.Pointer), '/')+1:]
+			warned[name] = append(warned[name], d.Message)
+		}
+	}
+	for _, name := range []string{"Flat", "Beside"} {
+		require.Len(t, warned[name], 1, name)
+		assert.Contains(t, warned[name][0], "share no value", name)
+	}
+	assert.Empty(t, warned["Shared"])
+}
