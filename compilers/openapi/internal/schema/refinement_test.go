@@ -281,9 +281,10 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, code, "/components/schemas/"+name+"/allOf/0"), name)
 	}
 
-	_, composes := typeByName(doc, "Disjoint").(*ir.Model)
-	assert.True(t, composes, "a union sharing no value with the rest leaves the allOf a composition")
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Disjoint/allOf/1"))
+	disjoint, ok := typeByName(doc, "Disjoint").(*ir.Scalar)
+	require.True(t, ok, "a union sharing no kind with a boolean leaves the boolean")
+	assert.Contains(t, disjoint.Unmodeled, "openapi:anyOf")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Disjoint"))
 
 	widest, ok := typeByName(doc, "Widest").(*ir.Union)
 	require.True(t, ok, "Widest is its principal, the union, not %T", typeByName(doc, "Widest"))

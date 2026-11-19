@@ -623,7 +623,7 @@ func restKinds(c lowering.Ctx, s *statement.Schema, comp allOfComposition) (kind
 	for _, e := range comp.branches {
 		bs := e.schema.Schema
 		if e.schema.Ref == nil && declaresUnion(bs) {
-			// An entry's union is the one left out, as s's own (entryPairApart).
+			// An entry's union is the one left out, as s's own (entryUnionsApart).
 			rest.conjoinKinds(&admission{firm: declaredInstanceTypes(bs) & valueKinds(c, bs), claims: claimedKinds(c, bs)})
 			continue
 		}
@@ -744,7 +744,7 @@ func (w *admissionReader) conjuncts(s *statement.Schema, comp allOfComposition) 
 		}
 	}
 	if !declaresUnion(s) {
-		return out, w.entryPairApart(s, comp, out)
+		return out, w.entryUnionsApart(s, comp, out)
 	}
 	union, rest := unionsIn(w, s), out[0].read
 	for _, cj := range out[1:] {
@@ -757,17 +757,15 @@ func (w *admissionReader) conjuncts(s *statement.Schema, comp allOfComposition) 
 	return out, false
 }
 
-// entryPairApart reports whether the unions comp's inline entries write are a
-// oneOf and an anyOf sharing no value, beside a rest that admits one: no
-// instance satisfies them, so the position lowers as that rest does, as
-// beside the allOf (unionAside). Each such entry of out is then read by its
-// own keywords alone, its unions left out of the election. Beside a rest of
-// objects alone, null aside, the allOf composes as it would anyway.
-func (w *admissionReader) entryPairApart(s *statement.Schema, comp allOfComposition, out []conjunct) bool {
-	if !writesUnionPair(s, comp) {
-		return false
-	}
-	rest := out[0].read
+// entryUnionsApart reports whether the unions comp's inline entries write
+// leave nothing beside a rest that admits a value and is no object: a oneOf
+// and an anyOf sharing no value (pairApart), or unions sharing no kind with
+// that rest. No instance satisfies them, so the position lowers as the rest
+// does, as beside the allOf (unionAside); each such entry of out is then read
+// by its own keywords alone. Beside a rest of objects alone, null aside, the
+// allOf composes as it would anyway.
+func (w *admissionReader) entryUnionsApart(s *statement.Schema, comp allOfComposition, out []conjunct) bool {
+	rest, unions := out[0].read, admitted{kinds: kindAny}
 	var holders []int
 	for i := 1; i < len(out); i++ {
 		cj := &out[i]
@@ -776,9 +774,14 @@ func (w *admissionReader) entryPairApart(s *statement.Schema, comp allOfComposit
 			continue
 		}
 		rest = rest.and(w.written(cj.schema, w.nullable))
+		unions = unions.and(unionsIn(w, cj.schema))
 		holders = append(holders, i)
 	}
-	if w.incomplete() || !rest.reachable() || pairApart(w.c, s) == nil || !pairApartBeside(rest) {
+	if len(holders) == 0 || w.incomplete() || !rest.reachable() || !pairApartBeside(rest) {
+		return false
+	}
+	noKind := unions.kinds != 0 && rest.kinds&unions.kinds == 0
+	if !noKind && (!writesUnionPair(s, comp) || pairApart(w.c, s) == nil) {
 		return false
 	}
 	for _, i := range holders {

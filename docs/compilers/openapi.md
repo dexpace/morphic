@@ -4060,7 +4060,10 @@ conjunct of the rest the elected one's branches are read against, for a dead bra
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts); one sharing no kind with the rest read
 without either union, a union of null alone beside a rest admitting no null among them, leaves no
 instance satisfying the two, whichever branch is taken, so the position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
-naming its own keywords and that union. Such a
+naming its own keywords and that union. A union none of whose branches shares a kind with a body
+that is no `Model` (a scalar, a `type` list of scalars, an array) admits nothing with it, so the
+position lowers as that body keeping the union as `degraded_lowering`, with that rule's one warning,
+beside the body's keywords, beside an `allOf` of it and on an entry alike. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
@@ -4363,7 +4366,9 @@ judged as one whose branches declare shape.
   `union-inline-branches`, `allof-union-branch`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
-- Tests: `e2e.TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits`,
+- Tests: `e2e.TestElection_AUnionSharingNoKindWithABodyThatIsNoModelLowersAsTheBody`,
+  `e2e.TestElection_AUnionSharingAKindWithAScalarBodyLowersAsBefore`,
+  `e2e.TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits`,
   `e2e.TestCompile_AReadPastTheAdmissionCapsKeepsItsKinds`,
   `e2e.TestCompile_ABranchPastTheAdmissionCapsBesideANullableBodyLives`,
   `e2e.TestCompile_ABranchIsDeadWhereItOrItsBodyAdmitsNoNull`,

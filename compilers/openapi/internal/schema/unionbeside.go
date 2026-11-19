@@ -339,7 +339,8 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		return beside(ir.ReasonDegradedLowering,
 			"none of its branches shares a kind with the allOf beside it, so no instance satisfies them together")
 	case unionUncomposableBody:
-		return beside(ir.ReasonDegradedLowering, "the body is not a model, so it carries no composition to distribute into")
+		id, diags := beside(ir.ReasonDegradedLowering, "the body is not a model, so it carries no composition to distribute into")
+		return id, append(diags, diagUnionApartFromBody(c, s, pointer)...)
 	case unionUnresolvedBranch:
 		id, diags := beside(ir.ReasonDegradedLowering,
 			"a branch's $ref names no referent this compilation resolves")
@@ -351,7 +352,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 			"none of its branches admits an object its body admits, so no variant conjoining the two would hold a value")
 		return id, append(diags, diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)...)
 	case unionPairApart:
-		// A schema writing conjuncts beside them refines past them (entryPairApart).
+		// A schema writing conjuncts beside them refines past them (entryUnionsApart).
 		id, diags := beside(ir.ReasonDegradedLowering, "its oneOf and anyOf share no value, so no instance satisfies them together")
 		return id, append(diags, diagUnionsShareNothing(c, s, pointer, "its body alone")...)
 	case unionPassedApart:
@@ -376,6 +377,58 @@ func diagUnionsApart(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 	comp := allOfComposition{pointer: pointer}
 	comp.disjoint = disjointAtoms(c, s, conjunctAtoms(c, s, comp))
 	return diagDisjointConjuncts(c, comp, "its body alone")
+}
+
+// diagUnionApartFromBody is the warning s, written at pointer beside a body
+// that is no Model, draws where the unions it writes share no kind with that
+// body (unionApartFromBodyNames) and no allOf it writes reports its conjuncts.
+func diagUnionApartFromBody(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if writesConjuncts(s) {
+		return nil
+	}
+	comp := allOfComposition{pointer: pointer}
+	comp.disjoint = unionApartFromBodyNames(c, s)
+	return diagDisjointConjuncts(c, comp, "its body alone")
+}
+
+// unionApartFromBodyNames names the body s writes and each union beside it,
+// as conjunctAtoms names them, where they share no kind, and is nil where
+// they share one.
+func unionApartFromBodyNames(c lowering.Ctx, s *statement.Schema) []string {
+	return disjointAtoms(c, s, unionAndBodyAtoms(c, s))
+}
+
+// unionApartFromBody reports whether the atoms unionApartFromBodyNames reads
+// share no kind, a read cut short admitting every kind and a null every one
+// may admit being shared, without naming them: naming reads each target that
+// admits nothing, which may read s again.
+func unionApartFromBody(c lowering.Ctx, s *statement.Schema) bool {
+	joint := anyInstance
+	for _, a := range unionAndBodyAtoms(c, s) {
+		joint &= a.admits
+	}
+	return joint == 0 && !nullShared(c, s)
+}
+
+// unionAndBodyAtoms are the atoms of the body s writes and of each union it
+// writes, the union atoms conjunctAtoms adds replaced by both unions'.
+func unionAndBodyAtoms(c lowering.Ctx, s *statement.Schema) []conjunctAtom {
+	choice := s.ChoiceKeywords()
+	atoms := slices.DeleteFunc(conjunctAtoms(c, s, allOfComposition{}), func(a conjunctAtom) bool { return a.union != nil })
+	return slices.Concat(atoms, unionAtoms(c, "oneOf", choice.OneOf), unionAtoms(c, "anyOf", choice.AnyOf))
+}
+
+// keepsUnionApartFromBody reports whether s, read at the position its
+// bindings place it at, writes a union sharing no kind with a body beside it
+// that is no Model, which s reports where it is written
+// (diagUnionApartFromBody), as keepsDeadUnion reads a dead union.
+func keepsUnionApartFromBody(c lowering.Ctx, s *statement.Schema) bool {
+	at, placed := siteOf(s)
+	if !placed || !declaresUnion(s) || writesConjuncts(s) || !hasUnionSiblings(c, s) {
+		return false
+	}
+	in, _ := lowering.InDocument(c, at.Doc)
+	return classifyUnionSiblings(in, s, at.Pointer) == unionUncomposableBody && unionApartFromBody(in, s)
 }
 
 // diagUnresolvedBranches returns one diagnostic per union branch whose $ref

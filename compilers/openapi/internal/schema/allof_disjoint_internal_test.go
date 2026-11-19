@@ -32,16 +32,16 @@ func aliasChain(name string, n int, last string) string {
 // TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing holds which schemas
 // admitting no value say so where they are written: `false`, a value set none
 // of whose members its type admits, an empty enum, an allOf of conjuncts
-// sharing no kind and an object beside a union no branch of which an object or
-// null satisfies, each also through a chain of $refs up to the read's cap; and
-// which do not: another type beside a union none of whose branches it admits,
-// a type beside a $ref to another kind, a chain past the cap, and `true`,
-// which admits everything.
+// sharing no kind, an object beside a union no branch of which an object or
+// null satisfies and another type beside a union none of whose branches it
+// admits, each also through a chain of $refs up to the read's cap; and which
+// do not: a type beside a $ref to another kind, a chain past the cap, and
+// `true`, which admits everything.
 func TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing(t *testing.T) {
 	t.Parallel()
 	rows := map[string]bool{
 		"F": true, "S": true, "K": true, "E": true, "D": true, "AliasS": true, "AliasF": true,
-		"Short0": true, "U": true, "AliasU": true, "W": false, "AliasW": false, "Str": false, "Beside": false, "Long0": false,
+		"Short0": true, "U": true, "AliasU": true, "W": true, "AliasW": true, "Str": false, "Beside": false, "Long0": false,
 		"T": false,
 	}
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    F: false
@@ -91,5 +91,22 @@ func TestInstanceWords_NamesEverySetOfKinds(t *testing.T) {
 		for word := range strings.SplitSeq(instanceWords(kinds), " or ") {
 			assert.NotEmpty(t, word, "%07b is named %q", kinds, instanceWords(kinds))
 		}
+	}
+}
+
+// TestUnionApartFromBody_ReadsKindsAndACutReadSharesOne holds that a union
+// beside a string body shares no kind with it where its branches admit
+// integers, shares one where they admit a string, and shares one where a
+// branch's read is cut short on a cycle, which admits more than it reads.
+func TestUnionApartFromBody_ReadsKindsAndACutReadSharesOne(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Cyc: {allOf: [{$ref: '#/components/schemas/Cyc'}]}
+    Apart: {type: string, anyOf: [{type: integer}]}
+    Shared: {type: string, anyOf: [{type: string}, {type: integer}]}
+    Cut: {type: string, anyOf: [{type: integer}, {$ref: '#/components/schemas/Cyc'}]}
+`))
+	for name, want := range map[string]bool{"Apart": true, "Shared": false, "Cut": false} {
+		st := l.Ctx.Statements().At(bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		assert.Equal(t, want, unionApartFromBody(l.Ctx, st.Schema), name)
 	}
 }

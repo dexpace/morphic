@@ -310,11 +310,11 @@ func splitRef(comp allOfComposition, i int) bool {
 // and admitting no value, says so where it is written, so the allOf need not:
 // it reads as `false` (docs/compilers/openapi.md#allof-false-branch), its
 // value set holds no value its own type admits (docs/compilers/openapi.md#enum-const),
-// its allOf's conjuncts share no kind, which this report reads at it, or no
-// branch of a union beside its object body lives (keepsDeadUnion). A $ref
-// landing on a schema admitting no value is read through, up to
-// maxAdmissionReads hops. Anything else leaving st no value is reported
-// nowhere else.
+// its allOf's conjuncts share no kind, which this report reads at it, no
+// branch of a union beside its object body lives (keepsDeadUnion), or a union
+// shares no kind with a body that is no Model (keepsUnionApartFromBody). A $ref
+// to a schema admitting no value is read through, up to maxAdmissionReads
+// hops; nothing else is reported elsewhere.
 func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 	for range maxAdmissionReads {
 		switch {
@@ -326,7 +326,7 @@ func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 			return true
 		case st.Ref == nil && len(st.AllOf) > 0:
 			return conjunctsShareNothing(c, st.Schema)
-		case st.Ref == nil && keepsDeadUnion(c, st.Schema):
+		case st.Ref == nil && (keepsDeadUnion(c, st.Schema) || keepsUnionApartFromBody(c, st.Schema)):
 			return true
 		}
 		next, _ := declaredOf(c, st)
