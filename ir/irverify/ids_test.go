@@ -111,10 +111,10 @@ func TestVerify_PointerlessIDIsClean(t *testing.T) {
 //
 // The rows break the agreement two ways. The first two put a shared leaf in a
 // format's own space, so one type lowered from two formats stops being one
-// type; the second looks right, a private space merely spelled "prim". The rest
-// keep the shared space with a path that is not the node's kind (another kind,
-// none, or re-cased), which contradicts itself: no consumer can tell which to
-// believe.
+// type; the second looks right, a private space merely spelled "primitive".
+// The rest keep the shared space with a path that is not the node's kind
+// (another kind, none, or re-cased), which contradicts itself: no consumer can
+// tell which to believe.
 func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -123,7 +123,7 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 		kind ir.PrimitiveKind
 	}{
 		{name: "a per-position ID", id: "type/openapi/components/schemas/Name", kind: ir.PrimitiveString},
-		{name: "a compiler's private prim space", id: "type/graphql/prim/string", kind: ir.PrimitiveString},
+		{name: "a compiler's private primitive space", id: "type/graphql/primitive/string", kind: ir.PrimitiveString},
 		{name: "the right space, the wrong kind", id: "type/primitive/int32", kind: ir.PrimitiveString},
 		{name: "the space alone", id: "type/primitive", kind: ir.PrimitiveString},
 		{name: "a re-cased kind", id: "type/primitive/dateTimeOffset", kind: ir.PrimitiveDatetimeOffset},
@@ -143,10 +143,10 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 }
 
 // TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms pins the one case with no
-// destination to name. ir.PrimitiveTypeID derives t/prim/ from the zero-value
-// kind, which is not an ID at all, so the message must not offer it as the
-// place the node belongs — a reader sent there fixes the wrong end, and the
-// check would be telling them to write an ID checkIDs reports as malformed.
+// destination to name. ir.PrimitiveTypeID derives type/primitive/ from the
+// zero-value kind, which is not an ID at all, so the message must not offer it
+// as the place the node belongs — a reader sent there fixes the wrong end, and
+// the check would be telling them to write an ID checkIDs reports as malformed.
 //
 // The kindless primitive breaks two claims at once and each is stated: the ID is
 // not the one its kind derives, and the kind is not one ir declares. They name
@@ -163,7 +163,7 @@ func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 	assert.Equal(t, "ir/primitive-id-not-derived", got[0].Code)
 	assert.Contains(t, got[0].Message, "carries no kind")
 	assert.NotContains(t, got[0].Message, string(ir.PrimitiveTypeID("")),
-		"t/prim/ is not an ID; naming it as the destination sends the reader to the wrong end")
+		"type/primitive/ is not an ID; naming it as the destination sends the reader to the wrong end")
 	assert.Equal(t, "ir/unknown-primitive-kind", got[1].Code)
 }
 
@@ -199,10 +199,10 @@ func TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation(t *testing.T) {
 // ordinary types in a format's own space, reports nothing. Without it a check
 // that fired on everything would pass both tables.
 //
-// "prim" appears in one model as a path segment and in the other inside a name,
-// and neither is in the reserved space, which only reading the space segment
-// can tell. Matching the ID as a substring passes both tables above and fails
-// here.
+// "primitive" appears in one model as a path segment and in the other inside a
+// name, and neither is in the reserved space, which only reading the space
+// segment can tell. Matching the ID as a substring passes both tables above and
+// fails here.
 func TestVerify_PrimitiveIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
@@ -215,8 +215,8 @@ func TestVerify_PrimitiveIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 		pointer jsontext.Pointer
 		source  string
 	}{
-		{id: "type/openapi/prim/string", pointer: "/prim/string", source: "String"},
-		{id: "type/openapi/components/schemas/primitive", pointer: "/components/schemas/primitive", source: "primitive"},
+		{id: "type/openapi/primitive/string", pointer: "/primitive/string", source: "String"},
+		{id: "type/openapi/components/schemas/primitives", pointer: "/components/schemas/primitives", source: "primitives"},
 	} {
 		doc.Types[m.id] = &ir.Model{
 			ID:         m.id,
@@ -226,7 +226,7 @@ func TestVerify_PrimitiveIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	}
 
 	assert.Empty(t, verifyDeclared(doc),
-		"an ID carrying \"prim\" outside the space segment is not in the reserved space")
+		"an ID carrying \"primitive\" outside the space segment is not in the reserved space")
 }
 
 // TestVerify_AuthIDIsHeldToTheSameRule pins that the check is about the grammar
