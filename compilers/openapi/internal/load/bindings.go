@@ -172,7 +172,7 @@ func (s sourceDocument) mapTo(name string) string {
 	return name
 }
 
-// nameOf is the name bind reads the document name names under: the source's
+// nameOf is the name reftable reads the document name names under: the source's
 // path for the source, however it is spelled (refscope.Places.SameDocument),
 // for a file the path where it lies, whether a path or a file URI names it
 // (refscope.Places.FileOf), so a file is one document however a reference

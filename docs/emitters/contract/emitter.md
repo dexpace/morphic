@@ -64,7 +64,7 @@ type CheckMessage struct {
 
 type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
-    Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion, correlation keys (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
+    Facts   *irfacts.DocumentFacts        // what Doc implies: subtypes, usage, recursion, correlation keys (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
     Plan    *plan.Plan            // language-neutral decisions, computed ONCE by the engine (../plan/overview.md)
     Policy  policy.Resolved       // runtime/SDK behavior per operation, its layers resolved —
                                   // a SEPARATE tree, never in the IR (INV10; runtime-policy.md,

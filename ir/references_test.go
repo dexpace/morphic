@@ -273,7 +273,7 @@ func TestIDReferences_PropIDIsDeclaredButNeverKept(t *testing.T) {
 
 	propID := reflect.TypeFor[ir.PropertyID]()
 	for _, ref := range refs.Kept() {
-		assert.NotEqual(t, propID, ref.Class, "no PropID is kept: %s", ref.Path)
+		assert.NotEqual(t, propID, ref.Class, "no PropertyID is kept: %s", ref.Path)
 	}
 	assert.True(t, refs.Declares(propID, "property/x/Holder/f"))
 	assert.False(t, refs.Declares(propID, "property/x/ghost"))

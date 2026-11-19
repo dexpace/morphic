@@ -47,7 +47,7 @@ func (j typeJudge) enums(a, b *ir.Enum) relation {
 // itself. It is false where neither is within the other, since no value type
 // says both.
 func valueTypeHolding(a, b ir.PrimitiveKind) (holding, bool) {
-	return holdingOf(fromSpelling(typeformat.Relate(a, b)))
+	return holdingOf(fromTypeformat(typeformat.Relate(a, b)))
 }
 
 // narrowestValueType returns the value type within every other of the enums

@@ -180,7 +180,7 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 	aFor, bFor := j.standsFor(at, b.Target), j.standsFor(bt, a.Target).flipped()
 	switch {
 	case aBare && bBare:
-		return fromSpelling(typeformat.Relate(ap.PrimitiveKind, bp.PrimitiveKind))
+		return fromTypeformat(typeformat.Relate(ap.PrimitiveKind, bp.PrimitiveKind))
 	case bBare:
 		return j.nodeAgainstBare(a, at, b, bp.PrimitiveKind)
 	case aBare:
@@ -726,8 +726,8 @@ func idless(ms []ir.EnumMember) []ir.EnumMember {
 	return out
 }
 
-// fromSpelling maps spelling's verdict on two kinds to a relation.
-func fromSpelling(typeformatRelation typeformat.Relation) relation {
+// fromTypeformat maps typeformat's verdict on two kinds to a relation.
+func fromTypeformat(typeformatRelation typeformat.Relation) relation {
 	if typeformatRelation == typeformat.Same {
 		return relSame
 	}
@@ -1104,7 +1104,7 @@ func relateKinds(a, b valueKind) relation {
 	case b.format != "":
 		return formatAgainst(b.format, a).flipped()
 	default:
-		return fromSpelling(typeformat.Relate(a.prim, b.prim))
+		return fromTypeformat(typeformat.Relate(a.prim, b.prim))
 	}
 }
 

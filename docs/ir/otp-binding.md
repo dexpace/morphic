@@ -26,6 +26,6 @@ Unions of Tuples discriminated by `Discriminator.TupleElementIndex`; records are
 with the record tag as an index-1 `Literal`-typed property. Splitting a tagged reply union into
 `Responses` vs `Errors` (`{error, Reason}` is in-band data, not transport failure) is injectable
 compiler policy, marked `Inferred`. Erlang `string()` is `[char()]` and must lower as a List of
-a char-ranged scalar — never as PrimKind `string`. Delayed replies (`noreply` +
+a char-ranged scalar — never as PrimitiveKind `string`. Delayed replies (`noreply` +
 `gen_server:reply/2`) are invisible at the protocol surface and need no representation; call
 timeouts and `multi_call`/`send_request` machinery are SDK runtime policy, not IR.

@@ -50,7 +50,7 @@ func TestContent_MultipartPartEncoding(t *testing.T) {
 	content := openapitest.FirstOp(t, svc).Request.Contents[0]
 	metaProp := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "meta"))
 	enc, ok := content.Encoding[metaProp]
-	require.True(t, ok, "encoding keyed by the part property's PropID; got keys %v", content.Encoding)
+	require.True(t, ok, "encoding keyed by the part property's PropertyID; got keys %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 	require.Len(t, enc.Headers, 1)
 	assert.Equal(t, "X-Part", enc.Headers[0].WireName)
@@ -91,7 +91,7 @@ components:
 
 	metaProp := ir.PropertyID("property/openapi" + ids.Ptr("components", "schemas", "Form", "properties", "meta"))
 	enc, ok := content.Encoding[metaProp]
-	require.True(t, ok, "encoding keyed by the resolved property's PropID; got %v", content.Encoding)
+	require.True(t, ok, "encoding keyed by the resolved property's PropertyID; got %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 
 	fileProp := ir.PropertyID("property/openapi" + ids.Ptr("components", "schemas", "Form", "properties", "file"))

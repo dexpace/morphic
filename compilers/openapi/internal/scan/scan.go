@@ -37,7 +37,7 @@ func Pointers(ctx context.Context, root *yaml.Node) func(*yaml.Node) (jsontext.P
 		}
 		if steps == nil {
 			// Never cut short by the bound for a tree the loader reads: each
-			// passed a sourceindex walk under the same bound first.
+			// passed a sourcetreestats walk under the same bound first.
 			steps = placesIn(ctx, root)
 		}
 		if _, held := steps[node]; !held {

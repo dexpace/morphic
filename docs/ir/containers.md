@@ -4,7 +4,7 @@ Part of the [IR design](./README.md). Lists, maps and tuples, which are real typ
 literal, external and schemaless kinds.
 
 ```go
-type List struct    { TypeCommon; Elem TypeRef; Constraints *Constraints; Encoding *Encoding }
+type List struct    { TypeCommon; ElementType TypeRef; Constraints *Constraints; Encoding *Encoding }
                     // Constraints: minItems/maxItems/uniqueItems.
                     // Encoding: container-level wire encoding — protobuf packed vs expanded repeated
                     // fields ("packed"/"expanded"); stacks with the element's own encoding
@@ -14,9 +14,9 @@ type MapT struct    { TypeCommon; Key *TypeRef; Value TypeRef; Constraints *Cons
                     // object whose one statement about its members is additionalProperties.
                     // Key: nil = string keys, the one spelling of them, as for AdditionalProperties.Key.
                     // Constraints: minProperties/maxProperties (Smithy @length), the entry count
-type Tuple struct   { TypeCommon; Elems []TypeRef; Rest *TypeRef; Constraints *Constraints }
+type Tuple struct   { TypeCommon; ElementTypes []TypeRef; Rest *TypeRef; Constraints *Constraints }
                     // prefixItems + items, TypeSpec tuples, Erlang tuples
-                    // Rest: the type of every element past Elems; nil = none may follow
+                    // Rest: the type of every element past ElementTypes; nil = none may follow
                     // Constraints: minItems/maxItems/uniqueItems over the whole instance
 type Literal struct { TypeCommon; Value Value; ValueType PrimitiveKind }
                     // const, a source's literal types, Erlang atoms;
@@ -86,5 +86,5 @@ as a `List`'s ([annotations](./annotations.md#what-a-reference-carries-down)).
 array has no holes, so the required positions are always a prefix, and `Constraints.MinItems` is how
 long it is. A consumer reading a `Tuple` with no `MinItems` must therefore treat every position as
 optional, and a source whose tuples are exact — TypeSpec's and Erlang's — lowers each with
-`MinItems` equal to `len(Elems)` and no `Rest`. No field is derived from another: a compiler neither
+`MinItems` equal to `len(ElementTypes)` and no `Rest`. No field is derived from another: a compiler neither
 trims `ElementTypes` to `MaxItems` nor restates a closed tuple as a `MaxItems`.

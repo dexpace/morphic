@@ -119,7 +119,7 @@ TypeID, Default, Envelope, EnvelopeValueName, Inferred}` already covers all of t
 at **TypeIDs not names** (severing openapi-generator's triple-name coupling). Two concrete emitter
 obligations the references surface: (1) the plan/emit layer **must be able to materialize a
 discriminator property that is not declared** on the base (`Discriminator.PropertyName` deliberately
-has no PropID) — TypeSpec proves this is required; (2) the "drop discriminator for non-object variants"
+has no PropertyID) — TypeSpec proves this is required; (2) the "drop discriminator for non-object variants"
 decision belongs in the Go/Python refiner **with a diagnostic**, never the compiler (fastapi's
 mistake). Copy ogen's mapping-ref resolution fallback into the compiler.
 

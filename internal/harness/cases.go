@@ -108,7 +108,7 @@ type Instance struct {
 	Name  string
 }
 
-// CaseCount returns how many cases cases's product holds, the product of its axes'
+// CaseCount returns how many cases cases' product holds, the product of its axes'
 // lengths. It refuses a product of no axis or of more than maxCases cases, an
 // axis with no value, two axes or two values of one axis of one name, a name
 // the record or a case name cannot hold, and a Like naming no core value of its
@@ -118,7 +118,7 @@ func CaseCount(cases Cases) (int, error) {
 	return n, err
 }
 
-// product returns cases's axes and how many cases they make, reading them once.
+// product returns cases' axes and how many cases they make, reading them once.
 func product(cases Cases) ([]Axis, int, error) {
 	if cases == nil {
 		return nil, 0, errors.New("harness: no cases")
@@ -268,7 +268,7 @@ func Core(cases Cases) func(at []int) bool {
 }
 
 // Each returns every case of cases, its index and its value index per axis, in
-// index order, reading cases's axes once: a walk of the product calls Axes once,
+// index order, reading cases' axes once: a walk of the product calls Axes once,
 // where a Coordinates per index would rebuild them each time.
 func Each(cases Cases) (iter.Seq2[int, []int], error) {
 	axes, n, err := product(cases)
@@ -284,8 +284,8 @@ func Each(cases Cases) (iter.Seq2[int, []int], error) {
 	}, nil
 }
 
-// Coordinates returns the value index per axis of cases's case at index i. It
-// reads cases's axes, so a walk of every case takes Each.
+// Coordinates returns the value index per axis of cases' case at index i. It
+// reads cases' axes, so a walk of every case takes Each.
 func Coordinates(cases Cases, i int) ([]int, error) {
 	axes, n, err := product(cases)
 	if err != nil {
@@ -297,7 +297,7 @@ func Coordinates(cases Cases, i int) ([]int, error) {
 	return coordinates(axes, i), nil
 }
 
-// CheckCase writes cases's case at and applies every case oracle to it, as
+// CheckCase writes cases' case at and applies every case oracle to it, as
 // CheckCases does, and returns false, with the case's name alone, where the
 // case writes nothing. A caller mistake (nil ctx, cases CaseCount refuses, at
 // outside the product) is OutcomeError with a harness-prefixed Detail.
@@ -323,7 +323,7 @@ func faulted(name, detail string) Result {
 	return res
 }
 
-// CheckCases applies every case oracle to each of cases's cases, in index order,
+// CheckCases applies every case oracle to each of cases' cases, in index order,
 // whose value indices pick admits and which Write writes: a Result each, its
 // Spec the case's name. A document an oracle compiles is kept for the shard of
 // cases sharing the case's first two values, so a neighbour compiled once

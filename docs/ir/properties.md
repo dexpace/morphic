@@ -75,7 +75,7 @@ type Lifecycle = string // OPEN set. Canonical values: "create" | "read" | "upda
                         // emitters treat unknown classes as opaque filters.
 
 type Visibility struct {
-    Only []Lifecycle   // empty = visible in all lifecycles (unless None)
+    Only []Lifecycle   // empty = visible in all lifecycles (unless InvisibleInEveryLifecycle)
     InvisibleInEveryLifecycle bool          // visible in NO lifecycle: excluded from every projection
                        // (TypeSpec @invisible) — distinct from the zero value
 }

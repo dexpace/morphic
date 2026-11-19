@@ -24,6 +24,6 @@ func TestReusedMaps_AreEmptiedThroughReusedMapAlone(t *testing.T) {
 	t.Parallel()
 	loadedPackage, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
 	require.NoError(t, err)
-	assert.Empty(t, loadedPackage.FuncsUsing(types.Universe.Lookup("clear")), "a map is cleared through reuse.Map alone")
+	assert.Empty(t, loadedPackage.FuncsUsing(types.Universe.Lookup("clear")), "a map is cleared through scratchstate.Map alone")
 	assert.Empty(t, loadedPackage.FuncsUsing(types.Universe.Lookup("delete")), "no check deletes from a map it reads again")
 }

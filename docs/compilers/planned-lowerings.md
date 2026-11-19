@@ -18,8 +18,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 - consumed post-check (monomorphized, `isFinished`)
 - template instances → TypeCommon.Instantiation incl. value args → TemplateArg
 - models → Model w/ Base + spread provenance → Mixins
-- `Record<T>` → MapT, and a `Record` spread or extended beside properties → AdditionalProps
-- scalars → Scalar chains, constructors in values → Value.Ctor
+- `Record<T>` → MapT, and a `Record` spread or extended beside properties → AdditionalProperties
+- scalars → Scalar chains, constructors in values → Value.Constructor
 - `@encode`/`@format` → Encoding triple, an encoding TypeSpec knows under the name the IR documents
   for it ([encodings](../ir/constraints.md#encodings)), which keys an emitter's rows: `rfc3339`,
   `unixTimestamp`, `seconds`, `base64` and `base64url` as written, `rfc7231` → `http-date` and
@@ -32,7 +32,7 @@ highlights, and the list moves to a specification of its own when the compiler l
 - unions w/ named variants → closed Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
 - `| null` → Nullable
-- visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides →
+- visibility classes (incl. custom, `@invisible` → Visibility.InvisibleInEveryLifecycle) → Visibility, op overrides →
   ParameterVisibility/ReturnTypeVisibility
 - `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality
 - interfaces → OperationGroups (versionable)
@@ -56,7 +56,7 @@ highlights, and the list moves to a specification of its own when the compiler l
 - `@mediaTypeHint` → TypeCommon.MediaTypeHint
 - `never` members deleted + diagnostic per
   [boundaries](../ir/boundaries.md#degraded-constructs)
-- tuples → Tuple with `Constraints.MinItems = len(Elems)` and no Rest, since a TypeSpec tuple
+- tuples → Tuple with `Constraints.MinItems = len(ElementTypes)` and no Rest, since a TypeSpec tuple
   requires every position and admits nothing past them
 - TCGC client-shaping decorators (`@clientName`, `@access`, `@usage`, `@scope`, `@override`, …) →
   namespaced Unmodeled (`out_of_scope`) consumed by emitter policy, never IR semantics
@@ -180,11 +180,11 @@ highlights, and the list moves to a specification of its own when the compiler l
 
 - [Erlang/OTP binding](../ir/otp-binding.md)
 - `-type`/`-spec` type language → type graph: tuples → Tuple with
-  `Constraints.MinItems = len(Elems)` and no Rest, `tuple()` of any arity → Tuple with no Elems and
-  a Rest of the top type, tagged-tuple unions → WireTagged Union + Discriminator.Index, records →
+  `Constraints.MinItems = len(ElementTypes)` and no Rest, `tuple()` of any arity → Tuple with no ElementTypes and
+  a Rest of the top type, tagged-tuple unions → WireTagged Union + Discriminator.TupleElementIndex, records →
   Model{Positional} w/ 1-based WireIDs, atoms → symbol Values / Literal types /
   `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer Scalar + Min/Max, maps
-  `:=`/`=>` → Properties(Required)/AdditionalProps w/ typed keys, a map of `=>` associations alone →
+  `:=`/`=>` → Properties(Required)/AdditionalProperties w/ typed keys, a map of `=>` associations alone →
   MapT, `pid()`/`port()`/`reference()`/`fun()` → External, `string()` → List of char scalar,
   parametrized types monomorphized w/ Instantiation
 - behaviours: gen_server call/cast → Operations + OTPBinding (cast → OneWay), info → channel

@@ -152,7 +152,7 @@ func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 
 	pet := typeByName(doc, "Pet").(*ir.Model)
 	require.NotNil(t, pet.Discriminator)
-	assert.NotEmpty(t, pet.Discriminator.Property, "declared petType resolves to a PropID")
+	assert.NotEmpty(t, pet.Discriminator.Property, "declared petType resolves to a PropertyID")
 	assert.NotEmpty(t, pet.Discriminator.Mapping)
 	assert.NotEmpty(t, pet.Discriminator.Default, "defaultMapping resolved")
 

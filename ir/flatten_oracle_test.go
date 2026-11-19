@@ -68,7 +68,7 @@ func requireDeclarations(t *testing.T, doc *ir.Document, root ir.TypeID, flatten
 			declared[propertyDecl.Property.ID] = true
 		}
 	}
-	assert.Equal(t, ir.ExposedProperties(doc, root), declared, "%s: the declarations are those ExposedProps reaches", what)
+	assert.Equal(t, ir.ExposedProperties(doc, root), declared, "%s: the declarations are those ExposedProperties reaches", what)
 }
 
 // holds reports whether property points at one of model's properties.

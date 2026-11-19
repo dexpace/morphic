@@ -324,9 +324,9 @@ verifier and codecs must reach.
 `verifier-reaches-every-reference-and-id-class`
 
 - **Rule.** A validator or verifier over references or IDs must cover every position a reference can
-  occupy (map keys, PropIDs, plain int indices) and every ID class and node class the document
+  occupy (map keys, PropertyIDs, plain int indices) and every ID class and node class the document
   holds, derived from the type graph rather than from the data a fixture happens to contain.
-- **Why.** Dangling rename targets, channel, message and PropID references, and malformed operation
+- **Why.** Dangling rename targets, channel, message and PropertyID references, and malformed operation
   IDs verified clean because the walk saw only TypeIDs or only registry-reached nodes (#149, #119).
 - **Probe.** Plant a dangling or malformed value in each reference-bearing field and each ID class
   in turn and assert a violation fires for each; a field whose plant stays green is uncovered.

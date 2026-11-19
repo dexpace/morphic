@@ -10,7 +10,7 @@ own, since a `TypeID` may hold any separator the text form could choose.
 ```go
 package plan
 
-func Build(doc *ir.Document, facts *irfacts.Index, pp Policy) (*Plan, []ir.Diagnostic)
+func Build(doc *ir.Document, facts *irfacts.DocumentFacts, pp Policy) (*Plan, []ir.Diagnostic)
 
 type Plan struct {
     Ops       map[ir.OperationID]OpPlan        // one entry per operation

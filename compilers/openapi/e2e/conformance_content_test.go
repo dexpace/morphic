@@ -36,7 +36,7 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.NotNil(t, op.Request)
 	require.Len(t, op.Request.Contents, 1)
 	enc := op.Request.Contents[0].Encoding
-	require.NotEmpty(t, enc, "multipart parts carry PartEncoding keyed by PropID")
+	require.NotEmpty(t, enc, "multipart parts carry PartEncoding keyed by PropertyID")
 	var sawFile, sawMulti bool
 	var fileHeaders []ir.Header
 	for _, pe := range enc {

@@ -210,7 +210,7 @@ func TestPreparedFor(t *testing.T) {
 
 		require.True(t, ok)
 		assert.Same(t, tree, got)
-		assert.False(t, other, "a spelling resolve.Locate never gives names nothing")
+		assert.False(t, other, "a spelling componentlookup.Locate never gives names nothing")
 	})
 
 	t.Run("a key no read recorded", func(t *testing.T) {

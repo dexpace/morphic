@@ -170,7 +170,7 @@ ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imp
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion, correlation keys), derived on demand and never stored. Imports
              ir only.
-  irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir and reuse.
+  irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir and scratchstate.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir and barrier.
   compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
@@ -186,7 +186,7 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              compiler above it.
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
-pass/        Layer 1 — IR → IR passes. Imports ir, ir/irfacts and reuse.
+pass/        Layer 1 — IR → IR passes. Imports ir, ir/irfacts and scratchstate.
 emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
              rendering, so a second driver needs nothing from the CLI:

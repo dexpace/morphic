@@ -193,12 +193,12 @@ const (
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number, at every schema the rule table's check reads, in its dialect
 	// (error severity: Morphic owns these keywords, so this is the sole
-	// diagnostic for the defect — see oas's decimalBound).
+	// diagnostic for the defect — see specrules' decimalBound).
 	NumericPrecision = "openapi/invalid-numeric-literal"
 	// ExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose value
 	// form is wrong for the schema's dialect (a boolean under 2020-12, or a
 	// number under 3.0's or draft 4's), at every schema the rule table's check
-	// reads — see oas's decimalBound.
+	// reads — see specrules' decimalBound.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// InvalidStatusKey reports a responses-map key that names no status: not a
 	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The

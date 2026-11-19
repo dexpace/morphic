@@ -42,7 +42,7 @@ func groupResults(t *testing.T) []harness.Result {
 	return groupRun.of(t, cases, harness.Core(cases))
 }
 
-// of returns what the case oracles found at cases's cases pick admits, in index
+// of returns what the case oracles found at cases' cases pick admits, in index
 // order. The first test asking checks them, a shard of the first two axes'
 // values per parallel subtest of its own.
 func (r *run) of(t *testing.T, cases harness.Cases, pick func([]int) bool) []harness.Result {
@@ -52,7 +52,7 @@ func (r *run) of(t *testing.T, cases harness.Cases, pick func([]int) bool) []har
 	return r.results
 }
 
-// checkShards checks cases's cases pick admits shard by shard in parallel subtests
+// checkShards checks cases' cases pick admits shard by shard in parallel subtests
 // of t, and reports whether each shard checked.
 func checkShards(t *testing.T, cases harness.Cases, pick func([]int) bool) ([]harness.Result, bool) {
 	keys := shardKeys(t, cases, pick)

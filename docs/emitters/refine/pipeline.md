@@ -26,7 +26,7 @@ type Step interface {
 
 type Ctx struct {
     Doc     *ir.Document        // read-only source of un-lowered facts
-    Facts   *irfacts.Index      // read-only derived facts, the engine's one index (../contract/emitter.md)
+    Facts   *irfacts.DocumentFacts      // read-only derived facts, the engine's one index (../contract/emitter.md)
     Plan    *plan.Plan          // read-only shared decisions
     Types   typemap.Table       // the merged type table (../contract/type-table.md), built from Options
     Policy  policy.Resolved      // read-only SDK runtime policy, resolved per operation

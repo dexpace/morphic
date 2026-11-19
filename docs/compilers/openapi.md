@@ -2025,7 +2025,7 @@ replacement its message tells a caller to use, and no message is reported.
 
 A field both `readOnly` and `writeOnly` — on one schema, across a `$ref` whose site sets one flag
 and referent the other, or on inline `allOf` branches that redeclare it — admits no lifecycle. It
-lowers as declared, to `Visibility{None: true}`
+lowers as declared, to `Visibility{InvisibleInEveryLifecycle: true}`
 ([properties](../ir/properties.md#visibility)), and is reported once, as an
 `openapi/disjoint-visibility` warning at the invisible property or at the schema of the invisible
 header, or for `allOf` at the redeclaration that empties the set (a branch repeating a field already

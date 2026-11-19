@@ -159,7 +159,7 @@ func TestGroups_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 // holding at one, and the walk does not grow by the product of the two axes.
 func alone(at []int) bool { return at[3] == 0 || at[4] == 0 }
 
-// eachCaseWritesADocumentOfItsOwn writes every case of cases's full product pick
+// eachCaseWritesADocumentOfItsOwn writes every case of cases' full product pick
 // admits: each document holds minSources sources or more, each JSON, is
 // written alike twice, and no two cases write the same one, as a value Write
 // misreads would make them; and each value of each axis is written by some

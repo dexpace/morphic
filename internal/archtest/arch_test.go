@@ -132,14 +132,14 @@ var rules = map[string][]string{
 	// Every $ref of the source, a schema's and a reference object's, resolved
 	// into a table over the decoded trees, never through the library's resolver
 	// (GitHub #558). It reads a tree through nodeview, a fragment through
-	// fragment and each object's fields off oas's rule table, counts its work
+	// fragment and each object's fields off specrules' rule table, counts its work
 	// through budget, and reaches nothing of the library's model or of what
 	// loads or lowers.
 	"compilers/openapi/internal/reftable": {module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/nodeview", module + "/compilers/openapi/internal/specrules",
 		"go.yaml.in/yaml/v3"},
-	// The typed side of a bind table: each schema of the parsed model known by
+	// The typed side of a reftable.ReferenceTargetTable: each schema of the parsed model known by
 	// the position it was read at, located through the library's walk, and one
 	// the library's decoder builds from raw YAML where the model holds none,
 	// behind the compiler's barrier in diag.
@@ -150,7 +150,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/walk", "go.yaml.in/yaml/v3"},
 	// The name of every node the lowering builds, as a function of the documents
 	// and the node's coordinate (GitHub #981). It reads the grammar through a
-	// bind table, the raw tree through nodeview and a $ref's fragment through
+	// reftable.ReferenceTargetTable, the raw tree through nodeview and a $ref's fragment through
 	// fragment, composes names in compile's grammar, and reads the words a title
 	// or a key spells through ir's. It reaches nothing that lowers, so no
 	// lowering can make a name depend on the order it runs in.
@@ -200,10 +200,10 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// What a schema position writes, read once into one value: each key in the
-	// slot oas gives it, each slot's values typed, and the inline allOf entries
+	// slot specrules gives it, each slot's values typed, and the inline allOf entries
 	// flattened. It reaches the bindings for where each schema was read and
 	// what its $ref names, nodeview for the keys as the parser reads them,
-	// dialect and oas for the rows in force, and the library's schema model,
+	// dialect and specrules for the rows in force, and the library's schema model,
 	// in one file, so that the schema lowering and annotation, which sit above
 	// it, read what a schema says without reading the parser.
 	"compilers/openapi/internal/statement": {module + "/compilers/openapi/internal/reftable",
@@ -214,8 +214,8 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "go.yaml.in/yaml/v3"},
 	// The rows each schema of a compile is read with, by where it is, by its
 	// node and by its document: one table the load phase fills and every
-	// reader asks. It reaches bind for where a schema is and the roots naming
-	// a dialect, nodeview for the node an alias stands for, oas for the rows,
+	// reader asks. It reaches reftable for where a schema is and the roots naming
+	// a dialect, nodeview for the node an alias stands for, specrules for the rows,
 	// and yaml for the trees a root governs, and nothing that judges or lowers.
 	"compilers/openapi/internal/dialect": {module + "/compilers/openapi/internal/reftable",
 		module + "/compilers/openapi/internal/nodeview",
@@ -244,11 +244,11 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/value", "go.yaml.in/yaml/v3"},
 	// The entry side: parse, check, resolve. It indexes the tree its one decode
-	// produced through sourceindex, runs the pre-lowering refusals over that index
+	// produced through sourcetreestats, runs the pre-lowering refusals over that index
 	// through scan, applies the caller's overlay through overlay, places what it
 	// finds through provenance, and holds the tree, and what its references
-	// reach, to the specification's rules through oas, each within its budget
-	// through budget. It reaches resolve to read
+	// reach, to the specification's rules through specrules, each within its budget
+	// through budget. It reaches componentlookup to read
 	// which mapping values name a position in the source as the lowering will,
 	// the library's marshaller to build the object a reference lands on in raw
 	// YAML, and the library's core models to tell its marshaller of the media
@@ -285,7 +285,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// What a $ref names: the pointer it addresses and the type already interned
-	// there. It reaches bind for where a $ref lands, nodeview to read what a
+	// there. It reaches reftable for where a $ref lands, nodeview to read what a
 	// reference object writes beside its $ref as the model reads a mapping,
 	// compile for the registry it looks IDs up in, the library's openapi package
 	// and core models to name each kind of reference once (ReferenceEnd), the
@@ -308,7 +308,7 @@ var rules = map[string][]string{
 	// allOf property reconciliation. It reaches annotation for the one field a
 	// redeclaration unions rather than intersects, budget for the model pairs a
 	// judgment compares, diag for what a fold reports, ids for the identity a
-	// field takes of its own, provenance to place what it reports, and spelling
+	// field takes of its own, provenance to place what it reports, and typeformat
 	// for how two primitive kinds relate. The registry and the walk that
 	// declared the field reach it as values, which is what keeps the conflict
 	// lattice drivable without a walk.
@@ -337,8 +337,8 @@ var rules = map[string][]string{
 	// caller's policies and the indexes derived at entry. It is the substrate
 	// the schema walk and the service walks share and so must reach neither. It
 	// takes what the load phase read as values of the packages below, never
-	// load itself: bind and resolve for where each $ref lands, which its scope
-	// reads, and dialect for the rows each schema is read with, which oas
+	// load itself: reftable and componentlookup for where each $ref lands, which its scope
+	// reads, and dialect for the rows each schema is read with, which specrules
 	// states, the dialect question asked of the table, never of the version.
 	// It reaches naming for what each position is called, budget for the limits
 	// it holds, provenance and diag for where a position of its document is
@@ -408,7 +408,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/openapi"},
 	// What a deprecation names as its replacement, by a key or in its message,
 	// read once the document is whole. It reaches promotion for the promotion
-	// that reads the names, whole for the document they name, ids for the ID a
+	// that reads the names, compileddoc for the document they name, ids for the ID a
 	// schema's name gives it, and diag for what it reports, and nothing of the
 	// walks (docs/compilers/openapi.md#policies).
 	"compilers/openapi/internal/replacement": {module + "/ir",
@@ -419,7 +419,7 @@ var rules = map[string][]string{
 	// What a document's names imply, read once the document is whole: an
 	// operation's idempotency token, a credential's redaction and a header's
 	// HTTP-date text. It reaches promotion for the promotion whose keys it
-	// defers to, whole for the document it reads, and diag for what it reports,
+	// defers to, compileddoc for the document it reads, and diag for what it reports,
 	// and nothing of the walks.
 	"compilers/openapi/internal/convention": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
@@ -435,13 +435,13 @@ var rules = map[string][]string{
 	// the body members it resolves to. It is its own package because the link
 	// resolution in operation and the pagination promotion read an expression
 	// alike, and the promotion may reach nothing of the walks operation holds.
-	// It reaches whole for the one reading of the finished document every
+	// It reaches compileddoc for the one reading of the finished document every
 	// such step shares, and nothing of the walks.
 	"compilers/openapi/internal/runtimeexpr": {module + "/ir",
 		module + "/compilers/openapi/internal/compileddoc"},
 	// The pagination an operation's extensions declare, and the pagination the
 	// names it uses say, read once the document is whole. It reaches promotion
-	// for the keys an operation writes, whole for the document it reads, and
+	// for the keys an operation writes, compileddoc for the document it reads, and
 	// runtimeexpr for the expressions an extension writes, and nothing of the
 	// walks.
 	"compilers/openapi/internal/pagination": {module + "/ir",
@@ -451,7 +451,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/compileddoc"},
 	// What an operation's and its streaming contents' keys state of the stream
 	// it returns, read once the document is whole. It reaches promotion for the
-	// policy and the reports it shares, whole for the document it reads, and
+	// policy and the reports it shares, compileddoc for the document it reads, and
 	// runtimeexpr for the expression naming the input that asks for a stream,
 	// and nothing of the walks.
 	"compilers/openapi/internal/stream": {module + "/ir",
@@ -460,7 +460,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/compileddoc"},
 	// The choices among an operation's parameters its key states, read once
 	// the document is whole. It reaches promotion for the policy and the reports
-	// it shares, and whole for the parameters a name resolves to, and nothing of
+	// it shares, and compileddoc for the parameters a name resolves to, and nothing of
 	// the walks.
 	"compilers/openapi/internal/paramchoice": {module + "/ir",
 		module + "/compilers/openapi/internal/promotion",
@@ -503,10 +503,10 @@ var rules = map[string][]string{
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
 	// reaches the schema walk for the positions it hoists, auth for the
-	// requirements it reads, nodeview for the raw nodes behind the model, oas
+	// requirements it reads, nodeview for the raw nodes behind the model, specrules
 	// for the cases the Encoding Object's defaults are keyed by, value for
 	// the constants a link passes, runtimeexpr for the expressions a link
-	// reads and whole for the document it reads them in, and nothing above
+	// reads and compileddoc for the document it reads them in, and nothing above
 	// itself — the compiler assembles the document from what this returns
 	// rather than the other way round.
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",

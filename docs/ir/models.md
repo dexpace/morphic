@@ -54,7 +54,7 @@ type PatternProperties struct { Pattern string; Value TypeRef }
 
 ```go
 type Discriminator struct {
-    // Exactly one of Property / PropertyName / Index locates the tag:
+    // Exactly one of Property / PropertyName / TupleElementIndex locates the tag:
     Property PropertyID                // model hierarchies: the property that carries the tag, the
                                    // declaration this model's flattening takes for it
     PropertyName string            // unions: wire name of the tag property (it exists on no single

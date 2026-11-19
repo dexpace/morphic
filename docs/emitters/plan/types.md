@@ -329,7 +329,7 @@ type ModelShape struct {
 mixes in, each member visible as the declaration it takes says
 ([models](../../ir/models.md#the-flattening)). A member is visible when its `Only` names a lifecycle
 of the filter, or none of the filter's class: `readOnly → Only:[read, delete, query]`; `writeOnly →
-Only:[create, update]` ([properties](../../ir/properties.md#visibility)); `Visibility.None` →
+Only:[create, update]` ([properties](../../ir/properties.md#visibility)); `Visibility.InvisibleInEveryLifecycle` →
 excluded from every projection (distinct from the zero value). A patch shape makes every property it
 holds optional ([below](#what-a-patch-relaxes)), and no shape carries a property's default onto the
 wire ([values](../refine/values.md)). Unknown visibility classes are opaque filters evaluated per

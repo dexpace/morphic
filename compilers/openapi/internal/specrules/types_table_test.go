@@ -23,7 +23,7 @@ func minors() []specrules.Minor {
 	return []specrules.Minor{specrules.V30, specrules.V31, specrules.V32}
 }
 
-// declaredKinds returns the Kind constants package oas declares, read
+// declaredKinds returns the Kind constants package specrules declares, read
 // type-checked, so a kind added there is held to the table with no list here to
 // keep in step.
 func declaredKinds(t *testing.T) []specrules.Kind {

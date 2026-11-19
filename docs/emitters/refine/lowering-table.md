@@ -45,5 +45,5 @@ IR bug (INV9), not a compiler change.
 | `ErrorCase{Fault, Retryable}` | status→kind map; an error's raw body |
 | `Response` beside the primary (`OpPlan.Others`) | the status; the body as it arrived |
 | `Auth` OR-of-ANDs | — |
-| `Value{Num BigVal, Ctor, Ref, symbol}` | — |
+| `Value{Number BigVal, Constructor, Ref, symbol}` | — |
 | `Naming{Canonical}` | `WireName`/`WireID` never cased |

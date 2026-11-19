@@ -200,7 +200,7 @@ func (w *named) measured(namedKeyValue namedKey) namedShape {
 // rawNamed is what a compile names at node itself, a node inside a value the
 // grammar keeps raw: each key a mapping writes more than once, where the rule
 // table places a finding at that key's pointer (nodeview.RepeatedKeys, as
-// oas's check of a raw value asks), and nothing else.
+// specrules' check of a raw value asks), and nothing else.
 func rawNamed(node *yaml.Node) namedShape {
 	var out namedShape
 	if node.Kind != yaml.MappingNode {

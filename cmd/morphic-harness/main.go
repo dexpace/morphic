@@ -164,7 +164,7 @@ func checkOne(ctx context.Context, fmts []format, n int, stdout, stderr io.Write
 	return 2
 }
 
-// writeCase applies the case oracles to cases's case at and writes its name, its
+// writeCase applies the case oracles to cases' case at and writes its name, its
 // sources and each verdict, and returns 1 when the case holds what a run of
 // the cases reports with no record to explain it: a finding, a decline a
 // record lists as one, or a fault. A case a fault such as a panic ended is

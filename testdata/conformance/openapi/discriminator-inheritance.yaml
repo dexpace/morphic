@@ -4,7 +4,7 @@ paths: {}
 components:
   schemas:
     # The base declares the tag property itself, so the discriminator binds a
-    # PropID rather than a bare wire name.
+    # PropertyID rather than a bare wire name.
     Pet:
       type: object
       required: [petType]

@@ -83,7 +83,7 @@ func TestContent_MixedCaseFormContentKeepsEncoding(t *testing.T) {
 			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
 			metaProp := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", tc.mt, "schema", "properties", "meta"))
 			enc, ok := content.Encoding[metaProp]
-			require.True(t, ok, "encoding keyed by the part property's PropID; got keys %v", content.Encoding)
+			require.True(t, ok, "encoding keyed by the part property's PropertyID; got keys %v", content.Encoding)
 			assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 		})
 	}
@@ -124,7 +124,7 @@ func TestContent_MixedCaseURLEncodedKeepsPartEncoding(t *testing.T) {
 			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
 			tagsProp := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/submit", "post", "requestBody", "content", tc.mt, "schema", "properties", "tags"))
 			enc, ok := content.Encoding[tagsProp]
-			require.True(t, ok, "a repeated part carries a PartEncoding keyed by its PropID; got keys %v", content.Encoding)
+			require.True(t, ok, "a repeated part carries a PartEncoding keyed by its PropertyID; got keys %v", content.Encoding)
 			assert.True(t, enc.RepeatsPerArrayItem, "the structural flag is read off the part")
 		})
 	}

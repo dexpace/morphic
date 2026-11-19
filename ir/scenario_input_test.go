@@ -80,7 +80,7 @@ func TestExample_ScenarioInput_RoundTrips(t *testing.T) {
 		{name: "a nil parameter map", input: &ir.ScenarioInput{Body: &body}},
 		{name: "a nil body", input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioStr}}},
 		{name: "a body holding a null value", input: &ir.ScenarioInput{Body: &null}},
-		{name: "a key that is no valid ParamID", input: &ir.ScenarioInput{
+		{name: "a key that is no valid ParameterID", input: &ir.ScenarioInput{
 			Params: map[ir.ParameterID]ir.Value{"": scenarioStr, "not an id": null, "type/x/M": scenarioStr},
 		}},
 	} {
