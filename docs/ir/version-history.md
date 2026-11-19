@@ -35,7 +35,7 @@ it sees. Changes made together in one bump are listed together under it.
 - **0.5.0** — the IR moved onto `encoding/json/v2` and absence got one spelling:
   - `Operation.Auth`, `Service.Auth` and `Server.Auth` write nil (inherit) as an absent key rather
     than `null`. An empty list, explicitly public, is still `[]`.
-  - A `Value`'s bytes, list and object payloads, and a `ConstructorValue`'s args, are omitted when empty
+  - A `Value`'s bytes, list and object payloads, and a `CtorValue`'s args, are omitted when empty
     rather than written as `null`.
   - Strings use RFC 8785's minimal escaping, so `<`, `>` and `&` are written as themselves rather
     than as `\u003c`, `\u003e` and `\u0026`.
@@ -59,7 +59,7 @@ it sees. Changes made together in one bump are listed together under it.
   - `Parameter` gained `ID`. A parameter had been named by its name, which one operation can repeat:
     `id` in the path and `id` in the query are two parameters. `HTTPParamBinding.Param`,
     `ParamPath.Param` and `Idempotency.TokenParam` changed from the parameter's name to its
-    `ParameterID`, so the three references name one parameter instead of two. A consumer pinned to 0.7.0
+    `ParamID`, so the three references name one parameter instead of two. A consumer pinned to 0.7.0
     finds no `id` on a parameter and reads those three as names; it cannot tell which of two
     same-named parameters a binding places on the wire. The `param` kind joined `IDSpaces`.
   - `EnumMember` gained `ID`. A member had been a name and a value, so a consumer could key it only
@@ -103,9 +103,9 @@ it sees. Changes made together in one bump are listed together under it.
     now finds both.
 - **0.14.0** — a map has one shape ([containers](./containers.md)):
   - The OpenAPI compiler lowers an object whose one member fact is its `additionalProperties` to a
-    `MapT`, where it had built a `Model` with no properties and an `AdditionalProperties`. A consumer
+    `MapT`, where it had built a `Model` with no properties and an `AdditionalProps`. A consumer
     pinned to 0.13.0 finds a node of kind `map` where it read a model.
-  - `MapT.Key` became a pointer, nil for string keys as `AdditionalProperties.Key` is, and `MapT` gained
+  - `MapT.Key` became a pointer, nil for string keys as `AdditionalProps.Key` is, and `MapT` gained
     `Constraints`, the bound on how many entries an instance may carry. A consumer pinned to 0.13.0
     decodes a map with no `key` to a reference naming no type, and reads no entry bound. A nil key
     is the one spelling of a string key on either, and `irverify` rejects one naming the `string`
@@ -149,7 +149,7 @@ it sees. Changes made together in one bump are listed together under it.
     catch-all and a `required` name is now a `Model` where it had been a `MapT`. A consumer pinned
     to 0.18.0 reads those members as optional.
 - **0.20.0** — a member a model's composition declares more than once is addressed by one
-  declaration ([models](./models.md#the-flattening)). The shape is unchanged, but a `PropertyID` that
+  declaration ([models](./models.md#the-flattening)). The shape is unchanged, but a `PropID` that
   names a model's member, an encoding key in `Content.Encoding` ([payloads](./payloads.md)) or a
   discriminator's `Property`, now names the declaration that model's flattening takes. The OpenAPI
   compiler had keyed a part two composed models declare by the first it found: the body's own, then
@@ -306,7 +306,7 @@ it sees. Changes made together in one bump are listed together under it.
     number of one value, or a string and a date, are told apart where they were one `Value`, with
     the type or format kept verbatim under `Unmodeled`. Those entries are no longer written where
     the value fits what was declared, so a consumer pinned to 0.32.0 that read them finds nothing.
-  - `AdditionalProperties.Value` became optional: nil says no key beyond the patterns is allowed, and
+  - `AdditionalProps.Value` became optional: nil says no key beyond the patterns is allowed, and
     `additionalProperties: false` beside `patternProperties` lowers to it, where it had typed the
     catch-all as the top type beside a closure that forbade the same keys. A `false` `allOf` branch,
     which closes its model, takes the value too, keeping a written `additionalProperties` verbatim.
@@ -767,14 +767,14 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:<keyword>` (`degraded_lowering`) instead. No bound that was kept becomes typed. A
   consumer pinned to 0.65.0 that read such a bound as constraining the reference applied it to
   values of a kind it never bounds, and finds it now only under `Unmodeled`.
-- **0.67.0** — `Example.Input` is a `ScenarioInput`: each parameter's value under its `ParameterID` in
+- **0.67.0** — `Example.Input` is a `ScenarioInput`: each parameter's value under its `ParamID` in
   `params`, and the request body's in `body`, where it was one `Value` of no stated shape; a `body`
   beside a parameter bound into the body states part of it twice and no longer verifies
   ([annotations](./annotations.md#docs-deprecation-examples)). A channel's ID opens with `chan/`
   and a message's with `msg/`, and `Document.IDSpaces` may key both; a document minting either
   without the prefix no longer verifies ([IDs](./identity.md#the-id-grammar)). No shape moves
   for these: `irverify` now refuses an undeclared `AdditionalMode`, `HTTPLocation`,
-  `IdempotencyKind`, `MessageDirection`, `PageStrategy`, `PresenceKind` or `Severity`, a version label
+  `IdempotencyKind`, `MsgDirection`, `PageStrategy`, `PresenceKind` or `Severity`, a version label
   `Document.Versions` lists blank or twice, or that an `Availability` writes and it does not
   declare, an `Added` and `Removed` that do not alternate
   ([availability](./availability.md#version-labels)), a primitive credited to a source, an enum
@@ -933,7 +933,7 @@ it sees. Changes made together in one bump are listed together under it.
     mixin; over a `type` list holding an object, the list's object variant (`…/type/<i>`) is the
     base, where the union was. Of several `$ref` entries in discriminator hierarchies, the base is
     the one whose mapping names the model, where it was the first written. A composed `Model` takes
-    `Additional` and `AdditionalProperties` from the one schema object of its `allOf` whose
+    `Additional` and `AdditionalProps` from the one schema object of its `allOf` whose
     `additionalProperties` reads every member the position and its entries declare: an entry closing
     the model types the closure, where the entry was kept whole, and a closure beside an `allOf`
     whose entries declare members is kept under `openapi:additionalProperties`, where it closed or
@@ -966,7 +966,7 @@ it sees. Changes made together in one bump are listed together under it.
     schema that is an object by its `properties`, was held. A `Property` or a `Parameter` whose use
     owns its node, a member the redeclared-property fold composes among them, no longer restates
     that node's bounds ([annotations](./annotations.md#one-structural-home-per-declaration)). A
-    `Model` or a `MapT` holds `MinProperties` and `MaxProperties` alone, a distributed union's variant among
+    `Model` or a `MapT` holds `MinProps` and `MaxProps` alone, a distributed union's variant among
     them, where a variant held each bound the position took; another bound beside one is kept under
     its keyword, on an `allOf` entry as beside it (`openapi:minLength`, not inside
     `openapi:allOf/<n>`). `irverify` reports a structural node holding a bound of another kind
