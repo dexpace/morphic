@@ -226,7 +226,8 @@ func infosOf(v pairView) []string {
 }
 
 // facets names the facets of two views that differ, the warnings and errors
-// apart from the infos.
+// apart from the infos, a view with no finding left in either alike with one
+// whose findings are infos alone.
 func facets(a, b pairView) []string {
 	var out []string
 	for _, f := range []struct {
@@ -234,8 +235,8 @@ func facets(a, b pairView) []string {
 		same bool
 	}{
 		{"kind", a.Kind == b.Kind}, {"variants", cmp.Equal(a.Variants, b.Variants)},
-		{"kept", cmp.Equal(a.Kept, b.Kept)}, {"infos", cmp.Equal(infosOf(a), infosOf(b))},
-		{"warnings", cmp.Equal(slices.DeleteFunc(slices.Clone(a.Findings), isInfo), slices.DeleteFunc(slices.Clone(b.Findings), isInfo))},
+		{"kept", cmp.Equal(a.Kept, b.Kept)}, {"infos", slices.Equal(infosOf(a), infosOf(b))},
+		{"warnings", slices.Equal(slices.DeleteFunc(slices.Clone(a.Findings), isInfo), slices.DeleteFunc(slices.Clone(b.Findings), isInfo))},
 	} {
 		if !f.same {
 			out = append(out, f.name)
