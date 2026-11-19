@@ -873,7 +873,7 @@ func TestAllOf_ABoundBesideAnEntrysOwnRefIsThePositions(t *testing.T) {
 func TestConstraints_ATypeListReadsWhatThePositionAdmits(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, schema, key, value, reportAt string }{
-		{name: "a bound on a branch", key: "minimum", value: "1", reportAt: "/allOf/1",
+		{name: "a bound on an entry", key: "minimum", value: "1", reportAt: "/allOf/1",
 			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}, {minimum: 1}], minLength: 2}"},
 		{name: "a bound beside the allOf", key: "minimum", value: "1",
 			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}], minimum: 1, minLength: 2}"},

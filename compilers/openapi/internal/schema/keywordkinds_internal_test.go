@@ -101,13 +101,13 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineEntry(t *testing.T) {
 		want       bool
 	}{
 		{"no bound anywhere", "allOf: [" + obj + ", {properties: {a: {}}}]\n", false},
-		{"a bound beside a branch's own $ref, the rest of that branch", "allOf: [{$ref: '#/components/schemas/Obj', minLength: 1}]\n", true},
+		{"a bound beside an entry's own $ref, the rest of that entry", "allOf: [{$ref: '#/components/schemas/Obj', minLength: 1}]\n", true},
 		{"a value bound on the schema", "allOf: [" + obj + "]\nminLength: 1\n", true},
 		{"a collection bound on the schema", "allOf: [" + obj + "]\nmaxItems: 2\n", true},
-		{"a value bound on the first branch", "allOf: [{minimum: 1}, " + obj + "]\n", true},
-		{"a value bound on a later branch", "allOf: [" + obj + ", {properties: {a: {}}}, {minLength: 1}]\n", true},
-		{"a collection bound on a later branch", "allOf: [" + obj + ", {properties: {a: {}}}, {uniqueItems: true}]\n", true},
-		{"a bound on a branch of a nested allOf", "allOf: [" + obj + ", {allOf: [{pattern: '^a'}]}]\n", true},
+		{"a value bound on the first entry", "allOf: [{minimum: 1}, " + obj + "]\n", true},
+		{"a value bound on a later entry", "allOf: [" + obj + ", {properties: {a: {}}}, {minLength: 1}]\n", true},
+		{"a collection bound on a later entry", "allOf: [" + obj + ", {properties: {a: {}}}, {uniqueItems: true}]\n", true},
+		{"a bound on an entry of a nested allOf", "allOf: [" + obj + ", {allOf: [{pattern: '^a'}]}]\n", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

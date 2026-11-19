@@ -572,16 +572,16 @@ func TestVoices_AnUnevaluatedKeywordStaysWithItsEntry(t *testing.T) {
 				doc, diags := parseFull(t, voicesDoc(tc.schema))
 				openapitest.RequireNoErrorDiags(t, diags)
 				common := typeByName(doc, "S").Common()
-				require.Contains(t, common.Unmodeled, "openapi:"+tc.at, "the branch is kept whole")
+				require.Contains(t, common.Unmodeled, "openapi:"+tc.at, "the entry is kept whole")
 				assert.NotContains(t, common.Unmodeled, "openapi:unevaluated", "the position keeps none of it")
 				at := make([]ir.Diagnostic, 0, 1)
 				for _, code := range []string{diag.ValidationOnlyKeyword, diag.DegradedConstruct} {
 					at = append(at, diagsAtPointer(diags, code, "/components/schemas/S/"+tc.at)...)
 				}
-				require.Len(t, at, 1, "the branch's one report: nothing folds to be reported; got %v", diags)
+				require.Len(t, at, 1, "the entry's one report: nothing folds to be reported; got %v", diags)
 				assert.Contains(t, at[0].Message, "the entry (", "the report is the entry's")
 				if m, ok := typeByName(doc, "S").(*ir.Model); ok {
-					assert.Empty(t, m.Additional, "a branch's closure is not the model's")
+					assert.Empty(t, m.Additional, "an entry's closure is not the model's")
 				}
 			})
 		}

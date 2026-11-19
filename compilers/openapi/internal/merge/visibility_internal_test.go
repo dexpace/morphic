@@ -31,7 +31,7 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 		want     ir.Visibility
 	}{
 		{
-			name: "neither branch restricts visibility",
+			name: "neither entry restricts visibility",
 			dst:  unrestricted, src: unrestricted,
 			want: unrestricted,
 		},

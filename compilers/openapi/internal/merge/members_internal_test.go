@@ -333,9 +333,9 @@ func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 		interned   []jsontext.Pointer
 		want       ir.PropID
 	}{
-		"held alone":          {"/M/allOf/1/properties/p", "/M/allOf/1/properties/p", nil, "p/M/allOf/1/properties/p"},
-		"its branch interned": {"/M/allOf/1/properties/p", composedAt, []jsontext.Pointer{"/M/allOf/1"}, composed},
-		"outside the model":   {"/body/properties/p", composedAt, nil, composed},
+		"held alone":         {"/M/allOf/1/properties/p", "/M/allOf/1/properties/p", nil, "p/M/allOf/1/properties/p"},
+		"its entry interned": {"/M/allOf/1/properties/p", composedAt, []jsontext.Pointer{"/M/allOf/1"}, composed},
+		"outside the model":  {"/body/properties/p", composedAt, nil, composed},
 	} {
 		reg := membersRegistry()
 		m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}

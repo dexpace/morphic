@@ -89,7 +89,7 @@ func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
 
 // TestAllOf_NonBareNarrowingIsOrderInvariant pins that a redeclaration with a
 // side that is not a bare primitive settles on its narrower side whichever
-// branch is written first, with no conflict or degradation reported and
+// entry is written first, with no conflict or degradation reported and
 // nothing kept.
 func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 	t.Parallel()
@@ -128,7 +128,7 @@ func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 			assert.Empty(t, cmp.Diff(types[0], types[1],
 				cmpopts.IgnoreFields(ir.TypeCommon{}, "ID", "Name", "Provenance"),
 				cmpopts.IgnoreFields(ir.EnumMember{}, "ID")),
-				"the winner does not depend on branch order")
+				"the winner does not depend on entry order")
 		})
 	}
 }

@@ -605,7 +605,7 @@ var equivalencePairs = []struct {
 `, `    M:
       allOf: [{$ref: '#/components/schemas/A'}, {required: [a]}]
 `},
-	{"a true branch", `    M:
+	{"a true entry", `    M:
       allOf:
         - allOf: [{$ref: '#/components/schemas/A'}, true]
 `, `    M:

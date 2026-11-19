@@ -424,12 +424,12 @@ func TestNullableInference_AnEntryWidensTheAllOfHoldingIt(t *testing.T) {
 
 	besideEnum := openapitest.HolderSpec("3.0.3", "{enum: [a], allOf: [{nullable: true}]}", "")
 	doc, _ = compileNullable(t, besideEnum, false)
-	assert.True(t, holderP(t, doc).Nullable, "an enum beside the allOf is what a branch speaking for it widens")
+	assert.True(t, holderP(t, doc).Nullable, "an enum beside the allOf is what an entry speaking for it widens")
 	assert.NotEmpty(t, holderP(t, doc).Inferred)
 
 	besideType := openapitest.HolderSpec("3.0.3", "{type: string, allOf: [{description: d}, {nullable: true}]}", "")
 	doc, diags = compileNullable(t, besideType, false)
-	assert.True(t, holderP(t, doc).Nullable, "a type beside the allOf is what a branch speaking for it widens")
+	assert.True(t, holderP(t, doc).Nullable, "a type beside the allOf is what an entry speaking for it widens")
 	assert.NotEmpty(t, holderP(t, doc).Inferred)
 	assert.Len(t, withCode(diags, diag.InferredNullable), 1)
 	doc, _ = compileNullable(t, besideType, true)

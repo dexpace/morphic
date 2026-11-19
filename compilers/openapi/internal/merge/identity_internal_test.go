@@ -88,11 +88,11 @@ func TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn(t *testing.T) {
 		pointer jsontext.Pointer
 	}{
 		{"no other node", []jsontext.Pointer{first, later}, nil, "p/test" + first, first},
-		{"the branch holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, mintedProp(later), later},
+		{"the entry holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, mintedProp(later), later},
 		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, mintedProp(later), later},
 		{"the schema holding every declaration", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s"}, "p/test" + first, first},
 		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, "p/test" + first, first},
-		{"a branch holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "p/test" + first, first},
+		{"an entry holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "p/test" + first, first},
 	} {
 		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}})
 		g.walk.interned = tc.nodes

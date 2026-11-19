@@ -240,14 +240,14 @@ func TestAllOf_EachInlineEntryKeyedSeparately(t *testing.T) {
 	m, ok := typeByName(doc, "Multi").(*ir.Model)
 	require.True(t, ok, "Multi should be a model")
 	require.Len(t, m.Properties, 2, "both branches still merge their properties")
-	require.Len(t, m.Unmodeled, 2, "one entry per branch; got %+v", m.Unmodeled)
+	require.Len(t, m.Unmodeled, 2, "one Unmodeled entry per allOf entry; got %+v", m.Unmodeled)
 	assert.Contains(t, string(m.Unmodeled["openapi:allOf/0"].Value), `"additionalProperties":false`)
 	assert.Contains(t, string(m.Unmodeled["openapi:allOf/1"].Value), `"patternProperties":`)
 
 	for i, want := range []string{"additionalProperties", "patternProperties"} {
 		at := fmt.Sprintf("/components/schemas/Multi/allOf/%d", i)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at), want,
-			"branch %d is reported at its own pointer, naming its own residue", i)
+			"entry %d is reported at its own pointer, naming its own residue", i)
 	}
 }
 
@@ -255,7 +255,7 @@ func TestAllOf_EachInlineEntryKeyedSeparately(t *testing.T) {
 // caller: buildComposedVariant re-runs the same merge once per union variant, so
 // the residue, the whole branch, has to land on every variant the composition
 // rides on, while what the branch folds reaches the Union. The diagnostic is
-// announced once even so — the branch is one source construct however many
+// announced once even so — the entry is one source construct however many
 // variants carry it.
 func TestAllOf_EntryResidueRidesEveryDistributedVariant(t *testing.T) {
 	t.Parallel()
