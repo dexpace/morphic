@@ -1038,12 +1038,13 @@ it sees. Changes made together in one bump are listed together under it.
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure),
     [`competing-keywords`](../compilers/openapi.md#competing-keywords)). Written together beside a
     body's keywords or its `allOf`, or on one inline entry of that `allOf`, they distribute the one
-    whose branches declare shape against the position, the `oneOf` where both or neither do, each
-    variant keeping the other under its keyword, where the position was a `Model` keeping both,
-    under their keywords or with the entry whole. Wherever it is written, the union passed over is
-    a conjunct of the rest a dead branch is read against and of the conjuncts
+    whose branches declare shape against the position, the `oneOf` where both do, each variant
+    keeping the other under its keyword, where one entry writing both was a `Model` keeping both
+    and the `oneOf` was distributed whatever its branches declared; where neither does, both are
+    kept as validation logic, as before. Wherever it is written, the union passed over is a
+    conjunct of the rest a dead branch is read against and of the conjuncts
     [`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts) reads, named
-    `allOf/<n>/<keyword>` on an entry.
+    `allOf/<n>/<keyword>` on the entry writing both.
   - **A use of one `$ref` past the admission caps**
     ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). An `allOf` whose read passes
     256 schemas or 4,096 `enum` members but weighs one `$ref` alone, every other conjunct naming no
@@ -1087,7 +1088,8 @@ it sees. Changes made together in one bump are listed together under it.
     null, beside an `allOf` whose rest admits null, on an entry of it or beside a `$ref` to it,
     draws the warning that its conjuncts share no value, where it drew infos only. A `oneOf` and
     an `anyOf` that no instance satisfies together lower, beside the body, beside its `allOf`, on
-    one entry or on two, to the body's `Model` keeping both as `degraded_lowering` with that one
+    one entry or on two, to the body's `Model` keeping both, as `degraded_lowering` where one of
+    them declares shape against the body and as validation logic where neither does, with that one
     warning, where two entries, and a union passed over that shares no kind with the body,
     distributed the elected union.
 
@@ -1103,10 +1105,10 @@ it sees. Changes made together in one bump are listed together under it.
     the two share no value, every spelling, the one schema writing both among them, draws the
     warning that the conjuncts share no value, where the one schema drew an info alone. Beside a
     body, a branch of the elected union is read against the union passed over in every spelling:
-    over a body `type: [object, 'null']`, `oneOf: [{type: object}]` beside an `anyOf` naming null is
-    the `Union` of the object branch keeping the null branch under `openapi:anyOf/<i>` with the
-    dead-branch warning, where the one schema writing both built a variant over the null branch with
-    no warning. Neither union of the pair is folded into a refinement's principal as already said:
+    over a body `type: [object, 'null']`, `oneOf: [{type: object}]` beside an `anyOf` of an object
+    declaring shape and a `$ref` to null is the `Union` of the `anyOf`'s object branch keeping the
+    null branch under `openapi:anyOf/<i>` with the dead-branch warning, where the one schema writing
+    both distributed the `oneOf`, keeping the `anyOf` on its one variant, with no warning. Neither union of the pair is folded into a refinement's principal as already said:
     `{allOf: [{type: string}, {oneOf: [{type: string}]}, {anyOf: [{}]}]}` keeps the `anyOf` as
     `validation_only`, where nothing kept it. Two unions sharing no value beside a body that is no
     `Model` lower as the body in every spelling, keeping both, with that warning, where two entries
@@ -1115,8 +1117,9 @@ it sees. Changes made together in one bump are listed together under it.
   - **A union of null alone beside an `allOf`**
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
     A union every branch of which admits null alone shares no kind with a rest admitting no null:
-    `{allOf: [T], oneOf: [{type: 'null'}]}` over an object `T` is the `Model` of `T` keeping the
-    `oneOf` with one warning naming it, where it was a one-variant `Union` of a composed `Model`.
+    `{allOf: [T], oneOf: [{$ref: Null}]}`, `Null` being `{type: 'null'}`, over an object `T` is the
+    `Model` of `T` keeping the `oneOf` with one warning naming it, where it was a one-variant `Union`
+    of a composed `Model` and the warning named the schema's `type: null`.
     Two unions whose branches share null alone are that `Model` keeping both with one warning, in
     every spelling. Passed over for a union of objects, such a union is kept with the other on the
     body's `Model` as `degraded_lowering`, and beside a body admitting null it is kept as
