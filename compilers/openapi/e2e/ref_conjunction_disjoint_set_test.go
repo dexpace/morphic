@@ -57,8 +57,8 @@ var disjointSets = map[string]struct{ target, keywords string }{
 
 // TestRefConjunction_AnEntrysValueSetLowersAsBesideItsRef holds the four
 // spellings of value keywords leaving the conjunction no value beside a $ref
-// to one document at every site: the value set the election of competing
-// keywords elects, never a Model, the rest kept and reported alike.
+// to one document at every site: the value set the dispatch among competing
+// keywords picks, never a Model, the rest kept and reported alike.
 func TestRefConjunction_AnEntrysValueSetLowersAsBesideItsRef(t *testing.T) {
 	t.Parallel()
 	for name, tc := range disjointSets {

@@ -16,7 +16,7 @@ import (
 )
 
 // TestValueSet_APassedOverAllOfWritingAnInlineEntryIsKeptWhole pins the allOf
-// the election of competing keywords passes over where it writes an inline
+// the dispatch among competing keywords passes over where it writes an inline
 // entry: kept whole under openapi:allOf, the $ref beside it under
 // openapi:$ref, where an allOf of $ref entries alone keeps each by its text.
 func TestValueSet_APassedOverAllOfWritingAnInlineEntryIsKeptWhole(t *testing.T) {

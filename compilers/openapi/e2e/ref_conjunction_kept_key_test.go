@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// passedOverRefs are $ref uses beside a value set the election of competing
-// keywords elects over the $ref: a const and an enum sharing no value beside a
+// passedOverRefs are $ref uses beside a value set the dispatch among competing
+// keywords picks over the $ref: a const and an enum sharing no value beside a
 // string, and an enum beside a reference naming no schema.
 var passedOverRefs = map[string]struct{ target, keywords string }{
 	"disjoint value keywords":    {"T: {type: string}", "const: z, enum: [a]"},
@@ -19,7 +19,7 @@ var passedOverRefs = map[string]struct{ target, keywords string }{
 }
 
 // TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling holds a
-// $ref the election of competing keywords passes over, written beside the
+// $ref the dispatch among competing keywords passes over, written beside the
 // value set or as an allOf of it beside the value set, to one document at
 // each site: the reference kept under openapi:$ref holding its text, the
 // allOf of it no more kept whole, up to the entry's pointer.

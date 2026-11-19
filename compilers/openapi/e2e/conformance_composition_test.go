@@ -1133,7 +1133,7 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 }
 
 // assertAllOfValueSetBesideEntry holds allof-value-set-beside-entry to
-// docs/compilers/openapi.md#competing-keywords: where no value set is elected
+// docs/compilers/openapi.md#competing-keywords: where no value set is picked
 // before the composition, the allOf an inline entry is written on is passed
 // over and kept whole, each beside the value set the position lowers as, and a
 // $ref written beside them with it. The sets share a member, so the document
@@ -1160,7 +1160,7 @@ func assertAllOfValueSetBesideEntry(t *testing.T, doc *ir.Document, diags []ir.D
 				reported++
 			}
 		}
-		assert.Equal(t, 1, reported, "%s: the election reports what it passed over once", name)
+		assert.Equal(t, 1, reported, "%s: the dispatch reports what it passed over once", name)
 	}
 	assertNoErrorDiags(t, diags)
 }

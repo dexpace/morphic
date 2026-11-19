@@ -348,7 +348,7 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 }
 
 // TestCoDeclaredFamily_EveryPassedOverKeywordIsKept pins a schema writing all
-// three: it keeps the value set it did not elect, named in one report, and the
+// three: it keeps the value set it did not pick, named in one report, and the
 // allOf's $ref, a conjunct of the one it did, kept as a conjunct is.
 func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 	t.Parallel()
@@ -417,14 +417,14 @@ func TestCoDeclaredFamily_TheReportNamesWhatTheNodeKeeps(t *testing.T) {
 					said = append(said, d.Message)
 				}
 			}
-			require.Len(t, said, 1, "one report says what the election passed over: %+v", diags)
+			require.Len(t, said, 1, "one report says what the dispatch passed over: %+v", diags)
 			assert.Contains(t, said[0], "it lowered as the enum, with "+tc.named+" kept verbatim under Unmodeled")
 		})
 	}
 }
 
 // TestCoDeclaredFamily_UnpreservableIsNotAnnounced pins the pairing GitHub #144
-// exists for, at this site: the enum is elected over the allOf, whose entry
+// exists for, at this site: the enum is picked over the allOf, whose entry
 // keeps its type under its own key and fails to convert its extension, the
 // failure is reported at the entry, and nothing claims the extension survived.
 func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {

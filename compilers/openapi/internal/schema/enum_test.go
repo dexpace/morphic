@@ -421,7 +421,7 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 				return
 			}
 			assert.Contains(t, e.Unmodeled, tc.wantKept,
-				"the keyword the election passed over stays beside the enum")
+				"the keyword the dispatch passed over stays beside the enum")
 		})
 	}
 }

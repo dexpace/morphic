@@ -75,7 +75,7 @@ components:
         p: {$ref: '#/components/schemas/RefTargetStr', format: email}
     RefTargetStr: {type: string}
     RefTargetObj: {type: object, properties: {a: {type: string}}}
-    # Keywords the *elected* family's lowering never reads. A Model composed
+    # Keywords the *picked* family's lowering never reads. A Model composed
     # from allOf carries no type token, so a non-object type states something the
     # IR no longer holds. A Literal's ValueType holds the type and format its
     # value fits, so ConstWithFormat keeps nothing, but no bound reaches a field.

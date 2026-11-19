@@ -118,9 +118,9 @@ func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 	assert.True(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "and the position says so")
 }
 
-// TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead covers the keywords
-// the winning lowering never reads (GitHub #268). lower() elects one keyword
-// family per position, and what the elected form has no field for must be kept:
+// TestUnhomedKeywords_PickedLoweringKeepsWhatItCannotRead covers the keywords
+// the winning lowering never reads (GitHub #268). lower() picks one keyword
+// family per position, and what the picked form has no field for must be kept:
 // a Model has no type token, a Literal no Constraints and no type or format its
 // value does not fit. Only the built node shows it, which the keeping of unread
 // keywords asks.
@@ -128,7 +128,7 @@ func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 // The kept set is asserted whole, so keeping too much fails as
 // loudly as one that keeps too little; the `type: object` row matters because a
 // Model restates it and nothing may be recorded.
-func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
+func TestUnhomedKeywords_PickedLoweringKeepsWhatItCannotRead(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, body string

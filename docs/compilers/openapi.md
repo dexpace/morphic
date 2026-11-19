@@ -4563,11 +4563,11 @@ branches declare shape against the position, the `oneOf` where both do, and keep
 variant, an `allOf` that refines being no such sibling but a
 conjunction the unions are conjuncts of ([`allof-refinement`](#allof-refinement)).
 An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its conjuncts
-([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
+([`allof-refinement`](#allof-refinement)): the value set is picked before a composition there,
 each conjunct it beats kept as that rule keeps it, a set its own keywords leave no value standing for
 the keyword the dispatch picks of it, each reported apart: the keyword passed over with an info, as
 below, and each conjunct the set beats as that rule reports it. So the
-dispatch passes over the `allOf` only where no value set is elected, keeping it whole where
+dispatch passes over the `allOf` only where no value set is picked, keeping it whole where
 it writes an inline entry, and else each `$ref` entry under `openapi:$ref`, or `openapi:$ref/<i>`
 where several are kept, as the `$ref` beside it is kept. A keyword the *picked* lowering never reads — `type: string` beside an `allOf` composing
 an object,
