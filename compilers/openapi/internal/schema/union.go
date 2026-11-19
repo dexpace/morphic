@@ -63,7 +63,10 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 					})
 				diags = append(diags, unionDiags...)
 				if u.dead != nil {
-					diags = append(diags, keepDeadBranches(c, &def.Unmodeled, at, u, st.pointer(pointer))...)
+					// The report names an entry's union by the entry it is written on.
+					reported := u
+					reported.branch = st.of != nil
+					diags = append(diags, keepDeadBranches(c, &def.Unmodeled, at, reported, st.pointer(pointer))...)
 				}
 				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, st.voices(c, s, pointer), pointer, st.takes(c, s))
 				def.Constraints = cons

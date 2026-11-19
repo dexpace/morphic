@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -149,6 +150,9 @@ func TestElection_ANullBranchIsDeadWhereTheUnionPassedOverKeepsNullOut(t *testin
 					}
 					require.Len(t, warned, 1)
 					assert.Contains(t, warned[0], "no instance satisfies")
+					if strings.HasPrefix(name, "on ") {
+						assert.Contains(t, warned[0], "of the anyOf on allOf/", "the report names the entry")
+					}
 				})
 			}
 		}
