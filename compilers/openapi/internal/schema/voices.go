@@ -113,19 +113,19 @@ type allOfEntryFoldingKey struct {
 	schema *statement.Schema
 }
 
-// foldingAllOfEntries reports, for each entry of s's flattened allOf, whether it folds:
-// it is inline, it writes something for the position, and each such keyword
-// agrees with every other conjunct writing it, s's own keywords among them
-// (agreement). The answer reads the whole set, so no conjunct takes precedence
-// and no order decides. A null keyword writes nothing (WritesKeywordLeftOut).
-// Every use of s asks, so it is read once a run.
+// foldingAllOfEntries reports, for each entry of s's flattened allOf, whether
+// it folds: it is inline, it writes something for the position, and each such
+// keyword agrees with every other conjunct writing it, s's own keywords among
+// them (agreement). The answer reads the whole set, so no conjunct takes
+// precedence and no order decides. A null keyword writes nothing
+// (WritesKeywordLeftOut). Every use of s asks, so it is read once a run.
 func foldingAllOfEntries(loweringContext lowering.Ctx, schema *statement.Schema) []bool {
 	return allOfEntryFoldingOf(loweringContext, schema).entryFoldsIntoPosition
 }
 
-// allOfEntryFolding is what a schema's allOf says for the position holding it: whether
-// each entry of the flattened list folds, whether it lends a use what s and
-// the folding entries before it do not, a keyword none of them writes, and
+// allOfEntryFolding is what a schema's allOf says for the position holding it:
+// whether each entry of the flattened list folds, whether it lends a use what s
+// and the folding entries before it do not, a keyword none of them writes, and
 // whether what it folds writes a relative $ref it reads against another base
 // than the position does (readsAtPosition), so nothing it writes folds.
 type allOfEntryFolding struct {
@@ -243,9 +243,9 @@ func disagreedWhy(residue []string, entryNamesValue entryNames) string {
 		entryNamesValue.kept + " (" + strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
 }
 
-// disagreed reports whether residue, what an entry that did not fold keeps of bs,
-// holds a keyword folding reads: foldingAllOfEntries passes over an entry for writing none
-// or for a disagreement, and this tells them apart.
+// disagreed reports whether residue, what an entry that did not fold keeps of
+// bs, holds a keyword folding reads: foldingAllOfEntries passes over an entry
+// for writing none or for a disagreement, and this tells them apart.
 func disagreed(loweringContext lowering.Ctx, bs *statement.Schema, residue []string) bool {
 	return slices.ContainsFunc(residue, func(keyword string) bool {
 		_, fold := foldEntry(loweringContext, bs, keyword)
@@ -278,10 +278,10 @@ func foldsNullable(bs *statement.Schema) bool {
 	return !hasKey(bs, "properties")
 }
 
-// positionFoldedEntries returns the voices of s, written at pointer, as a reader of
-// what the position holds takes them, target being what the position lowered
-// to. An entry whose own node that is, the alias a $ref principal writing
-// keywords beside it stands at its entry, keeps what it writes there.
+// positionFoldedEntries returns the voices of s, written at pointer, as a
+// reader of what the position holds takes them, target being what the position
+// lowered to. An entry whose own node that is, the alias a $ref principal
+// writing keywords beside it stands at its entry, keeps what it writes there.
 func positionFoldedEntries(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.FoldedAllOfEntry {
 	if !allOfDecides(loweringContext, schema) {
 		return nil
@@ -311,12 +311,12 @@ func foldedEntryAt(loweringContext lowering.Ctx, node *statement.Schema, at json
 }
 
 // lendingEntries returns the entries of s that fold, each at its pointer below
-// s, for a use
-// reading what s lends it, but those writing only what s or such an entry before
-// them writes: the writers of a keyword a use reads agree (foldingAllOfEntries), so a
-// reader taking the nearest takes the same value from any of them, and a use of s
-// pays for each keyword once, not for each entry repeating it. Bounds, which agree
-// by meeting, are no such keyword: a use never reads them through its $ref.
+// s, for a use reading what s lends it, but those writing only what s or such
+// an entry before them writes: the writers of a keyword a use reads agree
+// (foldingAllOfEntries), so a reader taking the nearest takes the same value
+// from any of them, and a use of s pays for each keyword once, not for each
+// entry repeating it. Bounds, which agree by meeting, are no such keyword: a
+// use never reads them through its $ref.
 func lendingEntries(loweringContext lowering.Ctx, schema *statement.Schema) []allOfEntry {
 	if !allOfDecides(loweringContext, schema) {
 		return nil
@@ -354,11 +354,12 @@ func recordFoldedEntryResidue(loweringContext lowering.Ctx, td ir.TypeDef, schem
 	return diags
 }
 
-// FoldedEntriesInOverwriteOrder returns voices in the order a keeper overwriting what each
-// writes takes them: those kept whole, then the rest, each the last first. The
-// nearest voice kept apart holds a keyword several write, and one kept whole,
-// whose entry holds it (annotation.Voice.KeptWhole), only one no other writes,
-// which that entry then holds alone (dropFoldedIntoWhole).
+// FoldedEntriesInOverwriteOrder returns voices in the order a keeper
+// overwriting what each writes takes them: those kept whole, then the rest,
+// each the last first. The nearest voice kept apart holds a keyword several
+// write, and one kept whole, whose entry holds it (annotation.Voice.KeptWhole),
+// only one no other writes, which that entry then holds alone
+// (dropFoldedIntoWhole).
 func FoldedEntriesInOverwriteOrder(foldedEntries []annotation.FoldedAllOfEntry) []annotation.FoldedAllOfEntry {
 	out := make([]annotation.FoldedAllOfEntry, 0, len(foldedEntries))
 	for _, whole := range []bool{true, false} {

@@ -49,10 +49,11 @@ var besideTheAllOf = map[string]struct{ beside, code, at string }{
 	"beside a $dynamicRef":     {", $dynamicRef: '#meta'", diag.DegradedConstruct, "/$dynamicRef"},
 }
 
-// TestAllOfEntryFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword on an inline
-// entry to the same keyword beside the allOf, at each outcome besideTheAllOf
-// names: for each one the two lower to the same nodes, a $ref use of S among them,
-// the entry's kept nowhere else and reported nowhere but where it is written.
+// TestAllOfEntryFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword
+// on an inline entry to the same keyword beside the allOf, at each outcome
+// besideTheAllOf names: for each one the two lower to the same nodes, a $ref
+// use of S among them, the entry's kept nowhere else and reported nowhere but
+// where it is written.
 func TestAllOfEntryFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 	t.Parallel()
 	for name, keyword := range map[string]string{
@@ -216,10 +217,10 @@ func keptEntries(model *ir.Model) []string {
 	return out
 }
 
-// TestAllOfEntryFolding_AFalseFlagAgreesWithATrue pins the boolean annotations JSON Schema
-// reads in force where any occurrence is true: an entry writing one false says
-// nothing another's true disagrees with, so both fold, in either order, and the
-// use reads the flag in force.
+// TestAllOfEntryFolding_AFalseFlagAgreesWithATrue pins the boolean annotations
+// JSON Schema reads in force where any occurrence is true: an entry writing one
+// false says nothing another's true disagrees with, so both fold, in either
+// order, and the use reads the flag in force.
 func TestAllOfEntryFolding_AFalseFlagAgreesWithATrue(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -291,14 +292,14 @@ func TestVoices_AnEntryDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 	assert.Empty(t, irModel.Docs.Description, "no precedence chooses between two descriptions")
 }
 
-// TestAllOfEntryFolding_BoundsMeetInEveryOrder pins value bounds two conjuncts write apart:
-// they meet as a redeclared field's do, each taking what they say together, in
-// either order. A writer stating no value, as a 3.0 exclusive modifier with no
-// bound beside it or one of false, parts none (GitHub #1494): both fold, and the
-// modifier that bounds nothing is kept and warned of at its own entry. A count
-// folds into the model a Base declaring no type composes, and a numeric bound
-// into the scalar a refinement of a number lowers to, the node of a kind that
-// takes it.
+// TestAllOfEntryFolding_BoundsMeetInEveryOrder pins value bounds two conjuncts
+// write apart: they meet as a redeclared field's do, each taking what they say
+// together, in either order. A writer stating no value, as a 3.0 exclusive
+// modifier with no bound beside it or one of false, parts none (GitHub #1494):
+// both fold, and the modifier that bounds nothing is kept and warned of at its
+// own entry. A count folds into the model a Base declaring no type composes,
+// and a numeric bound into the scalar a refinement of a number lowers to, the
+// node of a kind that takes it.
 func TestAllOfEntryFolding_BoundsMeetInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -382,11 +383,12 @@ func TestVoices_ABoundTheComposedModelCannotTakeKeepsItsEntry(t *testing.T) {
 	}
 }
 
-// TestAllOfEntryFolding_ARefusedBoundPartsNoWriter pins a bound beside one the rule table
-// refuses, in either order (GitHub #1494): the refused value states nothing, so
-// both entries fold, the stated bound reaches the node, and the refusal is
-// reported once, at the keyword, as it is beside the allOf. Base is a number,
-// so the node the entries fold into, a scalar over it, takes the bound.
+// TestAllOfEntryFolding_ARefusedBoundPartsNoWriter pins a bound beside one the
+// rule table refuses, in either order (GitHub #1494): the refused value states
+// nothing, so both entries fold, the stated bound reaches the node, and the
+// refusal is reported once, at the keyword, as it is beside the allOf. Base is
+// a number, so the node the entries fold into, a scalar over it, takes the
+// bound.
 func TestAllOfEntryFolding_ARefusedBoundPartsNoWriter(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -418,9 +420,10 @@ func TestAllOfEntryFolding_AgreeingConjunctsSayItOnce(t *testing.T) {
 	assert.Len(t, model.Examples, 1)
 }
 
-// TestAllOfEntryFolding_ANullKeywordWritesNothing pins an entry writing a keyword as null,
-// which reads as the keyword left out: it disagrees with no conjunct, so what
-// another entry writes folds, in either order, as it does with the key removed.
+// TestAllOfEntryFolding_ANullKeywordWritesNothing pins an entry writing a
+// keyword as null, which reads as the keyword left out: it disagrees with no
+// conjunct, so what another entry writes folds, in either order, as it does
+// with the key removed.
 func TestAllOfEntryFolding_ANullKeywordWritesNothing(t *testing.T) {
 	t.Parallel()
 	for _, entries := range []string{"{description: null}, {description: d}", "{description: d}, {description: null}"} {
@@ -432,11 +435,11 @@ func TestAllOfEntryFolding_ANullKeywordWritesNothing(t *testing.T) {
 	}
 }
 
-// TestAllOfEntryFolding_ADisagreementIsReportedAsOne pins the words a kept entry draws: its
-// keywords have homes, so the report names the disagreement that kept them from
-// folding, in a composition and in a refinement, and says neither that the node
-// has no home nor that nothing reads it. An entry with nothing to fold keeps the
-// wording of what it does keep.
+// TestAllOfEntryFolding_ADisagreementIsReportedAsOne pins the words a kept
+// entry draws: its keywords have homes, so the report names the disagreement
+// that kept them from folding, in a composition and in a refinement, and says
+// neither that the node has no home nor that nothing reads it. An entry with
+// nothing to fold keeps the wording of what it does keep.
 func TestAllOfEntryFolding_ADisagreementIsReportedAsOne(t *testing.T) {
 	t.Parallel()
 	const disagreed = "the conjuncts of this allOf disagree on a keyword this inline entry writes"
@@ -502,9 +505,10 @@ func TestAllOfEntryFolding_AnExampleRenderingNothingStillAgrees(t *testing.T) {
 	assert.Empty(t, model.Unmodeled)
 }
 
-// TestAllOfEntryFolding_AValueThatWillNotRenderAgreesWithNothing pins two entries writing one
-// value no JSON holds: neither can be shown to say what the other does, so neither
-// folds, and each is reported as the whole entry it could not keep.
+// TestAllOfEntryFolding_AValueThatWillNotRenderAgreesWithNothing pins two
+// entries writing one value no JSON holds: neither can be shown to say what the
+// other does, so neither folds, and each is reported as the whole entry it
+// could not keep.
 func TestAllOfEntryFolding_AValueThatWillNotRenderAgreesWithNothing(t *testing.T) {
 	t.Parallel()
 	const bad = "{x-t: " + unpreservableValue + "}"
@@ -514,9 +518,9 @@ func TestAllOfEntryFolding_AValueThatWillNotRenderAgreesWithNothing(t *testing.T
 	}
 }
 
-// TestAllOfEntryFolding_KeywordsOneEntryHoldsDisagreeAsOne pins the keywords a position keeps
-// in one entry: written on two entries they would overwrite each other, so they
-// are compared as the entry. The same entry written twice folds.
+// TestAllOfEntryFolding_KeywordsOneEntryHoldsDisagreeAsOne pins the keywords a
+// position keeps in one entry: written on two entries they would overwrite each
+// other, so they are compared as the entry. The same entry written twice folds.
 func TestAllOfEntryFolding_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -589,10 +593,10 @@ func TestVoices_AnUnevaluatedKeywordStaysWithItsEntry(t *testing.T) {
 	}
 }
 
-// TestAllOfEntryFolding_AUseBindingKeywordReachesItsCarrierOrItsNode pins readOnly and default
-// on an entry: a carrier holds them as beside the allOf, a union distributed across
-// it or not, and with no carrier a node the position owns keeps them verbatim,
-// reported at the keyword.
+// TestAllOfEntryFolding_AUseBindingKeywordReachesItsCarrierOrItsNode pins
+// readOnly and default on an entry: a carrier holds them as beside the allOf, a
+// union distributed across it or not, and with no carrier a node the position
+// owns keeps them verbatim, reported at the keyword.
 func TestAllOfEntryFolding_AUseBindingKeywordReachesItsCarrierOrItsNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {id: {type: string}}}

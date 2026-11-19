@@ -317,11 +317,11 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 	assert.NotContains(t, got.Unmodeled, losingDeclarationKey+"/B/data")
 }
 
-// TestPropertyIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the identity
-// of a member the model declares beside an entry's declaration: its own
-// declaration's, where that is written, unless another model holds that
-// declaration too, as a node interned at the allOf entry writing it does, or
-// it is written outside the model's schema, as the body a distributed variant
+// TestPropertyIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the
+// identity of a member the model declares beside an entry's declaration: its
+// own declaration's, where that is written, unless another model holds that
+// declaration too, as a node interned at the allOf entry writing it does, or it
+// is written outside the model's schema, as the body a distributed variant
 // shares is; then one in the composed namespace. The conflict over the entry's
 // declaration sits where that is written either way, naming the member.
 func TestPropertyIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {

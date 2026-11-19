@@ -37,14 +37,13 @@ func untypedKinds(loweringContext lowering.Ctx, schema *statement.Schema) (kindS
 // whichever order the keywords are written in.
 var inferredKinds = []statement.JSONSchemaTypeName{statement.KindObject, statement.KindArray}
 
-// lowerTypeList lowers s, at pointer, by the several types typingValue names, one
-// variant per type, each from this same schema (lowerUnion): the types it
+// lowerTypeList lowers s, at pointer, by the several types typingValue names,
+// one variant per type, each from this same schema (lowerUnion): the types it
 // lists, an object and an array its shape keywords speak of, or the kinds an
 // allOf electing no entry admits (typingOf). The homes are the variants', not
-// the Union's, and a type list is what built them, so its `type` is read.
-// Where the policy read the kinds, the union and each variant are marked, as
-// each variant's kind was read off the keywords too. The union stands where
-// st says.
+// the Union's, and a type list is what built them, so its `type` is read. Where
+// the policy read the kinds, the union and each variant are marked, as each
+// variant's kind was read off the keywords too. The union stands where st says.
 func lowerTypeList(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, typingValue typing,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {

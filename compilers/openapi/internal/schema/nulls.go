@@ -792,11 +792,11 @@ type nullableFoldingEntriesKey struct {
 	schema *statement.Schema
 }
 
-// nullableFoldingEntries returns the entries of s's flattened allOf, each at its pointer
-// under s's, that speak for s, write `nullable: true` and write no properties
-// (foldsNullable). Every use of s asks, so it is read once a run. An entry writing
-// `false` widens nothing, though it speaks where the only `true` beside it is on a
-// $ref entry, which no fold compares.
+// nullableFoldingEntries returns the entries of s's flattened allOf, each at
+// its pointer under s's, that speak for s, write `nullable: true` and write no
+// properties (foldsNullable). Every use of s asks, so it is read once a run. An
+// entry writing `false` widens nothing, though it speaks where the only `true`
+// beside it is on a $ref entry, which no fold compares.
 func nullableFoldingEntries(loweringContext lowering.Ctx, schema *statement.Schema) []allOfEntry {
 	return lowering.ReadOncePerRun(loweringContext, nullableFoldingEntriesKey{schema}, func() []allOfEntry {
 		if !allOfDecides(loweringContext, schema) {

@@ -238,12 +238,12 @@ func valueTypeHoldsFormat(primitive ir.PrimitiveKind, schema *statement.Schema) 
 	return ok && narrowsOrIs(primitive, paired)
 }
 
-// conjunctPrimitive returns, of own and the primitive each conjunct of r selects
-// (declaredPrimitive), the one narrowing every other, and own where none does: two
-// formats neither of which narrows the other say no one primitive. The conjuncts
-// are s, each inline entry, and what decides what a $ref entry lands on
-// (conjunctSchemas). own is "" for a value no primitive types, which none fits,
-// so it stands.
+// conjunctPrimitive returns, of own and the primitive each conjunct of r
+// selects (declaredPrimitive), the one narrowing every other, and own where
+// none does: two formats neither of which narrows the other say no one
+// primitive. The conjuncts are s, each inline entry, and what decides what a
+// $ref entry lands on (conjunctSchemas). own is "" for a value no primitive
+// types, which none fits, so it stands.
 func conjunctPrimitive(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
 	primitives := []ir.PrimitiveKind{own}
 	for _, cs := range conjunctSchemas(loweringContext, refinementValue, schema) {

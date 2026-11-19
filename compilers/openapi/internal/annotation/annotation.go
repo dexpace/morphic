@@ -163,10 +163,10 @@ const (
 // references another type and may carry annotations of its own.
 type Kind int
 
-// SchemaPositionAnnotationSources is what a schema position declares: Node is the schema written there,
-// Voices the inline allOf entries read as written beside it, and Referents,
-// honoured only for a reference site, what a use site's annotations fall back
-// to, nearest first.
+// SchemaPositionAnnotationSources is what a schema position declares: Node is
+// the schema written there, Voices the inline allOf entries read as written
+// beside it, and Referents, honoured only for a reference site, what a use
+// site's annotations fall back to, nearest first.
 //
 // A Site At builds carries none of either: a declaration's annotations bind the
 // position they are written at (attachDeclaredAnnotations), and a component
@@ -208,8 +208,8 @@ type Dialect struct {
 	ListedTuple       bool
 }
 
-// FoldedAllOfEntry is an inline allOf entry and where it is written, so what it declares
-// is read, and reported, at its own pointer, in its own dialect.
+// FoldedAllOfEntry is an inline allOf entry and where it is written, so what it
+// declares is read, and reported, at its own pointer, in its own dialect.
 type FoldedAllOfEntry struct {
 	Node *statement.Schema
 	At   jsontext.Pointer
@@ -305,11 +305,11 @@ func DeclaresRedaction(schema *statement.Schema) bool {
 
 // Read reads every site-local annotation at st: what its schema writes at
 // pointer, then what each voice writes at its own. A voice agrees with what
-// spoke before it wherever both write a keyword (schema.foldingAllOfEntries), so an
-// entry is kept once: the site's own, else, where several voices kept apart
-// write it, at pointer, no one writer's (underlay). A voice's unevaluated
-// keywords fold nowhere (schema.foldEntry): its entry, kept whole, is their
-// one record.
+// spoke before it wherever both write a keyword (schema.foldingAllOfEntries),
+// so an entry is kept once: the site's own, else, where several voices kept
+// apart write it, at pointer, no one writer's (underlay). A voice's unevaluated
+// keywords fold nowhere (schema.foldEntry): its entry, kept whole, is their one
+// record.
 //
 // This is the one place the site-versus-referent choice is made, so no
 // position attaching annotations makes it apart.

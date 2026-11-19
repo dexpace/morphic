@@ -229,10 +229,10 @@ func TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 	assert.Nil(t, underlayValue.add(nil, nil, false, site), "nothing to add allocates nothing")
 }
 
-// TestUnderlayAdd_AFoldedEntryKeptWholeWritesForNoOne pins that a voice kept whole,
-// whose entry holds what it folds, counts as no writer: it fills a key alone,
-// gives it up to a voice kept apart in either order, and leaves one two voices
-// kept apart write at the site.
+// TestUnderlayAdd_AFoldedEntryKeptWholeWritesForNoOne pins that a voice kept
+// whole, whose entry holds what it folds, counts as no writer: it fills a key
+// alone, gives it up to a voice kept apart in either order, and leaves one two
+// voices kept apart write at the site.
 func TestUnderlayAdd_AFoldedEntryKeptWholeWritesForNoOne(t *testing.T) {
 	t.Parallel()
 	site := ir.Provenance{Pointer: "/site"}

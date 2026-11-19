@@ -325,13 +325,13 @@ type fallbackReadKey struct {
 	schema *statement.Schema
 }
 
-// fallbackAnnotationsOf reads what js, the schema a $ref lands on, lends a use of it, nearest
-// first: each hop of the chain of $refs from js that writes more than its $ref,
-// the schema the chain ends on, the entries of its allOf that fold
-// (lendingEntries), and past a refinement, a decorator or a narrowing enum
-// whatever its own $ref lends in turn. Only that end is read for what it admits,
-// so the narrowing starts past its entries. Every $ref landing on js asks, so it
-// is read once a run.
+// fallbackAnnotationsOf reads what js, the schema a $ref lands on, lends a use
+// of it, nearest first: each hop of the chain of $refs from js that writes more
+// than its $ref, the schema the chain ends on, the entries of its allOf that
+// fold (lendingEntries), and past a refinement, a decorator or a narrowing enum
+// whatever its own $ref lends in turn. Only that end is read for what it
+// admits, so the narrowing starts past its entries. Every $ref landing on js
+// asks, so it is read once a run.
 func fallbackAnnotationsOf(loweringContext lowering.Ctx, js *statement.Statement) Use {
 	return lowering.ReadOncePerRun(loweringContext, fallbackReadKey{js.Schema}, func() Use { return readLent(loweringContext, js) })
 }
@@ -359,11 +359,12 @@ func readLent(loweringContext lowering.Ctx, js *statement.Statement) Use {
 	return use
 }
 
-// appendFallbackChainRun appends to u.Referents each alias of the run of $refs js starts that
-// writes more than its $ref, then the schema the run ends on and its lending
-// entries, and returns that schema. It is false, the run lending nothing past
-// what it appended, where the run ends on no schema, as a chain that loops or
-// fails does. The table's count of the chain's hops bounds the run.
+// appendFallbackChainRun appends to u.Referents each alias of the run of $refs
+// js starts that writes more than its $ref, then the schema the run ends on and
+// its lending entries, and returns that schema. It is false, the run lending
+// nothing past what it appended, where the run ends on no schema, as a chain
+// that loops or fails does. The table's count of the chain's hops bounds the
+// run.
 func (u *Use) appendFallbackChainRun(loweringContext lowering.Ctx, js *statement.Statement) (*statement.Schema, bool) {
 	var referenceSite reftable.ReferenceSite
 	if js.Ref != nil && js.Ref.Bound {

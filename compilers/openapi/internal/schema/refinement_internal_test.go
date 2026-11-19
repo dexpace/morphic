@@ -116,10 +116,10 @@ func TestAdmissionReader_ReadsAValueSetOnce(t *testing.T) {
 	assert.NotContains(t, read.values, "string:z")
 }
 
-// TestFoldingAllOfEntries_ReadsASchemaOnce pins that what folds is read once a run however
-// many uses of a schema ask, which keeps a schema's uses times its entries from
-// being the cost of a wide composition: its allOf goes after the first read, which
-// no lowering does, so only a remembered answer stays.
+// TestFoldingAllOfEntries_ReadsASchemaOnce pins that what folds is read once a
+// run however many uses of a schema ask, which keeps a schema's uses times its
+// entries from being the cost of a wide composition: its allOf goes after the
+// first read, which no lowering does, so only a remembered answer stays.
 func TestFoldingAllOfEntries_ReadsASchemaOnce(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
@@ -133,9 +133,9 @@ func TestFoldingAllOfEntries_ReadsASchemaOnce(t *testing.T) {
 	assert.Equal(t, []bool{false, true}, foldingAllOfEntries(lowerer.Ctx, StatedIn(lowerer, s)), "the second ask reads what the first read")
 }
 
-// TestNullableFoldingEntries_ReadsASchemaOnce pins that the entries widening a schema
-// are read once a run, as its voicing is, since every use of the schema asks:
-// its allOf goes after the first read, so only a remembered answer stays.
+// TestNullableFoldingEntries_ReadsASchemaOnce pins that the entries widening a
+// schema are read once a run, as its voicing is, since every use of the schema
+// asks: its allOf goes after the first read, so only a remembered answer stays.
 func TestNullableFoldingEntries_ReadsASchemaOnce(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
@@ -238,11 +238,11 @@ func TestWrittenText_RendersASchemaOnce(t *testing.T) {
 	assert.Equal(t, text, writtenText(lowerer.Ctx, lowerer.Ctx.Statements().Of(js)), "the second ask reads what the first rendered")
 }
 
-// TestReadAllOfEntryFolding_RendersEachValueOnce pins what a first writer costs: every later
-// conjunct compares with it, so rendering it for each comparison made a document's
-// entries times its longest value the cost of one composition. It is not parallel,
-// as the count is the process's, and takes the least of three counts, since
-// anything else allocating only adds to one.
+// TestReadAllOfEntryFolding_RendersEachValueOnce pins what a first writer
+// costs: every later conjunct compares with it, so rendering it for each
+// comparison made a document's entries times its longest value the cost of one
+// composition. It is not parallel, as the count is the process's, and takes the
+// least of three counts, since anything else allocating only adds to one.
 func TestReadAllOfEntryFolding_RendersEachValueOnce(t *testing.T) {
 	big := strings.Repeat("x", 1<<20)
 	cost := func(later int) uint64 {
@@ -268,9 +268,9 @@ func TestReadAllOfEntryFolding_RendersEachValueOnce(t *testing.T) {
 	assert.Less(t, cost(256), 2*cost(64), "four times the entries, not four times the value")
 }
 
-// TestRead_AFoldedEntryCostsItsOwnEntries pins what a site's voices cost: each adds its
-// own entries, where overlaying what came before on each made the cost of a
-// composition its entries squared. It is not parallel, as the count is the
+// TestRead_AFoldedEntryCostsItsOwnEntries pins what a site's voices cost: each
+// adds its own entries, where overlaying what came before on each made the cost
+// of a composition its entries squared. It is not parallel, as the count is the
 // process's, and takes the least of three counts for the same reason as
 // TestReadAllOfEntryFolding_RendersEachValueOnce.
 func TestRead_AFoldedEntryCostsItsOwnEntries(t *testing.T) {

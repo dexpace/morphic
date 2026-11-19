@@ -33,13 +33,13 @@ type Statement struct {
 	Entries []AllOfConjunct
 }
 
-// AllOfConjunct is one conjunct of a statement: the schema object written there, its
-// pointer below the statement's schema, such as /allOf/0/allOf/1, empty for
-// the reference the statement's own object writes, whether it is a wrapper
-// whose own entries precede it, and whether it writes an allOf nested past
-// MaxFlattenDepth, which is not listed. An object writing a reference beside
-// other keys is two entries at one pointer: the reference alone, then the
-// keywords beside it, which write none (Schema.WrittenBeside).
+// AllOfConjunct is one conjunct of a statement: the schema object written
+// there, its pointer below the statement's schema, such as /allOf/0/allOf/1,
+// empty for the reference the statement's own object writes, whether it is a
+// wrapper whose own entries precede it, and whether it writes an allOf nested
+// past MaxFlattenDepth, which is not listed. An object writing a reference
+// beside other keys is two entries at one pointer: the reference alone, then
+// the keywords beside it, which write none (Schema.WrittenBeside).
 type AllOfConjunct struct {
 	*Schema
 	Rel     jsontext.Pointer

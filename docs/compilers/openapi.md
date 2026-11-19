@@ -2436,59 +2436,58 @@ in the pointer of the node it lowers to.
 
 A `format` or `items` written with no `type` qualifies a kind and names none, so it decides nothing:
 `{allOf: [{type: integer}, {format: int32}]}` lowers to `integer` with the second entry kept, in
-either order, since no one conjunct says `int32` and a schema built from two would stand at a pointer
-naming neither. Where nothing declares a kind and the kind-inference policy reads the position's
-kinds off its conjuncts' claims ([`shape-applicator`](#shape-applicator)), a conjunct whose own
-keywords claim every one of them names them, as one writing that `type` would: `{allOf: [{items:
-{type: string}}, {minItems: 1}]}` is a use of the `List` its first entry builds, marked, holding the
-bound, as `{allOf: [{type: array, items: {type: string}}, {minItems: 1}]}` is a use of its unmarked
-one, and `{items: {type: string}, allOf: [{items: {minLength: 1}}]}` lowers by the keywords beside
-the `allOf`. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
-principal and is the top type. Where the keywords beside the `allOf` win, the position lowers by them
-as if no `allOf` were written. An inline principal lowers at the position's pointer, as the keywords
-beside the `allOf` would, so one node stands for the position whichever conjunct decides it: a
-value set, a `Union`, a `List`, a `Tuple` or a hoisted `Scalar`, its children and the reports on
-what it writes where they are written, so `{allOf: [{description: d}, {type: array, items: {type:
-string}}]}` is the `List` at the position, as its flat spelling is, and a node its `items` builds
-stands at `…/allOf/1/items`. A type list's variants, which no pointer of the source names, and the
-nodes beneath them stand under the position's ([`type-arrays`](#type-arrays)). The node holds the
-bounds of the conjunction, the position's own and each other conjunct's, as the same keywords
-written beside each other give it them, each where the node's builder reads it and one no part of
-the node reads kept on it under its keyword, a collection bound beside a `oneOf` as the flat
-spelling keeps it, and an object bound of a `type` list's object variant as
-[`type-arrays`](#type-arrays) says. The node reads the position's own keywords before the
-principal's, as the keywords beside an `allOf` stand before an entry's: of two `pattern`s written
-otherwise its field holds the position's, and the principal, disagreeing, is kept whole
-([`allof-inline-residue`](#allof-inline-residue)). A keyword written beside the `allOf` as the
-inline principal writes it is one writing, whichever reading reads or keeps it: read once, or kept
-once and reported once. What the principal's keeping of unread keywords, its bounds on a number carried as text or
-its build keeps is the principal's, kept at the entry, and the position's readers leave it, a
-`oneOf` or `anyOf` its union does not lower among it, with the build's reason and report;
-a content keyword the node holds no field for is the position's, whose reading keeps it first, the
-principal's finding it kept; and a keyword the position keeps through its declaration, a
+either order, since no one conjunct says `int32` and a schema built from two would stand at a
+pointer naming neither. Where nothing declares a kind and the kind-inference policy reads the
+position's kinds off its conjuncts' claims ([`shape-applicator`](#shape-applicator)), a conjunct
+whose own keywords claim every one of them names them, as one writing that `type` would:
+`{allOf: [{items: {type: string}}, {minItems: 1}]}` is a use of the `List` its first entry builds,
+marked, holding the bound, as `{allOf: [{type: array, items: {type: string}}, {minItems: 1}]}` is a
+use of its unmarked one, and `{items: {type: string}, allOf: [{items: {minLength: 1}}]}` lowers by
+the keywords beside the `allOf`. An `allOf` no conjunct names a kind in,
+`{allOf: [{description: d}]}`, has no principal and is the top type. Where the keywords beside the
+`allOf` win, the position lowers by them as if no `allOf` were written. An inline principal lowers
+at the position's pointer, as the keywords beside the `allOf` would, so one node stands for the
+position whichever conjunct decides it: a value set, a `Union`, a `List`, a `Tuple` or a hoisted
+`Scalar`, its children and the reports on what it writes where they are written, so
+`{allOf: [{description: d}, {type: array, items: {type: string}}]}` is the `List` at the position,
+as its flat spelling is, and a node its `items` builds stands at `…/allOf/1/items`. A type list's
+variants, which no pointer of the source names, and the nodes beneath them stand under the
+position's ([`type-arrays`](#type-arrays)). The node holds the bounds of the conjunction, the
+position's own and each other conjunct's, as the same keywords written beside each other give it
+them, each where the node's builder reads it and one no part of the node reads kept on it under its
+keyword, a collection bound beside a `oneOf` as the flat spelling keeps it, and an object bound of a
+`type` list's object variant as [`type-arrays`](#type-arrays) says. The node reads the position's
+own keywords before the principal's, as the keywords beside an `allOf` stand before an entry's: of
+two `pattern`s written otherwise its field holds the position's, and the principal, disagreeing, is
+kept whole ([`allof-inline-residue`](#allof-inline-residue)). A keyword written beside the `allOf`
+as the inline principal writes it is one writing, whichever reading reads or keeps it: read once, or
+kept once and reported once. What the principal's keeping of unread keywords, its bounds on a number
+carried as text or its build keeps is the principal's, kept at the entry, and the position's readers
+leave it, a `oneOf` or `anyOf` its union does not lower among it, with the build's reason and
+report; a content keyword the node holds no field for is the position's, whose reading keeps it
+first, the principal's finding it kept; and a keyword the position keeps through its declaration, a
 `default`, `readOnly`, `writeOnly`, a validation-only keyword, an extension or a key no dialect
 defines, is the position's, kept and reported there, and the entry's reading says nothing of it.
 Where the position keeps the principal whole, or a wrapper around it, that entry holds the one
 writing and the position keeps none of it, but an extension the promotion policy reads
 ([unmodeled](../ir/unmodeled.md#keys)). So a content keyword written alike is read in the `Encoding`
-the principal's node holds, a
-type list's on its string variant, and one written otherwise is kept under its keyword, reported
-as held beside an `Encoding` holding its entry's. A `discriminator` written beside the `allOf`
-of a principal whose `Union` holds its own is kept under its keyword, its mapping resolved, and
-reported as kept beside the discriminator the `Union` holds, which one `Union` is routed by. The conjunct reads as a folded entry of the position, what it
-writes that its node has no field for kept there at its own pointer, as any conjunct's is, once the
-position has written its own ([`allof-inline-residue`](#allof-inline-residue)). A `oneOf`
-or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
-as the same union beside the `allOf` is, and so are the unions conjuncts beside a principal writing
-none write, judged together as two beside the `allOf` are: each kept as `degraded_lowering` where
-one of them declares shape, and as validation logic where none does. Where the node is a `Union`, a `discriminator` the
-conjunct writes is the node's, so the extensions and keys OpenAPI defines for no Discriminator
-Object are kept on it, under `openapi:discriminator/<key>` at the conjunct's pointer, as one
-written at the position is ([`vendor-extensions`](#vendor-extensions)); any other node keeps the
-`discriminator` whole, as the same node at the position does. A `$ref` to the entry's own pointer
-names the entry alone, a node of its own typed by what it writes. A wrapper's `allOf` is the
-position's conjuncts, so
-`{allOf: [{allOf: [{minItems: 1}], type: array, items: {type: string}}]}` is the one `List` its
+the principal's node holds, a type list's on its string variant, and one written otherwise is kept
+under its keyword, reported as held beside an `Encoding` holding its entry's. A `discriminator`
+written beside the `allOf` of a principal whose `Union` holds its own is kept under its keyword, its
+mapping resolved, and reported as kept beside the discriminator the `Union` holds, which one `Union`
+is routed by. The conjunct reads as a folded entry of the position, what it writes that its node has
+no field for kept there at its own pointer, as any conjunct's is, once the position has written its
+own ([`allof-inline-residue`](#allof-inline-residue)). A `oneOf` or `anyOf` a value set writes is
+among that, since the node holds no union, kept under its keyword as the same union beside the
+`allOf` is, and so are the unions conjuncts beside a principal writing none write, judged together
+as two beside the `allOf` are: each kept as `degraded_lowering` where one of them declares shape,
+and as validation logic where none does. Where the node is a `Union`, a `discriminator` the conjunct
+writes is the node's, so the extensions and keys OpenAPI defines for no Discriminator Object are
+kept on it, under `openapi:discriminator/<key>` at the conjunct's pointer, as one written at the
+position is ([`vendor-extensions`](#vendor-extensions)); any other node keeps the `discriminator`
+whole, as the same node at the position does. A `$ref` to the entry's own pointer names the entry
+alone, a node of its own typed by what it writes. A wrapper's `allOf` is the position's conjuncts,
+so `{allOf: [{allOf: [{minItems: 1}], type: array, items: {type: string}}]}` is the one `List` its
 flat spelling is, holding the bound once. A `$ref` principal lowers as any `$ref` entry does, what
 is written beside it on the alias [models](../ir/models.md#composition-entries) describes, and an
 inline one that reduces to a shared node reads as written beside the `allOf`.

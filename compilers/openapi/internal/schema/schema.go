@@ -459,8 +459,8 @@ func dispatchAt(loweringContext lowering.Ctx, schema *statement.Schema, pointer 
 
 // ownDispatch returns the dispatch among the keywords schema writes itself: its
 // own (dispatchOf), or, where its allOf refines, that of the keywords beside
-// the allOf, as if none were written (besideAllOf). It is what lower lowers schema
-// by where no entry of the allOf decides the position (dispatchAt), so a
+// the allOf, as if none were written (besideAllOf). It is what lower lowers
+// schema by where no entry of the allOf decides the position (dispatchAt), so a
 // reader asking ahead of the build what those keywords build asks it too
 // (buildsModel).
 func ownDispatch(loweringContext lowering.Ctx, schema *statement.Schema) dispatch {
@@ -575,13 +575,14 @@ func typingOf(loweringContext lowering.Ctx, schema *statement.Schema) typing {
 	return typing{types: types, by: byShape, inferred: inferred}
 }
 
-// lowerTyping lowers schema, at pointer, whose dispatch dispatchValue picks no family, by typingValue
-// (typingOf): a type list by one variant per type, each from this same schema;
-// one type by its structural or scalar form, an object or an array its shape
-// keywords speak of marked where the kind-inference policy read the kind; a
-// type naming null alone to the value set of null; and nothing naming a kind
-// to the top type. The keywords the node cannot hold are kept beside it
-// (keepingUnread, keepUnreadAcross). fin finishes the node standing at pointer.
+// lowerTyping lowers schema, at pointer, whose dispatch dispatchValue picks no
+// family, by typingValue (typingOf): a type list by one variant per type, each
+// from this same schema; one type by its structural or scalar form, an object
+// or an array its shape keywords speak of marked where the kind-inference
+// policy read the kind; a type naming null alone to the value set of null; and
+// nothing naming a kind to the top type. The keywords the node cannot hold are
+// kept beside it (keepingUnread, keepUnreadAcross). fin finishes the node
+// standing at pointer.
 func lowerTyping(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, dispatchValue dispatch, typingValue typing,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -701,12 +702,12 @@ func (d dispatch) handled() keySet {
 	return keySetOf(d.skipped...) | keySetOf(d.said...)
 }
 
-// buildsModel reports whether lowerDispatched, lowering schema by d, builds a Model,
-// the only node with composition fields for a union to distribute across: d
-// picks an allOf, which composes one (lowerAllOf), or no family, and schema lowers
-// as one object (typingOf). So a bare property set, `required`, closure or
-// catch-all beside branches each declaring an object builds one, as beside
-// `type: object`.
+// buildsModel reports whether lowerDispatched, lowering schema by d, builds a
+// Model, the only node with composition fields for a union to distribute
+// across: d picks an allOf, which composes one (lowerAllOf), or no family, and
+// schema lowers as one object (typingOf). So a bare property set, `required`,
+// closure or catch-all beside branches each declaring an object builds one, as
+// beside `type: object`.
 func (d dispatch) buildsModel(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return d.won == "allOf" || d.won == "" && typingOf(loweringContext, schema).object()
 }

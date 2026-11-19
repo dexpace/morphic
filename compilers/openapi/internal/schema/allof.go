@@ -118,10 +118,10 @@ type allOfComposition struct {
 	// warning docs/compilers/openapi.md#allof-disjoint-conjuncts describes, and
 	// is nil otherwise (readAllOf).
 	disjoint []string
-	// speaks marks each entry that folds at the position (foldingAllOfEntries), and
-	// rebased each whose folding keywords write a relative $ref it reads against
-	// another base, so it does not. They are nil where the allOf is not what the
-	// position lowers (allOfDecides).
+	// speaks marks each entry that folds at the position (foldingAllOfEntries),
+	// and rebased each whose folding keywords write a relative $ref it reads
+	// against another base, so it does not. They are nil where the allOf is not
+	// what the position lowers (allOfDecides).
 	entryFoldsIntoPosition []bool
 	rebased                []bool
 	// conjoins is the pointer of the entry whose union the position lowers,
@@ -161,12 +161,12 @@ func allOfEntries(loweringContext lowering.Ctx, schema *statement.Schema, pointe
 }
 
 // readAllOf is allOfEntries of the schema written at pointer, with what its
-// conjuncts jointly admit read and, where the allOf is what the position lowers,
-// which entries fold there (allOfEntryFoldingOf) and which writes the union the position
-// lowers (entryUnion), for a lowering that composes it. That gate is
-// positionFoldedEntries', so an entry gives up a keyword only where a reader of the
-// position takes it up; both composers pass it, and the report of an allOf the
-// election passed over does not.
+// conjuncts jointly admit read and, where the allOf is what the position
+// lowers, which entries fold there (allOfEntryFoldingOf) and which writes the
+// union the position lowers (entryUnion), for a lowering that composes it. That
+// gate is positionFoldedEntries', so an entry gives up a keyword only where a
+// reader of the position takes it up; both composers pass it, and the report of
+// an allOf the election passed over does not.
 func readAllOf(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) allOfComposition {
 	comp := allOfEntries(loweringContext, schema, pointer)
 	comp.disjoint = disjointNames(loweringContext, schema, comp)
@@ -267,8 +267,9 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 //
 // An inline entry merges in place: its `properties` and `required`
 // (requireMembers) merge, its catch-all keywords where it closes the model
-// (closerOf), what it writes for the position folds there (foldingAllOfEntries), and
-// the rest stays verbatim beside the model (preserveUnmergedEntry, GitHub
+// (closerOf), what it writes for the position folds there
+// (foldingAllOfEntries), and the rest stays verbatim beside the model
+// (preserveUnmergedEntry, GitHub
 // #123).
 //
 // A $ref entry is the reference alone, composing what it names

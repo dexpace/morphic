@@ -11,14 +11,14 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
-// chooseConjunctToLowerFrom picks the conjunct the position lowers from, of refs the $refs that
-// may be: an inline value set within every other, since it fixes the values
-// and what it narrows cannot; else a $ref, since replacing it drops what its
-// target says (narrowestRef); else, of those naming a kind, the conjunct
-// within the most others. A `format` or `items` naming no kind only qualifies
-// one, so it never decides, and where nothing names a kind no entry does. No
-// tie goes by the order written: untie breaks one, and words neither within
-// the other elect none.
+// chooseConjunctToLowerFrom picks the conjunct the position lowers from, of
+// refs the $refs that may be: an inline value set within every other, since it
+// fixes the values and what it narrows cannot; else a $ref, since replacing it
+// drops what its target says (narrowestRef); else, of those naming a kind, the
+// conjunct within the most others. A `format` or `items` naming no kind only
+// qualifies one, so it never decides, and where nothing names a kind no entry
+// does. No tie goes by the order written: untie breaks one, and words neither
+// within the other elect none.
 func (w *admissionReader) chooseConjunctToLowerFrom(conjuncts []conjunct, refs []*conjunct) *conjunct {
 	for i := range conjuncts {
 		if w.narrowsAll(conjuncts, i, refs) {
